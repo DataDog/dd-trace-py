@@ -30,11 +30,7 @@ def install_global_trace_filter(writer: TestOptWriter) -> None:
 
     span_processor = TestOptSpanProcessor(writer)
 
-    try:
-        ddtrace.tracer.configure(trace_processors=[span_processor])  # type: ignore
-    except TypeError:
-        # ddtrace 2.x compatibility
-        ddtrace.tracer.configure(settings={"FILTERS": [span_processor]})  # type: ignore
+    ddtrace.tracer.configure(trace_processors=[span_processor])
 
     # TODO: this should be somewhere else.
     try:
@@ -54,11 +50,7 @@ def uninstall_global_trace_filter() -> None:
     except ImportError:
         return None
 
-    try:
-        ddtrace.tracer.configure(trace_processors=[])  # type: ignore
-    except TypeError:
-        # ddtrace 2.x compatibility
-        ddtrace.tracer.configure(settings={"FILTERS": []})  # type: ignore
+    ddtrace.tracer.configure(trace_processors=[])
 
 
 def trace_context(ddtrace_enabled: bool) -> t.ContextManager[TestContext]:
@@ -89,9 +81,9 @@ def _ddtrace_context() -> t.Generator[DDTraceTestContext, None, None]:
     # TODO: check if this breaks async tests.
     # This seems to be necessary because buggy ddtrace integrations can leave spans
     # unfinished, and spans for subsequent tests will have the wrong parent.
-    ddtrace.tracer.context_provider.activate(None)  # type: ignore[attr-defined]
+    ddtrace.tracer.context_provider.activate(None)
 
-    with ddtrace.tracer.trace(DDTESTOPT_ROOT_SPAN_RESOURCE) as root_span:  # type: ignore[attr-defined]
+    with ddtrace.tracer.trace(DDTESTOPT_ROOT_SPAN_RESOURCE) as root_span:
         yield DDTraceTestContext(root_span)
 
 

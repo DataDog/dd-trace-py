@@ -1,7 +1,8 @@
 """
 API for code coverage collection for use by ddtrace.testing.
 
-The rest of ddtrace.testing should only use the interface exposed in this file to set up code coverage and get coverage data.
+The rest of ddtrace.testing should only use the interface exposed in this file to set up code coverage and get
+coverage data.
 """
 
 import contextlib
@@ -15,7 +16,7 @@ from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 def install_coverage(workspace_path: Path) -> None:
     ddtrace.internal.coverage.installer.install(include_paths=[workspace_path], collect_import_time_coverage=True)
-    ModuleCodeCollector.start_coverage()  # type: ignore[no-untyped-call]
+    ModuleCodeCollector.start_coverage()
 
 
 class CoverageData:

@@ -1,17 +1,10 @@
 import typing as t
 
-
-try:
-    from ddtrace.trace import Span
-    from ddtrace.trace import TraceFilter
-except ImportError:
-    # ddtrace 2.x compatibility
-    from ddtrace import Span  # type: ignore[attr-defined, no-redef]
-    from ddtrace.filters import TraceFilter  # type: ignore[import-not-found, no-redef]
-
 from ddtrace.testing.internal.utils import DDTESTOPT_ROOT_SPAN_RESOURCE
 from ddtrace.testing.internal.writer import Event
 from ddtrace.testing.internal.writer import TestOptWriter
+from ddtrace.trace import Span
+from ddtrace.trace import TraceFilter
 
 
 class TestOptSpanProcessor(TraceFilter):

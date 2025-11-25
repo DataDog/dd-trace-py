@@ -46,7 +46,7 @@ class TestITR:
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
-                result = pytester.inline_run("--ddtestpy", "-p", "no:ddtrace", "-v", "-s")
+                result = pytester.inline_run("--ddtrace", "-p", "no:ddtrace", "-v", "-s")
 
         # Check that tests completed successfully
         assert result.ret == 0  # Exit code 0 indicates success
@@ -103,7 +103,7 @@ class TestITR:
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
-                result = pytester.inline_run("--ddtestpy", "-p", "no:ddtrace", "-v", "-s")
+                result = pytester.inline_run("--ddtrace", "-p", "no:ddtrace", "-v", "-s")
 
         # Check that tests completed with failure (1 test failed).
         assert result.ret == 1
@@ -168,7 +168,7 @@ class TestITR:
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
-                result = pytester.inline_run("--ddtestpy", "-p", "no:ddtrace", "-v", "-s")
+                result = pytester.inline_run("--ddtrace", "-p", "no:ddtrace", "-v", "-s")
 
         # Check that tests completed with failure (1 test failed).
         assert result.ret == 1
@@ -225,7 +225,7 @@ class TestITR:
             setup_standard_mocks(),
         ):
             with patch.object(TestCoverageWriter, "put_event") as put_event_mock:
-                pytester.inline_run("--ddtestpy", "-p", "no:ddtrace", "-v", "-s")
+                pytester.inline_run("--ddtrace", "-p", "no:ddtrace", "-v", "-s")
 
         coverage_events = [args[0] for args, kwargs in put_event_mock.call_args_list]
         covered_files = set(f["filename"] for f in coverage_events[0]["files"])
@@ -253,7 +253,7 @@ class TestITR:
             setup_standard_mocks(),
         ):
             with patch.object(TestCoverageWriter, "put_event") as put_event_mock:
-                pytester.inline_run("--ddtestpy", "-p", "no:ddtrace", "-v", "-s")
+                pytester.inline_run("--ddtrace", "-p", "no:ddtrace", "-v", "-s")
 
         coverage_events = [args[0] for args, kwargs in put_event_mock.call_args_list]
         assert coverage_events == []

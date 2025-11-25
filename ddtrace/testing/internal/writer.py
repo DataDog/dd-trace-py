@@ -5,8 +5,7 @@ import threading
 import typing as t
 import uuid
 
-import msgpack  # type: ignore
-
+from ddtrace.internal._encoding import packb as msgpack_packb
 import ddtrace.testing
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
@@ -127,7 +126,7 @@ class TestOptWriter(BaseWriter):
             "metadata": self.metadata,
             "events": events,
         }
-        pack = msgpack.packb(payload)
+        pack = msgpack_packb(payload)
         response, response_data = self.connector.request(
             "POST", "/api/v2/citestcycle", data=pack, headers={"Content-Type": "application/msgpack"}, send_gzip=True
         )
@@ -160,7 +159,7 @@ class TestCoverageWriter(BaseWriter):
                 name="coverage1",
                 filename="coverage1.msgpack",
                 content_type="application/msgpack",
-                data=msgpack.packb({"version": 2, "coverages": events}),
+                data=msgpack_packb({"version": 2, "coverages": events}),
             ),
             FileAttachment(
                 name="event",

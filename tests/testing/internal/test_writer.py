@@ -68,7 +68,7 @@ class TestTestOptWriter:
         assert TestSession in writer.serializers
 
     @patch("ddtrace.testing.internal.http.BackendConnector")
-    @patch("msgpack.packb")
+    @patch("ddtrace.testing.internal.writer.msgpack_packb")
     def test_send_events(self, mock_packb: Mock, mock_backend_connector: Mock) -> None:
         """Test sending events to backend."""
         mock_connector = Mock()
@@ -145,7 +145,7 @@ class TestTestCoverageWriter:
         assert len(event["files"]) == 2
 
     @patch("ddtrace.testing.internal.http.BackendConnector")
-    @patch("msgpack.packb")
+    @patch("ddtrace.testing.internal.writer.msgpack_packb")
     def test_send_coverage_events(self, mock_packb: Mock, mock_backend_connector: Mock) -> None:
         """Test sending coverage events."""
         mock_connector = Mock()

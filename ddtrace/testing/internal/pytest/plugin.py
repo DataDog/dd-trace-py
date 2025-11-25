@@ -110,7 +110,7 @@ def _get_module_path_from_item(item: pytest.Item) -> Path:
         item_path = getattr(item, "path", None)
         if item_path is not None:
             return item.path.absolute().parent
-        return Path(item.module.__file__).absolute().parent  # type: ignore[attr-defined]
+        return Path(item.module.__file__).absolute().parent
     except Exception:  # noqa: E722
         return Path.cwd()
 
@@ -148,7 +148,7 @@ class TestOptPlugin:
                 self.session.set_session_id(session_id)
                 self.is_xdist_worker = True
 
-        if session.config.getoption("ddtestpy-with-ddtrace"):
+        if session.config.getoption("ddtrace-patch-all"):
             self.enable_ddtrace = True
 
         self.session.start()
@@ -434,7 +434,7 @@ class TestOptPlugin:
                 ("dd_retry_outcome", call_report.outcome),
                 ("dd_retry_reason", retry_handler.get_pretty_name()),
             ]
-            call_report.outcome = "dd_retry"  # type: ignore
+            call_report.outcome = "dd_retry"
             return True
 
         return False
@@ -468,9 +468,9 @@ class TestOptPlugin:
             nodeid=item.nodeid,
             location=item.location,
             keywords={k: 1 for k in item.keywords},
-            when=TestPhase.CALL,  # type: ignore
+            when=TestPhase.CALL,
             longrepr=longrepr,
-            outcome=outcomes.get(final_status, str(final_status)),  # type: ignore
+            outcome=outcomes.get(final_status, str(final_status)),
             user_properties=item.user_properties,
         )
 
@@ -570,43 +570,43 @@ def _make_reports_dict(reports: t.List[pytest.TestReport]) -> _ReportGroup:
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
-    """Add ddtestpy options."""
-    group = parser.getgroup("ddtestpy")
+    """Add ddtrace options."""
+    group = parser.getgroup("ddtrace")
 
     group.addoption(
-        "--ddtestpy",
+        "--ddtrace",
         action="store_true",
-        dest="ddtestpy",
+        dest="ddtrace",
         default=False,
         help="Enable Datadog Test Optimization",
     )
 
     group.addoption(
-        "--no-ddtestpy",
+        "--no-ddtrace",
         action="store_true",
-        dest="no-ddtestpy",
+        dest="no-ddtrace",
         default=False,
-        help="Disable Datadog Test Optimization (overrides --ddtestpy)",
+        help="Disable Datadog Test Optimization (overrides --ddtrace)",
     )
 
     group.addoption(
-        "--ddtestpy-with-ddtrace",
+        "--ddtrace-patch-all",
         action="store_true",
-        dest="ddtestpy-with-ddtrace",
+        dest="ddtrace-patch-all",
         default=False,
         help="Enable all integrations with ddtrace",
     )
 
-    parser.addini("ddtestpy", "Enable Datadog Test Optimization", type="bool")
-    parser.addini("no-ddtestpy", "Disable Datadog Test Optimization (overrides 'ddtestpy')", type="bool")
-    parser.addini("ddtestpy-with-ddtrace", "Enable all integrations with ddtrace", type="bool")
+    parser.addini("ddtrace", "Enable Datadog Test Optimization", type="bool")
+    parser.addini("no-ddtrace", "Disable Datadog Test Optimization (overrides 'ddtrace')", type="bool")
+    parser.addini("ddtrace-patch-all", "Enable all integrations with ddtrace", type="bool")
 
 
 def _is_enabled_early(early_config: pytest.Config, args: t.List[str]) -> bool:
-    if _is_option_true("no-ddtestpy", early_config, args):
+    if _is_option_true("no-ddtrace", early_config, args):
         return False
 
-    return _is_option_true("ddtestpy", early_config, args)
+    return _is_option_true("ddtrace", early_config, args)
 
 
 def _is_option_true(option: str, early_config: pytest.Config, args: t.List[str]) -> bool:
@@ -704,13 +704,13 @@ def _get_user_property(report: pytest.TestReport, user_property: str) -> t.Optio
 
 
 def _get_test_parameters_json(item: pytest.Item) -> t.Optional[str]:
-    callspec: t.Optional[pytest.python.CallSpec2] = getattr(item, "callspec", None)  # type: ignore[name-defined]
+    callspec: t.Optional[pytest.python.CallSpec2] = getattr(item, "callspec", None)
 
     if callspec is None:
         return None
 
     parameters: t.Dict[str, t.Dict[str, str]] = {"arguments": {}, "metadata": {}}
-    for param_name, param_val in item.callspec.params.items():  # type: ignore[attr-defined]
+    for param_name, param_val in item.callspec.params.items():
         try:
             parameters["arguments"][param_name] = _encode_test_parameter(param_val)
         except Exception:
