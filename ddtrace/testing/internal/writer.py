@@ -125,6 +125,7 @@ class TestOptWriter(BaseWriter):
             "events": events,
         }
         pack = msgpack_packb(payload)
+        breakpoint()
         response, response_data = self.connector.request(
             "POST", "/api/v2/citestcycle", data=pack, headers={"Content-Type": "application/msgpack"}, send_gzip=True
         )
