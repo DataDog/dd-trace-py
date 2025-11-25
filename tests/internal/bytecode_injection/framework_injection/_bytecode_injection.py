@@ -1,5 +1,6 @@
 import atexit
 import dis
+from pathlib import Path
 import sys
 import types
 from types import ModuleType
@@ -16,7 +17,6 @@ from utils import is_included
 from ddtrace.internal.bytecode_injection.core import CallbackType
 from ddtrace.internal.bytecode_injection.core import InjectionContext
 from ddtrace.internal.bytecode_injection.core import inject_invocation
-from ddtrace.internal.compat import Path
 from ddtrace.internal.module import BaseModuleWatchdog
 
 

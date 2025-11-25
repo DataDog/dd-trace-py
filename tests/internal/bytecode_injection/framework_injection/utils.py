@@ -1,7 +1,7 @@
 import os
+from pathlib import Path
 from types import ModuleType
 
-from ddtrace.internal.compat import Path
 from ddtrace.internal.module import origin
 
 
