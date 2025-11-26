@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import random
 import re
 import typing as t
+
+from ddtrace.internal._rand import rand64bits
 
 
 if t.TYPE_CHECKING:
@@ -13,7 +14,8 @@ DDTESTOPT_ROOT_SPAN_RESOURCE = "testing_root_span"
 
 
 def _gen_item_id() -> int:
-    return random.randint(1, (1 << 64) - 1)  # nosec: B311
+    # We use ddtrace's random number generator to avoid being affected by pytest-randomly.
+    return rand64bits()
 
 
 def asbool(value: t.Union[str, bool, None]) -> bool:
