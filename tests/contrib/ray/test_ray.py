@@ -1,5 +1,10 @@
+import os
+import time
+
 import pytest
 import ray
+from ray.job_submission import JobStatus
+from ray.job_submission import JobSubmissionClient
 from ray.util.tracing import tracing_helper
 
 from tests.utils import TracerTestCase
@@ -314,19 +319,84 @@ class TestRayIntegration(TracerTestCase):
 
 
 class TestRayWithoutInit(TracerTestCase):
-    def tearDown(self):
+    """Test Ray job submission with auto-initialization (no explicit ray.init in job script)"""
+
+    dashboard_url = None
+
+    @classmethod
+    def setUpClass(cls):
+        """Start a real Ray cluster with minimal resources for CI"""
+        super().setUpClass()
+
+        os.environ["DD_TRACE_AIOHTTP_ENABLED"] = "False"
+        os.environ["DD_TRACE_REQUESTS_ENABLED"] = "False"
+        # Configure Ray with minimal resource usage but enable dashboard for job submission
+        ray.init(
+            _tracing_startup_hook="ddtrace.contrib.ray:setup_tracing",
+            local_mode=False,
+            num_cpus=1,
+            num_gpus=0,
+            object_store_memory=100 * 1024 * 1024,  # 100MB
+            include_dashboard=True,
+            dashboard_host="127.0.0.1",
+            dashboard_port=8265,  # Default port
+            # Reduce logging overhead
+            log_to_driver=False,
+            logging_level="ERROR",
+            # Disable unnecessary features
+            _system_config={
+                "automatic_object_spilling_enabled": False,
+                "max_direct_call_object_size": 100 * 1024,  # 100KB
+            },
+        )
+        tracing_helper._global_is_tracing_enabled = False
+
+        # Wait for dashboard to be ready
+        cls.dashboard_url = "http://127.0.0.1:8265"
+        time.sleep(2)
+
+    @classmethod
+    def tearDownClass(cls):
         if ray.is_initialized():
             ray.shutdown()
-        super().tearDown()
+        super().tearDownClass()
+
+    def _submit_and_wait_for_job(self, job_script_name, timeout=30):
+        """Helper method to submit a job and wait for completion"""
+        client = JobSubmissionClient(self.dashboard_url)
+
+        job_script = os.path.join(os.path.dirname(__file__), "jobs", job_script_name)
+        job_id = client.submit_job(entrypoint=f"python {job_script}")
+
+        # Wait for job to complete (with timeout)
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            status = client.get_job_status(job_id)
+            if status in {JobStatus.SUCCEEDED, JobStatus.FAILED, JobStatus.STOPPED}:
+                break
+            time.sleep(0.5)
+
+        final_status = client.get_job_status(job_id)
+        logs = client.get_job_logs(job_id)
+
+        assert final_status == JobStatus.SUCCEEDED, f"Job failed with status {final_status}. Logs:\n{logs}"
+        return job_id, logs
 
     @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_task_without_init", ignores=RAY_SNAPSHOT_IGNORES)
     def test_task_without_init(self):
-        """Test that tracing works when Ray auto-initializes without explicit ray.init()"""
+        self._submit_and_wait_for_job("task_without_init.py")
 
-        @ray.remote
-        def add_one(x):
-            return x + 1
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_task_with_early_tracing", ignores=RAY_SNAPSHOT_IGNORES)
+    def test_task_with_early_tracing(self):
+        self._submit_and_wait_for_job("task_with_early_tracing.py")
 
-        futures = [add_one.remote(i) for i in range(2)]
-        results = ray.get(futures)
-        assert results == [1, 2], f"Unexpected results: {results}"
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_actor_without_init", ignores=RAY_SNAPSHOT_IGNORES)
+    def test_actor_without_init(self):
+        self._submit_and_wait_for_job("actor_without_init.py")
+
+    @pytest.mark.snapshot(
+        token="tests.contrib.ray.test_ray.test_actor_with_early_tracing", ignores=RAY_SNAPSHOT_IGNORES
+    )
+    def test_actor_with_early_tracing(self):
+        """Test that actor tracing works when Ray auto-initializes without explicit ray.init()"""
+        self._submit_and_wait_for_job("actor_with_early_tracing.py")

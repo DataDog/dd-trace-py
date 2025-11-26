@@ -95,8 +95,8 @@ def get_version() -> str:
     return str(getattr(ray, "__version__", ""))
 
 
-def _wrap_remote_function_execution(function):
-    """Inject trace context parameter into function signature"""
+def _inject_tracing_into_function(function):
+    function.__signature__ = _inject_dd_trace_ctx_kwarg(function)
 
     @wraps(function)
     def wrapped_function(*args, **kwargs):
@@ -153,11 +153,9 @@ def traced_submit_task(wrapped, instance, args, kwargs):
     # This is done under a lock as multiple task could be submit at the same time
     # and thus try to modify the signature as the same time
     with instance._inject_lock:
-        if not getattr(instance._function, "_dd_trace_wrapped", False):
-            instance._function = _wrap_remote_function_execution(instance._function)
-            instance._function.__signature__ = _inject_dd_trace_ctx_kwarg(instance._function)
+        if instance._function_signature is None:
+            instance._function = _inject_tracing_into_function(instance._function)
             instance._function_signature = extract_signature(instance._function)
-            instance._function._dd_trace_wrapped = True
 
     with tracer.trace(
         "task.submit",
@@ -487,12 +485,16 @@ def _inject_tracing_async_actor_method(method: Callable[..., Any]) -> Any:
     return _traced_async_method
 
 
-def inject_tracing_into_actor_class(wrapped, instance, args, kwargs):
+def _inject_tracing_into_actor_class(cls):
     from ray._private.inspect_util import is_class_method
     from ray._private.inspect_util import is_function_or_method
     from ray._private.inspect_util import is_static_method
 
-    cls = wrapped(*args, **kwargs)
+    if getattr(cls, "_dd_trace_instrumented", False):
+        return cls
+
+    cls._dd_trace_instrumented = True
+
     module_name = str(cls.__module__)
     class_name = str(cls.__name__)
 
@@ -560,7 +562,7 @@ def patch():
     @ModuleWatchdog.after_module_imported("ray.actor")
     def _(m):
         _w(m.ActorHandle, "_actor_method_call", traced_actor_method_call)
-        _w(m, "_modify_class", inject_tracing_into_actor_class)
+        m._inject_tracing_into_class = _inject_tracing_into_actor_class
 
     @ModuleWatchdog.after_module_imported("ray.dashboard.modules.job.job_manager")
     def _(m):
@@ -581,11 +583,12 @@ def unpatch():
         return
 
     _u(ray.remote_function.RemoteFunction, "_remote")
+    ray.remote_function._inject_tracing_into_function = ray.util.tracing.tracing_helper._inject_tracing_into_function
 
     _u(ray.dashboard.modules.job.job_manager.JobManager, "submit_job")
     _u(ray.dashboard.modules.job.job_manager.JobManager, "_monitor_job_internal")
 
-    _u(ray.actor, "_modify_class")
+    ray.actor._inject_tracing_into_class = ray.util.tracing.tracing_helper._inject_tracing_into_class
     _u(ray.actor.ActorHandle, "_actor_method_call")
 
     _u(ray, "get")
