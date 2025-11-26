@@ -1,4 +1,3 @@
-import os
 from typing import Dict
 
 import aiobotocore.client
@@ -24,6 +23,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.settings._env import get_env as _get_env
 
 
 aiobotocore_version_str = getattr(aiobotocore, "__version__", "")
@@ -43,7 +43,7 @@ TRACED_ARGS = {"params", "path", "verb"}
 config._add(
     "aiobotocore",
     {
-        "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
+        "tag_no_params": asbool(_get_env("DD_AWS_TAG_NO_PARAMS", default=False)),
     },
 )
 

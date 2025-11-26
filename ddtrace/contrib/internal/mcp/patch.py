@@ -1,4 +1,3 @@
-import os
 import sys
 from typing import Any
 from typing import Dict
@@ -20,6 +19,7 @@ from ddtrace.llmobs._integrations.mcp import SERVER_TOOL_CALL_OPERATION_NAME
 from ddtrace.llmobs._integrations.mcp import MCPIntegration
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.settings._env import get_env as _get_env
 
 
 log = get_logger(__name__)
@@ -27,7 +27,7 @@ log = get_logger(__name__)
 config._add(
     "mcp",
     {
-        "distributed_tracing": asbool(os.getenv("DD_MCP_DISTRIBUTED_TRACING", default=True)),
+        "distributed_tracing": asbool(_get_env("DD_MCP_DISTRIBUTED_TRACING", default=True)),
     },
 )
 

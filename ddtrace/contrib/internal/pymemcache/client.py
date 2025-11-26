@@ -1,4 +1,3 @@
-import os
 import sys
 from typing import Iterable
 
@@ -29,6 +28,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings._env import get_env as _get_env
 
 
 log = get_logger(__name__)
@@ -37,7 +37,7 @@ log = get_logger(__name__)
 config._add(
     "pymemcache",
     {
-        "command_enabled": asbool(os.getenv("DD_TRACE_MEMCACHED_COMMAND_ENABLED", default=False)),
+        "command_enabled": asbool(_get_env("DD_TRACE_MEMCACHED_COMMAND_ENABLED", default=False)),
     },
 )
 

@@ -1,4 +1,3 @@
-import os
 from typing import Dict
 
 import httpx
@@ -24,6 +23,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.settings._env import get_env as _get_env
 
 
 HTTPX_VERSION = parse_version(httpx.__version__)
@@ -37,8 +37,8 @@ def get_version():
 config._add(
     "httpx",
     {
-        "distributed_tracing": asbool(os.getenv("DD_HTTPX_DISTRIBUTED_TRACING", default=True)),
-        "split_by_domain": asbool(os.getenv("DD_HTTPX_SPLIT_BY_DOMAIN", default=False)),
+        "distributed_tracing": asbool(_get_env("DD_HTTPX_DISTRIBUTED_TRACING", default=True)),
+        "split_by_domain": asbool(_get_env("DD_HTTPX_SPLIT_BY_DOMAIN", default=False)),
         "default_http_tag_query_string": config._http_client_tag_query_string,
     },
 )
