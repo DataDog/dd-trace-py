@@ -30,7 +30,10 @@ PY = sys.version_info[:2]
 GENERATOR_ASSEMBLY = Assembly()
 GENERATOR_HEAD_ASSEMBLY = None
 
-if PY >= (3, 14):
+if PY >= (3, 15):
+    raise NotImplementedError("This version of CPython is not supported yet")
+
+elif PY >= (3, 14):
     GENERATOR_HEAD_ASSEMBLY = Assembly()
     GENERATOR_HEAD_ASSEMBLY.parse(
         r"""
@@ -46,9 +49,9 @@ if PY >= (3, 14):
             store_fast                  $__ddgen
             load_attr                   $send
             store_fast                  $__ddgensend
-            push_null
             load_const                  next
-            load_fast                   $__ddgen
+            push_null
+            load_fast_borrow            $__ddgen
 
         loop:
             call                        1
@@ -56,12 +59,11 @@ if PY >= (3, 14):
 
         yield:
         try                             @genexit lasti
-            yield_value                 3
+            yield_value                 0
             resume                      1
             push_null
-            swap                        2
-            load_fast                   $__ddgensend
-            swap                        2
+            load_fast_borrow            $__ddgensend
+            swap                        3
             jump_backward               @loop
         tried
 
@@ -81,13 +83,91 @@ if PY >= (3, 14):
 
         exc:
             pop_top
-            push_null
             load_fast                   $__ddgen
             load_attr                   $throw
             push_null
             load_const                  sys.exc_info
+            push_null
             call                        0
+            push_null
             call_function_ex
+            swap                        2
+            pop_except
+            jump_backward               @yield
+        tried
+
+        stopiter:
+            push_exc_info
+            load_const                  StopIteration
+            check_exc_match
+            pop_jump_if_false           @propagate
+            pop_top
+            pop_except
+            load_const                  None
+            return_value
+
+        propagate:
+            reraise                     0
+        """
+    )
+
+elif PY >= (3, 13):
+    GENERATOR_HEAD_ASSEMBLY = Assembly()
+    GENERATOR_HEAD_ASSEMBLY.parse(
+        r"""
+            return_generator
+            pop_top
+        """
+    )
+
+    GENERATOR_ASSEMBLY.parse(
+        r"""
+        try                             @stopiter
+            copy                        1
+            store_fast                  $__ddgen
+            load_attr                   $send
+            store_fast                  $__ddgensend
+            load_const                  next
+            push_null
+            load_fast                   $__ddgen
+
+        loop:
+            call                        1
+        tried
+
+        yield:
+        try                             @genexit lasti
+            yield_value                 0
+            resume                      1
+            push_null
+            load_fast                   $__ddgensend
+            swap                        3
+            jump_backward               @loop
+        tried
+
+        genexit:
+        try                             @stopiter
+            push_exc_info
+            load_const                  GeneratorExit
+            check_exc_match
+            pop_jump_if_false           @exc
+            pop_top
+            load_fast                   $__ddgen
+            load_method                 $close
+            call                        0
+            swap                        2
+            pop_except
+            return_value
+
+        exc:
+            pop_top
+            load_fast                   $__ddgen
+            load_attr                   $throw
+            push_null
+            load_const                  sys.exc_info
+            push_null
+            call                        0
+            call_function_ex            0
             swap                        2
             pop_except
             jump_backward               @yield
@@ -393,75 +473,6 @@ elif PY >= (3, 9):
 
         propagate:
             reraise
-        """
-    )
-
-elif PY >= (3, 8):
-    GENERATOR_ASSEMBLY.parse(
-        r"""
-        setup_finally                   @stopiter
-            dup_top
-            store_fast                  $__ddgen
-            load_attr                   $send
-            store_fast                  $__ddgensend
-            load_const                  next
-            load_fast                   $__ddgen
-
-        loop:
-            call_function               1
-
-        yield:
-        setup_finally                   @genexit
-            yield_value
-        pop_block
-            load_fast                   $__ddgensend
-            rot_two
-            jump_absolute               @loop
-
-        genexit:
-            dup_top
-            load_const                  GeneratorExit
-            compare_op                  asm.Compare.EXC_MATCH
-            pop_jump_if_false           @exc
-            pop_top
-            pop_top
-            pop_top
-            pop_top
-            load_fast                   $__ddgen
-            load_attr                   $close
-            call_function               0
-            return_value
-
-        exc:
-            pop_top
-            pop_top
-            pop_top
-            pop_top
-            load_fast                   $__ddgen
-            load_attr                   $throw
-            load_const                  sys.exc_info
-            call_function               0
-            call_function_ex            0
-            rot_four
-        pop_except
-            jump_absolute               @yield
-
-        stopiter:
-            dup_top
-            load_const                  StopIteration
-            compare_op                  asm.Compare.EXC_MATCH
-            pop_jump_if_false           @propagate
-            pop_top
-            pop_top
-            pop_top
-        pop_except
-            load_const                  None
-            return_value
-
-        propagate:
-        end_finally
-            load_const                  None
-            return_value
         """
     )
 

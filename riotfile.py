@@ -534,6 +534,7 @@ venv = Venv(
                 "pyfakefs": latest,
                 "pytest-benchmark": latest,
                 "wrapt": [latest, "<2.0.0"],
+                "uwsgi": latest,
             },
             venvs=[
                 Venv(
@@ -2691,15 +2692,6 @@ venv = Venv(
                     pkgs={"pytest-asyncio": "==0.21.1"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.11"),
-                    command="pytest {cmdargs} tests/opentracer/test_tracer_tornado.py",
-                    # TODO: update opentracing tests to be compatible with Tornado v6.
-                    # https://github.com/opentracing/opentracing-python/issues/136
-                    pkgs={
-                        "tornado": ["~=4.5.0", "~=5.1.0"],
-                    },
-                ),
-                Venv(
                     command="pytest {cmdargs} tests/opentracer/test_tracer_gevent.py",
                     venvs=[
                         Venv(
@@ -2793,7 +2785,7 @@ venv = Venv(
                     # tornado added support for Python 3.9 in 6.1
                     pys="3.9",
                     # tornado 6.0.x and pytest 8.x have a compatibility bug
-                    pkgs={"tornado": ["~=6.0.0", "~=6.2"], "pytest": "<=8"},
+                    pkgs={"tornado": ["==6.1", "~=6.2"], "pytest": "<=8"},
                 ),
                 Venv(
                     # tornado added support for Python 3.10 in 6.2
@@ -3237,7 +3229,7 @@ venv = Venv(
         Venv(
             name="profile-v2",
             # NB riot commands that use this Venv must include --pass-env to work properly
-            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling_v2/collector/test_memalloc.py' {cmdargs} tests/profiling_v2",  # noqa: E501
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling/collector/test_memalloc.py' {cmdargs} tests/profiling",  # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "CPUCOUNT": "12",
@@ -3260,7 +3252,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="profile-v2-uwsgi",
-                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2/test_uwsgi.py",  # noqa: E501
+                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/test_uwsgi.py",  # noqa: E501
                     pys=select_pys(max_version="3.13"),
                     pkgs={
                         "uwsgi": "<2.0.30",
@@ -3378,7 +3370,7 @@ venv = Venv(
                 ),
                 Venv(
                     name="profile-v2-memalloc",
-                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2/collector/test_memalloc.py",  # noqa: E501
+                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py",  # noqa: E501
                     # skipping v3.14 for now due to an unstable `lz4 ` lib issue: https://gitlab.ddbuild.io/DataDog/apm-reliability/dd-trace-py/-/jobs/1163312347
                     pys=select_pys(max_version="3.13"),
                     pkgs={
