@@ -2,6 +2,10 @@ include:
 - project: 'DataDog/benchmarking-platform-tools'
   file: 'images/templates/gitlab/check-slo-breaches.template.yml'
 
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible
+
 stages:
   - build
   - test
