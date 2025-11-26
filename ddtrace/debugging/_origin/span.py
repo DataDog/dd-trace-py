@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from itertools import count
+from pathlib import Path
 import sys
 from threading import current_thread
 from time import monotonic_ns
@@ -21,7 +22,6 @@ from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.ext import EXIT_SPAN_TYPES
-from ddtrace.internal.compat import Path
 from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code

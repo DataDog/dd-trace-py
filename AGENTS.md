@@ -9,6 +9,21 @@
 3. **Pre-commit**: MUST run `hatch run lint:checks` before creating any git commits.
 4. **Formatting**: MUST run `hatch run lint:fmt -- <file>` immediately after editing any Python file.
 
+**Never:**
+1. Change public API contracts (breaks real applications)
+2. Commit secrets (use environment variables)
+3. Assume business logic (always ask)
+4. Remove AIDEV- comments without instruction
+5. Skip linting before committing
+6. Check and remove unexpected prints
+
+**Always:**
+1. Use the run-tests skill for test execution
+2. Use the lint skill before committing
+3. Ask when unsure about implementation details
+4. Update AIDEV- anchors when modifying related code
+5. Consider performance impact (this runs in production)
+
 ## Initial Setup for AI Assistants
 
 When starting a new chat session, ALWAYS read and apply the rules from:

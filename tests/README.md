@@ -63,7 +63,6 @@ suites:
       - '@core'
       - '@profiling'
       - tests/profiling/*
-      - tests/profiling_v2/*
     services:
       - redis
 ```
