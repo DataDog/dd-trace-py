@@ -1,3 +1,7 @@
+include:
+- project: 'DataDog/benchmarking-platform-tools'
+  file: 'images/templates/gitlab/check-slo-breaches.template.yml'
+
 stages:
   - build
   - test
@@ -17,10 +21,13 @@ variables:
   when: on_success
   tags: ["runner:apm-k8s-tweaked-metal"]
   image: $MICROBENCHMARKS_CI_IMAGE
+  # TODO: revert
   rules:
-    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
-      interruptible: false
-    - interruptible: true
+    - when: always
+      interruptible: true
+    # - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+    #   interruptible: false
+    # - interruptible: true
   timeout: 30m
   dependencies: [ "baseline:build", "candidate" ]
   script: |
@@ -208,6 +215,7 @@ benchmarks-pr-comment:
 # Since benchmark failures block the PR directly, this job blocks the PR if 
 # benchmarks succeed but there are SLO breaches.
 check-slo-breaches:
+  extends: .check-slo-breaches
   stage: gate
   tags: ["arch:amd64"]
   image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:03c08c0
