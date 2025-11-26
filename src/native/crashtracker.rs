@@ -1,4 +1,3 @@
-use anyhow;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Once;
@@ -209,8 +208,7 @@ impl std::convert::TryFrom<u8> for CrashtrackerStatus {
             1 => Ok(CrashtrackerStatus::Initialized),
             2 => Ok(CrashtrackerStatus::FailedToInitialize),
             _ => Err(anyhow::anyhow!(
-                "Invalid value for CrashtrackerStatus: {}",
-                value
+                "Invalid value for CrashtrackerStatus: {value}"
             )),
         }
     }
@@ -239,7 +237,7 @@ pub fn crashtracker_init<'py>(
                 Ok(_) => CRASHTRACKER_STATUS
                     .store(CrashtrackerStatus::Initialized as u8, Ordering::SeqCst),
                 Err(e) => {
-                    eprintln!("Failed to initialize crashtracker: {}", e);
+                    eprintln!("Failed to initialize crashtracker: {e}");
                     CRASHTRACKER_STATUS.store(
                         CrashtrackerStatus::FailedToInitialize as u8,
                         Ordering::SeqCst,

@@ -26,6 +26,7 @@
       "WebFetch(domain:github.com)",
       "Skill(run-tests)",
       "Bash(scripts/run-tests:*)",
+      "Bash(pytest:*)"
       "Bash(gh pr list:*)",
       "Bash(git remote:*)"
     ],
