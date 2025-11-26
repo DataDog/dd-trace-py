@@ -22,59 +22,48 @@ variables:
 
 .benchmarks:
   stage: test
-  # TODO: revert, to test interruptible
-  when: always
-  # TODO: revert, to test interruptible
-  # tags: ["runner:apm-k8s-tweaked-metal"]
-  tags: ["arch:amd64"]
+  tags: ["runner:apm-k8s-tweaked-metal"]
   image: $MICROBENCHMARKS_CI_IMAGE
-  # TODO: revert
   rules:
-    - when: always
-      interruptible: true
-    # - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
-    #   interruptible: false
-    # - interruptible: true
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+      interruptible: false
+    - interruptible: true
   timeout: 30m
-  # dependencies: [ "baseline:build", "candidate" ]
-  # TODO: revert, to test interruptible
-  needs: []
-  # TODO: revert, to test interruptible
-  script: sleep 120
-  # script: |
-  #   if [[ -n "$CI_JOB_TOKEN" ]];
-  #   then
-  #     git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
-  #   fi
-  #   git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
-  #   (cd /platform && git reset --hard "${BENCHMARKING_COMMIT_SHA}")
-  #   export PATH="$PATH:/platform/steps"
+  dependencies: [ "baseline:build", "candidate" ]
+  script: |
+    if [[ -n "$CI_JOB_TOKEN" ]];
+    then
+      git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    fi
+    git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
+    (cd /platform && git reset --hard "${BENCHMARKING_COMMIT_SHA}")
+    export PATH="$PATH:/platform/steps"
 
-  #   for SCENARIO in $(echo "$SCENARIOS" | tr -s '[:space:]' ' ');
-  #   do
-  #     export REPORTS_DIR="$(pwd)/reports/${SCENARIO}/" && (mkdir -p "${REPORTS_DIR}" || :)
+    for SCENARIO in $(echo "$SCENARIOS" | tr -s '[:space:]' ' ');
+    do
+      export REPORTS_DIR="$(pwd)/reports/${SCENARIO}/" && (mkdir -p "${REPORTS_DIR}" || :)
 
-  #     capture-hardware-software-info.sh
+      capture-hardware-software-info.sh
 
-  #     if [[ $SCENARIO =~ ^flask_* || $SCENARIO =~ ^django_* ]];
-  #     then
-  #       BP_SCENARIO=$SCENARIO bp-runner "${CI_PROJECT_DIR:-.}/.gitlab/benchmarks/bp-runner.yml" --debug -t
-  #     else
-  #       run-benchmarks.sh
-  #     fi
+      if [[ $SCENARIO =~ ^flask_* || $SCENARIO =~ ^django_* ]];
+      then
+        BP_SCENARIO=$SCENARIO bp-runner "${CI_PROJECT_DIR:-.}/.gitlab/benchmarks/bp-runner.yml" --debug -t
+      else
+        run-benchmarks.sh
+      fi
 
-  #     # Join all config results into a single results.json
-  #     .gitlab/benchmarks/steps/combine-results.sh "/artifacts/${CI_JOB_ID}-${SCENARIO}/candidate/"
-  #     .gitlab/benchmarks/steps/combine-results.sh "/artifacts/${CI_JOB_ID}-${SCENARIO}/baseline/"
+      # Join all config results into a single results.json
+      .gitlab/benchmarks/steps/combine-results.sh "/artifacts/${CI_JOB_ID}-${SCENARIO}/candidate/"
+      .gitlab/benchmarks/steps/combine-results.sh "/artifacts/${CI_JOB_ID}-${SCENARIO}/baseline/"
 
-  #     analyze-results.sh
-  #     upload-results-to-s3.sh || :
-  #     # Copy converted JSON reports to common location
-  #     cp $REPORTS_DIR/*.converted.json $(pwd)/reports/
-  #   done
+      analyze-results.sh
+      upload-results-to-s3.sh || :
+      # Copy converted JSON reports to common location
+      cp $REPORTS_DIR/*.converted.json $(pwd)/reports/
+    done
 
-  #   # We have to move artifacts to ${CI_PROJECT_DIR} if we want to attach as GitLab artifact
-  #   cp -R /artifacts ${CI_PROJECT_DIR}/
+    # We have to move artifacts to ${CI_PROJECT_DIR} if we want to attach as GitLab artifact
+    cp -R /artifacts ${CI_PROJECT_DIR}/
   artifacts:
     name: "reports"
     when: always
@@ -228,7 +217,8 @@ benchmarks-pr-comment:
 check-slo-breaches:
   extends: .check-slo-breaches
   stage: gate
-  # TODO: remove image spec, already on template
+  # TODO: This image points to a development image, and should be removed once 
+  # changes are included in the latest image.
   image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:03c08c0
   when: on_success
   artifacts:
@@ -239,9 +229,6 @@ check-slo-breaches:
       - reports/
     expire_in: 3 months
   variables:
-    # TODO: revert
-    CI_COMMIT_REF_NAME: "master"
-
     DDOCTOSTS_POLICY: "gitlab.github-access.read"
     ARTIFACTS_DIR: "reports/"
     SLO_FILE: ".gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml"
