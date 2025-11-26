@@ -57,9 +57,7 @@ def daphne_client(django_asgi, additional_env=None):
         proc.terminate()
 
 
-@pytest.mark.skipif(
-    django.VERSION < (3, 2, 0) or sys.version_info[:2] == (3, 8), reason="Only want to test with latest Django"
-)
+@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
         "error",
@@ -90,9 +88,7 @@ def test_appsec_enabled():
         assert resp.content == b"Hello, test app."
 
 
-@pytest.mark.skipif(
-    django.VERSION < (3, 2, 0) or sys.version_info[:2] == (3, 8), reason="Only want to test with latest Django"
-)
+@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
         "error",
@@ -123,9 +119,7 @@ def test_appsec_enabled_attack():
         assert resp.status_code == 404
 
 
-@pytest.mark.skipif(
-    django.VERSION < (3, 2, 0) or sys.version_info[:2] == (3, 8), reason="Only want to test with latest Django"
-)
+@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
         "error",
@@ -159,9 +153,7 @@ def test_request_ipblock_nomatch_200():
         assert result.content == b"Hello, test app."
 
 
-@pytest.mark.skipif(
-    django.VERSION < (3, 2, 0) or sys.version_info[:2] == (3, 8), reason="Only want to test with latest Django"
-)
+@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
         "error",
@@ -204,9 +196,7 @@ def test_request_ipblock_match_403():
         assert body_parsed == constants.BLOCKED_RESPONSE_HTML
 
 
-@pytest.mark.skipif(
-    django.VERSION < (3, 2, 0) or sys.version_info[:2] == (3, 8), reason="Only want to test with latest Django"
-)
+@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
         "error",

@@ -382,7 +382,6 @@ _PACKAGES = [
         "Content of foobar:\nThis is the default content of the file.",
         "",
         import_name="importlib_resources",
-        skip_python_version=[(3, 8)],
         import_module_to_validate="importlib_resources.readers",
     ),
     PackageForTesting(
@@ -431,7 +430,6 @@ _PACKAGES = [
             "validation": "successful",
         },
         "",
-        skip_python_version=[(3, 8)],
     ),
     PackageForTesting(
         "markupsafe",
@@ -668,7 +666,7 @@ _PACKAGES = [
         "https://www.datadoghq.com/",
         ["https", None, "www.datadoghq.com", None, "/", None, None],
         "www.datadoghq.com",
-        skip_python_version=[(3, 8), (3, 9)],
+        skip_python_version=[(3, 9)],
     ),
     PackageForTesting(
         "virtualenv",
@@ -688,7 +686,6 @@ _PACKAGES = [
         "",
         import_module_to_validate="soupsieve.css_match",
         extras=[("beautifulsoup4", "4.12.3")],
-        skip_python_version=[(3, 8)],
         test_propagation=True,
         fixme_propagation_fails=True,
     ),
@@ -710,7 +707,6 @@ _PACKAGES = [
         + " example.com\nPath: /path\nQuery: <MultiDictProxy('query': 'param')>\n",
         "",
         import_module_to_validate="yarl._url",
-        skip_python_version=[(3, 8)],
         test_propagation=True,
         fixme_propagation_fails=True,
     ),
@@ -740,7 +736,6 @@ _PACKAGES = [
         "",
         "We're in Python 3",
         "",
-        skip_python_version=[(3, 8)],
     ),
     ## Skip due to pillow added to the denylist
     # PackageForTesting(
@@ -787,7 +782,6 @@ _PACKAGES = [
         "Hello, **world**!",
         "Conversion successful!",
         "",
-        skip_python_version=[(3, 8)],
         test_propagation=True,
         fixme_propagation_fails=True,
     ),
@@ -916,7 +910,6 @@ _PACKAGES = [
         "Processed value: 15",
         "",
         import_name="annotated_types",
-        skip_python_version=[(3, 8)],
     ),
     PackageForTesting(
         "babel",

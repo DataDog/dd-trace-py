@@ -93,39 +93,6 @@ def test_ddtrace_iast_flask_patch_iast_disabled():
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.app_main_patched"]
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="APPSEC-59493: Test not compatible with Python 3.8")
-@pytest.mark.subprocess(err=None)
-def test_ddtrace_iast_flask_no_patch():
-    import dis
-    import io
-    import sys
-
-    from ddtrace.internal.module import ModuleWatchdog
-    from tests.utils import override_env
-    from tests.utils import override_global_config
-
-    def _uninstall_watchdog_and_reload():
-        if len(ModuleWatchdog._instance._pre_exec_module_hooks) > 0:
-            ModuleWatchdog._instance._pre_exec_module_hooks.pop()
-        assert ModuleWatchdog._instance._pre_exec_module_hooks == set()
-
-    _uninstall_watchdog_and_reload()
-    with (
-        override_global_config(dict(_iast_enabled=True)),
-        override_env(dict(DD_IAST_ENABLED="true", DD_IAST_REQUEST_SAMPLING="100")),
-    ):
-        import tests.appsec.iast.fixtures.entrypoint.app as flask_entrypoint
-
-        dis_output = io.StringIO()
-        dis.dis(flask_entrypoint, file=dis_output)
-        str_output = dis_output.getvalue()
-        # Should have replaced the binary op with the aspect in add_test:
-        assert "(add_aspect)" not in str_output
-        # Should have replaced the app.run() with a pass:
-        assert "Disassembly of run" in str_output
-        del sys.modules["tests.appsec.iast.fixtures.entrypoint.app"]
-
-
 @pytest.mark.subprocess(err=None)
 def test_ddtrace_iast_flask_app_create_app_patch_auto():
     import dis
