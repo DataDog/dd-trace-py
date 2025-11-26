@@ -205,11 +205,8 @@ class PatchedDistribution(Distribution):
         super().__init__(attrs)
         # Tell ext_hashes about your manually-built Rust artifact
 
-        # setuptools-rust started to support passing extra env vars from 1.11.0
-        # but at the same time dropped support for Python 3.8. So we'd need to
-        # make sure that this env var is set to install the ffi headers in the
-        # right place.
-        os.environ["CARGO_TARGET_DIR"] = str(CARGO_TARGET_DIR)
+        rust_env = os.environ.copy()
+        rust_env["CARGO_TARGET_DIR"] = str(CARGO_TARGET_DIR)
         self.rust_extensions = [
             RustExtension(
                 # The Python import path of your extension:
@@ -220,6 +217,7 @@ class PatchedDistribution(Distribution):
                 binding=Binding.PyO3,
                 debug=COMPILE_MODE.lower() == "debug",
                 features=rust_features,
+                env=rust_env,
             )
         ]
 
