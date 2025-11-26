@@ -5,7 +5,6 @@ import threading
 import typing as t
 import uuid
 
-from ddtrace.internal._encoding import packb as msgpack_packb
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.test_data import TestItem
@@ -14,6 +13,7 @@ from ddtrace.testing.internal.test_data import TestRun
 from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestSuite
+from ddtrace.testing.internal.tracer_api import msgpack_packb
 from ddtrace.version import __version__
 
 

@@ -5,7 +5,6 @@ from pathlib import Path
 import re
 import typing as t
 
-from ddtrace.internal.codeowners import Codeowners
 from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.api_client import TestProperties
 from ddtrace.testing.internal.ci import CITag
@@ -28,6 +27,7 @@ from ddtrace.testing.internal.test_data import TestRef
 from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestSuite
 from ddtrace.testing.internal.test_data import TestTag
+from ddtrace.testing.internal.tracer_api import Codeowners
 from ddtrace.testing.internal.utils import asbool
 from ddtrace.testing.internal.writer import TestCoverageWriter
 from ddtrace.testing.internal.writer import TestOptWriter

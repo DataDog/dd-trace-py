@@ -1,7 +1,3 @@
-"""
-dd-trace-py interaction layer.
-"""
-
 import contextlib
 import logging
 import typing as t

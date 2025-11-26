@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import typing as t
 
-from ddtrace.internal._rand import rand64bits
+from ddtrace.testing.internal.tracer_api import rand64bits
 
 
 if t.TYPE_CHECKING:
