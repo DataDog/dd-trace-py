@@ -1232,7 +1232,7 @@ setup(
         "clean": CleanLibraries,
         "ext_hashes": ExtensionHashes,
     },
-    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
+    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust<2"],
     ext_modules=ext_modules + cython_exts + get_exts_for("psutil"),
     distclass=PatchedDistribution,
 )
