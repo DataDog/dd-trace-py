@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    profiling: Shows fully qualified name of functions using ``codeobject.co_qualname``
+    in memory profiler and lock profiler flamegraphs for Python 3.11+. Stack
+    profiler has already been using this. This aligns the user experience
+    across different profile types.
+
+
