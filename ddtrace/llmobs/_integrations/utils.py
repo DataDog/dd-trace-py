@@ -785,7 +785,7 @@ def openai_get_metadata_from_response(
 
 
 def _normalize_prompt_variables(variables: Dict[str, Any]) -> Dict[str, Any]:
-    """Converts OpenAI SDK response objects into simple key-value pairs.
+    """Converts OpenAI SDK response objects or dicts into simple key-value pairs.
 
     Example:
         Input:  {"msg": ResponseInputText(text="Hello"), "doc": ResponseInputFile(file_id="file-123")}
@@ -796,20 +796,19 @@ def _normalize_prompt_variables(variables: Dict[str, Any]) -> Dict[str, Any]:
     if not variables or not isinstance(variables, dict):
         return {}
 
+    def _get(obj, key, default=None):
+        """Get value from either SDK object or dict."""
+        return obj.get(key, default) if isinstance(obj, dict) else getattr(obj, key, default)
+
     normalized = {}
     for key, value in variables.items():
-        if hasattr(value, "text"):  # ResponseInputText
-            normalized[key] = value.text
-        elif getattr(value, "type", None) == "input_image":  # ResponseInputImage
-            normalized[key] = getattr(value, "image_url", None) or getattr(value, "file_id", None) or "[image]"
-        elif getattr(value, "type", None) == "input_file":  # ResponseInputFile
-            normalized[key] = (
-                getattr(value, "file_url", None)
-                or getattr(value, "file_id", None)
-                or getattr(value, "filename", None)
-                or "[file]"
-            )
-        else:
+        if _get(value, "text") is not None:  # ResponseInputText
+            normalized[key] = _get(value, "text")
+        elif _get(value, "type") == "input_image":  # ResponseInputImage
+            normalized[key] = _get(value, "image_url") or _get(value, "file_id") or "[image]"
+        elif _get(value, "type") == "input_file":  # ResponseInputFile
+            normalized[key] = _get(value, "file_url") or _get(value, "file_id") or _get(value, "filename") or "[file]"
+        else:  # str or other value
             normalized[key] = value
     return normalized
 
