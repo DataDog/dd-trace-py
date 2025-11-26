@@ -50,9 +50,6 @@ def undecorated(f: FunctionType, name: str, path: Path) -> FunctionType:
     def match(g):
         return g.__code__.co_name == name and resolved_code_origin(g.__code__) == path
 
-    if _isinstance(f, FunctionType) and match(f):
-        return f
-
     seen_functions = {f}
     q = deque([f])  # FIFO: use popleft and append
 

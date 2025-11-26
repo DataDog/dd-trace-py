@@ -621,6 +621,27 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
             assert snapshot.probe.probe_id == "line-probe-wrapped-method"
 
 
+def test_debugger_line_probe_on_lazy_wrapped_function(stuff):
+    from ddtrace.internal.wrapping.context import LazyWrappingContext
+
+    LazyWrappingContext(stuff.durationstuff).wrap()
+
+    with debugger() as d:
+        d.add_probes(
+            create_snapshot_line_probe(
+                probe_id="line-probe-lazy-wrapping",
+                source_file="tests/submod/stuff.py",
+                line=133,
+                condition=None,
+            )
+        )
+
+        stuff.durationstuff(0)
+
+        with d.assert_single_snapshot() as snapshot:
+            assert snapshot.probe.probe_id == "line-probe-lazy-wrapping"
+
+
 def test_probe_status_logging(remote_config_worker, stuff):
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
