@@ -21,6 +21,7 @@ import uuid
 import ddtrace
 from ddtrace.internal import agent
 from ddtrace.internal import gitmetadata
+from ddtrace.internal import process_tags
 from ddtrace.internal import runtime
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
@@ -233,6 +234,10 @@ class RemoteConfigClient:
             app_version=ddtrace.config.version,
             tags=[":".join(_) for _ in tags.items()],
         )
+
+        if p_tags_list := process_tags.process_tags_list:
+            self._client_tracer["process_tags"] = p_tags_list
+
         self.cached_target_files: List[AppliedConfigType] = []
 
         self._products: MutableMapping[str, PubSub] = dict()

@@ -37,23 +37,28 @@ from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 
 def test_source_origin_refcount():
     s1 = Source(name="name", value="val", origin=OriginType.COOKIE)
-    assert sys.getrefcount(s1) - 1 == 1  # getrefcount takes 1 while counting
+    if sys.version_info >= (3, 14):
+        diff = 0
+    else:
+        diff = 1
+
+    assert sys.getrefcount(s1) - diff == 1  # getrefcount takes 1 while counting
     s2 = s1
-    assert sys.getrefcount(s1) - 1 == 2
+    assert sys.getrefcount(s1) - diff == 2
     s3 = s1
-    assert sys.getrefcount(s1) - 1 == 3
+    assert sys.getrefcount(s1) - diff == 3
     del s2
-    assert sys.getrefcount(s1) - 1 == 2
+    assert sys.getrefcount(s1) - diff == 2
     # TaintRange does not increase refcount but should keep it alive
     tr_sub = TaintRange(0, 1, s1)
-    assert sys.getrefcount(s1) - 1 == 2
+    assert sys.getrefcount(s1) - diff == 2
     del s1
-    assert sys.getrefcount(s3) - 1 == 1
-    assert sys.getrefcount(tr_sub.source) - 1 == 1
+    assert sys.getrefcount(s3) - diff == 1
+    assert sys.getrefcount(tr_sub.source) - diff == 1
     del s3
-    assert sys.getrefcount(tr_sub.source) - 1 == 1
+    assert sys.getrefcount(tr_sub.source) - diff == 1
     _ = TaintRange(1, 2, tr_sub.source)
-    assert sys.getrefcount(tr_sub.source) - 1 == 1
+    assert sys.getrefcount(tr_sub.source) - diff == 1
 
 
 _SOURCE1 = Source(name="name", value="value", origin=OriginType.COOKIE)

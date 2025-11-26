@@ -874,7 +874,7 @@ integrations:
   - tornado
   tested_versions_by_dependency:
     tornado:
-      min: 6.0.4
+      min: "6.1"
       max: 6.5.1
 
 - integration_name: unittest

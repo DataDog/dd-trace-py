@@ -2,10 +2,14 @@ import _io
 import os
 import re
 
-from ddtrace import get_version
 
+try:
+    from ddtrace import __version__ as version
+except ImportError:
+    from ddtrace.version import get_version
 
-version = get_version()
+    version = get_version()
+
 
 # Some old versions could not have or export some symbols, so we import them dynamically and assign None if not found
 # which will make the aspect benchmark fail but not the entire benchmark
@@ -31,7 +35,7 @@ for symbol in symbols:
         # print(f"Warning: {symbol} not found in the current version")
 
 if notfound_symbols:
-    print("Warning: symbols not found in the tested version [%s]: %s" % (version.version, str(notfound_symbols)))
+    print("Warning: symbols not found in the tested version [%s]: %s" % (version, str(notfound_symbols)))
 
 
 def iast_add_aspect():

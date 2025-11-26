@@ -13,9 +13,14 @@
 
 using namespace Datadog;
 
-Datadog::Uploader::Uploader(std::string_view _output_filename, ddog_prof_ProfileExporter _ddog_exporter)
+Datadog::Uploader::Uploader(std::string_view _output_filename,
+                            ddog_prof_ProfileExporter _ddog_exporter,
+                            ddog_prof_EncodedProfile _encoded_profile,
+                            Datadog::ProfilerStats _stats)
   : output_filename{ _output_filename }
   , ddog_exporter{ _ddog_exporter }
+  , encoded_profile{ _encoded_profile }
+  , profiler_stats{ std::move(_stats) }
 {
     // Increment the upload sequence number every time we build an uploader.
     // Uploaders are use-once-and-destroy.
@@ -23,7 +28,7 @@ Datadog::Uploader::Uploader(std::string_view _output_filename, ddog_prof_Profile
 }
 
 bool
-Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile* encoded, std::string_view internal_metadata_json)
+Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile& encoded, std::string_view internal_metadata_json)
 {
     // Write the profile to a file using the following format for filename:
     // <output_filename>.<process_id>.<sequence_number>
@@ -37,7 +42,8 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile* encoded, std::string
         std::cerr << "Error opening output file " << pprof_filename << ": " << strerror(errno) << std::endl;
         return false;
     }
-    auto bytes_res = ddog_prof_EncodedProfile_bytes(encoded);
+
+    auto bytes_res = ddog_prof_EncodedProfile_bytes(&encoded);
     if (bytes_res.tag == DDOG_PROF_RESULT_BYTE_SLICE_ERR_BYTE_SLICE) {
         std::cerr << "Error getting bytes from encoded profile: "
                   << err_to_msg(&bytes_res.err, "Error getting bytes from encoded profile") << std::endl;
@@ -63,24 +69,10 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile* encoded, std::string
 }
 
 bool
-Datadog::Uploader::upload(ddog_prof_Profile& profile, Datadog::ProfilerStats& profiler_stats)
+Datadog::Uploader::upload()
 {
-    // Serialize the profile
-    ddog_prof_Profile_SerializeResult serialize_result = ddog_prof_Profile_serialize(&profile, nullptr, nullptr);
-    if (serialize_result.tag !=
-        DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
-        auto err = serialize_result.err;         // NOLINT (cppcoreguidelines-pro-type-union-access)
-        errmsg = err_to_msg(&err, "Error serializing pprof");
-        std::cerr << errmsg << std::endl;
-        ddog_Error_drop(&err);
-        return false;
-    }
-    ddog_prof_EncodedProfile* encoded = &serialize_result.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
-
     if (!output_filename.empty()) {
-        bool ret = export_to_file(encoded, profiler_stats.get_internal_metadata_json());
-        ddog_prof_EncodedProfile_drop(encoded);
-        return ret;
+        return export_to_file(encoded_profile, profiler_stats.get_internal_metadata_json());
     }
 
     std::vector<ddog_prof_Exporter_File> to_compress_files;
@@ -95,11 +87,12 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile, Datadog::ProfilerStats& pr
         });
     }
 
-    auto internal_metadata_json_slice = to_slice(profiler_stats.get_internal_metadata_json());
+    auto internal_metadata_json = profiler_stats.get_internal_metadata_json();
+    auto internal_metadata_json_slice = to_slice(internal_metadata_json);
 
     auto build_res = ddog_prof_Exporter_Request_build(
       &ddog_exporter,
-      encoded,
+      &encoded_profile,
       // files_to_compress_and_export
       {
         .ptr = reinterpret_cast<const ddog_prof_Exporter_File*>(to_compress_files.data()),
@@ -110,7 +103,6 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile, Datadog::ProfilerStats& pr
       &internal_metadata_json_slice,
       nullptr // optional_info_json
     );
-    ddog_prof_EncodedProfile_drop(encoded);
 
     if (build_res.tag ==
         DDOG_PROF_REQUEST_RESULT_ERR_HANDLE_REQUEST) { // NOLINT (cppcoreguidelines-pro-type-union-access)

@@ -81,10 +81,12 @@ class TestProcessTags(TracerTestCase):
         super(TestProcessTags, self).setUp()
         self._original_process_tags_enabled = config.enabled
         self._original_process_tags = process_tags.process_tags
+        self._original_process_tags_list = process_tags.process_tags_list
 
     def tearDown(self):
         config.enabled = self._original_process_tags_enabled
         process_tags.process_tags = self._original_process_tags
+        process_tags.process_tags_list = self._original_process_tags_list
         super().tearDown()
 
     @pytest.mark.snapshot

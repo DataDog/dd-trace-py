@@ -122,6 +122,7 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.version import __version__
 
 
 log = get_logger(__name__)
@@ -466,7 +467,7 @@ class LLMObs(Service):
             "service": span.service or "",
             "source": "integration",
             "ml_app": ml_app,
-            "ddtrace.version": ddtrace.__version__,
+            "ddtrace.version": __version__,
             "language": "python",
             "error": span.error,
         }
@@ -1744,7 +1745,7 @@ class LLMObs(Service):
                 )
 
             evaluation_tags = {
-                "ddtrace.version": ddtrace.__version__,
+                "ddtrace.version": __version__,
                 "ml_app": ml_app,
             }
 

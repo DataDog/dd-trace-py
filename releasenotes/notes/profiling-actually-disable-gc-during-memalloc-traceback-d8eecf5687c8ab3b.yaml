@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: This fix prevents a use-after-free crash from the memory profiler
+    on Python version 3.10 and 3.11. The previous attempt to fix this bug itself
+    had a bug, which this fix addresses.

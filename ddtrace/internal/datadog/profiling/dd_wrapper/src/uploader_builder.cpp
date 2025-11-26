@@ -1,6 +1,7 @@
 #include "uploader_builder.hpp"
 
 #include "libdatadog_helpers.hpp"
+#include "sample.hpp"
 
 #include <mutex>
 #include <numeric>
@@ -186,14 +187,37 @@ Datadog::UploaderBuilder::build()
         return errmsg;
     }
 
+    // Perform profile encoding before creating the Uploader
+    // Also take the Profiler Stats and reset the one being written to
+    ddog_prof_Profile_SerializeResult encoded;
+    Datadog::ProfilerStats stats;
+    {
+        // Only keep the lock for the duration of the encoding operation.
+        auto borrowed = Datadog::Sample::profile_borrow();
+
+        // Swap the ProfilerStats (which replaces the one being written to with an empty state).
+        // We do this first as we still want to reset ProfilerStats if the serialization fails.
+        std::swap(stats, borrowed.stats());
+
+        // Try to encode the Profile (which will also reset it)
+        encoded = ddog_prof_Profile_serialize(&borrowed.profile(), nullptr, nullptr);
+        if (encoded.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
+            auto err = encoded.err;
+            const std::string errmsg = Datadog::err_to_msg(&err, "Error serializing profile");
+            ddog_Error_drop(&err);
+            ddog_prof_Exporter_drop(ddog_exporter);
+            return errmsg;
+        }
+    }
+
     // We create a std::variant here instead of creating a temporary Uploader object.
-    // i.e. return Datadog::Uploader{ output_filename, *ddog_exporter }
+    // i.e. return Datadog::Uploader{ output_filename, *ddog_exporter, encoded.ok, std::move(stats) }
     // because above code creates a temporary Uploader object, moves it into the
     // variant, and then the destructor of the temporary Uploader object is called
     // when the temporary Uploader object goes out of scope.
     // This was necessary to avoid double-free from calling ddog_prof_Exporter_drop()
     // in the destructor of Uploader. See comments in uploader.hpp for more details.
-    return std::variant<Datadog::Uploader, std::string>{ std::in_place_type<Datadog::Uploader>,
-                                                         output_filename,
-                                                         *ddog_exporter };
+    return std::variant<Datadog::Uploader, std::string>{
+        std::in_place_type<Datadog::Uploader>, output_filename, *ddog_exporter, encoded.ok, std::move(stats)
+    };
 }

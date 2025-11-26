@@ -2,7 +2,9 @@ import os
 from pathlib import Path
 import re
 import sys
+from typing import List
 from typing import Optional
+from typing import Tuple
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.process_tags import process_tags_config as config
@@ -44,12 +46,12 @@ def normalize_tag_value(value: str) -> str:
     return result.strip("_")
 
 
-def generate_process_tags() -> Optional[str]:
+def generate_process_tags() -> Tuple[Optional[str], Optional[List[str]]]:
     if not config.enabled:
-        return None
+        return None, None
 
     try:
-        return ",".join(
+        process_tags_list = [
             f"{key}:{normalize_tag_value(value)}"
             for key, value in sorted(
                 [
@@ -59,10 +61,12 @@ def generate_process_tags() -> Optional[str]:
                     (ENTRYPOINT_TYPE_TAG, ENTRYPOINT_TYPE_SCRIPT),
                 ]
             )
-        )
+        ]
+        process_tags = ",".join(process_tags_list)
+        return process_tags, process_tags_list
     except Exception as e:
         log.debug("failed to get process_tags: %s", e)
-        return None
+        return None, None
 
 
-process_tags = generate_process_tags()
+process_tags, process_tags_list = generate_process_tags()

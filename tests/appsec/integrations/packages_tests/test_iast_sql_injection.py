@@ -30,6 +30,10 @@ DDBBS = [
         "tests.appsec.integrations.fixtures.sql_injection_psycopg2",
     ),
     (
+        "tests/appsec/integrations/fixtures/sql_injection_psycopg3.py",
+        "tests.appsec.integrations.fixtures.sql_injection_psycopg3",
+    ),
+    (
         "tests/appsec/integrations/fixtures/sql_injection_sqlalchemy.py",
         "tests.appsec.integrations.fixtures.sql_injection_sqlalchemy",
     ),

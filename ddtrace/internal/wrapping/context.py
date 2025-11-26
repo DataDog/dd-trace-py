@@ -283,37 +283,6 @@ elif sys.version_info >= (3, 9):
     )
 
 
-elif sys.version_info >= (3, 8):
-    CONTEXT_HEAD.parse(
-        r"""
-            load_const                  {context}
-            setup_with                  @_except
-            pop_top
-        _except:
-        """
-    )
-
-    CONTEXT_RETURN.parse(
-        r"""
-            load_const                  {context}
-            load_method                 $__return__
-            rot_three
-            rot_three
-            call_method                 1
-        """
-    )
-
-    CONTEXT_FOOT.parse(
-        r"""
-            with_cleanup_start
-            with_cleanup_finish
-            end_finally
-            load_const                  None
-            return_value
-        """
-    )
-
-
 # This is abstract and should not be used directly
 class BaseWrappingContext(ABC):
     __priority__: int = 0

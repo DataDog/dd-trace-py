@@ -12,7 +12,6 @@ import ddtrace
 from ddtrace import config
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
-from ddtrace.internal import process_tags
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal.datadog.profiling import ddup
@@ -168,9 +167,6 @@ class _ProfilerInstance(service.Service):
         # Build the list of enabled Profiling features and send along as a tag
         profiler_config = config_str(profiling_config)
         self.tags.update({"profiler_config": profiler_config})
-
-        if p_tags := process_tags.process_tags:
-            self.tags.update({"process_tags": p_tags})
 
         endpoint_call_counter_span_processor = self.tracer._endpoint_call_counter_span_processor
         if self.endpoint_collection_enabled:

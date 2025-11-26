@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING  # noqa:F401
 from typing import Dict
 from typing import Optional  # noqa:F401
 
-import ddtrace
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.ext.test import TEST_SESSION_NAME
@@ -15,6 +14,7 @@ from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.vendor.dogstatsd import DogStatsd  # noqa:F401
+from ddtrace.version import __version__
 
 from .. import service
 from ..evp_proxy.constants import EVP_PROXY_AGENT_ENDPOINT
@@ -53,7 +53,7 @@ class CIVisibilityEventClient(WriterClientBase):
                 "language": "python",
                 "env": os.getenv("_CI_DD_ENV", config.env),
                 "runtime-id": get_runtime_id(),
-                "library_version": ddtrace.__version__,
+                "library_version": __version__,
                 "_dd.test.is_user_provided_service": "true" if config._is_user_provided_service else "false",
             },
         )

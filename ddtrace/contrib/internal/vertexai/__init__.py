@@ -7,17 +7,6 @@ All traces submitted from the Vertex AI integration are tagged by:
 - ``vertexai.request.provider``: LLM provider used in the request (e.g. ``google`` for Google models).
 - ``vertexai.request.model``: Google model used in the request.
 
-(beta) Prompt and Completion Sampling
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Prompt texts and completion content are collected in span tags with a default sampling rate of ``1.0``
-for the following methods:
-
-- ``generate_content/generate_content_async`` of the GenerativeModel class
-- ``send_message/send_message_async`` of the ChatSession class
-
-These tags will have truncation applied if the text exceeds the configured character limit.
-
 
 Enabling
 ~~~~~~~~
@@ -43,31 +32,6 @@ Global Configuration
    variables.
 
    Default: ``DD_SERVICE``
-
-
-.. py:data:: (beta) ddtrace.config.vertexai["span_char_limit"]
-
-   Configure the maximum number of characters for the following data within span tags:
-
-   - Text inputs and completions
-
-   Text exceeding the maximum number of characters is truncated to the character limit
-   and has ``...`` appended to the end.
-
-   Alternatively, you can set this option with the ``DD_VERTEXAI_SPAN_CHAR_LIMIT`` environment
-   variable.
-
-   Default: ``128``
-
-
-.. py:data:: (beta) ddtrace.config.vertexai["span_prompt_completion_sample_rate"]
-
-   Configure the sample rate for the collection of prompts and completions as span tags.
-
-   Alternatively, you can set this option with the ``DD_VERTEXAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE`` environment
-   variable.
-
-   Default: ``1.0``
 
 
 Instance Configuration

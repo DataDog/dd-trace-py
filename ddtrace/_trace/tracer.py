@@ -59,7 +59,7 @@ from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import HTTPWriter
-from ddtrace.version import get_version
+from ddtrace.version import __version__
 
 
 log = get_logger(__name__)
@@ -165,7 +165,7 @@ class Tracer(object):
 
         metadata = PyTracerMetadata(
             runtime_id=get_runtime_id(),
-            tracer_version=get_version(),
+            tracer_version=__version__,
             hostname=get_hostname(),
             service_name=config.service or None,
             service_env=config.env or None,

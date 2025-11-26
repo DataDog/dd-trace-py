@@ -18,4 +18,9 @@ while [ $(date +%s) -lt $end_time ]; do
   sleep 30
 done
 
+if [ ! -f "library-version/version.txt" ]; then
+  echo "Failed to download library version artifact from GitHub Actions"
+  exit 1
+fi
+
 echo "Library Version: $(cat library-version/version.txt)"

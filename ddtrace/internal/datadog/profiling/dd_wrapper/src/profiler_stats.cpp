@@ -1,7 +1,6 @@
 #include "profiler_stats.hpp"
 
 #include <charconv>
-#include <string>
 
 namespace {
 
@@ -46,12 +45,13 @@ Datadog::ProfilerStats::reset_state()
     sampling_event_count = 0;
 }
 
-std::string_view
+std::string
 Datadog::ProfilerStats::get_internal_metadata_json()
 {
+    std::string internal_metadata_json;
     internal_metadata_json.reserve(128);
 
-    internal_metadata_json = "{";
+    internal_metadata_json += "{";
 
     internal_metadata_json += R"("sample_count": )";
     append_to_string(internal_metadata_json, sample_count);

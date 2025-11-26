@@ -4,7 +4,6 @@
 #include "profile_borrow.hpp"
 #include "profiler_stats.hpp"
 
-#include <functional>
 #include <iostream>
 
 #include <fcntl.h>
@@ -58,7 +57,7 @@ Datadog::Profile::reset_profile()
         return false;
     }
 
-    profiler_stats.reset_state();
+    cur_profiler_stats.reset_state();
     return true;
 }
 
@@ -189,7 +188,7 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
     if (!make_profile(sample_types, &default_period, cur_profile)) {
         if (!already_warned) {
             already_warned = true;
-            std::cerr << "Error initializing profile" << std::endl;
+            std::cerr << "Error initializing cur_profile" << std::endl;
         }
         return;
     }
@@ -228,6 +227,6 @@ Datadog::Profile::postfork_child()
 {
     new (&profile_mtx) std::mutex();
     // Reset the profile to clear any samples collected in the parent process
-    profiler_stats.reset_state();
+    cur_profiler_stats.reset_state();
     reset_profile();
 }

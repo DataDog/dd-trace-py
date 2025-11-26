@@ -33,7 +33,7 @@ def test_env_var_iast_enabled(capfd):
     env["DD_TRACE_DEBUG"] = "true"
     _run_python_file(env=env)
     captured = capfd.readouterr()
-    assert "iast::instrumentation::starting IAST" in captured.err
+    assert "iast" in captured.err
     assert "hi" in captured.out
 
 

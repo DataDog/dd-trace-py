@@ -501,7 +501,7 @@ cdef class SampleHandle:
         if self.ptr is not NULL:
             call_ddup_push_gpu_device_name(self.ptr, device_name)
 
-    def push_span(self, span: Optional[Span]) -> None:
+    def push_span(self, span: Optional[Span] = None) -> None:
         if self.ptr is NULL:
             return
         if not span:

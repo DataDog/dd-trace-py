@@ -70,3 +70,35 @@ def test_uploader_full_buffer():
         # wakeup to mimic next interval
         uploader.periodic()
         assert uploader.queue.qsize() == 0
+
+
+def test_uploader_502_error():
+    """Test that _write raises SignalUploaderError for 502 Bad Gateway errors."""
+    from ddtrace.debugging._uploader import SignalUploader
+    from ddtrace.debugging._uploader import SignalUploaderError
+
+    class MockResponse:
+        status = 502
+
+        def read(self):
+            return b"Bad Gateway"
+
+    class MockConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def request(self, *args, **kwargs):
+            pass
+
+        def getresponse(self):
+            return MockResponse()
+
+    uploader = SignalUploader(interval=LONG_INTERVAL)
+    uploader._connect = lambda: MockConnection()
+
+    # Assert that 502 errors raise SignalUploaderError
+    with pytest.raises(SignalUploaderError):
+        uploader._write(b'{"test": "data"}', "/debugger/v1/input")

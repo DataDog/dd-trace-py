@@ -10,10 +10,12 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PROXY_REQUEST
@@ -27,11 +29,14 @@ from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_complet
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Document
 from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
+
+OPENAI_LLM_OPERATIONS = ("completion", "chat", "response")
 
 
 class OpenAIIntegration(BaseLLMIntegration):
@@ -105,7 +110,11 @@ class OpenAIIntegration(BaseLLMIntegration):
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         span_kind = (
-            "workflow" if span._get_ctx_item(PROXY_REQUEST) else "embedding" if operation == "embedding" else "llm"
+            "workflow"
+            if span._get_ctx_item(PROXY_REQUEST)
+            else "llm"
+            if operation in OPENAI_LLM_OPERATIONS
+            else operation
         )
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
 
@@ -121,7 +130,9 @@ class OpenAIIntegration(BaseLLMIntegration):
         elif operation == "embedding":
             self._llmobs_set_meta_tags_from_embedding(span, kwargs, response)
         elif operation == "response":
-            openai_set_meta_tags_from_response(span, kwargs, response)
+            openai_set_meta_tags_from_response(span, kwargs, response, self)
+        elif operation == "tool":
+            self._llmobs_set_tags_from_tool(span, kwargs, response)
         update_proxy_workflow_input_output_value(span, span_kind)
         metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
         span._set_ctx_items(
@@ -152,6 +163,27 @@ class OpenAIIntegration(BaseLLMIntegration):
             )
             return
         span._set_ctx_item(OUTPUT_VALUE, "[{} embedding(s) returned]".format(len(resp.data)))
+
+    @staticmethod
+    def _llmobs_set_tags_from_tool(span: Span, kwargs: Dict[str, Any], response: Any) -> None:
+        """Extract tool name, arguments, and output from the request and response to be submitted to LLMObs."""
+        tool_id = kwargs.get("tool_id", "unknown_tool_id")
+        tool_name = kwargs.get("name", "unknown_tool")
+        tool_arguments = kwargs.get("arguments")
+        tool_output = response
+
+        span_name = "MCP Client Tool Call: {}".format(tool_name)
+        span.name = span_name
+
+        span._set_ctx_items(
+            {
+                SPAN_KIND: "tool",
+                NAME: span_name,
+                INPUT_VALUE: safe_json(tool_arguments) if tool_arguments is not None else "",
+                OUTPUT_VALUE: safe_json(tool_output) if tool_output is not None else "",
+                METADATA: {"tool_id": tool_id},
+            }
+        )
 
     @staticmethod
     def _extract_llmobs_metrics_tags(

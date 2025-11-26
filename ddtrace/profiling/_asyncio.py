@@ -132,6 +132,19 @@ def _(asyncio: ModuleType) -> None:
                 for child in children:
                     stack_v2.link_tasks(parent, child)
 
+        @partial(wrap, sys.modules["asyncio"].tasks._wait)
+        def _(f, args, kwargs):
+            try:
+                return f(*args, **kwargs)
+            finally:
+                futures = typing.cast(typing.Iterable["asyncio.Future"], get_argument_value(args, kwargs, 0, "fs"))
+                loop = typing.cast("asyncio.AbstractEventLoop", get_argument_value(args, kwargs, 3, "loop"))
+
+                # Link the parent gathering task to the gathered children
+                parent: "asyncio.Task" = globals()["current_task"](loop)
+                for future in futures:
+                    stack_v2.link_tasks(parent, future)
+
         _call_init_asyncio(asyncio)
 
 

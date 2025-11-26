@@ -1,6 +1,5 @@
 [build-system]
 requires = [
-    "setuptools_scm[toml]>=4",
     "cython",
     "cmake>=3.24.2,<3.28; python_version>='3.8'",
     "setuptools-rust<2",
@@ -10,10 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
-# DEV: to directly override the version specifier, comment this...
-#dynamic = ["version"]
-# ...and uncomment this
-version = "4.1.0dev"
+version = "4.1.0.dev0"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
@@ -83,10 +79,6 @@ Documentation = "https://ddtrace.readthedocs.io/en/stable/"
 Homepage = "https://github.com/DataDog/dd-trace-py"
 "Source Code" = "https://github.com/DataDog/dd-trace-py/"
 
-[tool.setuptools_scm]
-version_scheme = "release-branch-semver"  # Must be "release-branch-semver" for now in main, see https://github.com/DataDog/dd-trace-py/issues/8801
-write_to = "ddtrace/_version.py"
-
 [tool.cython-lint]
 max-line-length = 120
 exclude = '''
@@ -148,7 +140,6 @@ exclude = [
     "ddtrace/vendor/*",
     "ddtrace/appsec/_iast/_taint_tracking/_vendor/*",
     "tests/profiling/collector/pprof_*pb2.py",
-    "tests/profiling/simple_program_gevent.py",
     "tests/contrib/grpc/hello_pb2.py",
     "tests/contrib/django_celery/app/*",
     "tests/contrib/protobuf/schemas/**/*.py",

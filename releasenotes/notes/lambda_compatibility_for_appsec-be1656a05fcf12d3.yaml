@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    AAP: This fix resolves an issue where the appsec layer was not compatible anymore with the lambda/serverless version of the tracer.

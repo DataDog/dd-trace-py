@@ -566,7 +566,7 @@ Subprocess
 
 Tornado
 ^^^^^^^
-.. automodule:: ddtrace.contrib.tornado
+.. automodule:: ddtrace.contrib.internal.tornado
 
 
 .. _unittest:

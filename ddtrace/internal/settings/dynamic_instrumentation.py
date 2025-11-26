@@ -1,23 +1,22 @@
+from pathlib import Path
 import re
 import typing as t
 
 from ddtrace import config as ddconfig
 from ddtrace.internal import gitmetadata
-from ddtrace.internal.compat import Path
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.utils.config import get_application_name
-from ddtrace.version import get_version
+from ddtrace.version import __version__
 
 
-DEFAULT_MAX_PROBES = 100
 DEFAULT_GLOBAL_RATE_LIMIT = 100.0
 
 
 def _derive_tags(c):
     # type: (DDConfig) -> str
-    _tags = dict(env=ddconfig.env, version=ddconfig.version, debugger_version=get_version())
+    _tags = dict(env=ddconfig.env, version=ddconfig.version, debugger_version=__version__)
     _tags.update(ddconfig.tags)
 
     # Add git metadata tags, if available
@@ -49,7 +48,6 @@ class DynamicInstrumentationConfig(DDConfig):
 
     service_name = DDConfig.d(str, lambda _: ddconfig.service or get_application_name() or DEFAULT_SERVICE_NAME)
     _intake_url = DDConfig.d(str, lambda _: agent_config.trace_agent_url)
-    max_probes = DDConfig.d(int, lambda _: DEFAULT_MAX_PROBES)
     global_rate_limit = DDConfig.d(float, lambda _: DEFAULT_GLOBAL_RATE_LIMIT)
     _tags_in_qs = DDConfig.d(bool, lambda _: True)
     tags = DDConfig.d(str, _derive_tags)
