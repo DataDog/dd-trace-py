@@ -92,7 +92,9 @@ run-tests-trigger:
 
 microbenchmarks:
   stage: benchmarks
-  needs: [ "download_ddtrace_artifacts" ]
+  # TODO: revert, to test interruptible
+  # needs: [ "download_ddtrace_artifacts" ]
+  needs: []
   rules:
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true
