@@ -217,7 +217,7 @@ benchmarks-pr-comment:
 check-slo-breaches:
   extends: .check-slo-breaches
   stage: gate
-  tags: ["arch:amd64"]
+  # TODO: remove image spec, already on template
   image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:03c08c0
   when: on_success
   artifacts:
