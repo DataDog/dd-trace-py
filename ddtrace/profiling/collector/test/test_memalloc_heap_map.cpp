@@ -1,6 +1,13 @@
+#include "../_memalloc_heap.h"
 #include "../_memalloc_heap_map.hpp"
 #include "../_memalloc_tb.h"
 #include "../_pymacro.h"
+
+#include <memory>
+
+// Forward declaration for pool function
+extern void
+heap_pool_put_traceback(std::unique_ptr<traceback_t> tb);
 #include <Python.h>
 #include <cstdlib>
 #include <gtest/gtest.h>
@@ -221,7 +228,7 @@ TEST_F(MemallocHeapMapTest, Remove)
     EXPECT_EQ(map.size(), 1);
 
     // Clean up removed traceback
-    delete tb1;
+    heap_pool_put_traceback(std::unique_ptr<traceback_t>(tb1));
 
     free(ptr1);
     free(ptr2);

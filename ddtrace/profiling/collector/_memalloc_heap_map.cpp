@@ -1,5 +1,12 @@
 #include "_memalloc_heap_map.hpp"
 #include "_memalloc_debug.h"
+#include "_memalloc_heap.h"
+
+#include <memory>
+
+// Free function defined in _memalloc_heap.cpp to return traceback to pool
+extern void
+heap_pool_put_traceback(std::unique_ptr<traceback_t> tb);
 
 /* Note that the HeapSample tables will, in general, never free their backing
  * memory unless we completely clear them. The table takes 17 bytes per entry: 8
@@ -22,7 +29,7 @@ memalloc_heap_map::~memalloc_heap_map()
 {
     HeapSamples_CIter it = HeapSamples_citer(&map);
     for (const HeapSamples_Entry* e = HeapSamples_CIter_get(&it); e != nullptr; e = HeapSamples_CIter_next(&it)) {
-        delete e->val;
+        delete e->val; // Directly delete since we're tearing down
     }
     HeapSamples_destroy(&map);
 }
@@ -47,12 +54,12 @@ memalloc_heap_map::insert(void* key, traceback_t* value)
         HeapSamples_Entry* e = HeapSamples_Iter_get(&res.iter);
         traceback_t* prev = e->val;
         if (prev && !prev->reported) {
-            /* If the sample hasn't been reported yet, export it before deleting */
+            /* If the sample hasn't been reported yet, export it before returning to pool */
             prev->sample.export_sample();
             prev->reported = true;
         }
         e->val = value;
-        delete prev;
+        heap_pool_put_traceback(std::unique_ptr<traceback_t>(prev));
     }
 }
 

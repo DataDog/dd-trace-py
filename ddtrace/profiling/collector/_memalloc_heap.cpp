@@ -1,6 +1,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdlib>
+#include <memory>
 #include <vector>
 
 #define PY_SSIZE_T_CLEAN
@@ -100,6 +101,10 @@ class heap_tracker_t
     /* Global instance of the heap tracker */
     static heap_tracker_t* instance;
 
+    /* Traceback pool operations */
+    std::unique_ptr<traceback_t> pool_get(size_t size, size_t weighted_size, uint16_t max_nframe);
+    void pool_put(std::unique_ptr<traceback_t> tb);
+
   private:
     static uint32_t next_sample_size(uint32_t sample_size);
 
@@ -115,7 +120,52 @@ class heap_tracker_t
     /* Debug guard to assert that GIL-protected critical sections are maintained
      * while accessing the profiler's state */
     memalloc_gil_debug_check_t gil_guard;
+
+    /* Traceback pool - reduces allocation overhead. Access is always under GIL. */
+    static constexpr size_t POOL_CAPACITY = 128;
+    std::vector<std::unique_ptr<traceback_t>> pool;
 };
+
+// Free function wrapper for pool_put - allows other compilation units to use the pool
+void
+heap_pool_put_traceback(std::unique_ptr<traceback_t> tb)
+{
+    if (heap_tracker_t::instance) {
+        heap_tracker_t::instance->pool_put(std::move(tb));
+    }
+    // If instance is null, tb automatically deletes when it goes out of scope
+}
+
+// Pool implementation
+std::unique_ptr<traceback_t>
+heap_tracker_t::pool_get(size_t size, size_t weighted_size, uint16_t max_nframe)
+{
+    /* Try to get a traceback from the pool */
+    if (!pool.empty()) {
+        auto tb = std::move(pool.back());
+        pool.pop_back();
+        /* Reset it with the new allocation data */
+        tb->reset(size, weighted_size);
+        return tb;
+    }
+
+    /* Pool is empty, create a new traceback */
+    return std::make_unique<traceback_t>(size, weighted_size, max_nframe);
+}
+
+void
+heap_tracker_t::pool_put(std::unique_ptr<traceback_t> tb)
+{
+    if (!tb) {
+        return;
+    }
+
+    /* Try to return the traceback to the pool */
+    if (pool.size() < POOL_CAPACITY) {
+        pool.push_back(std::move(tb));
+    }
+    /* If pool is full, tb automatically deletes the traceback when it goes out of scope */
+}
 
 // Static helper function
 uint32_t
@@ -140,7 +190,7 @@ heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
   , current_sample_size(next_sample_size(sample_size_val))
   , allocated_memory(0)
 {
-    // gil_guard and allocs_m are initialized by their constructors
+    pool.reserve(POOL_CAPACITY); // Pre-allocate pool capacity to avoid reallocations
 }
 
 heap_tracker_t::~heap_tracker_t() = default;
@@ -156,7 +206,7 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
         tb->sample.export_sample();
         tb->reported = true;
     }
-    delete tb; // Safe to delete nullptr
+    pool_put(std::unique_ptr<traceback_t>(tb)); // Safe to call with nullptr
 }
 
 bool
@@ -293,7 +343,13 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
        will tend to be larger for large allocations and smaller for small
        allocations, and close to the average sampling interval so that the sum
        of sample live allocations stays close to the actual heap size */
-    traceback_t* tb = new traceback_t(size, allocated_memory_val, max_nframe);
+
+    // Check that instance is valid before creating traceback
+    if (!heap_tracker_t::instance) {
+        return;
+    }
+
+    auto tb = heap_tracker_t::instance->pool_get(size, allocated_memory_val, max_nframe);
 
 #if defined(_PY310_AND_LATER) && !defined(_PY312_AND_LATER)
     if (gc_enabled) {
@@ -303,10 +359,9 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
 
     // Check that instance is still valid after GIL release in constructor
     if (heap_tracker_t::instance) {
-        heap_tracker_t::instance->add_sample_no_cpython(ptr, tb);
-    } else {
-        delete tb;
+        heap_tracker_t::instance->add_sample_no_cpython(ptr, tb.release());
     }
+    // If instance is gone, tb's unique_ptr automatically deletes the traceback
 }
 
 void
