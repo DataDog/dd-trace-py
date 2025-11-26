@@ -18,8 +18,11 @@ variables:
 
 .benchmarks:
   stage: test
-  when: on_success
-  tags: ["runner:apm-k8s-tweaked-metal"]
+  # TODO: revert, to test interruptible
+  when: always
+  # TODO: revert, to test interruptible
+  # tags: ["runner:apm-k8s-tweaked-metal"]
+  tags: ["arch:amd64"]
   image: $MICROBENCHMARKS_CI_IMAGE
   # TODO: revert
   rules:
