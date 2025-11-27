@@ -3,6 +3,7 @@ End-to-end tests for Playwright distributed tracing in pytest context.
 
 These tests simulate real pytest usage scenarios.
 """
+
 import pytest
 
 from ddtrace import config
