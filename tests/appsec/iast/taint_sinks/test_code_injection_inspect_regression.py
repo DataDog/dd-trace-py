@@ -6,7 +6,6 @@ inspect.currentframe() returns None, preventing AttributeError when accessing
 f_back and other crashes.
 """
 
-import sys
 from unittest import mock
 
 import pytest

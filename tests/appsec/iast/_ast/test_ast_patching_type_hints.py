@@ -1,8 +1,5 @@
 # -*- encoding: utf-8 -*-
-import sys
 from typing import Text
-
-import pytest
 
 
 def _get_patched_code(module_path: Text, module_name: Text) -> str:
