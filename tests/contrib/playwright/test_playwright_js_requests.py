@@ -123,7 +123,8 @@ class TestPlaywrightJavaScriptRequests:
 
                                 # Verify the fetch request was captured
                                 assert len(HeaderCaptureHandler.captured_headers) >= 1, (
-                                    f"Expected at least 1 fetch request, got {len(HeaderCaptureHandler.captured_headers)}"
+                                    f"Expected at least 1 fetch request, got "
+                                    f"{len(HeaderCaptureHandler.captured_headers)}"
                                 )
 
                                 # Check the fetch request headers (should be the first/only one now)
