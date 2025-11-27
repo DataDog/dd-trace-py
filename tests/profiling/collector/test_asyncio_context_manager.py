@@ -1,7 +1,11 @@
+from sys import version_info as PYVERSION
+
 import pytest
 
 
-@pytest.mark.xfail(reason="Temporarily marking new tests as xfail until we make them non-flaky")
+@pytest.mark.xfail(
+    condition=PYVERSION >= (3, 13), reason="Sampling async context manager stacks does not work on >=3.13"
+)
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_context_manager",
