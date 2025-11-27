@@ -183,6 +183,7 @@ INTEGRATION_CONFIGS = frozenset(
         "asyncpg",
         "django",
         "aiobotocore",
+        "playwright",
         "pytest_bdd",
         "starlette",
         "valkey",

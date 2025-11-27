@@ -819,6 +819,12 @@ integrations:
   dependency_names:
   - selenium
 
+- integration_name: playwright
+  is_external_package: true
+  is_tested: false
+  dependency_names:
+  - playwright
+
 - integration_name: snowflake
   is_external_package: true
   is_tested: true

@@ -113,6 +113,7 @@ PATCH_MODULES = {
     "unittest": True,
     "coverage": False,
     "selenium": True,
+    "playwright": True,
     "valkey": True,
     "openai_agents": True,
     "ray": False,
