@@ -65,9 +65,7 @@ MIN_PYTHON_VERSION = version_to_str(min(SUPPORTED_PYTHON_VERSIONS))
 MAX_PYTHON_VERSION = version_to_str(max(SUPPORTED_PYTHON_VERSIONS))
 
 
-def select_pys(
-    min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYTHON_VERSION
-) -> List[str]:
+def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYTHON_VERSION) -> List[str]:
     """Helper to select python versions from the list of versions we support
 
     >>> select_pys()
@@ -82,11 +80,7 @@ def select_pys(
     min_version = str_to_version(min_version)
     max_version = str_to_version(max_version)
 
-    return [
-        version_to_str(version)
-        for version in SUPPORTED_PYTHON_VERSIONS
-        if min_version <= version <= max_version
-    ]
+    return [version_to_str(version) for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
 
 
 # Common venv configurations for appsec threats testing
@@ -919,9 +913,7 @@ venv = Venv(
                 "daphne": [latest],
                 "requests": [latest],
                 "redis": ">=2.10,<2.11",
-                "psycopg2-binary": [
-                    ">=2.8.6"
-                ],  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
+                "psycopg2-binary": [">=2.8.6"],  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
                 "pytest-django[testing]": "==3.10.0",
                 "pylibmc": latest,
                 "python-memcached": latest,
@@ -1058,12 +1050,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=["3.9"],
-                    pkgs={
-                        "dramatiq": "~=1.10.0",
-                        "pytest": latest,
-                        "redis": latest,
-                        "pika": latest,
-                    },
+                    pkgs={"dramatiq": "~=1.10.0", "pytest": latest, "redis": latest, "pika": latest},
                 ),
                 Venv(
                     pys=select_pys(max_version="3.13"),
@@ -1114,9 +1101,7 @@ venv = Venv(
         Venv(
             name="elasticsearch:async",
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_async.py",
-            env={
-                "AIOHTTP_NO_EXTENSIONS": "1"
-            },  # needed until aiohttp is updated to support python 3.12
+            env={"AIOHTTP_NO_EXTENSIONS": "1"},  # needed until aiohttp is updated to support python 3.12
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -1280,10 +1265,7 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.9", max_version="3.11"),
                         ),
-                        Venv(
-                            pys=select_pys(min_version="3.12", max_version="3.13"),
-                            pkgs={"redis": latest},
-                        ),
+                        Venv(pys=select_pys(min_version="3.12", max_version="3.13"), pkgs={"redis": latest}),
                     ],
                 ),
             ],
@@ -1409,12 +1391,8 @@ venv = Venv(
                 ],
             },
             venvs=[
-                Venv(
-                    command="pytest {cmdargs} --ignore=tests/contrib/pymemcache/autopatch tests/contrib/pymemcache"
-                ),
-                Venv(
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pymemcache/autopatch/"
-                ),
+                Venv(command="pytest {cmdargs} --ignore=tests/contrib/pymemcache/autopatch tests/contrib/pymemcache"),
+                Venv(command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pymemcache/autopatch/"),
             ],
         ),
         Venv(
@@ -1477,18 +1455,12 @@ venv = Venv(
                 Venv(
                     # starlette added support for Python 3.9 in 0.14
                     pys="3.9",
-                    pkgs={
-                        "starlette": ["~=0.14.0", "~=0.20.0", "~=0.33.0"],
-                        "httpx": "~=0.22.0",
-                    },
+                    pkgs={"starlette": ["~=0.14.0", "~=0.20.0", "~=0.33.0"], "httpx": "~=0.22.0"},
                 ),
                 Venv(
                     # starlette added support for Python 3.10 in 0.15
                     pys="3.10",
-                    pkgs={
-                        "starlette": ["~=0.15.0", "~=0.20.0", "~=0.33.0", latest],
-                        "httpx": "~=0.27.0",
-                    },
+                    pkgs={"starlette": ["~=0.15.0", "~=0.20.0", "~=0.33.0", latest], "httpx": "~=0.27.0"},
                 ),
                 Venv(
                     # starlette added support for Python 3.11 in 0.21
@@ -1633,11 +1605,7 @@ venv = Venv(
                     ],
                 ),
                 Venv(
-                    pkgs={
-                        "vcrpy": "==7.0.0",
-                        "botocore": "==1.38.26",
-                        "boto3": "==1.38.26",
-                    },
+                    pkgs={"vcrpy": "==7.0.0", "botocore": "==1.38.26", "boto3": "==1.38.26"},
                     venvs=[
                         Venv(
                             pys=select_pys(),
@@ -1674,10 +1642,7 @@ venv = Venv(
                         ],
                     },
                 ),
-                Venv(
-                    pys=select_pys(min_version="3.11"),
-                    pkgs={"mariadb": ["~=1.1.2", latest]},
-                ),
+                Venv(pys=select_pys(min_version="3.11"), pkgs={"mariadb": ["~=1.1.2", latest]}),
             ],
         ),
         Venv(
@@ -2300,10 +2265,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/rediscluster",
             pkgs={"pytest-randomly": latest},
             venvs=[
-                Venv(
-                    pys=select_pys(max_version="3.11"),
-                    pkgs={"redis-py-cluster": [">=2.0,<2.1", latest]},
-                ),
+                Venv(pys=select_pys(max_version="3.11"), pkgs={"redis-py-cluster": [">=2.0,<2.1", latest]}),
             ],
         ),
         Venv(
@@ -2546,10 +2508,7 @@ venv = Venv(
                 # sqlite3 is tied to the Python version and is not installable via pip
                 # To test a range of versions without updating Python, we use Linux only pysqlite3-binary package
                 # Remove pysqlite3-binary on Python 3.9+ locally on non-linux machines
-                Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.12"),
-                    pkgs={"pysqlite3-binary": [latest]},
-                ),
+                Venv(pys=select_pys(min_version="3.9", max_version="3.12"), pkgs={"pysqlite3-binary": [latest]}),
             ],
         ),
         Venv(
@@ -2645,9 +2604,7 @@ venv = Venv(
                     # opentelemetry-api doesn't yet work with Python 3.14
                     pys=select_pys(min_version="3.9", max_version="3.13"),
                     # Ensure we test against versions of opentelemetry-api that broke compatibility with ddtrace
-                    pkgs={
-                        "opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest]
-                    },
+                    pkgs={"opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest]},
                 ),
                 Venv(
                     # opentelemetry-exporter-otlp doesn't yet work with Python 3.14
@@ -2940,9 +2897,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.13"),
                 ),
-                Venv(
-                    pys=select_pys(min_version="3.14"), pkgs={"ormsgpack": ">=1.11.0"}
-                ),
+                Venv(pys=select_pys(min_version="3.14"), pkgs={"ormsgpack": ">=1.11.0"}),
             ],
         ),
         Venv(
@@ -3118,10 +3073,7 @@ venv = Venv(
                             pkgs={"confluent-kafka": ["~=1.9.2", latest]},
                         ),
                         # confluent-kafka added support for Python 3.11 in 2.0.2
-                        Venv(
-                            pys=select_pys(min_version="3.11", max_version="3.13"),
-                            pkgs={"confluent-kafka": latest},
-                        ),
+                        Venv(pys=select_pys(min_version="3.11", max_version="3.13"), pkgs={"confluent-kafka": latest}),
                     ],
                 ),
             ],
@@ -3145,11 +3097,7 @@ venv = Venv(
             },
             command="pytest {cmdargs} tests/contrib/aiokafka/",
             pys=select_pys(),
-            pkgs={
-                "pytest-asyncio": [latest],
-                "pytest-randomly": latest,
-                "aiokafka": ["~=0.9.0", latest],
-            },
+            pkgs={"pytest-asyncio": [latest], "pytest-randomly": latest, "aiokafka": ["~=0.9.0", latest]},
         ),
         Venv(
             name="azure_eventhubs",
