@@ -11,16 +11,19 @@ Ray instrumentation is experimental. It is deactivated by default. To enable it,
 you have to follow one of the two methods below:
 
 The recommended way to instrument Ray, is to instrument the Ray cluster.
+
+You can do it by starting the Ray head using ddtrace-run::
+
+    DD_PATCH_MODULES="ray:true, aiohttp:false, grpc:false, requests:false" ddtrace-run ray start --head
+
+DD_PATCH_MODULES will allow to reduce noise.
+
 You can do it by starting the Ray head with a tracing startup hook::
 
     ray start --head --tracing-startup-hook=ddtrace.contrib.ray:setup_tracing
 
-Otherwise, you can specify the tracing hook in `ray.init()` using::
-
-    ray.init(_tracing_startup_hook="ddtrace.contrib.ray:setup_tracing")
-
-Note that this method does not provide full tracing capabilities.
-
+Note that this method does not provide full tracing capabilities if ``ray.init()`` is not called at the top
+of your job scripts.
 
 Configuration
 ~~~~~~~~~~~~~

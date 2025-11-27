@@ -1,3 +1,7 @@
+import os
+import subprocess
+import time
+
 import pytest
 import ray
 from ray.util.tracing import tracing_helper
@@ -314,19 +318,78 @@ class TestRayIntegration(TracerTestCase):
 
 
 class TestRayWithoutInit(TracerTestCase):
-    def tearDown(self):
+    """This class tests that actor and task submissions work with auto initialization
+    This class also shows a lack of visibility when we cannot call ray.init explictly
+    which led to a change in how we start a cluster
+    """
+
+    dashboard_url = None
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+
+        env = os.environ.copy()
+        env.update(
+            {
+                "DD_PATCH_MODULES": "ray:true,aiohttp:false,grpc:false,requests:false",
+            }
+        )
+
+        subprocess.run(
+            [
+                "ray",
+                "start",
+                "--head",
+                "--tracing-startup-hook=ddtrace.contrib.ray:setup_tracing",
+                "--num-cpus=1",
+                "--num-gpus=0",
+                "--object-store-memory=100000000",
+                "--dashboard-host=127.0.0.1",
+                "--dashboard-port=8265",
+            ],
+            env=env,
+            check=True,
+        )
+        tracing_helper._global_is_tracing_enabled = False
+
+        # Wait for dashboard to be ready
+        cls.dashboard_url = "http://127.0.0.1:8265"
+        time.sleep(2)
+
+    @classmethod
+    def tearDownClass(cls):
         if ray.is_initialized():
             ray.shutdown()
-        super().tearDown()
+        super().tearDownClass()
 
-    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_task_without_init", ignores=RAY_SNAPSHOT_IGNORES)
+    def _submit_and_wait_for_job(self, job_script_name, timeout=30):
+        job_script = os.path.join(os.path.dirname(__file__), "jobs", job_script_name)
+        result = subprocess.run(
+            [
+                "ray",
+                "job",
+                "submit",
+                "--address",
+                str(self.dashboard_url),
+                "--",
+                "python",
+                job_script,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+
+        assert result.returncode == 0, (
+            f"Job failed with return code {result.returncode}. Stdout:\n{result.stdout}\nStderr:\n{result.stderr}"
+        )
+        return result.stdout, result.stderr
+
+    @pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
     def test_task_without_init(self):
-        """Test that tracing works when Ray auto-initializes without explicit ray.init()"""
+        self._submit_and_wait_for_job("task_without_init.py")
 
-        @ray.remote
-        def add_one(x):
-            return x + 1
-
-        futures = [add_one.remote(i) for i in range(2)]
-        results = ray.get(futures)
-        assert results == [1, 2], f"Unexpected results: {results}"
+    @pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
+    def test_actor_without_init(self):
+        self._submit_and_wait_for_job("actor_without_init.py")

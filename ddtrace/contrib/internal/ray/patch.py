@@ -153,11 +153,10 @@ def traced_submit_task(wrapped, instance, args, kwargs):
     # This is done under a lock as multiple task could be submit at the same time
     # and thus try to modify the signature as the same time
     with instance._inject_lock:
-        if not getattr(instance._function, "_dd_trace_wrapped", False):
+        if instance._function_signature is None:
             instance._function = _wrap_remote_function_execution(instance._function)
             instance._function.__signature__ = _inject_dd_trace_ctx_kwarg(instance._function)
             instance._function_signature = extract_signature(instance._function)
-            instance._function._dd_trace_wrapped = True
 
     with tracer.trace(
         "task.submit",
