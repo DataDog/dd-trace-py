@@ -3,9 +3,12 @@ Integration tests for Playwright distributed tracing.
 
 These tests verify the actual Playwright integration works correctly.
 """
+
+from http.server import BaseHTTPRequestHandler
+from http.server import HTTPServer
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+
 import pytest
 
 from ddtrace import config
@@ -211,9 +214,9 @@ class HeaderCaptureHandler(BaseHTTPRequestHandler):
 
         # Send a simple response
         self.send_response(200)
-        self.send_header('Content-type', 'text/html')
+        self.send_header("Content-type", "text/html")
         self.end_headers()
-        self.wfile.write(b'<html><body><h1>Test Page</h1></body></html>')
+        self.wfile.write(b"<html><body><h1>Test Page</h1></body></html>")
 
     @classmethod
     def clear_captured_headers(cls):
@@ -227,6 +230,7 @@ class TestPlaywrightHeaderInjectionE2E:
     def test_playwright_injects_headers_in_browser_requests(self, playwright):
         """Test that Playwright actually injects Datadog headers into browser HTTP requests."""
         import socket
+
         from ddtrace.ext.test import TYPE as TEST_TYPE
 
         p = playwright
@@ -238,11 +242,11 @@ class TestPlaywrightHeaderInjectionE2E:
 
         # Find an available port
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(('', 0))
+            s.bind(("", 0))
             port = s.getsockname()[1]
 
         # Start a test HTTP server
-        server = HTTPServer(('localhost', port), HeaderCaptureHandler)
+        server = HTTPServer(("localhost", port), HeaderCaptureHandler)
         server_thread = threading.Thread(target=server.serve_forever, daemon=True)
         server_thread.start()
 
@@ -253,7 +257,7 @@ class TestPlaywrightHeaderInjectionE2E:
             # Patch Playwright
             patch.patch()
 
-                            # Create a test span with test.type tag
+            # Create a test span with test.type tag
             with tracer.trace("test_browser_header_injection") as test_span:
                 test_span.set_tag(TEST_TYPE, "test")
 
@@ -263,7 +267,10 @@ class TestPlaywrightHeaderInjectionE2E:
                         browser = p.chromium.launch(headless=True)
                     except Exception as e:
                         error_msg = str(e)
-                        if "Executable doesn't exist" in error_msg or "Host system is missing dependencies" in error_msg:
+                        if (
+                            "Executable doesn't exist" in error_msg
+                            or "Host system is missing dependencies" in error_msg
+                        ):
                             pytest.skip("Playwright browsers not available - skipping browser test")
                         raise
 
@@ -288,11 +295,15 @@ class TestPlaywrightHeaderInjectionE2E:
                                 # Verify Datadog headers are present
                                 assert "x-datadog-trace-id" in request_headers, "Missing x-datadog-trace-id header"
                                 assert "x-datadog-parent-id" in request_headers, "Missing x-datadog-parent-id header"
-                                assert "x-datadog-sampling-priority" in request_headers, "Missing x-datadog-sampling-priority header"
+                                assert "x-datadog-sampling-priority" in request_headers, (
+                                    "Missing x-datadog-sampling-priority header"
+                                )
 
                                 # Verify the sampling priority is 114 (special test context value)
                                 sampling_priority = request_headers["x-datadog-sampling-priority"]
-                                assert sampling_priority == "114", f"Expected sampling priority 114, got {sampling_priority}"
+                                assert sampling_priority == "114", (
+                                    f"Expected sampling priority 114, got {sampling_priority}"
+                                )
 
                                 # Verify trace and parent IDs are valid
                                 trace_id = request_headers["x-datadog-trace-id"]
@@ -327,11 +338,11 @@ class TestPlaywrightHeaderInjectionE2E:
 
         # Find an available port
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(('', 0))
+            s.bind(("", 0))
             port = s.getsockname()[1]
 
         # Start a test HTTP server
-        server = HTTPServer(('localhost', port), HeaderCaptureHandler)
+        server = HTTPServer(("localhost", port), HeaderCaptureHandler)
         server_thread = threading.Thread(target=server.serve_forever, daemon=True)
         server_thread.start()
 
@@ -370,9 +381,15 @@ class TestPlaywrightHeaderInjectionE2E:
                             request_headers = HeaderCaptureHandler.captured_headers[0]
 
                             # Verify Datadog headers are NOT present when tracing is disabled
-                            assert "x-datadog-trace-id" not in request_headers, "x-datadog-trace-id should not be present when tracing disabled"
-                            assert "x-datadog-parent-id" not in request_headers, "x-datadog-parent-id should not be present when tracing disabled"
-                            assert "x-datadog-sampling-priority" not in request_headers, "x-datadog-sampling-priority should not be present when tracing disabled"
+                            assert "x-datadog-trace-id" not in request_headers, (
+                                "x-datadog-trace-id should not be present when tracing disabled"
+                            )
+                            assert "x-datadog-parent-id" not in request_headers, (
+                                "x-datadog-parent-id should not be present when tracing disabled"
+                            )
+                            assert "x-datadog-sampling-priority" not in request_headers, (
+                                "x-datadog-sampling-priority should not be present when tracing disabled"
+                            )
 
                         finally:
                             page.close()
@@ -402,11 +419,11 @@ class TestPlaywrightHeaderInjectionE2E:
 
         # Find an available port
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(('', 0))
+            s.bind(("", 0))
             port = s.getsockname()[1]
 
         # Start a test HTTP server
-        server = HTTPServer(('localhost', port), HeaderCaptureHandler)
+        server = HTTPServer(("localhost", port), HeaderCaptureHandler)
         server_thread = threading.Thread(target=server.serve_forever, daemon=True)
         server_thread.start()
 
@@ -427,7 +444,10 @@ class TestPlaywrightHeaderInjectionE2E:
                         browser = p.chromium.launch(headless=True)
                     except Exception as e:
                         error_msg = str(e)
-                        if "Executable doesn't exist" in error_msg or "Host system is missing dependencies" in error_msg:
+                        if (
+                            "Executable doesn't exist" in error_msg
+                            or "Host system is missing dependencies" in error_msg
+                        ):
                             pytest.skip("Playwright browsers not available - skipping browser test")
                         raise
 
@@ -451,11 +471,15 @@ class TestPlaywrightHeaderInjectionE2E:
                                 # Verify Datadog headers are present
                                 assert "x-datadog-trace-id" in request_headers, "Missing x-datadog-trace-id header"
                                 assert "x-datadog-parent-id" in request_headers, "Missing x-datadog-parent-id header"
-                                assert "x-datadog-sampling-priority" in request_headers, "Missing x-datadog-sampling-priority header"
+                                assert "x-datadog-sampling-priority" in request_headers, (
+                                    "Missing x-datadog-sampling-priority header"
+                                )
 
                                 # Verify the sampling priority is 1 (normal priority, not 114)
                                 sampling_priority = request_headers["x-datadog-sampling-priority"]
-                                assert sampling_priority == "1", f"Expected sampling priority 1, got {sampling_priority}"
+                                assert sampling_priority == "1", (
+                                    f"Expected sampling priority 1, got {sampling_priority}"
+                                )
 
                             finally:
                                 page.close()

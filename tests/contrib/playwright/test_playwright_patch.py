@@ -50,40 +50,35 @@ class TestPlaywrightPatch:
         assert "distributed_tracing" in config.playwright
 
     @pytest.mark.skipif(
-        not hasattr(patch, "_inject_distributed_tracing_headers"),
+        not hasattr(patch, "_get_tracing_headers"),
         reason="Integration may not be fully loaded",
     )
-    def test_inject_distributed_tracing_headers(self):
-        """Test that distributed tracing headers are injected correctly."""
-        from ddtrace.contrib.internal.playwright.patch import _inject_distributed_tracing_headers
+    def test_get_tracing_headers(self):
+        """Test that distributed tracing headers are retrieved correctly."""
+        from ddtrace.contrib.internal.playwright.patch import _get_tracing_headers
 
         # Test with distributed tracing enabled
         config.playwright["distributed_tracing"] = True
-        headers = {}
-        _inject_distributed_tracing_headers(headers)
+        headers = _get_tracing_headers()
 
-        # Should have injected Datadog headers when span is active
-        # Note: headers may not be present if no active span
+        # Should return a dict (may be empty if no active span)
         assert isinstance(headers, dict)
 
-    def test_inject_distributed_tracing_headers_disabled(self):
-        """Test that headers are not injected when distributed tracing is disabled."""
-        from ddtrace.contrib.internal.playwright.patch import _inject_distributed_tracing_headers
+    def test_get_tracing_headers_disabled(self):
+        """Test that no headers are returned when distributed tracing is disabled."""
+        from ddtrace.contrib.internal.playwright.patch import _get_tracing_headers
 
         # Disable distributed tracing
         config.playwright["distributed_tracing"] = False
-        headers = {}
-        original_count = len(headers)
+        headers = _get_tracing_headers()
 
-        _inject_distributed_tracing_headers(headers)
-
-        # No headers should be added
-        assert len(headers) == original_count
+        # Should return empty dict
+        assert headers == {}
 
     def test_sampling_priority_override_in_test_context(self):
         """Test that sampling priority 114 is used in test contexts."""
-        from ddtrace.propagation.http import HTTPPropagator
         from ddtrace.ext.test import TYPE as TEST_TYPE
+        from ddtrace.propagation.http import HTTPPropagator
 
         # Import tracer
         tracer = pytest.importorskip("ddtrace").tracer
@@ -113,7 +108,7 @@ class TestPlaywrightPatch:
 
     def test_playwright_header_injection_with_test_context(self):
         """Test that Playwright header injection works with test context priority override."""
-        from ddtrace.contrib.internal.playwright.patch import _inject_distributed_tracing_headers
+        from ddtrace.contrib.internal.playwright.patch import _get_tracing_headers
         from ddtrace.ext.test import TYPE as TEST_TYPE
 
         tracer = pytest.importorskip("ddtrace").tracer
@@ -125,14 +120,14 @@ class TestPlaywrightPatch:
         headers_regular = {}
         with tracer.trace("regular_operation") as span:
             span.context.sampling_priority = 2
-            _inject_distributed_tracing_headers(headers_regular)
+            headers_regular = _get_tracing_headers()
 
         # Test in test context
         headers_test = {}
         with tracer.trace("test_operation") as span:
             span.set_tag(TEST_TYPE, "test")
             span.context.sampling_priority = 2  # Should be overridden
-            _inject_distributed_tracing_headers(headers_test)
+            headers_test = _get_tracing_headers()
 
         # Both should have trace headers
         assert "x-datadog-trace-id" in headers_regular
@@ -148,25 +143,23 @@ class TestPlaywrightPatch:
 
     def test_end_to_end_playwright_with_test_context(self):
         """End-to-end test of Playwright integration with test context sampling priority."""
-        from ddtrace.contrib.internal.playwright.patch import _inject_distributed_tracing_headers
-        from ddtrace.propagation.http import HTTPPropagator
+        from ddtrace.contrib.internal.playwright.patch import _get_tracing_headers
         from ddtrace.ext.test import TYPE as TEST_TYPE
+        from ddtrace.propagation.http import HTTPPropagator
 
         tracer = pytest.importorskip("ddtrace").tracer
         config.playwright["distributed_tracing"] = True
 
         # Test 1: Playwright headers in regular context
-        headers_regular = {}
         with tracer.trace("regular_browser_op") as span:
             span.context.sampling_priority = 3
-            _inject_distributed_tracing_headers(headers_regular)
+            headers_regular = _get_tracing_headers()
 
         # Test 2: Playwright headers in test context
-        headers_test = {}
         with tracer.trace("test_browser_op") as span:
             span.set_tag(TEST_TYPE, "test")
             span.context.sampling_priority = 3  # Should be overridden
-            _inject_distributed_tracing_headers(headers_test)
+            headers_test = _get_tracing_headers()
 
         # Test 3: Direct HTTPPropagator.inject in test context
         headers_direct = {}
@@ -181,9 +174,13 @@ class TestPlaywrightPatch:
             assert "x-datadog-parent-id" in headers, f"{name} context missing parent-id"
 
         # Verify sampling priorities
-        assert headers_regular.get("x-datadog-sampling-priority") == "3", "Regular context should keep original priority"
+        assert headers_regular.get("x-datadog-sampling-priority") == "3", (
+            "Regular context should keep original priority"
+        )
         assert headers_test.get("x-datadog-sampling-priority") == "114", "Test context should override to 114"
-        assert headers_direct.get("x-datadog-sampling-priority") == "114", "Direct injection in test context should override to 114"
+        assert headers_direct.get("x-datadog-sampling-priority") == "114", (
+            "Direct injection in test context should override to 114"
+        )
 
     def test_playwright_config_isolation(self):
         """Test that playwright config changes don't affect global state."""

@@ -43,12 +43,9 @@ The Playwright integration automatically injects Datadog distributed tracing hea
 into all browser requests made through Playwright. This enables end-to-end tracing
 from your application through to browser-initiated backend requests.
 
-The integration uses a multi-layered approach to ensure headers are injected
-regardless of how Playwright is used:
-
-1. **Context-level injection**: Headers are added to BrowserContext.extra_http_headers
-2. **Route interception**: A catch-all route handler intercepts all requests and injects headers
-3. **Request-level patching**: Individual request objects are patched as needed
+The integration uses a dual approach to ensure headers are injected:
+1. **Context-level injection**: Headers added to BrowserContext.extra_http_headers (navigation)
+2. **Route interception**: A catch-all route handler for JavaScript-initiated requests (fetch, XHR)
 
 Headers injected include:
 - ``x-datadog-trace-id``: The lower 64-bits of the 128-bit trace-id in decimal format

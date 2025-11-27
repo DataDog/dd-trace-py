@@ -35,54 +35,35 @@ def _supported_versions() -> Dict[str, str]:
     return {"playwright": "*"}
 
 
-def _inject_distributed_tracing_headers(headers: Dict[str, str], context=None, is_test_context=None) -> None:
+def _get_tracing_headers() -> Dict[str, str]:
     """
-    Inject Datadog distributed tracing headers into the provided headers dict.
+    Get distributed tracing headers for the current span context.
 
-    This uses the provided context (if any), otherwise falls back to the current active span context.
-    If no active span exists, creates a temporary span for header injection.
+    Returns a dictionary of headers to inject into HTTP requests.
+    If no span is active, creates a temporary span.
     """
     if not config.playwright.get("distributed_tracing", True):
-        return
+        return {}
 
+    headers = {}
     try:
-        # Use provided context, or get the current active span
-        span_context = context
-
-        # Use the explicitly provided is_test_context flag, or try to detect it
-        if is_test_context is None and span_context is not None:
-            # Check if the provided context is from a test span by walking up the span hierarchy
-            # This is needed because the context object itself doesn't store the test.type tag
-            try:
-                current_span = tracer.current_span()
-                while current_span:
-                    if current_span.context == span_context and current_span.get_tag('test.type') == 'test':
-                        is_test_context = True
-                        break
-                    current_span = current_span._parent
-            except Exception:
-                pass
-        elif span_context is None:
-            current_span = tracer.current_span()
-            if current_span:
-                span_context = current_span.context
-
-        if span_context:
-            # Use the span context to inject headers, passing the test context flag
-            HTTPPropagator.inject(span_context, headers, is_test_context=is_test_context)
+        current_span = tracer.current_span()
+        if current_span:
+            HTTPPropagator.inject(current_span.context, headers)
         else:
             # No active span, create a temporary span for header injection
             with tracer.trace("playwright.browser.request", span_type=SpanTypes.HTTP) as span:
                 span._set_tag_str(SPAN_KIND, "client")
                 span._set_tag_str("component", config.playwright.integration_name)
-                HTTPPropagator.inject(span.context, headers, is_test_context=is_test_context)
-
+                HTTPPropagator.inject(span.context, headers)
     except Exception as e:
-        log.debug("Failed to inject distributed tracing headers: %s", e)
+        log.debug("Failed to get distributed tracing headers: %s", e)
+
+    return headers
 
 
 def _patch_browser_context_new_context():
-    """Patch Browser.new_context to inject headers at the context level."""
+    """Patch Browser.new_context to inject distributed tracing headers."""
     try:
         from playwright.sync_api import Browser
     except ImportError:
@@ -92,29 +73,63 @@ def _patch_browser_context_new_context():
     original_new_context = Browser.new_context
 
     def _wrapped_new_context(*args, **kwargs):
-        # Capture the current span context at the time of context creation
-        # This ensures test context is preserved for async browser requests
-        current_span = tracer.current_span()
-        test_context = current_span.context if current_span else None
+        # Get distributed tracing headers for current context
+        dd_headers = _get_tracing_headers()
 
-        # Inject headers into extra_http_headers
-        headers = kwargs.setdefault("extra_http_headers", {})
-        is_test_context_flag = current_span and current_span.get_tag('test.type') == 'test'
-        _inject_distributed_tracing_headers(headers, test_context, is_test_context_flag)
+        # Add headers to extra_http_headers (for navigation requests)
+        if dd_headers:
+            extra_headers = kwargs.setdefault("extra_http_headers", {})
+            extra_headers.update(dd_headers)
 
-        # Create the context
+        # Create the browser context
         context = original_new_context(*args, **kwargs)
 
-        # Store the test context and test flag on the context for use by route handlers
-        context._dd_test_context = test_context
-        context._dd_is_test_context = current_span and current_span.get_tag('test.type') == 'test'
-
-        # Also install a route handler as a fallback
-        _install_route_handler(context)
+        # Store headers on context for route handler to reuse
+        if dd_headers:
+            context._dd_tracing_headers = dd_headers
+            _install_route_handler(context)
 
         return context
 
     Browser.new_context = _wrapped_new_context
+
+
+def _install_route_handler(context) -> None:
+    """
+    Install route handler to inject headers into JavaScript-initiated requests.
+
+    JavaScript fetch() and XHR requests don't inherit extra_http_headers,
+    so we intercept them via route handler and inject headers manually.
+    """
+    if hasattr(context, "_dd_route_handler_installed"):
+        return
+
+    try:
+
+        def _inject_headers_handler(route, request):
+            """Inject distributed tracing headers into the request."""
+            try:
+                # Get request headers and merge in our tracing headers
+                headers = dict(getattr(request, "headers", {}) or {})
+                headers.update(getattr(context, "_dd_tracing_headers", {}))
+
+                # Continue request with merged headers
+                route.continue_(headers=headers)
+
+            except Exception as e:
+                # Fallback: continue without modification if injection fails
+                log.debug("Failed to inject headers in route handler: %s", e)
+                try:
+                    route.continue_()
+                except Exception:
+                    pass
+
+        # Install catch-all route handler
+        context.route("**/*", _inject_headers_handler)
+        context._dd_route_handler_installed = True
+
+    except Exception as e:
+        log.debug("Failed to install route handler: %s", e)
 
 
 def _patch_api_request_new_context():
@@ -128,9 +143,11 @@ def _patch_api_request_new_context():
         original_new_context = playwright.request.new_context
 
         def _wrapped_api_new_context(*args, **kwargs):
-            # Inject headers into extra_http_headers for API requests
-            headers = kwargs.setdefault("extra_http_headers", {})
-            _inject_distributed_tracing_headers(headers)
+            # Get and inject distributed tracing headers
+            dd_headers = _get_tracing_headers()
+            if dd_headers:
+                extra_headers = kwargs.setdefault("extra_http_headers", {})
+                extra_headers.update(dd_headers)
 
             return original_new_context(*args, **kwargs)
 
@@ -138,48 +155,6 @@ def _patch_api_request_new_context():
 
     except Exception as e:
         log.debug("Failed to patch API request context: %s", e)
-
-
-def _install_route_handler(context) -> None:
-    """
-    Install a catch-all route handler on the context to inject headers into all requests.
-
-    This ensures headers are injected even if the context was created without
-    extra_http_headers or if individual requests override headers.
-    """
-    if not hasattr(context, "_dd_route_handler_installed"):
-        try:
-
-            def _inject_headers(route, request):
-                """Route handler that injects distributed tracing headers into each request."""
-                try:
-                    # Get existing headers
-                    headers = dict(getattr(request, "headers", {}) or {})
-
-                    # Use the stored test context and flag from when the browser context was created
-                    test_context = getattr(context, "_dd_test_context", None)
-                    is_test_context = getattr(context, "_dd_is_test_context", None)
-
-                    # Inject our distributed tracing headers
-                    _inject_distributed_tracing_headers(headers, test_context, is_test_context)
-
-                    # Continue the request with injected headers
-                    route.continue_(headers=headers)
-
-                except Exception as e:
-                    # Fallback: continue without headers if injection fails
-                    log.debug("Failed to inject headers in route handler: %s", e)
-                    try:
-                        route.continue_()
-                    except Exception:
-                        pass
-
-            # Install catch-all route handler
-            context.route("**/*", _inject_headers)
-            context._dd_route_handler_installed = True
-
-        except Exception as e:
-            log.debug("Failed to install route handler: %s", e)
 
 
 def patch() -> None:

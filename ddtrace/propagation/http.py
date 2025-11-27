@@ -38,9 +38,7 @@ from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.constants import BAGGAGE_TAG_PREFIX
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
-from ..internal.constants import (
-    HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS,
-)
+from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
 from ..internal.constants import LAST_DD_PARENT_ID_KEY
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ..internal.constants import PROPAGATION_STYLE_B3_MULTI
@@ -57,16 +55,27 @@ from ._utils import get_wsgi_header
 log = get_logger(__name__)
 
 
-def _is_test_context() -> bool:
+def _is_test_context(span_context=None) -> bool:
     """
-    Check if the current span is part of a test trace.
+    Check if the current span or provided context is part of a test trace.
 
     This checks if any span in the current trace has the test.type tag set to "test",
     indicating we're in a test execution context.
+
+    Args:
+        span_context: Optional context to check. If provided and the current span
+                     is in the same trace (same trace_id), checks if it's a test trace.
     """
     try:
-        # Check the current span and walk up the trace to find any test span
         span = core.tracer.current_span()
+        if span is None:
+            return False
+
+        # If span_context provided, only check if they're in the same trace
+        if span_context is not None and span.trace_id != span_context.trace_id:
+            return False
+
+        # Walk up the span hierarchy looking for test.type == "test"
         while span:
             if span.get_tag(TEST_TYPE) == "test":
                 return True
@@ -84,9 +93,7 @@ def _is_test_context() -> bool:
 _HTTP_BAGGAGE_PREFIX: Literal["ot-baggage-"] = "ot-baggage-"
 HTTP_HEADER_TRACE_ID: Literal["x-datadog-trace-id"] = "x-datadog-trace-id"
 HTTP_HEADER_PARENT_ID: Literal["x-datadog-parent-id"] = "x-datadog-parent-id"
-HTTP_HEADER_SAMPLING_PRIORITY: Literal["x-datadog-sampling-priority"] = (
-    "x-datadog-sampling-priority"
-)
+HTTP_HEADER_SAMPLING_PRIORITY: Literal["x-datadog-sampling-priority"] = "x-datadog-sampling-priority"
 HTTP_HEADER_ORIGIN: Literal["x-datadog-origin"] = "x-datadog-origin"
 _HTTP_HEADER_B3_SINGLE: Literal["b3"] = "b3"
 _HTTP_HEADER_B3_TRACE_ID: Literal["x-b3-traceid"] = "x-b3-traceid"
@@ -108,13 +115,9 @@ def _possible_header(header):
 # versions of these headers
 POSSIBLE_HTTP_HEADER_TRACE_IDS = _possible_header(HTTP_HEADER_TRACE_ID)
 POSSIBLE_HTTP_HEADER_PARENT_IDS = _possible_header(HTTP_HEADER_PARENT_ID)
-POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES = _possible_header(
-    HTTP_HEADER_SAMPLING_PRIORITY
-)
+POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES = _possible_header(HTTP_HEADER_SAMPLING_PRIORITY)
 POSSIBLE_HTTP_HEADER_ORIGIN = _possible_header(HTTP_HEADER_ORIGIN)
-_POSSIBLE_HTTP_HEADER_TAGS = frozenset(
-    [_HTTP_HEADER_TAGS, get_wsgi_header(_HTTP_HEADER_TAGS).lower()]
-)
+_POSSIBLE_HTTP_HEADER_TAGS = frozenset([_HTTP_HEADER_TAGS, get_wsgi_header(_HTTP_HEADER_TAGS).lower()])
 _POSSIBLE_HTTP_HEADER_B3_SINGLE_HEADER = _possible_header(_HTTP_HEADER_B3_SINGLE)
 _POSSIBLE_HTTP_HEADER_B3_TRACE_IDS = _possible_header(_HTTP_HEADER_B3_TRACE_ID)
 _POSSIBLE_HTTP_HEADER_B3_SPAN_IDS = _possible_header(_HTTP_HEADER_B3_SPAN_ID)
@@ -245,9 +248,7 @@ class _DatadogMultiHeader:
             meta = {
                 "_dd.propagation_error": "extract_max_size",
             }
-            log.warning(
-                "failed to decode x-datadog-tags: %r", tags_value, exc_info=True
-            )
+            log.warning("failed to decode x-datadog-tags: %r", tags_value, exc_info=True)
         except TagsetDecodeError:
             meta = {
                 "_dd.propagation_error": "decoding_error",
@@ -263,9 +264,7 @@ class _DatadogMultiHeader:
     @staticmethod
     def _higher_order_is_valid(upper_64_bits: str) -> bool:
         try:
-            if len(upper_64_bits) != 16 or not (
-                int(upper_64_bits, 16) or (upper_64_bits.islower())
-            ):
+            if len(upper_64_bits) != 16 or not (int(upper_64_bits, 16) or (upper_64_bits.islower())):
                 raise ValueError
         except ValueError:
             return False
@@ -273,30 +272,24 @@ class _DatadogMultiHeader:
         return True
 
     @staticmethod
-    def _inject(span_context, headers, is_test_context=None):
-        # type: (Context, Dict[str, str], Optional[bool]) -> None
+    def _inject(span_context, headers):
+        # type: (Context, Dict[str, str]) -> None
         if span_context.trace_id is None or span_context.span_id is None:
             log.debug("tried to inject invalid context %r", span_context)
             return
 
         # When apm tracing is not enabled, only distributed traces with the `_dd.p.ts` tag
         # are propagated. If the tag is not present, we should not propagate downstream.
-        if not asm_config._apm_tracing_enabled and (
-            APPSEC.PROPAGATION_HEADER not in span_context._meta
-        ):
+        if not asm_config._apm_tracing_enabled and (APPSEC.PROPAGATION_HEADER not in span_context._meta):
             return
 
         if span_context.trace_id > _MAX_UINT_64BITS:
             # set lower order 64 bits in `x-datadog-trace-id` header. For backwards compatibility these
             # bits should be converted to a base 10 integer.
-            headers[HTTP_HEADER_TRACE_ID] = str(
-                _get_64_lowest_order_bits_as_int(span_context.trace_id)
-            )
+            headers[HTTP_HEADER_TRACE_ID] = str(_get_64_lowest_order_bits_as_int(span_context.trace_id))
             # set higher order 64 bits in `_dd.p.tid` to propagate the full 128 bit trace id.
             # Note - The higher order bits must be encoded in hex
-            span_context._meta[_HIGHER_ORDER_TRACE_ID_BITS] = (
-                _get_64_highest_order_bits_as_hex(span_context.trace_id)
-            )
+            span_context._meta[_HIGHER_ORDER_TRACE_ID_BITS] = _get_64_highest_order_bits_as_hex(span_context.trace_id)
         else:
             headers[HTTP_HEADER_TRACE_ID] = str(span_context.trace_id)
 
@@ -304,8 +297,8 @@ class _DatadogMultiHeader:
         sampling_priority = span_context.sampling_priority
 
         # Use special sampling priority 114 for test contexts
-        # Check if explicitly marked as test context, otherwise fall back to current span check
-        if is_test_context is True or (is_test_context is None and _is_test_context()):
+        # Pass the span_context so we can check if it's from a test span
+        if _is_test_context(span_context):
             sampling_priority = 114
 
         # Propagate priority only if defined
@@ -325,9 +318,7 @@ class _DatadogMultiHeader:
 
         # Only propagate trace tags which means ignoring the _dd.origin
         tags_to_encode = {
-            k: v
-            for k, v in span_context._meta.items()
-            if _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
+            k: v for k, v in span_context._meta.items() if _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
         }
 
         if tags_to_encode:
@@ -346,9 +337,7 @@ class _DatadogMultiHeader:
                 log.warning("failed to encode x-datadog-tags", exc_info=True)
 
         # Record telemetry for successful injection
-        _record_http_telemetry(
-            "context_header_style.injected", PROPAGATION_STYLE_DATADOG
-        )
+        _record_http_telemetry("context_header_style.injected", PROPAGATION_STYLE_DATADOG)
 
     @staticmethod
     def _extract(headers):
@@ -395,13 +384,9 @@ class _DatadogMultiHeader:
             trace_id_hob_hex = meta[_HIGHER_ORDER_TRACE_ID_BITS]
             if _DatadogMultiHeader._higher_order_is_valid(trace_id_hob_hex):
                 if config._128_bit_trace_id_enabled:
-                    trace_id = _DatadogMultiHeader._put_together_trace_id(
-                        trace_id_hob_hex, trace_id
-                    )
+                    trace_id = _DatadogMultiHeader._put_together_trace_id(trace_id_hob_hex, trace_id)
             else:
-                meta["_dd.propagation_error"] = "malformed_tid {}".format(
-                    trace_id_hob_hex
-                )
+                meta["_dd.propagation_error"] = "malformed_tid {}".format(trace_id_hob_hex)
                 del meta[_HIGHER_ORDER_TRACE_ID_BITS]
                 log.warning(
                     "malformed_tid: %s. Failed to decode trace id from http headers",
@@ -490,8 +475,8 @@ class _B3MultiHeader:
     """
 
     @staticmethod
-    def _inject(span_context, headers, is_test_context=None):
-        # type: (Context, Dict[str, str], Optional[bool]) -> None
+    def _inject(span_context, headers):
+        # type: (Context, Dict[str, str]) -> None
         if span_context.trace_id is None or span_context.span_id is None:
             log.debug("tried to inject invalid context %r", span_context)
             return
@@ -509,9 +494,7 @@ class _B3MultiHeader:
                 headers[_HTTP_HEADER_B3_FLAGS] = "1"
 
         # Record telemetry for successful injection
-        _record_http_telemetry(
-            "context_header_style.injected", PROPAGATION_STYLE_B3_MULTI
-        )
+        _record_http_telemetry("context_header_style.injected", PROPAGATION_STYLE_B3_MULTI)
 
     @staticmethod
     def _extract(headers):
@@ -612,8 +595,8 @@ class _B3SingleHeader:
     """
 
     @staticmethod
-    def _inject(span_context, headers, is_test_context=None):
-        # type: (Context, Dict[str, str], Optional[bool]) -> None
+    def _inject(span_context, headers):
+        # type: (Context, Dict[str, str]) -> None
         if span_context.trace_id is None or span_context.span_id is None:
             log.debug("tried to inject invalid context %r", span_context)
             return
@@ -633,16 +616,12 @@ class _B3SingleHeader:
         headers[_HTTP_HEADER_B3_SINGLE] = single_header
 
         # Record telemetry for successful injection
-        _record_http_telemetry(
-            "context_header_style.injected", PROPAGATION_STYLE_B3_SINGLE
-        )
+        _record_http_telemetry("context_header_style.injected", PROPAGATION_STYLE_B3_SINGLE)
 
     @staticmethod
     def _extract(headers):
         # type: (Dict[str, str]) -> Optional[Context]
-        single_header = _extract_header_value(
-            _POSSIBLE_HTTP_HEADER_B3_SINGLE_HEADER, headers
-        )
+        single_header = _extract_header_value(_POSSIBLE_HTTP_HEADER_B3_SINGLE_HEADER, headers)
         if not single_header:
             return None
 
@@ -774,14 +753,9 @@ class _TraceContext:
             raise ValueError("ff is an invalid traceparent version: %s" % tp)
         elif version != "00":
             # currently 00 is the only version format, but if future versions come up we may need to add changes
-            log.warning(
-                "unsupported traceparent version:%r, still attempting to parse", version
-            )
+            log.warning("unsupported traceparent version:%r, still attempting to parse", version)
         elif version == "00" and future_vals is not None:
-            raise ValueError(
-                "Traceparents with the version `00` should contain 4 values delimited by a dash: %s"
-                % tp
-            )
+            raise ValueError("Traceparents with the version `00` should contain 4 values delimited by a dash: %s" % tp)
 
         trace_id = _hex_id_to_dd_id(trace_id_hex)
         span_id = _hex_id_to_dd_id(span_id_hex)
@@ -834,9 +808,7 @@ class _TraceContext:
 
             # need to convert from t. to _dd.p.
             other_propagated_tags = {
-                "_dd.p.%s" % k[2:]: _TraceContext.decode_tag_val(v)
-                for (k, v) in dd.items()
-                if k.startswith("t.")
+                "_dd.p.%s" % k[2:]: _TraceContext.decode_tag_val(v) for (k, v) in dd.items() if k.startswith("t.")
             }
 
             return sampling_priority_ts_int, other_propagated_tags, origin, lpid
@@ -929,20 +901,14 @@ class _TraceContext:
                     tracestate_values = None
 
                 if tracestate_values:
-                    sampling_priority_ts, other_propagated_tags, origin, lpid = (
-                        tracestate_values
-                    )
+                    sampling_priority_ts, other_propagated_tags, origin, lpid = tracestate_values
                     meta.update(other_propagated_tags.items())
                     if lpid:
                         meta[LAST_DD_PARENT_ID_KEY] = lpid
 
-                    sampling_priority = _TraceContext._get_sampling_priority(
-                        trace_flag, sampling_priority_ts, origin
-                    )
+                    sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts, origin)
                 else:
-                    log.debug(
-                        "no dd list member in tracestate from incoming request: %r", ts
-                    )
+                    log.debug("no dd list member in tracestate from incoming request: %r", ts)
 
         return Context(
             trace_id=trace_id,
@@ -953,8 +919,8 @@ class _TraceContext:
         )
 
     @staticmethod
-    def _inject(span_context, headers, is_test_context=None):
-        # type: (Context, Dict[str, str], Optional[bool]) -> None
+    def _inject(span_context, headers):
+        # type: (Context, Dict[str, str]) -> None
         tp = span_context._traceparent
         if tp:
             headers[_HTTP_HEADER_TRACEPARENT] = tp
@@ -966,37 +932,27 @@ class _TraceContext:
             elif LAST_DD_PARENT_ID_KEY in span_context._meta:
                 # Datadog Span is not active, propagate the last datadog span_id
                 span_id = int(span_context._meta[LAST_DD_PARENT_ID_KEY], 16)
-                headers[_HTTP_HEADER_TRACESTATE] = w3c_tracestate_add_p(
-                    span_context._tracestate, span_id
-                )
+                headers[_HTTP_HEADER_TRACESTATE] = w3c_tracestate_add_p(span_context._tracestate, span_id)
             else:
                 headers[_HTTP_HEADER_TRACESTATE] = span_context._tracestate
 
         # Record telemetry for successful injection
-        _record_http_telemetry(
-            "context_header_style.injected", _PROPAGATION_STYLE_W3C_TRACECONTEXT
-        )
+        _record_http_telemetry("context_header_style.injected", _PROPAGATION_STYLE_W3C_TRACECONTEXT)
 
 
 class _BaggageHeader:
     """Helper class to inject/extract Baggage Headers"""
 
-    SAFE_CHARACTERS_KEY = (
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&'*+-.^_`|~"
-    )
+    SAFE_CHARACTERS_KEY = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&'*+-.^_`|~"
     SAFE_CHARACTERS_VALUE = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&'()*+-./:<>?@[]^_`{|}~"
 
     @staticmethod
     def _encode_key(key: str) -> str:
-        return urllib.parse.quote(
-            str(key).strip(), safe=_BaggageHeader.SAFE_CHARACTERS_KEY
-        )
+        return urllib.parse.quote(str(key).strip(), safe=_BaggageHeader.SAFE_CHARACTERS_KEY)
 
     @staticmethod
     def _encode_value(value: str) -> str:
-        return urllib.parse.quote(
-            str(value).strip(), safe=_BaggageHeader.SAFE_CHARACTERS_VALUE
-        )
+        return urllib.parse.quote(str(value).strip(), safe=_BaggageHeader.SAFE_CHARACTERS_VALUE)
 
     @staticmethod
     def _inject(span_context: Context, headers: Dict[str, str]) -> None:
@@ -1020,9 +976,7 @@ class _BaggageHeader:
             total_size = 0
             for key, value in baggage_items:
                 item = f"{_BaggageHeader._encode_key(key)}={_BaggageHeader._encode_value(value)}"
-                item_size = len(item.encode("utf-8")) + (
-                    1 if encoded_items else 0
-                )  # +1 for comma if not first item
+                item_size = len(item.encode("utf-8")) + (1 if encoded_items else 0)  # +1 for comma if not first item
                 if total_size + item_size > DD_TRACE_BAGGAGE_MAX_BYTES:
                     log.warning("Baggage header size exceeded, dropping excess items")
                     # Record telemetry for baggage header size exceeding limit
@@ -1040,9 +994,7 @@ class _BaggageHeader:
             headers[_HTTP_HEADER_BAGGAGE] = header_value
 
             # Record telemetry for successful baggage injection
-            _record_http_telemetry(
-                "context_header_style.injected", _PROPAGATION_STYLE_BAGGAGE
-            )
+            _record_http_telemetry("context_header_style.injected", _PROPAGATION_STYLE_BAGGAGE)
 
         except Exception:
             log.warning("Failed to encode and inject baggage header")
@@ -1104,9 +1056,7 @@ class HTTPPropagator(object):
         appropriate span and triggers sampling before returning the injection context.
         """
         # Extract context for header injection (non_active_span takes precedence)
-        injection_context = (
-            trace_info.context if isinstance(trace_info, Span) else trace_info
-        )
+        injection_context = trace_info.context if isinstance(trace_info, Span) else trace_info
 
         # Find root span for sampling decisions
         if injection_context.sampling_priority is not None:
@@ -1126,9 +1076,7 @@ class HTTPPropagator(object):
         elif isinstance(trace_info, Span):
             # Use span's root for sampling
             sampling_span = trace_info._local_root
-        elif (
-            current_root := core.tracer.current_root_span()
-        ) and current_root.trace_id == trace_info.trace_id:
+        elif (current_root := core.tracer.current_root_span()) and current_root.trace_id == trace_info.trace_id:
             # Get the local root span for the current trace (if it is active, otherwise we can't sample)
             sampling_span = current_root
 
@@ -1163,23 +1111,15 @@ class HTTPPropagator(object):
         return contexts, styles_w_ctx
 
     @staticmethod
-    def _context_to_span_link(
-        context: Context, style: str, reason: str
-    ) -> Optional[SpanLink]:
+    def _context_to_span_link(context: Context, style: str, reason: str) -> Optional[SpanLink]:
         # encoding expects at least trace_id and span_id
         if context.span_id and context.trace_id:
             return SpanLink(
                 context.trace_id,
                 context.span_id,
-                flags=(
-                    1
-                    if context.sampling_priority and context.sampling_priority > 0
-                    else 0
-                ),
+                flags=(1 if context.sampling_priority and context.sampling_priority > 0 else 0),
                 tracestate=(
-                    context._meta.get(W3C_TRACESTATE_KEY, "")
-                    if style == _PROPAGATION_STYLE_W3C_TRACECONTEXT
-                    else None
+                    context._meta.get(W3C_TRACESTATE_KEY, "") if style == _PROPAGATION_STYLE_W3C_TRACECONTEXT else None
                 ),
                 attributes={
                     "reason": reason,
@@ -1208,30 +1148,19 @@ class HTTPPropagator(object):
             # add the tracestate to the primary context
             elif style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT:
                 # extract and add the raw ts value to the primary_context
-                ts = _extract_header_value(
-                    _POSSIBLE_HTTP_HEADER_TRACESTATE, normalized_headers
-                )
+                ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, normalized_headers)
                 if ts:
                     primary_context._meta[W3C_TRACESTATE_KEY] = ts
-                if (
-                    primary_context.trace_id == context.trace_id
-                    and primary_context.span_id != context.span_id
-                ):
+                if primary_context.trace_id == context.trace_id and primary_context.span_id != context.span_id:
                     dd_context = None
                     if PROPAGATION_STYLE_DATADOG in styles_w_ctx:
-                        dd_context = contexts[
-                            styles_w_ctx.index(PROPAGATION_STYLE_DATADOG)
-                        ]
+                        dd_context = contexts[styles_w_ctx.index(PROPAGATION_STYLE_DATADOG)]
                     if LAST_DD_PARENT_ID_KEY in context._meta:
                         # tracecontext headers contain a p value, ensure this value is sent to backend
-                        primary_context._meta[LAST_DD_PARENT_ID_KEY] = context._meta[
-                            LAST_DD_PARENT_ID_KEY
-                        ]
+                        primary_context._meta[LAST_DD_PARENT_ID_KEY] = context._meta[LAST_DD_PARENT_ID_KEY]
                     elif dd_context:
                         # if p value is not present in tracestate, use the parent id from the datadog headers
-                        primary_context._meta[LAST_DD_PARENT_ID_KEY] = "{:016x}".format(
-                            dd_context.span_id
-                        )
+                        primary_context._meta[LAST_DD_PARENT_ID_KEY] = "{:016x}".format(dd_context.span_id)
                     # the span_id in tracecontext takes precedence over the first extracted propagation style
                     primary_context.span_id = context.span_id
 
@@ -1239,7 +1168,7 @@ class HTTPPropagator(object):
         return primary_context
 
     @staticmethod
-    def inject(context: Union[Context, Span], headers: Dict[str, str], is_test_context=None) -> None:
+    def inject(context: Union[Context, Span], headers: Dict[str, str]) -> None:
         """Inject Context attributes that have to be propagated as HTTP headers.
 
         Here is an example using `requests`::
@@ -1273,11 +1202,7 @@ class HTTPPropagator(object):
         # Handle sampling and get context for header injection
         span_context = HTTPPropagator._get_sampled_injection_context(context, None)
         # Log a warning if we cannot determine a sampling decision before injecting headers.
-        if (
-            span_context.span_id
-            and span_context.trace_id
-            and span_context.sampling_priority is None
-        ):
+        if span_context.span_id and span_context.trace_id and span_context.sampling_priority is None:
             log.debug(
                 "Sampling decision not available. Downstream spans will not inherit a sampling priority: "
                 "args=(context=%s, ...) detected span context=%s",
@@ -1298,21 +1223,18 @@ class HTTPPropagator(object):
             log.debug("tried to inject invalid context %r", span_context)
             return
 
-        if (
-            config._propagation_http_baggage_enabled is True
-            and span_context._baggage is not None
-        ):
+        if config._propagation_http_baggage_enabled is True and span_context._baggage is not None:
             for key in span_context._baggage:
                 headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
 
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
-            _DatadogMultiHeader._inject(span_context, headers, is_test_context=is_test_context)
+            _DatadogMultiHeader._inject(span_context, headers)
         if PROPAGATION_STYLE_B3_MULTI in config._propagation_style_inject:
-            _B3MultiHeader._inject(span_context, headers, is_test_context)
+            _B3MultiHeader._inject(span_context, headers)
         if PROPAGATION_STYLE_B3_SINGLE in config._propagation_style_inject:
-            _B3SingleHeader._inject(span_context, headers, is_test_context)
+            _B3SingleHeader._inject(span_context, headers)
         if _PROPAGATION_STYLE_W3C_TRACECONTEXT in config._propagation_style_inject:
-            _TraceContext._inject(span_context, headers, is_test_context)
+            _TraceContext._inject(span_context, headers)
 
     @staticmethod
     def extract(headers):
@@ -1351,28 +1273,20 @@ class HTTPPropagator(object):
                     context = propagator._extract(normalized_headers)
                     style = prop_style
                     if context:
-                        _record_http_telemetry(
-                            "context_header_style.extracted", prop_style
-                        )
+                        _record_http_telemetry("context_header_style.extracted", prop_style)
                     if config._propagation_http_baggage_enabled is True:
                         _attach_baggage_to_context(normalized_headers, context)
                     break
 
             # loop through all extract propagation styles
             else:
-                contexts, styles_w_ctx = (
-                    HTTPPropagator._extract_configured_contexts_avail(
-                        normalized_headers
-                    )
-                )
+                contexts, styles_w_ctx = HTTPPropagator._extract_configured_contexts_avail(normalized_headers)
                 # check that styles_w_ctx is not empty
                 if styles_w_ctx:
                     style = styles_w_ctx[0]
 
                 if contexts:
-                    context = HTTPPropagator._resolve_contexts(
-                        contexts, styles_w_ctx, normalized_headers
-                    )
+                    context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
                     if config._propagation_http_baggage_enabled is True:
                         _attach_baggage_to_context(normalized_headers, context)
 
@@ -1381,18 +1295,14 @@ class HTTPPropagator(object):
                 baggage_context = _BaggageHeader._extract(normalized_headers)
                 if baggage_context._baggage != {}:
                     # Record telemetry for successful baggage extraction
-                    _record_http_telemetry(
-                        "context_header_style.extracted", _PROPAGATION_STYLE_BAGGAGE
-                    )
+                    _record_http_telemetry("context_header_style.extracted", _PROPAGATION_STYLE_BAGGAGE)
                     if context:
                         context._baggage = baggage_context.get_all_baggage_items()
                     else:
                         context = baggage_context
 
                     if config._baggage_tag_keys:
-                        raw_keys = [
-                            k.strip() for k in config._baggage_tag_keys if k.strip()
-                        ]
+                        raw_keys = [k.strip() for k in config._baggage_tag_keys if k.strip()]
                         # wildcard: tag all baggage keys
                         if "*" in raw_keys:
                             tag_keys = baggage_context.get_all_baggage_items().keys()
@@ -1400,17 +1310,13 @@ class HTTPPropagator(object):
                             tag_keys = raw_keys
 
                         for stripped_key in tag_keys:
-                            if (
-                                value := baggage_context.get_baggage_item(stripped_key)
-                            ) is not None:
+                            if (value := baggage_context.get_baggage_item(stripped_key)) is not None:
                                 prefixed_key = BAGGAGE_TAG_PREFIX + stripped_key
                                 if prefixed_key not in context._meta:
                                     context._meta[prefixed_key] = value
 
             if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_RESTART:
-                link = HTTPPropagator._context_to_span_link(
-                    context, style, "propagation_behavior_extract"
-                )
+                link = HTTPPropagator._context_to_span_link(context, style, "propagation_behavior_extract")
                 context = Context(
                     baggage=context.get_all_baggage_items(),
                     span_links=[link] if link else [],
@@ -1419,7 +1325,5 @@ class HTTPPropagator(object):
             return context
 
         except Exception:
-            log.debug(
-                "error while extracting context propagation headers", exc_info=True
-            )
+            log.debug("error while extracting context propagation headers", exc_info=True)
         return Context()
