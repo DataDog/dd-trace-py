@@ -67,6 +67,9 @@ def _is_test_context(span_context=None) -> bool:
                      is in the same trace (same trace_id), checks if it's a test trace.
     """
     try:
+        if core.tracer is None:
+            return False
+
         span = core.tracer.current_span()
         if span is None:
             return False
