@@ -27,7 +27,13 @@
       "Skill(run-tests)",
       "Bash(scripts/run-tests:*)",
       "Bash(gh pr list:*)",
-      "Bash(git remote:*)"
+      "Bash(git remote:*)",
+      "Bash(pyenv versions:*)",
+      "Bash(pyenv virtualenv:*)",
+      "Bash(riot -v run:*)",
+      "Bash(mkdir:*)",
+      "Bash(scripts/ddtest:*)",
+      "Bash(docker compose build:*)"
     ],
     "deny": []
   }

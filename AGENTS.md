@@ -33,6 +33,7 @@ When starting a new chat session, ALWAYS read and apply the rules from:
    - `linting.mdc` - Code quality and formatting
    - `testing.mdc` - Test execution guidelines
    - `repo-structure.mdc` - Repository structure
+   - `appsec.mdc` - Application Security (AppSec) features including IAST, AAP, RASP, API Security
 
 ## Skills
 
