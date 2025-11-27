@@ -217,9 +217,6 @@ benchmarks-pr-comment:
 check-slo-breaches:
   extends: .check-slo-breaches
   stage: gate
-  # TODO: This image points to a development image, and should be removed once 
-  # changes are included in the latest image.
-  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:03c08c0
   when: on_success
   artifacts:
     name: "artifacts"
