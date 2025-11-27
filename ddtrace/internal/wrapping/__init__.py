@@ -322,6 +322,13 @@ def unwrap(wf, wrapper):
         # current one.
         f = cast(FunctionType, wf)
         f.__code__ = inner.__code__
+
+        # Mark the function as unwrapped via its name. There might be references
+        # to this function elsewhere and this would signal that the function has
+        # been unwrapped and that another function object is referencing the
+        # original code object.
+        inner.__name__ = "<unwrapped>"
+
         try:
             # Update the link to the next layer.
             inner_wf = cast(WrappedFunction, inner)

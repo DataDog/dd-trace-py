@@ -394,11 +394,29 @@ class LazyWrappingContext(WrappingContext):
             if self._trampoline is not None:
                 return
 
+            # If the function is already universally wrapped so it's less expensive
+            # to do the normal wrapping.
+            if _UniversalWrappingContext.is_wrapped(self.__wrapped__):
+                super().wrap()
+                return
+
             def trampoline(_, args, kwargs):
                 with tl:
                     f = t.cast(WrappedFunction, self.__wrapped__)
                     if is_wrapped_with(self.__wrapped__, trampoline):
+                        # If the wrapped function was instrumented with a
+                        # wrapping context before the first invocation we need
+                        # to carry that over to the original function when we
+                        # remove the trampoline.
+                        try:
+                            inner = f.__dd_wrapped__
+                        except AttributeError:
+                            inner = None
                         f = unwrap(f, trampoline)
+                        try:
+                            f.__dd_context_wrapped__ = inner.__dd_context_wrapped__
+                        except AttributeError:
+                            pass
                         super(LazyWrappingContext, self).wrap()
                 return f(*args, **kwargs)
 

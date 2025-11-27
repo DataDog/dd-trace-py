@@ -642,6 +642,46 @@ def test_debugger_line_probe_on_lazy_wrapped_function(stuff):
             assert snapshot.probe.probe_id == "line-probe-lazy-wrapping"
 
 
+def test_debugger_function_probe_on_lazy_wrapped_function(stuff):
+    from ddtrace.internal.wrapping.context import LazyWrappingContext
+
+    class LWC(LazyWrappingContext):
+        entered = False
+
+        def __enter__(self):
+            self.entered = True
+            return super().__enter__()
+
+    (c := LWC(stuff.throwexcstuff)).wrap()
+
+    probe = create_snapshot_function_probe(
+        probe_id="function-probe-lazy-wrapping",
+        module="tests.submod.stuff",
+        func_qname="throwexcstuff",
+        rate=float("inf"),
+    )
+
+    with debugger() as d:
+        # Test that we can re-instrument the function correctly and that we
+        # don't accidentally instrument the temporary trampoline instead.
+        for _ in range(10):
+            d.add_probes(probe)
+
+            try:
+                stuff.throwexcstuff()
+            except Exception:
+                pass
+
+            d.remove_probes(probe)
+
+            assert c.entered
+
+            c.entered = False
+
+            with d.assert_single_snapshot() as snapshot:
+                assert snapshot.probe.probe_id == "function-probe-lazy-wrapping"
+
+
 def test_probe_status_logging(remote_config_worker, stuff):
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
