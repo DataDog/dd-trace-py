@@ -352,3 +352,24 @@ def test_encode_span_with_large_unicode_string_attributes(encoding):
     with override_global_config(dict(_trace_api=encoding)):
         with tracer.trace(name="á" * 25000, resource="â" * 25001) as span:
             span.set_tag(key="å" * 25001, value="ä" * 2000)
+
+
+@pytest.mark.snapshot
+@pytest.mark.subprocess(env={"DD_TRACE_PARTIAL_FLUSH_ENABLED": "true", "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "2"})
+def test_aggregator_partial_flush_finished_counter_out_of_sync():
+    """Regression test for IndexError when num_finished counter is out of sync with finished spans."""
+    from ddtrace import tracer
+
+    span1 = tracer.start_span("span1")
+    span2 = tracer.start_span("span2", child_of=span1)
+    span3 = tracer.start_span("span3", child_of=span1)
+    # Manually set duration_ns before finish() to simulate finished state
+    # This creates edge case: span1 appears finished but hasn't gone through on_span_finish yet
+    span1.duration_ns = 1
+    # span2 finishes, incrementing num_finished to 1
+    span2.finish()
+    # span1.finish() increments num_finished to 2, triggering partial flush check (2 >= 2)
+    # remove_finished() may return empty if span1 was already processed/removed
+    # Without defensive check, accessing finished[0] would raise IndexError
+    span1.finish()
+    span3.finish()
