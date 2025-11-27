@@ -1,1 +1,1 @@
-../scripts/run-black.sh
+hooks/scripts/run-fmt.sh
