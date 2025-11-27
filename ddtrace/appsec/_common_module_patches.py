@@ -162,9 +162,10 @@ def _build_headers(lst: Iterable[Tuple[str, str]]) -> Dict[str, Union[str, List[
 
 def wrapped_redirect_request(original_callable, instance, args, kwargs):
     from ddtrace.appsec._asm_request_context import call_waf_callback
+    from ddtrace.appsec._asm_request_context import _get_asm_context
 
     request = original_callable(*args, **kwargs)
-    if request is not None:
+    if request is not None and (ctx:=_get_asm_context()):
         try:
             addresses = {
                 EXPLOIT_PREVENTION.ADDRESS.SSRF: request.full_url,
@@ -175,6 +176,7 @@ def wrapped_redirect_request(original_callable, instance, args, kwargs):
                 addresses,
                 rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
             )
+            ctx.redirect_requests += 1
             if res and _must_block(res.actions):
                 raise BlockingException(
                     get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, request.full_url
