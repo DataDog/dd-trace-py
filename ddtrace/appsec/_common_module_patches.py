@@ -56,6 +56,7 @@ def patch_common_modules():
     try_wrap_function_wrapper("urllib3.request", "RequestMethods.request", wrapped_request_D8CB81E472AF98A2)
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
+    try_wrap_function_wrapper("urllib.request", "HTTPRedirectHandler.redirect_request", wrapped_redirect_request)
     try_wrap_function_wrapper("http.client", "HTTPConnection.request", wrapped_request)
     core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
     log.debug("Patching common modules: builtins and urllib.request")
@@ -157,6 +158,30 @@ def _build_headers(lst: Iterable[Tuple[str, str]]) -> Dict[str, Union[str, List[
         else:
             res[a] = b
     return res
+
+
+def wrapped_redirect_request(original_callable, instance, args, kwargs):
+    from ddtrace.appsec._asm_request_context import call_waf_callback
+
+    request = original_callable(*args, **kwargs)
+    if request is not None:
+        try:
+            addresses = {
+                EXPLOIT_PREVENTION.ADDRESS.SSRF: request.full_url,
+                "DOWN_REQ_METHOD": request.method,
+                "DOWN_REQ_HEADERS": request.headers,
+            }
+            res = call_waf_callback(
+                addresses,
+                rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
+            )
+            if res and _must_block(res.actions):
+                raise BlockingException(
+                    get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, request.full_url
+                )
+        except Exception:
+            pass  # no sec
+    return request
 
 
 def wrapped_request(original_request_callable, instance, args, kwargs):
