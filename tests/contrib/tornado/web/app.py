@@ -1,3 +1,5 @@
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import os
 import time
 
@@ -5,8 +7,6 @@ import tornado.concurrent
 import tornado.web
 
 from . import uimodules
-from .compat import ThreadPoolExecutor
-from .compat import sleep
 
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -27,44 +27,39 @@ class ResponseStatusHandler(tornado.web.RequestHandler):
 
 
 class NestedHandler(tornado.web.RequestHandler):
-    @tornado.gen.coroutine
-    def get(self):
+    async def get(self):
         tracer = self.settings["datadog_trace"]["tracer"]
         with tracer.trace("tornado.sleep"):
-            yield sleep(0.05)
+            await asyncio.sleep(0.05)
         self.write("OK")
 
 
 class NestedWrapHandler(tornado.web.RequestHandler):
-    @tornado.gen.coroutine
-    def get(self):
+    async def get(self):
         tracer = self.settings["datadog_trace"]["tracer"]
 
         # define a wrapped coroutine: having an inner coroutine
         # is only for easy testing
         @tracer.wrap("tornado.coro")
-        @tornado.gen.coroutine
-        def coro():
-            yield sleep(0.05)
+        async def coro():
+            await asyncio.sleep(0.05)
 
-        yield coro()
+        await coro()
         self.write("OK")
 
 
 class NestedExceptionWrapHandler(tornado.web.RequestHandler):
-    @tornado.gen.coroutine
-    def get(self):
+    async def get(self):
         tracer = self.settings["datadog_trace"]["tracer"]
 
         # define a wrapped coroutine: having an inner coroutine
         # is only for easy testing
         @tracer.wrap("tornado.coro")
-        @tornado.gen.coroutine
-        def coro():
-            yield sleep(0.05)
+        async def coro():
+            await asyncio.sleep(0.05)
             raise Exception("Ouch!")
 
-        yield coro()
+        await coro()
         self.write("OK")
 
 
@@ -115,16 +110,15 @@ class SyncExceptionHandler(tornado.web.RequestHandler):
 
 
 class SyncNestedWrapHandler(tornado.web.RequestHandler):
-    def get(self):
+    async def get(self):
         tracer = self.settings["datadog_trace"]["tracer"]
 
-        # define a wrapped coroutine: having an inner coroutine
-        # is only for easy testing
+        # define a wrapped async function for testing
         @tracer.wrap("tornado.func")
-        def func():
-            time.sleep(0.05)
+        async def func():
+            await asyncio.sleep(0.05)
 
-        func()
+        await func()
         self.write("OK")
 
 
