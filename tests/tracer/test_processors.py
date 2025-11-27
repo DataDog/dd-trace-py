@@ -282,6 +282,17 @@ def test_aggregator_multi_span():
     assert writer.pop() == [parent, child]
 
 
+@pytest.mark.subprocess(
+    parametrize={"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": ["0", "-1", "-20"]},
+    err=b"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS must be >= 1, defaulting to 1\n",
+)
+def test_config_partial_flush_min_spans_validation():
+    """Test that DD_TRACE_PARTIAL_FLUSH_MIN_SPANS < 1 defaults to 1 with warning."""
+    from ddtrace import config
+
+    assert config._partial_flush_min_spans == 1
+
+
 def test_aggregator_partial_flush_0_spans():
     writer = DummyWriter()
     aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=0)
@@ -374,6 +385,27 @@ def test_aggregator_partial_flush_2_spans():
     parent.finish()
     assert writer.pop() == [parent]
     assert parent.get_metric("_dd.py.partial_flush") is None
+
+
+@pytest.mark.snapshot
+@pytest.mark.subprocess(env={"DD_TRACE_PARTIAL_FLUSH_ENABLED": "true", "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "2"})
+def test_aggregator_partial_flush_finished_counter_out_of_sync():
+    """Regression test for IndexError when num_finished counter is out of sync with finished spans."""
+    from ddtrace import tracer
+
+    span1 = tracer.start_span("span1")
+    span2 = tracer.start_span("span2", child_of=span1)
+    span3 = tracer.start_span("span3", child_of=span1)
+    # Manually set duration_ns before finish() to simulate finished state
+    # This creates edge case: span1 appears finished but hasn't gone through on_span_finish yet
+    span1.duration_ns = 1
+    # span2 finishes, incrementing num_finished to 1
+    span2.finish()
+    # span1.finish() increments num_finished to 2, triggering partial flush check (2 >= 2)
+    # remove_finished() may return empty if span1 was already processed/removed
+    # Without defensive check, accessing finished[0] would raise IndexError
+    span1.finish()
+    span3.finish()
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_PARTIAL_FLUSH_ENABLED": "true", "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "2"})
