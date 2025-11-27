@@ -358,6 +358,7 @@ def assert_profile_has_sample(
     profile: pprof_pb2.Profile,
     samples: List[pprof_pb2.Sample],
     expected_sample: StackEvent,
+    print_samples_on_failure: bool = False,
 ) -> None:
     found = False
     for sample in samples:
@@ -369,6 +370,9 @@ def assert_profile_has_sample(
             # flip the flag to print the error message
             if DEBUG_TEST:
                 print(e)
+
+    if not found and print_samples_on_failure:
+        print_all_samples(profile)
 
     assert found, "Expected samples not found in profile " + str(expected_sample.locations)
 
