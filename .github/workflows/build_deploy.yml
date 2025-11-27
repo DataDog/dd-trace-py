@@ -92,7 +92,7 @@ jobs:
           python-version: '3.12'
       - name: Build sdist
         run: |
-          pip install "setuptools_scm[toml]>=4" "cython" "cmake>=3.24.2,<3.28" "setuptools-rust"
+          pip install "setuptools_scm[toml]>=4" "cython" "cmake>=3.24.2,<3.28" "setuptools-rust<2"
           # Disable cython extensions to avoid compiling .pyx files
           DD_CYTHONIZE=0 python setup.py sdist
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
