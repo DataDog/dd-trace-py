@@ -1,9 +1,9 @@
+from ast import unparse
 import importlib
 import sys
 from traceback import format_exc
-from ast import unparse
-from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 
+from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 
 
 def _iast_patched_module_and_patched_source(module_name):

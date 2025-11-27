@@ -1,7 +1,8 @@
 # -*- encoding: utf-8 -*-
+from ast import unparse
 import sys
 from typing import Text
-from ast import unparse
+
 import pytest
 
 

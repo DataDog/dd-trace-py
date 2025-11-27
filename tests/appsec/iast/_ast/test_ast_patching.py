@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
+from ast import unparse
 import logging
 from unittest import mock
-from ast import unparse
+
 import pytest
 
 from ddtrace.appsec._constants import IAST

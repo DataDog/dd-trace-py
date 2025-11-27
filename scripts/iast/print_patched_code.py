@@ -6,10 +6,11 @@ and formatted (if you have black).
 Usage: PYTHONPATH=$PYTHONPATH:~/.../dd-trace-py/ python -m scripts.iast.print_patched_code /path/to/your/python_file.py
 """
 
+from ast import unparse
 import os
 import sys
 from typing import Text
-from ast import unparse
+
 
 try:
     from pygments import highlight
