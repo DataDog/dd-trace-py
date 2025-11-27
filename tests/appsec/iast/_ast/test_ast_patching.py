@@ -431,7 +431,7 @@ def test_astpatch_stringio_module_changed(module_name):
     assert ("", None) != (module_path, new_ast)
     new_code = unparse(new_ast)
     assert new_code.startswith(
-        f"\nimport ddtrace.appsec._iast.sources as {_PREFIX}sources"
+        f"import ddtrace.appsec._iast.sources as {_PREFIX}sources"
         f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
         f"\nimport ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects"
     )
@@ -450,7 +450,7 @@ def test_astpatch_bytesio_module_changed(module_name):
     assert ("", None) != (module_path, new_ast)
     new_code = unparse(new_ast)
     assert new_code.startswith(
-        f"\nimport ddtrace.appsec._iast.sources as {_PREFIX}sources"
+        f"import ddtrace.appsec._iast.sources as {_PREFIX}sources"
         f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
         f"\nimport ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects"
     )
