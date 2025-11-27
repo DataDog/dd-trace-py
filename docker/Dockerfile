@@ -49,10 +49,6 @@ RUN apt-get update \
       libsqlite3-dev \
       libsqliteodbc \
       libssh-dev \
-      libssl-dev \
-      tk-dev \
-      uuid-dev \
-      python3-dev \
       python3.13-dev \
       nodejs \
       npm \
