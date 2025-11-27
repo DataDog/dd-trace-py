@@ -78,7 +78,8 @@ def test_runtime_coverage_build_payload():
 
     # Collect coverage by importing and executing code from a module in the project
     # NOTE: Must build payload while still in context (before __exit__)
-    with collector.CollectInContext():
+    coverage_ctx = collector.CollectInContext()
+    with coverage_ctx:
         # Import existing test module (reuse from coverage tests)
         from tests.coverage.included_path.callee import called_in_context_main
 
@@ -86,20 +87,16 @@ def test_runtime_coverage_build_payload():
         called_in_context_main(1, 2)
 
         # Build payload while still in context (before __exit__)
-        payload = build_runtime_coverage_payload(
+        files = build_runtime_coverage_payload(
+            coverage_ctx=coverage_ctx,
             root_dir=cwd_path,
-            trace_id=12345,
-            span_id=67890,
         )
 
         # Verify payload structure
-        assert payload is not None
-        assert payload["trace_id"] == 12345
-        assert payload["span_id"] == 67890
-        assert "files" in payload
+        assert files is not None
+        assert isinstance(files, list)
         # Should have collected coverage for callee.py and in_context_lib.py
-        assert len(payload["files"]) > 0
-    assert isinstance(payload["files"], list)
+        assert len(files) > 0
 
 
 @pytest.mark.skipif(not is_runtime_coverage_supported(), reason="Requires Python 3.12+")
@@ -162,7 +159,8 @@ def test_runtime_coverage_full_flow():
     collector = ModuleCodeCollector._instance
     cwd_path = Path(os.getcwd())
 
-    with collector.CollectInContext():
+    coverage_ctx = collector.CollectInContext()
+    with coverage_ctx:
         # Import and execute code from existing test modules
         from tests.coverage.included_path.callee import called_in_context_main
         from tests.coverage.included_path.callee import called_in_session_main
@@ -171,14 +169,13 @@ def test_runtime_coverage_full_flow():
         called_in_session_main(3, 4)
 
         # Step 3: Build coverage payload WHILE STILL IN CONTEXT
-        payload = build_runtime_coverage_payload(
+        files = build_runtime_coverage_payload(
+            coverage_ctx=coverage_ctx,
             root_dir=cwd_path,
-            trace_id=99999,
-            span_id=88888,
         )
 
-        assert payload is not None
-        assert len(payload["files"]) > 0
+        assert files is not None
+        assert len(files) > 0
 
     # Step 4: Send coverage (can be done after context exits)
     mock_span = mock.Mock()
@@ -189,7 +186,7 @@ def test_runtime_coverage_full_flow():
     mock_span.get_tags = mock.Mock(return_value={})  # Required by coverage encoder
     mock_span.get_struct_tag = mock.Mock(return_value=None)  # Required by coverage encoder
 
-    result = send_runtime_coverage(mock_span, payload["files"])
+    result = send_runtime_coverage(mock_span, files)
     assert result is True
 
 
@@ -218,7 +215,8 @@ def test_runtime_coverage_multiple_requests():
 
     # Simulate multiple requests
     for request_id in range(3):
-        with collector.CollectInContext():
+        coverage_ctx = collector.CollectInContext()
+        with coverage_ctx:
             # Import and execute code from existing test modules
             from tests.coverage.included_path.callee import called_in_context_main
             from tests.coverage.included_path.callee import called_in_session_main
@@ -233,14 +231,13 @@ def test_runtime_coverage_multiple_requests():
                 called_in_session_main(request_id, 3)
 
             # Build coverage payload WHILE STILL IN CONTEXT
-            payload = build_runtime_coverage_payload(
+            files = build_runtime_coverage_payload(
+                coverage_ctx=coverage_ctx,
                 root_dir=cwd_path,
-                trace_id=10000 + request_id,
-                span_id=20000 + request_id,
             )
 
-            assert payload is not None
-            assert len(payload["files"]) > 0
+            assert files is not None
+            assert len(files) > 0
 
         # Send coverage after context exits
         mock_span = mock.Mock()
@@ -251,7 +248,7 @@ def test_runtime_coverage_multiple_requests():
         mock_span.get_tags = mock.Mock(return_value={})  # Required by coverage encoder
         mock_span.get_struct_tag = mock.Mock(return_value=None)  # Required by coverage encoder
 
-        result = send_runtime_coverage(mock_span, payload["files"])
+        result = send_runtime_coverage(mock_span, files)
         assert result is True
 
 
@@ -289,19 +286,19 @@ def test_runtime_coverage_with_imports():
 
     collector = ModuleCodeCollector._instance
 
-    with collector.CollectInContext():
+    coverage_ctx = collector.CollectInContext()
+    with coverage_ctx:
         # Import and execute code from existing test modules (gets instrumented)
         from tests.coverage.included_path.callee import called_in_context_main
 
         called_in_context_main(1, 2)
 
         # Build payload WHILE STILL IN CONTEXT
-        payload = build_runtime_coverage_payload(
+        files = build_runtime_coverage_payload(
+            coverage_ctx=coverage_ctx,
             root_dir=cwd_path,
-            trace_id=12345,
-            span_id=67890,
         )
 
         # Should have coverage data for callee.py and in_context_lib.py
-        assert payload is not None
-        assert len(payload["files"]) > 0
+        assert files is not None
+        assert len(files) > 0

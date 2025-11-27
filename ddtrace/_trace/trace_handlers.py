@@ -415,16 +415,15 @@ def _on_wsgi_runtime_coverage_complete(ctx: core.ExecutionContext, closing_itera
             root_dir = Path(os.getcwd())
 
             # Build coverage payload
-            coverage_payload = build_runtime_coverage_payload(
+            files = build_runtime_coverage_payload(
+                coverage_ctx=coverage_ctx,
                 root_dir=root_dir,
-                trace_id=span.trace_id,
-                span_id=span.span_id,
             )
 
-            if coverage_payload:
+            if files:
                 # Enqueue coverage data to the RuntimeCoverageWriter
                 # The writer will batch and send it to citestcov intake
-                send_runtime_coverage(span, coverage_payload["files"])
+                send_runtime_coverage(span, files)
     except Exception:
         log.debug("Failed to send runtime request coverage", exc_info=True)
     finally:

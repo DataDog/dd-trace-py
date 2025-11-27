@@ -70,10 +70,12 @@ class RuntimeCoverageWriter(HTTPWriter):
 
         # Create coverage client - this is the only client we need
         # It will handle encoding spans with coverage data and sending to the right endpoint
+        # For runtime coverage, we want per-request (per-span) coverage, so we use
+        # itr_suite_skipping_mode=False to include span_id in the encoded payload
         coverage_client = _create_coverage_client(
             use_evp=self._use_evp,
             intake_url=intake_url,
-            itr_suite_skipping_mode=True,  # Enable ITR mode for proper encoding
+            itr_suite_skipping_mode=False,  # Include span_id for per-request coverage
         )
 
         super(RuntimeCoverageWriter, self).__init__(

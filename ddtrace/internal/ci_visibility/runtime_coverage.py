@@ -68,31 +68,58 @@ def initialize_runtime_coverage() -> bool:
         return False
 
 
-def build_runtime_coverage_payload(root_dir: Path, trace_id: int, span_id: int) -> Optional[Dict]:
+def build_runtime_coverage_payload(coverage_ctx, root_dir: Path) -> Optional[List[Dict]]:
     """
-    Build a coverage payload from ModuleCodeCollector for runtime request coverage.
+    Build a coverage payload from coverage context for runtime request coverage.
+    
+    Converts the raw CoverageLines data into the bitmap format expected by
+    CIVisibilityCoverageEncoderV02, which is the same format used for test coverage.
 
     Args:
+        coverage_ctx: Coverage context from CollectInContext
         root_dir: Root directory for relative path resolution
-        trace_id: Trace ID for correlation
-        span_id: Span ID for correlation
 
     Returns:
-        Dictionary with coverage files, trace_id, and span_id, or None if no coverage data
+        List of file coverage dicts in CI Visibility format, or None if no coverage data
+        Format: [{"filename": str, "bitmap": bytes}, ...]
     """
     try:
-        # Get coverage files from ModuleCodeCollector
-        files = ModuleCodeCollector.report_seen_lines(root_dir, include_imported=True)
+        # Get coverage data as Dict[str, CoverageLines] from the new API
+        covered_lines_dict = coverage_ctx.get_covered_lines()
+
+        if not covered_lines_dict:
+            return None
+
+        # Convert CoverageLines dict to the bitmap format expected by CI Visibility
+        # This is the same format used by TestVisibilityCoverageData for test coverage
+        files = []
+        for abs_path_str, lines in covered_lines_dict.items():
+            abs_path = Path(abs_path_str)
+            
+            # Make path relative to root_dir if possible and prepend with /
+            try:
+                if abs_path.is_relative_to(root_dir):
+                    relative_path = abs_path.relative_to(root_dir)
+                    path_str = f"/{str(relative_path)}"
+                else:
+                    path_str = abs_path_str
+            except (ValueError, TypeError):
+                # If path comparison fails, use absolute path
+                path_str = abs_path_str
+
+            # Convert CoverageLines to bitmap format
+            # to_bytes() returns the internal bytearray representation as bytes
+            bitmap = lines.to_bytes()
+
+            if not bitmap or len(bitmap) == 0:
+                continue
+            
+            files.append({"filename": path_str, "bitmap": bitmap})
 
         if not files:
             return None
 
-        # Return payload dict with trace/span IDs for correlation
-        return {
-            "trace_id": trace_id,
-            "span_id": span_id,
-            "files": files,
-        }
+        return files
 
     except Exception as e:
         log.debug("Failed to build runtime coverage payload: %s", e, exc_info=True)
