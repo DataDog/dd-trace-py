@@ -265,7 +265,7 @@ suites:
       - '@futures'
       - '@ci_visibility'
       - tests/tracer/*
-      - tests/snapshots/test_*
+      - tests/snapshots/test*
     retry: 2
     runner: riot
   vendor:
