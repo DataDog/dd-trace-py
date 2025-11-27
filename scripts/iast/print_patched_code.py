@@ -9,7 +9,7 @@ Usage: PYTHONPATH=$PYTHONPATH:~/.../dd-trace-py/ python -m scripts.iast.print_pa
 import os
 import sys
 from typing import Text
-
+from ast import unparse
 
 try:
     from pygments import highlight
@@ -31,13 +31,11 @@ from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 
 
 def _get_patched_code(module_path: Text) -> str:
-    import astunparse
-
     module_dir = os.path.dirname(module_path)
     sys.path.append(module_dir)
     module_name = os.path.splitext(os.path.basename(module_path))[0]
     _, new_ast = astpatch_module(__import__(module_name))
-    return astunparse.unparse(new_ast)
+    return unparse(new_ast)
 
 
 if __name__ == "__main__":

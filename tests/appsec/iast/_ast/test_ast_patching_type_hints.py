@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 import sys
 from typing import Text
-
+from ast import unparse
 import pytest
 
 
@@ -9,8 +9,6 @@ def _get_patched_code(module_path: Text, module_name: Text) -> str:
     """
     Print the patched code to stdout, for debugging purposes.
     """
-    import astunparse
-
     from ddtrace.appsec._iast._ast.ast_patching import visit_ast
 
     with open(module_path, "rb") as source_file:
@@ -27,7 +25,7 @@ def _get_patched_code(module_path: Text, module_name: Text) -> str:
         if not new_source:
             return ""
 
-        new_code = astunparse.unparse(new_source)
+        new_code = unparse(new_source)
         return new_code
 
 

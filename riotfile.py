@@ -197,7 +197,6 @@ venv = Venv(
             command="pytest {cmdargs} tests/appsec/iast_packages/",
             pkgs={
                 "requests": latest,
-                "astunparse": latest,
                 "flask": latest,
                 "virtualenv-clone": latest,
             },
@@ -332,7 +331,6 @@ venv = Venv(
                 "requests": latest,
                 "urllib3": latest,
                 "cryptography": latest,
-                "astunparse": latest,
                 "simplejson": latest,
                 "grpcio": latest,
                 "pytest-asyncio": latest,

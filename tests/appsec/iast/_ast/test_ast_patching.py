@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 import logging
 from unittest import mock
-
-import astunparse
+from ast import unparse
 import pytest
 
 from ddtrace.appsec._constants import IAST
@@ -63,9 +62,9 @@ def test_visit_ast_changed(source_text, module_path, module_name):
 def test_astpatch_module_changed(module_name):
     module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
     assert ("", None) != (module_path, new_ast)
-    new_code = astunparse.unparse(new_ast)
+    new_code = unparse(new_ast)
     assert new_code.startswith(
-        f"\nimport ddtrace.appsec._iast.sources as {_PREFIX}sources"
+        f"import ddtrace.appsec._iast.sources as {_PREFIX}sources"
         f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
         f"\nimport ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects"
     )
@@ -81,9 +80,9 @@ def test_astpatch_module_changed(module_name):
 def test_astpatch_module_changed_add_operator(module_name):
     module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
     assert ("", None) != (module_path, new_ast)
-    new_code = astunparse.unparse(new_ast)
+    new_code = unparse(new_ast)
     assert new_code.startswith(
-        f"\nimport ddtrace.appsec._iast.sources as {_PREFIX}sources"
+        f"import ddtrace.appsec._iast.sources as {_PREFIX}sources"
         f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
         f"\nimport ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects"
     )
@@ -99,9 +98,9 @@ def test_astpatch_module_changed_add_operator(module_name):
 def test_astpatch_module_changed_add_inplace_operator(module_name):
     module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
     assert ("", None) != (module_path, new_ast)
-    new_code = astunparse.unparse(new_ast)
+    new_code = unparse(new_ast)
     assert new_code.startswith(
-        f"\nimport ddtrace.appsec._iast.sources as {_PREFIX}sources"
+        f"import ddtrace.appsec._iast.sources as {_PREFIX}sources"
         f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
         f"\nimport ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects"
     )
@@ -118,10 +117,9 @@ def test_astpatch_module_changed_add_inplace_operator(module_name):
 def test_astpatch_source_changed_with_future_imports(module_name):
     module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
     assert ("", None) != (module_path, new_ast)
-    new_code = astunparse.unparse(new_ast)
+    new_code = unparse(new_ast)
     assert new_code.startswith(
-        f"""
-'\\nSome\\nmulti-line\\ndocstring\\nhere\\n'
+        f"""\"\"\"\nSome\nmulti-line\ndocstring\nhere\n\"\"\"
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -430,7 +428,7 @@ def test_module_path_none(caplog):
 def test_astpatch_stringio_module_changed(module_name):
     module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
     assert ("", None) != (module_path, new_ast)
-    new_code = astunparse.unparse(new_ast)
+    new_code = unparse(new_ast)
     assert new_code.startswith(
         f"\nimport ddtrace.appsec._iast.sources as {_PREFIX}sources"
         f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
@@ -449,7 +447,7 @@ def test_astpatch_stringio_module_changed(module_name):
 def test_astpatch_bytesio_module_changed(module_name):
     module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
     assert ("", None) != (module_path, new_ast)
-    new_code = astunparse.unparse(new_ast)
+    new_code = unparse(new_ast)
     assert new_code.startswith(
         f"\nimport ddtrace.appsec._iast.sources as {_PREFIX}sources"
         f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
@@ -490,7 +488,7 @@ def test_astpatch_dir_patched_with_env_var(module_name, env_var):
     with override_env({IAST.ENV_NO_DIR_PATCH: env_var}):
         module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
         assert ("", None) != (module_path, new_ast)
-        new_code = astunparse.unparse(new_ast)
+        new_code = unparse(new_ast)
 
         if asbool(env_var):
             # If ENV_NO_DIR_PATCH is set to True our added symbols are not filtered out
@@ -530,7 +528,7 @@ def test_astpatch_dir_patched_with_or_without_custom_dir(module_name, expected_n
         module_path, new_ast = astpatch_module(imported_mod)
         assert ("", None) != (module_path, new_ast)
 
-        new_code = astunparse.unparse(new_ast)
+        new_code = unparse(new_ast)
         assert f"def {_PREFIX}dir" in new_code
         assert f"def {_PREFIX}set_dir_filter()" in new_code
 
