@@ -84,9 +84,9 @@ def _is_test_context(span_context=None) -> bool:
                 return True
             span = span._parent
 
-    except Exception:
+    except Exception as e:
         # If we can't access the tracer or current span, assume not in test context
-        pass
+        log.debug("Failed to check test context: %s", e)
 
     return False
 

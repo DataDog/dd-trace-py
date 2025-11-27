@@ -126,8 +126,8 @@ def _install_route_handler(context) -> None:
                 log.debug("Failed to inject headers in route handler: %s", e)
                 try:
                     route.continue_()
-                except Exception:
-                    pass
+                except Exception as continue_error:
+                    log.debug("Failed to continue route after header injection failure: %s", continue_error)
 
         # Install catch-all route handler
         context.route("**/*", _inject_headers_handler)
