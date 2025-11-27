@@ -338,7 +338,7 @@ class TestPlaywrightHeaderInjectionE2E:
 
         # Find an available port
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("", 0))
+            s.bind(("localhost", 0))
             port = s.getsockname()[1]
 
         # Start a test HTTP server
