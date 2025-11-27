@@ -352,8 +352,7 @@ class _DatadogMultiHeader:
 
         if trace_id <= 0 or trace_id > _MAX_UINT_64BITS:
             log.warning(
-                "Invalid trace id: %r. `x-datadog-trace-id` must be greater than zero and less than 2**64",
-                trace_id_str,
+                "Invalid trace id: %r. `x-datadog-trace-id` must be greater than zero and less than 2**64", trace_id_str
             )
             return None
 
@@ -388,10 +387,7 @@ class _DatadogMultiHeader:
             else:
                 meta["_dd.propagation_error"] = "malformed_tid {}".format(trace_id_hob_hex)
                 del meta[_HIGHER_ORDER_TRACE_ID_BITS]
-                log.warning(
-                    "malformed_tid: %s. Failed to decode trace id from http headers",
-                    trace_id_hob_hex,
-                )
+                log.warning("malformed_tid: %s. Failed to decode trace id from http headers", trace_id_hob_hex)
 
         if not meta:
             meta = {}
@@ -601,10 +597,7 @@ class _B3SingleHeader:
             log.debug("tried to inject invalid context %r", span_context)
             return
 
-        single_header = "{}-{}".format(
-            _dd_id_to_b3_id(span_context.trace_id),
-            _dd_id_to_b3_id(span_context.span_id),
-        )
+        single_header = "{}-{}".format(_dd_id_to_b3_id(span_context.trace_id), _dd_id_to_b3_id(span_context.span_id))
         sampling_priority = span_context.sampling_priority
         if sampling_priority is not None:
             if sampling_priority <= 0:
@@ -817,9 +810,7 @@ class _TraceContext:
 
     @staticmethod
     def _get_sampling_priority(
-        traceparent_sampled: int,
-        tracestate_sampling_priority: Optional[int],
-        origin: Optional[str] = None,
+        traceparent_sampled: int, tracestate_sampling_priority: Optional[int], origin: Optional[str] = None
     ):
         """
         When the traceparent sampled flag is set, the Datadog sampling priority is either
@@ -863,11 +854,7 @@ class _TraceContext:
                 return None
             trace_id, span_id, trace_flag = _TraceContext._get_traceparent_values(tp)
         except (ValueError, AssertionError):
-            log.exception(
-                "received invalid w3c traceparent: %s ",
-                tp,
-                extra={"send_to_telemetry": False},
-            )
+            log.exception("received invalid w3c traceparent: %s ", tp, extra={"send_to_telemetry": False})
             return None
 
         meta = {W3C_TRACEPARENT_KEY: tp}
@@ -1083,18 +1070,12 @@ class HTTPPropagator(object):
         # Sample the local root span before injecting headers.
         if sampling_span:
             core.tracer.sample(sampling_span)
-            log.debug(
-                "%s sampled before propagating trace: span_context=%s",
-                sampling_span,
-                injection_context,
-            )
+            log.debug("%s sampled before propagating trace: span_context=%s", sampling_span, injection_context)
 
         return injection_context
 
     @staticmethod
-    def _extract_configured_contexts_avail(
-        normalized_headers: Dict[str, str],
-    ) -> Tuple[List[Context], List[str]]:
+    def _extract_configured_contexts_avail(normalized_headers: Dict[str, str]) -> Tuple[List[Context], List[str]]:
         contexts = []
         styles_w_ctx = []
         if config._propagation_style_extract is not None:
@@ -1117,7 +1098,7 @@ class HTTPPropagator(object):
             return SpanLink(
                 context.trace_id,
                 context.span_id,
-                flags=(1 if context.sampling_priority and context.sampling_priority > 0 else 0),
+                flags=1 if context.sampling_priority and context.sampling_priority > 0 else 0,
                 tracestate=(
                     context._meta.get(W3C_TRACESTATE_KEY, "") if style == _PROPAGATION_STYLE_W3C_TRACECONTEXT else None
                 ),
@@ -1317,10 +1298,7 @@ class HTTPPropagator(object):
 
             if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_RESTART:
                 link = HTTPPropagator._context_to_span_link(context, style, "propagation_behavior_extract")
-                context = Context(
-                    baggage=context.get_all_baggage_items(),
-                    span_links=[link] if link else [],
-                )
+                context = Context(baggage=context.get_all_baggage_items(), span_links=[link] if link else [])
 
             return context
 
