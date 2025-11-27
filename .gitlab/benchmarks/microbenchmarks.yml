@@ -217,7 +217,6 @@ benchmarks-pr-comment:
 check-slo-breaches:
   extends: .check-slo-breaches
   stage: gate
-  when: on_success
   artifacts:
     name: "artifacts"
     when: always
