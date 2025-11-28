@@ -29,6 +29,7 @@ DEFAULT_TIMEOUT_SECONDS = 15.0
 
 log = logging.getLogger(__name__)
 
+T = t.TypeVar("T")
 
 class BackendConnectorSetup:
     """
@@ -203,36 +204,53 @@ class BackendConnector(threading.local):
         headers: t.Optional[t.Dict[str, str]] = None,
         send_gzip: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
-    ) -> t.Tuple[http.client.HTTPResponse, bytes]:
+        is_json: bool,
+    ) -> t.Tuple[http.client.HTTPResponse, t.Any]:
         full_headers = self.default_headers | (headers or {})
 
         if send_gzip and self.use_gzip and data is not None:
             data = gzip.compress(data, compresslevel=6)
             full_headers["Content-Encoding"] = "gzip"
 
+        error: t.Optional[ErrorType] = None
+        response_bytes: t.Optional[int] = None
+
         start_time = time.time()
+        try:
+            self.conn.request(method, self.base_path + path, body=data, headers=full_headers)
 
-        self.conn.request(method, self.base_path + path, body=data, headers=full_headers)
+            response = self.conn.getresponse()
+            response_bytes = int(response.headers.get("Content-Length") or "0")
+            is_gzip_response = response.headers.get("Content-Encoding") == "gzip"
+            if is_gzip_response:
+                response_data = gzip.open(response).read()
+            else:
+                response_data = response.read()
 
-        response = self.conn.getresponse()
-        is_gzip_response = response.headers.get("Content-Encoding") == "gzip"
-        if is_gzip_response:
-            response_data = gzip.open(response).read()
-        else:
-            response_data = response.read()
+            if response.status >= 500:
+                error = ErrorType.CODE_5XX
+            elif response.status >= 400:
+                error = ErrorType.CODE_4XX
 
-        elapsed_time = time.time() - start_time
+            parsed_response = parse(response_data)
+        except (TimeoutError, socket.timeout):
+            error = ErrorType.TIMEOUT
+        except http.client.HTTPException:
+            error = ErrorType.NETWORK
+        except Exception:
+            error = ErrorType.UNKNOWN
+        finally:
+            elapsed_seconds = time.time() - start_time
+            log.debug("Request to %s %s took %.3f seconds", method, path, elapsed_seconds)
+            # log.debug("Request headers %s, data %s", full_headers, data)
+            # log.debug("Response status %s, data %s", response.status, response_data)
 
-        log.debug("Request to %s %s took %.3f seconds", method, path, elapsed_time)
+            if telemetry:
+                telemetry.record_request(
+                    seconds=elapsed_seconds, response_bytes=response_bytes, compressed_response=is_gzip_response, error=error
+                )
 
-        if telemetry:
-            response_bytes = int(response.headers.get("content-length") or "0")
-            telemetry.record_request(
-                seconds=elapsed_time, response_bytes=response_bytes, compressed_response=is_gzip_response, error=None
-            )
 
-        # log.debug("Request headers %s, data %s", full_headers, data)
-        # log.debug("Response status %s, data %s", response.status, response_data)
 
         return response, response_data
 
