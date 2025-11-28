@@ -390,12 +390,12 @@ def traced_wait(wrapped, instance, args, kwargs):
 
 
 def _job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
-    async def _traced_run_method(self: Any, *args: Any, _dd_ray_trace_ctx, **kwargs: Any) -> Any:
+    async def _traced_run_method(self: Any, *args: Any, _dd_ray_trace_ctx=None, **kwargs: Any) -> Any:
         import ray.exceptions
 
         from ddtrace.ext import SpanTypes
 
-        context = _TraceContext._extract(_dd_ray_trace_ctx)
+        context = _TraceContext._extract(_dd_ray_trace_ctx) if _dd_ray_trace_ctx else None
         submission_id = os.environ.get(RAY_SUBMISSION_ID)
 
         with long_running_ray_span(
@@ -566,6 +566,10 @@ def patch():
         return
 
     ray._datadog_patch = True
+
+    from ray.util.tracing import tracing_helper
+
+    tracing_helper._global_is_tracing_enabled = False
 
     @ModuleWatchdog.after_module_imported("ray.actor")
     def _(m):
