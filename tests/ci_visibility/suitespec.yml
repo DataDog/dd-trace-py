@@ -12,6 +12,8 @@ components:
     - ddtrace/contrib/internal/pytest_benchmark/*
   selenium:
     - ddtrace/contrib/internal/selenium/*
+  playwright:
+    - ddtrace/contrib/internal/playwright/*
   unittest:
     - ddtrace/contrib/internal/unittest/*
 suites:
@@ -73,6 +75,19 @@ suites:
       - tests/snapshots/test_selenium*
     runner: riot
     snapshot: true
+  playwright:
+    parallelism: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@ci_visibility'
+      - '@pytest'
+      - '@playwright'
+      - tests/contrib/playwright/*
+    runner: riot
+    snapshot: false
   unittest:
     parallelism: 2
     paths:

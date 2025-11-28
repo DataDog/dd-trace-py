@@ -3362,7 +3362,8 @@ venv = Venv(
                 Venv(
                     name="profile-memalloc",
                     command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py",  # noqa: E501
-                    # skipping v3.14 for now due to an unstable `lz4 ` lib issue: https://gitlab.ddbuild.io/DataDog/apm-reliability/dd-trace-py/-/jobs/1163312347
+                    # skipping v3.14 for now due to an unstable `lz4 ` lib issue:
+                    # https://gitlab.ddbuild.io/DataDog/apm-reliability/dd-trace-py/-/jobs/1163312347
                     pys=select_pys(max_version="3.13"),
                     pkgs={
                         "protobuf": latest,
@@ -3401,6 +3402,25 @@ venv = Venv(
                             name="selenium-pytest",
                         ),
                     ],
+                ),
+            ],
+        ),
+        Venv(
+            name="playwright",
+            pys=["3.10", "3.12"],
+            pkgs={
+                "playwright": latest,
+                "pytest-playwright": latest,
+            },
+            command=(
+                "playwright install && pytest --no-cov {cmdargs} -c /dev/null --no-ddtrace tests/contrib/playwright"
+            ),
+            env={
+                "DD_AGENT_TRACER_URL": "9126",
+            },
+            venvs=[
+                Venv(
+                    name="playwright-pytest",
                 ),
             ],
         ),

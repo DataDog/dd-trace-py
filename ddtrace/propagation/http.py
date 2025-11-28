@@ -24,6 +24,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
 from ..constants import USER_KEEP
+from ..ext.test import TYPE as TEST_TYPE
 from ..internal._tagset import TagsetDecodeError
 from ..internal._tagset import TagsetEncodeError
 from ..internal._tagset import TagsetMaxSizeDecodeError
@@ -52,6 +53,42 @@ from ._utils import get_wsgi_header
 
 
 log = get_logger(__name__)
+
+
+def _is_test_context(span_context=None) -> bool:
+    """
+    Check if the current span or provided context is part of a test trace.
+
+    This checks if any span in the current trace has the test.type tag set to "test",
+    indicating we're in a test execution context.
+
+    Args:
+        span_context: Optional context to check. If provided and the current span
+                     is in the same trace (same trace_id), checks if it's a test trace.
+    """
+    try:
+        if core.tracer is None:
+            return False
+
+        span = core.tracer.current_span()
+        if span is None:
+            return False
+
+        # If span_context provided, only check if they're in the same trace
+        if span_context is not None and span.trace_id != span_context.trace_id:
+            return False
+
+        # Walk up the span hierarchy looking for test.type == "test"
+        while span:
+            if span.get_tag(TEST_TYPE) == "test":
+                return True
+            span = span._parent
+
+    except Exception as e:
+        # If we can't access the tracer or current span, assume not in test context
+        log.debug("Failed to check test context: %s", e)
+
+    return False
 
 
 # HTTP headers one should set for distributed tracing.
@@ -261,9 +298,15 @@ class _DatadogMultiHeader:
 
         headers[HTTP_HEADER_PARENT_ID] = str(span_context.span_id)
         sampling_priority = span_context.sampling_priority
+
+        # Use special sampling priority 114 for test contexts
+        # Pass the span_context so we can check if it's from a test span
+        if _is_test_context(span_context):
+            sampling_priority = 114
+
         # Propagate priority only if defined
         if sampling_priority is not None:
-            headers[HTTP_HEADER_SAMPLING_PRIORITY] = str(span_context.sampling_priority)
+            headers[HTTP_HEADER_SAMPLING_PRIORITY] = str(sampling_priority)
         # Propagate origin only if defined
         if span_context.dd_origin is not None:
             headers[HTTP_HEADER_ORIGIN] = ensure_text(span_context.dd_origin)
