@@ -252,8 +252,17 @@ ThreadInfo::unwind_tasks()
         }
     }
 
+    // Only one Task can be on CPU at a time.
+    // Since determining if a task is on CPU is somewhat costly, we
+    // stop checking if Tasks are on CPU after seeing the first one.
+    bool on_cpu_task_seen = false;
     for (auto& leaf_task : leaf_tasks) {
-        bool on_cpu = leaf_task.get().coro->is_running;
+        bool on_cpu = false;
+        if (!on_cpu_task_seen) {
+            on_cpu = leaf_task.get().is_on_cpu();
+            on_cpu_task_seen = on_cpu;
+        }
+
         auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, on_cpu);
         auto& stack = stack_info->stack;
         for (auto current_task = leaf_task;;) {
