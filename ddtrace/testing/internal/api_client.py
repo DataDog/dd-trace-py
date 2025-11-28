@@ -69,10 +69,11 @@ class APIClient:
         }
 
         try:
-            response, response_data = self.connector.post_json(
+            result = self.connector.post_json(
                 "/api/v2/libraries/tests/services/setting", request_data, telemetry=telemetry
             )
-            attributes = response_data["data"]["attributes"]
+            result.on_error_raise_exception()
+            attributes = result.parsed_response["data"]["attributes"]
             return Settings.from_attributes(attributes)
 
         except Exception:
@@ -101,10 +102,9 @@ class APIClient:
         }
 
         try:
-            response, response_data = self.connector.post_json(
-                "/api/v2/ci/libraries/tests", request_data, telemetry=telemetry
-            )
-            tests_data = response_data["data"]["attributes"]["tests"]
+            result = self.connector.post_json("/api/v2/ci/libraries/tests", request_data, telemetry=telemetry)
+            result.on_error_raise_exception()
+            tests_data = result.parsed_response["data"]["attributes"]["tests"]
             known_test_ids = set()
 
             for module, suites in tests_data.items():
@@ -141,11 +141,12 @@ class APIClient:
         }
 
         try:
-            response, response_data = self.connector.post_json(
+            result = self.connector.post_json(
                 "/api/v2/test/libraries/test-management/tests", request_data, telemetry=telemetry
             )
+            result.on_error_raise_exception()
             test_properties: t.Dict[TestRef, TestProperties] = {}
-            modules = response_data["data"]["attributes"]["modules"]
+            modules = result.parsed_response["data"]["attributes"]["modules"]
 
             for module_name, module_data in modules.items():
                 module_ref = ModuleRef(module_name)
@@ -177,8 +178,9 @@ class APIClient:
         }
 
         try:
-            response, response_data = self.connector.post_json("/api/v2/git/repository/search_commits", request_data)
-            return [item["id"] for item in response_data["data"] if item["type"] == "commit"]
+            result = self.connector.post_json("/api/v2/git/repository/search_commits", request_data)
+            result.on_error_raise_exception()
+            return [item["id"] for item in result.parsed_response["data"] if item["type"] == "commit"]
 
         except Exception:
             log.exception("Failed to parse search_commits data")
@@ -201,12 +203,12 @@ class APIClient:
                 name="packfile", filename=packfile.name, content_type="application/octet-stream", data=content
             ),
         ]
-        response, response_data = self.connector.post_files(
-            "/api/v2/git/repository/packfile", files=files, send_gzip=False
-        )
+        try:
+            result = self.connector.post_files("/api/v2/git/repository/packfile", files=files, send_gzip=False)
+            result.on_error_raise_exception()
 
-        if response.status != 204:
-            log.warning("Failed to upload git pack data: %s %s", response.status, response_data)
+        except Exception:
+            log.warning("Failed to upload git pack data")
 
     def get_skippable_tests(self) -> t.Tuple[t.Set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
         telemetry = self.telemetry_api.request_metrics(
@@ -231,12 +233,12 @@ class APIClient:
             }
         }
         try:
-            response, response_data = self.connector.post_json(
-                "/api/v2/ci/tests/skippable", request_data, telemetry=telemetry
-            )
+            result = self.connector.post_json("/api/v2/ci/tests/skippable", request_data, telemetry=telemetry)
+            result.on_error_raise_exception()
+
             skippable_items: t.Set[t.Union[SuiteRef, TestRef]] = set()
 
-            for item in response_data["data"]:
+            for item in result.parsed_response["data"]:
                 if item["type"] in ("test", "suite"):
                     module_ref = ModuleRef(item["attributes"].get("configurations", {}).get("test.bundle", EMPTY_NAME))
                     suite_ref = SuiteRef(module_ref, item["attributes"].get("suite", EMPTY_NAME))
@@ -246,7 +248,7 @@ class APIClient:
                         test_ref = TestRef(suite_ref, item["attributes"].get("name", EMPTY_NAME))
                         skippable_items.add(test_ref)
 
-            correlation_id = response_data["meta"]["correlation_id"]
+            correlation_id = result.parsed_response["meta"]["correlation_id"]
 
             return skippable_items, correlation_id
 

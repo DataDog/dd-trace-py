@@ -35,15 +35,24 @@ log = logging.getLogger(__name__)
 T = t.TypeVar("T")
 
 
+class BackendError(Exception):
+    pass
+
+
 @dataclass
 class BackendResult:
-    error: t.Optional[ErrorType] = None
+    error_type: t.Optional[ErrorType] = None
+    error_description: t.Optional[str] = None
     response: t.Optional[http.client.HTTPResponse] = None
     response_length: t.Optional[int] = None
     response_body: t.Optional[bytes] = None
-    parsed_response: t.Optional[t.Any] = None
+    parsed_response: t.Any = None
     is_gzip_response: bool = False
-    elapsed_seconds: int = 0
+    elapsed_seconds: float = 0.0
+
+    def on_error_raise_exception(self) -> None:
+        if self.error_type:
+            raise BackendError(self.error_description)
 
 
 RETRIABLE_ERRORS = {ErrorType.TIMEOUT, ErrorType.NETWORK, ErrorType.CODE_5XX, ErrorType.BAD_JSON}
@@ -113,17 +122,15 @@ class BackendConnectorSetup:
         # Get info from agent to check if the agent is there, and which EVP proxy version it supports.
         try:
             connector = BackendConnector(agent_url)
-            response, response_data = connector.get_json("/info")
-            endpoints = response_data.get("endpoints", [])
+            result = connector.get_json("/info", max_attempts=2)
             connector.close()
         except Exception as e:
             raise SetupError(f"Error connecting to Datadog agent at {agent_url}: {e}")
 
-        if response.status != 200:
-            raise SetupError(
-                f"Error connecting to Datadog agent at {agent_url}: status {response.status}, "
-                f"response {response_data!r}"
-            )
+        if result.error_type:
+            raise SetupError(f"Error connecting to Datadog agent at {agent_url}: {result.error_description}")
+
+        endpoints = result.parsed_response.get("endpoints", [])
 
         if "/evp_proxy/v4/" in endpoints:
             return BackendConnectorEVPProxySetup(url=agent_url, base_path="/evp_proxy/v4", use_gzip=True)
@@ -237,34 +244,44 @@ class BackendConnector(threading.local):
             result.response_length = int(result.response.headers.get("Content-Length") or "0")
             result.is_gzip_response = result.response.headers.get("Content-Encoding") == "gzip"
             if result.is_gzip_response:
-                result.response_body = gzip.open(result.response).read()
+                result.response_body = response_body = gzip.open(result.response).read()
             else:
-                result.response_body = result.response.read()
+                result.response_body = response_body = result.response.read()
 
-            if result.response.status >= 500:
-                result.error = ErrorType.CODE_5XX
-            elif result.response.status >= 400:
-                result.error = ErrorType.CODE_4XX
-            elif result.response.status >= 300:
-                result.error = ErrorType.NETWORK
-        except (TimeoutError, socket.timeout):
-            result.error = ErrorType.TIMEOUT
-        except http.client.HTTPException:
-            result.error = ErrorType.NETWORK
-        except Exception:
-            result.error = ErrorType.UNKNOWN
+            if not (200 <= result.response.status <= 299):
+                result.error_description = f"{result.response.status} {result.response.reason}"
+                if result.response.status >= 500:
+                    result.error_type = ErrorType.CODE_5XX
+                elif result.response.status >= 400:
+                    result.error_type = ErrorType.CODE_4XX
+                else:
+                    result.error_type = ErrorType.NETWORK
+        except (TimeoutError, socket.timeout) as e:
+            result.error_type = ErrorType.TIMEOUT
+            result.error_description = str(e)
+        except (ConnectionRefusedError, http.client.HTTPException) as e:
+            result.error_type = ErrorType.NETWORK
+            result.error_description = str(e)
+        except Exception as e:
+            result.error_type = ErrorType.UNKNOWN
+            result.error_description = str(e)
             log.exception("Error requesting %s %s", method, path)
         finally:
             result.elapsed_seconds = time.perf_counter() - start_time
 
-        if not result.error and is_json_response:
+        if not result.error_type and is_json_response:
             try:
-                result.parsed_response = json.loads(result.response_body)
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                result.error = ErrorType.BAD_JSON
-            except Exception:
+                result.parsed_response = json.loads(response_body)
+            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                result.error_type = ErrorType.BAD_JSON
+                result.error_description = str(e)
+            except Exception as e:
                 log.exception("Error parsing respose for %s %s", method, path)
-                result.error = ErrorType.UNKNOWN
+                result.error_type = ErrorType.UNKNOWN
+                result.error_description = str(e)
+
+        if result.error_type:
+            self.conn.close()  # Clean up bad state, ensure subsequent requests start with a fresh connection.
 
         return result
 
@@ -277,10 +294,12 @@ class BackendConnector(threading.local):
         send_gzip: bool = False,
         is_json_response: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
+        max_attempts: int = MAX_ATTEMPTS,
     ) -> BackendResult:
         attempts_so_far = 0
 
-        while attempts_so_far < MAX_ATTEMPTS:
+        while True:
+            attempts_so_far += 1
             result = self._do_single_request(
                 method=method,
                 path=path,
@@ -295,12 +314,11 @@ class BackendConnector(threading.local):
                     seconds=result.elapsed_seconds,
                     response_bytes=result.response_length,
                     compressed_response=result.is_gzip_response,
-                    error=result.error,
+                    error=result.error_type,
                 )
 
-            if result.error and result.error in RETRIABLE_ERRORS:
+            if result.error_type and result.error_type in RETRIABLE_ERRORS and attempts_so_far < max_attempts:
                 delay_seconds = random.uniform(0, (1.618**attempts_so_far))
-                attempts_so_far += 1
                 log.debug(
                     "Retrying %s %s in %.3f seconds (%d attempts so far)", method, path, delay_seconds, attempts_so_far
                 )
@@ -308,7 +326,7 @@ class BackendConnector(threading.local):
             else:
                 break
 
-        return result.response, result.parsed_response if is_json_response else result.response_body  # ꙮꙮꙮ
+        return result
 
     def get_json(
         self,
@@ -316,12 +334,18 @@ class BackendConnector(threading.local):
         headers: t.Optional[t.Dict[str, str]] = None,
         send_gzip: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
-    ) -> t.Any:
+        max_attempts: int = MAX_ATTEMPTS,
+    ) -> BackendResult:
         headers = {"Content-Type": "application/json"} | (headers or {})
-        response, response_data = self.request(
-            "GET", path=path, headers=headers, send_gzip=send_gzip, is_json_response=True, telemetry=telemetry
+        return self.request(
+            "GET",
+            path=path,
+            headers=headers,
+            send_gzip=send_gzip,
+            is_json_response=True,
+            telemetry=telemetry,
+            max_attempts=max_attempts,
         )
-        return response, response_data
 
     def post_json(
         self,
@@ -330,19 +354,20 @@ class BackendConnector(threading.local):
         headers: t.Optional[t.Dict[str, str]] = None,
         send_gzip: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
-    ) -> t.Any:
+        max_attempts: int = MAX_ATTEMPTS,
+    ) -> BackendResult:
         headers = {"Content-Type": "application/json"} | (headers or {})
         encoded_data = json.dumps(data).encode("utf-8")
-        response, response_data = self.request(
+        return self.request(
             "POST",
             path=path,
             data=encoded_data,
             headers=headers,
             send_gzip=send_gzip,
-            telemetry=telemetry,
             is_json_response=True,
+            telemetry=telemetry,
+            max_attempts=max_attempts,
         )
-        return response, response_data
 
     def post_files(
         self,
@@ -351,7 +376,8 @@ class BackendConnector(threading.local):
         headers: t.Optional[t.Dict[str, str]] = None,
         send_gzip: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
-    ) -> t.Tuple[http.client.HTTPResponse, bytes]:
+        max_attempts: int = MAX_ATTEMPTS,
+    ) -> BackendResult:
         boundary = uuid.uuid4().hex
         boundary_bytes = boundary.encode("utf-8")
         headers = {"Content-Type": f"multipart/form-data; boundary={boundary}"} | (headers or {})
@@ -371,7 +397,13 @@ class BackendConnector(threading.local):
         body.write(b"--%s--\r\n" % boundary_bytes)
 
         return self.request(
-            "POST", path=path, data=body.getvalue(), headers=headers, send_gzip=send_gzip, telemetry=telemetry
+            "POST",
+            path=path,
+            data=body.getvalue(),
+            headers=headers,
+            send_gzip=send_gzip,
+            telemetry=telemetry,
+            max_attempts=max_attempts,
         )
 
 

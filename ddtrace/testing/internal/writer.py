@@ -125,7 +125,7 @@ class TestOptWriter(BaseWriter):
             "events": events,
         }
         pack = msgpack_packb(payload)
-        response, response_data = self.connector.request(
+        self.connector.request(
             "POST", "/api/v2/citestcycle", data=pack, headers={"Content-Type": "application/msgpack"}, send_gzip=True
         )
 
@@ -167,7 +167,7 @@ class TestCoverageWriter(BaseWriter):
             ),
         ]
 
-        response, response_data = self.connector.post_files("/api/v2/citestcov", files=files, send_gzip=True)
+        self.connector.post_files("/api/v2/citestcov", files=files, send_gzip=True)
 
 
 def serialize_test_run(test_run: TestRun) -> Event:
