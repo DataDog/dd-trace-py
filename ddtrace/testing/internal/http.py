@@ -201,6 +201,7 @@ class BackendConnector(threading.local):
         data: t.Optional[bytes] = None,
         headers: t.Optional[t.Dict[str, str]] = None,
         send_gzip: bool = False,
+        telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
     ) -> t.Tuple[http.client.HTTPResponse, bytes]:
         full_headers = self.default_headers | (headers or {})
 
@@ -221,23 +222,28 @@ class BackendConnector(threading.local):
         elapsed_time = time.time() - start_time
 
         log.debug("Request to %s %s took %.3f seconds", method, path, elapsed_time)
+
+        if telemetry:
+            response_bytes = int(response.headers.get("content-length") or "0")
+            telemetry.record_request(seconds=elapsed_time, response_bytes=response_bytes, error=None)
+
         # log.debug("Request headers %s, data %s", full_headers, data)
         # log.debug("Response status %s, data %s", response.status, response_data)
 
         return response, response_data
 
-    def get_json(self, path: str, headers: t.Optional[t.Dict[str, str]] = None, send_gzip: bool = False) -> t.Any:
+    def get_json(self, path: str, headers: t.Optional[t.Dict[str, str]] = None, send_gzip: bool = False, telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,) -> t.Any:
         headers = {"Content-Type": "application/json"} | (headers or {})
-        response, response_data = self.request("GET", path=path, headers=headers, send_gzip=send_gzip)
+        response, response_data = self.request("GET", path=path, headers=headers, send_gzip=send_gzip, telemetry=telemetry)
         return response, json.loads(response_data)
 
     def post_json(
-        self, path: str, data: t.Any, headers: t.Optional[t.Dict[str, str]] = None, send_gzip: bool = False
+        self, path: str, data: t.Any, headers: t.Optional[t.Dict[str, str]] = None, send_gzip: bool = False, telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
     ) -> t.Any:
         headers = {"Content-Type": "application/json"} | (headers or {})
         encoded_data = json.dumps(data).encode("utf-8")
         response, response_data = self.request(
-            "POST", path=path, data=encoded_data, headers=headers, send_gzip=send_gzip
+            "POST", path=path, data=encoded_data, headers=headers, send_gzip=send_gzip, telemetry=telemetry,
         )
         return response, json.loads(response_data)
 
@@ -247,6 +253,7 @@ class BackendConnector(threading.local):
         files: t.List[FileAttachment],
         headers: t.Optional[t.Dict[str, str]] = None,
         send_gzip: bool = False,
+        telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
     ) -> t.Tuple[http.client.HTTPResponse, bytes]:
         boundary = uuid.uuid4().hex
         boundary_bytes = boundary.encode("utf-8")
@@ -266,7 +273,7 @@ class BackendConnector(threading.local):
 
         body.write(b"--%s--\r\n" % boundary_bytes)
 
-        return self.request("POST", path=path, data=body.getvalue(), headers=headers, send_gzip=send_gzip)
+        return self.request("POST", path=path, data=body.getvalue(), headers=headers, send_gzip=send_gzip, telemetry=telemetry)
 
 
 @dataclass

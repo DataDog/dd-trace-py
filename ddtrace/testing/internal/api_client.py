@@ -16,6 +16,7 @@ from ddtrace.testing.internal.test_data import ITRSkippingLevel
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
+from ddtrace.testing.internal.telemetry import TelemetryAPI
 
 
 log = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ class APIClient:
         itr_skipping_level: ITRSkippingLevel,
         configurations: t.Dict[str, str],
         connector_setup: BackendConnectorSetup,
+        telemetry_api: TelemetryAPI,
     ) -> None:
         self.service = service
         self.env = env
@@ -37,11 +39,19 @@ class APIClient:
         self.itr_skipping_level = itr_skipping_level
         self.configurations = configurations
         self.connector = connector_setup.get_connector_for_subdomain("api")
+        self.telemetry_api = telemetry_api
 
     def close(self) -> None:
         self.connector.close()
 
     def get_settings(self) -> Settings:
+        telemetry = self.telemetry_api.request_metrics(
+            count="git_requests.settings",
+            duration="git_requests.settings_ms",
+            response_bytes=None,
+            error="git_requests.settings_errors",
+        )
+
         request_data = {
             "data": {
                 "id": str(uuid.uuid4()),
@@ -59,7 +69,7 @@ class APIClient:
         }
 
         try:
-            response, response_data = self.connector.post_json("/api/v2/libraries/tests/services/setting", request_data)
+            response, response_data = self.connector.post_json("/api/v2/libraries/tests/services/setting", request_data, telemetry=telemetry)
             attributes = response_data["data"]["attributes"]
             return Settings.from_attributes(attributes)
 

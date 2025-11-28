@@ -28,6 +28,7 @@ from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestSuite
 from ddtrace.testing.internal.test_data import TestTag
 from ddtrace.testing.internal.tracer_api import Codeowners
+from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.utils import asbool
 from ddtrace.testing.internal.writer import TestCoverageWriter
 from ddtrace.testing.internal.writer import TestOptWriter
@@ -64,6 +65,8 @@ class SessionManager:
 
         self.connector_setup = BackendConnectorSetup.detect_setup()
 
+        self.telemetry_api = TelemetryAPI(connector_setup=self.connector_setup)
+
         self.api_client = APIClient(
             service=self.service,
             env=self.env,
@@ -71,6 +74,7 @@ class SessionManager:
             itr_skipping_level=self.itr_skipping_level,
             configurations=self.platform_tags,
             connector_setup=self.connector_setup,
+            telemetry_api=self.telemetry_api,
         )
         self.settings = self.api_client.get_settings()
         self.known_tests = self.api_client.get_known_tests() if self.settings.known_tests_enabled else set()
