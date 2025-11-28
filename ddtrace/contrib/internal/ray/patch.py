@@ -68,8 +68,14 @@ log = get_logger(__name__)
 RAY_SERVICE_NAME = os.environ.get(RAY_JOB_NAME)
 
 # Ray modules that should be excluded from tracing
-RAY_MODULE_DENYLIST = {
-    "ray.dag",
+RAY_COMMON_MODULE_DENYLIST = {
+    "ray.data._internal",
+}
+
+RAY_TASK_MODULE_DENYLIST = {*RAY_COMMON_MODULE_DENYLIST}
+
+RAY_ACTOR_MODULE_DENYLIST = {
+    *RAY_COMMON_MODULE_DENYLIST,
     "ray.experimental",
     "ray.data._internal",
 }
@@ -143,6 +149,9 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
 
 def traced_submit_task(wrapped, instance, args, kwargs):
     """Trace task submission, i.e the func.remote() call"""
+    if instance._function.__module__ in RAY_TASK_MODULE_DENYLIST:
+        return wrapped(*args, **kwargs)
+
     if tracer.current_span() is None:
         log.debug(
             "No active span found in %s.remote(), activating trace context from environment", instance._function_name
@@ -498,7 +507,7 @@ def inject_tracing_into_actor_class(wrapped, instance, args, kwargs):
     class_name = str(cls.__name__)
 
     # Skip tracing for certain ray modules
-    if any(module_name.startswith(denied_module) for denied_module in RAY_MODULE_DENYLIST):
+    if any(module_name.startswith(denied_module) for denied_module in RAY_ACTOR_MODULE_DENYLIST):
         return cls
 
     # Actor beginning with _ are considered internal and will not be traced

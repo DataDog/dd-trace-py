@@ -106,7 +106,7 @@ class TestRayIntegration(TracerTestCase):
 
         assert current_value == 2, f"Unexpected result: {current_value}"
 
-    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_ignored_actored", ignores=RAY_SNAPSHOT_IGNORES)
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_ignored_actors", ignores=RAY_SNAPSHOT_IGNORES)
     def test_ignored_actors(self):
         @ray.remote
         class _InternalActor:
@@ -127,6 +127,21 @@ class TestRayIntegration(TracerTestCase):
         denied_actor = MockDeniedActor.remote()
         value = ray.get(denied_actor.get_value.remote())
         assert value == 42, f"Unexpected result: {value}"
+
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_ignored_tasks", ignores=RAY_SNAPSHOT_IGNORES)
+    def test_ignored_tasks(self):
+        """Test that tasks from modules in RAY_TASK_MODULE_DENYLIST are not traced."""
+
+        def mock_denied_task(x):
+            return x + 1
+
+        # Set the module to be in the denylist
+        mock_denied_task.__module__ = "ray.data._internal"
+        mock_denied_task = ray.remote(mock_denied_task)
+
+        # Submit the task and verify it executes correctly
+        result = ray.get(mock_denied_task.remote(41))
+        assert result == 42, f"Unexpected result: {result}"
 
     @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_nested_tasks", ignores=RAY_SNAPSHOT_IGNORES)
     def test_nested_tasks(self):
