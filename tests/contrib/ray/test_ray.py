@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import time
@@ -47,13 +48,10 @@ class TestRayIntegration(TracerTestCase):
         ray.init(
             _tracing_startup_hook="ddtrace.contrib.ray:setup_tracing",
             local_mode=True,
-            # Limit resources to reduce CI load
             num_cpus=1,
             num_gpus=0,
             object_store_memory=78643200,
-            # Disable dashboard to save memory
             include_dashboard=False,
-            # Set log level to reduce I/O
             log_to_driver=False,
         )
         tracing_helper._global_is_tracing_enabled = False
@@ -317,6 +315,74 @@ class TestRayIntegration(TracerTestCase):
             assert current_value == 3, f"Unexpected result: {current_value}"
 
 
+def _start_ray_cluster(env_vars=None):
+    """Start a Ray cluster with optional environment variables."""
+    env = os.environ.copy()
+    base_env = {
+        "DD_PATCH_MODULES": "ray:true,aiohttp:false,grpc:false,requests:false",
+    }
+    if env_vars:
+        base_env.update(env_vars)
+    env.update(base_env)
+
+    subprocess.run(
+        [
+            "ddtrace-run",
+            "ray",
+            "start",
+            "--head",
+            "--num-cpus=1",
+            "--num-gpus=0",
+            "--object-store-memory=100000000",
+            "--dashboard-host=127.0.0.1",
+            "--dashboard-port=8265",
+        ],
+        env=env,
+        check=True,
+    )
+    # Wait for dashboard to be ready
+    time.sleep(2)
+    return "http://127.0.0.1:8265"
+
+
+def _stop_ray_cluster():
+    """Stop the Ray cluster, ignoring any errors."""
+    try:
+        subprocess.run(
+            ["ray", "stop"],
+            check=False,
+            capture_output=True,
+        )
+    except Exception:
+        pass  # ignore cleanup errors
+
+
+def _submit_and_wait_for_job(dashboard_url, job_script_name, metadata={"foo": "bar"}, timeout=30):
+    """Submit a Ray job and wait for completion."""
+    job_script = os.path.join(os.path.dirname(__file__), "jobs", job_script_name)
+    result = subprocess.run(
+        [
+            "ray",
+            "job",
+            "submit",
+            f"--metadata-json={json.dumps(metadata)}",
+            "--address",
+            str(dashboard_url),
+            "--",
+            "python",
+            job_script,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+
+    assert result.returncode == 0, (
+        f"Job failed with return code {result.returncode}. Stdout:\n{result.stdout}\nStderr:\n{result.stderr}"
+    )
+    return result.stdout, result.stderr
+
+
 class TestRayWithoutInit(TracerTestCase):
     """This class tests that actor and task submissions work with auto initialization
     This class also shows a lack of visibility when we cannot call ray.init explictly
@@ -328,75 +394,48 @@ class TestRayWithoutInit(TracerTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-
-        env = os.environ.copy()
-        env.update(
-            {
-                "DD_PATCH_MODULES": "ray:true,aiohttp:false,grpc:false,requests:false",
-            }
-        )
-
-        subprocess.run(
-            [
-                "ray",
-                "start",
-                "--head",
-                "--tracing-startup-hook=ddtrace.contrib.ray:setup_tracing",
-                "--num-cpus=1",
-                "--num-gpus=0",
-                "--object-store-memory=100000000",
-                "--dashboard-host=127.0.0.1",
-                "--dashboard-port=8265",
-            ],
-            env=env,
-            check=True,
-        )
-        tracing_helper._global_is_tracing_enabled = False
-
-        # Wait for dashboard to be ready
-        cls.dashboard_url = "http://127.0.0.1:8265"
-        time.sleep(2)
+        cls.dashboard_url = _start_ray_cluster()
 
     @classmethod
     def tearDownClass(cls):
-        try:
-            subprocess.run(
-                ["ray", "stop"],
-                check=False,
-                capture_output=True,
-            )
-        except Exception:
-            pass  # ignore cleanup errors
-
+        _stop_ray_cluster()
         super().tearDownClass()
-
-    def _submit_and_wait_for_job(self, job_script_name, timeout=30):
-        job_script = os.path.join(os.path.dirname(__file__), "jobs", job_script_name)
-        result = subprocess.run(
-            [
-                "ray",
-                "job",
-                "submit",
-                "--address",
-                str(self.dashboard_url),
-                "--",
-                "python",
-                job_script,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-
-        assert result.returncode == 0, (
-            f"Job failed with return code {result.returncode}. Stdout:\n{result.stdout}\nStderr:\n{result.stderr}"
-        )
-        return result.stdout, result.stderr
 
     @pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
     def test_task_without_init(self):
-        self._submit_and_wait_for_job("task_without_init.py")
+        _submit_and_wait_for_job(self.dashboard_url, "task_without_init.py")
 
     @pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
     def test_actor_without_init(self):
-        self._submit_and_wait_for_job("actor_without_init.py")
+        _submit_and_wait_for_job(self.dashboard_url, "actor_without_init.py")
+
+    @pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
+    def test_job_name_specified(self):
+        _submit_and_wait_for_job(self.dashboard_url, "service.py", metadata={"job_name": "my_model"})
+
+
+@pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
+def test_service_name():
+    """Test that DD_SERVICE environment variable is used as service name."""
+    dashboard_url = _start_ray_cluster(env_vars={"DD_SERVICE": "test"})
+
+    try:
+        _submit_and_wait_for_job(dashboard_url, "service.py")
+    finally:
+        _stop_ray_cluster()
+
+
+@pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
+def test_use_entrypoint_service_name():
+    """Test that entrypoint can be used as service name when configured."""
+    dashboard_url = _start_ray_cluster(
+        env_vars={
+            "DD_SERVICE": "test",
+            "DD_TRACE_RAY_USE_ENTRYPOINT_AS_SERVICE_NAME": "True",
+        }
+    )
+
+    try:
+        _submit_and_wait_for_job(dashboard_url, "service.py")
+    finally:
+        _stop_ray_cluster()

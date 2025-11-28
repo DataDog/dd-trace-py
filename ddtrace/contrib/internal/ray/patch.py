@@ -196,22 +196,24 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     """
     from ray.dashboard.modules.job.job_manager import generate_job_id
 
-    # Three ways of specifying the job name, in order of precedence:
-    # 1. Metadata JSON: ray job submit --metadata_json '{"job_name": "train.cool.model"}' train.py
-    # 2. Special submission ID format: ray job submit --submission_id "job:train.cool.model,run:38" train.py
-    # 3. Ray entrypoint: ray job submit train_cool_model.py
+    # Three ways of setting the service name of the spans, in order of precedence:
+    # - DD_SERVICE environment variable
+    # - The name of the entrypoint if DD_TRACE_RAY_USE_ENTRYPOINT_AS_SERVICE_NAME is True
+    # - Metadata JSON: ray job submit --metadata_json '{"job_name": "train.cool.model"}'
+    # Otherwise set to unnamed.ray.job
     submission_id = kwargs.get("submission_id") or generate_job_id()
     kwargs["submission_id"] = submission_id
-    entrypoint = kwargs.get("entrypoint", "")
-    if entrypoint and config.ray.redact_entrypoint_paths:
-        entrypoint = redact_paths(entrypoint)
-    job_name = config.service or kwargs.get("metadata", {}).get("job_name", "")
 
-    if not job_name:
-        if config.ray.use_entrypoint_as_service_name:
-            job_name = get_dd_job_name_from_entrypoint(entrypoint) or DEFAULT_JOB_NAME
-        else:
-            job_name = DEFAULT_JOB_NAME
+    entrypoint = kwargs.get("entrypoint", "")
+    if config.ray.redact_entrypoint_paths:
+        entrypoint = redact_paths(entrypoint)
+
+    if config.ray.use_entrypoint_as_service_name:
+        job_name = get_dd_job_name_from_entrypoint(entrypoint) or DEFAULT_JOB_NAME
+    else:
+        user_provided_service = config.service if config._is_user_provided_service else None
+        metadata_job_name = kwargs.get("metadata", {}).get("job_name", None)
+        job_name = user_provided_service or metadata_job_name or DEFAULT_JOB_NAME
 
     job_span = tracer.start_span("ray.job", service=job_name or DEFAULT_JOB_NAME, span_type=SpanTypes.RAY)
     try:

@@ -47,20 +47,16 @@ The Ray integration can be configured using environment variables:
     (default: ``True``). If ``True``, file paths in the entrypoint will be redacted to avoid
     leaking sensitive information.
 
-Ray service name can be configured by:
-
-- specifying in submission ID using ``job:your-job-name`` during job submission::
-
-    ray job submit --submission-id="job:my_model,run:39" -- python entrypoint.py
-
-- specifying in metadata during job submission::
-
-    ray job submit --metadata-json='{"job_name": "my_model"}' -- python entrypoint.py
+Ray service name can be configured, in order of precedence by:
 
 - specifying ``DD_SERVICE`` when initializing your Ray cluster.
 
 - setting ``DD_TRACE_RAY_USE_ENTRYPOINT_AS_SERVICE_NAME=True``. In this case, the service
   name will be the name of your entrypoint script.
+
+- specifying in metadata during job submission::
+
+    ray job submit --metadata-json='{"job_name": "my_model"}' -- python entrypoint.py
 
 By default, the service name will be ``unnamed.ray.job``.
 
