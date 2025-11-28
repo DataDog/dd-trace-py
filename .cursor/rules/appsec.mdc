@@ -1,4 +1,10 @@
-# Datadog Application Security (AppSec) - Complete Guide
+---
+description: Datadog Application Security (AppSec) - Complete Guide
+globs:
+  - "**/appsec/**"
+  - "**/appsec/**"
+  - "**/tests/appsec/**"
+---
 
 ## Overview
 
