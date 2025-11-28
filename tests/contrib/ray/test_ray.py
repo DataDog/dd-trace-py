@@ -359,8 +359,15 @@ class TestRayWithoutInit(TracerTestCase):
 
     @classmethod
     def tearDownClass(cls):
-        if ray.is_initialized():
-            ray.shutdown()
+        try:
+            subprocess.run(
+                ["ray", "stop"],
+                check=False,
+                capture_output=True,
+            )
+        except Exception:
+            pass  # ignore cleanup errors
+
         super().tearDownClass()
 
     def _submit_and_wait_for_job(self, job_script_name, timeout=30):
