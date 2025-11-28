@@ -14,7 +14,6 @@ from typing import Optional
 from typing import TextIO
 
 from ddtrace import config
-from ddtrace.internal import forksafe
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
@@ -787,7 +786,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._compute_stats_enabled = compute_stats_enabled
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
-        forksafe.register_before_fork(self.before_fork)
         self._exporter = self._create_exporter()
 
     def _create_exporter(self) -> native.TraceExporter:
@@ -1076,7 +1074,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         try:
             self.periodic()
         finally:
-            forksafe.unregister_before_fork(self.before_fork)
             self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
 
 
