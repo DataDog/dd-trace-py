@@ -10,6 +10,9 @@ def __getattr__(name):
             "IntegrationConfig",
         ]
     ):
+        # Import here to avoid circular imports chain.
+        # ddtrace.internal.logger → ddtrace.settings._env → ddtrace.settings
+        # → ddtrace.vendor → ddtrace.internal.module → back to ddtrace.internal.logger
         from ddtrace.vendor.debtcollector import deprecate
 
         deprecate(
