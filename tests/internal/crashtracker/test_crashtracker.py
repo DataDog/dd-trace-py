@@ -457,6 +457,31 @@ def test_crashtracker_tags_required():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess):
+    with utils.with_test_agent() as client:
+        env = os.environ.copy()
+        env["DD_CRASHTRACKING_EMIT_RUNTIME_STACKS"] = "true"
+        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
+
+        # Check for expected exit condition
+        assert not stdout
+        assert not stderr
+        assert exitcode == -11
+
+        # Check for crash ping
+        _ping = utils.get_crash_ping(client)
+
+        # Check for crash report
+        report = utils.get_crash_report(client)
+        assert b"stacktrace_string" in report["body"]
+
+        version = sys.version_info[:2]
+        # Runtime stacktrace is available only on Python 3.11 and 3.12
+        expected = b"in string_at" if (3, 11) <= version <= (3, 12) else b"<python_runtime_stacktrace_unavailable>"
+        assert expected in report["body"], report["body"]
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
     # Call the program
     with utils.with_test_agent() as client:

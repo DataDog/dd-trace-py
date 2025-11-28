@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: This fix resolves a possible crash coming from the experimental "fast memory copy" feature of the Stack
+    Sampler. It occurred when the Profiler's signal handlers were replaced by other ones (from the application code).

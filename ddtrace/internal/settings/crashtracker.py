@@ -121,6 +121,15 @@ class CrashtrackingConfig(DDConfig):
         help="Whether to wait for the crashtracking receiver",
     )
 
+    # TODO: Add this back in post Code Freeze (need to update config registry)
+    # emit_runtime_stacks = DDConfig.v(
+    #     bool,
+    #     "emit_runtime_stacks",
+    #     default=False,
+    #     help_type="Boolean",
+    #     help="Whether to emit runtime stacks during a crash.",
+    # )
+
 
 config = CrashtrackingConfig()
 report_configuration(config)
