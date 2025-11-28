@@ -1,4 +1,3 @@
-import os
 import sys
 from typing import Dict
 
@@ -27,13 +26,7 @@ def _supported_versions() -> Dict[str, str]:
     return {"anthropic": ">=0.28.0"}
 
 
-config._add(
-    "anthropic",
-    {
-        "span_prompt_completion_sample_rate": float(os.getenv("DD_ANTHROPIC_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        "span_char_limit": int(os.getenv("DD_ANTHROPIC_SPAN_CHAR_LIMIT", 128)),
-    },
-)
+config._add("anthropic", {})
 
 
 @with_traced_module

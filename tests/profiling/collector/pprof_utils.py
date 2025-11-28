@@ -4,7 +4,6 @@ import glob
 import os
 import re
 from typing import TYPE_CHECKING
-from typing import Any
 from typing import List
 from typing import Optional
 from typing import Sequence
@@ -63,13 +62,15 @@ def reinterpret_int_as_int64(value: int) -> int:
 
 
 class StackLocation:
-    def __init__(self, function_name: str, filename: str, line_no: int):
+    def __init__(self, function_name: str, filename: str, line_no: int) -> None:
         self.function_name = function_name
         self.filename = filename
         self.line_no = line_no
 
-    def __repr__(self):
-        return f"{self.filename}:{self.function_name}:{self.line_no}"
+    def __repr__(self) -> str:
+        filename = self.filename or "<any file>"
+        line_no = str(self.line_no) if self.line_no != -1 else "<any line>"
+        return f"{filename}:{self.function_name}:{line_no}"
 
 
 class LockEventType(Enum):
@@ -84,11 +85,11 @@ class EventBaseClass:
         local_root_span_id: Optional[int] = None,
         trace_type: Optional[str] = None,
         trace_endpoint: Optional[str] = None,
-        thread_id: Union[int, None] = None,
-        thread_name: Union[str, None] = None,
-        class_name: Union[str, None] = None,
-        task_id: Union[int, None] = None,
-        task_name: Union[str, None] = None,
+        thread_id: Optional[int] = None,
+        thread_name: Optional[str] = None,
+        class_name: Optional[str] = None,
+        task_id: Optional[int] = None,
+        task_name: Optional[str] = None,
     ):
         self.span_id = reinterpret_int_as_int64(clamp_to_uint64(span_id)) if span_id else None
         self.local_root_span_id = (
@@ -104,7 +105,9 @@ class EventBaseClass:
 
 
 class StackEvent(EventBaseClass):
-    def __init__(self, locations: Optional[Any] = None, exception_type=None, *args, **kwargs):
+    def __init__(
+        self, locations: Optional[Sequence[StackLocation]] = None, exception_type: Optional[str] = None, *args, **kwargs
+    ) -> None:
         self.locations = locations
         self.exception_type = exception_type
         super().__init__(*args, **kwargs)
@@ -297,7 +300,9 @@ def assert_lock_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expe
     assert_base_event(profile.string_table, sample, expected_event)
 
 
-def assert_sample_has_locations(profile, sample, expected_locations: Optional[List[StackLocation]]):
+def assert_sample_has_locations(
+    profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expected_locations: Optional[Sequence[StackLocation]]
+) -> None:
     if not expected_locations:
         return
 
@@ -342,7 +347,7 @@ def assert_sample_has_locations(profile, sample, expected_locations: Optional[Li
     )
 
 
-def assert_stack_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expected_event: StackEvent):
+def assert_stack_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expected_event: StackEvent) -> None:
     # Check that the sample has label "exception type" with value
     assert_str_label(profile.string_table, sample, "exception type", expected_event.exception_type)
     assert_sample_has_locations(profile, sample, expected_event.locations)
@@ -353,7 +358,8 @@ def assert_profile_has_sample(
     profile: pprof_pb2.Profile,
     samples: List[pprof_pb2.Sample],
     expected_sample: StackEvent,
-):
+    print_samples_on_failure: bool = False,
+) -> None:
     found = False
     for sample in samples:
         try:
@@ -365,4 +371,26 @@ def assert_profile_has_sample(
             if DEBUG_TEST:
                 print(e)
 
-    assert found, "Expected samples not found in profile"
+    if not found and print_samples_on_failure:
+        print_all_samples(profile)
+
+    assert found, "Expected samples not found in profile " + str(expected_sample.locations)
+
+
+def print_all_samples(profile: pprof_pb2.Profile) -> None:
+    """Print all samples in the profile with function name, filename, and line number."""
+    for sample_idx, sample in enumerate(profile.sample):
+        print(f"Sample {sample_idx}:")
+        print("Labels:")
+        for label in sample.label:
+            print(f"  {profile.string_table[label.key]}: {profile.string_table[label.str]}")
+        print("Locations:")
+        for location_id in sample.location_id:
+            location = get_location_with_id(profile, location_id)
+            for line in location.line:
+                function = get_function_with_id(profile, line.function_id)
+                function_name = profile.string_table[function.name]
+                filename = profile.string_table[function.filename]
+                line_no = line.line
+                print(f"  {filename}:{function_name}:{line_no}")
+        print()
