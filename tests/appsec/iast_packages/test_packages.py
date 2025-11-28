@@ -6,11 +6,11 @@ import shutil
 import subprocess
 import sys
 
-from tests.appsec.iast_packages import clonevirtualenv
 import pytest
 
 from ddtrace.appsec._constants import IAST
 from tests.appsec.appsec_utils import flask_server
+from tests.appsec.iast_packages import clonevirtualenv
 from tests.utils import DDTRACE_PATH
 from tests.utils import override_env
 
@@ -437,7 +437,7 @@ _PACKAGES = [
     ),
     PackageForTesting(
         "lxml",
-        "5.2.2",
+        "6.0.2",
         "<root><element>foobar</element></root>",
         "Element text: foobar",
         "",
@@ -531,23 +531,21 @@ _PACKAGES = [
     # Pydantic fails for py314 installation with error: failed to run custom build command for `pyo3-ffi v0.21.1`
     PackageForTesting(
         "pydantic",
-        "2.7.1",
+        "2.12.5",
         '{"name": "foobar", "description": "A test item"}',
         "Validated item: name=foobar, description=A test item",
         "",
-        skip_python_version=[(3, 14)],
     ),
     # Pydantic fails for py314 installation with error: failed to run custom build command for `pyo3-ffi v0.21.1`
     PackageForTesting(
         "pydantic-core",
-        "2.18.2",
+        "2.41.5",
         "",
         "",
         "",
         test_e2e=False,
         import_name="pydantic_core",
         import_module_to_validate="pydantic_core.core_schema",
-        skip_python_version=[(3, 14)],
     ),
     ## Skip due to python-dateutil added to the denylist
     # PackageForTesting(
@@ -610,7 +608,7 @@ _PACKAGES = [
     ),
     PackageForTesting(
         "sqlalchemy",
-        "2.0.30",
+        "2.0.44",
         "Bruce Dickinson",
         {"age": 65, "id": 1, "name": "Bruce Dickinson"},
         "",
@@ -746,12 +744,7 @@ _PACKAGES = [
     #     import_name="PIL.Image",
     # ),
     PackageForTesting(
-        "aiobotocore",
-        "2.26.0",
-        "", "", "",
-        test_e2e=False,
-        test_import=False,
-        import_name="aiobotocore.session"
+        "aiobotocore", "2.26.0", "", "", "", test_e2e=False, test_import=False, import_name="aiobotocore.session"
     ),
     PackageForTesting(
         "pyjwt",
@@ -869,11 +862,15 @@ _PACKAGES = [
         test_propagation=True,
         fixme_propagation_fails=True,
     ),
-    PackageForTesting("grpcio", "1.64.0", "", "", "",
-                      test_e2e=False,
-                      import_name="grpc",
-                      skip_python_version=[(3, 14)],
-                      ),
+    PackageForTesting(
+        "grpcio",
+        "1.76.0",
+        "",
+        "",
+        "",
+        test_e2e=False,
+        import_name="grpc",
+    ),
     PackageForTesting(
         "pyopenssl",
         "24.1.0",
