@@ -1,4 +1,3 @@
-import os
 import sys
 
 
@@ -20,6 +19,7 @@ from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
 from .internal.compat import PYTHON_VERSION_INFO  # noqa: E402
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
+from .settings import _env
 from .settings._config import config
 from .version import get_version  # noqa: E402
 
@@ -27,7 +27,7 @@ from .version import get_version  # noqa: E402
 __version__ = get_version()
 
 # TODO: Deprecate accessing tracer from ddtrace.__init__ module in v4.0
-if os.environ.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
+if _env.getenv("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
     from ddtrace.trace import tracer  # noqa: F401
 
 __all__ = [
