@@ -2,18 +2,22 @@ id: os-environ-usage
 valid:
   # These should NOT trigger the rule (valid code)
   - |
-    from ddtrace.settings._env import environ
+    from ddtrace.setting import _env
+    debug = _env.getenv("DEBUG", "false")
+    value = _env.environ["HOME"]
+  - |
+    from ddtrace.internal.settings._env import environ
     value = environ["HOME"]
   - |
-    from ddtrace.settings._env import get_env
-    debug = get_env("DEBUG", "false")
+    from ddtrace.internal.settings._env import getenv
+    debug = getenv("DEBUG", "false")
   - |
-    from ddtrace.settings._env import environ, get_env
+    from ddtrace.internal.settings._env import environ, getenv
     value = environ["HOME"]
-    debug = get_env("DEBUG", "false")
+    debug = getenv("DEBUG", "false")
   - |
     # Using the centralized helpers is OK
-    from ddtrace.settings._env import environ
+    from ddtrace.internal.settings._env import environ
     if "HOME" in environ:
         print(environ["HOME"])
 

@@ -1,5 +1,5 @@
 id: os-environ-usage
-message: Use `ddtrace.settings._env.environ` instead of `os.environ`, or `ddtrace.settings._env.get_env()` instead of `os.getenv()`
+message: Use `ddtrace.internal.settings._env` instead of `os` to access environment variables
 severity: error
 language: python
 files:
@@ -77,9 +77,7 @@ rule:
 note: |
   Direct access to os.environ or os.getenv is not allowed in this codebase.
 
-  Instead, use the centralized environment variable helpers:
-  - For environ: `from ddtrace.settings._env import environ`
-  - For getenv: `from ddtrace.settings._env import get_env`
+  Instead, use the centralized environment variable helper `ddtrace.internal.settings._env`
 
   Before:
     import os
@@ -87,9 +85,9 @@ note: |
     debug = os.getenv("DEBUG", "false")
 
   After:
-    from ddtrace.settings._env import environ, get_env
-    value = environ["HOME"]
-    debug = get_env("DEBUG", "false")
+    from ddtrace.internal.settings import _env
+    value = _env.environ["HOME"]
+    debug = _env.getenv("DEBUG", "false")
 
   This ensures consistent environment variable handling across the codebase.
 
