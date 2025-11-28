@@ -113,6 +113,33 @@ skip_pytest_runtest_protocol = False
 _current_coverage_collector = None
 
 
+def _should_auto_instrument(config):
+    """
+    Quick check to determine if we should attempt auto-instrumentation.
+
+    This is called before importing the _auto_instrumentented_integrations module
+    to avoid import overhead when no auto-instrumentable plugins are present.
+
+    Returns:
+        set: Set of detected plugin names that can be auto-instrumented,
+             or empty set if none found
+    """
+    # Import plugin name constants
+    from ddtrace.contrib.internal.pytest._auto_instrumented_integrations import (
+        PLUGIN_PLAYWRIGHT,
+    )
+
+    # List of plugins that we can auto-instrument
+    AUTO_INSTRUMENTABLE_PLUGINS = (PLUGIN_PLAYWRIGHT,)
+
+    # Collect plugins that are actually present
+    return {
+        plugin_name
+        for plugin_name in AUTO_INSTRUMENTABLE_PLUGINS
+        if config.pluginmanager.hasplugin(plugin_name)
+    }
+
+
 def _handle_itr_should_skip(item, test_id) -> bool:
     """Checks whether a test should be skipped
 
@@ -422,6 +449,23 @@ def pytest_configure(config: pytest_Config) -> None:
                 if not hasattr(config, "workerinput") and PYTEST_XDIST_WORKER_VALUE is None:
                     # Main process
                     pytest.global_worker_itr_results = 0
+
+            # Auto-instrument supported integrations (e.g., Playwright)
+            # Only if --ddtrace-patch-all is not used, since that already patches everything
+            # Lazy-load to avoid overhead when no auto-instrumentable plugins are present
+            if not (
+                config.getoption("ddtrace-patch-all")
+                or config.getini("ddtrace-patch-all")
+            ):
+                # Quick check: detect which plugins we can auto-instrument
+                detected_plugins = _should_auto_instrument(config)
+                if detected_plugins:
+                    # Only import if we found plugins to instrument
+                    from ddtrace.contrib.internal.pytest._auto_instrumented_integrations import (
+                        auto_instrument_integrations,
+                    )
+
+                    auto_instrument_integrations(config, detected_plugins)
 
         else:
             # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
