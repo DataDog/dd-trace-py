@@ -37,7 +37,6 @@ from ..internal.serverless import in_aws_lambda
 from ..internal.telemetry import get_config as _get_config
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
-from ._env import get_env as _get_env  # noqa:F401
 from ._inferred_base_service import detect_service
 from .endpoint_config import fetch_config_from_endpoint
 from .http import HttpConfig

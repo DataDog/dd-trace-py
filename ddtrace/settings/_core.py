@@ -7,11 +7,11 @@ from typing import Union  # noqa:F401
 from envier import Env
 
 from ddtrace.internal.native import get_configuration_from_disk
-from ddtrace.settings._env import environ
+from ddtrace.settings import _env
 
 
 FLEET_CONFIG, LOCAL_CONFIG, FLEET_CONFIG_IDS = get_configuration_from_disk()
-ENV_CONFIG = environ
+ENV_CONFIG = _env.environ
 
 
 class ValueSource(str, Enum):

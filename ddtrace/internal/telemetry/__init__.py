@@ -9,14 +9,13 @@ import typing as t
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings import _env
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._core import ENV_CONFIG
 from ddtrace.settings._core import FLEET_CONFIG
 from ddtrace.settings._core import FLEET_CONFIG_IDS
 from ddtrace.settings._core import LOCAL_CONFIG
 from ddtrace.settings._core import DDConfig
-from ddtrace.settings._env import environ as _environ
-from ddtrace.settings._env import get_env as _get_env
 from ddtrace.settings._otel_remapper import ENV_VAR_MAPPINGS
 from ddtrace.settings._otel_remapper import SUPPORTED_OTEL_ENV_VARS
 from ddtrace.settings._otel_remapper import parse_otel_env
@@ -134,7 +133,7 @@ def _invalid_otel_config(otel_env):
     log.warning(
         "Setting %s to %s is not supported by ddtrace, this configuration will be ignored.",
         otel_env,
-        _get_env(otel_env, ""),
+        _env.getenv(otel_env, ""),
     )
     telemetry_writer.add_count_metric(
         TELEMETRY_NAMESPACE.TRACERS,
@@ -165,7 +164,7 @@ def validate_otel_envs():
             _unsupported_otel_config(otel_env)
         elif otel_env == "OTEL_LOGS_EXPORTER":
             # check for invalid values
-            otel_value = _get_env(otel_env, "none").lower()
+            otel_value = _env.getenv(otel_env, "none").lower()
             if otel_value != "none":
                 _invalid_otel_config(otel_env)
             # TODO: Separate from validation
@@ -177,8 +176,8 @@ def validate_otel_envs():
 
 def validate_and_report_otel_metrics_exporter_enabled():
     metrics_exporter_enabled = True
-    if "OTEL_METRICS_EXPORTER" in _environ:
-        otel_value = _get_env("OTEL_METRICS_EXPORTER", "otlp").lower()
+    if "OTEL_METRICS_EXPORTER" in _env.environ:
+        otel_value = _env.getenv("OTEL_METRICS_EXPORTER", "otlp").lower()
         if otel_value == "none":
             metrics_exporter_enabled = False
         elif otel_value != "otlp":

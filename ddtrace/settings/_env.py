@@ -86,7 +86,7 @@ Equivalent to os.environ using the EnvConfig wrapper-class.
 """
 
 
-def get_env(env_name: str, default: t.Any = None) -> t.Any:
+def getenv(env_name: str, default: t.Any = None) -> t.Any:
     """
     Get an environment variable.
     If the variable is a DD_ or OTEL_ or _DD prefixed variable, it will be validated against list of allowed variables.

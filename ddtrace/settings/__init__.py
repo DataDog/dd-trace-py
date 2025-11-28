@@ -1,7 +1,5 @@
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 
-from ..vendor.debtcollector import deprecate
-
 
 def __getattr__(name):
     if name in set(
@@ -12,6 +10,8 @@ def __getattr__(name):
             "IntegrationConfig",
         ]
     ):
+        from ddtrace.vendor.debtcollector import deprecate
+
         deprecate(
             ("%s.%s is deprecated" % (__name__, name)),
             removal_version="4.0.0",  # TODO: update this to the correct version

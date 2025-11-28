@@ -8,7 +8,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.settings._env import get_env as _get_env
+from ddtrace.settings import _env
 from ddtrace.settings.http import HttpConfig
 from ddtrace.vendor.debtcollector import deprecate
 
@@ -32,7 +32,7 @@ def post_preload():
     if _config.enabled:
         from ddtrace._monkey import _patch_all
 
-        modules_to_patch = _get_env("DD_PATCH_MODULES")
+        modules_to_patch = _env.getenv("DD_PATCH_MODULES")
         modules_to_str = parse_tags_str(modules_to_patch)
         modules_to_bool = {k: asbool(v) for k, v in modules_to_str.items()}
         _patch_all(**modules_to_bool)

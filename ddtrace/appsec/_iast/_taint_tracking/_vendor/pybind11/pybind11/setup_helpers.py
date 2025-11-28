@@ -74,7 +74,7 @@ except ImportError:
 import distutils.ccompiler
 import distutils.errors
 
-from ddtrace.settings._config import _get_env
+from ddtrace.settings import _env
 
 WIN = sys.platform.startswith("win32") and "mingw" not in sysconfig.get_platform()
 MACOS = sys.platform.startswith("darwin")
@@ -152,8 +152,8 @@ class Pybind11Extension(_Extension):
             cflags += ["/EHsc", "/bigobj"]
         else:
             cflags += ["-fvisibility=hidden"]
-            env_cflags = _get_env("CFLAGS", "")
-            env_cppflags = _get_env("CPPFLAGS", "")
+            env_cflags = _env.getenv("CFLAGS", "")
+            env_cppflags = _env.getenv("CPPFLAGS", "")
             c_cpp_flags = shlex.split(env_cflags) + shlex.split(env_cppflags)
             if not any(opt.startswith("-g") for opt in c_cpp_flags):
                 cflags += ["-g0"]
@@ -188,7 +188,7 @@ class Pybind11Extension(_Extension):
         cflags = [STD_TMPL.format(level)]
         ldflags = []
 
-        if MACOS and _get_env("MACOSX_DEPLOYMENT_TARGET") is None:
+        if MACOS and _env.getenv("MACOSX_DEPLOYMENT_TARGET") is None:
             # C++17 requires a higher min version of macOS. An earlier version
             # (10.12 or 10.13) can be set manually via environment variable if
             # you are careful in your feature usage, but 10.14 is the safest
@@ -442,7 +442,7 @@ class ParallelCompile:
 
             # Determine the number of compilation threads, unless set by an environment variable.
             if self.envvar is not None:
-                threads = int(_get_env(self.envvar, self.default))
+                threads = int(_env.getenv(self.envvar, self.default))
 
             def _single_compile(obj: Any) -> None:
                 try:
