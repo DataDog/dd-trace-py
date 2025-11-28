@@ -887,11 +887,7 @@ _PACKAGES = [
     PackageForTesting("decorator", "5.1.1", "World", "Decorated result: Hello, World!", ""),
     # TODO: e2e implemented but fails unpatched: "RateLimiter object has no attribute _is_allowed"
     PackageForTesting(
-        "requests-toolbelt",
-        "1.0.0", "test_value",
-        "", "",
-        import_name="requests_toolbelt",
-        test_e2e=False
+        "requests-toolbelt", "1.0.0", "test_value", "", "", import_name="requests_toolbelt", test_e2e=False
     ),
     PackageForTesting(
         "pynacl",
