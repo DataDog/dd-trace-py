@@ -289,8 +289,8 @@ scripts/run-tests --venv flask_py311 -- -vv -k test_view_called_twice
 ### Docker services won't start
 ```bash
 # Manually check/stop services:
-docker-compose ps
-docker-compose down
+docker compose ps
+docker compose down
 ```
 
 ### Can't find matching suites
