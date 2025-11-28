@@ -21,6 +21,7 @@ from ddtrace.testing.internal.constants import DEFAULT_AGENT_PORT
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_SOCKET_FILE
 from ddtrace.testing.internal.constants import DEFAULT_SITE
 from ddtrace.testing.internal.errors import SetupError
+from ddtrace.testing.internal.telemetry import TelemetryAPIRequestMetrics
 from ddtrace.testing.internal.utils import asbool
 
 
@@ -232,18 +233,36 @@ class BackendConnector(threading.local):
 
         return response, response_data
 
-    def get_json(self, path: str, headers: t.Optional[t.Dict[str, str]] = None, send_gzip: bool = False, telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,) -> t.Any:
+    def get_json(
+        self,
+        path: str,
+        headers: t.Optional[t.Dict[str, str]] = None,
+        send_gzip: bool = False,
+        telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
+    ) -> t.Any:
         headers = {"Content-Type": "application/json"} | (headers or {})
-        response, response_data = self.request("GET", path=path, headers=headers, send_gzip=send_gzip, telemetry=telemetry)
+        response, response_data = self.request(
+            "GET", path=path, headers=headers, send_gzip=send_gzip, telemetry=telemetry
+        )
         return response, json.loads(response_data)
 
     def post_json(
-        self, path: str, data: t.Any, headers: t.Optional[t.Dict[str, str]] = None, send_gzip: bool = False, telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
+        self,
+        path: str,
+        data: t.Any,
+        headers: t.Optional[t.Dict[str, str]] = None,
+        send_gzip: bool = False,
+        telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
     ) -> t.Any:
         headers = {"Content-Type": "application/json"} | (headers or {})
         encoded_data = json.dumps(data).encode("utf-8")
         response, response_data = self.request(
-            "POST", path=path, data=encoded_data, headers=headers, send_gzip=send_gzip, telemetry=telemetry,
+            "POST",
+            path=path,
+            data=encoded_data,
+            headers=headers,
+            send_gzip=send_gzip,
+            telemetry=telemetry,
         )
         return response, json.loads(response_data)
 
@@ -273,7 +292,9 @@ class BackendConnector(threading.local):
 
         body.write(b"--%s--\r\n" % boundary_bytes)
 
-        return self.request("POST", path=path, data=body.getvalue(), headers=headers, send_gzip=send_gzip, telemetry=telemetry)
+        return self.request(
+            "POST", path=path, data=body.getvalue(), headers=headers, send_gzip=send_gzip, telemetry=telemetry
+        )
 
 
 @dataclass

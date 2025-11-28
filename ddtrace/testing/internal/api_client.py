@@ -12,11 +12,11 @@ from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
+from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import ITRSkippingLevel
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
-from ddtrace.testing.internal.telemetry import TelemetryAPI
 
 
 log = logging.getLogger(__name__)
@@ -69,7 +69,9 @@ class APIClient:
         }
 
         try:
-            response, response_data = self.connector.post_json("/api/v2/libraries/tests/services/setting", request_data, telemetry=telemetry)
+            response, response_data = self.connector.post_json(
+                "/api/v2/libraries/tests/services/setting", request_data, telemetry=telemetry
+            )
             attributes = response_data["data"]["attributes"]
             return Settings.from_attributes(attributes)
 

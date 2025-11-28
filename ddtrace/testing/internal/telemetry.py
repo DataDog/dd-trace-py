@@ -1,11 +1,14 @@
-from enum import Enum
+from __future__ import annotations
+
 import dataclasses
-import typing as t
+from enum import Enum
 import logging
+import typing as t
+
 from ddtrace.testing.internal.http import BackendConnectorSetup
 
-log = logging.getLogger(__name__)
 
+log = logging.getLogger(__name__)
 
 
 class ErrorType(str, Enum):
@@ -21,8 +24,12 @@ class TelemetryAPI:
     def __init__(self, connector_setup: BackendConnectorSetup) -> None:
         pass
 
-    def request_metrics(self, count: t.Optional[str], duration: t.Optional[str], response_bytes: t.Optional[str], error: t.Optional[str]):
-        return TelemetryAPIRequestMetrics(telemetry_api=self, count=count, duration=duration, response_bytes=response_bytes, error=error)
+    def request_metrics(
+        self, count: t.Optional[str], duration: t.Optional[str], response_bytes: t.Optional[str], error: t.Optional[str]
+    ):
+        return TelemetryAPIRequestMetrics(
+            telemetry_api=self, count=count, duration=duration, response_bytes=response_bytes, error=error
+        )
 
 
 @dataclasses.dataclass
@@ -34,4 +41,4 @@ class TelemetryAPIRequestMetrics:
     error: t.Optional[str]
 
     def record_request(self, seconds: float, response_bytes: t.Optional[int], error: t.Optional[ErrorType]) -> None:
-        log.debug(f"Recording request: {seconds=} {response_bytes=} {error=}")
+        log.debug("Recording request: %s %s %s", seconds, response_bytes, error)
