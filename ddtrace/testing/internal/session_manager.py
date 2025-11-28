@@ -159,9 +159,19 @@ class SessionManager:
         atexit.register(self.finish)
 
     def finish(self) -> None:
+        # Avoid being called again by atexit if we've already been called by the pytest plugin.
         atexit.unregister(self.finish)
-        self.writer.finish()
-        self.coverage_writer.finish()
+
+        # Start writer shutdown in background, so both can do it at the same time.
+        self.writer.signal_finish()
+        self.coverage_writer.signal_finish()
+
+        # Telemetry API is based on ddtrace, we don't have fine-grained control over the background process.
+        self.telemetry_api.finish()
+
+        # Wait for the writer threads to finish.
+        self.writer.wait_finish()
+        self.coverage_writer.wait_finish()
 
     def discover_test(
         self,

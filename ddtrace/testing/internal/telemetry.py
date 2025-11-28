@@ -38,6 +38,9 @@ class TelemetryAPI:
             telemetry_api=self, count=count, duration=duration, response_bytes=response_bytes, error=error
         )
 
+    def finish(self) -> None:
+        self.writer.periodic(force_flush=True)
+
 
 @dataclasses.dataclass
 class TelemetryAPIRequestMetrics:
