@@ -5,6 +5,7 @@ from enum import Enum
 import logging
 import typing as t
 
+
 if t.TYPE_CHECKING:
     from ddtrace.testing.internal.http import BackendConnectorSetup
 
@@ -47,6 +48,3 @@ class TelemetryAPIRequestMetrics:
         self, seconds: float, response_bytes: t.Optional[int], compressed_response: bool, error: t.Optional[ErrorType]
     ) -> None:
         log.debug("Recording request: %s %s %s %s %s", self.count, seconds, response_bytes, compressed_response, error)
-
-    def record_request_error(
-    )

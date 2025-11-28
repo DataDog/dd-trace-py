@@ -8,6 +8,7 @@ import io
 import json
 import logging
 import os
+import random
 import socket
 import threading
 import time
@@ -21,15 +22,32 @@ from ddtrace.testing.internal.constants import DEFAULT_AGENT_PORT
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_SOCKET_FILE
 from ddtrace.testing.internal.constants import DEFAULT_SITE
 from ddtrace.testing.internal.errors import SetupError
+from ddtrace.testing.internal.telemetry import ErrorType
 from ddtrace.testing.internal.telemetry import TelemetryAPIRequestMetrics
 from ddtrace.testing.internal.utils import asbool
 
 
 DEFAULT_TIMEOUT_SECONDS = 15.0
+MAX_ATTEMPTS = 5
 
 log = logging.getLogger(__name__)
 
 T = t.TypeVar("T")
+
+
+@dataclass
+class BackendResult:
+    error: t.Optional[ErrorType] = None
+    response: t.Optional[http.client.HTTPResponse] = None
+    response_length: t.Optional[int] = None
+    response_body: t.Optional[bytes] = None
+    parsed_response: t.Optional[t.Any] = None
+    is_gzip_response: bool = False
+    elapsed_seconds: int = 0
+
+
+RETRIABLE_ERRORS = {ErrorType.TIMEOUT, ErrorType.NETWORK, ErrorType.CODE_5XX, ErrorType.BAD_JSON}
+
 
 class BackendConnectorSetup:
     """
@@ -195,7 +213,61 @@ class BackendConnector(threading.local):
 
         raise SetupError(f"Unknown scheme {parsed_url.scheme} in {parsed_url.geturl()}")
 
-    # TODO: handle retries
+    def _do_single_request(
+        self,
+        method: str,
+        path: str,
+        data: t.Optional[bytes] = None,
+        headers: t.Optional[t.Dict[str, str]] = None,
+        send_gzip: bool = False,
+        is_json_response: bool = False,
+    ) -> BackendResult:
+        full_headers = self.default_headers | (headers or {})
+
+        if send_gzip and self.use_gzip and data is not None:
+            data = gzip.compress(data, compresslevel=6)
+            full_headers["Content-Encoding"] = "gzip"
+
+        result = BackendResult()
+        start_time = time.perf_counter()
+
+        try:
+            self.conn.request(method, self.base_path + path, body=data, headers=full_headers)
+            result.response = self.conn.getresponse()
+            result.response_length = int(result.response.headers.get("Content-Length") or "0")
+            result.is_gzip_response = result.response.headers.get("Content-Encoding") == "gzip"
+            if result.is_gzip_response:
+                result.response_body = gzip.open(result.response).read()
+            else:
+                result.response_body = result.response.read()
+
+            if result.response.status >= 500:
+                result.error = ErrorType.CODE_5XX
+            elif result.response.status >= 400:
+                result.error = ErrorType.CODE_4XX
+            elif result.response.status >= 300:
+                result.error = ErrorType.NETWORK
+        except (TimeoutError, socket.timeout):
+            result.error = ErrorType.TIMEOUT
+        except http.client.HTTPException:
+            result.error = ErrorType.NETWORK
+        except Exception:
+            result.error = ErrorType.UNKNOWN
+            log.exception("Error requesting %s %s", method, path)
+        finally:
+            result.elapsed_seconds = time.perf_counter() - start_time
+
+        if not result.error and is_json_response:
+            try:
+                result.parsed_response = json.loads(result.response_body)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                result.error = ErrorType.BAD_JSON
+            except Exception:
+                log.exception("Error parsing respose for %s %s", method, path)
+                result.error = ErrorType.UNKNOWN
+
+        return result
+
     def request(
         self,
         method: str,
@@ -203,64 +275,40 @@ class BackendConnector(threading.local):
         data: t.Optional[bytes] = None,
         headers: t.Optional[t.Dict[str, str]] = None,
         send_gzip: bool = False,
-        telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
         is_json_response: bool = False,
-    ) -> t.Tuple[http.client.HTTPResponse, t.Any]:
-        full_headers = self.default_headers | (headers or {})
+        telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
+    ) -> BackendResult:
+        attempts_so_far = 0
 
-        if send_gzip and self.use_gzip and data is not None:
-            data = gzip.compress(data, compresslevel=6)
-            full_headers["Content-Encoding"] = "gzip"
-
-        error: t.Optional[ErrorType] = None
-        response: t.Optional[http.client.Response] = None
-        response_length: t.Optional[int] = None
-        response_body: t.Optional[bytes] = None
-        parsed_response: t.Optional[t.Any] = None
-        is_gzip_response = False
-        start_time = time.perf_time()
-
-        try:
-            self.conn.request(method, self.base_path + path, body=data, headers=full_headers)
-            response = self.conn.getresponse()
-            response_length = int(response.headers.get("Content-Length") or "0")
-            is_gzip_response = response.headers.get("Content-Encoding") == "gzip"
-            if is_gzip_response:
-                response_body = gzip.open(response).read()
-            else:
-                response_body = response.read()
-
-            if response.status >= 500:
-                error = ErrorType.CODE_5XX
-            elif response.status >= 400:
-                error = ErrorType.CODE_4XX
-            elif response.status >= 300:
-                error = ErrorType.NETWORK
-        except (TimeoutError, socket.timeout):
-            error = ErrorType.TIMEOUT
-        except http.client.HTTPException:
-            error = ErrorType.NETWORK
-        except Exception:
-            error = ErrorType.UNKNOWN
-            log.exception("Error requesting %s %s", method, path)
-        finally:
-            elapsed_seconds = time.perf_time() - start_time
-
-        if not error and is_json_response:
-            try:
-                parsed_response = json.load(response_body)
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                error = ErrorType.BAD_JSON
-            except Exception:
-                log.exception("Error parsing respose for %s %s", method, path)
-                error = ErrorType.UNKNOWN
-
-        if telemetry:
-            telemetry.record_request(
-                seconds=elapsed_seconds, response_bytes=response_length, compressed_response=is_gzip_response, error=error
+        while attempts_so_far < MAX_ATTEMPTS:
+            result = self._do_single_request(
+                method=method,
+                path=path,
+                data=data,
+                headers=headers,
+                send_gzip=send_gzip,
+                is_json_response=is_json_response,
             )
 
-        return response, parsed_response if is_json_response else response_body
+            if telemetry:
+                telemetry.record_request(
+                    seconds=result.elapsed_seconds,
+                    response_bytes=result.response_length,
+                    compressed_response=result.is_gzip_response,
+                    error=result.error,
+                )
+
+            if result.error and result.error in RETRIABLE_ERRORS:
+                delay_seconds = random.uniform(0, (1.618**attempts_so_far))
+                attempts_so_far += 1
+                log.debug(
+                    "Retrying %s %s in %.3f seconds (%d attempts so far)", method, path, delay_seconds, attempts_so_far
+                )
+                time.sleep(delay_seconds)
+            else:
+                break
+
+        return result.response, result.parsed_response if is_json_response else result.response_body  # ꙮꙮꙮ
 
     def get_json(
         self,
@@ -271,14 +319,9 @@ class BackendConnector(threading.local):
     ) -> t.Any:
         headers = {"Content-Type": "application/json"} | (headers or {})
         response, response_data = self.request(
-            "GET", path=path, headers=headers, send_gzip=send_gzip, telemetry=telemetry
+            "GET", path=path, headers=headers, send_gzip=send_gzip, is_json_response=True, telemetry=telemetry
         )
-        try:
-            parsed_data = json.loads(response_data)
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            raise APIError(ErrorType.BAD_JSON)
-
-        return response, parsed_data
+        return response, response_data
 
     def post_json(
         self,
@@ -297,8 +340,9 @@ class BackendConnector(threading.local):
             headers=headers,
             send_gzip=send_gzip,
             telemetry=telemetry,
+            is_json_response=True,
         )
-        return response, json.loads(response_data)
+        return response, response_data
 
     def post_files(
         self,
