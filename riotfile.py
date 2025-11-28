@@ -191,14 +191,11 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_packages",
-            # TODO(APPSEC-60019): virtualenv-clone doesn't support Python 3.14
-            # FIXME: GrpcIO is hanging with 3.13 on CI + hatch for some reason
-            pys=["3.11", "3.12"],
-            command="pytest {cmdargs} tests/appsec/iast_packages/",
+            pys=["3.11", "3.12", "3.13", "3.14"],
+            command="pytest {cmdargs}  -vvv -rxf tests/appsec/iast_packages/",
             pkgs={
                 "requests": latest,
                 "flask": latest,
-                "virtualenv-clone": latest,
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
