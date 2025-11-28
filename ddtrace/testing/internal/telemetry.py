@@ -40,5 +40,7 @@ class TelemetryAPIRequestMetrics:
     response_bytes: t.Optional[str]
     error: t.Optional[str]
 
-    def record_request(self, seconds: float, response_bytes: t.Optional[int], error: t.Optional[ErrorType]) -> None:
-        log.debug("Recording request: %s %s %s", seconds, response_bytes, error)
+    def record_request(
+        self, seconds: float, response_bytes: t.Optional[int], compressed_response: bool, error: t.Optional[ErrorType]
+    ) -> None:
+        log.debug("Recording request: %s %s %s %s", seconds, response_bytes, compressed_response, error)

@@ -215,7 +215,8 @@ class BackendConnector(threading.local):
         self.conn.request(method, self.base_path + path, body=data, headers=full_headers)
 
         response = self.conn.getresponse()
-        if response.headers.get("Content-Encoding") == "gzip":
+        is_gzip_response = response.headers.get("Content-Encoding") == "gzip"
+        if is_gzip_response:
             response_data = gzip.open(response).read()
         else:
             response_data = response.read()
@@ -226,7 +227,9 @@ class BackendConnector(threading.local):
 
         if telemetry:
             response_bytes = int(response.headers.get("content-length") or "0")
-            telemetry.record_request(seconds=elapsed_time, response_bytes=response_bytes, error=None)
+            telemetry.record_request(
+                seconds=elapsed_time, response_bytes=response_bytes, compressed_response=is_gzip_response, error=None
+            )
 
         # log.debug("Request headers %s, data %s", full_headers, data)
         # log.debug("Response status %s, data %s", response.status, response_data)

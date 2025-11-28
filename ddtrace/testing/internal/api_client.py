@@ -80,6 +80,13 @@ class APIClient:
             return Settings()
 
     def get_known_tests(self) -> t.Set[TestRef]:
+        telemetry = self.telemetry_api.request_metrics(
+            count="known_tests.request",
+            duration="known_tests.request_ms",
+            response_bytes="known_tests.response_bytes",
+            error="known_tests.request_errors",
+        )
+
         request_data = {
             "data": {
                 "id": str(uuid.uuid4()),
@@ -94,7 +101,9 @@ class APIClient:
         }
 
         try:
-            response, response_data = self.connector.post_json("/api/v2/ci/libraries/tests", request_data)
+            response, response_data = self.connector.post_json(
+                "/api/v2/ci/libraries/tests", request_data, telemetry=telemetry
+            )
             tests_data = response_data["data"]["attributes"]["tests"]
             known_test_ids = set()
 
@@ -112,6 +121,13 @@ class APIClient:
             return set()
 
     def get_test_management_properties(self) -> t.Dict[TestRef, TestProperties]:
+        telemetry = self.telemetry_api.request_metrics(
+            count="test_management_tests.request",
+            duration="test_management_tests.request_ms",
+            response_bytes="test_management_tests.response_bytes",
+            error="test_management_tests.request_errors",
+        )
+
         request_data = {
             "data": {
                 "id": str(uuid.uuid4()),
@@ -126,7 +142,7 @@ class APIClient:
 
         try:
             response, response_data = self.connector.post_json(
-                "/api/v2/test/libraries/test-management/tests", request_data
+                "/api/v2/test/libraries/test-management/tests", request_data, telemetry=telemetry
             )
             test_properties: t.Dict[TestRef, TestProperties] = {}
             modules = response_data["data"]["attributes"]["modules"]
@@ -193,6 +209,13 @@ class APIClient:
             log.warning("Failed to upload git pack data: %s %s", response.status, response_data)
 
     def get_skippable_tests(self) -> t.Tuple[t.Set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
+        telemetry = self.telemetry_api.request_metrics(
+            count="itr_skippable_tests.request",
+            duration="itr_skippable_tests.request_ms",
+            response_bytes="itr_skippable_tests.response_bytes",
+            error="itr_skippable_tests.request_errors",
+        )
+
         request_data = {
             "data": {
                 "id": str(uuid.uuid4()),
@@ -208,7 +231,9 @@ class APIClient:
             }
         }
         try:
-            response, response_data = self.connector.post_json("/api/v2/ci/tests/skippable", request_data)
+            response, response_data = self.connector.post_json(
+                "/api/v2/ci/tests/skippable", request_data, telemetry=telemetry
+            )
             skippable_items: t.Set[t.Union[SuiteRef, TestRef]] = set()
 
             for item in response_data["data"]:
