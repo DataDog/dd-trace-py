@@ -56,7 +56,6 @@ def patch_common_modules():
     try_wrap_function_wrapper("urllib3.request", "RequestMethods.request", wrapped_request_D8CB81E472AF98A2)
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
-    try_wrap_function_wrapper("urllib.request", "HTTPRedirectHandler.redirect_request", wrapped_redirect_request)
     try_wrap_function_wrapper("http.client", "HTTPConnection.request", wrapped_request)
     core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
     log.debug("Patching common modules: builtins and urllib.request")
@@ -158,15 +157,6 @@ def _build_headers(lst: Iterable[Tuple[str, str]]) -> Dict[str, Union[str, List[
         else:
             res[a] = b
     return res
-
-
-def wrapped_redirect_request(original_callable, instance, args, kwargs):
-    from ddtrace.appsec._asm_request_context import _get_asm_context
-
-    request = original_callable(*args, **kwargs)
-    if request is not None and (ctx:=_get_asm_context()):
-        ctx.redirect_requests += 1
-    return request
 
 
 def wrapped_request(original_request_callable, instance, args, kwargs):

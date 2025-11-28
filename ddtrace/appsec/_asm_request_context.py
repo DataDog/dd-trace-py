@@ -248,7 +248,7 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
 
     entry_span._set_tag_str(APPSEC.WAF_VERSION, ddwaf_version)
     if env.downstream_requests:
-        update_span_metrics(entry_span, APPSEC.DOWNSTREAM_REQUESTS, env.downstream_requests+env.redirect_requests)
+        update_span_metrics(entry_span, APPSEC.DOWNSTREAM_REQUESTS, env.downstream_requests + env.redirect_requests)
     if telemetry_results.total_duration:
         update_span_metrics(entry_span, APPSEC.WAF_DURATION, telemetry_results.duration)
         telemetry_results.duration = 0.0
