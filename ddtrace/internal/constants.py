@@ -72,6 +72,7 @@ HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
 REQUEST_PATH_PARAMS = "http.request.path_params"
 STATUS_403_TYPE_AUTO = {"status_code": 403, "type": "auto"}
 PROCESS_TAGS = "_dd.tags.process"
+PROPAGATED_HASH = "_dd.propagated_hash"
 
 CONTAINER_ID_HEADER_NAME = "Datadog-Container-Id"
 CONTAINER_TAGS_HASH = "Datadog-Container-Tags-Hash"

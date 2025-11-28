@@ -16,7 +16,7 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
 from ddtrace.internal import telemetry
-from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import COMPONENT, PROPAGATED_HASH
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
@@ -254,6 +254,8 @@ class TraceTagsProcessor(TraceProcessor):
             span._set_tag_str("language", "python")
             if p_tags := process_tags.process_tags:
                 span._set_tag_str(PROCESS_TAGS, p_tags)
+                if b_hash := process_tags.base_hash:
+                    span._set_tag_str(PROPAGATED_HASH, b_hash)
             # for 128 bit trace ids
             if span.trace_id > MAX_UINT_64BITS:
                 trace_id_hob = _get_64_highest_order_bits_as_hex(span.trace_id)
