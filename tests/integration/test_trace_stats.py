@@ -51,19 +51,11 @@ def send_once_stats_tracer(stats_tracer):
     """
 
     stats_tracer.trace = functools.partial(consistent_end_trace, stats_tracer.trace)
-
-    # Stop the stats processor while running the function, to prevent flushing
-    stats_processor = None
-    for processor in stats_tracer._span_processors:
-        if isinstance(processor, SpanStatsProcessorV06):
-            stats_processor = processor
-            stats_processor.stop()
-            break
+    stats_tracer._span_aggregator.writer._trace_flush_enabled = False
     yield stats_tracer
 
     # Restart the stats processor; it will be flushed during shutdown
-    if stats_processor:
-        stats_processor.start()
+    stats_tracer._span_aggregator.writer._trace_flush_enabled = True
 
 
 @skip_if_native_writer
