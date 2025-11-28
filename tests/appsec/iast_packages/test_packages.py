@@ -445,7 +445,6 @@ _PACKAGES = [
         import_module_to_validate="lxml.doctestcompare",
         test_propagation=True,
         fixme_propagation_fails=True,
-        skip_python_version=[(3, 14)],
     ),
     PackageForTesting(
         "more-itertools",
@@ -771,10 +770,9 @@ _PACKAGES = [
         "",
         test_propagation=False,
     ),
-    # docutils dropped Python 3.8 support in docutils > 1.10.10.21.2
     PackageForTesting(
         "docutils",
-        "0.21.2",
+        "0.22.3",
         "Hello, **world**!",
         "Conversion successful!",
         "",
@@ -816,16 +814,14 @@ _PACKAGES = [
     #     "",
     #     test_e2e=False,
     # ),
-    ## Skip due to scipy added to the denylist
-    # # scipy dropped Python 3.8 support in scipy > 1.10.1
-    # PackageForTesting(
-    #     "scipy",
-    #     "1.13.0",
-    #     "1,2,3,4,5",
-    #     "Mean: 3.0, Standard Deviation: 1.581",
-    #     "",
-    #     import_name="scipy.special",
-    # ),
+    PackageForTesting(
+        "scipy",
+        "1.16.3",
+        "1,2,3,4,5",
+        "Mean: 3.0, Standard Deviation: 1.581",
+        "",
+        import_name="scipy.special",
+    ),
     PackageForTesting(
         "iniconfig",
         "2.0.0",
@@ -842,16 +838,14 @@ _PACKAGES = [
         "Original list: <FrozenList(frozen=True, [1, 2, 3])> Attempt to modify frozen list!",
         "",
     ),
-    # TODO: e2e implemented but fails unpatched: "Signal handlers results: None"
-    # TODO: recursivity error in format_aspect with the new refactored package tests
-    # PackageForTesting(
-    #     "aiosignal",
-    #     "1.3.1",
-    #     "test_value",
-    #     "Signal handlers results: [('Handler 1 called', None), ('Handler 2 called', None)]",
-    #     "",
-    #     test_e2e=False,
-    # ),
+    PackageForTesting(
+        "aiosignal",
+        "1.4.0",
+        "test_value",
+        "Signal handlers results: [('Handler 1 called', None), ('Handler 2 called', None)]",
+        "",
+        test_e2e=False,
+    ),
     PackageForTesting(
         "pygments",
         "2.18.0",
@@ -893,7 +887,11 @@ _PACKAGES = [
     PackageForTesting("decorator", "5.1.1", "World", "Decorated result: Hello, World!", ""),
     # TODO: e2e implemented but fails unpatched: "RateLimiter object has no attribute _is_allowed"
     PackageForTesting(
-        "requests-toolbelt", "1.0.0", "test_value", "", "", import_name="requests_toolbelt", test_e2e=False
+        "requests-toolbelt",
+        "1.0.0", "test_value",
+        "", "",
+        import_name="requests_toolbelt",
+        test_e2e=False
     ),
     PackageForTesting(
         "pynacl",
@@ -905,7 +903,6 @@ _PACKAGES = [
         test_propagation=True,
         fixme_propagation_fails=True,
     ),
-    # Requires "Annotated" from "typing" which was included in 3.9
     PackageForTesting(
         "annotated-types",
         "0.7.0",
