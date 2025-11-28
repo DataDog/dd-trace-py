@@ -63,21 +63,8 @@ The guidelines below summarize and clarify the expectations for authors and revi
 
 ### Pull Request Structure
 
-Every Pull Request **must** include a description formatted with the following Markdown structure:
-
-```markdown
-## Description
-
-## Motivation
-
-## Related issues
-Fixes|Implements: APM-XXXX
-
-## Testing strategy
-
-## Notes for reviewers
-(optional)
-```
+Every Pull Request **must** include a description formatted with the
+following Markdown structure `.github/PULL_REQUEST_TEMPLATE.md`:
 
 ### Requirements:
 
