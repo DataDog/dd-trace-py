@@ -111,7 +111,7 @@ class _ProfiledLock:
                 # (else a bogus release sample is produced)
                 assert self.acquired_time is None, (
                     f"Expected acquired_time to be None when acquire is not sampled, got {self.acquired_time!r}"
-                ) # nosec
+                )  # nosec
 
         start: int = time.monotonic_ns()
         try:
