@@ -135,7 +135,7 @@ class LockReleaseEvent(LockEvent):
         super().__init__(event_type=LockEventType.RELEASE, *args, **kwargs)
 
 
-def parse_newest_profile(filename_prefix: str) -> pprof_pb2.Profile:
+def parse_newest_profile(filename_prefix: str, assert_samples: bool = True) -> pprof_pb2.Profile:
     """Parse the newest profile that has given filename prefix. The profiler
     outputs profile file with following naming convention:
     <filename_prefix>.<pid>.<counter>.pprof, and in tests, we'd want to parse
@@ -150,7 +150,10 @@ def parse_newest_profile(filename_prefix: str) -> pprof_pb2.Profile:
         serialized_data = dctx.stream_reader(fp).read()
     profile = pprof_pb2.Profile()
     profile.ParseFromString(serialized_data)
-    assert len(profile.sample) > 0, "No samples found in profile"
+
+    if assert_samples:
+        assert len(profile.sample) > 0, "No samples found in profile"
+
     return profile
 
 
