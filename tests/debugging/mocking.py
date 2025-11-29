@@ -177,7 +177,7 @@ class TestDebugger(Debugger):
 
         assert len(self.test_queue) == 1
 
-        yield self.test_queue[0]
+        yield self.test_queue.pop(0)
 
 
 @contextmanager
