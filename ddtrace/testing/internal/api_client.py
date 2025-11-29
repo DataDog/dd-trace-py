@@ -45,7 +45,7 @@ class APIClient:
         self.connector.close()
 
     def get_settings(self) -> Settings:
-        telemetry = self.telemetry_api.request_metrics(
+        telemetry = self.telemetry_api.with_request_metric_names(
             count="git_requests.settings",
             duration="git_requests.settings_ms",
             response_bytes=None,
@@ -81,7 +81,7 @@ class APIClient:
             return Settings()
 
     def get_known_tests(self) -> t.Set[TestRef]:
-        telemetry = self.telemetry_api.request_metrics(
+        telemetry = self.telemetry_api.with_request_metric_names(
             count="known_tests.request",
             duration="known_tests.request_ms",
             response_bytes="known_tests.response_bytes",
@@ -121,7 +121,7 @@ class APIClient:
             return set()
 
     def get_test_management_properties(self) -> t.Dict[TestRef, TestProperties]:
-        telemetry = self.telemetry_api.request_metrics(
+        telemetry = self.telemetry_api.with_request_metric_names(
             count="test_management_tests.request",
             duration="test_management_tests.request_ms",
             response_bytes="test_management_tests.response_bytes",
@@ -211,7 +211,7 @@ class APIClient:
             log.warning("Failed to upload git pack data")
 
     def get_skippable_tests(self) -> t.Tuple[t.Set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
-        telemetry = self.telemetry_api.request_metrics(
+        telemetry = self.telemetry_api.with_request_metric_names(
             count="itr_skippable_tests.request",
             duration="itr_skippable_tests.request_ms",
             response_bytes="itr_skippable_tests.response_bytes",

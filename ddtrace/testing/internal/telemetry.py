@@ -31,7 +31,7 @@ class TelemetryAPI:
         # Currently we rely on ddtrace's telemetry infrastructure, so we don't have to do anything here.
         self.writer = telemetry_writer
 
-    def request_metrics(
+    def with_request_metric_names(
         self, count: str, duration: str, response_bytes: t.Optional[str], error: str
     ) -> TelemetryAPIRequestMetrics:
         return TelemetryAPIRequestMetrics(
