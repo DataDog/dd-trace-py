@@ -13,6 +13,8 @@
 #include <echion/errors.h>
 #include <echion/timing.h>
 
+#include <Python.h>
+
 // Forward declaration
 class Frame;
 
@@ -29,27 +31,52 @@ class RendererInterface
     virtual void close() = 0;
     virtual void header() = 0;
     virtual void metadata(const std::string& label, const std::string& value) = 0;
+
     // If a renderer has its own caching mechanism for frames, this can be used
     // to store frame information.
     virtual void
     frame(uintptr_t key, uintptr_t filename, uintptr_t name, int line, int line_end, int column, int column_end) = 0;
-    // Refers to the frame stored using above function
+
+    // Refers to the frame stored using the renderer's frame function
     virtual void frame_ref(uintptr_t key) = 0;
     virtual void frame_kernel(const std::string& scope) = 0;
-    // Simlar to frame/frame_ref functions, helpers for string tables
+
+    // If a renderer has its own caching mechanism for strings, this can be used
+    // to store string information.
     virtual void string(uintptr_t key, const std::string& value) = 0;
+
+    // Refers to the string stored using the renderer's string function
     virtual void string_ref(uintptr_t key) = 0;
 
+    // Called to render a message from the profiler.
     virtual void render_message(std::string_view msg) = 0;
+
+    // Called once for each Thread being sampled.
+    // Pushes the Thread state but not its current Stack(s).
     virtual void render_thread_begin(PyThreadState* tstate,
                                      std::string_view name,
                                      microsecond_t cpu_time,
                                      uintptr_t thread_id,
                                      unsigned long native_id) = 0;
+
+    // Called once for each Task being sampled on the Thread.
+    // Called after render_thread_begin and before render_stack_begin.
     virtual void render_task_begin(std::string task_name, bool on_cpu) = 0;
+
+    // Called once for each Stack being sampled on the Task.
+    // Called after render_task_begin and before render_frame.
     virtual void render_stack_begin(long long pid, long long iid, const std::string& thread_name) = 0;
+
+    // Called once for each Frame being sampled on the Stack.
+    // Called after render_stack_begin and before render_stack_end.
     virtual void render_frame(Frame& frame) = 0;
+
+    // Called once for each CPU time being sampled on the Thread.
+    // Called after render_frame and before render_stack_end.
     virtual void render_cpu_time(uint64_t cpu_time) = 0;
+
+    // Called once for each Stack being sampled on the Thread.
+    // Called after render_stack_begin, all render_frame calls and all render_cpu_time calls.
     virtual void render_stack_end(MetricType metric_type, uint64_t delta) = 0;
 
     // The validity of the interface is a two-step process
