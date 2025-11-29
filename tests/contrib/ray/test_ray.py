@@ -1,3 +1,8 @@
+import json
+import os
+import subprocess
+import time
+
 import pytest
 import ray
 from ray.util.tracing import tracing_helper
@@ -43,13 +48,10 @@ class TestRayIntegration(TracerTestCase):
         ray.init(
             _tracing_startup_hook="ddtrace.contrib.ray:setup_tracing",
             local_mode=True,
-            # Limit resources to reduce CI load
             num_cpus=1,
             num_gpus=0,
             object_store_memory=78643200,
-            # Disable dashboard to save memory
             include_dashboard=False,
-            # Set log level to reduce I/O
             log_to_driver=False,
         )
         tracing_helper._global_is_tracing_enabled = False
@@ -104,7 +106,7 @@ class TestRayIntegration(TracerTestCase):
 
         assert current_value == 2, f"Unexpected result: {current_value}"
 
-    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_ignored_actored", ignores=RAY_SNAPSHOT_IGNORES)
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_ignored_actors", ignores=RAY_SNAPSHOT_IGNORES)
     def test_ignored_actors(self):
         @ray.remote
         class _InternalActor:
@@ -125,6 +127,21 @@ class TestRayIntegration(TracerTestCase):
         denied_actor = MockDeniedActor.remote()
         value = ray.get(denied_actor.get_value.remote())
         assert value == 42, f"Unexpected result: {value}"
+
+    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_ignored_tasks", ignores=RAY_SNAPSHOT_IGNORES)
+    def test_ignored_tasks(self):
+        """Test that tasks from modules in RAY_TASK_MODULE_DENYLIST are not traced."""
+
+        def mock_denied_task(x):
+            return x + 1
+
+        # Set the module to be in the denylist
+        mock_denied_task.__module__ = "ray.data._internal"
+        mock_denied_task = ray.remote(mock_denied_task)
+
+        # Submit the task and verify it executes correctly
+        result = ray.get(mock_denied_task.remote(41))
+        assert result == 42, f"Unexpected result: {result}"
 
     @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_nested_tasks", ignores=RAY_SNAPSHOT_IGNORES)
     def test_nested_tasks(self):
@@ -313,20 +330,127 @@ class TestRayIntegration(TracerTestCase):
             assert current_value == 3, f"Unexpected result: {current_value}"
 
 
+def _start_ray_cluster(env_vars=None):
+    """Start a Ray cluster with optional environment variables."""
+    env = os.environ.copy()
+    base_env = {
+        "DD_PATCH_MODULES": "ray:true,aiohttp:false,grpc:false,requests:false",
+    }
+    if env_vars:
+        base_env.update(env_vars)
+    env.update(base_env)
+
+    subprocess.run(
+        [
+            "ddtrace-run",
+            "ray",
+            "start",
+            "--head",
+            "--num-cpus=1",
+            "--num-gpus=0",
+            "--object-store-memory=100000000",
+            "--dashboard-host=127.0.0.1",
+            "--dashboard-port=8265",
+        ],
+        env=env,
+        check=True,
+    )
+    # Wait for dashboard to be ready
+    time.sleep(2)
+    return "http://127.0.0.1:8265"
+
+
+def _stop_ray_cluster():
+    """Stop the Ray cluster, ignoring any errors."""
+    try:
+        subprocess.run(
+            ["ray", "stop"],
+            check=False,
+            capture_output=True,
+        )
+    except Exception:
+        pass  # ignore cleanup errors
+
+
+def _submit_and_wait_for_job(dashboard_url, job_script_name, metadata={"foo": "bar"}, timeout=30):
+    """Submit a Ray job and wait for completion."""
+    job_script = os.path.join(os.path.dirname(__file__), "jobs", job_script_name)
+    result = subprocess.run(
+        [
+            "ray",
+            "job",
+            "submit",
+            f"--metadata-json={json.dumps(metadata)}",
+            "--address",
+            str(dashboard_url),
+            "--",
+            "python",
+            job_script,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+
+    assert result.returncode == 0, (
+        f"Job failed with return code {result.returncode}. Stdout:\n{result.stdout}\nStderr:\n{result.stderr}"
+    )
+    return result.stdout, result.stderr
+
+
 class TestRayWithoutInit(TracerTestCase):
-    def tearDown(self):
-        if ray.is_initialized():
-            ray.shutdown()
-        super().tearDown()
+    """This class tests that actor and task submissions work with auto initialization
+    This class also shows a lack of visibility when we cannot call ray.init explictly
+    which led to a change in how we start a cluster
+    """
 
-    @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_task_without_init", ignores=RAY_SNAPSHOT_IGNORES)
+    dashboard_url = None
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.dashboard_url = _start_ray_cluster()
+
+    @classmethod
+    def tearDownClass(cls):
+        _stop_ray_cluster()
+        super().tearDownClass()
+
+    @pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
     def test_task_without_init(self):
-        """Test that tracing works when Ray auto-initializes without explicit ray.init()"""
+        _submit_and_wait_for_job(self.dashboard_url, "task_without_init.py")
 
-        @ray.remote
-        def add_one(x):
-            return x + 1
+    @pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
+    def test_actor_without_init(self):
+        _submit_and_wait_for_job(self.dashboard_url, "actor_without_init.py")
 
-        futures = [add_one.remote(i) for i in range(2)]
-        results = ray.get(futures)
-        assert results == [1, 2], f"Unexpected results: {results}"
+    @pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
+    def test_job_name_specified(self):
+        _submit_and_wait_for_job(self.dashboard_url, "service.py", metadata={"job_name": "my_model"})
+
+
+@pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
+def test_service_name():
+    """Test that DD_SERVICE environment variable is used as service name."""
+    dashboard_url = _start_ray_cluster(env_vars={"DD_SERVICE": "test"})
+
+    try:
+        _submit_and_wait_for_job(dashboard_url, "service.py")
+    finally:
+        _stop_ray_cluster()
+
+
+@pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
+def test_use_entrypoint_service_name():
+    """Test that entrypoint can be used as service name when configured."""
+    dashboard_url = _start_ray_cluster(
+        env_vars={
+            "DD_SERVICE": "test",
+            "DD_TRACE_RAY_USE_ENTRYPOINT_AS_SERVICE_NAME": "True",
+        }
+    )
+
+    try:
+        _submit_and_wait_for_job(dashboard_url, "service.py")
+    finally:
+        _stop_ray_cluster()
