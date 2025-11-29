@@ -364,7 +364,7 @@ def test_aggregator_partial_flush_finished_counter_out_of_sync():
     span2 = tracer.start_span("span2", child_of=span1)
     # Set duration_ns before finish() to create edge case where
     # trace.num_finished == 1 and len(trace.spans) == 0
-    # but remove_finished() returns empty (span1 already flushed when span2 finished)
+    # which results in remove_finished() returning an empty list (when partial flush is 1)
     span1.duration_ns = 1
     span2.finish()
     span1.finish()
