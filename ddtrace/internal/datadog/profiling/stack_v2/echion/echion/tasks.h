@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <optional>
+
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <weakrefobject.h>
@@ -176,6 +178,7 @@ class TaskInfo
 
     // Information to reconstruct the async stack as best as we can
     TaskInfo::Ptr waiter = nullptr;
+    std::optional<bool> is_on_cpu_ = std::nullopt;
 
     [[nodiscard]] static Result<TaskInfo::Ptr> create(TaskObj*);
     TaskInfo(PyObject* origin, PyObject* loop, GenInfo::Ptr coro, StringTable::Key name, TaskInfo::Ptr waiter)
@@ -189,6 +192,24 @@ class TaskInfo
 
     [[nodiscard]] static Result<TaskInfo::Ptr> current(PyObject*);
     inline size_t unwind(FrameStack&);
+
+    // Check if any coroutine in the chain is currently running (on CPU)
+    inline bool is_on_cpu()
+    {
+        if (is_on_cpu_.has_value()) {
+            return *is_on_cpu_;
+        }
+
+        for (auto coroutine = this->coro.get(); coroutine != nullptr; coroutine = coroutine->await.get()) {
+            if (coroutine->is_running) {
+                is_on_cpu_ = true;
+                return true;
+            }
+        }
+
+        is_on_cpu_.emplace(false);
+        return false;
+    }
 };
 
 inline std::unordered_map<PyObject*, PyObject*> task_link_map;
