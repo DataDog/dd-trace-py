@@ -113,6 +113,8 @@ class _ProfiledLock:
                     f"Expected acquired_time to be None when acquire is not sampled, got {self.acquired_time!r}"
                 )  # nosec
 
+            return inner_func(*args, **kwargs)
+
         start: int = time.monotonic_ns()
         try:
             return inner_func(*args, **kwargs)
