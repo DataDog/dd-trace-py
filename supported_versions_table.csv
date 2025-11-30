@@ -3,6 +3,7 @@ aiobotocore,aiobotocore,1.0.7,2.24.1,False
 aiohttp,aiohttp,3.7.4.post0,3.12.15,True
 aiohttp-jinja2,aiohttp_jinja2,1.5.1,1.6,True
 aiohttp_jinja2,aiohttp_jinja2,1.5.1,1.6,True
+aiokafka,aiokafka,0.9.0,0.12.0,False
 aiomysql,aiomysql,0.1.1,0.2.0,True
 aiopg,aiopg *,0.16.0,1.4.0,True
 algoliasearch,algoliasearch *,2.6.3,2.6.3,True
@@ -41,7 +42,7 @@ fastapi,fastapi,0.64.0,0.118.0,True
 flask,flask,1.1.4,3.1.2,True
 flask-cache,flask_cache,0.13.1,0.13.1,False
 flask-caching,flask_cache,1.10.1,2.3.0,False
-gevent,gevent,21.1.2,25.5.1,True
+gevent,gevent,21.1.2,25.9.1,True
 google-adk,google_adk,1.0.0,1.15.1,True
 google-genai,google_genai,1.21.1,1.41.0,True
 graphql-core,graphql,3.1.7,3.2.6,True
@@ -89,7 +90,7 @@ sqlalchemy,sqlalchemy,1.3.24,2.0.43,False
 pysqlite3-binary,sqlite3,0.5.2.post3,0.5.2.post3,True
 starlette,starlette,0.14.2,0.48.0,True
 structlog,structlog,20.2.0,25.4.0,True
-tornado,tornado *,6.1.4,6.5.1,False
+tornado,tornado *,6.1,6.5.1,False
 urllib3,urllib3,1.25.8,2.5.0,False
 valkey,valkey,6.0.2,6.1.1,True
 google-cloud-aiplatform,vertexai,1.71.1,1.71.1,True
