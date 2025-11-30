@@ -8,27 +8,25 @@ import contextlib
 import errno
 import functools
 import os
-import xml.etree.ElementTree as ET
-from collections import namedtuple
 from collections import defaultdict
+from collections import namedtuple
+from xml.etree import ElementTree  # noqa: ICN001
 
 from . import _common
 from . import _psposix
 from . import _psutil_bsd as cext
-from . import _psutil_posix as cext_posix
-from ._common import conn_tmap
-from ._common import conn_to_ntuple
 from ._common import FREEBSD
-from ._common import memoize
-from ._common import memoize_when_activated
 from ._common import NETBSD
 from ._common import OPENBSD
+from ._common import AccessDenied
+from ._common import NoSuchProcess
+from ._common import ZombieProcess
+from ._common import conn_tmap
+from ._common import conn_to_ntuple
+from ._common import debug
+from ._common import memoize
+from ._common import memoize_when_activated
 from ._common import usage_percent
-from ._compat import FileNotFoundError
-from ._compat import PermissionError
-from ._compat import ProcessLookupError
-from ._compat import which
-
 
 __extra__all__ = []
 
@@ -48,7 +46,7 @@ if FREEBSD:
         cext.SWAIT: _common.STATUS_WAITING,
         cext.SLOCK: _common.STATUS_LOCKED,
     }
-elif OPENBSD or NETBSD:
+elif OPENBSD:
     PROC_STATUSES = {
         cext.SIDL: _common.STATUS_IDLE,
         cext.SSLEEP: _common.STATUS_SLEEPING,
@@ -73,12 +71,11 @@ elif OPENBSD or NETBSD:
 elif NETBSD:
     PROC_STATUSES = {
         cext.SIDL: _common.STATUS_IDLE,
-        cext.SACTIVE: _common.STATUS_RUNNING,
-        cext.SDYING: _common.STATUS_ZOMBIE,
+        cext.SSLEEP: _common.STATUS_SLEEPING,
         cext.SSTOP: _common.STATUS_STOPPED,
         cext.SZOMB: _common.STATUS_ZOMBIE,
-        cext.SDEAD: _common.STATUS_DEAD,
-        cext.SSUSPENDED: _common.STATUS_SUSPENDED,  # unique to NetBSD
+        cext.SRUN: _common.STATUS_WAKING,
+        cext.SONPROC: _common.STATUS_RUNNING,
     }
 
 TCP_STATUSES = {
@@ -96,16 +93,10 @@ TCP_STATUSES = {
     cext.PSUTIL_CONN_NONE: _common.CONN_NONE,
 }
 
-if NETBSD:
-    PAGESIZE = os.sysconf("SC_PAGESIZE")
-else:
-    PAGESIZE = os.sysconf("SC_PAGE_SIZE")
-AF_LINK = cext_posix.AF_LINK
+PAGESIZE = cext.getpagesize()
+AF_LINK = cext.AF_LINK
 
-HAS_PER_CPU_TIMES = hasattr(cext, "per_cpu_times")
 HAS_PROC_NUM_THREADS = hasattr(cext, "proc_num_threads")
-HAS_PROC_OPEN_FILES = hasattr(cext, 'proc_open_files')
-HAS_PROC_NUM_FDS = hasattr(cext, 'proc_num_fds')
 
 kinfo_proc_map = dict(
     ppid=0,
@@ -135,19 +126,13 @@ kinfo_proc_map = dict(
     name=24,
 )
 
-# These objects get set on "import psutil" from the __init__.py
-# file, see: https://github.com/giampaolo/psutil/issues/1402
-NoSuchProcess = None
-ZombieProcess = None
-AccessDenied = None
-TimeoutExpired = None
-
 
 # =====================================================================
 # --- named tuples
 # =====================================================================
 
 
+# fmt: off
 # psutil.virtual_memory()
 svmem = namedtuple(
     'svmem', ['total', 'available', 'percent', 'used', 'free',
@@ -177,6 +162,7 @@ if FREEBSD:
 else:
     sdiskio = namedtuple('sdiskio', ['read_count', 'write_count',
                                      'read_bytes', 'write_bytes'])
+# fmt: on
 
 
 # =====================================================================
@@ -185,10 +171,9 @@ else:
 
 
 def virtual_memory():
-    """System virtual memory as a namedtuple."""
     mem = cext.virtual_mem()
-    total, free, active, inactive, wired, cached, buffers, shared = mem
     if NETBSD:
+        total, free, active, inactive, wired, cached = mem
         # On NetBSD buffers and shared mem is determined via /proc.
         # The C ext set them to 0.
         with open('/proc/meminfo', 'rb') as f:
@@ -197,11 +182,39 @@ def virtual_memory():
                     buffers = int(line.split()[1]) * 1024
                 elif line.startswith(b'MemShared:'):
                     shared = int(line.split()[1]) * 1024
-    avail = inactive + cached + free
-    used = active + wired + cached
+        # Before avail was calculated as (inactive + cached + free),
+        # same as zabbix, but it turned out it could exceed total (see
+        # #2233), so zabbix seems to be wrong. Htop calculates it
+        # differently, and the used value seem more realistic, so let's
+        # match htop.
+        # https://github.com/htop-dev/htop/blob/e7f447b/netbsd/NetBSDProcessList.c#L162
+        # https://github.com/zabbix/zabbix/blob/af5e0f8/src/libs/zbxsysinfo/netbsd/memory.c#L135
+        used = active + wired
+        avail = total - used
+    else:
+        total, free, active, inactive, wired, cached, buffers, shared = mem
+        # matches freebsd-memory CLI:
+        # * https://people.freebsd.org/~rse/dist/freebsd-memory
+        # * https://www.cyberciti.biz/files/scripts/freebsd-memory.pl.txt
+        # matches zabbix:
+        # * https://github.com/zabbix/zabbix/blob/af5e0f8/src/libs/zbxsysinfo/freebsd/memory.c#L143
+        avail = inactive + cached + free
+        used = active + wired + cached
+
     percent = usage_percent((total - avail), total, round_=1)
-    return svmem(total, avail, percent, used, free,
-                 active, inactive, buffers, cached, shared, wired)
+    return svmem(
+        total,
+        avail,
+        percent,
+        used,
+        free,
+        active,
+        inactive,
+        buffers,
+        cached,
+        shared,
+        wired,
+    )
 
 
 def swap_memory():
@@ -217,38 +230,19 @@ def swap_memory():
 
 
 def cpu_times():
-    """Return system per-CPU times as a namedtuple"""
+    """Return system per-CPU times as a namedtuple."""
     user, nice, system, idle, irq = cext.cpu_times()
     return scputimes(user, nice, system, idle, irq)
 
 
-if HAS_PER_CPU_TIMES:
-    def per_cpu_times():
-        """Return system CPU times as a namedtuple"""
-        ret = []
-        for cpu_t in cext.per_cpu_times():
-            user, nice, system, idle, irq = cpu_t
-            item = scputimes(user, nice, system, idle, irq)
-            ret.append(item)
-        return ret
-else:
-    # XXX
-    # Ok, this is very dirty.
-    # On FreeBSD < 8 we cannot gather per-cpu information, see:
-    # https://github.com/giampaolo/psutil/issues/226
-    # If num cpus > 1, on first call we return single cpu times to avoid a
-    # crash at psutil import time.
-    # Next calls will fail with NotImplementedError
-    def per_cpu_times():
-        """Return system CPU times as a namedtuple"""
-        if cpu_count_logical() == 1:
-            return [cpu_times()]
-        if per_cpu_times.__called__:
-            raise NotImplementedError("supported only starting from FreeBSD 8")
-        per_cpu_times.__called__ = True
-        return [cpu_times()]
-
-    per_cpu_times.__called__ = False
+def per_cpu_times():
+    """Return system CPU times as a namedtuple."""
+    ret = []
+    for cpu_t in cext.per_cpu_times():
+        user, nice, system, idle, irq = cpu_t
+        item = scputimes(user, nice, system, idle, irq)
+        ret.append(item)
+    return ret
 
 
 def cpu_count_logical():
@@ -257,33 +251,35 @@ def cpu_count_logical():
 
 
 if OPENBSD or NETBSD:
-    def cpu_count_physical():
+
+    def cpu_count_cores():
         # OpenBSD and NetBSD do not implement this.
         return 1 if cpu_count_logical() == 1 else None
+
 else:
-    def cpu_count_physical():
-        """Return the number of physical CPUs in the system."""
+
+    def cpu_count_cores():
+        """Return the number of CPU cores in the system."""
         # From the C module we'll get an XML string similar to this:
         # http://manpages.ubuntu.com/manpages/precise/man4/smp.4freebsd.html
         # We may get None in case "sysctl kern.sched.topology_spec"
         # is not supported on this BSD version, in which case we'll mimic
         # os.cpu_count() and return None.
         ret = None
-        s = cext.cpu_count_phys()
+        s = cext.cpu_topology()
         if s is not None:
             # get rid of padding chars appended at the end of the string
             index = s.rfind("</groups>")
             if index != -1:
-                s = s[:index + 9]
-                root = ET.fromstring(s)
+                s = s[: index + 9]
+                root = ElementTree.fromstring(s)
                 try:
                     ret = len(root.findall('group/children/group/cpu')) or None
                 finally:
                     # needed otherwise it will memleak
                     root.clear()
         if not ret:
-            # If logical CPUs are 1 it's obvious we'll have only 1
-            # physical CPU.
+            # If logical CPUs == 1 it's obvious we' have only 1 core.
             if cpu_count_logical() == 1:
                 return 1
         return ret
@@ -294,7 +290,7 @@ def cpu_stats():
     if FREEBSD:
         # Note: the C ext is returning some metrics we are not exposing:
         # traps.
-        ctxsw, intrs, soft_intrs, syscalls, traps = cext.cpu_stats()
+        ctxsw, intrs, soft_intrs, syscalls, _traps = cext.cpu_stats()
     elif NETBSD:
         # XXX
         # Note about intrs: the C extension returns 0. intrs
@@ -305,8 +301,9 @@ def cpu_stats():
         #
         # Note: the C ext is returning some metrics we are not exposing:
         # traps, faults and forks.
-        ctxsw, intrs, soft_intrs, syscalls, traps, faults, forks = \
+        ctxsw, intrs, soft_intrs, syscalls, _traps, _faults, _forks = (
             cext.cpu_stats()
+        )
         with open('/proc/stat', 'rb') as f:
             for line in f:
                 if line.startswith(b'intr'):
@@ -314,9 +311,43 @@ def cpu_stats():
     elif OPENBSD:
         # Note: the C ext is returning some metrics we are not exposing:
         # traps, faults and forks.
-        ctxsw, intrs, soft_intrs, syscalls, traps, faults, forks = \
+        ctxsw, intrs, soft_intrs, syscalls, _traps, _faults, _forks = (
             cext.cpu_stats()
+        )
     return _common.scpustats(ctxsw, intrs, soft_intrs, syscalls)
+
+
+if FREEBSD:
+
+    def cpu_freq():
+        """Return frequency metrics for CPUs. As of Dec 2018 only
+        CPU 0 appears to be supported by FreeBSD and all other cores
+        match the frequency of CPU 0.
+        """
+        ret = []
+        num_cpus = cpu_count_logical()
+        for cpu in range(num_cpus):
+            try:
+                current, available_freq = cext.cpu_freq(cpu)
+            except NotImplementedError:
+                continue
+            if available_freq:
+                try:
+                    min_freq = int(available_freq.split(" ")[-1].split("/")[0])
+                except (IndexError, ValueError):
+                    min_freq = None
+                try:
+                    max_freq = int(available_freq.split(" ")[0].split("/")[0])
+                except (IndexError, ValueError):
+                    max_freq = None
+            ret.append(_common.scpufreq(current, min_freq, max_freq))
+        return ret
+
+elif OPENBSD:
+
+    def cpu_freq():
+        curr = float(cext.cpu_freq())
+        return [_common.scpufreq(curr, 0.0, 0.0)]
 
 
 # =====================================================================
@@ -327,7 +358,7 @@ def cpu_stats():
 def disk_partitions(all=False):
     """Return mounted disk partitions as a list of namedtuples.
     'all' argument is ignored, see:
-    https://github.com/giampaolo/psutil/issues/906
+    https://github.com/giampaolo/psutil/issues/906.
     """
     retlist = []
     partitions = cext.disk_partitions()
@@ -348,7 +379,7 @@ disk_io_counters = cext.disk_io_counters
 
 
 net_io_counters = cext.net_io_counters
-net_if_addrs = cext_posix.net_if_addrs
+net_if_addrs = cext.net_if_addrs
 
 
 def net_if_stats():
@@ -357,9 +388,9 @@ def net_if_stats():
     ret = {}
     for name in names:
         try:
-            mtu = cext_posix.net_if_mtu(name)
-            isup = cext_posix.net_if_flags(name)
-            duplex, speed = cext_posix.net_if_duplex_speed(name)
+            mtu = cext.net_if_mtu(name)
+            flags = cext.net_if_flags(name)
+            duplex, speed = cext.net_if_duplex_speed(name)
         except OSError as err:
             # https://github.com/giampaolo/psutil/issues/1279
             if err.errno != errno.ENODEV:
@@ -367,42 +398,31 @@ def net_if_stats():
         else:
             if hasattr(_common, 'NicDuplex'):
                 duplex = _common.NicDuplex(duplex)
-            ret[name] = _common.snicstats(isup, duplex, speed, mtu)
+            output_flags = ','.join(flags)
+            isup = 'running' in flags
+            ret[name] = _common.snicstats(
+                isup, duplex, speed, mtu, output_flags
+            )
     return ret
 
 
 def net_connections(kind):
     """System-wide network connections."""
-    if OPENBSD:
-        ret = []
-        for pid in pids():
-            try:
-                cons = Process(pid).connections(kind)
-            except (NoSuchProcess, ZombieProcess):
-                continue
-            else:
-                for conn in cons:
-                    conn = list(conn)
-                    conn.append(pid)
-                    ret.append(_common.sconn(*conn))
-        return ret
-
-    if kind not in _common.conn_tmap:
-        raise ValueError("invalid %r kind argument; choose between %s"
-                         % (kind, ', '.join([repr(x) for x in conn_tmap])))
     families, types = conn_tmap[kind]
     ret = set()
-    if NETBSD:
-        rawlist = cext.net_connections(-1)
-    else:
-        rawlist = cext.net_connections()
+    if OPENBSD:
+        rawlist = cext.net_connections(-1, families, types)
+    elif NETBSD:
+        rawlist = cext.net_connections(-1, kind)
+    else:  # FreeBSD
+        rawlist = cext.net_connections(families, types)
+
     for item in rawlist:
         fd, fam, type, laddr, raddr, status, pid = item
-        # TODO: apply filter at C level
-        if fam in families and type in types:
-            nt = conn_to_ntuple(fd, fam, type, laddr, raddr, status,
-                                TCP_STATUSES, pid)
-            ret.add(nt)
+        nt = conn_to_ntuple(
+            fd, fam, type, laddr, raddr, status, TCP_STATUSES, pid
+        )
+        ret.add(nt)
     return list(ret)
 
 
@@ -430,7 +450,7 @@ if FREEBSD:
         return _common.sbattery(percent, secsleft, power_plugged)
 
     def sensors_temperatures():
-        "Return CPU cores temperatures if available, else an empty dict."
+        """Return CPU cores temperatures if available, else an empty dict."""
         ret = defaultdict(list)
         num_cpus = cpu_count_logical()
         for cpu in range(num_cpus):
@@ -438,36 +458,13 @@ if FREEBSD:
                 current, high = cext.sensors_cpu_temperature(cpu)
                 if high <= 0:
                     high = None
-                name = "Core %s" % cpu
+                name = f"Core {cpu}"
                 ret["coretemp"].append(
-                    _common.shwtemp(name, current, high, high))
+                    _common.shwtemp(name, current, high, high)
+                )
             except NotImplementedError:
                 pass
 
-        return ret
-
-    def cpu_freq():
-        """Return frequency metrics for CPUs. As of Dec 2018 only
-        CPU 0 appears to be supported by FreeBSD and all other cores
-        match the frequency of CPU 0.
-        """
-        ret = []
-        num_cpus = cpu_count_logical()
-        for cpu in range(num_cpus):
-            try:
-                current, available_freq = cext.cpu_frequency(cpu)
-            except NotImplementedError:
-                continue
-            if available_freq:
-                try:
-                    min_freq = int(available_freq.split(" ")[-1].split("/")[0])
-                except(IndexError, ValueError):
-                    min_freq = None
-                try:
-                    max_freq = int(available_freq.split(" ")[0].split("/")[0])
-                except(IndexError, ValueError):
-                    max_freq = None
-            ret.append(_common.scpufreq(current, min_freq, max_freq))
         return ret
 
 
@@ -481,15 +478,36 @@ def boot_time():
     return cext.boot_time()
 
 
+if NETBSD:
+
+    try:
+        INIT_BOOT_TIME = boot_time()
+    except Exception as err:  # noqa: BLE001
+        # Don't want to crash at import time.
+        debug(f"ignoring exception on import: {err!r}")
+        INIT_BOOT_TIME = 0
+
+    def adjust_proc_create_time(ctime):
+        """Account for system clock updates."""
+        if INIT_BOOT_TIME == 0:
+            return ctime
+
+        diff = INIT_BOOT_TIME - boot_time()
+        if diff == 0 or abs(diff) < 1:
+            return ctime
+
+        debug("system clock was updated; adjusting process create_time()")
+        if diff < 0:
+            return ctime - diff
+        return ctime + diff
+
+
 def users():
     """Return currently connected users as a list of namedtuples."""
     retlist = []
     rawlist = cext.users()
     for item in rawlist:
         user, tty, hostname, tstamp, pid = item
-        if pid == -1:
-            assert OPENBSD
-            pid = None
         if tty == '~':
             continue  # reboot or shutdown
         nt = _common.suser(user, tty or None, hostname, tstamp, pid)
@@ -524,9 +542,9 @@ def pids():
     return ret
 
 
-if OPENBSD or NETBSD:
+if NETBSD:
+
     def pid_exists(pid):
-        """Return True if pid exists."""
         exists = _psposix.pid_exists(pid)
         if not exists:
             # We do this because _psposix.pid_exists() lies in case of
@@ -534,64 +552,71 @@ if OPENBSD or NETBSD:
             return pid in pids()
         else:
             return True
-else:
+
+elif OPENBSD:
+
+    def pid_exists(pid):
+        exists = _psposix.pid_exists(pid)
+        if not exists:
+            return False
+        else:
+            # OpenBSD seems to be the only BSD platform where
+            # _psposix.pid_exists() returns True for thread IDs (tids),
+            # so we can't use it.
+            return pid in pids()
+
+else:  # FreeBSD
     pid_exists = _psposix.pid_exists
-
-
-def is_zombie(pid):
-    try:
-        st = cext.proc_oneshot_info(pid)[kinfo_proc_map['status']]
-        return st == cext.SZOMB
-    except Exception:
-        return False
 
 
 def wrap_exceptions(fun):
     """Decorator which translates bare OSError exceptions into
     NoSuchProcess and AccessDenied.
     """
+
     @functools.wraps(fun)
     def wrapper(self, *args, **kwargs):
+        pid, ppid, name = self.pid, self._ppid, self._name
         try:
             return fun(self, *args, **kwargs)
-        except ProcessLookupError:
-            if not pid_exists(self.pid):
-                raise NoSuchProcess(self.pid, self._name)
-            else:
-                raise ZombieProcess(self.pid, self._name, self._ppid)
-        except PermissionError:
-            raise AccessDenied(self.pid, self._name)
-        except OSError:
-            if self.pid == 0:
-                if 0 in pids():
-                    raise AccessDenied(self.pid, self._name)
-                else:
-                    raise
-            raise
+        except ProcessLookupError as err:
+            if cext.proc_is_zombie(pid):
+                raise ZombieProcess(pid, name, ppid) from err
+            raise NoSuchProcess(pid, name) from err
+        except PermissionError as err:
+            raise AccessDenied(pid, name) from err
+        except cext.ZombieProcessError as err:
+            raise ZombieProcess(pid, name, ppid) from err
+        except OSError as err:
+            if pid == 0 and 0 in pids():
+                raise AccessDenied(pid, name) from err
+            raise err from None
+
     return wrapper
 
 
 @contextlib.contextmanager
 def wrap_exceptions_procfs(inst):
     """Same as above, for routines relying on reading /proc fs."""
+    pid, name, ppid = inst.pid, inst._name, inst._ppid
     try:
         yield
-    except (ProcessLookupError, FileNotFoundError):
+    except (ProcessLookupError, FileNotFoundError) as err:
         # ENOENT (no such file or directory) gets raised on open().
         # ESRCH (no such process) can get raised on read() if
         # process is gone in meantime.
-        if not pid_exists(inst.pid):
-            raise NoSuchProcess(inst.pid, inst._name)
+        if cext.proc_is_zombie(inst.pid):
+            raise ZombieProcess(pid, name, ppid) from err
         else:
-            raise ZombieProcess(inst.pid, inst._name, inst._ppid)
-    except PermissionError:
-        raise AccessDenied(inst.pid, inst._name)
+            raise NoSuchProcess(pid, name) from err
+    except PermissionError as err:
+        raise AccessDenied(pid, name) from err
 
 
-class Process(object):
+class Process:
     """Wrapper class around underlying C implementation."""
 
-    __slots__ = ["pid", "_name", "_ppid", "_cache"]
+    __slots__ = ["_cache", "_name", "_ppid", "pid"]
 
     def __init__(self, pid):
         self.pid = pid
@@ -626,22 +651,26 @@ class Process(object):
     @wrap_exceptions
     def exe(self):
         if FREEBSD:
+            if self.pid == 0:
+                return ''  # else NSP
             return cext.proc_exe(self.pid)
         elif NETBSD:
             if self.pid == 0:
                 # /proc/0 dir exists but /proc/0/exe doesn't
                 return ""
             with wrap_exceptions_procfs(self):
-                return os.readlink("/proc/%s/exe" % self.pid)
+                return os.readlink(f"/proc/{self.pid}/exe")
         else:
             # OpenBSD: exe cannot be determined; references:
             # https://chromium.googlesource.com/chromium/src/base/+/
             #     master/base_paths_posix.cc
             # We try our best guess by using which against the first
             # cmdline arg (may return None).
+            import shutil
+
             cmdline = self.cmdline()
             if cmdline:
-                return which(cmdline[0])
+                return shutil.which(cmdline[0]) or ""
             else:
                 return ""
 
@@ -650,26 +679,31 @@ class Process(object):
         if OPENBSD and self.pid == 0:
             return []  # ...else it crashes
         elif NETBSD:
-            # XXX - most of the times the underlying sysctl() call on Net
-            # and Open BSD returns a truncated string.
-            # Also /proc/pid/cmdline behaves the same so it looks
-            # like this is a kernel bug.
+            # XXX - most of the times the underlying sysctl() call on
+            # NetBSD and OpenBSD returns a truncated string. Also
+            # /proc/pid/cmdline behaves the same so it looks like this
+            # is a kernel bug.
             try:
                 return cext.proc_cmdline(self.pid)
             except OSError as err:
                 if err.errno == errno.EINVAL:
-                    if is_zombie(self.pid):
-                        raise ZombieProcess(self.pid, self._name, self._ppid)
-                    elif not pid_exists(self.pid):
-                        raise NoSuchProcess(self.pid, self._name, self._ppid)
-                    else:
-                        # XXX: this happens with unicode tests. It means the C
-                        # routine is unable to decode invalid unicode chars.
-                        return []
+                    pid, name, ppid = self.pid, self._name, self._ppid
+                    if cext.proc_is_zombie(self.pid):
+                        raise ZombieProcess(pid, name, ppid) from err
+                    if not pid_exists(self.pid):
+                        raise NoSuchProcess(pid, name, ppid) from err
+                    # XXX: this happens with unicode tests. It means the C
+                    # routine is unable to decode invalid unicode chars.
+                    debug(f"ignoring {err!r} and returning an empty list")
+                    return []
                 else:
                     raise
         else:
             return cext.proc_cmdline(self.pid)
+
+    @wrap_exceptions
+    def environ(self):
+        return cext.proc_environ(self.pid)
 
     @wrap_exceptions
     def terminal(self):
@@ -691,7 +725,8 @@ class Process(object):
         return _common.puids(
             rawtuple[kinfo_proc_map['real_uid']],
             rawtuple[kinfo_proc_map['effective_uid']],
-            rawtuple[kinfo_proc_map['saved_uid']])
+            rawtuple[kinfo_proc_map['saved_uid']],
+        )
 
     @wrap_exceptions
     def gids(self):
@@ -699,7 +734,8 @@ class Process(object):
         return _common.pgids(
             rawtuple[kinfo_proc_map['real_gid']],
             rawtuple[kinfo_proc_map['effective_gid']],
-            rawtuple[kinfo_proc_map['saved_gid']])
+            rawtuple[kinfo_proc_map['saved_gid']],
+        )
 
     @wrap_exceptions
     def cpu_times(self):
@@ -708,9 +744,11 @@ class Process(object):
             rawtuple[kinfo_proc_map['user_time']],
             rawtuple[kinfo_proc_map['sys_time']],
             rawtuple[kinfo_proc_map['ch_user_time']],
-            rawtuple[kinfo_proc_map['ch_sys_time']])
+            rawtuple[kinfo_proc_map['ch_sys_time']],
+        )
 
     if FREEBSD:
+
         @wrap_exceptions
         def cpu_num(self):
             return self.oneshot()[kinfo_proc_map['cpunum']]
@@ -723,18 +761,23 @@ class Process(object):
             rawtuple[kinfo_proc_map['vms']],
             rawtuple[kinfo_proc_map['memtext']],
             rawtuple[kinfo_proc_map['memdata']],
-            rawtuple[kinfo_proc_map['memstack']])
+            rawtuple[kinfo_proc_map['memstack']],
+        )
 
     memory_full_info = memory_info
 
     @wrap_exceptions
-    def create_time(self):
-        return self.oneshot()[kinfo_proc_map['create_time']]
+    def create_time(self, monotonic=False):
+        ctime = self.oneshot()[kinfo_proc_map['create_time']]
+        if NETBSD and not monotonic:
+            # NetBSD: ctime subject to system clock updates.
+            ctime = adjust_proc_create_time(ctime)
+        return ctime
 
     @wrap_exceptions
     def num_threads(self):
         if HAS_PROC_NUM_THREADS:
-            # FreeBSD
+            # FreeBSD / NetBSD
             return cext.proc_num_threads(self.pid)
         else:
             return len(self.threads())
@@ -744,7 +787,8 @@ class Process(object):
         rawtuple = self.oneshot()
         return _common.pctxsw(
             rawtuple[kinfo_proc_map['ctx_switches_vol']],
-            rawtuple[kinfo_proc_map['ctx_switches_unvol']])
+            rawtuple[kinfo_proc_map['ctx_switches_unvol']],
+        )
 
     @wrap_exceptions
     def threads(self):
@@ -759,37 +803,28 @@ class Process(object):
         return retlist
 
     @wrap_exceptions
-    def connections(self, kind='inet'):
-        if kind not in conn_tmap:
-            raise ValueError("invalid %r kind argument; choose between %s"
-                             % (kind, ', '.join([repr(x) for x in conn_tmap])))
+    def net_connections(self, kind='inet'):
+        families, types = conn_tmap[kind]
+        ret = []
 
         if NETBSD:
-            families, types = conn_tmap[kind]
-            ret = []
-            rawlist = cext.net_connections(self.pid)
-            for item in rawlist:
-                fd, fam, type, laddr, raddr, status, pid = item
-                assert pid == self.pid
-                if fam in families and type in types:
-                    nt = conn_to_ntuple(fd, fam, type, laddr, raddr, status,
-                                        TCP_STATUSES)
-                    ret.append(nt)
-            self._assert_alive()
-            return list(ret)
+            rawlist = cext.net_connections(self.pid, kind)
+        elif OPENBSD:
+            rawlist = cext.net_connections(self.pid, families, types)
+        else:
+            rawlist = cext.proc_net_connections(self.pid, families, types)
 
-        families, types = conn_tmap[kind]
-        rawlist = cext.proc_connections(self.pid, families, types)
-        ret = []
         for item in rawlist:
-            fd, fam, type, laddr, raddr, status = item
-            nt = conn_to_ntuple(fd, fam, type, laddr, raddr, status,
-                                TCP_STATUSES)
+            fd, fam, type, laddr, raddr, status = item[:6]
+            if FREEBSD:
+                if (fam not in families) or (type not in types):
+                    continue
+            nt = conn_to_ntuple(
+                fd, fam, type, laddr, raddr, status, TCP_STATUSES
+            )
             ret.append(nt)
 
-        if OPENBSD:
-            self._assert_alive()
-
+        self._assert_alive()
         return ret
 
     @wrap_exceptions
@@ -798,11 +833,11 @@ class Process(object):
 
     @wrap_exceptions
     def nice_get(self):
-        return cext_posix.getpriority(self.pid)
+        return cext.proc_priority_get(self.pid)
 
     @wrap_exceptions
     def nice_set(self, value):
-        return cext_posix.setpriority(self.pid, value)
+        return cext.proc_priority_set(self.pid, value)
 
     @wrap_exceptions
     def status(self):
@@ -817,7 +852,8 @@ class Process(object):
             rawtuple[kinfo_proc_map['read_io_count']],
             rawtuple[kinfo_proc_map['write_io_count']],
             -1,
-            -1)
+            -1,
+        )
 
     @wrap_exceptions
     def cwd(self):
@@ -825,47 +861,29 @@ class Process(object):
         # sometimes we get an empty string, in which case we turn
         # it into None
         if OPENBSD and self.pid == 0:
-            return None  # ...else it would raise EINVAL
-        elif NETBSD or HAS_PROC_OPEN_FILES:
-            # FreeBSD < 8 does not support functions based on
-            # kinfo_getfile() and kinfo_getvmmap()
-            return cext.proc_cwd(self.pid) or None
-        else:
-            raise NotImplementedError(
-                "supported only starting from FreeBSD 8" if
-                FREEBSD else "")
+            return ""  # ...else it would raise EINVAL
+        return cext.proc_cwd(self.pid)
 
     nt_mmap_grouped = namedtuple(
-        'mmap', 'path rss, private, ref_count, shadow_count')
+        'mmap', 'path rss, private, ref_count, shadow_count'
+    )
     nt_mmap_ext = namedtuple(
-        'mmap', 'addr, perms path rss, private, ref_count, shadow_count')
+        'mmap', 'addr, perms path rss, private, ref_count, shadow_count'
+    )
 
-    def _not_implemented(self):
-        raise NotImplementedError
+    @wrap_exceptions
+    def open_files(self):
+        """Return files opened by process as a list of namedtuples."""
+        rawlist = cext.proc_open_files(self.pid)
+        return [_common.popenfile(path, fd) for path, fd in rawlist]
 
-    # FreeBSD < 8 does not support functions based on kinfo_getfile()
-    # and kinfo_getvmmap()
-    if HAS_PROC_OPEN_FILES:
-        @wrap_exceptions
-        def open_files(self):
-            """Return files opened by process as a list of namedtuples."""
-            rawlist = cext.proc_open_files(self.pid)
-            return [_common.popenfile(path, fd) for path, fd in rawlist]
-    else:
-        open_files = _not_implemented
-
-    # FreeBSD < 8 does not support functions based on kinfo_getfile()
-    # and kinfo_getvmmap()
-    if HAS_PROC_NUM_FDS:
-        @wrap_exceptions
-        def num_fds(self):
-            """Return the number of file descriptors opened by this process."""
-            ret = cext.proc_num_fds(self.pid)
-            if NETBSD:
-                self._assert_alive()
-            return ret
-    else:
-        num_fds = _not_implemented
+    @wrap_exceptions
+    def num_fds(self):
+        """Return the number of file descriptors opened by this process."""
+        ret = cext.proc_num_fds(self.pid)
+        if NETBSD:
+            self._assert_alive()
+        return ret
 
     # --- FreeBSD only APIs
 
@@ -880,11 +898,11 @@ class Process(object):
             # Pre-emptively check if CPUs are valid because the C
             # function has a weird behavior in case of invalid CPUs,
             # see: https://github.com/giampaolo/psutil/issues/586
-            allcpus = tuple(range(len(per_cpu_times())))
+            allcpus = set(range(len(per_cpu_times())))
             for cpu in cpus:
                 if cpu not in allcpus:
-                    raise ValueError("invalid CPU #%i (choose between %s)"
-                                     % (cpu, allcpus))
+                    msg = f"invalid CPU {cpu!r} (choose between {allcpus})"
+                    raise ValueError(msg)
             try:
                 cext.proc_cpu_affinity_set(self.pid, cpus)
             except OSError as err:
@@ -892,14 +910,30 @@ class Process(object):
                 # <<the call would leave a thread without a valid CPU to run
                 # on because the set does not overlap with the thread's
                 # anonymous mask>>
-                if err.errno in (errno.EINVAL, errno.EDEADLK):
+                if err.errno in {errno.EINVAL, errno.EDEADLK}:
                     for cpu in cpus:
                         if cpu not in allcpus:
-                            raise ValueError(
-                                "invalid CPU #%i (choose between %s)" % (
-                                    cpu, allcpus))
+                            msg = (
+                                f"invalid CPU {cpu!r} (choose between"
+                                f" {allcpus})"
+                            )
+                            raise ValueError(msg) from err
                 raise
 
         @wrap_exceptions
         def memory_maps(self):
             return cext.proc_memory_maps(self.pid)
+
+        @wrap_exceptions
+        def rlimit(self, resource, limits=None):
+            if limits is None:
+                return cext.proc_getrlimit(self.pid, resource)
+            else:
+                if len(limits) != 2:
+                    msg = (
+                        "second argument must be a (soft, hard) tuple, got"
+                        f" {limits!r}"
+                    )
+                    raise ValueError(msg)
+                soft, hard = limits
+                return cext.proc_setrlimit(self.pid, resource, soft, hard)
