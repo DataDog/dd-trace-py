@@ -744,6 +744,112 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
         return payload
 
 
+class LLMObsExportSpansClient(BaseLLMObsWriter):
+    """Retrieves spans from the LLMObs Export API."""
+
+    ENDPOINT = "/api/v2/llm-obs/v1/spans/events"
+    TIMEOUT = 10.0
+    DEFAULT_PAGE_LIMIT = 100
+
+    def export_spans(
+        self,
+        span_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
+        tags: Optional[Dict[str, str]] = None,
+        span_kind: Optional[str] = None,
+        span_name: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        from_timestamp: Optional[str] = None,
+        to_timestamp: Optional[str] = None,
+    ):
+        """
+        Generator that yields spans from the LLMObs Export API, handling pagination automatically.
+        """
+        url_options = self._build_url_options(span_id, trace_id, tags, span_kind, span_name, ml_app, from_timestamp, to_timestamp)
+
+        has_next_page = True
+        page_num = 0
+
+        while has_next_page:
+            path = f"{self.ENDPOINT}?{urllib.parse.urlencode(url_options)}"
+            logger.debug("Making request to path=%s in export_spans for page %d", path, page_num)
+
+            resp = self._request(path, self.TIMEOUT)
+
+            if resp.status != 200:
+                logger.error(
+                    "Failed to export spans: page=%d, status=%d, response=%s",
+                    page_num,
+                    resp.status,
+                    resp.body,
+                )
+                raise ValueError(
+                    f"Failed to export spans for page {page_num} and url options {url_options}: {resp.status}"
+                )
+
+            response_data = resp.get_json()
+
+            for span in response_data.get("data", []):
+                yield span
+
+            has_next_page = False
+            next_cursor = self._extract_next_cursor(response_data)
+            if next_cursor:
+                has_next_page = True
+                url_options["page[cursor]"] = next_cursor
+                page_num += 1
+
+    def _request(self, path: str, timeout: float) -> Response:
+        if not self._api_key or not self._app_key:
+            raise ValueError("Both an API key and an APP key are required to make requests to the LLMObs Export API")
+        
+        headers = {
+            "Content-Type": "application/vnd.api+json",
+            "DD-API-KEY": self._api_key,
+            "DD-APPLICATION-KEY": self._app_key,
+        }
+
+        base_url = f"https://api.{self._site}"
+        conn = get_connection(url=base_url, timeout=timeout)
+        try:
+            url = base_url + path
+            logger.debug("Making GET request to %s", url)
+            conn.request("GET", url, b"", headers)
+            resp = conn.getresponse()
+            return Response.from_http_response(resp)
+        finally:
+            conn.close()
+    
+    def _extract_next_cursor(self, response_data) -> Optional[str]:
+        if not response_data:
+            return None
+        meta = response_data.get("meta", {}) or {}
+        page = meta.get("page", {}) or {}
+        return page.get("after", None)
+    
+    def _build_url_options(self, span_id: Optional[str] = None, trace_id: Optional[str] = None, tags: Optional[Dict[str, str]] = None, span_kind: Optional[str] = None, span_name: Optional[str] = None, ml_app: Optional[str] = None, from_timestamp: Optional[str] = None, to_timestamp: Optional[str] = None) -> Dict[str, str]:
+        url_options = {}
+        if span_id:
+            url_options["filter[span_id]"] = span_id
+        if trace_id:
+            url_options["filter[trace_id]"] = trace_id
+        if tags:
+            for k, v in tags.items():
+                url_options[f"filter[tag][{k}]"] = v
+        if span_kind:
+            url_options["filter[span_kind]"] = span_kind
+        if span_name:
+            url_options["filter[span_name]"] = span_name
+        if ml_app:
+            url_options["filter[ml_app]"] = ml_app
+        if from_timestamp:
+            url_options["filter[from]"] = from_timestamp
+        if to_timestamp:
+            url_options["filter[to]"] = to_timestamp
+        url_options["page[limit]"] = 100
+        return url_options
+    
+
 def _truncate_span_event(event: LLMObsSpanEvent) -> LLMObsSpanEvent:
     event["meta"]["input"] = {"value": DROPPED_VALUE_TEXT}
     event["meta"]["output"] = {"value": DROPPED_VALUE_TEXT}
