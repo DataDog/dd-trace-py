@@ -11,6 +11,9 @@
 #include "_memalloc_tb.h"
 #include "_pymacro.h"
 
+// Ensure profile_state is initialized before creating Sample objects
+#include "../../internal/datadog/profiling/dd_wrapper/include/ddup_interface.hpp"
+
 typedef struct
 {
     PyMemAllocatorEx pymem_allocator_obj;
@@ -40,7 +43,7 @@ memalloc_free(void* ctx, void* ptr)
     if (ptr == NULL)
         return;
 
-    memalloc_heap_untrack(ptr);
+    memalloc_heap_untrack_no_cpython(ptr);
 
     alloc->free(alloc->ctx, ptr);
 }
@@ -80,9 +83,9 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
 {
     memalloc_context_t* memalloc_ctx = (memalloc_context_t*)ctx;
     void* ptr2 = memalloc_ctx->pymem_allocator_obj.realloc(memalloc_ctx->pymem_allocator_obj.ctx, ptr, new_size);
-
+    // TODO(dsn) is the GIL held here? Can there be a race between the realloc and the untrack of the old value?
     if (ptr2) {
-        memalloc_heap_untrack(ptr);
+        memalloc_heap_untrack_no_cpython(ptr);
         memalloc_heap_track(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
     }
 
@@ -107,6 +110,11 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         PyErr_SetString(PyExc_RuntimeError, "the memalloc module is already started");
         return NULL;
     }
+
+    // Ensure profile_state is initialized before creating Sample objects
+    // This initializes the Sample::profile_state which is required for Sample objects to work correctly
+    // ddup_start() uses std::call_once, so it's safe to call multiple times
+    ddup_start();
 
     char* val = getenv("_DD_MEMALLOC_DEBUG_RNG_SEED");
     if (val) {
@@ -144,7 +152,7 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         PyUnicode_InternInPlace(&object_string);
     }
 
-    if (!memalloc_heap_tracker_init((uint32_t)heap_sample_size))
+    if (!memalloc_heap_tracker_init_no_cpython((uint32_t)heap_sample_size))
         return NULL;
 
     PyMemAllocatorEx alloc;
@@ -187,7 +195,7 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
      * or memalloc_heap. The higher-level collector deals with this. */
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
 
-    memalloc_heap_tracker_deinit();
+    memalloc_heap_tracker_deinit_no_cpython();
 
     /* Finally, we know in-progress sampling won't use the buffer pool, so clear it out */
     traceback_t::deinit();
@@ -201,7 +209,7 @@ PyDoc_STRVAR(memalloc_heap_py__doc__,
              "heap($module, /)\n"
              "--\n"
              "\n"
-             "Get the sampled heap representation.\n");
+             "Export sampled heap allocations to the pprof profile.\n");
 static PyObject*
 memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 {
@@ -210,7 +218,8 @@ memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
         return NULL;
     }
 
-    return memalloc_heap();
+    memalloc_heap_no_cpython();
+    Py_RETURN_NONE;
 }
 
 static PyMethodDef module_methods[] = { { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
@@ -233,12 +242,6 @@ PyInit__memalloc(void)
     m = PyModule_Create(&module_def);
     if (m == NULL)
         return NULL;
-
-    // Initialize the DDFrame namedtuple class
-    // Do this early so we don't have complicated cleanup
-    if (!memalloc_ddframe_class_init()) {
-        return NULL;
-    }
 
     return m;
 }

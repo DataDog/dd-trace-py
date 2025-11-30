@@ -1,168 +1,400 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <frameobject.h>
+#include <string>
+#include <string_view>
 
-#include "_memalloc_debug.h"
-#include "_memalloc_tb.h"
 #include "_pymacro.h"
 
-/* A string containing "<unknown>" just in case we can't store the real function
- * or file name. */
-static PyObject* unknown_name = NULL;
-/* A string containing "" */
-static PyObject* empty_string = NULL;
+// Include internal headers to access _PyInterpreterFrame
+// Python 3.11-3.12: Use internal frame structures to avoid allocations
+// Python 3.13+: Internal structures changed significantly, use standard API
+#if defined(_PY311_AND_LATER) && !defined(_PY313_AND_LATER)
+#if defined(_PY312_AND_LATER)
+// Python 3.12: Try Py_BUILD_CORE_MODULE (less restrictive)
+#define Py_BUILD_CORE_MODULE
+#define Py_BUILD_CORE
+#else
+// Python 3.11: Use Py_BUILD_CORE
+#define Py_BUILD_CORE
+#endif
+#include <internal/pycore_frame.h>
+#endif
 
-static PyObject* ddframe_class = NULL;
+#include "_memalloc_debug.h"
+#include "_memalloc_reentrant.h"
+#include "_memalloc_tb.h"
 
-bool
-memalloc_ddframe_class_init()
-{
-    // If this is double-initialized for some reason, then clean up what we had
-    if (ddframe_class) {
-        Py_DECREF(ddframe_class);
-        ddframe_class = NULL;
-    }
-
-    // Import the module that contains the DDFrame class
-    PyObject* mod_path = PyUnicode_DecodeFSDefault("ddtrace.profiling.event");
-    PyObject* mod = PyImport_Import(mod_path);
-    Py_XDECREF(mod_path);
-    if (mod == NULL) {
-        PyErr_Print();
-        return false;
-    }
-
-    // Get the DDFrame class object
-    ddframe_class = PyObject_GetAttrString(mod, "DDFrame");
-    Py_XDECREF(mod);
-
-    // Basic sanity check that the object is the type of object we actually want
-    if (ddframe_class == NULL || !PyCallable_Check(ddframe_class)) {
-        PyErr_Print();
-        return false;
-    }
-
-    return true;
-}
+// Cached reference to threading module and current_thread function
+static PyObject* threading_module = NULL;
+static PyObject* threading_current_thread = NULL;
 
 bool
 traceback_t::init()
 {
-    if (unknown_name == NULL) {
-        unknown_name = PyUnicode_FromString("<unknown>");
-        if (unknown_name == NULL)
+    // Initialize threading module structure references
+    // Note: MemoryCollector.start() ensures _threading is imported before calling
+    // _memalloc.start(), so this should normally succeed. If it fails, we return false
+    // and the error will be handled up the stack.
+    if (threading_module == NULL) {
+        // Import the threading module (or use ddtrace's unpatched version)
+        PyObject* sys_modules = PyImport_GetModuleDict();
+        if (sys_modules == NULL) {
+            PyErr_SetString(PyExc_RuntimeError, "Failed to get sys.modules");
             return false;
-        PyUnicode_InternInPlace(&unknown_name);
+        }
+
+        // Try to get threading module from sys.modules (don't force import)
+        PyObject* threading_mod_name = PyUnicode_FromString("threading");
+        if (threading_mod_name == NULL) {
+            return false;
+        }
+        threading_module = PyDict_GetItem(sys_modules, threading_mod_name);
+        Py_DECREF(threading_mod_name);
+
+        // If threading not in sys.modules, try ddtrace.internal._unpatched._threading
+        if (threading_module == NULL) {
+            PyObject* mod_path = PyUnicode_DecodeFSDefault("ddtrace.internal._unpatched._threading");
+            threading_module = PyImport_Import(mod_path);
+            Py_XDECREF(mod_path);
+            if (threading_module == NULL) {
+                // Error is already set by PyImport_Import
+                return false;
+            }
+        } else {
+            Py_INCREF(threading_module); // PyDict_GetItem returns borrowed reference
+        }
+
+        // Get threading.current_thread function
+        threading_current_thread = PyObject_GetAttrString(threading_module, "current_thread");
+        if (threading_current_thread == NULL || !PyCallable_Check(threading_current_thread)) {
+            Py_XDECREF(threading_module);
+            threading_module = NULL;
+            Py_XDECREF(threading_current_thread);
+            threading_current_thread = NULL;
+            PyErr_SetString(PyExc_RuntimeError, "Failed to get threading.current_thread");
+            return false;
+        }
+        // PyObject_GetAttrString returns new reference, keep it
     }
 
-    if (empty_string == NULL) {
-        empty_string = PyUnicode_FromString("");
-        if (empty_string == NULL)
-            return false;
-        PyUnicode_InternInPlace(&empty_string);
-    }
     return true;
 }
+
+/* RAII helper to save and restore Python error state */
+class PythonErrorRestorer
+{
+  public:
+    PythonErrorRestorer()
+    {
+#ifdef _PY312_AND_LATER
+        // Python 3.12+: Use the new API that returns a single exception object
+        saved_exception = PyErr_GetRaisedException();
+#else
+        // Python < 3.12: Use the old API with separate type, value, traceback
+        PyErr_Fetch(&saved_exc_type, &saved_exc_value, &saved_exc_traceback);
+#endif
+    }
+
+    ~PythonErrorRestorer()
+    {
+#ifdef _PY312_AND_LATER
+        // Python 3.12+: Restore using the new API if there was an exception
+        if (saved_exception != NULL) {
+            PyErr_SetRaisedException(saved_exception);
+        }
+#else
+        // Python < 3.12: Restore using the old API if there was an exception
+        if (saved_exc_type != NULL || saved_exc_value != NULL || saved_exc_traceback != NULL) {
+            PyErr_Restore(saved_exc_type, saved_exc_value, saved_exc_traceback);
+        }
+#endif
+    }
+
+    // Non-copyable, non-movable
+    PythonErrorRestorer(const PythonErrorRestorer&) = delete;
+    PythonErrorRestorer& operator=(const PythonErrorRestorer&) = delete;
+    PythonErrorRestorer(PythonErrorRestorer&&) = delete;
+    PythonErrorRestorer& operator=(PythonErrorRestorer&&) = delete;
+
+  private:
+#ifdef _PY312_AND_LATER
+    PyObject* saved_exception;
+#else
+    PyObject* saved_exc_type;
+    PyObject* saved_exc_value;
+    PyObject* saved_exc_traceback;
+#endif
+};
 
 void
 traceback_t::deinit()
 {
-    // Nothing to clean up - tracebacks are managed by their owners
+    // Check if Python is finalizing. If so, skip cleanup to avoid segfaults.
+    // During finalization, Python objects may be in an invalid state.
+#ifdef _PY313_AND_LATER
+    if (Py_IsFinalizing()) {
+#else
+    if (_Py_IsFinalizing()) {
+#endif
+        // Just clear the pointers without decrementing references
+        threading_current_thread = NULL;
+        threading_module = NULL;
+        return;
+    }
+
+    // Save exception state before cleanup, then restore it afterward.
+    // This is important because deinit() may be called during exception handling
+    // (e.g., when MemoryCollector.__exit__ is called with an exception), and
+    // we need to preserve the exception for pytest.raises() and similar mechanisms.
+    // We temporarily clear it during cleanup to avoid issues with Py_DECREF().
+    PythonErrorRestorer error_restorer;
+
+    // Use Py_XDECREF for all cleanup to safely handle NULL pointers.
+    // During exception handling, objects may have been invalidated or set to NULL.
+    PyObject* old_threading_current_thread = threading_current_thread;
+    threading_current_thread = NULL;
+    Py_XDECREF(old_threading_current_thread);
+
+    PyObject* old_threading_module = threading_module;
+    threading_module = NULL;
+    Py_XDECREF(old_threading_module);
+
+    // Error will be restored automatically by error_restorer destructor
 }
 
-frame_t::frame_t(PyFrameObject* pyframe)
+/* Helper function to get thread native_id and name from Python's threading module
+ * and push threadinfo to the sample.
+ *
+ * NOTE: This is called during traceback construction, which happens during allocation
+ * tracking. We're already inside a reentrancy guard and GC is disabled, so it's safe
+ * to call Python functions here (similar to how we call PyUnicode_AsUTF8String for frames).
+ */
+static void
+push_threadinfo_to_sample(Datadog::Sample& sample)
 {
-    int lineno_val = PyFrame_GetLineNumber(pyframe);
+    // Save any existing error state to avoid masking errors
+    PythonErrorRestorer error_restorer;
+
+    // Use threading.current_thread() to get the current thread object
+    if (threading_current_thread == NULL) {
+        // threading.current_thread not available, don't push anything
+        // Error will be restored automatically by error_restorer destructor
+        return;
+    }
+
+    // Call threading.current_thread() - equivalent to threading.current_thread()
+    PyObject* thread = PyObject_CallObject(threading_current_thread, NULL);
+    if (thread == NULL) {
+        PyErr_Clear();
+        // Failed to get thread, don't push anything
+        // Error will be restored automatically by error_restorer destructor
+        return;
+    }
+
+    // Get thread.ident attribute (thread ID)
+    // If thread.ident is None (can happen before thread starts), fall back to PyThread_get_thread_ident()
+    int64_t thread_id = 0;
+    PyObject* ident_obj = PyObject_GetAttrString(thread, "ident");
+    if (ident_obj != NULL && ident_obj != Py_None && PyLong_Check(ident_obj)) {
+        thread_id = PyLong_AsLongLong(ident_obj);
+    } else {
+        // Fallback to PyThread_get_thread_ident() if thread.ident is None
+        thread_id = (int64_t)PyThread_get_thread_ident();
+    }
+    Py_XDECREF(ident_obj);
+
+    // If we still don't have a valid thread_id, don't push anything
+    if (thread_id == 0) {
+        Py_DECREF(thread);
+        return;
+    }
+    // Initialize native_id to thread_id as fallback; will be overwritten below if thread.native_id is available
+    int64_t thread_native_id = thread_id;
+    std::string thread_name;
+
+    // Get thread.name attribute
+    PyObject* name_obj = PyObject_GetAttrString(thread, "name");
+    if (name_obj != NULL && name_obj != Py_None && PyUnicode_Check(name_obj)) {
+        PyObject* name_bytes = PyUnicode_AsUTF8String(name_obj);
+        Py_DECREF(name_obj);
+        if (name_bytes != NULL) {
+            const char* name_ptr = PyBytes_AsString(name_bytes);
+            if (name_ptr != NULL) {
+                Py_ssize_t name_len = PyBytes_Size(name_bytes);
+                thread_name = std::string(name_ptr, name_len);
+            }
+            Py_DECREF(name_bytes);
+        } else {
+            PyErr_Clear();
+        }
+    } else {
+        Py_XDECREF(name_obj);
+    }
+
+    // Get thread.native_id attribute
+    PyObject* native_id_obj = PyObject_GetAttrString(thread, "native_id");
+    if (native_id_obj != NULL) {
+        if (PyLong_Check(native_id_obj)) {
+            thread_native_id = PyLong_AsLongLong(native_id_obj);
+        }
+        Py_DECREF(native_id_obj);
+    } else {
+        PyErr_Clear();
+    }
+
+    Py_DECREF(thread);
+
+    // Push threadinfo to sample with all data
+    sample.push_threadinfo(thread_id, thread_native_id, thread_name);
+
+    // Error will be restored automatically by error_restorer destructor
+}
+
+/* Helper function to extract code object and line number from a PyFrameObject */
+static void
+extract_frame_info_from_pyframe(PyFrameObject* frame, PyCodeObject** code_out, int* lineno_out)
+{
+    *code_out = NULL;
+    *lineno_out = 0;
+
+    int lineno_val = PyFrame_GetLineNumber(frame);
     if (lineno_val < 0)
         lineno_val = 0;
 
-    lineno = (unsigned int)lineno_val;
-
 #ifdef _PY39_AND_LATER
-    PyCodeObject* code = PyFrame_GetCode(pyframe);
+    PyCodeObject* code = PyFrame_GetCode(frame);
 #else
-    PyCodeObject* code = pyframe->f_code;
+    PyCodeObject* code = frame->f_code;
 #endif
 
-    if (code == NULL) {
-        name = unknown_name;
-        filename = unknown_name;
-    } else {
-        name = code->co_name ? code->co_name : unknown_name;
-        filename = code->co_filename ? code->co_filename : unknown_name;
-    }
-
-    Py_INCREF(name);
-    Py_INCREF(filename);
-
-#ifdef _PY39_AND_LATER
-    Py_XDECREF(code);
-#endif
+    *code_out = code;
+    *lineno_out = lineno_val;
 }
 
-traceback_t::traceback_t(void* ptr,
-                         size_t size,
-                         PyMemAllocatorDomain domain,
-                         size_t weighted_size,
-                         PyFrameObject* pyframe,
-                         uint16_t max_nframe)
-  : ptr(ptr)
-  , size(weighted_size)
-  , domain(domain)
-  , thread_id(PyThread_get_thread_ident())
-  , reported(false)
-  , count(0)
+#if defined(_PY311_AND_LATER) && !defined(_PY313_AND_LATER)
+/* Helper function to extract code object and line number from a _PyInterpreterFrame
+ * Python 3.11-3.12: Uses internal headers to access frame structures directly
+ * This avoids allocations by not creating PyFrameObject wrappers */
+static void
+extract_frame_info_from_interpreter_frame(_PyInterpreterFrame* frame, PyCodeObject** code_out, int* lineno_out)
 {
-    // Size 0 allocations are legal and we can hypothetically sample them,
-    // e.g. if an allocation during sampling pushes us over the next sampling threshold,
-    // but we can't sample it, so we sample the next allocation which happens to be 0
-    // bytes. Defensively make sure size isn't 0.
-    size_t adjusted_size = size > 0 ? size : 1;
-    double scaled_count = ((double)weighted_size) / ((double)adjusted_size);
-    count = (size_t)scaled_count;
+    *code_out = NULL;
+    *lineno_out = 0;
 
-    // Collect frames from the Python frame chain
-    size_t total_nframe = 0;
-    for (; pyframe != NULL;) {
-        if (frames.size() < max_nframe) {
-            frames.emplace_back(pyframe);
+    // Extract code object from interpreter frame
+    // Python 3.11-3.12: f_code is directly available
+    PyCodeObject* code = frame->f_code;
+
+    if (code == NULL)
+        return;
+
+    // Calculate line number from interpreter frame
+    // Use PyCode_Addr2Line with the frame's instruction pointer
+    int lineno_val = 0;
+    if (frame->prev_instr != NULL) {
+        // Calculate bytecode offset from instruction pointer
+        // frame->prev_instr is a pointer to _Py_CODEUNIT (uint16_t, 2 bytes per instruction)
+        const int lasti = _PyInterpreterFrame_LASTI(frame);
+        lineno_val = PyCode_Addr2Line(code, lasti << 1);
+    }
+    if (lineno_val < 0)
+        lineno_val = 0;
+
+    *code_out = code;
+    *lineno_out = lineno_val;
+}
+#endif
+
+/* Helper function to push frame info to sample */
+static void
+push_frame_to_sample(Datadog::Sample& sample, PyCodeObject* code, int lineno_val)
+{
+    // Extract frame info for Sample
+    // Create string_views directly from bytes buffers, push_frame copies them immediately,
+    // then we can safely DECREF the bytes objects
+    std::string_view name_sv = "<unknown>";
+    std::string_view filename_sv = "<unknown>";
+
+    PyObject* name_bytes = nullptr;
+    PyObject* filename_bytes = nullptr;
+
+    if (code != NULL) {
+        if (code->co_name) {
+            name_bytes = PyUnicode_AsUTF8String(code->co_name);
+            if (name_bytes) {
+                const char* name_ptr = PyBytes_AsString(name_bytes);
+                if (name_ptr) {
+                    Py_ssize_t name_len = PyBytes_Size(name_bytes);
+                    name_sv = std::string_view(name_ptr, name_len);
+                }
+            }
         }
-        // TODO(dsn): add a truncated frame to the traceback if we exceed the max_nframe
-        total_nframe++;
 
-#ifdef _PY39_AND_LATER
-        PyFrameObject* back = PyFrame_GetBack(pyframe);
-        Py_DECREF(pyframe);
-        pyframe = back;
-#else
-        pyframe = pyframe->f_back;
-#endif
-        memalloc_debug_gil_release();
+        if (code->co_filename) {
+            filename_bytes = PyUnicode_AsUTF8String(code->co_filename);
+            if (filename_bytes) {
+                const char* filename_ptr = PyBytes_AsString(filename_bytes);
+                if (filename_ptr) {
+                    Py_ssize_t filename_len = PyBytes_Size(filename_bytes);
+                    filename_sv = std::string_view(filename_ptr, filename_len);
+                }
+            }
+        }
     }
 
-    // Shrink to actual size to save memory
-    frames.shrink_to_fit();
+    // Push frame to Sample (root to leaf order)
+    // push_frame copies the strings immediately into its StringArena, so it's safe to
+    // DECREF the bytes objects after this call
+    sample.push_frame(name_sv, filename_sv, 0, lineno_val);
+
+    // Now safe to release the bytes objects since push_frame has copied the strings
+    Py_XDECREF(name_bytes);
+    Py_XDECREF(filename_bytes);
 }
 
-traceback_t::~traceback_t()
-{
-    for (const frame_t& frame : frames) {
-        Py_DECREF(frame.filename);
-        Py_DECREF(frame.name);
-    }
-}
-
-traceback_t*
-traceback_t::get_traceback(uint16_t max_nframe,
-                           void* ptr,
-                           size_t size,
-                           PyMemAllocatorDomain domain,
-                           size_t weighted_size)
+#if defined(_PY311_AND_LATER) && !defined(_PY313_AND_LATER)
+/* Helper function to collect frames from _PyInterpreterFrame chain and push to sample
+ * Python 3.11-3.12: Uses internal headers to access frame structures directly
+ * This avoids creating PyFrameObject wrappers, reducing allocations during profiling */
+static void
+push_stacktrace_to_sample(Datadog::Sample& sample)
 {
     PyThreadState* tstate = PyThreadState_Get();
-
     if (tstate == NULL)
-        return NULL;
+        return;
+
+    // Access interpreter frames directly from tstate->cframe to avoid creating PyFrameObjects
+    _PyCFrame* cframe = tstate->cframe;
+    if (cframe == NULL)
+        return;
+
+    _PyInterpreterFrame* frame = cframe->current_frame;
+    if (frame == NULL)
+        return;
+
+    // Walk interpreter frames using frame->previous (avoids allocations)
+    for (; frame != NULL; frame = frame->previous) {
+        PyCodeObject* code = NULL;
+        int lineno_val = 0;
+
+        extract_frame_info_from_interpreter_frame(frame, &code, &lineno_val);
+
+        if (code != NULL) {
+            push_frame_to_sample(sample, code, lineno_val);
+        }
+
+        memalloc_debug_gil_release();
+    }
+}
+#else
+/* Helper function to collect frames from PyFrameObject chain and push to sample */
+static void
+push_stacktrace_to_sample(Datadog::Sample& sample)
+{
+    PyThreadState* tstate = PyThreadState_Get();
+    if (tstate == NULL)
+        return;
 
 #ifdef _PY39_AND_LATER
     PyFrameObject* pyframe = PyThreadState_GetFrame(tstate);
@@ -171,48 +403,77 @@ traceback_t::get_traceback(uint16_t max_nframe,
 #endif
 
     if (pyframe == NULL)
-        return NULL;
+        return;
 
-    return new traceback_t(ptr, size, domain, weighted_size, pyframe, max_nframe);
-}
+    for (PyFrameObject* frame = pyframe; frame != NULL;) {
+        PyCodeObject* code = NULL;
+        int lineno_val = 0;
 
-PyObject*
-traceback_t::to_tuple() const
-{
-    /* Convert stack into a tuple of tuple */
-    PyObject* stack = PyTuple_New(frames.size());
+        extract_frame_info_from_pyframe(frame, &code, &lineno_val);
 
-    for (size_t nframe = 0; nframe < frames.size(); nframe++) {
-        PyObject* frame_tuple = PyTuple_New(4);
-
-        const frame_t& frame = frames[nframe];
-
-        Py_INCREF(frame.filename);
-        PyTuple_SET_ITEM(frame_tuple, 0, frame.filename);
-        PyTuple_SET_ITEM(frame_tuple, 1, PyLong_FromUnsignedLong(frame.lineno));
-        Py_INCREF(frame.name);
-        PyTuple_SET_ITEM(frame_tuple, 2, frame.name);
-        /* Class name */
-        Py_INCREF(empty_string);
-        PyTuple_SET_ITEM(frame_tuple, 3, empty_string);
-
-        // Try to set the class.  If we cannot (e.g., if the sofile is reloaded
-        // without module initialization), then this will result in an error if
-        // the underlying object is used via attributes
-        if (ddframe_class) {
-#if PY_VERSION_HEX >= 0x03090000
-            Py_SET_TYPE(frame_tuple, (PyTypeObject*)ddframe_class);
-#else
-            Py_TYPE(frame_tuple) = (PyTypeObject*)ddframe_class;
-#endif
-            Py_INCREF(ddframe_class);
+        if (code != NULL) {
+            push_frame_to_sample(sample, code, lineno_val);
         }
 
-        PyTuple_SET_ITEM(stack, nframe, frame_tuple);
+#ifdef _PY39_AND_LATER
+        Py_XDECREF(code);
+#endif
+
+#ifdef _PY39_AND_LATER
+        PyFrameObject* back = PyFrame_GetBack(frame);
+        Py_DECREF(frame); // Release reference - pyframe from PyThreadState_GetFrame is a new reference, and back frames
+                          // from GetBack are also new references
+        frame = back;
+#else
+        frame = frame->f_back;
+#endif
+        memalloc_debug_gil_release();
+    }
+}
+#endif
+
+traceback_t::traceback_t(void* ptr, size_t size, PyMemAllocatorDomain domain, size_t weighted_size, uint16_t max_nframe)
+  : reported(false)
+  , sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
+{
+    // Save any existing error state to avoid masking errors during traceback construction
+    PythonErrorRestorer error_restorer;
+
+    // Size 0 allocations are legal and we can hypothetically sample them,
+    // e.g. if an allocation during sampling pushes us over the next sampling threshold,
+    // but we can't sample it, so we sample the next allocation which happens to be 0
+    // bytes. Defensively make sure size isn't 0.
+    size_t adjusted_size = size > 0 ? size : 1;
+    double scaled_count = ((double)weighted_size) / ((double)adjusted_size);
+    size_t count = (size_t)scaled_count;
+
+    // Validate Sample object is in a valid state before use
+    if (max_nframe == 0) {
+        // Should not happen, but defensive check
+        return;
     }
 
-    PyObject* tuple = PyTuple_New(2);
-    PyTuple_SET_ITEM(tuple, 0, stack);
-    PyTuple_SET_ITEM(tuple, 1, PyLong_FromUnsignedLong(thread_id));
-    return tuple;
+    // Push allocation info to sample
+    // Note: profile_state is initialized in memalloc_start() before any traceback_t objects are created
+    sample.push_alloc(weighted_size, count);
+    // Push heap info - use actual size (not weighted) for heap tracking
+    // TODO(dsn): figure out if this actually makes sense, or if we should use the weighted size
+    sample.push_heap(size);
+
+    // Get thread native_id and name from Python's threading module and push to sample
+    push_threadinfo_to_sample(sample);
+
+    // Collect frames from the Python frame chain and push to Sample
+    // We push frames as we collect them (root to leaf order).
+    // Note: Sample.push_frame() comment says it "Assumes frames are pushed in leaf-order",
+    // but we push root-to-leaf. Set reverse_locations so the sample will be reversed when exported.
+    // Note: Sample.push_frame() automatically enforces the max_nframe limit and tracks dropped frames.
+    sample.set_reverse_locations(true);
+    push_stacktrace_to_sample(sample);
+}
+
+traceback_t::~traceback_t()
+{
+    // Sample object is a member variable and will be automatically destroyed
+    // No explicit cleanup needed - its destructor will handle internal cleanup
 }
