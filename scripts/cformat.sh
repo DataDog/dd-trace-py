@@ -46,7 +46,12 @@ enumerate_files() {
         find_conditions=("${find_conditions[@]:1}")  # Remove first -o
         find "$BASE_DIR" -type f \( "${find_conditions[@]}" \)
     else
-        git ls-files "${extensions[@]}"
+        # Only check modified files (staged, unstaged, and committed in current branch vs main)
+        {
+            git diff --name-only "$(git merge-base origin/main HEAD)"
+            git diff --name-only --cached
+            git diff --name-only
+        } | sort -u | grep -E '\.(c|h|cpp|cc|hpp)$' || true
     fi
 }
 
@@ -81,6 +86,10 @@ if [[ "$UPDATE_MODE" == "true" ]]; then
     enumerate_files \
         | exclude_patterns \
         | while IFS= read -r file; do
+            # Skip files that don't exist (e.g., deleted but still in git ls-files)
+            if [[ ! -f "$file" ]]; then
+                continue
+            fi
             echo "Formatting $file";
             ${CLANG_FORMAT} -i "$file"
         done
@@ -88,6 +97,10 @@ else
     # Check mode: Compare formatted output to existing files
     has_diff=0
     while IFS= read -r filename; do
+        # Skip files that don't exist (e.g., deleted but still in git ls-files)
+        if [[ ! -f "$filename" ]]; then
+            continue
+        fi
         CFORMAT_TMP=$(mktemp)
         ${CLANG_FORMAT} "$filename" > "$CFORMAT_TMP"
         if ! diff -u "$filename" "$CFORMAT_TMP"; then
