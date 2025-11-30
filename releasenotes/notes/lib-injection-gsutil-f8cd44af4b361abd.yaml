@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    lib-injection: do not injection into ``gsutil`` tool
