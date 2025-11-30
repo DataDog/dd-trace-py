@@ -113,7 +113,11 @@ def limit_exception(exc_ident: int) -> bool:
 def unwind_exception_chain(
     exc: t.Optional[BaseException], tb: t.Optional[TracebackType]
 ) -> t.Tuple[ExceptionChain, t.Optional[uuid.UUID]]:
-    """Unwind the exception chain and assign it an ID."""
+    """Unwind the exception chain and assign it an ID.
+
+    The chain goes from "cause to effect", meaning that every cause for an
+    exception is put first.
+    """
     chain: ExceptionChain = deque()
 
     while exc is not None:
@@ -141,9 +145,13 @@ def unwind_exception_chain(
     return chain, exc_id
 
 
-def get_tb_frames_from_exception_chain(chain: ExceptionChain) -> t.List[TracebackType]:
-    """Get the frames from the exception chain."""
-    frames: t.List[TracebackType] = []
+def get_tb_frames_from_exception_chain(chain: ExceptionChain) -> t.Generator[t.Tuple[int, TracebackType], None, None]:
+    """Get the frames from the exception chain.
+
+    For each exception in the chain we collect the maximum number of frames
+    configured, starting from the point where the exception was thrown.
+    """
+    frame_count = 0
 
     for _, tb in chain:
         local_frames = []
@@ -157,9 +165,21 @@ def get_tb_frames_from_exception_chain(chain: ExceptionChain) -> t.List[Tracebac
 
         # Get only the last N frames from the traceback, where N is the
         # configured max size for span tracebacks.
-        frames.extend(local_frames[-global_config._span_traceback_max_size :])
+        # local_frames = local_frames[-global_config._span_traceback_max_size :]
+        local_frames[: -global_config._span_traceback_max_size] = []
 
-    return frames
+        # Update the frame count to allow computing the sequence number
+        frame_count += len(local_frames)
+
+        # Set the initial sequence number. This will decrease as we yield the
+        # new frames
+        frame_index = frame_count
+
+        # Pop and yield the frames from this traceback in reverse order
+        while local_frames:
+            frame = local_frames.pop()
+            yield frame_index, frame
+            frame_index -= 1
 
 
 class SpanExceptionProbe(LogLineProbe):
@@ -262,8 +282,7 @@ class SpanExceptionHandler:
                 return False
 
             snapshot = None
-            snapshot_id = frame.f_locals.get(SNAPSHOT_KEY, None)
-            if snapshot_id is None:
+            if (snapshot_id := frame.f_locals.get(SNAPSHOT_KEY, None)) is None:
                 # We don't have a snapshot for the frame so we create one
                 if cached_only:
                     # If we only want a cached snapshot we return True as a signal
@@ -328,7 +347,7 @@ class SpanExceptionHandler:
 
         # Capture more frames if we have budget left, otherwise set just the
         # tags on the span for those frames that we have already captured.
-        for seq_nr, _tb in reversed(list(enumerate(get_tb_frames_from_exception_chain(chain), 1))):
+        for seq_nr, _tb in get_tb_frames_from_exception_chain(chain):
             has_snapshot_budget = frames_captured < config.max_frames
             has_captured = self._attach_tb_frame_snapshot_to_span(
                 span, _tb, exc_id, seq_nr, cached_only=not has_snapshot_budget
