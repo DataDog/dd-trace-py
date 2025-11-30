@@ -9,8 +9,6 @@
 /* A string containing "<unknown>" just in case we can't store the real function
  * or file name. */
 static PyObject* unknown_name = NULL;
-/* A string containing "" */
-static PyObject* empty_string = NULL;
 
 static PyObject* ddframe_class = NULL;
 
@@ -53,13 +51,6 @@ traceback_t::init()
         if (unknown_name == NULL)
             return false;
         PyUnicode_InternInPlace(&unknown_name);
-    }
-
-    if (empty_string == NULL) {
-        empty_string = PyUnicode_FromString("");
-        if (empty_string == NULL)
-            return false;
-        PyUnicode_InternInPlace(&empty_string);
     }
     return true;
 }
@@ -183,7 +174,7 @@ traceback_t::to_tuple() const
     PyObject* stack = PyTuple_New(frames.size());
 
     for (size_t nframe = 0; nframe < frames.size(); nframe++) {
-        PyObject* frame_tuple = PyTuple_New(4);
+        PyObject* frame_tuple = PyTuple_New(3);
 
         const frame_t& frame = frames[nframe];
 
@@ -192,9 +183,6 @@ traceback_t::to_tuple() const
         PyTuple_SET_ITEM(frame_tuple, 1, PyLong_FromUnsignedLong(frame.lineno));
         Py_INCREF(frame.name);
         PyTuple_SET_ITEM(frame_tuple, 2, frame.name);
-        /* Class name */
-        Py_INCREF(empty_string);
-        PyTuple_SET_ITEM(frame_tuple, 3, empty_string);
 
         // Try to set the class.  If we cannot (e.g., if the sofile is reloaded
         // without module initialization), then this will result in an error if
