@@ -69,4 +69,11 @@ def generate_process_tags() -> Tuple[Optional[str], Optional[List[str]]]:
         return None, None
 
 
+def update_base_hash(new_base_hash):
+    global base_hash
+    if process_tags:
+        base_hash = new_base_hash
+
+
+base_hash = ""
 process_tags, process_tags_list = generate_process_tags()
