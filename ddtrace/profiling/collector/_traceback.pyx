@@ -46,7 +46,10 @@ cpdef pyframe_to_frames(frame, max_nframes):
                     return [], 0
 
             lineno = 0 if frame.f_lineno is None else frame.f_lineno
-            frames.append(DDFrame(code.co_filename, lineno, code.co_name))
+            IF PY_VERSION_HEX >= 0x030b0000:
+                frames.append(DDFrame(code.co_filename, lineno, code.co_qualname))
+            ELSE:
+                frames.append(DDFrame(code.co_filename, lineno, code.co_name))
         nframes += 1
         frame = frame.f_back
     return frames, nframes
