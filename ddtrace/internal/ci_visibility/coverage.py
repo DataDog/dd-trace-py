@@ -11,6 +11,7 @@ from typing import Union  # noqa:F401
 
 import ddtrace
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
+from ddtrace.internal.ci_visibility.coverage_utils import get_coverage_root_dir
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_empty
@@ -65,12 +66,8 @@ def _start_coverage(root_dir: str):
     if USE_DD_COVERAGE:
         collector = ModuleCodeCollector.CollectInContext()
 
-        from ddtrace.ext.git import extract_workspace_path
-
-        try:
-            workspace_path = Path(extract_workspace_path())
-        except ValueError:
-            workspace_path = Path(os.getcwd())
+        # Use shared utility for determining workspace path
+        workspace_path = get_coverage_root_dir()
 
         setattr(collector, "_workspace_path", workspace_path)
         return collector

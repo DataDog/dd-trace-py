@@ -23,7 +23,6 @@ class _Config(En):
 
     enabled = En.v(bool, "enabled", default=True)
     global_tags = En.v(dict, "global_tags", parser=parse_tags_str, default={})
-    runtime_coverage_enabled = En.v(bool, "runtime_coverage_enabled", default=False)
 
 
 _config = _Config()
@@ -47,27 +46,6 @@ def start():
             from ddtrace.internal.tracemethods import _install_trace_methods
 
             _install_trace_methods(config._trace_methods)
-
-    # Initialize runtime request coverage if enabled
-    if _config.runtime_coverage_enabled:
-        try:
-            from ddtrace.internal.ci_visibility.runtime_coverage import initialize_runtime_coverage
-            from ddtrace.internal.ci_visibility.runtime_coverage import is_runtime_coverage_supported
-            from ddtrace.internal.ci_visibility.runtime_coverage_writer import initialize_runtime_coverage_writer
-
-            if is_runtime_coverage_supported():
-                log.info("Runtime request coverage enabled, initializing...")
-
-                # Initialize the coverage collector
-                if not initialize_runtime_coverage():
-                    log.warning("Runtime coverage collector initialization failed")
-                # Initialize and start the coverage writer
-                elif not initialize_runtime_coverage_writer():
-                    log.warning("Runtime coverage writer initialization failed")
-                else:
-                    log.info("Runtime request coverage initialized successfully (collector + writer)")
-        except Exception:
-            log.debug("Failed to initialize runtime request coverage", exc_info=True)
 
     if _config.global_tags:
         from ddtrace.trace import tracer

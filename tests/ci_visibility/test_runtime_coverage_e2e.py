@@ -115,7 +115,7 @@ def patched_send_runtime_coverage(span, files):
     files_serializable = []
     for file_data in files:
         file_copy = file_data.copy()
-        if "bitmap" in file_copy and isinstance(file_copy["bitmap"], bytes):
+        if "bitmap" in file_copy and isinstance(file_copy["bitmap"], (bytes, bytearray)):
             file_copy["bitmap"] = base64.b64encode(file_copy["bitmap"]).decode("ascii")
         files_serializable.append(file_copy)
     
@@ -206,8 +206,8 @@ except Exception:
         # Verify we got at least one payload
         assert len(payloads) > 0, (
             f"Should have captured at least one coverage payload.\n"
-            f"stdout: {stdout[:500]}\n"
-            f"stderr: {stderr[:500]}"
+            f"stdout: {stdout[:1000]}\n"
+            f"stderr (full): {stderr}"
         )
 
         # Verify payload structure and content
@@ -249,8 +249,8 @@ except Exception:
         # The exact files captured may vary depending on what gets imported, but we should
         # at least have some of the key files that are expected to be exercised
         expected_files_to_include = {
-            "tests/coverage/included_path/callee.py",
-            "ddtrace/contrib/internal/wsgi/wsgi.py",
+            "/tests/coverage/included_path/callee.py",
+            "/ddtrace/contrib/internal/wsgi/wsgi.py",
         }
         assert expected_files_to_include.issubset(all_files), (
             f"Expected at least {expected_files_to_include} to be covered, got {all_files}"

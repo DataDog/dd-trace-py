@@ -92,22 +92,19 @@ if config._llmobs_enabled:
 
 
 if config._runtime_coverage_enabled:
-    log.debug("runtime coverage enabled via environment variable")
     try:
         from ddtrace.internal.ci_visibility.runtime_coverage import initialize_runtime_coverage
         from ddtrace.internal.ci_visibility.runtime_coverage import is_runtime_coverage_supported
         from ddtrace.internal.ci_visibility.runtime_coverage_writer import initialize_runtime_coverage_writer
 
-        if is_runtime_coverage_supported():
-            # Initialize the coverage collector
-            if initialize_runtime_coverage():
-                # Initialize the writer
-                initialize_runtime_coverage_writer()
-                log.info("Runtime coverage initialized successfully")
+        if not is_runtime_coverage_supported():
+            log.debug("Runtime coverage requires Python 3.12+")
+        elif initialize_runtime_coverage() and initialize_runtime_coverage_writer():
+            log.debug("Runtime coverage initialized successfully")
         else:
-            log.warning("Runtime coverage requires Python 3.12+, but Python %s is being used", ".".join(map(str, __import__("sys").version_info[:2])))
+            log.debug("Runtime coverage initialization failed")
     except Exception:
-        log.error("failed to enable runtime coverage", exc_info=True)
+        log.debug("Failed to enable runtime coverage", exc_info=True)
 
 
 @register_post_preload

@@ -1,122 +1,26 @@
 """
 Runtime Coverage Writer
-
-A dedicated writer for sending runtime request coverage data to the citestcov intake endpoint.
-This follows the same pattern as ExposureWriter and CIVisibilityWriter to properly manage
-HTTP connections, retries, batching, and encoding.
 """
+
 from typing import Optional
 
-from ddtrace import config
+from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings._agent import config as agent_config
-
-from ..writer import HTTPWriter
-from .writer import _create_coverage_client
 
 
 log = get_logger(__name__)
 
 
-class RuntimeCoverageWriter(HTTPWriter):
-    """
-    Writer for runtime request coverage data.
-
-    This writer sends coverage spans to the CI Visibility coverage intake endpoint,
-    reusing all the infrastructure from HTTPWriter including:
-    - Connection pooling and management
-    - Retry logic with backoff
-    - Batching and encoding
-    - Metrics and error handling
-    """
-
-    RETRY_ATTEMPTS = 3
-    HTTP_METHOD = "POST"
-    STATSD_NAMESPACE = "runtime_coverage.writer"
-
-    def __init__(
-        self,
-        intake_url: Optional[str] = None,
-        use_evp: bool = True,
-        processing_interval: Optional[float] = None,
-        timeout: Optional[float] = None,
-    ):
-        """
-        Initialize the runtime coverage writer.
-
-        Args:
-            intake_url: Override intake URL (defaults to agent URL or agentless)
-            use_evp: Whether to use EVP proxy mode (default: True)
-            processing_interval: How often to flush buffered data (default: config value)
-            timeout: Connection timeout (default: config value)
-        """
-        if processing_interval is None:
-            processing_interval = config._trace_writer_interval_seconds
-        if timeout is None:
-            timeout = agent_config.trace_agent_timeout_seconds
-
-        # Determine intake URL and mode
-        self._use_evp = use_evp
-        if intake_url is None:
-            if use_evp:
-                intake_url = agent_config.trace_agent_url
-            elif config._ci_visibility_agentless_url:
-                intake_url = config._ci_visibility_agentless_url
-                self._use_evp = False
-            else:
-                # Fallback to agent if no agentless URL configured
-                intake_url = agent_config.trace_agent_url
-                self._use_evp = True
-
-        # Create coverage client - this is the only client we need
-        # It will handle encoding spans with coverage data and sending to the right endpoint
-        # For runtime coverage, we want per-request (per-span) coverage, so we use
-        # itr_suite_skipping_mode=False to include span_id in the encoded payload
-        coverage_client = _create_coverage_client(
-            use_evp=self._use_evp,
-            intake_url=intake_url,
-            itr_suite_skipping_mode=False,  # Include span_id for per-request coverage
-        )
-
-        super(RuntimeCoverageWriter, self).__init__(
-            intake_url=intake_url,
-            clients=[coverage_client],
-            processing_interval=processing_interval,
-            timeout=timeout,
-            sync_mode=False,  # Always async for production
-            reuse_connections=True,
-            report_metrics=True,
-        )
-
-        log.debug(
-            "RuntimeCoverageWriter initialized (use_evp=%s, intake_url=%s, interval=%s)",
-            self._use_evp,
-            intake_url,
-            processing_interval,
-        )
-
-    def recreate(self, appsec_enabled: Optional[bool] = None) -> "RuntimeCoverageWriter":
-        """
-        Recreate the writer with the same configuration.
-
-        This is required by HTTPWriter for certain scenarios like fork handling.
-
-        Args:
-            appsec_enabled: Ignored for runtime coverage writer (kept for signature compatibility)
-        """
-        return self.__class__(
-            intake_url=self.intake_url,
-            use_evp=self._use_evp,
-            processing_interval=self._interval,
-            timeout=self._timeout,
-        )
+# Type alias: RuntimeCoverageWriter is just CIVisibilityWriter with coverage enabled
+# This maintains backward compatibility while maximizing code reuse
+RuntimeCoverageWriter = CIVisibilityWriter
 
 
 # Global singleton writer instance
-_RUNTIME_COVERAGE_WRITER: Optional[RuntimeCoverageWriter] = None
+_RUNTIME_COVERAGE_WRITER: Optional[CIVisibilityWriter] = None
 
 
-def get_runtime_coverage_writer() -> Optional[RuntimeCoverageWriter]:
+def get_runtime_coverage_writer() -> Optional[CIVisibilityWriter]:
     """
     Get the global runtime coverage writer instance.
 
@@ -131,6 +35,10 @@ def initialize_runtime_coverage_writer() -> bool:
 
     This should be called once at startup if DD_CIVISIBILITY_REQUEST_COVERAGE is enabled.
 
+    AGGRESSIVE CODE REUSE: Uses CIVisibilityWriter with coverage_enabled=True instead of
+    a separate RuntimeCoverageWriter class. The event client is created but unused,
+    which is acceptable for the benefit of eliminating 130+ lines of duplicated code.
+
     Returns:
         True if initialization was successful, False otherwise
     """
@@ -141,9 +49,22 @@ def initialize_runtime_coverage_writer() -> bool:
         return True
 
     try:
-        _RUNTIME_COVERAGE_WRITER = RuntimeCoverageWriter()
+        # Use CIVisibilityWriter configured for runtime coverage:
+        # - use_evp=True: Use EVP proxy mode
+        # - coverage_enabled=True: Create coverage client
+        # - itr_suite_skipping_mode=False: Include span_id for per-request coverage
+        # - sync_mode=False: Async writing for production
+        # Note: Event client is created but unused (harmless for coverage-only operation)
+        _RUNTIME_COVERAGE_WRITER = CIVisibilityWriter(
+            use_evp=True,
+            coverage_enabled=True,
+            itr_suite_skipping_mode=False,
+            sync_mode=False,
+            reuse_connections=True,
+            report_metrics=False,
+        )
         _RUNTIME_COVERAGE_WRITER.start()
-        log.info("Runtime coverage writer started successfully")
+        log.info("Runtime coverage writer started successfully (using CIVisibilityWriter)")
         return True
     except Exception as e:
         log.warning("Failed to initialize runtime coverage writer: %s", e, exc_info=True)

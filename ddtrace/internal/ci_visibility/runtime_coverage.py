@@ -8,18 +8,23 @@ coverage intake endpoint.
 This is based on, but separate from test coverage.
 """
 
-import os
 from pathlib import Path
-from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import TYPE_CHECKING  # noqa:F401
 
-import ddtrace
+from ddtrace.internal.ci_visibility.api._coverage_data import CoverageFilePayload
+from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
+from ddtrace.internal.ci_visibility.coverage_utils import get_coverage_root_dir
 from ddtrace.internal.ci_visibility.runtime_coverage_writer import get_runtime_coverage_writer
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.logger import get_logger
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -49,8 +54,8 @@ def initialize_runtime_coverage() -> bool:
     try:
         from ddtrace.internal.coverage.installer import install
 
-        # Determine root directory for coverage collection
-        root_dir = Path(os.getcwd())
+        # Determine root directory for coverage collection (shared with test coverage)
+        root_dir = get_coverage_root_dir()
 
         # Install the coverage collector
         install(include_paths=[root_dir], collect_import_time_coverage=True)
@@ -68,11 +73,11 @@ def initialize_runtime_coverage() -> bool:
         return False
 
 
-def build_runtime_coverage_payload(coverage_ctx, root_dir: Path) -> Optional[List[Dict]]:
+def build_runtime_coverage_payload(coverage_ctx, root_dir: Path) -> Optional[List[CoverageFilePayload]]:
     """
     Build a coverage payload from coverage context for runtime request coverage.
-    
-    Converts CoverageLines to bitmap format for CIVisibilityCoverageEncoderV02.
+
+    Reuses TestVisibilityCoverageData for consistent payload formatting.
 
     Args:
         coverage_ctx: Coverage context from CollectInContext
@@ -86,29 +91,16 @@ def build_runtime_coverage_payload(coverage_ctx, root_dir: Path) -> Optional[Lis
         if not covered_lines_dict:
             return None
 
-        files = []
-        for abs_path_str, lines in covered_lines_dict.items():
-            abs_path = Path(abs_path_str)
-            
-            # Make path relative to root_dir and prepend with /
-            try:
-                relative_path = abs_path.relative_to(root_dir) if abs_path.is_relative_to(root_dir) else abs_path
-                path_str = f"/{relative_path}"
-            except (ValueError, TypeError):
-                path_str = abs_path_str
-
-            bitmap = lines.to_bytes()
-            if bitmap:
-                files.append({"filename": path_str, "bitmap": bitmap})
-
-        return files if files else None
+        coverage_data = TestVisibilityCoverageData()
+        coverage_data.add_covered_files(covered_lines_dict)
+        return coverage_data.build_payload(root_dir).get("files")
 
     except Exception as e:
         log.debug("Failed to build runtime coverage payload: %s", e, exc_info=True)
         return None
 
 
-def send_runtime_coverage(span: ddtrace.trace.Span, files: List[Dict]) -> bool:
+def send_runtime_coverage(span: "Span", files: List[CoverageFilePayload]) -> bool:
     """
     Send runtime coverage data to citestcov intake using the RuntimeCoverageWriter.
 

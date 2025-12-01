@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Dict
 from typing import List
 from typing import TypedDict  # noqa:F401
+from typing import Union
 
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
@@ -26,10 +27,17 @@ class TestVisibilityCoverageData:
     def get_data(self) -> Dict[Path, CoverageLines]:
         return self._coverage_data
 
-    def add_covered_files(self, covered_files: Dict[Path, CoverageLines]):
-        """Add coverage segments to the coverage data"""
+    def add_covered_files(self, covered_files: Union[Dict[Path, CoverageLines], Dict[str, CoverageLines]]):
+        """
+        Add coverage segments to the coverage data.
+        
+        Args:
+            covered_files: Dict mapping file paths (Path or str) to CoverageLines
+        """
         for file_path, covered_lines in covered_files.items():
-            self._coverage_data[file_path.absolute()].update(covered_lines)
+            # Convert string paths to Path objects if needed
+            path = file_path if isinstance(file_path, Path) else Path(file_path)
+            self._coverage_data[path.absolute()].update(covered_lines)
 
     def _build_payload(self, root_dir: Path) -> List[CoverageFilePayload]:
         """Generate a Test Visibility coverage payload"""
