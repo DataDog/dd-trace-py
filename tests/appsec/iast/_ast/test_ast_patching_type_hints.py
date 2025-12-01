@@ -27,11 +27,11 @@ def _get_patched_code(module_path: Text, module_name: Text) -> str:
         return new_code
 
 
-def test_no_index_aspects_py37():
+def test_no_index_aspects():
     """
     Methods should not be replaced by the aspect since it's not the builtin method
     """
-    patched_code = _get_patched_code("tests/appsec/iast/_ast/fixtures/annotated_code37.py", "annotated_code")
+    patched_code = _get_patched_code("tests/appsec/iast/_ast/fixtures/annotated_code.py", "annotated_code")
 
     # Makes sure no subscripts are patched:
     assert "index_aspect" not in patched_code
