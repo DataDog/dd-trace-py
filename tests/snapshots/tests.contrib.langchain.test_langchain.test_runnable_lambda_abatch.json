@@ -1,0 +1,71 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "tests.contrib.langchain",
+    "resource": "add_batch",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "692de98100000000",
+      "language": "python",
+      "runtime-id": "b9253e7db88043278f68198b3b3a48b7"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 65041.0
+    },
+    "duration": 3272000,
+    "start": 1764616577099352000
+  },
+     {
+       "name": "langchain.request",
+       "service": "tests.contrib.langchain",
+       "resource": "add",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1.0
+       },
+       "duration": 2999000,
+       "start": 1764616577099508000
+     },
+     {
+       "name": "langchain.request",
+       "service": "tests.contrib.langchain",
+       "resource": "add",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1.0
+       },
+       "duration": 2037000,
+       "start": 1764616577100506000
+     },
+     {
+       "name": "langchain.request",
+       "service": "tests.contrib.langchain",
+       "resource": "add",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1.0
+       },
+       "duration": 1093000,
+       "start": 1764616577101471000
+     }]]
