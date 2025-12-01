@@ -268,10 +268,9 @@ class LLMObs(Service):
         )
 
         self._export_spans_client = LLMObsExportSpansClient(
-            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
-            _app_key=self._app_key,
-            is_agentless=agentless_enabled,
+            api_key=config._dd_api_key,
+            app_key=self._app_key,
+            site=config._dd_site,
         )
 
         forksafe.register(self._child_after_fork)
@@ -1736,7 +1735,7 @@ class LLMObs(Service):
                 metadata=metadata,
             )
 
-            evaluation_metric = cls._build_evaluation_metric(evaluation_result=evaluation_result, join_on=join_on)
+            evaluation_metric = cls._build_evaluation_metric(evaluation_result, join_on)
             cls._instance._llmobs_eval_metric_writer.enqueue(evaluation_metric)
         except LLMObsSubmitEvaluationError as e:
             error = e.error_type
@@ -1746,7 +1745,7 @@ class LLMObs(Service):
 
 
     @classmethod
-    async def run_evals_on_filter(
+    async def run_evaluations_on_filter(
         cls, 
         span_id: Optional[str] = None,
         trace_id: Optional[str] = None,
@@ -1756,13 +1755,25 @@ class LLMObs(Service):
         ml_app: Optional[str] = None,
         from_timestamp: Optional[str] = None,
         to_timestamp: Optional[str] = None,
-        evals: Optional[List[Callable[[Dict[str, Any]], LLMObsEvaluationResult]]] = None
+        evaluations: Optional[List[Callable[[Dict[str, Any]], LLMObsEvaluationResult]]] = None
     ) -> None:
         """
-        Runs evals on spans that match the given filter and submits those evaluation metrics to LLMObs.
+        Runs evaluations on spans that match the given filters and submits those evaluation metrics to LLMObs.
+
+        :param str span_id: The ID of the span to run evaluations on.
+        :param str trace_id: The trace ID of the span(s) to run evaluations on.
+        :param tags: A dictionary of string key-value pairs to filter the spans to run evaluations on.
+        :param str span_kind: The kind of the span(s) to run evaluations on.
+        :param str span_name: The name of the span(s) to run evaluations on.
+        :param str ml_app: The name of the ML application for the span(s) to run evaluations on.
+        :param str from_timestamp: The unix timestamp in milliseconds representing the beginning of the time range to filter spans by.
+        :param str to_timestamp: The unix timestamp in milliseconds representing the end of the time range to filter spans by.
+        :param list[Callable[[Dict[str, Any]], LLMObsEvaluationResult]] evaluations: A list of evaluation functions to run on the spans that match the given filters.
+            Each function should accept a dictionary representing an exported span and return an LLMObsEvaluationResult. See
+            https://docs.datadoghq.com/llm_observability/evaluations/export_api/?tab=model#searchedspan for details on the exported span format.
         """
-        if evals is None:
-            evals = []
+        if not evaluations:
+            return
         
         for exported_span in cls._instance._export_spans_client.export_spans(
             span_id=span_id,
@@ -1774,20 +1785,19 @@ class LLMObs(Service):
             from_timestamp=from_timestamp,
             to_timestamp=to_timestamp,
         ):
-            for eval in evals:
+            for eval in evaluations:
                 evaluation_result = {}
                 error = None
-                join_on = {}
+                join_on = {
+                    "span": {
+                        "span_id": exported_span.get("span_id"),
+                        "trace_id": exported_span.get("trace_id"),
+                    },
+                }
                 metric_type = ""
                 try:
                     evaluation_result = eval(exported_span)
-                    join_on = {
-                        "span": {
-                            "span_id": exported_span.get("span_id"),
-                            "trace_id": exported_span.get("trace_id"),
-                        },
-                    }
-                    evaluation_metric = cls._build_evaluation_metric(evaluation_result, exported_span, join_on)
+                    evaluation_metric = cls._build_evaluation_metric(evaluation_result, join_on, exported_span)
                     cls._instance._llmobs_eval_metric_writer.enqueue(evaluation_metric)
                 except LLMObsSubmitEvaluationError as e:
                     error = e.error_type
@@ -1800,11 +1810,11 @@ class LLMObs(Service):
     @staticmethod
     def _build_evaluation_metric(
         evaluation_result: LLMObsEvaluationResult,
+        join_on: Dict[str, Any],
         exported_span: Optional[Any] = None,
-        join_on: Optional[Dict[str, Any]] = None
     ) -> LLMObsEvaluationMetricEvent:
         """
-        Builds an evaluation metric from an evaluation result.
+        Builds an evaluation metric event from an evaluation result.
         """
         if not exported_span:
             exported_span = {}
@@ -1812,21 +1822,12 @@ class LLMObs(Service):
         metric_type = evaluation_result.get("metric_type")
         label = evaluation_result.get("label")
         value = evaluation_result.get("value")
-        timestamp_ms = evaluation_result.get("timestamp_ms")
+        timestamp_ms = evaluation_result.get("timestamp_ms") or int(time.time() * 1000)
         tags = evaluation_result.get("tags")
         assessment = evaluation_result.get("assessment")
         reasoning = evaluation_result.get("reasoning")
         metadata = evaluation_result.get("metadata")
         ml_app = evaluation_result.get("ml_app") or exported_span.get("ml_app")
-
-        join_on = join_on or {
-            "span": {
-                "span_id": exported_span.get("span_id"),
-                "trace_id": exported_span.get("trace_id"),
-            },
-        }
-
-        timestamp_ms = timestamp_ms if timestamp_ms else int(time.time() * 1000)
 
         if not isinstance(timestamp_ms, int) or timestamp_ms < 0:
             error = LLMObsSubmitEvaluationError("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")

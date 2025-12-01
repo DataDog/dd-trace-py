@@ -89,6 +89,7 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     tags: List[str]
     assessment: str
     reasoning: str
+    metadata: Dict[str, object]
 
 
 class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
@@ -104,6 +105,11 @@ class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
     error: Optional[Dict[str, str]]
     tags: List[str]
     experiment_id: str
+
+class ExportSpansAPIError(Exception):
+    """Error raised when exporting spans from the LLMObs Export API."""
+
+    pass
 
 
 def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
@@ -744,12 +750,22 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
         return payload
 
 
-class LLMObsExportSpansClient(BaseLLMObsWriter):
+class LLMObsExportSpansClient:
     """Retrieves spans from the LLMObs Export API."""
 
     ENDPOINT = "/api/v2/llm-obs/v1/spans/events"
     TIMEOUT = 10.0
     DEFAULT_PAGE_LIMIT = 100
+
+    def __init__(
+        self,
+        api_key: str,
+        app_key: str,
+        site: str,
+    ) -> None:
+        self._api_key: str = api_key
+        self._app_key: str = app_key
+        self._site: str = site
 
     def export_spans(
         self,
@@ -772,7 +788,7 @@ class LLMObsExportSpansClient(BaseLLMObsWriter):
 
         while has_next_page:
             path = f"{self.ENDPOINT}?{urllib.parse.urlencode(url_options)}"
-            logger.debug("Making request to path=%s in export_spans for page %d", path, page_num)
+            logger.debug("Making request to path=%s for page %d", path, page_num)
 
             resp = self._request(path, self.TIMEOUT)
 
@@ -783,8 +799,8 @@ class LLMObsExportSpansClient(BaseLLMObsWriter):
                     resp.status,
                     resp.body,
                 )
-                raise ValueError(
-                    f"Failed to export spans for page {page_num} and url options {url_options}: {resp.status}"
+                raise ExportSpansAPIError(
+                    f"Failed to export spans with status {resp.status} for url options {url_options}"
                 )
 
             response_data = resp.get_json()
@@ -846,7 +862,7 @@ class LLMObsExportSpansClient(BaseLLMObsWriter):
             url_options["filter[from]"] = from_timestamp
         if to_timestamp:
             url_options["filter[to]"] = to_timestamp
-        url_options["page[limit]"] = 100
+        url_options["page[limit]"] = self.DEFAULT_PAGE_LIMIT
         return url_options
     
 
