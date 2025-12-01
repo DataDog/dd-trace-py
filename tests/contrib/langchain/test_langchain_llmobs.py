@@ -934,6 +934,59 @@ async def test_llmobs_runnable_lambda_abatch(langchain_core, llmobs_events):
         assert isinstance(output_value, int)
 
 
+def test_llmobs_runnable_with_span_links(langchain_core, llmobs_events):
+    sequence = langchain_core.runnables.RunnableLambda(lambda x: x + 1, name="add_1") | {
+        "mul_2": langchain_core.runnables.RunnableLambda(lambda x: x * 2, name="mul_2"),
+        "mul_5": langchain_core.runnables.RunnableLambda(lambda x: x * 5, name="mul_5"),
+    }
+
+    result = sequence.invoke(1)
+
+    assert result == {"mul_2": 4, "mul_5": 10}
+    assert len(llmobs_events) == 4
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+
+    # assert output -> output links for runnable sequence span from last two runnable lambdas
+    assert llmobs_events[0]["span_links"] == [
+        {
+            "trace_id": mock.ANY,
+            "span_id": llmobs_events[2]["span_id"],
+            "attributes": {"from": "output", "to": "output"},
+        },
+        {
+            "trace_id": mock.ANY,
+            "span_id": llmobs_events[3]["span_id"],
+            "attributes": {"from": "output", "to": "output"},
+        },
+    ]
+
+    # assert input -> input links for add_1 span
+    assert llmobs_events[1]["span_links"] == [
+        {
+            "trace_id": mock.ANY,
+            "span_id": llmobs_events[0]["span_id"],
+            "attributes": {"from": "input", "to": "input"},
+        },
+    ]
+
+    # assert output -> input links for mul_2 and mul_5 spans
+    assert llmobs_events[2]["span_links"] == [
+        {
+            "trace_id": mock.ANY,
+            "span_id": llmobs_events[1]["span_id"],
+            "attributes": {"from": "output", "to": "input"},
+        },
+    ]
+    assert llmobs_events[3]["span_links"] == [
+        {
+            "trace_id": mock.ANY,
+            "span_id": llmobs_events[1]["span_id"],
+            "attributes": {"from": "output", "to": "input"},
+        },
+    ]
+
+
 class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
     bedrock_env_config = dict(
         AWS_ACCESS_KEY_ID="testing",
