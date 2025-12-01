@@ -330,7 +330,7 @@ class TestRayIntegration(TracerTestCase):
             assert current_value == 3, f"Unexpected result: {current_value}"
 
 
-def _start_ray_cluster(env_vars=None):
+def _start_ray_cluster(env_vars=None, ddtrace_run=False):
     """Start a Ray cluster with optional environment variables."""
     env = os.environ.copy()
     base_env = {
@@ -340,9 +340,12 @@ def _start_ray_cluster(env_vars=None):
         base_env.update(env_vars)
     env.update(base_env)
 
-    subprocess.run(
+    cmd = []
+    if ddtrace_run:
+        cmd.append("ddtrace-run")
+
+    cmd.extend(
         [
-            "ddtrace-run",
             "ray",
             "start",
             "--head",
@@ -351,7 +354,13 @@ def _start_ray_cluster(env_vars=None):
             "--object-store-memory=100000000",
             "--dashboard-host=127.0.0.1",
             "--dashboard-port=8265",
-        ],
+        ]
+    )
+    if not ddtrace_run:
+        cmd.append("--tracing-startup-hook=ddtrace.contrib.ray:setup_tracing")
+
+    subprocess.run(
+        cmd,
         env=env,
         check=True,
     )
@@ -399,9 +408,11 @@ def _submit_and_wait_for_job(dashboard_url, job_script_name, metadata={"foo": "b
 
 
 class TestRayWithoutInit(TracerTestCase):
-    """This class tests that actor and task submissions work with auto initialization
-    This class also shows a lack of visibility when we cannot call ray.init explictly
-    which led to a change in how we start a cluster
+    """This test Class is used for two purposes:
+    - Show a lack of observability when relying on automatic ray.init()
+      see test_task_without_init and test_actor_without_init().
+    - Give examples a real traces (because we create a real cluster)
+    - Show some behavior of service naming: default one, using metadata
     """
 
     dashboard_url = None
@@ -418,21 +429,33 @@ class TestRayWithoutInit(TracerTestCase):
 
     @pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
     def test_task_without_init(self):
+        """The first submission triggers ray.init() so it is not traced
+        Therefore the execution cannot be instrumented and we will see only
+        the second submission in the snapshot
+
+        The second remote function is fully executed
+        """
+
         _submit_and_wait_for_job(self.dashboard_url, "task_without_init.py")
 
     @pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
     def test_actor_without_init(self):
+        """The creation of the actor triggers ray.init() so it cannot
+        be instrumented
+        """
+
         _submit_and_wait_for_job(self.dashboard_url, "actor_without_init.py")
 
     @pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
     def test_job_name_specified(self):
+        """Check that the service name is set when specifying job name in the metadata"""
         _submit_and_wait_for_job(self.dashboard_url, "service.py", metadata={"job_name": "my_model"})
 
 
 @pytest.mark.snapshot(ignores=RAY_SNAPSHOT_IGNORES)
 def test_service_name():
     """Test that DD_SERVICE environment variable is used as service name."""
-    dashboard_url = _start_ray_cluster(env_vars={"DD_SERVICE": "test"})
+    dashboard_url = _start_ray_cluster(env_vars={"DD_SERVICE": "test"}, ddtrace_run=True)
 
     try:
         _submit_and_wait_for_job(dashboard_url, "service.py")
@@ -447,7 +470,8 @@ def test_use_entrypoint_service_name():
         env_vars={
             "DD_SERVICE": "test",
             "DD_TRACE_RAY_USE_ENTRYPOINT_AS_SERVICE_NAME": "True",
-        }
+        },
+        ddtrace_run=True,
     )
 
     try:
