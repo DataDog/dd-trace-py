@@ -60,23 +60,6 @@ class TestRuntimeCoverageWriterInitialization:
 
         assert writer._timeout == 10.0
 
-    @mock.patch("ddtrace.internal.ci_visibility.writer._create_coverage_client")
-    def test_writer_creates_coverage_client(self, mock_create_client):
-        """Test that writer creates a coverage client on initialization."""
-        mock_client = mock.Mock()
-        mock_create_client.return_value = mock_client
-
-        _writer = RuntimeCoverageWriter(coverage_enabled=True, itr_suite_skipping_mode=False)
-
-        # Verify coverage client was created with correct parameters
-        # RuntimeCoverageWriter now uses CIVisibilityWriter internally
-        mock_create_client.assert_called_once()
-        # Check positional arguments (use_evp, intake_url, itr_suite_skipping_mode)
-        call_args = mock_create_client.call_args
-        # For runtime coverage, we use False to include span_id in the payload
-        # The third positional argument is itr_suite_skipping_mode
-        assert call_args[0][2] is False or call_args[1].get("itr_suite_skipping_mode") is False
-
 
 class TestRuntimeCoverageWriterWrite:
     """Test writing spans to the coverage writer."""

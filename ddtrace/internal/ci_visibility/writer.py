@@ -87,38 +87,6 @@ class CIVisibilityAgentlessCoverageClient(CIVisibilityCoverageClient):
     ENDPOINT = AGENTLESS_COVERAGE_ENDPOINT
 
 
-def _create_coverage_client(
-    use_evp: bool, intake_url: Optional[str] = None, itr_suite_skipping_mode: bool = False
-) -> CIVisibilityCoverageClient:
-    """
-    Create the appropriate coverage client based on whether EVP proxy is used.
-
-    Args:
-        use_evp: Whether to use EVP proxy mode
-        intake_url: Intake URL (optional, will be determined if not provided)
-        itr_suite_skipping_mode: Whether ITR suite skipping mode is enabled
-
-    Returns:
-        CIVisibilityCoverageClient instance (either proxied or agentless)
-    """
-    intake_cov_url = intake_url
-    if use_evp:
-        if not intake_cov_url:
-            intake_cov_url = agent_config.trace_agent_url
-        return CIVisibilityProxiedCoverageClient(
-            intake_url=intake_cov_url,
-            headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE},
-            itr_suite_skipping_mode=itr_suite_skipping_mode,
-        )
-    else:
-        if not intake_cov_url:
-            intake_cov_url = "%s.%s" % (AGENTLESS_COVERAGE_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
-        return CIVisibilityAgentlessCoverageClient(
-            intake_url=intake_cov_url,
-            itr_suite_skipping_mode=itr_suite_skipping_mode,
-        )
-
-
 class CIVisibilityAgentlessEventClient(CIVisibilityEventClient):
     ENDPOINT = AGENTLESS_ENDPOINT
 
@@ -162,15 +130,23 @@ class CIVisibilityWriter(HTTPWriter):
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
 
         self._use_evp = use_evp
-        clients = (
-            [CIVisibilityProxiedEventClient()] if self._use_evp else [CIVisibilityAgentlessEventClient()]
-        )  # type: List[WriterClientBase]
+        clients = [CIVisibilityProxiedEventClient()] if self._use_evp else [CIVisibilityAgentlessEventClient()]  # type: List[WriterClientBase]
         self._coverage_enabled = coverage_enabled
         self._itr_suite_skipping_mode = itr_suite_skipping_mode
         if self._coverage_enabled:
             if not intake_cov_url:
                 intake_cov_url = "%s.%s" % (AGENTLESS_COVERAGE_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
-            clients.append(_create_coverage_client(use_evp, intake_cov_url, itr_suite_skipping_mode))
+            clients.append(
+                CIVisibilityProxiedCoverageClient(
+                    intake_url=intake_cov_url,
+                    headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE},
+                    itr_suite_skipping_mode=itr_suite_skipping_mode,
+                )
+                if use_evp
+                else CIVisibilityAgentlessCoverageClient(
+                    intake_url=intake_cov_url, itr_suite_skipping_mode=itr_suite_skipping_mode
+                )
+            )
 
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
