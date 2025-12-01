@@ -36,6 +36,10 @@ variables:
     CIBW_BUILD: "1"
   script:
     - .gitlab/scripts/build-wheel-manylinux.sh
+  artifacts:
+    paths:
+      - "pywheels/*.whl"
+      - "pywheels/*.tar.gz"
 
 download_ddtrace_artifacts:
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
