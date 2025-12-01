@@ -114,7 +114,14 @@ microbenchmarks:
 
 macrobenchmarks:
   stage: benchmarks
-  needs: [ "download_ddtrace_artifacts" ]
+  needs:
+    - job: build linux
+      parallel:
+        matrix:
+          - IMAGE_ARCH: "x86_64"
+            ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp30-cp39"
+            LINUX_OS_IMAGE: "manylinux2014"
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml
   variables:
