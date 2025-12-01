@@ -34,7 +34,6 @@ echo -e "\e[0Ksection_end:`date +%s`:setup_python\r\e[0K"
 echo -e "\e[0Ksection_start:`date +%s`:install_rust\r\e[0KInstalling Rust toolchain"
 if ! command -v rustc &> /dev/null; then
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-  source ${CARGO_HOME:-$HOME/.cargo}/env
 fi
 echo -e "\e[0Ksection_end:`date +%s`:install_rust\r\e[0K"
 
