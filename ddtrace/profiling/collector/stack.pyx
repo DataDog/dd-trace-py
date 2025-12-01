@@ -317,7 +317,6 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 handle.push_threadinfo(thread_id, thread_native_id, thread_name)
                 handle.push_task_id(task_id)
                 handle.push_task_name(task_name)
-                handle.push_class_name(frames[0].class_name)
                 for frame in frames:
                     handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
                 handle.flush_sample()
@@ -330,7 +329,6 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             handle.push_cputime( cpu_time, 1)
             handle.push_walltime( wall_time, 1)
             handle.push_threadinfo(thread_id, thread_native_id, thread_name)
-            handle.push_class_name(frames[0].class_name)
             for frame in frames:
                 handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
             handle.push_span(span)
@@ -346,7 +344,6 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 handle.push_monotonic_ns(now_ns)
                 handle.push_threadinfo(thread_id, thread_native_id, thread_name)
                 handle.push_exceptioninfo(exc_type, 1)
-                handle.push_class_name(frames[0].class_name)
                 for frame in frames:
                     handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
                 handle.push_span(span)
