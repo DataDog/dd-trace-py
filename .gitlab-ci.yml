@@ -93,12 +93,12 @@ run-tests-trigger:
 microbenchmarks:
   stage: benchmarks
   needs:
-    - job: build linux
+    - job: "build linux"
       parallel:
         matrix:
           - IMAGE_ARCH: "x86_64"
             ARCH_TAG: "amd64"
-            PYTHON_TAG: "cp30-cp39"
+            PYTHON_TAG: "cp39-cp39"
             LINUX_OS_IMAGE: "manylinux2014"
   rules:
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
@@ -115,12 +115,12 @@ microbenchmarks:
 macrobenchmarks:
   stage: benchmarks
   needs:
-    - job: build linux
+    - job: "build linux"
       parallel:
         matrix:
           - IMAGE_ARCH: "x86_64"
             ARCH_TAG: "amd64"
-            PYTHON_TAG: "cp30-cp39"
+            PYTHON_TAG: "cp39-cp39"
             LINUX_OS_IMAGE: "manylinux2014"
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml

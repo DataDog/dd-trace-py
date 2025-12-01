@@ -19,9 +19,12 @@ mkdir -p "${DEBUG_WHEEL_DIR}"
 echo -e "\e[0Ksection_end:`date +%s`:setup_env\r\e[0K"
 
 # Setup Python environment
-echo -e "\e[0Ksection_start:`date +%s`:setup_python\r\e[0KSetting up Python ${PYTHON_TAG}"
-manylinux-interpreters ensure "${PYTHON_TAG}"
-export PATH="/opt/python/${PYTHON_TAG}/bin:${PATH}"
+echo -e "\e[0Ksection_start:`date +%s`:setup_python\r\e[0KSetting up Python ${PYTHON_VERSION}"
+export PATH="${HOME}/.uv/bin/:${PATH}"
+if ! command -v uv &> /dev/null; then
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+fi
+uv python install "${PYTHON_VERSION}"
 which python
 python --version
 which pip
@@ -29,13 +32,11 @@ pip --version
 pip cache info
 echo -e "\e[0Ksection_end:`date +%s`:setup_python\r\e[0K"
 
-# Install Rust
 echo -e "\e[0Ksection_start:`date +%s`:install_rust\r\e[0KInstalling Rust toolchain"
 export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:${PATH}"
-if ! command -v rustc &> /dev/null; then
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-fi
+rustup update stable
 rustup default stable
+rustup target add aarch64-apple-darwin
 which rustc
 rustc --version
 echo -e "\e[0Ksection_end:`date +%s`:install_rust\r\e[0K"
@@ -43,11 +44,6 @@ echo -e "\e[0Ksection_end:`date +%s`:install_rust\r\e[0K"
 # Install sccache via cargo
 echo -e "\e[0Ksection_start:`date +%s`:install_sccache\r\e[0KInstalling sccache"
 if ! command -v sccache &> /dev/null; then
-  if command -v yum &> /dev/null; then
-    yum install -y openssl-devel
-  elif command -v apk &> /dev/null; then
-    apk --no-cache add openssl-dev openssl-libs-static
-  fi
   cargo install sccache
 fi
 which sccache
@@ -60,6 +56,7 @@ echo -e "\e[0Ksection_start:`date +%s`:build_wheel\r\e[0KBuilding wheel"
 python -m build --wheel --outdir "${BUILT_WHEEL_DIR}" .
 BUILT_WHEEL_FILE=$(ls ${BUILT_WHEEL_DIR}/*.whl | head -n 1)
 echo -e "\e[0Ksection_end:`date +%s`:build_wheel\r\e[0K"
+
 
 # Extract debug symbols
 echo -e "\e[0Ksection_start:`date +%s`:extract_debug_symbols\r\e[0KExtracting debug symbols"
@@ -77,8 +74,8 @@ unzip -l "${BUILT_WHEEL_FILE}" | grep '\.so$'
 echo -e "\e[0Ksection_end:`date +%s`:list_so_files\r\e[0K"
 
 # Repair the wheel
-echo -e "\e[0Ksection_start:`date +%s`:repair_wheel\r\e[0KRepairing wheel with auditwheel"
-auditwheel repair -w "${TMP_WHEEL_DIR}" "${BUILT_WHEEL_FILE}"
+echo -e "\e[0Ksection_start:`date +%s`:repair_wheel\r\e[0KRepairing wheel with delocate-wheel"
+MACOSX_DEPLOYMENT_TARGET=12.7 delocate-wheel --require-archs "${ARCH_TAG}" -w "${TMP_WHEEL_DIR}" -v "${BUILT_WHEEL_FILE}"
 echo -e "\e[0Ksection_end:`date +%s`:repair_wheel\r\e[0K"
 
 # Move to final resting place

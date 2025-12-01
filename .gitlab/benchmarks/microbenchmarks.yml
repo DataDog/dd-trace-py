@@ -143,7 +143,7 @@ candidate:
         matrix:
           - IMAGE_ARCH: "x86_64"
             ARCH_TAG: "amd64"
-            PYTHON_TAG: "cp30-cp39"
+            PYTHON_TAG: "cp39-cp39"
             LINUX_OS_IMAGE: "manylinux2014"
   script: |
     cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl ./

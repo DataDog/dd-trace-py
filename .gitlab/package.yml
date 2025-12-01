@@ -2,6 +2,14 @@ variables:
   REGISTRY_BASE_URL: "registry.ddbuild.io/images/mirror/pypa"
   IMAGE_TAG: "2025.11.24-1"
 
+.PYTHON_VERSIONS: &PYTHON_VERSIONS
+  - "3.9"
+  - "3.10"
+  - "3.11"
+  - "3.12"
+  - "3.13"
+  - "3.14"
+
 .PYTHON_TAGS: &PYTHON_TAGS
   - "cp39-cp39"
   - "cp310-cp310"
@@ -14,20 +22,8 @@ variables:
   - "manylinux2014"
   - "musllinux_1_2"
 
-"build linux":
-  image: ${REGISTRY_BASE_URL}/${LINUX_OS_IMAGE}_${IMAGE_ARCH}:${IMAGE_TAG}
-  tags: [ "arch:$ARCH_TAG" ]
+.build_base:
   stage: package
-  parallel:
-    matrix:
-      - IMAGE_ARCH: "x86_64"
-        ARCH_TAG: "amd64"
-        PYTHON_TAG: *PYTHON_TAGS
-        LINUX_OS_IMAGE: *LINUX_OS_IMAGES
-      - IMAGE_ARCH: "aarch64"
-        ARCH_TAG: "arm64"
-        PYTHON_TAG: *PYTHON_TAGS
-        LINUX_OS_IMAGE: *LINUX_OS_IMAGES
   variables:
     CARGO_HOME: "${CI_PROJECT_DIR}/.cache/cargo"
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
@@ -39,22 +35,61 @@ variables:
     DD_SETUP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/download_cache"
     # Caching
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
+    UV_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/uv"
+    UV_INSTALL_DIR: "${CI_PROJECT_DIR}/.uv/"
     SCCACHE_DIR: "${CI_PROJECT_DIR}/.cache/sccache"
     SCCACHE_CACHE_SIZE: "2G"
     # job resource requests
     KUBERNETES_CPU_REQUEST: "6"
     KUBERNETES_MEMORY_REQUEST: "8Gi"
     KUBERNETES_MEMORY_LIMIT: "8Gi"
+  artifacts:
+    paths:
+      - "pywheels/*.whl"
+      - "pywheels/*.tar.gz"
+
+"build linux":
+  extends: .build_base
+  image: ${REGISTRY_BASE_URL}/${LINUX_OS_IMAGE}_${IMAGE_ARCH}:${IMAGE_TAG}
+  tags: [ "arch:$ARCH_TAG" ]
+  parallel:
+    matrix:
+      - IMAGE_ARCH: "x86_64"
+        ARCH_TAG: "amd64"
+        PYTHON_TAG: *PYTHON_TAGS
+        LINUX_OS_IMAGE: *LINUX_OS_IMAGES
+      - IMAGE_ARCH: "aarch64"
+        ARCH_TAG: "arm64"
+        PYTHON_TAG: *PYTHON_TAGS
+        LINUX_OS_IMAGE: *LINUX_OS_IMAGES
   script:
     - .gitlab/scripts/build-wheel-manylinux.sh
   cache:
     - key: v0-build-linux-cache-${ARCH_TAG}-${PYTHON_TAG}-${LINUX_OS_IMAGE}
       paths:
         - .cache
-  artifacts:
-    paths:
-      - "pywheels/*.whl"
-      - "pywheels/*.tar.gz"
+        - .uv
+
+"build macos":
+  extends: .build_base
+  tags: [ "macos:sonoma-$ARCH_TAG" ]
+  parallel:
+    matrix:
+      - IMAGE_ARCH: "x86_64"
+        ARCH_TAG: "amd64"
+        PYTHON_VERSION: *PYTHON_VERSIONS
+      - IMAGE_ARCH: "aarch64"
+        ARCH_TAG: "arm64"
+        PYTHON_VERSION: *PYTHON_VERSIONS
+  variables:
+    SYSTEM_VERSION_COMPAT: "0"
+  script:
+    - .gitlab/scripts/build-wheel-macos.sh
+  cache:
+    - key: v0-build-macos-cache-${ARCH_TAG}-${PYTHON_TAG}
+      paths:
+        - .cache
+        - .uv
 
 download_ddtrace_artifacts:
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
