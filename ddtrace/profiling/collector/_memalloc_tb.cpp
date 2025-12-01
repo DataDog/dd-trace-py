@@ -79,7 +79,11 @@ frame_t::frame_t(PyFrameObject* pyframe)
         name = unknown_name;
         filename = unknown_name;
     } else {
+#if PY_VERSION_HEX >= 0x030b0000
+        name = code->co_qualname ? code->co_qualname : unknown_name;
+#else
         name = code->co_name ? code->co_name : unknown_name;
+#endif
         filename = code->co_filename ? code->co_filename : unknown_name;
     }
 
