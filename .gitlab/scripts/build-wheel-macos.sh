@@ -47,7 +47,7 @@ echo -e "\e[0Ksection_end:`date +%s`:install_sccache\r\e[0K"
 
 # Build wheel
 echo -e "\e[0Ksection_start:`date +%s`:build_wheel\r\e[0KBuilding wheel"
-uv build --wheel --outdir "${BUILT_WHEEL_DIR}" .
+uv build --wheel --out-dir "${BUILT_WHEEL_DIR}" .
 BUILT_WHEEL_FILE=$(ls ${BUILT_WHEEL_DIR}/*.whl | head -n 1)
 echo -e "\e[0Ksection_end:`date +%s`:build_wheel\r\e[0K"
 
