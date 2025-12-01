@@ -349,9 +349,9 @@ def gen_pre_checks() -> None:
         paths={"*"},
     )
     check(
-        name="Check integration error logs",
+        name="Check ddtrace error logs",
         command="hatch run lint:error-log-check",
-        paths={"ddtrace/contrib/**/*.py"},
+        paths={"ddtrace/*", "scripts/check_constant_log_message.py"},
     )
     check(
         name="Check project dependency bounds",
