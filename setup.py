@@ -217,6 +217,7 @@ class PatchedDistribution(Distribution):
                 binding=Binding.PyO3,
                 debug=COMPILE_MODE.lower() == "debug",
                 features=rust_features,
+                env=rust_env,
             )
         ]
 
