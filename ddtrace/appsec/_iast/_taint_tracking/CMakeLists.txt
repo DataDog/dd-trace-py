@@ -52,7 +52,7 @@ else()
     FetchContent_Declare(
         absl
         URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20250127.1.zip"
-        TIMEOUT 600
+        TIMEOUT 180
         INACTIVITY_TIMEOUT 120 DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
     FetchContent_MakeAvailable(absl)
 endif()

@@ -4,7 +4,7 @@ include(FetchContent)
 FetchContent_Declare(
     googletest
     URL https://github.com/google/googletest/archive/refs/tags/v1.16.0.zip
-    TIMEOUT 600
+    TIMEOUT 180
     INACTIVITY_TIMEOUT 120)
 FetchContent_MakeAvailable(googletest)
 

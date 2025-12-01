@@ -21,6 +21,6 @@ retry = 10
 git-fetch-with-cli = true
 
 [http]
-# Timeout for HTTP operations (5 minutes)
+# Timeout for HTTP operations (3 minutes)
 # Prevents hanging on slow/unresponsive servers
-timeout = 300
+timeout = 180
