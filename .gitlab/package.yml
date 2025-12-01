@@ -29,16 +29,28 @@ variables:
       PYTHON_TAG: *PYTHON_TAGS
       LINUX_OS_IMAGE: *LINUX_OS_IMAGES
   variables:
+    CARGO_HOME: "${CI_PROJECT_DIR}/.cache/cargo"
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
     CARGO_BUILD_JOBS: "12"
     CMAKE_ARGS: "-DNATIVE_TESTING=OFF"
     # DEV: Hack to make ASM CMake able to find the Python3 library
     CIBW_BUILD: "1"
+    DD_USE_SCCACHE: "1"
+    DD_SETUP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/download_cache"
+    # Caching
+    PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
+    SCCACHE_DIR: "${CI_PROJECT_DIR}/.cache/sccache"
+    SCCACHE_CACHE_SIZE: "2G"
+    # job resource requests
     KUBERNETES_CPU_REQUEST: "6"
     KUBERNETES_MEMORY_REQUEST: "8Gi"
     KUBERNETES_MEMORY_LIMIT: "8Gi"
   script:
     - .gitlab/scripts/build-wheel-manylinux.sh
+  cache:
+    - key: v0-build-linux-cache-${ARCH_TAG}-${PYTHON_TAG}-${LINUX_OS_IMAGE}
+      paths:
+        - .cache
   artifacts:
     paths:
       - "pywheels/*.whl"

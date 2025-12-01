@@ -22,18 +22,34 @@ echo -e "\e[0Ksection_end:`date +%s`:setup_env\r\e[0K"
 # Setup Python environment
 echo -e "\e[0Ksection_start:`date +%s`:setup_python\r\e[0KSetting up Python ${PYTHON_TAG}"
 manylinux-interpreters ensure "${PYTHON_TAG}"
-export PATH="/opt/python/${PYTHON_TAG}/bin:${PATH}"
+export PATH="/opt/python/${PYTHON_TAG}/bin:${CARGO_HOME:-$HOME/.cargo}/bin:${PATH}"
 which python
 python --version
 which pip
 pip --version
+pip cache info
 echo -e "\e[0Ksection_end:`date +%s`:setup_python\r\e[0K"
 
 # Install Rust
 echo -e "\e[0Ksection_start:`date +%s`:install_rust\r\e[0KInstalling Rust toolchain"
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-source $HOME/.cargo/env
+if ! command -v rustc &> /dev/null; then
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  source ${CARGO_HOME:-$HOME/.cargo}/env
+fi
 echo -e "\e[0Ksection_end:`date +%s`:install_rust\r\e[0K"
+
+# Install sccache via cargo
+echo -e "\e[0Ksection_start:`date +%s`:install_sccache\r\e[0KInstalling sccache"
+if ! command -v sccache &> /dev/null; then
+  if command -v yum &> /dev/null; then
+    yum install -y openssl-devel
+  elif command -v apk &> /dev/null; then
+    apk --no-cache add openssl-dev openssl-libs-static
+  fi
+  cargo install sccache
+fi
+sccache --show-stats
+echo -e "\e[0Ksection_end:`date +%s`:install_sccache\r\e[0K"
 
 # Build wheel
 echo -e "\e[0Ksection_start:`date +%s`:build_wheel\r\e[0KBuilding wheel"
@@ -79,3 +95,7 @@ python -m virtualenv --no-periodic-update --pip=embed --no-setuptools "${TEST_WH
 # Run the smoke tests
 cd "${TEST_WHEEL_DIR}" && "${TEST_WHEEL_DIR}/venv/bin/python" "${PROJECT_DIR}/tests/smoke_test.py"
 echo -e "\e[0Ksection_end:`date +%s`:test_wheel\r\e[0K"
+
+echo -e "\e[0Ksection_start:`date +%s`:teardown\r\e[0KTearing down"
+sccache --show-stats
+echo -e "\e[0Ksection_end:`date +%s`:teardown\r
