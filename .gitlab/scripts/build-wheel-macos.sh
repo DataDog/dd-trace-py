@@ -20,7 +20,7 @@ echo -e "\e[0Ksection_end:`date +%s`:setup_env\r\e[0K"
 
 # Setup Python environment
 echo -e "\e[0Ksection_start:`date +%s`:setup_python\r\e[0KSetting up Python ${PYTHON_VERSION}"
-export PATH="${UV_INSTALL_DIR}:${PATH}"
+export PATH="${UV_INSTALL_DIR}:${HOME}/.local/bin:${PATH}"
 if ! command -v uv &> /dev/null; then
   curl -LsSf https://astral.sh/uv/install.sh | sh
 fi
