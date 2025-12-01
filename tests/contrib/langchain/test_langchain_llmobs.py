@@ -931,22 +931,6 @@ async def test_llmobs_runnable_lambda_abatch(langchain_core, llmobs_events):
         assert isinstance(output_value, int)
 
 
-def test_llmobs_runnable_lambda_stream(langchain_core, llmobs_events):
-    def add(inputs: dict) -> Generator[str, None, None]:
-        string = inputs["string"]
-        for char in string:
-            yield char
-
-    runnable_lambda = langchain_core.runnables.RunnableLambda(add)
-    for result in runnable_lambda.stream(dict(string="hello")):
-        breakpoint()
-    
-
-
-async def test_llmobs_runnable_lambda_astream(langchain_core, llmobs_events):
-    pass
-
-
 class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
     bedrock_env_config = dict(
         AWS_ACCESS_KEY_ID="testing",
