@@ -475,7 +475,11 @@ def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess)
         print(report["body"])
         version = sys.version_info[:2]
         # Runtime stacktrace is available only on Python 3.11 and 3.12
-        expected = b"in string_at" if (3, 11) <= version <= (3, 12) else b"<python_runtime_stacktrace_unavailable>"
+        expected = (
+            b"in string_at"
+            if (3, 11) <= version <= (3, 12) or version == (3, 8)
+            else b"<python_runtime_stacktrace_unavailable>"
+        )
         assert expected in report["body"], report["body"]
 
 
