@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes a segmentation fault caused by accessing ``frame.f_locals``
+    while trying to retrieve class name of a ``PyFrameObject``.

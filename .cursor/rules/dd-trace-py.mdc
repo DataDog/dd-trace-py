@@ -1,12 +1,7 @@
 ---
-description: 
-globs: 
-alwaysApply: false
----
----
 description: dd-trace-py repository structure
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 # AI Guidelines dd-trace-py  
 
@@ -58,6 +53,31 @@ Add specially formatted comments throughout the codebase, where appropriate, for
   * very important, or  
   * confusing, or  
   * could have a bug  
+
+## PR (Pull Request) titles and escriptions
+This repository follows the contribution workflow defined in **`docs/contributing.rst`**.
+The sections **“Pull Request Requirements”** and **“Branches and Pull Requests”** are the authoritative source of truth
+for all PRs.
+
+The guidelines below summarize and clarify the expectations for authors and reviewers.
+
+### Pull Request Structure
+
+Every Pull Request **must** include a description formatted with the
+following Markdown structure `.github/PULL_REQUEST_TEMPLATE.md`:
+
+### Requirements:
+
+* Use **imperative mood** for the title (e.g., “Add support for X”).
+* Provide context for the change and link any relevant issues or JIRA tickets.
+* Include a clear testing plan and indicate new or updated tests.
+
+### When assisting with Pull Requests:
+
+* Validate that all guidelines in this README and `docs/contributing.rst` are followed.
+* Point out missing sections, invalid formatting, missing changelog, weak motivation, missing tests, or
+backward-compatibility risks.
+* When generating a new PR description, always output it in the required Markdown block format (shown above).
 
 ## Domain Glossary  
 

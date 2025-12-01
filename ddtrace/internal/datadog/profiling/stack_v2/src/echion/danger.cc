@@ -1,8 +1,6 @@
 #include <echion/danger.h>
 #include <echion/state.h>
 
-// hello
-
 #include <algorithm>
 #include <cassert>
 #include <cerrno>
@@ -82,13 +80,33 @@ init_segv_catcher()
     sigemptyset(&sa.sa_mask);
     // SA_SIGINFO for 3-arg handler; SA_ONSTACK to run on alt stack; SA_NODEFER to avoid having to use savemask
     sa.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
-    if (sigaction(SIGSEGV, &sa, &g_old_segv) != 0) {
-        return -1;
+
+    // Check each handler separately to avoid overwriting g_old_segv/g_old_bus
+    // with our own handler (which would cause infinite loops on unhandled signals).
+    struct sigaction current;
+
+    bool need_segv = true;
+    if (sigaction(SIGSEGV, nullptr, &current) == 0 && current.sa_sigaction == segv_handler) {
+        need_segv = false;
     }
-    if (sigaction(SIGBUS, &sa, &g_old_bus) != 0) {
-        // Try to roll back SIGSEGV install on failure.
-        sigaction(SIGSEGV, &g_old_segv, nullptr);
-        return -1;
+    if (need_segv) {
+        if (sigaction(SIGSEGV, &sa, &g_old_segv) != 0) {
+            return -1;
+        }
+    }
+
+    bool need_bus = true;
+    if (sigaction(SIGBUS, nullptr, &current) == 0 && current.sa_sigaction == segv_handler) {
+        need_bus = false;
+    }
+    if (need_bus) {
+        if (sigaction(SIGBUS, &sa, &g_old_bus) != 0) {
+            if (need_segv) {
+                // Roll back SIGSEGV install on failure.
+                sigaction(SIGSEGV, &g_old_segv, nullptr);
+            }
+            return -1;
+        }
     }
 
     return 0;

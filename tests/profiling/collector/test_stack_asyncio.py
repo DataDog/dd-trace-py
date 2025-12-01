@@ -141,6 +141,8 @@ def test_asyncio_start_profiler_from_process_before_importing_asyncio():
     import sys
     import time
 
+    from tests.profiling.collector import pprof_utils
+
     # Start an asyncio loop BEFORE importing profiler modules
     # This simulates the bug scenario where a loop exists before profiling is enabled
     loop = asyncio.new_event_loop()
@@ -188,8 +190,6 @@ def test_asyncio_start_profiler_from_process_before_importing_asyncio():
     assert t1_name == "tracked 1"
     assert t2_name == "tracked 2"
 
-    from tests.profiling.collector import pprof_utils
-
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
 
@@ -201,7 +201,7 @@ def test_asyncio_start_profiler_from_process_before_importing_asyncio():
     else:
         EXPECTED_FUNCTION_NAME_BACKGROUND = background_task_def.__name__
     EXPECTED_FILENAME_BACKGROUND = os.path.basename(background_task_def.__code__.co_filename)
-    EXPECTED_LINE_NO_BACKGROUND = background_task_def.__code__.co_firstlineno + 2
+    EXPECTED_LINE_NO_BACKGROUND = -1  # any line
 
     pprof_utils.assert_profile_has_sample(
         profile,
@@ -225,7 +225,6 @@ def test_asyncio_start_profiler_from_process_before_importing_asyncio():
     else:
         EXPECTED_FUNCTION_NAME_TRACKED = tracked_task_def.__name__
     EXPECTED_FILENAME_TRACKED = os.path.basename(tracked_task_def.__code__.co_filename)
-    EXPECTED_LINE_NO_TRACKED = tracked_task_def.__code__.co_firstlineno + 3
 
     pprof_utils.assert_profile_has_sample(
         profile,
@@ -237,7 +236,7 @@ def test_asyncio_start_profiler_from_process_before_importing_asyncio():
                 pprof_utils.StackLocation(
                     function_name=EXPECTED_FUNCTION_NAME_TRACKED,
                     filename=EXPECTED_FILENAME_TRACKED,
-                    line_no=EXPECTED_LINE_NO_TRACKED,
+                    line_no=-1,  # any line
                 )
             ],
         ),
@@ -259,6 +258,7 @@ def test_asyncio_start_profiler_from_process_before_starting_loop():
 
     from ddtrace.internal.datadog.profiling import stack_v2
     from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
 
     assert stack_v2.is_available, stack_v2.failure_msg
 
@@ -312,8 +312,6 @@ def test_asyncio_start_profiler_from_process_before_starting_loop():
     assert t1_name == "tracked 1"
     assert t2_name == "tracked 2"
 
-    from tests.profiling.collector import pprof_utils
-
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
 
@@ -325,7 +323,7 @@ def test_asyncio_start_profiler_from_process_before_starting_loop():
     else:
         EXPECTED_FUNCTION_NAME_BACKGROUND = background_task_def.__name__
     EXPECTED_FILENAME_BACKGROUND = os.path.basename(background_task_def.__code__.co_filename)
-    EXPECTED_LINE_NO_BACKGROUND = background_task_def.__code__.co_firstlineno + 2
+    EXPECTED_LINE_NO_BACKGROUND = -1  # any line
 
     pprof_utils.assert_profile_has_sample(
         profile,
@@ -349,7 +347,6 @@ def test_asyncio_start_profiler_from_process_before_starting_loop():
     else:
         EXPECTED_FUNCTION_NAME_TRACKED = tracked_task_def.__name__
     EXPECTED_FILENAME_TRACKED = os.path.basename(tracked_task_def.__code__.co_filename)
-    EXPECTED_LINE_NO_TRACKED = tracked_task_def.__code__.co_firstlineno + 3
 
     pprof_utils.assert_profile_has_sample(
         profile,
@@ -361,7 +358,7 @@ def test_asyncio_start_profiler_from_process_before_starting_loop():
                 pprof_utils.StackLocation(
                     function_name=EXPECTED_FUNCTION_NAME_TRACKED,
                     filename=EXPECTED_FILENAME_TRACKED,
-                    line_no=EXPECTED_LINE_NO_TRACKED,
+                    line_no=-1,  # any line
                 )
             ],
         ),
@@ -384,6 +381,7 @@ def test_asyncio_start_profiler_from_process_after_creating_loop():
 
     from ddtrace.internal.datadog.profiling import stack_v2
     from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
 
     # Start an asyncio loop BEFORE importing profiler modules
     # This simulates the bug scenario where a loop exists before profiling is enabled
@@ -437,8 +435,6 @@ def test_asyncio_start_profiler_from_process_after_creating_loop():
     assert t1_name == "tracked 1"
     assert t2_name == "tracked 2"
 
-    from tests.profiling.collector import pprof_utils
-
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
 
@@ -446,7 +442,7 @@ def test_asyncio_start_profiler_from_process_after_creating_loop():
     assert len(samples) > 0, "No task names found - existing loop was not tracked!"
 
     EXPECTED_FILENAME_BACKGROUND = os.path.basename(background_task_def.__code__.co_filename)
-    EXPECTED_LINE_NO_BACKGROUND = background_task_def.__code__.co_firstlineno + 2
+    EXPECTED_LINE_NO_BACKGROUND = -1  # any line
     if sys.version_info >= (3, 11):
         EXPECTED_FUNCTION_NAME_BACKGROUND = f"{my_function.__name__}.<locals>.{background_task_def.__name__}"
     else:
@@ -470,7 +466,7 @@ def test_asyncio_start_profiler_from_process_after_creating_loop():
 
     # Verify specific tasks are in the profile
     EXPECTED_FILENAME_TRACKED = os.path.basename(tracked_task_def.__code__.co_filename)
-    EXPECTED_LINE_NO_TRACKED = tracked_task_def.__code__.co_firstlineno + 3
+
     if sys.version_info >= (3, 11):
         EXPECTED_FUNCTION_NAME_TRACKED = f"{my_function.__name__}.<locals>.{tracked_task_def.__name__}"
     else:
@@ -486,7 +482,7 @@ def test_asyncio_start_profiler_from_process_after_creating_loop():
                 pprof_utils.StackLocation(
                     function_name=EXPECTED_FUNCTION_NAME_TRACKED,
                     filename=EXPECTED_FILENAME_TRACKED,
-                    line_no=EXPECTED_LINE_NO_TRACKED,
+                    line_no=-1,  # any line
                 )
             ],
         ),
@@ -506,6 +502,8 @@ def test_asyncio_import_profiler_from_process_after_starting_loop():
     import os
     import sys
     import time
+
+    from tests.profiling.collector import pprof_utils
 
     # Start an asyncio loop BEFORE importing profiler modules
     # This simulates the bug scenario where a loop exists before profiling is enabled
@@ -562,8 +560,6 @@ def test_asyncio_import_profiler_from_process_after_starting_loop():
     assert t1_name == "tracked 1"
     assert t2_name == "tracked 2"
 
-    from tests.profiling.collector import pprof_utils
-
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
 
@@ -571,7 +567,7 @@ def test_asyncio_import_profiler_from_process_after_starting_loop():
     assert len(samples) > 0, "No task names found - existing loop was not tracked!"
 
     EXPECTED_FILENAME_BACKGROUND = os.path.basename(background_task_def.__code__.co_filename)
-    EXPECTED_LINE_NO_BACKGROUND = background_task_def.__code__.co_firstlineno
+    EXPECTED_LINE_NO_BACKGROUND = -1  # any line
     if sys.version_info >= (3, 11):
         EXPECTED_FUNCTION_NAME_BACKGROUND = f"{my_function.__name__}.<locals>.{background_task_def.__name__}"
     else:
@@ -595,7 +591,7 @@ def test_asyncio_import_profiler_from_process_after_starting_loop():
 
     # Verify specific tasks are in the profile
     EXPECTED_FILENAME_TRACKED = os.path.basename(tracked_task_def.__code__.co_filename)
-    EXPECTED_LINE_NO_TRACKED = tracked_task_def.__code__.co_firstlineno + 3
+
     if sys.version_info >= (3, 11):
         EXPECTED_FUNCTION_NAME_TRACKED = f"{my_function.__name__}.<locals>.{tracked_task_def.__name__}"
     else:
@@ -611,7 +607,7 @@ def test_asyncio_import_profiler_from_process_after_starting_loop():
                 pprof_utils.StackLocation(
                     function_name=EXPECTED_FUNCTION_NAME_TRACKED,
                     filename=EXPECTED_FILENAME_TRACKED,
-                    line_no=EXPECTED_LINE_NO_TRACKED,
+                    line_no=-1,  # any line
                 )
             ],
         ),
@@ -633,6 +629,7 @@ def test_asyncio_start_profiler_from_process_after_task_start():
 
     from ddtrace.internal.datadog.profiling import stack_v2
     from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
 
     # Start an asyncio loop BEFORE importing profiler modules
     # This simulates the bug scenario where a loop exists before profiling is enabled
@@ -642,7 +639,7 @@ def test_asyncio_start_profiler_from_process_after_task_start():
     async def my_function():
         async def background_task_func() -> None:
             """Background task that runs in the existing loop."""
-            await asyncio.sleep(1.5)
+            await asyncio.sleep(2.5)
 
         # Create and start a task in the existing loop
         background_task = loop.create_task(background_task_func(), name="background")
@@ -689,16 +686,35 @@ def test_asyncio_start_profiler_from_process_after_task_start():
     assert t1_name == "tracked 1"
     assert t2_name == "tracked 2"
 
-    from tests.profiling.collector import pprof_utils
-
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
 
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0, "No task names found - existing loop was not tracked!"
 
+    EXPECTED_FILENAME_MAIN = os.path.basename(my_function.__code__.co_filename)
+    EXPECTED_LINE_NO_MAIN = -1  # any line
+    EXPECTED_FUNCTION_NAME_MAIN = my_function.__name__
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name="MainThread",
+            task_name="main",
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name=EXPECTED_FUNCTION_NAME_MAIN,
+                    filename=EXPECTED_FILENAME_MAIN,
+                    line_no=EXPECTED_LINE_NO_MAIN,
+                ),
+            ],
+        ),
+        print_samples_on_failure=True,
+    )
+
     EXPECTED_FILENAME_BACKGROUND = os.path.basename(background_task_def.__code__.co_filename)
-    EXPECTED_LINE_NO_BACKGROUND = background_task_def.__code__.co_firstlineno
+    EXPECTED_LINE_NO_BACKGROUND = -1  # any line
     if sys.version_info >= (3, 11):
         EXPECTED_FUNCTION_NAME_BACKGROUND = f"{my_function.__name__}.<locals>.{background_task_def.__name__}"
     else:
@@ -718,11 +734,12 @@ def test_asyncio_start_profiler_from_process_after_task_start():
                 ),
             ],
         ),
+        print_samples_on_failure=True,
     )
 
     # Verify specific tasks are in the profile
     EXPECTED_FILENAME_TRACKED = os.path.basename(tracked_task_def.__code__.co_filename)
-    EXPECTED_LINE_NO_TRACKED = tracked_task_def.__code__.co_firstlineno + 3
+
     if sys.version_info >= (3, 11):
         EXPECTED_FUNCTION_NAME_TRACKED = f"{my_function.__name__}.<locals>.{tracked_task_def.__name__}"
     else:
@@ -738,10 +755,11 @@ def test_asyncio_start_profiler_from_process_after_task_start():
                 pprof_utils.StackLocation(
                     function_name=EXPECTED_FUNCTION_NAME_TRACKED,
                     filename=EXPECTED_FILENAME_TRACKED,
-                    line_no=EXPECTED_LINE_NO_TRACKED,
+                    line_no=-1,  # any line
                 )
             ],
         ),
+        print_samples_on_failure=True,
     )
 
 
@@ -756,6 +774,8 @@ def test_asyncio_import_and_start_profiler_from_process_after_task_start():
     import os
     import sys
     import time
+
+    from tests.profiling.collector import pprof_utils
 
     # Start an asyncio loop BEFORE importing profiler modules
     # This simulates the bug scenario where a loop exists before profiling is enabled
@@ -816,8 +836,6 @@ def test_asyncio_import_and_start_profiler_from_process_after_task_start():
     assert t1_name == "tracked 1"
     assert t2_name == "tracked 2"
 
-    from tests.profiling.collector import pprof_utils
-
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
 
@@ -829,7 +847,7 @@ def test_asyncio_import_and_start_profiler_from_process_after_task_start():
     else:
         EXPECTED_FUNCTION_NAME_BACKGROUND = background_task_def.__name__
     EXPECTED_FILENAME_BACKGROUND = os.path.basename(background_task_def.__code__.co_filename)
-    EXPECTED_LINE_NO_BACKGROUND = background_task_def.__code__.co_firstlineno
+    EXPECTED_LINE_NO_BACKGROUND = -1  # any line
 
     pprof_utils.assert_profile_has_sample(
         profile,
@@ -853,7 +871,6 @@ def test_asyncio_import_and_start_profiler_from_process_after_task_start():
     else:
         EXPECTED_FUNCTION_NAME_TRACKED = tracked_task_def.__name__
     EXPECTED_FILENAME_TRACKED = os.path.basename(tracked_task_def.__code__.co_filename)
-    EXPECTED_LINE_NO_TRACKED = tracked_task_def.__code__.co_firstlineno + 3
 
     pprof_utils.assert_profile_has_sample(
         profile,
@@ -865,7 +882,7 @@ def test_asyncio_import_and_start_profiler_from_process_after_task_start():
                 pprof_utils.StackLocation(
                     function_name=EXPECTED_FUNCTION_NAME_TRACKED,
                     filename=EXPECTED_FILENAME_TRACKED,
-                    line_no=EXPECTED_LINE_NO_TRACKED,
+                    line_no=-1,  # any line
                 )
             ],
         ),

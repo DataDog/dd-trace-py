@@ -74,7 +74,7 @@ suites:
     runner: hatch
     timeout: 50m
   appsec_iast_packages:
-    parallelism: 2
+    venvs_per_job: 1
     paths:
       - '@appsec_iast'
       - tests/appsec/iast_packages/*
