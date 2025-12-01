@@ -118,6 +118,18 @@ publish-wheels-to-s3:
   needs:
     - job: download_ddtrace_artifacts
       artifacts: true
+    - job: "build linux"
+      artifacts: true
+      parallel:
+        matrix:
+        - IMAGE_ARCH: "x86_64"
+          ARCH_TAG: "amd64"
+          PYTHON_TAG: *PYTHON_TAGS
+          LINUX_OS_IMAGE: *LINUX_OS_IMAGES
+        - IMAGE_ARCH: "aarch64"
+          ARCH_TAG: "arm64"
+          PYTHON_TAG: *PYTHON_TAGS
+          LINUX_OS_IMAGE: *LINUX_OS_IMAGES
   variables:
     BUCKET: dd-trace-py-builds
   script:
