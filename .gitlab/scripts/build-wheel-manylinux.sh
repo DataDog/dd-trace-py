@@ -35,6 +35,8 @@ echo -e "\e[0Ksection_start:`date +%s`:install_rust\r\e[0KInstalling Rust toolch
 if ! command -v rustc &> /dev/null; then
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 fi
+which rustc
+rustc --version
 echo -e "\e[0Ksection_end:`date +%s`:install_rust\r\e[0K"
 
 # Install sccache via cargo
@@ -47,6 +49,8 @@ if ! command -v sccache &> /dev/null; then
   fi
   cargo install sccache
 fi
+which sccache
+sccache --version
 sccache --show-stats
 echo -e "\e[0Ksection_end:`date +%s`:install_sccache\r\e[0K"
 
