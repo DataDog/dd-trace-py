@@ -20,14 +20,14 @@ variables:
   stage: package
   parallel:
     matrix:
-    - IMAGE_ARCH: "x86_64"
-      ARCH_TAG: "amd64"
-      PYTHON_TAG: *PYTHON_TAGS
-      LINUX_OS_IMAGE: *LINUX_OS_IMAGES
-    - IMAGE_ARCH: "aarch64"
-      ARCH_TAG: "arm64"
-      PYTHON_TAG: *PYTHON_TAGS
-      LINUX_OS_IMAGE: *LINUX_OS_IMAGES
+      - IMAGE_ARCH: "x86_64"
+        ARCH_TAG: "amd64"
+        PYTHON_TAG: *PYTHON_TAGS
+        LINUX_OS_IMAGE: *LINUX_OS_IMAGES
+      - IMAGE_ARCH: "aarch64"
+        ARCH_TAG: "arm64"
+        PYTHON_TAG: *PYTHON_TAGS
+        LINUX_OS_IMAGE: *LINUX_OS_IMAGES
   variables:
     CARGO_HOME: "${CI_PROJECT_DIR}/.cache/cargo"
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
@@ -84,7 +84,21 @@ download_dependency_wheels:
   image: registry.ddbuild.io/images/mirror/python:$PYTHON_IMAGE_TAG
   tags: [ "arch:amd64" ]
   stage: package
-  needs: [ download_ddtrace_artifacts ]
+  needs:
+    - job: download_ddtrace_artifacts
+      artifacts: true
+    - job: "build linux"
+      artifacts: true
+      parallel:
+        matrix:
+          - IMAGE_ARCH: "x86_64"
+            ARCH_TAG: "amd64"
+            PYTHON_TAG: *PYTHON_TAGS
+            LINUX_OS_IMAGE: *LINUX_OS_IMAGES
+          - IMAGE_ARCH: "aarch64"
+            ARCH_TAG: "arm64"
+            PYTHON_TAG: *PYTHON_TAGS
+            LINUX_OS_IMAGE: *LINUX_OS_IMAGES
   variables:
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
   parallel:
@@ -116,20 +130,20 @@ publish-wheels-to-s3:
   image: registry.ddbuild.io/images/mirror/amazon/aws-cli:2.4.29
   stage: package
   needs:
-    - job: download_ddtrace_artifacts
-      artifacts: true
+    # - job: download_ddtrace_artifacts
+    #   artifacts: true
     - job: "build linux"
       artifacts: true
       parallel:
         matrix:
-        - IMAGE_ARCH: "x86_64"
-          ARCH_TAG: "amd64"
-          PYTHON_TAG: *PYTHON_TAGS
-          LINUX_OS_IMAGE: *LINUX_OS_IMAGES
-        - IMAGE_ARCH: "aarch64"
-          ARCH_TAG: "arm64"
-          PYTHON_TAG: *PYTHON_TAGS
-          LINUX_OS_IMAGE: *LINUX_OS_IMAGES
+          - IMAGE_ARCH: "x86_64"
+            ARCH_TAG: "amd64"
+            PYTHON_TAG: *PYTHON_TAGS
+            LINUX_OS_IMAGE: *LINUX_OS_IMAGES
+          - IMAGE_ARCH: "aarch64"
+            ARCH_TAG: "arm64"
+            PYTHON_TAG: *PYTHON_TAGS
+            LINUX_OS_IMAGE: *LINUX_OS_IMAGES
   variables:
     BUCKET: dd-trace-py-builds
   script:
