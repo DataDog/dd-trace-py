@@ -35,7 +35,7 @@ variables:
     # DEV: Hack to make ASM CMake able to find the Python3 library
     CIBW_BUILD: "1"
   script:
-    - .gitlab/scripts/build-wheels-manylinux.sh
+    - .gitlab/scripts/build-wheel-manylinux.sh
 
 download_ddtrace_artifacts:
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
