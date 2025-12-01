@@ -35,8 +35,8 @@ variables:
     # DEV: Hack to make ASM CMake able to find the Python3 library
     CIBW_BUILD: "1"
     KUBERNETES_CPU_REQUEST: "6"
-    KUBERNETES_MEMORY_REQUEST: "4Gi"
-    KUBERNETES_MEMORY_LIMIT: "4Gi"
+    KUBERNETES_MEMORY_REQUEST: "8Gi"
+    KUBERNETES_MEMORY_LIMIT: "8Gi"
   script:
     - .gitlab/scripts/build-wheel-manylinux.sh
   artifacts:
