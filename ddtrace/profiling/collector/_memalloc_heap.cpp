@@ -88,7 +88,7 @@ class heap_tracker_t
   public:
     /* Constructor - does not make any C Python API calls */
     heap_tracker_t(uint32_t sample_size_val);
-    ~heap_tracker_t();
+    ~heap_tracker_t() = default;
 
     // Delete copy constructor and assignment operator
     heap_tracker_t(const heap_tracker_t&) = delete;
@@ -110,7 +110,7 @@ class heap_tracker_t
      * must be called with the GIL held and without making any C Python API calls.
      * If an allocation at the same address is already tracked, the old traceback
      * is deleted internally. */
-    void add_sample_no_cpython(void* ptr, traceback_t* tb);
+    void add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb);
 
     void export_heap_no_cpython();
 
@@ -128,8 +128,8 @@ class heap_tracker_t
     uint64_t sample_size;
     /* Next heap sample target, in bytes allocated */
     uint64_t current_sample_size;
-    /* Tracked allocations */
-    HeapMapType<void*, traceback_t*> allocs_m;
+    /* Tracked allocations - using unique_ptr for automatic memory management */
+    HeapMapType<void*, std::unique_ptr<traceback_t>> allocs_m;
     /* Bytes allocated since the last sample was collected */
     uint64_t allocated_memory;
 
@@ -209,34 +209,24 @@ heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
     pool.reserve(POOL_CAPACITY); // Pre-allocate pool capacity to avoid reallocations
 }
 
-heap_tracker_t::~heap_tracker_t()
-{
-    // Delete all traceback objects before map is destroyed
-    for (auto& [key, tb] : allocs_m) {
-        delete tb;
-    }
-}
-
 void
 heap_tracker_t::untrack_no_cpython(void* ptr)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
-    // Find and remove the traceback from the map
-    auto it = allocs_m.find(ptr);
-    if (it == allocs_m.end()) {
+    auto node = allocs_m.extract(ptr);
+    if (node.empty()) {
         return;
     }
-
-    traceback_t* tb = it->second;
-    allocs_m.erase(it);
+    
+    std::unique_ptr<traceback_t> tb = std::move(node.mapped());
     if (tb && !tb->reported) {
         /* If the sample hasn't been reported yet, set heap size to zero and export it */
         tb->sample.reset_heap();
         tb->sample.export_sample();
         tb->reported = true;
     }
-    pool_put(std::unique_ptr<traceback_t>(tb)); // Safe to call with nullptr
+    pool_put(std::move(tb));
 }
 
 bool
@@ -264,12 +254,12 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
 }
 
 void
-heap_tracker_t::add_sample_no_cpython(void* ptr, traceback_t* tb)
+heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
     // Try to insert the new value
-    auto [it, inserted] = allocs_m.insert({ ptr, tb });
+    auto [it, inserted] = allocs_m.insert({ ptr, std::move(tb) });
 
     if (!inserted) {
         // Key already existed, replace the value
@@ -278,14 +268,14 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, traceback_t* tb)
          * Export the previous entry if it hasn't been reported yet, then delete it and
          * replace it with the new value. */
         assert(false && "add_sample: found existing entry for key that should have been removed");
-        traceback_t* prev = it->second;
+        std::unique_ptr<traceback_t> prev = std::move(it->second);
         if (prev && !prev->reported) {
             /* If the sample hasn't been reported yet, export it before returning to pool */
             prev->sample.export_sample();
             prev->reported = true;
         }
-        it->second = tb;
-        heap_pool_put_traceback(std::unique_ptr<traceback_t>(prev));
+        it->second = std::move(tb);
+        pool_put(std::move(prev));
     }
 
     /* Reset the counter to 0 */
@@ -301,9 +291,7 @@ heap_tracker_t::export_heap_no_cpython()
     memalloc_gil_debug_guard_t guard(gil_guard);
 
     /* Iterate over live samples and mark them as reported */
-    for (const auto& pair : allocs_m) {
-        traceback_t* tb = pair.second;
-
+    for (const auto& [ptr, tb] : allocs_m) {
         if (tb->reported) {
             tb->sample.reset_alloc();
         }
@@ -408,7 +396,7 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
 
     // Check that instance is still valid after GIL release in constructor
     if (heap_tracker_t::instance) {
-        heap_tracker_t::instance->add_sample_no_cpython(ptr, tb.release());
+        heap_tracker_t::instance->add_sample_no_cpython(ptr, std::move(tb));
     }
     // If instance is gone, tb's unique_ptr automatically deletes the traceback
 }
