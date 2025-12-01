@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    langchain: Adds support for tracing ``RunnableLambda`` instances.
+  - |
+    LLM Observability: Adds support for tracing ``RunnableLambda`` langchain instances, adding span links appropriately for to power execution graph visualizations.
