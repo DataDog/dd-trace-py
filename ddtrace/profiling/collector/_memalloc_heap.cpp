@@ -218,7 +218,7 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
     if (node.empty()) {
         return;
     }
-    
+
     std::unique_ptr<traceback_t> tb = std::move(node.mapped());
     if (tb && !tb->reported) {
         /* If the sample hasn't been reported yet, set heap size to zero and export it */
@@ -259,7 +259,7 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
     memalloc_gil_debug_guard_t guard(gil_guard);
 
     auto [it, inserted] = allocs_m.insert_or_assign(ptr, std::move(tb));
-    
+
     /* This should always be a new insertion. If not, we failed to properly untrack a previous allocation. */
     assert(inserted && "add_sample: found existing entry for key that should have been removed");
 
