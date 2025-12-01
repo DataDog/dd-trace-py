@@ -35,7 +35,13 @@
       "mcp__github__get_pull_request_review_comments",
       "mcp__github__pull_request_read",
       "Skill(run-tests)",
-      "Skill(lint)"
+      "Skill(lint)",
+      "Bash(cat:*)",
+      "Bash(git describe:*)",
+      "Bash(sed:*)",
+      "Bash(gh:*)",
+      "Bash(chmod:*)",
+      "Bash(scripts/get_active_branches.py)"
     ],
     "deny": []
   }
