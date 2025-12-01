@@ -319,8 +319,14 @@ push_frame_to_sample(Datadog::Sample& sample, PyCodeObject* code, int lineno_val
     PyObject* filename_bytes = nullptr;
 
     if (code != NULL) {
-        if (code->co_name) {
-            name_bytes = PyUnicode_AsUTF8String(code->co_name);
+#if defined(_PY311_AND_LATER)
+        // Python 3.11+ has co_qualname which provides fully qualified names (e.g., "MyClass.method")
+        PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
+#else
+        PyObject* name_obj = code->co_name;
+#endif
+        if (name_obj) {
+            name_bytes = PyUnicode_AsUTF8String(name_obj);
             if (name_bytes) {
                 const char* name_ptr = PyBytes_AsString(name_bytes);
                 if (name_ptr) {
