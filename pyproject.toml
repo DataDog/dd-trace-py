@@ -1,7 +1,7 @@
 [build-system]
 requires = [
     "cython",
-    "cmake>=3.24.2,<3.28; python_version>='3.8'",
+    "cmake>=3.24.2,<3.28",
     "setuptools-rust<2",
     "patchelf>=0.17.0.0; sys_platform == 'linux'",
 ]
@@ -22,7 +22,6 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
