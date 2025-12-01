@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Dict
 from typing import Optional
 
@@ -16,7 +17,6 @@ from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
-from ddtrace.internal.compat import Path
 from ddtrace.internal.logger import get_logger
 
 

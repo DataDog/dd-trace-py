@@ -29,7 +29,6 @@
 #include <functional>
 
 #include <echion/cache.h>
-#include <echion/mojo.h>
 #if PY_VERSION_HEX >= 0x030b0000
 #include <echion/stack_chunk.h>
 #endif // PY_VERSION_HEX >= 0x030b0000
@@ -69,7 +68,6 @@ class Frame
     }
     Frame(StringTable::Key name)
       : name(name) {};
-    Frame(PyObject* frame);
     [[nodiscard]] static Result<Frame::Ptr> create(PyCodeObject* code, int lasti);
 
 #if PY_VERSION_HEX >= 0x030b0000
@@ -80,13 +78,11 @@ class Frame
 #endif
 
     [[nodiscard]] static Result<std::reference_wrapper<Frame>> get(PyCodeObject* code_addr, int lasti);
-    static Frame& get(PyObject* frame);
     static Frame& get(StringTable::Key name);
 
   private:
     [[nodiscard]] Result<void> inline infer_location(PyCodeObject* code, int lasti);
     static inline Key key(PyCodeObject* code, int lasti);
-    static inline Key key(PyObject* frame);
 };
 
 inline auto INVALID_FRAME = Frame(StringTable::INVALID);
