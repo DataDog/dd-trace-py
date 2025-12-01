@@ -22,7 +22,7 @@ from ddtrace.appsec._iast.taint_sinks.insecure_cookie import patch as patch_inse
 from ddtrace.appsec._iast.taint_sinks.unvalidated_redirect import patch as patch_unvalidated_redirect
 from ddtrace.appsec._iast.taint_sinks.xss import patch as patch_xss_injection
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.appsec.iast.iast_utils import load_iast_report
 from tests.appsec.integrations.flask_tests.utils import flask_version
@@ -2080,9 +2080,9 @@ Lorem Ipsum Foobar
                         list_vulnerabilities.append(vuln["location"]["line"])
                 else:
                     assert loaded is None
-            assert (
-                len(list_vulnerabilities) == 16
-            ), f"Num vulnerabilities: ({len(list_vulnerabilities)}): {list_vulnerabilities}"
+            assert len(list_vulnerabilities) == 16, (
+                f"Num vulnerabilities: ({len(list_vulnerabilities)}): {list_vulnerabilities}"
+            )
 
 
 class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):

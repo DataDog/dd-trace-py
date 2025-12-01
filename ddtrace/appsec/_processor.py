@@ -2,7 +2,6 @@ import dataclasses
 import errno
 from json.decoder import JSONDecodeError
 import os
-import os.path
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import ClassVar
@@ -43,7 +42,7 @@ from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.remoteconfig import PayloadType
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)

@@ -1,5 +1,6 @@
 #include "sampler.hpp"
 
+#include "dd_wrapper/include/ddup_interface.hpp"
 #include "thread_span_links.hpp"
 
 #include "echion/errors.h"
@@ -154,9 +155,14 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // Perform the sample
         for_each_interp([&](InterpreterInfo& interp) -> void {
             for_each_thread(interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
-                (void)thread.sample(interp.id, tstate, wall_time_us);
+                auto success = thread.sample(interp.id, tstate, wall_time_us);
+                if (success) {
+                    ddup_increment_sample_count();
+                }
             });
         });
+
+        ddup_increment_sampling_event_count();
 
         if (do_adaptive_sampling) {
             // Adjust the sampling interval at most every second
@@ -222,10 +228,6 @@ _stack_v2_init()
 void
 Sampler::one_time_setup()
 {
-    _set_cpu(true);
-    // By default echion will ignore thread that are not running. We still want
-    // to track them and set cpu time 0, so we disable this behavior.
-    _set_ignore_non_running_threads(false);
     init_frame_cache(echion_frame_cache_size);
 
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.

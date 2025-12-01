@@ -11,9 +11,9 @@ if typing.TYPE_CHECKING:
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack_v2
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import wrap
-from ddtrace.settings.profiling import config
 
 from . import _threading
 
@@ -93,14 +93,12 @@ def _(asyncio: ModuleType) -> None:
     elif hasattr(asyncio.Task, "all_tasks"):
         globals()["all_tasks"] = asyncio.Task.all_tasks
 
-    if hasattr(asyncio.Task, "get_name"):
-        # `get_name` is only available in Python ≥ 3.8
-        globals()["_task_get_name"] = lambda task: task.get_name()
+    globals()["_task_get_name"] = lambda task: task.get_name()
 
     if THREAD_LINK is None:
         THREAD_LINK = _threading._ThreadLink()
 
-    init_stack_v2: bool = config.stack.v2_enabled and stack_v2.is_available
+    init_stack_v2: bool = config.stack.enabled and stack_v2.is_available
 
     @partial(wrap, sys.modules["asyncio.events"].BaseDefaultEventLoopPolicy.set_event_loop)
     def _(f, args, kwargs):
@@ -133,6 +131,19 @@ def _(asyncio: ModuleType) -> None:
 
                 for child in children:
                     stack_v2.link_tasks(parent, child)
+
+        @partial(wrap, sys.modules["asyncio"].tasks._wait)
+        def _(f, args, kwargs):
+            try:
+                return f(*args, **kwargs)
+            finally:
+                futures = typing.cast(typing.Iterable["asyncio.Future"], get_argument_value(args, kwargs, 0, "fs"))
+                loop = typing.cast("asyncio.AbstractEventLoop", get_argument_value(args, kwargs, 3, "loop"))
+
+                # Link the parent gathering task to the gathered children
+                parent: "asyncio.Task" = globals()["current_task"](loop)
+                for future in futures:
+                    stack_v2.link_tasks(parent, future)
 
         _call_init_asyncio(asyncio)
 

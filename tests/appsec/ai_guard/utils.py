@@ -13,7 +13,7 @@ from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.appsec.ai_guard import AIGuardClient
 from ddtrace.appsec.ai_guard._api_client import Message
-from ddtrace.settings.asm import ai_guard_config
+from ddtrace.internal.settings.asm import ai_guard_config
 from tests.utils import DummyTracer
 
 
@@ -29,20 +29,33 @@ def find_ai_guard_span(tracer: DummyTracer) -> Span:
     return span
 
 
-def assert_ai_guard_span(tracer: DummyTracer, messages: List[Message], tags: Dict[str, Any]) -> None:
+def assert_ai_guard_span(
+    tracer: DummyTracer,
+    tags: Dict[str, Any],
+    meta_struct: Dict[str, Any],
+) -> None:
     span = find_ai_guard_span(tracer)
     for tag, value in tags.items():
         assert tag in span.get_tags(), f"Missing {tag} from spans tags"
         assert span.get_tag(tag) == value, f"Wrong value {span.get_tag(tag)}, expected {value}"
     struct = span._get_struct_tag(AI_GUARD.TAG)
-    assert struct["messages"] == messages
+    for meta, value in meta_struct.items():
+        assert meta in struct.keys(), f"Missing {meta} from meta_struct keys"
+        assert struct[meta] == value, f"Wrong value {struct[meta]}, expected {value}"
 
 
-def mock_evaluate_response(action: str, reason: str = "", block: bool = True) -> Mock:
+def mock_evaluate_response(action: str, reason: str = "", tags: List[str] = None, block: bool = True) -> Mock:
     mock_response = Mock()
     mock_response.status = 200
     mock_response.get_json.return_value = {
-        "data": {"attributes": {"action": action, "reason": reason, "is_blocking_enabled": block}}
+        "data": {
+            "attributes": {
+                "action": action,
+                "reason": reason,
+                "tags": tags if tags else [],
+                "is_blocking_enabled": block,
+            }
+        }
     }
     return mock_response
 

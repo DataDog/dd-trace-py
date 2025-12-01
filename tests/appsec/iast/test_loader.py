@@ -6,7 +6,7 @@ from unittest import mock
 
 import ddtrace.appsec._iast._loader
 from ddtrace.internal.iast.product import post_preload
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 ASPECTS_MODULE = "ddtrace.appsec._iast._taint_tracking.aspects"

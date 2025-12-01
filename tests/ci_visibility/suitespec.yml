@@ -12,10 +12,10 @@ components:
     - ddtrace/contrib/internal/pytest_benchmark/*
   selenium:
     - ddtrace/contrib/internal/selenium/*
+  playwright:
+    - ddtrace/contrib/internal/playwright/*
   unittest:
     - ddtrace/contrib/internal/unittest/*
-  freezegun:
-    - ddtrace/contrib/internal/freezegun/*
 suites:
   ci_visibility:
     parallelism: 4
@@ -28,14 +28,12 @@ suites:
       - '@pytest'
       - '@codeowners'
       - '@unittest'
-      - '@freezegun'
-      - '@tracing'
       - tests/ci_visibility/*
       - tests/snapshots/test_api_fake_runners.*
     runner: riot
     snapshot: true
   dd_coverage:
-    parallelism: 5
+    parallelism: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -45,7 +43,7 @@ suites:
     runner: riot
     snapshot: true
   pytest:
-    parallelism: 12
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -55,7 +53,6 @@ suites:
       - '@ci_visibility'
       - '@coverage'
       - '@codeowners'
-      - '@freezegun'
       - tests/contrib/pytest/*
       - tests/contrib/pytest_benchmark/*
       - tests/contrib/pytest_bdd/*
@@ -78,6 +75,19 @@ suites:
       - tests/snapshots/test_selenium*
     runner: riot
     snapshot: true
+  playwright:
+    parallelism: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@ci_visibility'
+      - '@pytest'
+      - '@playwright'
+      - tests/contrib/playwright/*
+    runner: riot
+    snapshot: false
   unittest:
     parallelism: 2
     paths:
@@ -85,8 +95,6 @@ suites:
       - '@unittest'
       - '@ci_visibility'
       - '@coverage'
-      - '@freezegun'
-      - '@tracing'
       - tests/contrib/unittest/*
       - tests/snapshots/tests.contrib.unittest.*
     runner: riot

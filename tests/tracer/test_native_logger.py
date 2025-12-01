@@ -7,6 +7,25 @@ import pytest
 from ddtrace.internal.native._native import logger
 
 
+@pytest.fixture(autouse=True)
+def cleanup_native_logger():
+    """Disable all native logging after the test to avoid unwanted logging in other tests"""
+    yield
+    try:
+        logger.disable("file")
+    except ValueError:
+        # If the logging output has not been enabled the native code returns a value error
+        pass
+    try:
+        logger.disable("stdout")
+    except ValueError:
+        pass
+    try:
+        logger.disable("stderr")
+    except ValueError:
+        pass
+
+
 @pytest.mark.parametrize(
     "output, expected",
     [
@@ -87,9 +106,7 @@ from ddtrace.internal.native._native import logger
 
 message_level = f"{}"
 logger.log(message_level, f"{}")
-    """.format(
-        message_level, message
-    )
+    """.format(message_level, message)
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
 
     assert status == 0

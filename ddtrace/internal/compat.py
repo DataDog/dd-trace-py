@@ -74,11 +74,11 @@ def ip_is_global(ip: str) -> bool:
     return parsed_ip.is_global
 
 
+# This fix was implemented in 3.9.8
+# https://github.com/python/cpython/issues/83860
 if PYTHON_VERSION_INFO >= (3, 9, 8):
     from functools import singledispatchmethod
 else:
-    # This fix was not backported to 3.8
-    # https://github.com/python/cpython/issues/83860
     from functools import singledispatchmethod
 
     def _register(self, cls, method=None):
@@ -87,23 +87,6 @@ else:
         return self.dispatcher.register(cls, func=method)
 
     singledispatchmethod.register = _register  # type: ignore[method-assign]
-
-
-if PYTHON_VERSION_INFO >= (3, 9):
-    from pathlib import Path
-else:
-    from pathlib import Path
-
-    # Taken from Python 3.9. This is not implemented in older versions of Python
-    def is_relative_to(self, other):
-        """Return True if the path is relative to another path or False."""
-        try:
-            self.relative_to(other)
-            return True
-        except ValueError:
-            return False
-
-    Path.is_relative_to = is_relative_to  # type: ignore[assignment]
 
 
 def get_mp_context():

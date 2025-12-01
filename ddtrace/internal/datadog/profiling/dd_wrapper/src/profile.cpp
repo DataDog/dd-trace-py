@@ -1,8 +1,9 @@
 #include "profile.hpp"
 
 #include "libdatadog_helpers.hpp"
+#include "profile_borrow.hpp"
+#include "profiler_stats.hpp"
 
-#include <functional>
 #include <iostream>
 
 #include <fcntl.h>
@@ -55,6 +56,8 @@ Datadog::Profile::reset_profile()
         ddog_Error_drop(&err);
         return false;
     }
+
+    cur_profiler_stats.reset_state();
     return true;
 }
 
@@ -127,11 +130,16 @@ Datadog::Profile::get_sample_type_length()
     return samplers.size();
 }
 
-ddog_prof_Profile&
-Datadog::Profile::profile_borrow()
+Datadog::ProfileBorrow
+Datadog::Profile::borrow()
 {
-    // We could wrap this in an object for better RAII, but since this
-    // sequence is only used in a single place, we'll hold off on that sidequest.
+    return ProfileBorrow(*this);
+}
+
+ddog_prof_Profile&
+Datadog::Profile::profile_borrow_internal()
+{
+    // Note: Caller is responsible for ensuring profile_release() is called
     profile_mtx.lock();
     return cur_profile;
 }
@@ -180,7 +188,7 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
     if (!make_profile(sample_types, &default_period, cur_profile)) {
         if (!already_warned) {
             already_warned = true;
-            std::cerr << "Error initializing profile" << std::endl;
+            std::cerr << "Error initializing cur_profile" << std::endl;
         }
         return;
     }
@@ -219,5 +227,6 @@ Datadog::Profile::postfork_child()
 {
     new (&profile_mtx) std::mutex();
     // Reset the profile to clear any samples collected in the parent process
+    cur_profiler_stats.reset_state();
     reset_profile();
 }

@@ -3,12 +3,12 @@ from ddtrace.ext import SpanTypes  # noqa: F401
 
 
 # ensure the tracer is loaded and started first for possible iast patching
-print(f"ddtrace version {ddtrace.version.get_version()}")
+print(f"ddtrace version {ddtrace.version.__version__}")
 
 
 import pytest  # noqa: E402
 
-from ddtrace.settings.asm import config as asm_config  # noqa: E402
+from ddtrace.internal.settings.asm import config as asm_config  # noqa: E402
 from tests.utils import TracerSpanContainer  # noqa: E402
 from tests.utils import _build_tree  # noqa: E402
 

@@ -6,9 +6,9 @@ from ddtrace._trace.pin import Pin
 from ddtrace.appsec._iast import load_iast
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.contrib.dbapi import TracedCursor
-from ddtrace.settings._config import Config
-from ddtrace.settings.asm import config as asm_config
-from ddtrace.settings.integration import IntegrationConfig
+from ddtrace.internal.settings._config import Config
+from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.integration import IntegrationConfig
 from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.utils import TracerTestCase
@@ -41,13 +41,16 @@ class TestTracedCursor(TracerTestCase):
         from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 
-        with override_global_config(
-            dict(
-                _iast_enabled=True,
-            )
-        ), mock.patch(
-            "ddtrace.appsec._iast.taint_sinks.sql_injection.SqlInjection.report"
-        ) as mock_sql_injection_report:
+        with (
+            override_global_config(
+                dict(
+                    _iast_enabled=True,
+                )
+            ),
+            mock.patch(
+                "ddtrace.appsec._iast.taint_sinks.sql_injection.SqlInjection.report"
+            ) as mock_sql_injection_report,
+        ):
             query = "SELECT * FROM db;"
             query = taint_pyobject(query, source_name="query", source_value=query, source_origin=OriginType.PARAMETER)
 

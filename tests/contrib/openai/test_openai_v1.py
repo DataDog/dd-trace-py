@@ -860,7 +860,7 @@ import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-pin = ddtrace.trace.Pin.get_from(openai)
+pin = ddtrace._trace.pin.Pin.get_from(openai)
 pin.tracer.configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()
@@ -901,7 +901,7 @@ import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-pin = ddtrace.trace.Pin.get_from(openai)
+pin = ddtrace._trace.pin.Pin.get_from(openai)
 pin.tracer.configure(trace_processors=[FilterOrg()])
 async def task():
     with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
@@ -917,16 +917,6 @@ asyncio.run(task())
     assert status == 0, err
     assert out == b""
     assert err == b""
-
-
-@pytest.mark.parametrize("ddtrace_config_openai", [dict(span_prompt_completion_sample_rate=0)])
-def test_embedding_unsampled_prompt_completion(openai, openai_vcr, ddtrace_config_openai, mock_tracer):
-    with openai_vcr.use_cassette("embedding.yaml"):
-        client = openai.OpenAI()
-        client.embeddings.create(input="hello world", model="text-embedding-ada-002")
-    traces = mock_tracer.pop_traces()
-    assert len(traces) == 1
-    assert traces[0][0].get_tag("openai.request.input") is None
 
 
 @pytest.mark.skipif(
@@ -1104,7 +1094,7 @@ import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-pin = ddtrace.trace.Pin.get_from(openai)
+pin = ddtrace._trace.pin.Pin.get_from(openai)
 pin.tracer.configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()

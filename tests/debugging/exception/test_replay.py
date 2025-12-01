@@ -8,7 +8,7 @@ import ddtrace
 from ddtrace.debugging._exception import replay
 from ddtrace.internal.packages import _third_party_packages
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
-from ddtrace.settings.exception_replay import ExceptionReplayConfig
+from ddtrace.internal.settings.exception_replay import ExceptionReplayConfig
 from tests.debugging.mocking import exception_replay
 from tests.utils import TracerTestCase
 from tests.utils import override_third_party_packages
@@ -55,18 +55,6 @@ def test_exception_replay_config_enabled(monkeypatch):
 
     er_config = ExceptionReplayConfig()
     assert er_config.enabled
-
-
-def test_exception_replay_config_enabled_deprecated(monkeypatch):
-    monkeypatch.setenv("DD_EXCEPTION_DEBUGGING_ENABLED", "1")
-
-    er_config = ExceptionReplayConfig()
-    assert er_config.enabled
-
-    monkeypatch.setenv("DD_EXCEPTION_REPLAY_ENABLED", "false")
-
-    er_config = ExceptionReplayConfig()
-    assert not er_config.enabled
 
 
 def test_exception_chain_ident():

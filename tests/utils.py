@@ -29,6 +29,7 @@ from ddtrace import config as dd_config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import core
+from ddtrace.internal import process_tags
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
@@ -40,6 +41,10 @@ from ddtrace.internal.packages import filename_to_package
 from ddtrace.internal.packages import is_third_party
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.schema import SCHEMA_VERSION
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._database_monitoring import dbm_config
+from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
@@ -48,10 +53,6 @@ from ddtrace.internal.writer import NativeWriter
 from ddtrace.propagation._database_monitoring import listen as dbm_config_listen
 from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unlisten
 from ddtrace.propagation.http import _DatadogMultiHeader
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings._database_monitoring import dbm_config
-from ddtrace.settings.asm import config as asm_config
-from ddtrace.settings.openfeature import config as ffe_config
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 from tests.subprocesstest import SubprocessTestCase
@@ -644,6 +645,10 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         spans = DummyWriterMixin.pop(self)
         if self._trace_flush_enabled:
             flush_test_tracer_spans(self)
+        # Stop the writer threads in case the writer is no longer used.
+        # Otherwise we risk accumulating threads and file descriptors causing crashes
+        # In case the writer is used again it will be restarted by native side.
+        self._inner_writer.before_fork()
         return spans
 
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "DummyWriter":
@@ -1615,3 +1620,7 @@ def override_third_party_packages(packages: List[str]):
 
         filename_to_package.cache_clear()
         is_third_party.cache_clear()
+
+
+def process_tag_reload():
+    process_tags.process_tags, process_tags.process_tags_list = process_tags.generate_process_tags()

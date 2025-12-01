@@ -8,7 +8,6 @@ EXCLUDED_FROM_TESTING = {
     "asgi",
     "wsgi",
     "boto",
-    "aioredis",
     "pytest_bdd",
     "urllib",
     "webbrowser",
@@ -18,6 +17,7 @@ EXCLUDED_FROM_TESTING = {
     "dbapi",
     "dbapi_async",
     "selenium",
+    "playwright",
 }
 
 DEPENDENCY_TO_INTEGRATION_MAPPING_SPECIAL_CASES = {

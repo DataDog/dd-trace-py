@@ -52,15 +52,15 @@ def assert_coverage_matches(actual_coverage, expected_coverage, file_level_mode,
 
         actual_files = set(actual_coverage.keys())
 
-        assert (
-            actual_files == expected_files
-        ), f"{context_prefix}File coverage mismatch: expected={expected_files} vs actual={actual_files}"
+        assert actual_files == expected_files, (
+            f"{context_prefix}File coverage mismatch: expected={expected_files} vs actual={actual_files}"
+        )
 
         # Verify each file has some coverage
         for file_path in expected_files:
             assert len(actual_coverage[file_path]) > 0, f"{context_prefix}File {file_path} has no coverage data"
     else:
         # Line-level mode: compare actual line numbers
-        assert (
-            actual_coverage == expected_coverage
-        ), f"{context_prefix}Line coverage mismatch: expected={expected_coverage} vs actual={actual_coverage}"
+        assert actual_coverage == expected_coverage, (
+            f"{context_prefix}Line coverage mismatch: expected={expected_coverage} vs actual={actual_coverage}"
+        )

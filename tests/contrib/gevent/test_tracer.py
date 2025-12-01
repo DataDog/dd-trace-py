@@ -2,7 +2,6 @@ import subprocess  # noqa:I001
 
 import gevent
 import gevent.pool
-from opentracing.scope_managers.gevent import GeventScopeManager
 
 import ddtrace
 from ddtrace.constants import ERROR_MSG
@@ -11,7 +10,6 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.trace import Context
 from ddtrace.contrib.internal.gevent.patch import patch
 from ddtrace.contrib.internal.gevent.patch import unpatch
-from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 
 from .utils import silence_errors
@@ -353,34 +351,6 @@ class TestGeventTracer(TracerTestCase):
                 gevent.sleep(0.01)
 
         gevent.spawn(entrypoint).join()
-        spans = self.pop_spans()
-        self._assert_spawn_multiple_greenlets(spans)
-
-    def test_trace_spawn_multiple_greenlets_multiple_traces_ot(self):
-        """OpenTracing version of the same test."""
-
-        ot_tracer = init_tracer("my_svc", self.tracer, scope_manager=GeventScopeManager())
-
-        def entrypoint():
-            with ot_tracer.start_active_span("greenlet.main") as span:
-                span.resource = "base"
-                jobs = [gevent.spawn(green_1), gevent.spawn(green_2)]
-                gevent.joinall(jobs)
-
-        def green_1():
-            with self.tracer.trace("greenlet.worker1") as span:
-                span.set_tag("worker_id", "1")
-                gevent.sleep(0.01)
-
-        # note that replacing the `tracer.trace` call here with the
-        # OpenTracing equivalent will cause the checks to fail
-        def green_2():
-            with ot_tracer.start_active_span("greenlet.worker2") as scope:
-                scope.span.set_tag("worker_id", "2")
-                gevent.sleep(0.01)
-
-        gevent.spawn(entrypoint).join()
-
         spans = self.pop_spans()
         self._assert_spawn_multiple_greenlets(spans)
 

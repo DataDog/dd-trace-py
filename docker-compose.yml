@@ -182,10 +182,10 @@ services:
 
     testrunner:
         # DEV uncomment to test local changes to the Dockerfile
-        # build:
-        #  context: ./docker
-        #  dockerfile: Dockerfile
-        image: ghcr.io/datadog/dd-trace-py/testrunner:1717b70091ae646ec3ee29a5cb77158a82209aa3@sha256:aac6cacc68517874da310d5ea78a967f34af8388af5c6621aba77a73c4757657
+        build:
+          context: ./docker
+          dockerfile: Dockerfile
+        # image: ghcr.io/datadog/dd-trace-py/testrunner:1717b70091ae646ec3ee29a5cb77158a82209aa3@sha256:aac6cacc68517874da310d5ea78a967f34af8388af5c6621aba77a73c4757657
         command: bash
         environment:
           DD_FAST_BUILD: "1"

@@ -1,5 +1,6 @@
-#ifndef _DDTRACE_MEMALLOC_PYMACRO
-#define _DDTRACE_MEMALLOC_PYMACRO
+#pragma once
+
+#include <Python.h>
 
 #if PY_VERSION_HEX >= 0x030c0000
 #define _PY312_AND_LATER
@@ -19,6 +20,4 @@
 
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION == 8
 #define _PY38
-#endif
-
 #endif

@@ -1,7 +1,8 @@
 """
 This is the entry point for the Error Tracking automatic reporting of handled exception.
 """
-from ddtrace.settings.errortracking import config
+
+from ddtrace.internal.settings.errortracking import config
 
 
 requires = ["tracer"]

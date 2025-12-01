@@ -42,7 +42,7 @@ from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_pa
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.xss import patch as xss_patch
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)

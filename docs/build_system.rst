@@ -41,13 +41,13 @@ To see the current build dependencies, check the `[build-system]` section in the
 .. code-block:: toml
 
     [build-system]
-    requires = ["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28; python_version>='3.8'", "setuptools-rust<2"]
+    requires = ["cython", "cmake>=3.24.2,<3.28; python_version>='3.8'", "setuptools-rust<2"]
 
 To install all dependencies in one step, use:
 
 .. code-block:: bash
 
-    pip install 'setuptools_scm[toml]>=4' 'cython' 'cmake>=3.24.2,<3.28' 'setuptools-rust<2'
+    pip install 'cython' 'cmake>=3.24.2,<3.28' 'setuptools-rust<2'
 
 Note that `pip install -e` (described below) also installs these build dependencies automatically.
 
@@ -182,6 +182,13 @@ These environment variables modify aspects of the build process.
 
     version_added:
         v3.3.0:
+
+  DD_CYTHONIZE:
+    type: Boolean
+    default: True
+    description: |
+      If enabled, then Cython extensions are included in the build. Disabling will exclude them.
+      This is mostly useful for source distribution builds so we can skip calling ``cythonize`` on source files.
 
   DD_FAST_BUILD:
     type: Boolean

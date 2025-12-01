@@ -1,10 +1,12 @@
 from dataclasses import dataclass
 from itertools import count
+from pathlib import Path
 import sys
 from threading import current_thread
 from time import monotonic_ns
 from types import FrameType
 from types import FunctionType
+from types import MethodType
 import typing as t
 import uuid
 
@@ -20,13 +22,12 @@ from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.ext import EXIT_SPAN_TYPES
-from ddtrace.internal.compat import Path
 from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.safety import _isinstance
+from ddtrace.internal.settings.code_origin import config as co_config
 from ddtrace.internal.wrapping.context import WrappingContext
-from ddtrace.settings.code_origin import config as co_config
 from ddtrace.trace import Span
 
 
@@ -210,8 +211,11 @@ class SpanCodeOriginProcessorEntry:
     _lock = Lock()
 
     @classmethod
-    def instrument_view(cls, f):
+    def instrument_view(cls, f: t.Union[FunctionType, MethodType]) -> None:
+        if isinstance(f, MethodType):
+            f = t.cast(FunctionType, f.__func__)
         if not _isinstance(f, FunctionType):
+            log.warning("Cannot instrument view %r: not a function", f)
             return
 
         with cls._lock:

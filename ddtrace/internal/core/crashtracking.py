@@ -9,11 +9,12 @@ from ddtrace import config
 from ddtrace import version
 from ddtrace.internal import forksafe
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.process_tags import process_tags
 from ddtrace.internal.runtime import get_runtime_id
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings.crashtracker import config as crashtracker_config
-from ddtrace.settings.profiling import config as profiling_config
-from ddtrace.settings.profiling import config_str
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings.crashtracker import config as crashtracker_config
+from ddtrace.internal.settings.profiling import config as profiling_config
+from ddtrace.internal.settings.profiling import config_str
 
 
 is_available = True
@@ -53,9 +54,11 @@ def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
     runtime_version = platform.python_version()
     if runtime_version:
         tags["runtime_version"] = runtime_version
-    library_version = version.get_version()
+    library_version = version.__version__
     if library_version:
         tags["library_version"] = library_version
+    if process_tags:
+        tags["process_tags"] = process_tags
 
     for k, v in crashtracker_config.tags.items():
         if k and v:
@@ -127,7 +130,7 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
 
     tags = _get_tags(additional_tags)
 
-    metadata = CrashtrackerMetadata("dd-trace-py", version.get_version(), "python", tags)
+    metadata = CrashtrackerMetadata("dd-trace-py", version.__version__, "python", tags)
 
     return config, receiver_config, metadata
 

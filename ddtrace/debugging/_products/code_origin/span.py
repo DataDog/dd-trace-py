@@ -1,12 +1,14 @@
 import enum
 from functools import partial
+from types import FunctionType
+from types import MethodType
 import typing as t
 
 import ddtrace.internal.core as core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.products import manager as product_manager
-from ddtrace.settings._core import ValueSource
-from ddtrace.settings.code_origin import config
+from ddtrace.internal.settings._core import ValueSource
+from ddtrace.internal.settings.code_origin import config
 
 
 log = get_logger(__name__)
@@ -32,7 +34,7 @@ def start():
     # We need to instrument the entrypoints on boot because this is the only
     # time the tracer will notify us of entrypoints being registered.
     @partial(core.on, "service_entrypoint.patch")
-    def _(f: t.Callable) -> None:
+    def _(f: t.Union[FunctionType, MethodType]) -> None:
         from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 
         SpanCodeOriginProcessorEntry.instrument_view(f)

@@ -16,6 +16,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -26,6 +27,7 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import safe_load_json
@@ -626,32 +628,38 @@ def _openai_parse_input_response_messages(
     return processed, tool_call_ids
 
 
-def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Message]:
+def openai_get_output_messages_from_response(
+    response: Optional[Any], integration: Any = None
+) -> Tuple[List[Message], List[ToolDefinition]]:
     """
-    Parses the output to openai responses api into a list of output messages
+    Parses the output to openai responses api into a list of output messages and a list of
+    MCP tool definitions returned from the MCP server.
 
     Args:
         response: An OpenAI response object or dictionary containing output messages
 
     Returns:
         - A list of processed messages
+        - A list of MCP tool definitions
     """
     if not response:
-        return []
+        return [], []
 
     messages = _get_attr(response, "output", [])
     if not messages:
-        return []
+        return [], []
 
-    processed_messages, _ = _openai_parse_output_response_messages(messages)
+    processed_messages, _, mcp_tool_definitions = _openai_parse_output_response_messages(messages, integration)
 
-    return processed_messages
+    return processed_messages, mcp_tool_definitions
 
 
-def _openai_parse_output_response_messages(messages: List[Any]) -> Tuple[List[Message], List[ToolCall]]:
+def _openai_parse_output_response_messages(
+    messages: List[Any], integration: Any = None
+) -> Tuple[List[Message], List[ToolCall], List[ToolDefinition]]:
     """
     Parses output messages from the openai responses api into a list of processed messages
-    and a list of tool call outputs.
+    and a list of tool call outputs and a list of MCP tool definitions.
 
     Args:
         messages: A list of output messages
@@ -662,6 +670,7 @@ def _openai_parse_output_response_messages(messages: List[Any]) -> Tuple[List[Me
     """
     processed: List[Message] = []
     tool_call_outputs: List[ToolCall] = []
+    mcp_tool_definitions: List[ToolDefinition] = []
 
     for item in messages:
         message: Message = Message()
@@ -705,12 +714,41 @@ def _openai_parse_output_response_messages(messages: List[Any]) -> Tuple[List[Me
                     "role": "assistant",
                 }
             )
+        elif message_type == "mcp_call":
+            call_id = str(_get_attr(item, "id", ""))
+            name = str(_get_attr(item, "name", ""))
+            raw_arguments = _get_attr(item, "arguments", OAI_HANDOFF_TOOL_ARG)
+            arguments = safe_load_json(str(raw_arguments))
+            output = str(_get_attr(item, "output", ""))
+            tool_call_info = ToolCall(
+                tool_id=call_id,
+                arguments=arguments,
+                name=name,
+                type=str(message_type),
+            )
+            tool_call_outputs.append(tool_call_info)
+            tool_result_info = ToolResult(
+                name=name,
+                result=output,
+                tool_id=call_id,
+                type="mcp_tool_result",
+            )
+            message.update(
+                {
+                    "tool_calls": [tool_call_info],
+                    "tool_results": [tool_result_info],
+                    "role": "assistant",
+                }
+            )
+        elif message_type == "mcp_list_tools":
+            mcp_tool_definitions.extend(_openai_get_tool_definitions(_get_attr(item, "tools", [])))
+            continue
         else:
             message.update({"content": str(item), "role": "assistant"})
 
         processed.append(message)
 
-    return processed, tool_call_outputs
+    return processed, tool_call_outputs, mcp_tool_definitions
 
 
 def openai_get_metadata_from_response(
@@ -738,9 +776,80 @@ def openai_get_metadata_from_response(
     return metadata
 
 
-def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], response: Optional[Any]) -> None:
+def _extract_chat_template_from_instructions(
+    instructions: List[Any], variables: Dict[str, Any]
+) -> List[Dict[str, str]]:
+    """
+    Extract a chat template from OpenAI response instructions by replacing variable values with placeholders.
+
+    Args:
+        instructions: List of instruction messages from the OpenAI response
+        variables: Dictionary of variables used in the prompt
+
+    Returns:
+        List of chat template messages with placeholders (e.g., {{variable_name}})
+    """
+    chat_template = []
+
+    # Create a mapping of variable values to placeholder names
+    value_to_placeholder = {}
+    for var_name, var_value in variables.items():
+        if hasattr(var_value, "text"):  # ResponseInputText
+            value_str = str(var_value.text)
+        else:
+            value_str = str(var_value)
+
+        # Skip empty values
+        if not value_str:
+            continue
+
+        value_to_placeholder[value_str] = f"{{{{{var_name}}}}}"
+
+    # Sort by length (longest first) to handle overlapping values correctly
+    sorted_values = sorted(value_to_placeholder.keys(), key=len, reverse=True)
+
+    for instruction in instructions:
+        role = _get_attr(instruction, "role", "")
+        if not role:
+            continue
+
+        content_items = _get_attr(instruction, "content", [])
+        if not content_items:
+            continue
+
+        text_parts = []
+        for content_item in content_items:
+            text = _get_attr(content_item, "text", "")
+            if text:
+                text_parts.append(str(text))
+
+        if not text_parts:
+            continue
+
+        full_text = "".join(text_parts)
+
+        # Replace variable values with placeholders (longest first)
+        for value_str in sorted_values:
+            placeholder = value_to_placeholder[value_str]
+            full_text = full_text.replace(value_str, placeholder)
+
+        chat_template.append({"role": role, "content": full_text})
+
+    return chat_template
+
+
+def openai_set_meta_tags_from_response(
+    span: Span, kwargs: Dict[str, Any], response: Optional[Any], integration: Any = None
+) -> None:
     """Extract input/output tags from response and set them as temporary "_ml_obs.meta.*" tags."""
     input_data = kwargs.get("input", [])
+
+    # For reusable prompts, input may not be in kwargs, extract from response.instructions
+    if not input_data and response and "prompt" in kwargs:
+        instructions = _get_attr(response, "instructions", [])
+        if instructions:
+            input_data = load_data_value(instructions)
+
     input_messages = openai_get_input_messages_from_response_input(input_data)
 
     if "instructions" in kwargs:
@@ -753,6 +862,25 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
         }
     )
 
+    if "prompt" in kwargs:
+        prompt_data = kwargs.get("prompt")
+        if prompt_data:
+            try:
+                # Extract chat_template from response instructions if available
+                if response and not prompt_data.get("chat_template") and not prompt_data.get("template"):
+                    instructions = _get_attr(response, "instructions", None)
+                    variables = prompt_data.get("variables", {})
+                    if instructions and variables:
+                        chat_template = _extract_chat_template_from_instructions(instructions, variables)
+                        if chat_template:
+                            prompt_data = dict(prompt_data)  # Make a copy to avoid modifying the original
+                            prompt_data["chat_template"] = chat_template
+
+                validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
+                span._set_ctx_item(INPUT_PROMPT, validated_prompt)
+            except (TypeError, ValueError, AttributeError) as e:
+                logger.debug("Failed to validate prompt for OpenAI response: %s", e)
+
     if span.error or not response:
         span._set_ctx_item(OUTPUT_MESSAGES, [Message(content="")])
         return
@@ -761,11 +889,11 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
     metadata = span._get_ctx_item(METADATA) or {}
     metadata.update(openai_get_metadata_from_response(response))
     span._set_ctx_item(METADATA, metadata)
-    output_messages: List[Message] = openai_get_output_messages_from_response(response)
+    output_messages, mcp_tool_definitions = openai_get_output_messages_from_response(response, integration)
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
     tools = _openai_get_tool_definitions(kwargs.get("tools") or [])
-    if tools:
-        span._set_ctx_item(TOOL_DEFINITIONS, tools)
+    if mcp_tool_definitions or tools:
+        span._set_ctx_item(TOOL_DEFINITIONS, tools + mcp_tool_definitions)
 
 
 def _openai_get_tool_definitions(tools: List[Any]) -> List[ToolDefinition]:
@@ -788,12 +916,14 @@ def _openai_get_tool_definitions(tools: List[Any]) -> List[ToolDefinition]:
                 schema=_get_attr(custom_tool, "format", {}),  # format is a dict
             )
         # chat API function access and response API tool access
-        # only handles FunctionToolParam and CustomToolParam for response API for now
+        # only handles FunctionToolParam, CustomToolParam and McpListToolsTool for response API for now
         else:
             tool_definition = ToolDefinition(
                 name=str(_get_attr(tool, "name", "")),
                 description=str(_get_attr(tool, "description", "")),
-                schema=_get_attr(tool, "parameters", {}) or _get_attr(tool, "format", {}),
+                schema=_get_attr(tool, "parameters", {})
+                or _get_attr(tool, "format", {})
+                or _get_attr(tool, "input_schema", {}),
             )
         if not any(tool_definition.values()):
             continue
@@ -1108,19 +1238,20 @@ class OaiSpanAdapter:
         """
         return _openai_parse_input_response_messages(self.input, self.response_system_instructions)
 
-    def llmobs_output_messages(self) -> Tuple[List[Message], List[ToolCall]]:
+    def llmobs_output_messages(self) -> Tuple[List[Message], List[ToolCall], List[ToolDefinition]]:
         """Returns processed output messages for LLM Obs LLM spans.
 
         Returns:
             - A list of processed messages
             - A list of tool calls for span linking purposes
+            - A list of MCP tool definitions
         """
         if not self.response or not self.response.output:
-            return [], []
+            return [], [], []
 
         messages: List[Any] = self.response.output
         if not messages:
-            return [], []
+            return [], [], []
 
         if not isinstance(messages, list):
             messages = [messages]
