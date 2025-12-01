@@ -1,3 +1,7 @@
+variables:
+  REGISTRY_BASE_URL: "registry.ddbuild.io/images/mirror/pypa"
+  IMAGE_TAG: "2025.11.24-1"
+
 .PYTHON_TAGS: &PYTHON_TAGS
   - "cp39-cp39"
   - "cp310-cp310"
@@ -6,8 +10,12 @@
   - "cp313-cp313"
   - "cp314-cp314"
 
-"build manylinux":
-  image: registry.ddbuild.io/images/mirror/pypa/manylinux2014_${IMAGE_ARCH}:2025-04-12-5990e2d
+.LINUX_OS_IMAGES: &LINUX_OS_IMAGES
+  - "manylinux2014"
+  - "musllinux_1_2"
+
+"build linux":
+  image: ${REGISTRY_BASE_URL}/${LINUX_OS_IMAGE}_${IMAGE_ARCH}:${IMAGE_TAG}
   tags: [ "arch:$ARCH_TAG" ]
   stage: package
   parallel:
@@ -15,9 +23,11 @@
     - IMAGE_ARCH: "x86_64"
       ARCH_TAG: "amd64"
       PYTHON_TAG: *PYTHON_TAGS
+      LINUX_OS_IMAGE: *LINUX_OS_IMAGES
     - IMAGE_ARCH: "aarch64"
       ARCH_TAG: "arm64"
       PYTHON_TAG: *PYTHON_TAGS
+      LINUX_OS_IMAGE: *LINUX_OS_IMAGES
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: "24"
     CARGO_BUILD_JOBS: "24"
@@ -25,7 +35,7 @@
     # DEV: Hack to make ASM CMake able to find the Python3 library
     CIBW_BUILD: "1"
   script:
-    - .gitlab/build-wheels-manylinux.sh
+    - .gitlab/scripts/build-wheels-manylinux.sh
 
 download_ddtrace_artifacts:
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
