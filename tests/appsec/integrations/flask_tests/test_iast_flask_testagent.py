@@ -521,6 +521,19 @@ def test_gevent_sensitive_socketpair(server, config, iast_enabled, iast_test_tok
 
 @pytest.mark.parametrize("server, config", _GEVENT_SERVERS_SCENARIOS)
 @pytest.mark.parametrize("iast_enabled", ("true", "false"))
+def test_gevent_sensitive_greenlet(server, config, iast_enabled, iast_test_token):
+    """Validate gevent Greenlet execution under various Gunicorn/gevent configurations."""
+    with server(
+        iast_enabled=iast_enabled, appsec_enabled="false", token=iast_test_token, port=8050, **config
+    ) as context:
+        _, flask_client, pid = context
+        response = flask_client.get("/gevent-greenlet")
+        assert response.status_code == 200
+        assert response.text == "OK:True"
+
+
+@pytest.mark.parametrize("server, config", _GEVENT_SERVERS_SCENARIOS)
+@pytest.mark.parametrize("iast_enabled", ("true", "false"))
 def test_gevent_sensitive_subprocess(server, config, iast_enabled, iast_test_token):
     """Validate subprocess.Popen lifecycle under various Gunicorn/gevent configurations."""
     with server(
