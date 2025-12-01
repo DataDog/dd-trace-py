@@ -14,6 +14,7 @@ from typing import Optional
 from typing import TextIO
 
 from ddtrace import config
+from ddtrace.internal import forksafe
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
@@ -777,6 +778,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._max_payload_size = max_payload_size
         self._test_session_token = test_session_token
 
+        forksafe.register_before_fork(self.before_fork)
+
         self._clients = [client]
         self.dogstatsd = dogstatsd
         self._metrics: Dict[str, int] = defaultdict(int)
@@ -1064,6 +1067,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     ) -> None:
         # FIXME: don't join() on stop(), let the caller handle this
         super(NativeWriter, self)._stop_service()
+        forksafe.unregister_before_fork(self.before_fork)
         self.join(timeout=timeout)
 
     def before_fork(self) -> None:
