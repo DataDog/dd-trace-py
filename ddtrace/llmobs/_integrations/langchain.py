@@ -765,7 +765,9 @@ class LangChainIntegration(BaseLLMIntegration):
             }
         )
 
-    def _llmobs_set_meta_tags_from_runnable_lambda(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
+    def _llmobs_set_meta_tags_from_runnable_lambda(
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any
+    ) -> None:
         inputs = get_argument_value(args, kwargs, 0, "inputs")
 
         span._set_ctx_items(

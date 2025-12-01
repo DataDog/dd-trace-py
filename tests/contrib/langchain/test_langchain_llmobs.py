@@ -3,7 +3,6 @@ import json
 from operator import itemgetter
 import os
 import sys
-from typing import Generator
 
 import mock
 import pytest
@@ -872,14 +871,16 @@ def test_llmobs_runnable_lambda_batch(langchain_core, llmobs_events):
     assert result == [3, 7, 11]
 
     assert len(llmobs_events) == 4
-    
+
     llmobs_events.sort(key=lambda span: span["start_ns"])
 
     # parent should be batch span
     assert llmobs_events[0]["parent_id"] == "undefined"
     assert llmobs_events[0]["name"] == "add_batch"
     assert llmobs_events[0]["meta"]["span"]["kind"] == "task"
-    assert llmobs_events[0]["meta"]["input"]["value"] == json.dumps([{"a": 1, "b": 2}, {"a": 3, "b": 4}, {"a": 5, "b": 6}])
+    assert llmobs_events[0]["meta"]["input"]["value"] == json.dumps(
+        [{"a": 1, "b": 2}, {"a": 3, "b": 4}, {"a": 5, "b": 6}]
+    )
     assert llmobs_events[0]["meta"]["output"]["value"] == json.dumps([3, 7, 11])
 
     # assert all children have batch as the parent
@@ -889,7 +890,7 @@ def test_llmobs_runnable_lambda_batch(langchain_core, llmobs_events):
         assert llmobs_events[i]["parent_id"] == llmobs_events[0]["span_id"]
         assert llmobs_events[i]["name"] == "add"
         assert llmobs_events[i]["meta"]["span"]["kind"] == "task"
-        
+
         input_value = json.loads(llmobs_events[i]["meta"]["input"]["value"])
         output_value = json.loads(llmobs_events[i]["meta"]["output"]["value"])
         assert "a" in input_value
@@ -906,14 +907,16 @@ async def test_llmobs_runnable_lambda_abatch(langchain_core, llmobs_events):
     assert result == [3, 7, 11]
 
     assert len(llmobs_events) == 4
-    
+
     llmobs_events.sort(key=lambda span: span["start_ns"])
 
     # parent should be batch span
     assert llmobs_events[0]["parent_id"] == "undefined"
     assert llmobs_events[0]["name"] == "add_batch"
     assert llmobs_events[0]["meta"]["span"]["kind"] == "task"
-    assert llmobs_events[0]["meta"]["input"]["value"] == json.dumps([{"a": 1, "b": 2}, {"a": 3, "b": 4}, {"a": 5, "b": 6}])
+    assert llmobs_events[0]["meta"]["input"]["value"] == json.dumps(
+        [{"a": 1, "b": 2}, {"a": 3, "b": 4}, {"a": 5, "b": 6}]
+    )
     assert llmobs_events[0]["meta"]["output"]["value"] == json.dumps([3, 7, 11])
 
     # assert all children have batch as the parent
@@ -923,7 +926,7 @@ async def test_llmobs_runnable_lambda_abatch(langchain_core, llmobs_events):
         assert llmobs_events[i]["parent_id"] == llmobs_events[0]["span_id"]
         assert llmobs_events[i]["name"] == "add"
         assert llmobs_events[i]["meta"]["span"]["kind"] == "task"
-        
+
         input_value = json.loads(llmobs_events[i]["meta"]["input"]["value"])
         output_value = json.loads(llmobs_events[i]["meta"]["output"]["value"])
         assert "a" in input_value

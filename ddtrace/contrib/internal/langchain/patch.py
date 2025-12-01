@@ -21,8 +21,6 @@ from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
 
-import inspect
-
 
 log = get_logger(__name__)
 
@@ -636,6 +634,7 @@ def traced_runnable_lambda_invoke(langchain_core, pin, func, instance, args, kwa
     finally:
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="runnable_lambda")
         span.finish()
+
 
 @with_traced_module
 async def traced_runnable_lambda_ainvoke(langchain_core, pin, func, instance, args, kwargs):
