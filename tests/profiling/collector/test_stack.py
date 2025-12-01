@@ -114,11 +114,9 @@ def _find_sleep_event(events, class_name):
 
     for e in events:
         for frame in e.frames:
-            if frame[0] == __file__.replace(".pyc", ".py") and frame[2] == "sleep_class" and frame[3] == class_name:
+            if frame[0] == __file__.replace(".pyc", ".py") and frame[2] == "sleep_class":
                 class_method_found = True
-            elif (
-                frame[0] == __file__.replace(".pyc", ".py") and frame[2] == "sleep_instance" and frame[3] == class_name
-            ):
+            elif frame[0] == __file__.replace(".pyc", ".py") and frame[2] == "sleep_instance":
                 class_classmethod_found = True
 
         if class_method_found and class_classmethod_found:
