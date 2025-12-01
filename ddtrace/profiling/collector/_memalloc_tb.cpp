@@ -213,18 +213,12 @@ push_threadinfo_to_sample(Datadog::Sample& sample)
     }
     // Initialize native_id to thread_id as fallback; will be overwritten below if thread.native_id is available
     int64_t thread_native_id = thread_id;
-    std::string thread_name;
 
-    // Get thread.name attribute
+    // Get thread.name attribute and keep it alive until we use it
     PyObject* name_obj = PyObject_GetAttrString(thread, "name");
-    if (name_obj != NULL && name_obj != Py_None && PyUnicode_Check(name_obj)) {
-        std::string_view name_sv = unicode_to_string_view(name_obj, "");
-        if (!name_sv.empty()) {
-            thread_name = std::string(name_sv);
-        }
-        Py_DECREF(name_obj);
-    } else {
-        Py_XDECREF(name_obj);
+    std::string_view thread_name = "";
+    if (name_obj && name_obj != Py_None && PyUnicode_Check(name_obj)) {
+        thread_name = unicode_to_string_view(name_obj, "");
     }
 
     // Get thread.native_id attribute
@@ -240,8 +234,11 @@ push_threadinfo_to_sample(Datadog::Sample& sample)
 
     Py_DECREF(thread);
 
-    // Push threadinfo to sample with all data
+    // Push threadinfo to sample with all data (name_obj must still be alive here)
     sample.push_threadinfo(thread_id, thread_native_id, thread_name);
+
+    // Now safe to release name_obj since push_threadinfo has copied the string
+    Py_XDECREF(name_obj);
 
     // Error will be restored automatically by error_restorer destructor
 }
