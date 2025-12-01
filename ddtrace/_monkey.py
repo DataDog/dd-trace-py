@@ -1,5 +1,6 @@
 import importlib
 import os
+from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Set
@@ -7,7 +8,6 @@ from typing import Union
 
 from wrapt.importer import when_imported
 
-from ddtrace.internal.compat import Path
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.vendor.debtcollector import deprecate

@@ -278,11 +278,8 @@ class PatchedDistribution(Distribution):
         super().__init__(attrs)
         # Tell ext_hashes about your manually-built Rust artifact
 
-        # setuptools-rust started to support passing extra env vars from 1.11.0
-        # but at the same time dropped support for Python 3.8. So we'd need to
-        # make sure that this env var is set to install the ffi headers in the
-        # right place.
-        os.environ["CARGO_TARGET_DIR"] = str(CARGO_TARGET_DIR)
+        rust_env = os.environ.copy()
+        rust_env["CARGO_TARGET_DIR"] = str(CARGO_TARGET_DIR)
         self.rust_extensions = [
             RustExtension(
                 # The Python import path of your extension:
@@ -293,6 +290,7 @@ class PatchedDistribution(Distribution):
                 binding=Binding.PyO3,
                 debug=COMPILE_MODE.lower() == "debug",
                 features=rust_features,
+                env=rust_env,
             )
         ]
 
@@ -783,26 +781,6 @@ class CustomBuildExt(build_ext):
                     return
                 raise
         else:
-            # For the memalloc extension, dynamically add libdd_wrapper to extra_objects
-            if ext.name == "ddtrace.profiling.collector._memalloc" and CURRENT_OS in ("Linux", "Darwin"):
-                dd_wrapper_suffix: t.Optional[str] = sysconfig.get_config_var("EXT_SUFFIX")
-
-                wrapper_dir: Path
-                if IS_EDITABLE or getattr(self, "inplace", False):
-                    # Editable build: use source directory
-                    wrapper_dir = Path(__file__).parent / "ddtrace" / "internal" / "datadog" / "profiling"
-                else:
-                    # Non-editable build: use build directory
-                    wrapper_dir = (
-                        Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "datadog" / "profiling"
-                    )
-
-                wrapper_path: Path = wrapper_dir / f"libdd_wrapper{dd_wrapper_suffix}"
-                if wrapper_path.exists():
-                    wrapper_path_str: str = str(wrapper_path)
-                    if wrapper_path_str not in ext.extra_objects:
-                        ext.extra_objects.append(wrapper_path_str)
-
             super().build_extension(ext)
 
         if COMPILE_MODE.lower() in ("release", "minsizerel"):
@@ -1180,34 +1158,14 @@ if not IS_PYSTON:
 
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
         if sys.version_info < (3, 14):
+            # Memory profiler now uses CMake to support Abseil dependency
+            MEMALLOC_DIR = HERE / "ddtrace" / "profiling" / "collector"
             ext_modules.append(
-                Extension(
+                CMakeExtension(
                     "ddtrace.profiling.collector._memalloc",
-                    sources=[
-                        "ddtrace/profiling/collector/_memalloc.cpp",
-                        "ddtrace/profiling/collector/_memalloc_tb.cpp",
-                        "ddtrace/profiling/collector/_memalloc_heap.cpp",
-                        "ddtrace/profiling/collector/_memalloc_reentrant.cpp",
-                        "ddtrace/profiling/collector/_memalloc_heap_map.cpp",
-                    ],
-                    include_dirs=[
-                        "ddtrace/internal/datadog/profiling/dd_wrapper/include",
-                    ],
-                    extra_link_args=(
-                        ["-Wl,-rpath,$ORIGIN/../../internal/datadog/profiling", "-latomic"]
-                        if CURRENT_OS == "Linux"
-                        else ["-Wl,-rpath,@loader_path/../../internal/datadog/profiling"]
-                        if CURRENT_OS == "Darwin"
-                        else []
-                    ),
-                    language="c++",
-                    extra_compile_args=(
-                        debug_compile_args
-                        + (["-DNDEBUG"] if not debug_compile_args else ["-UNDEBUG"])
-                        + ["-D_POSIX_C_SOURCE=200809L", "-std=c++20"]
-                        + fast_build_args
-                    ),
-                ),
+                    source_dir=MEMALLOC_DIR,
+                    optional=False,
+                )
             )
 
             ext_modules.append(
@@ -1317,7 +1275,7 @@ setup(
         "clean": CleanLibraries,
         "ext_hashes": ExtensionHashes,
     },
-    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
+    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust<2"],
     ext_modules=ext_modules + cython_exts + get_exts_for("psutil"),
     distclass=PatchedDistribution,
 )
