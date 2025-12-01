@@ -3,6 +3,3 @@
 # Module-level constants
 OFFSET = 10
 MULTIPLIER = 2
-
-
-

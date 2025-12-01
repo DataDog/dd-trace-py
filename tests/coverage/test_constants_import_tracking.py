@@ -193,6 +193,3 @@ def test_constants_module_reinstrumentation():
     assert expected_lines.issubset(
         second_constants
     ), f"Expected constant lines {expected_lines} in second collection, got: {sorted(second_constants)}"
-
-
-
