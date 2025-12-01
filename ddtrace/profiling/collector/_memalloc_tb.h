@@ -6,7 +6,7 @@
 #include <Python.h>
 
 // Include Sample class header to enable calling functions from Sample.cpp
-#include "../../internal/datadog/profiling/dd_wrapper/include/sample.hpp"
+#include "sample.hpp"
 
 class traceback_t
 {
