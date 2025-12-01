@@ -5,7 +5,19 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-def header_injection_sensitive_analyzer(evidence, name_pattern, value_pattern):
+def header_injection_sensitive_analyzer(evidence, name_pattern, value_pattern, query_string_pattern=None):
+    """
+    Header injection sensitive analyzer for evidence redaction.
+
+    Args:
+    - evidence: The evidence to analyze
+    - name_pattern: Pattern for matching sensitive names
+    - value_pattern: Pattern for matching sensitive values
+    - query_string_pattern: Query string obfuscation pattern (unused in header injection analyzer)
+
+    Returns:
+    - list: List of sensitive ranges to redact
+    """
     evidence_value = evidence.value
     sections = evidence_value.split(HEADER_NAME_VALUE_SEPARATOR)
     header_name = sections[0]

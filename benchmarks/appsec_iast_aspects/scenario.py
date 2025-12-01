@@ -39,7 +39,6 @@ def _start_iast_context_and_oce():
 
 def _end_iast_context_and_oce():
     end_iast_context()
-    # oce.release_request()
 
 
 @contextlib.contextmanager

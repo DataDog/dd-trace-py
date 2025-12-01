@@ -1102,6 +1102,35 @@ def test_add_integration_error_log_with_log_collection_disabled(mock_time, telem
         telemetry_config.LOG_COLLECTION_ENABLED = original_value
 
 
+def test_error_log_handler_strips_skipped_suffix(mock_time, telemetry_writer, test_agent_session):
+    """Test that DDTelemetryErrorHandler strips [x skipped] suffix from error messages"""
+    import logging
+
+    ddtrace_logger = logging.getLogger("ddtrace")
+
+    ddtrace_logger.error("Error message [123 skipped]")
+    telemetry_writer.periodic(force_flush=True)
+
+    log_events = test_agent_session.get_events("logs")
+    assert len(log_events) == 1
+
+    logs = log_events[0]["payload"]["logs"]
+    assert len(logs) == 1
+    assert logs[0]["message"] == "Error message"
+
+    test_agent_session.clear()
+
+    ddtrace_logger.error("Normal error message [something]")
+    telemetry_writer.periodic(force_flush=True)
+
+    log_events = test_agent_session.get_events("logs")
+    assert len(log_events) == 1
+
+    logs = log_events[0]["payload"]["logs"]
+    assert len(logs) == 1
+    assert logs[0]["message"] == "Normal error message [something]"
+
+
 @pytest.mark.parametrize(
     "filename, result",
     [

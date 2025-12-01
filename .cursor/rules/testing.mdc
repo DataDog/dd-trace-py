@@ -4,31 +4,32 @@ globs: ["**/*.py", "tests/**/*", "scripts/run-tests"]
 alwaysApply: false
 ---
 
+<!-- ⚠️ EDITOR WARNING ⚠️ -->
+<!-- Don't update this file. If you want to extend the rules and description, -->
+<!-- go to the skill: .claude/skills/run-tests/SKILL.md -->
+
 # Testing and Test Validation
 
 ## Overview
 
 Always use the **`run-tests` skill** for validating code changes. This skill intelligently selects which tests to run based on changed files, avoiding unnecessary long test runs.
 
-**Full documentation:** `.claude/skills/run-tests/SKILL.md`
+## Usage
 
-## Key Principles
+Use the Skill tool with command "run-tests"
 
-1. **Always use the run-tests skill** when testing code changes - it's optimized for intelligent suite discovery
-2. **Never run pytest directly** - bypasses the project's test infrastructure
-3. **Never use `hatch run tests:test`** - doesn't use the suite discovery system
-4. **Minimal venvs for iteration** - run 1-2 venvs initially, expand only if needed
-5. **Use `--dry-run` first** - see what would run before executing
+## Full Documentation
 
-## When Tests Fail
+For complete documentation including:
+- Key principles and best practices
+- How the skill works (5-step process)
+- Venv selection strategies
+- Handling test failures
+- Examples and troubleshooting
 
-1. Review the failure details carefully
-2. Understand what's failing - don't blindly re-run
-3. Make code changes
-4. Re-run with more verbosity if needed
-5. Iterate until tests pass
+See: `.claude/skills/run-tests/SKILL.md`
 
 ## Related
 
-- Full skill documentation: `.claude/skills/run-tests/SKILL.md`
+- Official testing guide: `docs/contributing-testing.rst`
 - Test infrastructure: `tests/suitespec.yml`, `riotfile.py`

@@ -7,7 +7,6 @@ from typing import Literal
 from typing import Optional  # noqa:F401
 from typing import TypedDict
 
-import ddtrace
 from ddtrace import config
 from ddtrace import tracer as ddtracer
 from ddtrace._trace.tracer import Tracer
@@ -19,6 +18,7 @@ from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics_namespaces import MetricTagType
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
+from ddtrace.version import __version__
 
 
 logger = ddlogger.get_logger(__name__)
@@ -74,10 +74,11 @@ class AIGuardClientError(Exception):
 class AIGuardAbortError(Exception):
     """Exception to abort current execution due to security policy."""
 
-    def __init__(self, action: str, reason: str):
+    def __init__(self, action: str, reason: str, tags: Optional[List[str]] = None):
         self.action = action
         self.reason = reason
-        super().__init__(f"AIGuardAbortError(action='{action}', reason='{reason}')")
+        self.tags = tags
+        super().__init__(f"AIGuardAbortError(action='{action}', reason='{reason}', tags='{tags}')")
 
 
 class AIGuardClient:
@@ -99,7 +100,7 @@ class AIGuardClient:
             "Content-Type": "application/json",
             "DD-API-KEY": api_key,
             "DD-APPLICATION-KEY": app_key,
-            "DD-AI-GUARD-VERSION": ddtrace.__version__,
+            "DD-AI-GUARD-VERSION": __version__,
             "DD-AI-GUARD-SOURCE": "SDK",
             "DD-AI-GUARD-LANGUAGE": "python",
         }
@@ -212,7 +213,9 @@ class AIGuardClient:
                     span.set_tag(AI_GUARD.TOOL_NAME_TAG, tool_name)
                 else:
                     span.set_tag(AI_GUARD.TARGET_TAG, "prompt")
-                span._set_struct_tag(AI_GUARD.STRUCT, {"messages": self._messages_for_meta_struct(messages)})
+
+                meta_struct = {"messages": self._messages_for_meta_struct(messages)}
+                span._set_struct_tag(AI_GUARD.STRUCT, meta_struct)
 
                 try:
                     response = self._execute_request(f"{self._endpoint}/evaluate", payload)
@@ -225,6 +228,7 @@ class AIGuardClient:
                         attributes = result["data"]["attributes"]
                         action = attributes["action"]
                         reason = attributes.get("reason", None)
+                        tags = attributes.get("tags", [])
                         blocking_enabled = attributes.get("is_blocking_enabled", False)
                     except Exception as e:
                         value = json.dumps(result, indent=2)[:500]
@@ -240,6 +244,8 @@ class AIGuardClient:
                         )
 
                     span.set_tag(AI_GUARD.ACTION_TAG, action)
+                    if tags:
+                        meta_struct.update({"attack_categories": tags})
                     if reason:
                         span.set_tag(AI_GUARD.REASON_TAG, reason)
                 else:
@@ -260,7 +266,7 @@ class AIGuardClient:
 
                 if should_block:
                     span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
-                    raise AIGuardAbortError(action=action, reason=reason)
+                    raise AIGuardAbortError(action=action, reason=reason, tags=tags)
 
                 return Evaluation(action=action, reason=reason)
 
