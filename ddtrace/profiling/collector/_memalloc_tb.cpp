@@ -77,7 +77,6 @@ traceback_t::init()
         }
         // PyObject_GetAttrString returns new reference, keep it
     }
-
     return true;
 }
 

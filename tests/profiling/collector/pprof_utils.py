@@ -143,7 +143,7 @@ class LockReleaseEvent(LockEvent):
         super().__init__(event_type=LockEventType.RELEASE, *args, **kwargs)
 
 
-def parse_newest_profile(filename_prefix: str) -> pprof_pb2.Profile:
+def parse_newest_profile(filename_prefix: str, assert_samples: bool = True) -> pprof_pb2.Profile:
     """Parse the newest profile that has given filename prefix. The profiler
     outputs profile file with following naming convention:
     <filename_prefix>.<pid>.<counter>.pprof, and in tests, we'd want to parse
@@ -159,7 +159,10 @@ def parse_newest_profile(filename_prefix: str) -> pprof_pb2.Profile:
         serialized_data = dctx.stream_reader(fp).read()
     profile = pprof_pb2.Profile()
     profile.ParseFromString(serialized_data)
-    assert len(profile.sample) > 0, "No samples found in profile"
+
+    if assert_samples:
+        assert len(profile.sample) > 0, "No samples found in profile"
+
     return profile
 
 
@@ -358,6 +361,7 @@ def assert_profile_has_sample(
     profile: pprof_pb2.Profile,
     samples: List[pprof_pb2.Sample],
     expected_sample: StackEvent,
+    print_samples_on_failure: bool = False,
 ) -> None:
     found = False
     for sample in samples:
@@ -369,6 +373,9 @@ def assert_profile_has_sample(
             # flip the flag to print the error message
             if DEBUG_TEST:
                 print(e)
+
+    if not found and print_samples_on_failure:
+        print_all_samples(profile)
 
     assert found, "Expected samples not found in profile " + str(expected_sample.locations)
 

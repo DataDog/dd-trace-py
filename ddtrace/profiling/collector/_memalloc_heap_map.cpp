@@ -8,157 +8,69 @@
 extern void
 heap_pool_put_traceback(std::unique_ptr<traceback_t> tb);
 
-/* Note that the HeapSample tables will, in general, never free their backing
- * memory unless we completely clear them. The table takes 17 bytes per entry: 8
- * for the void* keys, 8 for the traceback* values, and 1 byte per entry for
- * control metadata. Assuming a load factor target of ~50%, meaning our table
- * has roughly twice as many slots as actual entries, then for our default
- * maximum of 2^16 entries the table will be about 2MiB. A table this large
- * would correspond to a program with a ~65GiB live heap with a 1MiB default
- * sampling interval. Most of the memory usage of the profiler will come from
- * the tracebacks themselves, which we _do_ free when we're done with them.
+/* Note that the heap tracking tables will, in general, never free their backing
+ * memory unless we completely clear them. Abseil's flat_hash_map uses approximately
+ * 8 bytes for the key (void*), 8 bytes for the value (traceback_t*), plus metadata.
+ * With a load factor of ~87.5% (Abseil's default), the table is quite efficient.
+ * For our default maximum of 2^16 entries, the table will be roughly 2-3 MiB.
+ * A table this large would correspond to a program with a ~65GiB live heap with
+ * a 1MiB default sampling interval. Most of the memory usage of the profiler will
+ * come from the tracebacks themselves, which we _do_ free when we're done with them.
  */
 
 // memalloc_heap_map implementation
-memalloc_heap_map::memalloc_heap_map()
-  : map(HeapSamples_new(0))
-{
-}
-
 memalloc_heap_map::~memalloc_heap_map()
 {
-    HeapSamples_CIter it = HeapSamples_citer(&map);
-    for (const HeapSamples_Entry* e = HeapSamples_CIter_get(&it); e != nullptr; e = HeapSamples_CIter_next(&it)) {
-        delete e->val; // Directly delete since we're tearing down
+    // Delete all traceback objects before map is destroyed
+    for (auto& [key, tb] : map) {
+        delete tb;
     }
-    HeapSamples_destroy(&map);
-}
-
-size_t
-memalloc_heap_map::size() const
-{
-    return HeapSamples_size(&map);
 }
 
 void
 memalloc_heap_map::insert(void* key, traceback_t* value)
 {
-    HeapSamples_Entry k = { .key = key, .val = value };
-    HeapSamples_Insert res = HeapSamples_insert(&map, &k);
-    if (!res.inserted) {
+    // Try to insert the new value
+    auto [it, inserted] = map.insert({ key, value });
+
+    if (!inserted) {
+        // Key already existed, replace the value
         /* This should not happen. It means we did not properly remove a previously-tracked
          * allocation from the map. Assert to detect if this edge case occurs in practice.
          * Export the previous entry if it hasn't been reported yet, then delete it and
          * replace it with the new value. */
         assert(false && "memalloc_heap_map::insert: found existing entry for key that should have been removed");
-        HeapSamples_Entry* e = HeapSamples_Iter_get(&res.iter);
-        traceback_t* prev = e->val;
+        traceback_t* prev = it->second;
         if (prev && !prev->reported) {
             /* If the sample hasn't been reported yet, export it before returning to pool */
             prev->sample.export_sample();
             prev->reported = true;
         }
-        e->val = value;
+        it->second = value;
         heap_pool_put_traceback(std::unique_ptr<traceback_t>(prev));
     }
-}
-
-bool
-memalloc_heap_map::contains(void* key) const
-{
-    return HeapSamples_contains(&map, &key);
 }
 
 traceback_t*
 memalloc_heap_map::remove(void* key)
 {
-    traceback_t* res = nullptr;
-    HeapSamples_Iter it = HeapSamples_find(&map, &key);
-    HeapSamples_Entry* e = HeapSamples_Iter_get(&it);
-    if (e != nullptr) {
-        res = e->val;
-        /* This erases the entry but won't shrink the table. */
-        HeapSamples_erase_at(it);
+    auto it = map.find(key);
+    if (it == map.end()) {
+        return nullptr;
     }
-    return res;
+
+    traceback_t* result = it->second;
+    map.erase(it);
+    return result;
 }
 
 void
 memalloc_heap_map::destructive_copy_from(memalloc_heap_map& src)
 {
-    HeapSamples_Iter it = HeapSamples_iter(&src.map);
-    for (const HeapSamples_Entry* e = HeapSamples_Iter_get(&it); e != nullptr; e = HeapSamples_Iter_next(&it)) {
-        HeapSamples_insert(&map, e);
-    }
-    /* Can't erase inside the loop or the iterator is invalidated */
-    HeapSamples_clear(&src.map);
-}
+    // Move all entries from src to this map using merge (C++17)
+    // This efficiently transfers ownership without copying
+    map.merge(src.map);
 
-// Iterator implementation
-memalloc_heap_map::iterator::iterator()
-  : iter{}
-{
-}
-
-memalloc_heap_map::iterator::iterator(const memalloc_heap_map& map)
-  : iter(HeapSamples_citer(&map.map))
-{
-}
-
-memalloc_heap_map::iterator&
-memalloc_heap_map::iterator::operator++()
-{
-    const HeapSamples_Entry* e = HeapSamples_CIter_get(&iter);
-    if (!e) {
-        return *this;
-    }
-    HeapSamples_CIter_next(&iter);
-    return *this;
-}
-
-memalloc_heap_map::iterator
-memalloc_heap_map::iterator::operator++(int)
-{
-    iterator tmp = *this;
-    ++(*this);
-    return tmp;
-}
-
-memalloc_heap_map::iterator::value_type
-memalloc_heap_map::iterator::operator*() const
-{
-    const HeapSamples_Entry* e = HeapSamples_CIter_get(&iter);
-    if (!e) {
-        return { nullptr, nullptr };
-    }
-    return { e->key, e->val };
-}
-
-bool
-memalloc_heap_map::iterator::operator==(const iterator& other) const
-{
-    // Compare underlying iterators by their current entry pointers
-    // Note: HeapSamples_CIter doesn't have equality comparison, so we compare
-    // the current entry pointers. Both end iterators will have nullptr entries.
-    const HeapSamples_Entry* e1 = HeapSamples_CIter_get(&iter);
-    const HeapSamples_Entry* e2 = HeapSamples_CIter_get(&other.iter);
-    return e1 == e2;
-}
-
-bool
-memalloc_heap_map::iterator::operator!=(const iterator& other) const
-{
-    return !(*this == other);
-}
-
-memalloc_heap_map::iterator
-memalloc_heap_map::begin() const
-{
-    return iterator(*this);
-}
-
-memalloc_heap_map::iterator
-memalloc_heap_map::end() const
-{
-    return iterator();
+    // Clear any remaining entries in src (shouldn't be any after merge)
+    src.map.clear();
 }
