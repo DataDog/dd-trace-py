@@ -19,6 +19,7 @@ from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PROXY_REQUEST
+from ddtrace.llmobs._constants import REASONING_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
@@ -221,6 +222,13 @@ class OpenAIIntegration(BaseLLMIntegration):
             cached_tokens = _get_attr(prompt_tokens_details, "cached_tokens", None)
             if cached_tokens is not None:
                 metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
+            # Chat completion returns `completion_tokens_details` while responses api returns `output_tokens_details`
+            reasoning_tokens_details = _get_attr(token_usage, "completion_tokens_details", {}) or _get_attr(
+                token_usage, "output_tokens_details", {}
+            )
+            reasoning_tokens = _get_attr(reasoning_tokens_details, "reasoning_tokens", None)
+            if reasoning_tokens is not None:
+                metrics[REASONING_TOKENS_METRIC_KEY] = reasoning_tokens
             return metrics
         elif kwargs.get("stream") and resp is not None:
             prompt_tokens = _compute_prompt_tokens(kwargs.get("prompt", None), kwargs.get("messages", None))
