@@ -2,6 +2,7 @@ import _thread
 import asyncio
 import glob
 import os
+import sys
 import uuid
 
 import pytest
@@ -17,6 +18,8 @@ from tests.profiling.collector.lock_utils import init_linenos
 
 init_linenos(__file__)
 
+PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
+
 
 def test_repr():
     test_collector._test_repr(
@@ -28,7 +31,7 @@ def test_repr():
 @pytest.mark.asyncio
 class TestAsyncioLockCollector:
     def setup_method(self, method):
-        self.test_name = method.__name__
+        self.test_name = method.__qualname__ if PY_311_OR_ABOVE else method.__name__
         self.output_prefix = "/tmp" + os.sep + self.test_name
         self.output_filename = self.output_prefix + "." + str(os.getpid())
 
@@ -64,7 +67,7 @@ class TestAsyncioLockCollector:
             profile,
             expected_acquire_events=[
                 pprof_utils.LockAcquireEvent(
-                    caller_name="test_asyncio_lock_events",
+                    caller_name=self.test_name,
                     filename=os.path.basename(__file__),
                     linenos=linenos,
                     lock_name="lock",
@@ -73,7 +76,7 @@ class TestAsyncioLockCollector:
             ],
             expected_release_events=[
                 pprof_utils.LockReleaseEvent(
-                    caller_name="test_asyncio_lock_events",
+                    caller_name=self.test_name,
                     filename=os.path.basename(__file__),
                     linenos=linenos,
                     lock_name="lock",
@@ -113,14 +116,14 @@ class TestAsyncioLockCollector:
             profile,
             expected_acquire_events=[
                 pprof_utils.LockAcquireEvent(
-                    caller_name="test_asyncio_lock_events_tracer",
+                    caller_name=self.test_name,
                     filename=os.path.basename(__file__),
                     linenos=linenos_1,
                     lock_name="lock",
                     thread_id=expected_thread_id,
                 ),
                 pprof_utils.LockAcquireEvent(
-                    caller_name="test_asyncio_lock_events_tracer",
+                    caller_name=self.test_name,
                     filename=os.path.basename(__file__),
                     linenos=linenos_2,
                     lock_name="lock2",
@@ -130,7 +133,7 @@ class TestAsyncioLockCollector:
                     thread_id=expected_thread_id,
                 ),
                 pprof_utils.LockAcquireEvent(
-                    caller_name="test_asyncio_lock_events_tracer",
+                    caller_name=self.test_name,
                     filename=os.path.basename(__file__),
                     linenos=linenos_3,
                     lock_name="lock_ctx",
@@ -139,7 +142,7 @@ class TestAsyncioLockCollector:
             ],
             expected_release_events=[
                 pprof_utils.LockReleaseEvent(
-                    caller_name="test_asyncio_lock_events_tracer",
+                    caller_name=self.test_name,
                     filename=os.path.basename(__file__),
                     linenos=linenos_1,
                     lock_name="lock",
@@ -149,14 +152,14 @@ class TestAsyncioLockCollector:
                     thread_id=expected_thread_id,
                 ),
                 pprof_utils.LockReleaseEvent(
-                    caller_name="test_asyncio_lock_events_tracer",
+                    caller_name=self.test_name,
                     filename=os.path.basename(__file__),
                     linenos=linenos_2,
                     lock_name="lock2",
                     thread_id=expected_thread_id,
                 ),
                 pprof_utils.LockReleaseEvent(
-                    caller_name="test_asyncio_lock_events_tracer",
+                    caller_name=self.test_name,
                     filename=os.path.basename(__file__),
                     linenos=linenos_3,
                     lock_name="lock_ctx",

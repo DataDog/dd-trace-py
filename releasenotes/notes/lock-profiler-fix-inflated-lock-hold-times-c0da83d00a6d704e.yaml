@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    profiling: This fix resolves a critical issue where the Lock Profiler generated
+    release samples for non-sampled lock acquires, resulting in inflated or negative (when integer overflows)
+    lock hold times (e.g., "3.24k days per minute", "-970 days per minute"). 
+    This affected virtually all customers using sampling rates < 100% (which should be the majority).

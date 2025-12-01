@@ -1,7 +1,6 @@
 import pytest
 
 
-@pytest.mark.xfail(reason="Temporarily marking new tests as xfail until we make them non-flaky")
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_deadlock",
