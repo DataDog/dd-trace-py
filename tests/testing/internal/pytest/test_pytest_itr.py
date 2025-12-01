@@ -201,6 +201,7 @@ class TestITR:
         assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
 
     @pytest.mark.skipif("slipcover" in sys.modules, reason="slipcover is incompatible with ITR code coverage")
+    @pytest.mark.skipif(sys.version_info >= (3, 14), reason="ITR code coverage currently not supported in Python 3.14")
     def test_itr_code_coverage_enabled(self, pytester: Pytester) -> None:
         pytester.makepyfile(
             lib_constants="""
@@ -228,6 +229,7 @@ class TestITR:
         assert covered_files == {"/test_foo.py", "/lib_constants.py"}
 
     @pytest.mark.skipif("slipcover" in sys.modules, reason="slipcover is incompatible with ITR code coverage")
+    @pytest.mark.skipif(sys.version_info >= (3, 14), reason="ITR code coverage currently not supported in Python 3.14")
     def test_itr_code_coverage_disabled(self, pytester: Pytester) -> None:
         pytester.makepyfile(
             lib_constants="""
