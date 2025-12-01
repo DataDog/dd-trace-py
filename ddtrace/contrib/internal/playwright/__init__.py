@@ -4,14 +4,17 @@ Trace the Playwright browser automation library to trace browser requests and en
 Enabling
 ~~~~~~~~
 
-The Playwright integration is enabled by default in test contexts. Use
-:func:`patch()<ddtrace.patch>` to enable the integration::
+The Playwright integration is **automatically enabled** when using pytest with the ``--ddtrace`` flag
+if the ``pytest-playwright`` plugin is detected. No manual patching is required.
+
+To disable automatic instrumentation, set the environment variable::
+
+    DD_TRACE_PLAYWRIGHT_ENABLED=false
+
+For manual patching (outside of pytest contexts), use :func:`patch()<ddtrace.patch>`::
 
     from ddtrace import patch
     patch(playwright=True)
-
-When using pytest, the `--ddtrace-patch-all` flag is required in order for this integration to
-be enabled.
 
 Global Configuration
 ~~~~~~~~~~~~~~~~~~~~
