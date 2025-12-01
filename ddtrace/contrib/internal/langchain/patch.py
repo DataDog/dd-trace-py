@@ -623,6 +623,8 @@ def traced_runnable_lambda_invoke(langchain_core, pin, func, instance, args, kwa
         instance=instance,
     )
 
+    integration.record_instance(instance, span)
+
     result = None
 
     try:
@@ -646,6 +648,8 @@ async def traced_runnable_lambda_ainvoke(langchain_core, pin, func, instance, ar
         interface_type="runnable_lambda",
         instance=instance,
     )
+
+    integration.record_instance(instance, span)
 
     result = None
 
@@ -677,6 +681,8 @@ def traced_runnable_lambda_batch(langchain_core, pin, func, instance, args, kwar
         instance=instance,
     )
 
+    integration.record_instance(instance, span)
+
     result = None
 
     try:
@@ -706,6 +712,8 @@ async def traced_runnable_lambda_abatch(langchain_core, pin, func, instance, arg
         interface_type="runnable_lambda",
         instance=instance,
     )
+
+    integration.record_instance(instance, span)
 
     result = None
 
