@@ -29,11 +29,14 @@ variables:
       PYTHON_TAG: *PYTHON_TAGS
       LINUX_OS_IMAGE: *LINUX_OS_IMAGES
   variables:
-    CMAKE_BUILD_PARALLEL_LEVEL: "24"
-    CARGO_BUILD_JOBS: "24"
+    CMAKE_BUILD_PARALLEL_LEVEL: "12"
+    CARGO_BUILD_JOBS: "12"
     CMAKE_ARGS: "-DNATIVE_TESTING=OFF"
     # DEV: Hack to make ASM CMake able to find the Python3 library
     CIBW_BUILD: "1"
+    KUBERNETES_CPU_REQUEST: "6"
+    KUBERNETES_MEMORY_REQUEST: "4Gi"
+    KUBERNETES_MEMORY_LIMIT: "4Gi"
   script:
     - .gitlab/scripts/build-wheel-manylinux.sh
   artifacts:
