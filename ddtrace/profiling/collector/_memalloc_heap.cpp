@@ -258,30 +258,13 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
-    // Try to insert the new value
-    auto [it, inserted] = allocs_m.insert({ ptr, std::move(tb) });
+    auto [it, inserted] = allocs_m.insert_or_assign(ptr, std::move(tb));
+    
+    /* This should always be a new insertion. If not, we failed to properly untrack a previous allocation. */
+    assert(inserted && "add_sample: found existing entry for key that should have been removed");
 
-    if (!inserted) {
-        // Key already existed, replace the value
-        /* This should not happen. It means we did not properly remove a previously-tracked
-         * allocation from the map. Assert to detect if this edge case occurs in practice.
-         * Export the previous entry if it hasn't been reported yet, then delete it and
-         * replace it with the new value. */
-        assert(false && "add_sample: found existing entry for key that should have been removed");
-        std::unique_ptr<traceback_t> prev = std::move(it->second);
-        if (prev && !prev->reported) {
-            /* If the sample hasn't been reported yet, export it before returning to pool */
-            prev->sample.export_sample();
-            prev->reported = true;
-        }
-        it->second = std::move(tb);
-        pool_put(std::move(prev));
-    }
-
-    /* Reset the counter to 0 */
+    // Get ready for the next sample
     allocated_memory = 0;
-
-    /* Compute the new target sample size */
     current_sample_size = next_sample_size(sample_size);
 }
 
