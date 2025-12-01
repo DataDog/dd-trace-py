@@ -98,4 +98,4 @@ echo -e "\e[0Ksection_end:`date +%s`:test_wheel\r\e[0K"
 
 echo -e "\e[0Ksection_start:`date +%s`:teardown\r\e[0KTearing down"
 sccache --show-stats
-echo -e "\e[0Ksection_end:`date +%s`:teardown\r
+echo -e "\e[0Ksection_end:`date +%s`:teardown\r\e[0K"
