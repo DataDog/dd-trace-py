@@ -94,7 +94,7 @@ def test_data_streams_processor():
         DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="true",
     )
 )
-def test_new_pathway_uses_base_hash():
+def test_new_pathway_uses_containe_tags_hash():
     from ddtrace.internal.datastreams.processor import DataStreamsProcessor
     from ddtrace.internal.process_tags import update_container_tags_hash
 

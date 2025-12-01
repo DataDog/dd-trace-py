@@ -186,7 +186,7 @@ def test_dbm_comment_excludes_container_hash_when_process_tags_disabled():
     from ddtrace.trace import tracer
 
     update_container_tags_hash("abc123")
-    assert process_tags.base_hash == ""
+    assert process_tags.container_tags_hash == ""
 
     with tracer.trace("dbspan", service="orders-db") as dbspan:
         dbm_popagator = _database_monitoring._DBM_Propagator(0, "query")

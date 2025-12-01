@@ -468,7 +468,7 @@ def _mock_raise(ex):
     raise ex
 
 
-def test_process_info_headers_updates_base_hash():
+def test_process_info_headers_updates_container_tags_hash():
     resp = mock.Mock()
     resp.getheader.return_value = "abc123"
     resp.status = 200
@@ -478,11 +478,11 @@ def test_process_info_headers_updates_base_hash():
     conn.getresponse.return_value = resp
 
     with mock.patch("ddtrace.internal.agent.get_connection", return_value=conn):
-        with mock.patch("ddtrace.internal.agent.update_container_tags_hash") as mock_update_base_hash:
+        with mock.patch("ddtrace.internal.agent.update_container_tags_hash") as mock_update_container_hash:
             agent.info()
 
     resp.getheader.assert_called_once_with(agent.CONTAINER_TAGS_HASH)
-    mock_update_base_hash.assert_called_once_with("abc123")
+    mock_update_container_hash.assert_called_once_with("abc123")
 
 
 def test_process_info_headers_missing_header():
@@ -495,11 +495,11 @@ def test_process_info_headers_missing_header():
     conn.getresponse.return_value = resp
 
     with mock.patch("ddtrace.internal.agent.get_connection", return_value=conn):
-        with mock.patch("ddtrace.internal.agent.update_container_tags_hash") as mock_update_base_hash:
+        with mock.patch("ddtrace.internal.agent.update_container_tags_hash") as mock_update_container_hash:
             agent.info()
 
     resp.getheader.assert_called_once_with(agent.CONTAINER_TAGS_HASH)
-    mock_update_base_hash.assert_not_called()
+    mock_update_container_hash.assert_not_called()
 
 
 def test_process_info_headers_handles_errors():
@@ -513,11 +513,11 @@ def test_process_info_headers_handles_errors():
     conn.getresponse.return_value = resp
 
     with mock.patch("ddtrace.internal.agent.get_connection", return_value=conn):
-        with mock.patch("ddtrace.internal.agent.update_container_tags_hash") as mock_update_base_hash:
+        with mock.patch("ddtrace.internal.agent.update_container_tags_hash") as mock_update_container_hash:
             agent.info()
 
     resp.getheader.assert_called_once_with(agent.CONTAINER_TAGS_HASH)
-    mock_update_base_hash.assert_not_called()
+    mock_update_container_hash.assert_not_called()
 
 
 @pytest.mark.parametrize(
