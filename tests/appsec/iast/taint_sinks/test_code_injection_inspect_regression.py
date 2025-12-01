@@ -164,6 +164,29 @@ class TestCodeInjectionInspectSafety:
         data = _get_iast_data()
         assert len(data["vulnerabilities"]) == 1
 
+    def test_eval_no_globals_extraction_on_currentframe_none(self, iast_context_defaults):
+        """
+        Verify that when currentframe returns None, we don't try to access f_back.
+
+        This is the specific bug fix - without the None check, we'd try to access
+        frames.f_back which would raise AttributeError.
+        """
+        code_string = "10 + 20"
+        tainted_string = taint_pyobject(
+            code_string, source_name="path", source_value=code_string, source_origin=OriginType.PATH
+        )
+
+        # Create a mock that explicitly returns None
+        with mock.patch("inspect.currentframe", return_value=None) as mock_frame:
+            result = eval(tainted_string)
+            assert result == 30
+
+            # Verify currentframe was called (attempting to get frame info)
+            assert mock_frame.called
+
+            data = _get_iast_data()
+            assert len(data["vulnerabilities"]) == 1
+
     def test_multiple_eval_calls_with_currentframe_issues(self, iast_context_defaults):
         """
         Test multiple eval calls with various currentframe scenarios.
