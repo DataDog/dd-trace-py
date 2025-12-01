@@ -3,7 +3,7 @@ detached = true
 python = "3.10"
 dependencies = [
     "click==8.1.7",
-    "cython-lint==0.15.0",
+    "cython-lint==0.18.1",
     "codespell==2.4.1",
     "bandit==1.8.2",
     "mypy==1.15.0",

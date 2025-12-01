@@ -153,6 +153,11 @@ def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
             print("Failed to start crashtracker: failed to construct crashtracker configuration", file=sys.stderr)
             return False
 
+        # TODO: Add this back in post Code Freeze (need to update config registry)
+        # crashtracker_init(
+        #     config, receiver_config, metadata, emit_runtime_stacks=crashtracker_config.emit_runtime_stacks
+        # )
+
         crashtracker_init(config, receiver_config, metadata)
 
         def crashtracker_fork_handler():
