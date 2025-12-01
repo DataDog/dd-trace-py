@@ -138,7 +138,13 @@ candidate:
   tags: [ "arch:amd64" ]
   needs:
     - pipeline: $PARENT_PIPELINE_ID
-      job: download_ddtrace_artifacts
+      job: build linux
+      parallel:
+        matrix:
+          - IMAGE_ARCH: "x86_64"
+            ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp30-cp39"
+            LINUX_OS_IMAGE: "manylinux2014"
   script: |
     cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl ./
     echo "CANDIDATE_WHL=$(ls *.whl | head -n 1)" | tee candidate.env
