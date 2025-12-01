@@ -135,8 +135,8 @@ def test_dbm_comment_includes_container_hash_when_deactivated():
     from ddtrace.propagation import _database_monitoring
     from ddtrace.trace import tracer
 
-    process_tags.update_base_hash("abc123")
-    assert process_tags.base_hash == "abc123"
+    process_tags.update_container_tags_hash("abc123")
+    assert process_tags.container_tags_hash == "abc123"
 
     with tracer.trace("dbspan", service="orders-db") as dbspan:
         dbm_popagator = _database_monitoring._DBM_Propagator(0, "query")
@@ -156,11 +156,11 @@ def test_dbm_comment_includes_container_hash_when_deactivated():
     )
 )
 def test_dbm_comment_includes_container_hash_when_enabled():
-    from ddtrace.internal.process_tags import update_base_hash
+    from ddtrace.internal.process_tags import update_container_tags_hash
     from ddtrace.propagation import _database_monitoring
     from ddtrace.trace import tracer
 
-    update_base_hash("abc123")
+    update_container_tags_hash("abc123")
 
     with tracer.trace("dbspan", service="orders-db") as dbspan:
         dbm_popagator = _database_monitoring._DBM_Propagator(0, "query")
@@ -181,11 +181,11 @@ def test_dbm_comment_includes_container_hash_when_enabled():
 )
 def test_dbm_comment_excludes_container_hash_when_process_tags_disabled():
     from ddtrace.internal import process_tags
-    from ddtrace.internal.process_tags import update_base_hash
+    from ddtrace.internal.process_tags import update_container_tags_hash
     from ddtrace.propagation import _database_monitoring
     from ddtrace.trace import tracer
 
-    update_base_hash("abc123")
+    update_container_tags_hash("abc123")
     assert process_tags.base_hash == ""
 
     with tracer.trace("dbspan", service="orders-db") as dbspan:
