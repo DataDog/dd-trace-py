@@ -90,11 +90,10 @@ def test_iter_events():
             __file__,
             _ALLOC_LINE_NUMBER,
             "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
-            "",
         ):
             assert thread_id == threading.main_thread().ident
             if sys.version_info < (3, 12) and len(stack) > 1:
-                assert stack[1] == DDFrame(__file__, _ALLOC_LINE_NUMBER, "_allocate_1k", "")
+                assert stack[1] == DDFrame(__file__, _ALLOC_LINE_NUMBER, "_allocate_1k")
             object_count += sample.count
 
     assert object_count >= 1000
@@ -156,12 +155,11 @@ def test_iter_events_multi_thread():
             __file__,
             _ALLOC_LINE_NUMBER,
             "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
-            "",
         ):
             if thread_id == threading.main_thread().ident:
                 count_object += sample.count
                 if sys.version_info < (3, 12) and len(stack) > 1:
-                    assert stack[1] == DDFrame(__file__, _ALLOC_LINE_NUMBER, "_allocate_1k", "")
+                    assert stack[1] == DDFrame(__file__, _ALLOC_LINE_NUMBER, "_allocate_1k")
             elif thread_id == t.ident:
                 count_thread += sample.count
                 entry = 2 if sys.version_info < (3, 12) else 1
@@ -205,7 +203,6 @@ def _test_heap_impl(collector, max_nframe):
             __file__,
             _ALLOC_LINE_NUMBER,
             "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
-            "",
         ):
             break
     else:
@@ -229,7 +226,6 @@ def _test_heap_impl(collector, max_nframe):
             __file__,
             _ALLOC_LINE_NUMBER,
             "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
-            "",
         ):
             break
     else:
@@ -258,7 +254,6 @@ def _test_heap_impl(collector, max_nframe):
                 __file__,
                 _ALLOC_LINE_NUMBER,
                 "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
-                "",
             )
             and stack[entry].function_name == "_test_heap_impl"
         ):

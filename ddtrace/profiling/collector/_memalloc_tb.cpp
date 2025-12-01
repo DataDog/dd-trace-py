@@ -13,8 +13,6 @@
 /* A string containing "<unknown>" just in case we can't store the real function
  * or file name. */
 static PyObject* unknown_name = NULL;
-/* A string containing "" */
-static PyObject* empty_string = NULL;
 
 #define TRACEBACK_SIZE(NFRAME) (sizeof(traceback_t) + sizeof(frame_t) * (NFRAME - 1))
 
@@ -135,12 +133,6 @@ memalloc_tb_init(uint16_t max_nframe)
         PyUnicode_InternInPlace(&unknown_name);
     }
 
-    if (empty_string == NULL) {
-        empty_string = PyUnicode_FromString("");
-        if (empty_string == NULL)
-            return -1;
-        PyUnicode_InternInPlace(&empty_string);
-    }
     return 0;
 }
 
@@ -297,7 +289,7 @@ traceback_to_tuple(traceback_t* tb)
     PyObject* stack = PyTuple_New(tb->nframe);
 
     for (uint16_t nframe = 0; nframe < tb->nframe; nframe++) {
-        PyObject* frame_tuple = PyTuple_New(4);
+        PyObject* frame_tuple = PyTuple_New(3);
 
         frame_t* frame = &tb->frames[nframe];
 
@@ -306,9 +298,6 @@ traceback_to_tuple(traceback_t* tb)
         PyTuple_SET_ITEM(frame_tuple, 1, PyLong_FromUnsignedLong(frame->lineno));
         Py_INCREF(frame->name);
         PyTuple_SET_ITEM(frame_tuple, 2, frame->name);
-        /* Class name */
-        Py_INCREF(empty_string);
-        PyTuple_SET_ITEM(frame_tuple, 3, empty_string);
 
         // Try to set the class.  If we cannot (e.g., if the sofile is reloaded
         // without module initialization), then this will result in an error if
