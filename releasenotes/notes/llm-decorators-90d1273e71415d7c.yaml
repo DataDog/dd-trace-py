@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: introduce generic `trace` decorator to capture generic operations and ease the onboarding for new users.
