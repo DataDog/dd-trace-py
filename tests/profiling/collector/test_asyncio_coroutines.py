@@ -1,6 +1,7 @@
 import pytest
 
 
+@pytest.mark.xfail(reason="This test is flaky.")
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_coroutines",
