@@ -147,12 +147,30 @@ traceback_t::deinit()
     // Error will be restored automatically by error_restorer destructor
 }
 
+/* Helper function to convert PyUnicode object to string_view
+ * Returns the string_view pointing to internal UTF-8 representation, or fallback if conversion fails
+ * The pointer remains valid as long as the PyObject is alive */
+static std::string_view
+unicode_to_string_view(PyObject* unicode_obj, std::string_view fallback = "<unknown>")
+{
+    if (unicode_obj == NULL) {
+        return fallback;
+    }
+
+    Py_ssize_t len;
+    const char* ptr = PyUnicode_AsUTF8AndSize(unicode_obj, &len);
+    if (ptr) {
+        return std::string_view(ptr, len);
+    }
+    return fallback;
+}
+
 /* Helper function to get thread native_id and name from Python's threading module
  * and push threadinfo to the sample.
  *
  * NOTE: This is called during traceback construction, which happens during allocation
  * tracking. We're already inside a reentrancy guard and GC is disabled, so it's safe
- * to call Python functions here (similar to how we call PyUnicode_AsUTF8String for frames).
+ * to call Python functions here (similar to how we call PyUnicode_AsUTF8AndSize for frames).
  */
 static void
 push_threadinfo_to_sample(Datadog::Sample& sample)
@@ -200,18 +218,11 @@ push_threadinfo_to_sample(Datadog::Sample& sample)
     // Get thread.name attribute
     PyObject* name_obj = PyObject_GetAttrString(thread, "name");
     if (name_obj != NULL && name_obj != Py_None && PyUnicode_Check(name_obj)) {
-        PyObject* name_bytes = PyUnicode_AsUTF8String(name_obj);
-        Py_DECREF(name_obj);
-        if (name_bytes != NULL) {
-            const char* name_ptr = PyBytes_AsString(name_bytes);
-            if (name_ptr != NULL) {
-                Py_ssize_t name_len = PyBytes_Size(name_bytes);
-                thread_name = std::string(name_ptr, name_len);
-            }
-            Py_DECREF(name_bytes);
-        } else {
-            PyErr_Clear();
+        std::string_view name_sv = unicode_to_string_view(name_obj, "");
+        if (!name_sv.empty()) {
+            thread_name = std::string(name_sv);
         }
+        Py_DECREF(name_obj);
     } else {
         Py_XDECREF(name_obj);
     }
@@ -260,53 +271,19 @@ extract_frame_info_from_pyframe(PyFrameObject* frame, PyCodeObject** code_out, i
 static void
 push_frame_to_sample(Datadog::Sample& sample, PyCodeObject* code, int lineno_val)
 {
-    // Extract frame info for Sample
-    // Create string_views directly from bytes buffers, push_frame copies them immediately,
-    // then we can safely DECREF the bytes objects
-    std::string_view name_sv = "<unknown>";
-    std::string_view filename_sv = "<unknown>";
-
-    PyObject* name_bytes = nullptr;
-    PyObject* filename_bytes = nullptr;
-
-    if (code != NULL) {
+    // Extract frame info for Sample using helper function
 #if defined(_PY311_AND_LATER)
-        // Python 3.11+ has co_qualname which provides fully qualified names (e.g., "MyClass.method")
-        PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
+    // Python 3.11+ has co_qualname which provides fully qualified names (e.g., "MyClass.method")
+    PyObject* name_obj = code ? (code->co_qualname ? code->co_qualname : code->co_name) : nullptr;
 #else
-        PyObject* name_obj = code->co_name;
+    PyObject* name_obj = code ? code->co_name : nullptr;
 #endif
-        if (name_obj) {
-            name_bytes = PyUnicode_AsUTF8String(name_obj);
-            if (name_bytes) {
-                const char* name_ptr = PyBytes_AsString(name_bytes);
-                if (name_ptr) {
-                    Py_ssize_t name_len = PyBytes_Size(name_bytes);
-                    name_sv = std::string_view(name_ptr, name_len);
-                }
-            }
-        }
-
-        if (code->co_filename) {
-            filename_bytes = PyUnicode_AsUTF8String(code->co_filename);
-            if (filename_bytes) {
-                const char* filename_ptr = PyBytes_AsString(filename_bytes);
-                if (filename_ptr) {
-                    Py_ssize_t filename_len = PyBytes_Size(filename_bytes);
-                    filename_sv = std::string_view(filename_ptr, filename_len);
-                }
-            }
-        }
-    }
+    std::string_view name_sv = unicode_to_string_view(name_obj);
+    std::string_view filename_sv = code ? unicode_to_string_view(code->co_filename) : "<unknown>";
 
     // Push frame to Sample (root to leaf order)
-    // push_frame copies the strings immediately into its StringArena, so it's safe to
-    // DECREF the bytes objects after this call
+    // push_frame copies the strings immediately into its StringArena
     sample.push_frame(name_sv, filename_sv, 0, lineno_val);
-
-    // Now safe to release the bytes objects since push_frame has copied the strings
-    Py_XDECREF(name_bytes);
-    Py_XDECREF(filename_bytes);
 }
 
 /* Helper function to collect frames from PyFrameObject chain and push to sample */
