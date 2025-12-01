@@ -77,10 +77,10 @@ variables:
     matrix:
       - IMAGE_ARCH: "x86_64"
         ARCH_TAG: "amd64"
-        PYTHON_VERSION: *PYTHON_VERSIONS
+        UV_PYTHON: *PYTHON_VERSIONS
       - IMAGE_ARCH: "aarch64"
         ARCH_TAG: "arm64"
-        PYTHON_VERSION: *PYTHON_VERSIONS
+        UV_PYTHON: *PYTHON_VERSIONS
   variables:
     SYSTEM_VERSION_COMPAT: "0"
   script:
