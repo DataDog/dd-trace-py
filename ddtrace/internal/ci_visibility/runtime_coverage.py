@@ -116,6 +116,14 @@ def send_runtime_coverage(span: "Span", files: List[CoverageFilePayload]) -> boo
         True if enqueued successfully, False otherwise
     """
     try:
+        # DEBUG: If DD_TRACE_DEBUG is enabled, print payload to stdout instead of sending
+        import os
+
+        if os.getenv("DD_TRACE_DEBUG"):
+            _print_runtime_coverage_debug(span, files)
+            return True
+        # END_DEBUG
+
         # Get the global runtime coverage writer
         writer = get_runtime_coverage_writer()
         if writer is None:
@@ -135,3 +143,49 @@ def send_runtime_coverage(span: "Span", files: List[CoverageFilePayload]) -> boo
     except Exception as e:
         log.debug("Failed to send runtime coverage: %s", e, exc_info=True)
         return False
+
+
+# DEBUG: Delete-me
+def _print_runtime_coverage_debug(
+    span: "Span", files: List[CoverageFilePayload]
+) -> None:
+    """
+    Print runtime coverage payload to stdout for debugging when DD_TRACE_DEBUG is enabled.
+
+    Args:
+        span: The request span
+        files: List of file coverage data
+    """
+    import base64
+    import json
+
+    try:
+        # Convert bitmap bytes to base64 for JSON serialization
+        from typing import Any
+        from typing import Dict
+
+        files_serializable: List[Dict[str, Any]] = []
+        for file_data in files:
+            file_copy: Dict[str, Any] = dict(
+                file_data
+            )  # Convert TypedDict to regular dict
+            if "bitmap" in file_copy and isinstance(
+                file_copy["bitmap"], (bytes, bytearray)
+            ):
+                file_copy["bitmap"] = base64.b64encode(file_copy["bitmap"]).decode(
+                    "ascii"
+                )
+            files_serializable.append(file_copy)
+
+        # Always use the 64-bit trace_id (lower 64 bits) to match APM trace correlation
+        # This matches the x-datadog-trace-id header format used in distributed tracing
+        payload: Dict[str, Any] = {
+            "trace_id": span._trace_id_64bits,
+            "span_id": span.span_id,
+            "files": files_serializable,
+        }
+
+        # Print to stdout in a parseable format
+        print(f"RUNTIME_COVERAGE_PAYLOAD: {json.dumps(payload)}", flush=True)
+    except Exception as e:
+        log.debug("Failed to print runtime coverage debug output: %s", e, exc_info=True)

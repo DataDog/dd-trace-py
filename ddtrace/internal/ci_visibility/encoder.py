@@ -330,11 +330,26 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         elif COVERAGE_TAG_NAME in span.get_tags():
             files = json.loads(str(span.get_tag(COVERAGE_TAG_NAME)))["files"]
 
-        converted_span = {
-            "test_session_id": new_parent_session_span_id or int(span.get_tag(SESSION_ID) or "1"),
-            "test_suite_id": int(span.get_tag(SUITE_ID) or "1"),
-            "files": files,
-        }
+        # Determine if this is a test span or runtime span
+        # Test spans have EVENT_TYPE tag (session, module, suite, test)
+        # Runtime request spans do not have EVENT_TYPE
+        is_test_span = span.get_tag(EVENT_TYPE) is not None
+
+        if is_test_span:
+            # Test coverage: use test session/suite IDs for correlation
+            converted_span = {
+                "test_session_id": new_parent_session_span_id or int(span.get_tag(SESSION_ID) or "1"),
+                "test_suite_id": int(span.get_tag(SUITE_ID) or "1"),
+                "files": files,
+            }
+        else:
+            # Runtime coverage: use trace_id for distributed tracing correlation
+            # Always use the 64-bit trace_id (lower 64 bits) to match APM trace correlation
+            # This matches the x-datadog-trace-id header format used in distributed tracing
+            converted_span = {
+                "trace_id": span._trace_id_64bits,
+                "files": files,
+            }
 
         if not self.itr_suite_skipping_mode:
             converted_span["span_id"] = span.span_id
