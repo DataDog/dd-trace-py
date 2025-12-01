@@ -149,7 +149,9 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
 
 def traced_submit_task(wrapped, instance, args, kwargs):
     """Trace task submission, i.e the func.remote() call"""
-    if instance._function.__module__ in RAY_TASK_MODULE_DENYLIST:
+
+    # Tracing doesn't work for cross lang yet.
+    if instance._function.__module__ in RAY_TASK_MODULE_DENYLIST or instance._is_cross_language:
         return wrapped(*args, **kwargs)
 
     if tracer.current_span() is None:
