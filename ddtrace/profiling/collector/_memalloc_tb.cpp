@@ -6,21 +6,6 @@
 
 #include "_pymacro.h"
 
-// Include internal headers to access _PyInterpreterFrame
-// Python 3.11-3.12: Use internal frame structures to avoid allocations
-// Python 3.13+: Internal structures changed significantly, use standard API
-#if defined(_PY311_AND_LATER) && !defined(_PY313_AND_LATER)
-#if defined(_PY312_AND_LATER)
-// Python 3.12: Try Py_BUILD_CORE_MODULE (less restrictive)
-#define Py_BUILD_CORE_MODULE
-#define Py_BUILD_CORE
-#else
-// Python 3.11: Use Py_BUILD_CORE
-#define Py_BUILD_CORE
-#endif
-#include <internal/pycore_frame.h>
-#endif
-
 #include "_memalloc_debug.h"
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
@@ -271,40 +256,6 @@ extract_frame_info_from_pyframe(PyFrameObject* frame, PyCodeObject** code_out, i
     *lineno_out = lineno_val;
 }
 
-#if defined(_PY311_AND_LATER) && !defined(_PY313_AND_LATER)
-/* Helper function to extract code object and line number from a _PyInterpreterFrame
- * Python 3.11-3.12: Uses internal headers to access frame structures directly
- * This avoids allocations by not creating PyFrameObject wrappers */
-static void
-extract_frame_info_from_interpreter_frame(_PyInterpreterFrame* frame, PyCodeObject** code_out, int* lineno_out)
-{
-    *code_out = NULL;
-    *lineno_out = 0;
-
-    // Extract code object from interpreter frame
-    // Python 3.11-3.12: f_code is directly available
-    PyCodeObject* code = frame->f_code;
-
-    if (code == NULL)
-        return;
-
-    // Calculate line number from interpreter frame
-    // Use PyCode_Addr2Line with the frame's instruction pointer
-    int lineno_val = 0;
-    if (frame->prev_instr != NULL) {
-        // Calculate bytecode offset from instruction pointer
-        // frame->prev_instr is a pointer to _Py_CODEUNIT (uint16_t, 2 bytes per instruction)
-        const int lasti = _PyInterpreterFrame_LASTI(frame);
-        lineno_val = PyCode_Addr2Line(code, lasti << 1);
-    }
-    if (lineno_val < 0)
-        lineno_val = 0;
-
-    *code_out = code;
-    *lineno_out = lineno_val;
-}
-#endif
-
 /* Helper function to push frame info to sample */
 static void
 push_frame_to_sample(Datadog::Sample& sample, PyCodeObject* code, int lineno_val)
@@ -358,41 +309,6 @@ push_frame_to_sample(Datadog::Sample& sample, PyCodeObject* code, int lineno_val
     Py_XDECREF(filename_bytes);
 }
 
-#if defined(_PY311_AND_LATER) && !defined(_PY313_AND_LATER)
-/* Helper function to collect frames from _PyInterpreterFrame chain and push to sample
- * Python 3.11-3.12: Uses internal headers to access frame structures directly
- * This avoids creating PyFrameObject wrappers, reducing allocations during profiling */
-static void
-push_stacktrace_to_sample(Datadog::Sample& sample)
-{
-    PyThreadState* tstate = PyThreadState_Get();
-    if (tstate == NULL)
-        return;
-
-    // Access interpreter frames directly from tstate->cframe to avoid creating PyFrameObjects
-    _PyCFrame* cframe = tstate->cframe;
-    if (cframe == NULL)
-        return;
-
-    _PyInterpreterFrame* frame = cframe->current_frame;
-    if (frame == NULL)
-        return;
-
-    // Walk interpreter frames using frame->previous (avoids allocations)
-    for (; frame != NULL; frame = frame->previous) {
-        PyCodeObject* code = NULL;
-        int lineno_val = 0;
-
-        extract_frame_info_from_interpreter_frame(frame, &code, &lineno_val);
-
-        if (code != NULL) {
-            push_frame_to_sample(sample, code, lineno_val);
-        }
-
-        memalloc_debug_gil_release();
-    }
-}
-#else
 /* Helper function to collect frames from PyFrameObject chain and push to sample */
 static void
 push_stacktrace_to_sample(Datadog::Sample& sample)
@@ -435,7 +351,6 @@ push_stacktrace_to_sample(Datadog::Sample& sample)
         memalloc_debug_gil_release();
     }
 }
-#endif
 
 void
 traceback_t::init_sample(size_t size, size_t weighted_size)
