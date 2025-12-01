@@ -9,10 +9,26 @@
 
 #include "_memalloc_debug.h"
 #include "_memalloc_heap.h"
-#include "_memalloc_heap_map.hpp"
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
 #include "_pymacro.h"
+
+/* Use Abseil's flat_hash_map for tracking sampled allocations.
+ * flat_hash_map provides excellent performance with low memory overhead,
+ * using the Swiss Tables algorithm from Abseil.
+ *
+ * We use a conditional compilation to fall back to std::unordered_map
+ * when Abseil is not available (e.g., in Debug builds).
+ */
+#if defined(NDEBUG) && !defined(DONT_COMPILE_ABSEIL)
+#include "absl/container/flat_hash_map.h"
+template<typename K, typename V>
+using HeapMapType = absl::flat_hash_map<K, V>;
+#else
+#include <unordered_map>
+template<typename K, typename V>
+using HeapMapType = std::unordered_map<K, V>;
+#endif
 
 /*
    How heap profiler sampling works:
@@ -113,7 +129,7 @@ class heap_tracker_t
     /* Next heap sample target, in bytes allocated */
     uint64_t current_sample_size;
     /* Tracked allocations */
-    memalloc_heap_map allocs_m;
+    HeapMapType<void*, traceback_t*> allocs_m;
     /* Bytes allocated since the last sample was collected */
     uint64_t allocated_memory;
 
@@ -193,13 +209,27 @@ heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
     pool.reserve(POOL_CAPACITY); // Pre-allocate pool capacity to avoid reallocations
 }
 
-heap_tracker_t::~heap_tracker_t() = default;
+heap_tracker_t::~heap_tracker_t()
+{
+    // Delete all traceback objects before map is destroyed
+    for (auto& [key, tb] : allocs_m) {
+        delete tb;
+    }
+}
 
 void
 heap_tracker_t::untrack_no_cpython(void* ptr)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
-    traceback_t* tb = allocs_m.remove(ptr);
+
+    // Find and remove the traceback from the map
+    auto it = allocs_m.find(ptr);
+    if (it == allocs_m.end()) {
+        return;
+    }
+
+    traceback_t* tb = it->second;
+    allocs_m.erase(it);
     if (tb && !tb->reported) {
         /* If the sample hasn't been reported yet, set heap size to zero and export it */
         tb->sample.reset_heap();
@@ -237,7 +267,26 @@ void
 heap_tracker_t::add_sample_no_cpython(void* ptr, traceback_t* tb)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
-    allocs_m.insert(ptr, tb);
+
+    // Try to insert the new value
+    auto [it, inserted] = allocs_m.insert({ ptr, tb });
+
+    if (!inserted) {
+        // Key already existed, replace the value
+        /* This should not happen. It means we did not properly remove a previously-tracked
+         * allocation from the map. Assert to detect if this edge case occurs in practice.
+         * Export the previous entry if it hasn't been reported yet, then delete it and
+         * replace it with the new value. */
+        assert(false && "add_sample: found existing entry for key that should have been removed");
+        traceback_t* prev = it->second;
+        if (prev && !prev->reported) {
+            /* If the sample hasn't been reported yet, export it before returning to pool */
+            prev->sample.export_sample();
+            prev->reported = true;
+        }
+        it->second = tb;
+        heap_pool_put_traceback(std::unique_ptr<traceback_t>(prev));
+    }
 
     /* Reset the counter to 0 */
     allocated_memory = 0;
