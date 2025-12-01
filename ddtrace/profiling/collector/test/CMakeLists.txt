@@ -1,45 +1,54 @@
-cmake_minimum_required(VERSION 3.10)
-project(test_memalloc_heap_map)
+cmake_minimum_required(VERSION 3.19)
 
+# Download and configure Google Test
 include(FetchContent)
-FetchContent_Declare(
-    googletest
-    GIT_REPOSITORY https://github.com/google/googletest.git
-    GIT_TAG v1.15.2)
-set(gtest_force_shared_crt
-    ON
-    CACHE BOOL "" FORCE)
+
+# Prevent Google Test from installing (it tries to install to /usr/local which fails in CI)
 set(INSTALL_GTEST
     OFF
     CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
-include(GoogleTest)
+set(INSTALL_GMOCK
+    OFF
+    CACHE BOOL "" FORCE)
 
+FetchContent_Declare(googletest URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip)
+
+# For Windows: Prevent overriding the parent project's compiler/linker settings
+set(gtest_force_shared_crt
+    ON
+    CACHE BOOL "" FORCE)
+
+FetchContent_MakeAvailable(googletest)
+
+# Find Python
 find_package(
     Python3
     COMPONENTS Interpreter Development
     REQUIRED)
 
-# Add the test executable
-add_executable(test_memalloc_heap_map test_memalloc_heap_map.cpp)
+# Test executable for heap map
+add_executable(test_memalloc_heap_map ../_memalloc_heap_map.cpp ../_memalloc_tb.cpp test_memalloc_heap_map.cpp)
 
-# Include directories
-target_include_directories(test_memalloc_heap_map PRIVATE .. ${Python3_INCLUDE_DIRS}
-                                                          ${CMAKE_CURRENT_SOURCE_DIR}/../vendor)
+target_include_directories(test_memalloc_heap_map PRIVATE ${Python3_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
-# Link libraries
-target_link_libraries(test_memalloc_heap_map PRIVATE gtest gtest_main ${Python3_LIBRARIES})
+target_link_libraries(test_memalloc_heap_map PRIVATE GTest::gtest_main Python3::Python)
 
-# Add source files that need to be compiled
-target_sources(test_memalloc_heap_map PRIVATE ../_memalloc_heap_map.cpp ../_memalloc_tb.cpp ../_memalloc_reentrant.cpp)
-
-# Python library linking
-if(Python3_LIBRARY)
-    target_link_libraries(test_memalloc_heap_map PRIVATE ${Python3_LIBRARY})
+# Link Abseil if available
+if(NOT (CMAKE_BUILD_TYPE STREQUAL "Debug"
+        OR (DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}"
+                                                                                          STREQUAL "false"))))
+    target_link_libraries(test_memalloc_heap_map PRIVATE absl::flat_hash_map)
 endif()
 
-# Compiler flags
-target_compile_definitions(test_memalloc_heap_map PRIVATE PY_SSIZE_T_CLEAN)
+# Add NDEBUG flag for release builds
+if(CMAKE_BUILD_TYPE STREQUAL "Release"
+   OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"
+   OR CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
+    target_compile_definitions(test_memalloc_heap_map PRIVATE NDEBUG)
+else()
+    target_compile_definitions(test_memalloc_heap_map PRIVATE UNDEBUG)
+endif()
 
-# Discover and register tests
+# Register the test with CTest
+include(GoogleTest)
 gtest_discover_tests(test_memalloc_heap_map)

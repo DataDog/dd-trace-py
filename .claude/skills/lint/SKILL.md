@@ -26,6 +26,14 @@ Use this skill when you:
 - Need to validate test infrastructure (suitespec, log messages)
 - Want to run comprehensive quality checks before pushing
 
+## Key Principles
+
+1. **Always format after editing** - Use `hatch run lint:fmt -- <file>` immediately after code changes
+2. **Run comprehensive checks before committing** - Use `hatch run lint:checks` before pushing
+3. **Target specific files** - Use `-- <file>` syntax to validate only what you changed, not the entire codebase
+4. **Fix auto-fixable issues** - Use `fmt` instead of manually fixing style issues
+5. **Type check after adding types** - Use `hatch run lint:typing -- <file>` after adding type annotations
+
 ## Quick Start
 
 **Run all checks (broad validation):**

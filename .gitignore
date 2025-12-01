@@ -116,6 +116,7 @@ celerybeat-schedule*
 .venv*
 venv/
 ENV/
+pip_cache_shared_venvs/
 
 # Worktrees
 .worktrees/

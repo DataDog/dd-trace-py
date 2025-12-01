@@ -5,6 +5,7 @@ import glob
 import os
 import sys
 import threading
+import time
 from typing import Callable
 from typing import List
 from typing import Optional
@@ -1197,8 +1198,6 @@ class BaseThreadingLockCollectorTest:
 
     def test_lock_profiling_overhead_reasonable(self) -> None:
         """Test that profiling overhead with 0% capture is bounded."""
-        import time
-
         # Measure without profiling (collector stopped)
         regular_lock: LockClassInst = self.lock_class()
         start: float = time.perf_counter()
@@ -1226,6 +1225,27 @@ class BaseThreadingLockCollectorTest:
             f"Overhead too high: {overhead_multiplier}x (regular: {regular_time:.6f}s, "
             f"profiled: {profiled_time_zero:.6f}s)"
         )  # noqa: E501
+
+    def test_release_not_sampled_when_acquire_not_sampled(self) -> None:
+        """Test that lock release events are NOT sampled if their corresponding acquire was not sampled."""
+        # Use capture_pct=0 to ensure acquire is NEVER sampled
+        with self.collector_class(capture_pct=0):
+            lock: LockClassInst = self.lock_class()
+            # Do multiple acquire/release cycles
+            for _ in range(10):
+                lock.acquire()
+                time.sleep(0.001)
+                lock.release()
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename, assert_samples=False)
+        release_samples: List[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+
+        # release samples should NOT be generated when acquire wasn't sampled
+        assert len(release_samples) == 0, (
+            f"Expected no release samples when acquire wasn't sampled, got {len(release_samples)}"
+        )
 
 
 class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
