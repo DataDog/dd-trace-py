@@ -78,9 +78,10 @@ endif()
 
 # Include directories
 target_include_directories(
-    ${FULL_EXTENSION_NAME} PRIVATE ${Python3_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}
-                                   ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling/dd_wrapper/include
-                                   ${RUST_GENERATED_HEADERS_DIR})
+    ${FULL_EXTENSION_NAME}
+    PRIVATE ${Python3_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling/dd_wrapper/include
+            ${RUST_GENERATED_HEADERS_DIR})
 
 # Link libraries Python3::Python target might not exist in all build environments (e.g., manylinux) Python modules
 # should use -undefined dynamic_lookup on macOS and not link to libpython on Linux
