@@ -243,44 +243,43 @@ push_threadinfo_to_sample(Datadog::Sample& sample)
     // Error will be restored automatically by error_restorer destructor
 }
 
-/* Helper function to extract code object and line number from a PyFrameObject */
+/* Helper function to extract frame info from PyFrameObject and push to sample */
 static void
-extract_frame_info_from_pyframe(PyFrameObject* frame, PyCodeObject** code_out, int* lineno_out)
+push_pyframe_to_sample(Datadog::Sample& sample, PyFrameObject* frame)
 {
-    *code_out = NULL;
-    *lineno_out = 0;
-
+    // Get line number
     int lineno_val = PyFrame_GetLineNumber(frame);
     if (lineno_val < 0)
         lineno_val = 0;
 
+    // Get code object
 #ifdef _PY39_AND_LATER
     PyCodeObject* code = PyFrame_GetCode(frame);
 #else
     PyCodeObject* code = frame->f_code;
 #endif
 
-    *code_out = code;
-    *lineno_out = lineno_val;
-}
+    std::string_view name_sv = "<unknown>";
+    std::string_view filename_sv = "<unknown>";
 
-/* Helper function to push frame info to sample */
-static void
-push_frame_to_sample(Datadog::Sample& sample, PyCodeObject* code, int lineno_val)
-{
-    // Extract frame info for Sample using helper function
+    if (code != NULL) {
+        // Extract function name (use co_qualname for Python 3.11+ for better context)
 #if defined(_PY311_AND_LATER)
-    // Python 3.11+ has co_qualname which provides fully qualified names (e.g., "MyClass.method")
-    PyObject* name_obj = code ? (code->co_qualname ? code->co_qualname : code->co_name) : nullptr;
+        PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
 #else
-    PyObject* name_obj = code ? code->co_name : nullptr;
+        PyObject* name_obj = code->co_name;
 #endif
-    std::string_view name_sv = unicode_to_string_view(name_obj);
-    std::string_view filename_sv = code ? unicode_to_string_view(code->co_filename) : "<unknown>";
+        name_sv = unicode_to_string_view(name_obj);
+        filename_sv = unicode_to_string_view(code->co_filename);
+    }
 
     // Push frame to Sample (root to leaf order)
     // push_frame copies the strings immediately into its StringArena
     sample.push_frame(name_sv, filename_sv, 0, lineno_val);
+
+#ifdef _PY39_AND_LATER
+    Py_XDECREF(code);
+#endif
 }
 
 /* Helper function to collect frames from PyFrameObject chain and push to sample */
@@ -288,8 +287,11 @@ static void
 push_stacktrace_to_sample(Datadog::Sample& sample)
 {
     PyThreadState* tstate = PyThreadState_Get();
-    if (tstate == NULL)
+    if (tstate == NULL) {
+        // Push a placeholder frame when thread state is unavailable
+        sample.push_frame("<no thread state>", "<unknown>", 0, 0);
         return;
+    }
 
 #ifdef _PY39_AND_LATER
     PyFrameObject* pyframe = PyThreadState_GetFrame(tstate);
@@ -297,22 +299,22 @@ push_stacktrace_to_sample(Datadog::Sample& sample)
     PyFrameObject* pyframe = tstate->frame;
 #endif
 
-    if (pyframe == NULL)
+    if (pyframe == NULL) {
+        // No Python frames available (e.g., during thread initialization/cleanup in "Dummy" threads).
+        // This occurs in Python 3.10-3.12 but not in 3.13+ due to threading implementation changes.
+        //
+        // The previous implementation (before dd_wrapper Sample refactor) dropped these samples entirely
+        // by returning NULL from traceback_new(). This new approach is strictly better: we still capture
+        // allocation metrics and make it explicit in profiles that the stack wasn't available.
+        //
+        // TODO(profiling): Investigate if there's a way to capture C-level stack traces or other context
+        // when Python frames aren't available during thread initialization/cleanup.
+        sample.push_frame("<no Python frames>", "<unknown>", 0, 0);
         return;
+    }
 
     for (PyFrameObject* frame = pyframe; frame != NULL;) {
-        PyCodeObject* code = NULL;
-        int lineno_val = 0;
-
-        extract_frame_info_from_pyframe(frame, &code, &lineno_val);
-
-        if (code != NULL) {
-            push_frame_to_sample(sample, code, lineno_val);
-        }
-
-#ifdef _PY39_AND_LATER
-        Py_XDECREF(code);
-#endif
+        push_pyframe_to_sample(sample, frame);
 
 #ifdef _PY39_AND_LATER
         PyFrameObject* back = PyFrame_GetBack(frame);
