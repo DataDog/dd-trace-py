@@ -2,18 +2,13 @@ import json
 import sys
 import sysconfig
 
+import jsonschema
 import pytest
 
 from ddtrace.internal.datadog.profiling.code_provenance import json_str_to_export
 
 
 PY_VERSION = sys.version_info[:2]
-
-# importing jsonschema in 3.8 results in an error
-#     raise exceptions.NoSuchResource(ref=uri) from None
-# E   referencing.exceptions.NoSuchResource: 'http://json-schema.org/draft-03/schema#'
-if PY_VERSION > (3, 8):
-    import jsonschema  # noqa: E402
 
 
 # Copied from RFC
@@ -53,12 +48,11 @@ SCHEMA = {
 def is_valid_json(s: str) -> bool:
     try:
         json_obj = json.loads(s)
-        if PY_VERSION > (3, 8):
-            try:
-                jsonschema.validate(json_obj, SCHEMA)
-            except jsonschema.exceptions.ValidationError as e:
-                print(f"Validation error: {e.message}")
-                return False
+        try:
+            jsonschema.validate(json_obj, SCHEMA)
+        except jsonschema.exceptions.ValidationError as e:
+            print(f"Validation error: {e.message}")
+            return False
         return True
     except json.JSONDecodeError:
         print(f"Invalid JSON: {s}")
@@ -71,7 +65,6 @@ class TestCodeProvenance:
         json_str = json_str_to_export()
         assert is_valid_json(json_str)
 
-    @pytest.mark.skipif(PY_VERSION == (3, 8), reason="jsonschema results in an error in 3.8 with ddtrace")
     def test_valid_json_but_invalid_schema(self):
         # Just a sanity check to ensure that jsonschema is working as expected
         json_obj = {
