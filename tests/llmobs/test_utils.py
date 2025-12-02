@@ -365,10 +365,7 @@ def test_export_spans_client_export_spans(mock_request):
     )
     mock_response_page_2 = Response(
         status=200,
-        body=(
-            '{"data": [{"attributes": {"span_id": "span-2", "trace_id": "trace-1"}}], '
-            '"meta": {"page": {}}}'
-        ),
+        body=('{"data": [{"attributes": {"span_id": "span-2", "trace_id": "trace-1"}}], "meta": {"page": {}}}'),
     )
     mock_request.side_effect = [mock_response_page_1, mock_response_page_2]
 

@@ -2193,7 +2193,7 @@ async def test_run_evaluations_with_faulty_evaluation(
     mock_export_spans, mock_build_evaluation_metric, llmobs, mock_llmobs_eval_metric_writer, mock_llmobs_logs
 ):
     """
-    Tests that when there is an LLMObsSubmitEvaluationError, the faulty evaluation does not enqueue 
+    Tests that when there is an LLMObsSubmitEvaluationError, the faulty evaluation does not enqueue
     an evaluation metric and does not interfere with the execution of other evaluation functions.
     """
     mock_export_spans.return_value = mock_exported_spans()
