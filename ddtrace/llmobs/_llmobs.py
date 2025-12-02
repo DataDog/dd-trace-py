@@ -6,7 +6,6 @@ import json
 import os
 import time
 from typing import Any
-from typing import TypedDict
 from typing import Callable
 from typing import Dict
 from typing import List
@@ -14,6 +13,7 @@ from typing import Literal
 from typing import Optional
 from typing import Set
 from typing import Tuple
+from typing import TypedDict
 from typing import Union
 from typing import cast
 
@@ -98,6 +98,7 @@ from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
+from ddtrace.llmobs._utils import LLMObsExportSpansClient
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_session_id
@@ -106,7 +107,6 @@ from ddtrace.llmobs._utils import _is_evaluation_span
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs._utils import LLMObsExportSpansClient
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
@@ -1766,11 +1766,14 @@ class LLMObs(Service):
         :param str span_kind: The kind of the span(s) to run evaluations on.
         :param str span_name: The name of the span(s) to run evaluations on.
         :param str ml_app: The name of the ML application for the span(s) to run evaluations on.
-        :param str from_timestamp: The unix timestamp in milliseconds representing the beginning of the time range to filter spans by.
+        :param str from_timestamp: The unix timestamp in milliseconds representing the beginning of the
+            time range to filter spans by.
         :param str to_timestamp: The unix timestamp in milliseconds representing the end of the time range to filter spans by.
-        :param list[Callable[[Dict[str, Any]], LLMObsEvaluationResult]] evaluations: A list of evaluation functions to run on the spans that match the given filters.
-            Each function should accept a dictionary representing an exported span and return an LLMObsEvaluationResult. See
-            https://docs.datadoghq.com/llm_observability/evaluations/export_api/?tab=model#searchedspan for details on the exported span format.
+        :param list[Callable[[Dict[str, Any]], LLMObsEvaluationResult]] evaluations: A list of evaluation functions to run on
+            the spans that match the given filters. 
+            Each function should accept a dictionary representing an exported span and return an LLMObsEvaluationResult.
+            See https://docs.datadoghq.com/llm_observability/evaluations/export_api/?tab=model#searchedspan for 
+            details on the exported span format.
         """
         if not evaluations:
             return
@@ -1785,7 +1788,7 @@ class LLMObs(Service):
             from_timestamp=from_timestamp,
             to_timestamp=to_timestamp,
         ):
-            for eval in evaluations:
+            for evaluation in evaluations:
                 evaluation_result = {}
                 error = None
                 join_on = {
@@ -1796,13 +1799,15 @@ class LLMObs(Service):
                 }
                 metric_type = ""
                 try:
-                    evaluation_result = eval(exported_span)
+                    evaluation_result = evaluation(exported_span)
                     evaluation_metric = cls._build_evaluation_metric(evaluation_result, join_on, exported_span)
                     cls._instance._llmobs_eval_metric_writer.enqueue(evaluation_metric)
                 except LLMObsSubmitEvaluationError as e:
                     error = e.error_type
                     log.error(
-                        f"Failed to submit evaluation metric {evaluation_result.get('label')} for span {exported_span.get('span_id')}"
+                        "Failed to submit evaluation metric %s for span %s",
+                        evaluation_result.get("label"),
+                        exported_span.get("span_id"),
                     )
                 finally:
                     metric_type = evaluation_result.get("metric_type") or ""

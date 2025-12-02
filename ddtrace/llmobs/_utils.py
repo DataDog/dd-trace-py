@@ -15,6 +15,7 @@ from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
@@ -35,7 +36,6 @@ from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.trace import Span
-from ddtrace.internal.utils.http import Response
 
 
 log = get_logger(__name__)

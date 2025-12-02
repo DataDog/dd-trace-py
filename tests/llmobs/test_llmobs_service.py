@@ -31,15 +31,17 @@ from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
-from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS, LLMObsSubmitEvaluationError
+from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
+from ddtrace.llmobs._llmobs import LLMObsSubmitEvaluationError
 from ddtrace.llmobs.types import Prompt
 from ddtrace.trace import Context
-from tests.llmobs._utils import _expected_llmobs_eval_metric_event, mock_exported_spans
+from tests.llmobs._utils import _expected_llmobs_eval_metric_event
+from tests.llmobs._utils import mock_exported_spans
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
-from tests.llmobs._utils import sample_score_evaluation
-from tests.llmobs._utils import sample_categorical_evaluation
 from tests.llmobs._utils import sample_boolean_evaluation
+from tests.llmobs._utils import sample_categorical_evaluation
+from tests.llmobs._utils import sample_score_evaluation
 from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -2191,8 +2193,8 @@ async def test_run_evaluations_with_faulty_evaluation(
     mock_export_spans, mock_build_evaluation_metric, llmobs, mock_llmobs_eval_metric_writer, mock_llmobs_logs
 ):
     """
-    Tests that when there is an LLMObsSubmitEvaluationError, the faulty evaluation does not enqueue an evaluation metric and
-    does not interfere with the execution of other evaluation functions.
+    Tests that when there is an LLMObsSubmitEvaluationError, the faulty evaluation does not enqueue 
+    an evaluation metric and does not interfere with the execution of other evaluation functions.
     """
     mock_export_spans.return_value = mock_exported_spans()
 

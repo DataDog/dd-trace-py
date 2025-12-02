@@ -1,12 +1,13 @@
+import mock
 from pydantic import BaseModel
 import pytest
-import mock
 
+from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs._utils import ExportSpansAPIError
-from ddtrace.llmobs._utils import LLMObsExportSpansClient, safe_json
+from ddtrace.llmobs._utils import LLMObsExportSpansClient
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
-from ddtrace.internal.utils.http import Response
 
 
 def test_messages_with_string():
@@ -357,11 +358,17 @@ def test_export_spans_client_export_spans(mock_request):
 
     mock_response_page_1 = Response(
         status=200,
-        body='{"data": [{"attributes": {"span_id": "span-1", "trace_id": "trace-1"}}], "meta": {"page": {"after": "cursor-1"}}}',
+        body=(
+            '{"data": [{"attributes": {"span_id": "span-1", "trace_id": "trace-1"}}], '
+            '"meta": {"page": {"after": "cursor-1"}}}'
+        ),
     )
     mock_response_page_2 = Response(
         status=200,
-        body='{"data": [{"attributes": {"span_id": "span-2", "trace_id": "trace-1"}}], "meta": {"page": {}}}',
+        body=(
+            '{"data": [{"attributes": {"span_id": "span-2", "trace_id": "trace-1"}}], '
+            '"meta": {"page": {}}}'
+        ),
     )
     mock_request.side_effect = [mock_response_page_1, mock_response_page_2]
 
