@@ -3,8 +3,8 @@
 import http.client
 import os
 from unittest.mock import Mock
-from unittest.mock import patch
 from unittest.mock import call
+from unittest.mock import patch
 
 import pytest
 
@@ -16,8 +16,8 @@ from ddtrace.testing.internal.http import BackendConnectorEVPProxySetup
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.http import UnixDomainSocketHTTPConnection
-from tests.testing.mocks import mock_backend_connector
 from ddtrace.testing.internal.telemetry import ErrorType
+from tests.testing.mocks import mock_backend_connector
 
 
 class TestBackendConnector:
