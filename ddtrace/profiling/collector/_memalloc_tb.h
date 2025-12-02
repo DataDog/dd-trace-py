@@ -3,9 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 
-#include <Python.h>
-
-// Include Sample class header to enable calling functions from Sample.cpp
+// AIDEV-NOTE: Python.h moved to .cpp file - not needed in header
+// Sample.hpp is still needed because traceback_t has a Sample member variable
 #include "sample.hpp"
 
 class traceback_t

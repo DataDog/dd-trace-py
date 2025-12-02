@@ -8,10 +8,14 @@ fn main() {
 
     // AIDEV-NOTE: Build the cxx bridge for the memalloc module.
     // This generates C++ header files that can be included in _memalloc.cpp.
-    // The path is relative to the crate root (src/native/)
+    // We need to include the collector path so traceback.h can be found.
+    let collector_path = std::path::Path::new("../../ddtrace/profiling/collector");
+    
     cxx_build::bridge("memalloc.rs")
         .flag_if_supported("-std=c++17")
+        .include(collector_path)
         .compile("memalloc_cxx_bridge");
 
     println!("cargo:rerun-if-changed=memalloc.rs");
+    println!("cargo:rerun-if-changed=../../ddtrace/profiling/collector/traceback.h");
 }
