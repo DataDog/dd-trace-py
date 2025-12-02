@@ -64,7 +64,7 @@ github variables:
       git config --global --add safe.directory "${CI_PROJECT_DIR}"
     - |
       # Determine if we have an open GitHub PR for this commit
-      GH_PR_NUMBER=$(gh pr list --search "${CI_COMMIT_REF_NAME}"--json number --jq '.[0].number' || echo "")
+      GH_PR_NUMBER=$(gh pr list --search "${CI_COMMIT_REF_NAME}" --json number --jq '.[0].number' || echo "")
       echo "GH_PR_NUMBER=${GH_PR_NUMBER}" >> workflow.env
       echo "GH_PR_OPEN=$(if [ -z "${GH_PR_NUMBER}" ]; then echo "false"; else echo "true"; fi)" >> workflow.env
   artifacts:
