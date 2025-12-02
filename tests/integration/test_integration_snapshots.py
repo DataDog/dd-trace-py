@@ -362,9 +362,12 @@ def test_aggregator_partial_flush_finished_counter_out_of_sync():
 
     span1 = tracer.start_span("span1")
     span2 = tracer.start_span("span2", child_of=span1)
-    # Set duration_ns before finish() to create edge case where
-    # trace.num_finished == 1 and len(trace.spans) == 0
-    # which results in remove_finished() returning an empty list (when partial flush is 1)
+    # Manually set duration_ns before calling finish() to trigger the race condition
+    # where trace.num_finished == 1 but len(trace.spans) == 0 after span1.finish().
+    # In this scenario, span1.finish() does NOT trigger encoding, both span1 and span2
+    # are encoded during span2.finish(). This occurs because _Trace.remove_finished()
+    # removes all spans that have a duration (end state). This test ensures that calling
+    # span1.finish() in this state does not cause unexpected behavior or crash trace encoding.
     span1.duration_ns = 1
     span2.finish()
     span1.finish()
