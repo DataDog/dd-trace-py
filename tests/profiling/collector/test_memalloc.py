@@ -702,7 +702,6 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
             sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] == 0 for sample in batch_one_live_samples
         )
         assert batch_one_valid, "Batch one samples should have heap-space > 0 and alloc-space == 0 (already reported)"
-
         batch_two_valid = all(
             sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] > 0 for sample in batch_two_live_samples
         )
