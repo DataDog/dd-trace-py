@@ -1,9 +1,9 @@
 import os
+from pathlib import Path
 from types import ModuleType
 
 from _config import ExplorationConfig
 
-from ddtrace.internal.compat import Path
 from ddtrace.internal.module import origin
 
 

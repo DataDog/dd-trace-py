@@ -3,7 +3,7 @@ from ddtrace.ext import SpanTypes  # noqa: F401
 
 
 # ensure the tracer is loaded and started first for possible iast patching
-print(f"ddtrace version {ddtrace.version.get_version()}")
+print(f"ddtrace version {ddtrace.version.__version__}")
 
 
 import pytest  # noqa: E402

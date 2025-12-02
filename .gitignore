@@ -116,6 +116,7 @@ celerybeat-schedule*
 .venv*
 venv/
 ENV/
+pip_cache_shared_venvs/
 
 # Worktrees
 .worktrees/
@@ -151,9 +152,6 @@ CLAUDE.local.md
 # Riot
 .riot/venv*
 .riot/requirements/*.in
-
-# Auto-generated version file
-ddtrace/_version.py
 
 # Benchmarks
 artifacts/

@@ -3,12 +3,15 @@
 #include "dd_wrapper/include/ddup_interface.hpp"
 #include "thread_span_links.hpp"
 
+#include "echion/danger.h"
 #include "echion/errors.h"
 #include "echion/greenlets.h"
 #include "echion/interp.h"
 #include "echion/tasks.h"
 #include "echion/threads.h"
+#include "echion/vm.h"
 
+#include <mutex>
 #include <pthread.h>
 
 using namespace Datadog;
@@ -143,6 +146,16 @@ Sampler::adapt_sampling_interval()
 void
 Sampler::sampling_thread(const uint64_t seq_num)
 {
+    // Re-install SIGSEGV/SIGBUS handlers here, after Python initialization.
+    // The handlers may have been installed during static init, but Python or
+    // libraries (faulthandler, Django, FastAPI) can overwrite them afterwards.
+    // Re-installing here ensures our handler is active when the sampling thread runs.
+    // Only do this once to avoid overwriting g_old_segv with our own handler.
+    static std::once_flag segv_handler_once;
+    if (use_alternative_copy_memory()) {
+        std::call_once(segv_handler_once, init_segv_catcher);
+    }
+
     using namespace std::chrono;
     auto sample_time_prev = steady_clock::now();
     auto interval_adjust_time_prev = sample_time_prev;
@@ -228,10 +241,6 @@ _stack_v2_init()
 void
 Sampler::one_time_setup()
 {
-    _set_cpu(true);
-    // By default echion will ignore thread that are not running. We still want
-    // to track them and set cpu time 0, so we disable this behavior.
-    _set_ignore_non_running_threads(false);
     init_frame_cache(echion_frame_cache_size);
 
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
