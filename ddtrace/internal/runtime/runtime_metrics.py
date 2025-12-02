@@ -7,8 +7,7 @@ import ddtrace
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal.constants import EXPERIMENTAL_FEATURES
-from ddtrace.settings._env import environ as _environ
-from ddtrace.settings._env import get_env as _get_env
+from ddtrace.settings import _env
 from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.dogstatsd import DogStatsd
 
@@ -70,12 +69,12 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
 
 
 def _get_interval_or_default():
-    if "DD_RUNTIME_METRICS_INTERVAL" in _environ:
+    if "DD_RUNTIME_METRICS_INTERVAL" in _env.environ:
         deprecate(
             "`DD_RUNTIME_METRICS_INTERVAL` is deprecated and will be removed in a future version.",
             removal_version="4.0.0",
         )
-    return float(_get_env("DD_RUNTIME_METRICS_INTERVAL", default=10))
+    return float(_env.getenv("DD_RUNTIME_METRICS_INTERVAL", default=10))
 
 
 class RuntimeWorker(periodic.PeriodicService):

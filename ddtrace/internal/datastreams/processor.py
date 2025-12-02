@@ -19,9 +19,9 @@ from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.settings import _env
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._config import config
-from ddtrace.settings._env import get_env as _get_env
 from ddtrace.version import get_version
 
 from .._encoding import packb
@@ -104,7 +104,7 @@ class DataStreamsProcessor(PeriodicService):
         retry_attempts: int = 3,
     ):
         if interval is None:
-            interval = float(_get_env("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+            interval = float(_env.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         super(DataStreamsProcessor, self).__init__(interval=interval)
         self._agent_url = agent_url or agent_config.trace_agent_url
         self._endpoint = "/v0.1/pipeline_stats"

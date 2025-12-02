@@ -29,7 +29,7 @@ from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.internal.writer.writer import NoEncodableSpansError
-from ddtrace.settings._env import get_env as _get_env
+from ddtrace.settings import _env
 
 
 log = get_logger(__name__)
@@ -52,7 +52,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         super(CIVisibilityEncoderV01, self).__init__()
         self._metadata: Dict[str, Dict[str, str]] = {}
         self._lock = threading.RLock()
-        self._is_xdist_worker = _get_env("PYTEST_XDIST_WORKER") is not None
+        self._is_xdist_worker = _env.getenv("PYTEST_XDIST_WORKER") is not None
         self._init_buffer()
 
     def __len__(self):

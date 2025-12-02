@@ -1,7 +1,7 @@
 import re
 from urllib import parse
 
-from ddtrace.settings._env import get_env as _get_env
+from ddtrace.settings import _env
 
 
 SCP_REGEXP = re.compile("^[a-z0-9_]+@([a-z0-9._-]+):(.*)$", re.IGNORECASE)
@@ -64,14 +64,14 @@ def _query_git(args):
 
 
 def get_commit_sha():
-    commit_sha = _get_env("DD_GIT_COMMIT_SHA")
+    commit_sha = _env.getenv("DD_GIT_COMMIT_SHA")
     if commit_sha:
         return commit_sha
     return _query_git(["rev-parse", "HEAD"])
 
 
 def get_repository_url():
-    repository_url = _get_env("DD_GIT_REPOSITORY_URL")
+    repository_url = _env.getenv("DD_GIT_REPOSITORY_URL")
     if repository_url:
         return repository_url
     return _query_git(["config", "--get", "remote.origin.url"])

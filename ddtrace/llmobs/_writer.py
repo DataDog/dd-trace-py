@@ -48,8 +48,8 @@ from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _SpanLink
+from ddtrace.settings import _env
 from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings._env import environ as _environ
 
 
 logger = get_logger(__name__)
@@ -155,7 +155,7 @@ class BaseLLMObsWriter(PeriodicService):
         self._api_key: str = _api_key or config._dd_api_key
         self._site: str = _site or config._dd_site
         self._app_key: str = _app_key
-        self._override_url: str = _override_url or _environ.get("DD_LLMOBS_OVERRIDE_ORIGIN", "")
+        self._override_url: str = _override_url or _env.environ.get("DD_LLMOBS_OVERRIDE_ORIGIN", "")
         self._default_project: Project = _default_project
 
         self._agentless: bool = is_agentless

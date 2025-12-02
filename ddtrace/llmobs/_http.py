@@ -8,7 +8,7 @@ from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.utils.http import DEFAULT_TIMEOUT
 from ddtrace.internal.utils.http import ConnectionType
 from ddtrace.internal.utils.http import verify_url
-from ddtrace.settings._env import environ as _environ
+from ddtrace.settings import _env
 
 
 class ProxiedHTTPSConnection(HTTPSConnection):
@@ -21,9 +21,9 @@ class ProxiedHTTPSConnection(HTTPSConnection):
     def __init__(
         self, host: str, port: Optional[int] = None, context: Optional[ssl.SSLContext] = None, **kwargs
     ) -> None:
-        if "HTTPS_PROXY" in _environ:
+        if "HTTPS_PROXY" in _env.environ:
             tunnel_port = port or 443
-            proxy = urlparse(_environ["HTTPS_PROXY"])
+            proxy = urlparse(_env.environ["HTTPS_PROXY"])
             proxy_host = proxy.hostname or ""
             # Default to 3128 (Squid's default port, de facto standard for HTTP proxies)
             proxy_port = proxy.port or 3128

@@ -23,7 +23,7 @@ from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.time import StopWatch
-from ddtrace.settings._env import environ as _environ
+from ddtrace.settings import _env
 
 
 GitNotFoundError = FileNotFoundError
@@ -403,7 +403,7 @@ def extract_git_metadata(cwd=None):
 def extract_user_git_metadata(env=None):
     # type: (Optional[MutableMapping[str, str]]) -> Dict[str, Optional[str]]
     """Extract git commit metadata from user-provided env vars."""
-    env = _environ if env is None else env
+    env = _env.environ if env is None else env
 
     branch = normalize_ref(env.get("DD_GIT_BRANCH"))
     tag = normalize_ref(env.get("DD_GIT_TAG"))

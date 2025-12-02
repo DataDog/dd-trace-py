@@ -10,7 +10,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.settings._env import environ as _environ
+from ddtrace.settings import _env
 
 
 logger = get_logger(__name__)
@@ -61,7 +61,7 @@ class EvaluatorRunnerSampler:
     def parse_rules(self) -> List[EvaluatorRunnerSamplingRule]:
         rules = []
 
-        sampling_rules_str = _environ.get(self.SAMPLING_RULES_ENV_VAR)
+        sampling_rules_str = _env.environ.get(self.SAMPLING_RULES_ENV_VAR)
         telemetry_writer.add_configuration(self.SAMPLING_RULES_ENV_VAR, sampling_rules_str, origin="env")
 
         def parsing_failed_because(msg, maybe_throw_this):
