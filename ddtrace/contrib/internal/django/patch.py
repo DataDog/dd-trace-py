@@ -473,7 +473,7 @@ def _patch(django):
     def _(m):
         import channels
 
-        channels_version_str = getattr(channels, "__version__", "0.0.0")
+        channels_version_str = getattr(channels, "__version__", "")
         channels_version = parse_version(channels_version_str)
         if channels_version >= parse_version("3.0"):
             # ASGI3 is only supported in channels v3.0+
