@@ -2,9 +2,8 @@
 detached = true
 python = "3.10"
 dependencies = [
-    "black==23.10.1",
     "click==8.1.7",
-    "cython-lint==0.15.0",
+    "cython-lint==0.18.1",
     "codespell==2.4.1",
     "bandit==1.8.2",
     "mypy==1.15.0",
@@ -26,8 +25,8 @@ dependencies = [
 ]
 
 [envs.lint.scripts]
-black_check = [
-    "black --check {args:.}",
+format_check = [
+    "ruff format --check {args:.}",
 ]
 cmakeformat_check = [
     "bash scripts/cmake-format.sh"
@@ -36,14 +35,14 @@ cformat_check = [
     "bash scripts/cformat.sh"
 ]
 style = [
-    "black_check",
+    "format_check",
     "ruff check {args:.}",
     "cython-lint {args:.}",
     "cformat_check",
     "cmakeformat_check",
 ]
 fmt = [
-    "black {args:.}",
+    "ruff format {args:.}",
     "ruff check --fix {args:.}",
     "style",
 ]
@@ -159,7 +158,7 @@ DD_PROFILING_PYTORCH_ENABLED = "true"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest tests/profiling_v2/test_pytorch.py -vvv --capture=tee-sys",
+    "python -m pytest tests/profiling/test_pytorch.py -vvv --capture=tee-sys",
 ]
 
 [[envs.profiling_pytorch.matrix]]

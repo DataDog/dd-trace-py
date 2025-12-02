@@ -32,7 +32,6 @@ def test_not_azure_function():
 
 standard_blocklist = [
     "ddtrace.appsec._api_security.api_manager",
-    "ddtrace.appsec._iast._ast.ast_patching",
     "ddtrace.internal.telemetry.writer",
     "email.mime.application",
     "email.mime.multipart",
@@ -45,8 +44,10 @@ standard_blocklist = [
     # These modules must not be imported because their source files are
     # specifically removed from the serverless python layer.
     # See https://github.com/DataDog/datadog-lambda-python/blob/main/Dockerfile
+    "ddtrace.appsec._iast._ast.ast_patching",
     "ddtrace.appsec._iast._ast.iastpatch",
     "ddtrace.appsec._iast._taint_tracking._native",
+    "ddtrace.appsec._iast._taint_tracking._vendor",
     "ddtrace.appsec._iast._stacktrace",
     "ddtrace.internal.datadog.profiling.libdd_wrapper",
     "ddtrace.internal.datadog.profiling.ddup._ddup",
@@ -54,10 +55,13 @@ standard_blocklist = [
     "ddtrace.internal._file_queue",
     "secrets",
 ]
-expanded_blocklist = standard_blocklist + [
-    # wrapt 2.0 is importing importlib.metada
-    # "importlib.metadata",
-]
+expanded_blocklist = (
+    standard_blocklist
+    + [
+        # wrapt 2.0 is importing importlib.metada
+        # "importlib.metadata",
+    ]
+)
 
 
 @pytest.mark.parametrize(
@@ -68,7 +72,7 @@ expanded_blocklist = standard_blocklist + [
         ("ddtrace.contrib.internal.psycopg", expanded_blocklist),
         # requests imports urlib3 which imports importlib.metadata
         # TODO: Fix the requests parameter in a future PR
-        # ("ddtrace.contrib.internal.requests", standard_blocklist),
+        ("ddtrace.contrib.internal.requests", standard_blocklist),
     ],
 )
 def test_slow_imports(package, blocklist, run_python_code_in_subprocess):

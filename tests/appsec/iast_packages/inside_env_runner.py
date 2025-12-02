@@ -1,15 +1,9 @@
-import ast
+from ast import unparse
 import importlib
 import sys
 from traceback import format_exc
 
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
-
-
-if hasattr(ast, "unparse"):
-    unparse = ast.unparse
-else:
-    from astunparse import unparse
 
 
 def _iast_patched_module_and_patched_source(module_name):
@@ -39,15 +33,15 @@ def try_patched(module_name, expect_no_change=False):
         module, patched_module = _iast_patched_module_and_patched_source(module_name)
         if expect_no_change:
             assert module, "Module is not OK after patching"
-            assert (
-                not patched_module
-            ), "Patched source is None after patching: Expected to be the same as the original source"
+            assert not patched_module, (
+                "Patched source is None after patching: Expected to be the same as the original source"
+            )
             return 0
 
         assert module, "Module is None after patching: Maybe not an error, but something fishy is going on"
-        assert (
-            patched_module
-        ), "Patched source is None after patching: Maybe not an error, but something fishy is going on"
+        assert patched_module, (
+            "Patched source is None after patching: Maybe not an error, but something fishy is going on"
+        )
         new_code = unparse(patched_module)
         assert (
             "import ddtrace.appsec._iast.taint_sinks as _ddtrace_taint_sinks"

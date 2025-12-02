@@ -76,11 +76,14 @@ def vertexai(ddtrace_global_config, ddtrace_config_vertexai, mock_client, mock_a
             import vertexai
             from vertexai.generative_models import GenerativeModel
 
-            with mock.patch.object(
-                GenerativeModel, "_prediction_client", new_callable=PropertyMock
-            ) as mock_client_property, mock.patch.object(
-                GenerativeModel, "_prediction_async_client", new_callable=PropertyMock
-            ) as mock_async_client_property:
+            with (
+                mock.patch.object(
+                    GenerativeModel, "_prediction_client", new_callable=PropertyMock
+                ) as mock_client_property,
+                mock.patch.object(
+                    GenerativeModel, "_prediction_async_client", new_callable=PropertyMock
+                ) as mock_async_client_property,
+            ):
                 mock_client_property.return_value = mock_client
                 mock_async_client_property.return_value = mock_async_client
                 yield vertexai

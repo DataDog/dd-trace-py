@@ -12,6 +12,7 @@ from tests.contrib.openai.utils import chat_completion_input_description
 from tests.contrib.openai.utils import get_openai_vcr
 from tests.contrib.openai.utils import mock_openai_chat_completions_response
 from tests.contrib.openai.utils import mock_openai_completions_response
+from tests.contrib.openai.utils import mock_response_mcp_tool_call
 from tests.contrib.openai.utils import multi_message_input
 from tests.contrib.openai.utils import response_tool_function
 from tests.contrib.openai.utils import response_tool_function_expected_output
@@ -207,7 +208,9 @@ class TestLLMObsOpenaiV1:
         self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
         prompt = "why do some languages have words that can't directly be translated to other languages?"
-        expected_output = '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
+        expected_output = (
+            '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
+        )
         with get_openai_vcr(subdirectory_name="v1").use_cassette("azure_completion.yaml"):
             azure_client = openai.AzureOpenAI(
                 api_version=azure_openai_config["api_version"],
@@ -241,7 +244,9 @@ class TestLLMObsOpenaiV1:
         self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
         prompt = "why do some languages have words that can't directly be translated to other languages?"
-        expected_output = '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
+        expected_output = (
+            '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
+        )
         with get_openai_vcr(subdirectory_name="v1").use_cassette("azure_completion.yaml"):
             azure_client = openai.AsyncAzureOpenAI(
                 api_version=azure_openai_config["api_version"],
@@ -2148,6 +2153,135 @@ MUL: "*"
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 80),
+        reason="Full OpenAI MCP support only available with openai >= 1.80",
+    )
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_response_mcp_tool_call(
+        self, mock_response_post, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
+        mock_response_post.return_value = mock_response_mcp_tool_call()
+
+        client = openai.OpenAI()
+        client.responses.create(
+            model="gpt-5",
+            tools=[
+                {
+                    "type": "mcp",
+                    "server_label": "dice_roller",
+                    "server_description": "Public dice-roller MCP server for testing.",
+                    "server_url": "https://dice-rolling-mcp.vercel.app/sse",
+                    "require_approval": "never",
+                },
+            ],
+            input="Roll 2d4+1",
+        )
+
+        traces = mock_tracer.pop_traces()
+        assert len(traces[0]) == 2
+
+        response_span = traces[0][0]
+        tool_span = traces[0][1]
+
+        assert mock_llmobs_writer.enqueue.call_count == 2
+
+        assert mock_llmobs_writer.enqueue.call_args_list[0][0][0] == _expected_llmobs_non_llm_span_event(
+            tool_span,
+            "tool",
+            input_value=safe_json(
+                {"notation": "2d4+1", "label": "2d4+1 roll", "verbose": True},
+                ensure_ascii=False,
+            ),
+            output_value="You rolled 2d4+1 for 2d4+1 roll:\n🎲 Total: 8\n📊 Breakdown: 2d4:[3,4] + 1",
+            metadata={"tool_id": "mcp_0f873afd7ff4f5b30168ffa1f7ddec81a0a114abda192da6b3"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+        )
+        assert tool_span.parent_id == response_span.span_id
+
+        assert mock_llmobs_writer.enqueue.call_args_list[1][0][0] == _expected_llmobs_llm_span_event(
+            response_span,
+            model_name="gpt-5-2025-08-07",
+            model_provider="openai",
+            input_messages=[{"role": "user", "content": "Roll 2d4+1"}],
+            output_messages=[
+                {
+                    "role": "reasoning",
+                    "content": (
+                        '{"summary": [], "encrypted_content": null, '
+                        '"id": "rs_0f873afd7ff4f5b30168ffa1f5d91c81a0890e78a4873fbc1b"}'
+                    ),
+                },
+                {
+                    "tool_calls": [
+                        {
+                            "name": "dice_roll",
+                            "type": "mcp_call",
+                            "tool_id": "mcp_0f873afd7ff4f5b30168ffa1f7ddec81a0a114abda192da6b3",
+                            "arguments": {"notation": "2d4+1", "label": "2d4+1 roll", "verbose": True},
+                        }
+                    ],
+                    "tool_results": [
+                        {
+                            "name": "dice_roll",
+                            "type": "mcp_tool_result",
+                            "tool_id": "mcp_0f873afd7ff4f5b30168ffa1f7ddec81a0a114abda192da6b3",
+                            "result": "You rolled 2d4+1 for 2d4+1 roll:\n🎲 Total: 8\n📊 Breakdown: 2d4:[3,4] + 1",
+                        }
+                    ],
+                    "role": "assistant",
+                },
+                {"role": "assistant", "content": "You rolled 2d4+1:\n- Total: 8\n- Breakdown: 2d4 → [3, 4] + 1"},
+            ],
+            metadata={
+                "temperature": 1.0,
+                "top_p": 1.0,
+                "tool_choice": "auto",
+                "truncation": "disabled",
+                "text": {"format": {"type": "text"}, "verbosity": "medium"},
+                "reasoning_tokens": 128,
+            },
+            token_metrics={
+                "input_tokens": 642,
+                "output_tokens": 206,
+                "total_tokens": 848,
+                "cache_read_input_tokens": 0,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            tool_definitions=[
+                {
+                    "name": "dice_roll",
+                    "description": (
+                        "Roll dice using standard notation. IMPORTANT: For D&D advantage use '2d20kh1' (NOT '2d20')"
+                    ),
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "notation": {
+                                "type": "string",
+                                "description": (
+                                    'Dice notation. Examples: "1d20+5" (basic), "2d20kh1" (advantage), '
+                                    '"2d20kl1" (disadvantage), "4d6kh3" (stats), "3d6!" (exploding), '
+                                    '"4d6r1" (reroll 1s), "5d10>7" (successes)'
+                                ),
+                            },
+                            "label": {
+                                "type": "string",
+                                "description": 'Optional label e.g., "Attack roll", "Fireball damage"',
+                            },
+                            "verbose": {
+                                "type": "boolean",
+                                "description": "Show detailed breakdown of individual dice results",
+                            },
+                        },
+                        "required": ["notation"],
+                        "additionalProperties": False,
+                        "$schema": "http://json-schema.org/draft-07/schema#",
+                    },
+                }
+            ],
         )
 
     @pytest.mark.skipif(

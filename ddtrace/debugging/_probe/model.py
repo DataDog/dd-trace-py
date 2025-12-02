@@ -99,8 +99,7 @@ class Probe(abc.ABC):
 
 
 class AbstractProbeMixIn(abc.ABC):
-    def __post_init__(self):
-        ...
+    def __post_init__(self): ...
 
 
 @dataclass

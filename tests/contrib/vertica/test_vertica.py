@@ -42,9 +42,7 @@ def test_conn(request, test_tracer):
         a INT,
         b VARCHAR(32)
         )
-        """.format(
-            TEST_TABLE
-        )
+        """.format(TEST_TABLE)
     )
     test_tracer.pop()
 
@@ -282,9 +280,7 @@ class TestVertica(TracerTestCase):
                 SELECT 4, 'd'
                 UNION ALL
                 SELECT 5, 'e'
-                """.format(
-                    TEST_TABLE
-                )
+                """.format(TEST_TABLE)
             )
             assert cur.rowcount == -1
 
@@ -493,9 +489,7 @@ class TestVertica(TracerTestCase):
                 SELECT 4, 'd'
                 UNION ALL
                 SELECT 5, 'e'
-                """.format(
-                    TEST_TABLE
-                )
+                """.format(TEST_TABLE)
             )
             assert cur.rowcount == -1
 
@@ -539,9 +533,7 @@ class TestVertica(TracerTestCase):
                 SELECT 4, 'd'
                 UNION ALL
                 SELECT 5, 'e'
-                """.format(
-                    TEST_TABLE
-                )
+                """.format(TEST_TABLE)
             )
             assert cur.rowcount == -1
 

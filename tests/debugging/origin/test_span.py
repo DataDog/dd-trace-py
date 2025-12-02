@@ -173,3 +173,31 @@ class SpanProbeTestCase(TracerTestCase):
         assert _exit.get_tag("_dd.code_origin.type") is None
         assert _exit.get_tag("_dd.code_origin.frames.0.file") is None
         assert _exit.get_tag("_dd.code_origin.frames.0.line") is None
+
+    def test_span_origin_entry_method(self):
+        class App:
+            def entry_call(self):
+                pass
+
+        app = App()
+
+        core.dispatch("service_entrypoint.patch", (app.entry_call,))
+
+        with self.tracer.trace("entry"):
+            app.entry_call()
+            with self.tracer.trace("middle"):
+                with self.tracer.trace("exit", span_type=SpanTypes.HTTP):
+                    pass
+
+        self.assert_span_count(3)
+        entry, *_ = self.get_spans()
+
+        # Check for the expected tags on the entry span
+        assert entry.get_tag("_dd.code_origin.type") == "entry"
+        assert entry.get_tag("_dd.code_origin.frames.0.file") == str(Path(__file__).resolve())
+        assert entry.get_tag("_dd.code_origin.frames.0.line") == str(App.entry_call.__code__.co_firstlineno)
+        assert entry.get_tag("_dd.code_origin.frames.0.type") == __name__
+        assert (
+            entry.get_tag("_dd.code_origin.frames.0.method")
+            == "SpanProbeTestCase.test_span_origin_entry_method.<locals>.App.entry_call"
+        )

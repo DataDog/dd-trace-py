@@ -7,6 +7,7 @@ import typing
 
 if typing.TYPE_CHECKING:
     import asyncio
+    import asyncio as aio_types
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack_v2
@@ -131,6 +132,35 @@ def _(asyncio: ModuleType) -> None:
 
                 for child in children:
                     stack_v2.link_tasks(parent, child)
+
+        @partial(wrap, sys.modules["asyncio"].tasks._wait)
+        def _(f, args, kwargs):
+            try:
+                return f(*args, **kwargs)
+            finally:
+                futures = typing.cast(typing.Iterable["asyncio.Future"], get_argument_value(args, kwargs, 0, "fs"))
+                loop = typing.cast("asyncio.AbstractEventLoop", get_argument_value(args, kwargs, 3, "loop"))
+
+                # Link the parent gathering task to the gathered children
+                parent: "asyncio.Task" = globals()["current_task"](loop)
+                for future in futures:
+                    stack_v2.link_tasks(parent, future)
+
+        @partial(wrap, sys.modules["asyncio"].tasks.as_completed)
+        def _(f, args, kwargs):
+            loop = typing.cast(typing.Optional["asyncio.AbstractEventLoop"], kwargs.get("loop"))
+            parent: typing.Optional["aio_types.Task[typing.Any]"] = globals()["current_task"](loop)
+
+            if parent is not None:
+                fs = typing.cast(typing.Iterable["asyncio.Future"], get_argument_value(args, kwargs, 0, "fs"))
+                futures: typing.Set["asyncio.Future"] = {asyncio.ensure_future(f, loop=loop) for f in set(fs)}
+                for future in futures:
+                    stack_v2.link_tasks(parent, future)
+
+                # Replace fs with the ensured futures to avoid double-wrapping
+                args = (futures,) + args[1:]
+
+            return f(*args, **kwargs)
 
         _call_init_asyncio(asyncio)
 
