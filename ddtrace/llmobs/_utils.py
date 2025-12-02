@@ -590,7 +590,7 @@ class LLMObsExportSpansClient:
         from_timestamp: Optional[str] = None,
         to_timestamp: Optional[str] = None,
     ) -> Dict[str, Any]:
-        url_options = {}
+        url_options: Dict[str, Any] = {}
         if span_id:
             url_options["filter[span_id]"] = span_id
         if trace_id:
