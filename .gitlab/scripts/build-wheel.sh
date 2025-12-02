@@ -22,13 +22,14 @@ section_end "setup_env"
 
 # Setup Python (verify/install uv if needed)
 section_start "setup_python" "Setting up Python ${UV_PYTHON}"
+# Set up PATH for uv and system tools
+export PATH="${UV_INSTALL_DIR:-$HOME/.local/bin}:${PATH}"
 # If UV_PYTHON is a full path (manylinux), add its bin directory to PATH
 if [[ "${UV_PYTHON}" == /* ]]; then
     export PATH="$(dirname "${UV_PYTHON}"):${PATH}"
 fi
 if ! command -v uv &> /dev/null; then
     curl -LsSf https://astral.sh/uv/install.sh | sh
-    export PATH="${HOME}/.local/bin:${PATH}"
 fi
 which python && python --version
 section_end "setup_python"
