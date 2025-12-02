@@ -67,8 +67,11 @@ pipeline variables:
     - |
       # Determine if we have an open GitHub PR for this commit
       GH_PR_NUMBER=$(gh pr list --search "${CI_COMMIT_REF_NAME}" --json number --jq '.[0].number' || echo "")
-      echo "GH_PR_NUMBER=${GH_PR_NUMBER}" >> workflow.env
-      echo "GH_PR_OPEN=$(if [ -z "${GH_PR_NUMBER}" ]; then echo "false"; else echo "true"; fi)" >> workflow.env
+      echo "GH_PR_NUMBER=${GH_PR_NUMBER}" | tee -a workflow.env
+      echo "HAS_OPEN_PR=$(if [ -z "${GH_PR_NUMBER}" ]; then echo "false"; else echo "true"; fi)" | tee -a workflow.env
+      echo "IS_MAIN_BRANCH=$(if [ "${CI_COMMIT_BRANCH}" == "main" ]; then echo "true"; else echo "false"; fi)" | tee -a workflow.env
+      echo "IS_RELEASE_BRANCH=$(if [[ "${CI_COMMIT_BRANCH}" =~ ^[0-9]+\.[0-9]+$ ]]; then echo "true"; else echo "false"; fi)" | tee -a workflow.env
+      echo "IS_RELEASE=TAG=$(if [[ "${CI_COMMIT_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "true"; else echo "false"; fi)" | tee -a workflow.env
   artifacts:
     reports:
       dotenv: workflow.env
@@ -137,13 +140,7 @@ microbenchmarks:
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true
     # Always run on PRs, tagged releases, and main or release branches
-    - if: $GH_PR_OPEN == "true"
-      when: always
-    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+/
-      when: always
-    - if: $CI_COMMIT_BRANCH == "main"
-      when: always
-    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+    - if: ($HAS_OPEN_PR == "true" || $IS_RELEASE == "true" || $IS_MAIN_BRANCH == "true" || $IS_RELEASE_BRANCH == "true")
       when: always
     # Otherwise, run manually
     - when: manual
@@ -177,11 +174,7 @@ macrobenchmarks:
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true
     # Always run on tagged releases, and main or release branches
-    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+/
-      when: always
-    - if: $CI_COMMIT_BRANCH == "main"
-      when: always
-    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+    - if: ($IS_RELEASE == "true" || $IS_MAIN_BRANCH == "true" || $IS_RELEASE_BRANCH == "true")
       when: always
     # Otherwise, run manually
     - when: manual
