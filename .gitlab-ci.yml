@@ -49,6 +49,8 @@ github variables:
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
+  variables:
+    GIT_STRATEGY: none
   script:
     - |
       if [ -z ${GH_TOKEN} ]
