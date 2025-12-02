@@ -2,6 +2,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from textwrap import dedent
 
 import pytest
 
@@ -44,7 +45,6 @@ def test_auto():
         assert uds.socket.socket is not None
 
 
-@pytest.mark.skipif(sys.version_info < (3, 8), reason="Test requires Python 3.8+")
 def test_pytest_with_gevent_and_ddtrace_auto():
     """
     Test that pytest works when a module imports ddtrace.auto and gevent is installed.
@@ -103,3 +103,77 @@ def test_foo():
         assert "KeyError" not in result.stdout
         assert "KeyError" not in result.stderr
         assert "1 passed" in result.stdout
+
+
+def test_uwsgi_gevent():
+    """
+    Test that we support uwsgi + gevent when threads are patched.
+    """
+    pytest.importorskip("gevent")
+
+    # Create a temporary directory with test files
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir_path = Path(tmpdir)
+
+        # Create the main app
+        (tmpdir_path / "app.py").write_text(
+            dedent(
+                r"""
+                import gevent.monkey
+
+                gevent.monkey.patch_all()
+
+
+                def app(environ, start_response):
+                    status = "200 OK"
+                    headers = [("Content-Type", "text/plain")]
+                    start_response(status, headers)
+                    return [b"Hello, World!\n"]
+            """
+            )
+        )
+
+        # Create the config
+        (tmpdir_path / "config.ini").write_text(
+            dedent(
+                """
+                [uwsgi]
+                module = app:app
+                master = true
+                die-on-term = true
+                post-buffering = true
+                reload-mercy = 30
+                worker-reload-mercy = 15
+                need-app = true
+                strict = true
+                disable-write-exception = true
+                single-interpreter = 1
+                enable-threads = 1
+                http = :8000
+                chmod-socket = 666
+                gevent = 10
+                processes = 1
+                lazy-apps = 1
+                import = ddtrace.auto
+            """
+            )
+        )
+
+        proc = subprocess.Popen(
+            ["uwsgi", "--ini", "config.ini"],
+            cwd=tmpdir,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        try:
+            proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            # If we time out, it means uwsgi started successfully and is
+            # running the app.
+            proc.terminate()
+            proc.wait()
+        else:
+            msg = "application is running successfully"
+            raise AssertionError(msg)

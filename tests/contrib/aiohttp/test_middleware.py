@@ -97,9 +97,7 @@ def test(app_tracer, loop, aiohttp_client):
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_service_name, expected_span_name
-    )
+    """.format(expected_service_name, expected_span_name)
     env = os.environ.copy()
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version

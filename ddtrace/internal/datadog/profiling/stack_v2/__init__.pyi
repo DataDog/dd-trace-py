@@ -1,6 +1,8 @@
 import asyncio
 from types import FrameType
-from typing import Optional, Sequence, Union
+from typing import Optional
+from typing import Sequence
+from typing import Union
 
 from ddtrace._trace import context
 from ddtrace._trace import span as ddspan
@@ -22,7 +24,7 @@ def unregister_thread(name: str) -> None: ...
 
 # Asyncio support
 def track_asyncio_loop(thread_id: int, loop: Optional[asyncio.AbstractEventLoop]) -> None: ...
-def link_tasks(parent: asyncio.AbstractEventLoop, child: asyncio.Task) -> None: ...
+def link_tasks(parent: asyncio.Task, child: asyncio.Future) -> None: ...
 def init_asyncio(
     current_tasks: Sequence[asyncio.Task],
     scheduled_tasks: Sequence[asyncio.Task],

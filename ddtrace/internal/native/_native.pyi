@@ -1,5 +1,9 @@
-from typing import Dict, List, Literal, Optional, Any
 from enum import Enum
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Literal
+from typing import Optional
 
 class DDSketch:
     def __init__(self): ...
@@ -92,7 +96,11 @@ class CrashtrackerStatus:
     FailedToInitialize: "CrashtrackerStatus"
 
 def crashtracker_init(
-    config: CrashtrackerConfiguration, receiver_config: CrashtrackerReceiverConfig, metadata: CrashtrackerMetadata
+    config: CrashtrackerConfiguration,
+    receiver_config: CrashtrackerReceiverConfig,
+    metadata: CrashtrackerMetadata,
+    # TODO: Add this back in post Code Freeze (need to update config registry)
+    # emit_runtime_stacks: bool,
 ) -> None: ...
 def crashtracker_on_fork(
     config: CrashtrackerConfiguration, receiver_config: CrashtrackerReceiverConfig, metadata: CrashtrackerMetadata
