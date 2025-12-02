@@ -25,18 +25,18 @@ variables:
 .build_base:
   stage: package
   variables:
-    CARGO_HOME: "${CI_PROJECT_DIR}/.cache/cargo"
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
     CARGO_BUILD_JOBS: "12"
     CMAKE_ARGS: "-DNATIVE_TESTING=OFF"
     # DEV: Hack to make ASM CMake able to find the Python3 library
     CIBW_BUILD: "1"
-    DD_USE_SCCACHE: "1"
-    DD_SETUP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/download_cache"
     # Caching
+    DD_SETUP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/download_cache"
+    CARGO_HOME: "${CI_PROJECT_DIR}/.cache/cargo"
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
     UV_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/uv"
     UV_INSTALL_DIR: "${CI_PROJECT_DIR}/.uv/"
+    DD_USE_SCCACHE: "1"
     SCCACHE_DIR: "${CI_PROJECT_DIR}/.cache/sccache"
     SCCACHE_CACHE_SIZE: "2G"
     # job resource requests
