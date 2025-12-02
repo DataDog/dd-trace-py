@@ -106,10 +106,10 @@ from ddtrace.llmobs._utils import _is_evaluation_span
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._utils import LLMObsExportSpansClient
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
-from ddtrace.llmobs._writer import LLMObsExportSpansClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
@@ -1745,7 +1745,7 @@ class LLMObs(Service):
 
 
     @classmethod
-    async def run_evaluations_on_filter(
+    async def run_evaluations(
         cls, 
         span_id: Optional[str] = None,
         trace_id: Optional[str] = None,

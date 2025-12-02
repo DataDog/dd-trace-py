@@ -1,9 +1,12 @@
 from pydantic import BaseModel
 import pytest
+import mock
 
-from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._utils import ExportSpansAPIError
+from ddtrace.llmobs._utils import LLMObsExportSpansClient, safe_json
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
+from ddtrace.internal.utils.http import Response
 
 
 def test_messages_with_string():
@@ -299,3 +302,93 @@ def test_json_serialize_class_with_str():
     class_with_str = Class()
     encoded_obj = safe_json(class_with_str)
     assert encoded_obj == '"Class"'
+
+def test_export_spans_client_build_url_options():
+    export_spans_client = LLMObsExportSpansClient(
+        api_key="test-api-key",
+        app_key="test-app-key",
+        site="test-site",
+    )
+    url_options = export_spans_client._build_url_options(
+        span_id="test-span-id",
+        trace_id="test-trace-id",
+        tags={"test-key": "test-value"},
+        span_kind="test-span-kind",
+        span_name="test-span-name",
+        ml_app="test-ml-app",
+        from_timestamp="test-from-timestamp",
+        to_timestamp="test-to-timestamp",
+    )
+    assert url_options == {
+        "filter[span_id]": "test-span-id",
+        "filter[trace_id]": "test-trace-id",
+        "filter[tag][test-key]": "test-value",
+        "filter[span_kind]": "test-span-kind",
+        "filter[span_name]": "test-span-name",
+        "filter[ml_app]": "test-ml-app",
+        "filter[from]": "test-from-timestamp",
+        "filter[to]": "test-to-timestamp",
+        "page[limit]": 100,
+    }
+
+def test_export_spans_client_build_url_options_empty():
+    export_spans_client = LLMObsExportSpansClient(
+        api_key="test-api-key",
+        app_key="test-app-key",
+        site="test-site",
+    )
+    url_options = export_spans_client._build_url_options()
+
+    assert url_options == {
+        "page[limit]": 100,
+    }
+
+@mock.patch("ddtrace.llmobs._utils.LLMObsExportSpansClient._request")
+def test_export_spans_client_export_spans(mock_request):
+    """Test successful export_spans call with pagination."""
+    export_spans_client = LLMObsExportSpansClient(
+        api_key="test-api-key",
+        app_key="test-app-key",
+        site="test-site",
+    )
+
+    mock_response_page_1 = Response(
+        status=200,
+        body='{"data": [{"span_id": "span-1", "trace_id": "trace-1"}], "meta": {"page": {"after": "cursor-1"}}}',
+    )
+    mock_response_page_2 = Response(
+        status=200,
+        body='{"data": [{"span_id": "span-2", "trace_id": "trace-1"}], "meta": {"page": {}}}',
+    )
+    mock_request.side_effect = [mock_response_page_1, mock_response_page_2]
+
+    spans = list(export_spans_client.export_spans(
+        trace_id="trace-1",
+    ))
+
+    assert mock_request.call_count == 2
+
+    assert len(spans) == 2
+    assert spans[0] == {"span_id": "span-1", "trace_id": "trace-1"}
+    assert spans[1] == {"span_id": "span-2", "trace_id": "trace-1"}
+
+
+@mock.patch("ddtrace.llmobs._utils.LLMObsExportSpansClient._request")
+def test_export_spans_client_export_spans_error(mock_request):
+    """Test export_spans raises ExportSpansAPIError on non-200 response."""
+    export_spans_client = LLMObsExportSpansClient(
+        api_key="test-api-key",
+        app_key="test-app-key",
+        site="test-site",
+    )
+
+    mock_response = Response(
+        status=500,
+        body='{"error": "Internal server error"}',
+    )
+    mock_request.return_value = mock_response
+
+    with pytest.raises(ExportSpansAPIError, match="Failed to export spans with status 500"):
+        list(export_spans_client.export_spans(
+            span_id="test-span-id",
+        ))
