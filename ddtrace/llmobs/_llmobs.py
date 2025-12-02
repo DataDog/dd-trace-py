@@ -1768,9 +1768,10 @@ class LLMObs(Service):
         :param str ml_app: The name of the ML application for the span(s) to run evaluations on.
         :param str from_timestamp: The unix timestamp in milliseconds representing the beginning of the
             time range to filter spans by.
-        :param str to_timestamp: The unix timestamp in milliseconds representing the end of the time range to filter spans by.
-        :param list[Callable[[Dict[str, Any]], LLMObsEvaluationResult]] evaluations: A list of evaluation functions to run on
-            the spans that match the given filters.
+        :param str to_timestamp: The unix timestamp in milliseconds representing the end of the time range to
+            filter spans by.
+        :param list[Callable[[Dict[str, Any]], LLMObsEvaluationResult]] evaluations: A list of evaluation
+            functions to run on the spans that match the given filters.
             Each function should accept a dictionary representing an exported span and return an LLMObsEvaluationResult.
             See https://docs.datadoghq.com/llm_observability/evaluations/export_api/?tab=model#searchedspan for
             details on the exported span format.
