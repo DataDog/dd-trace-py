@@ -65,13 +65,16 @@ class PydanticAIIntegration(BaseLLMIntegration):
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
+        **extra_kwargs: Any,
     ) -> None:
         span_kind = span._get_ctx_item(SPAN_KIND)
 
+        instance = extra_kwargs.get("instance", None)
+
         if span_kind == "agent":
-            self._llmobs_set_tags_agent(span, args, kwargs, response)
+            self._llmobs_set_tags_agent(span, args, kwargs, response, instance)
         elif span_kind == "tool":
-            self._llmobs_set_tags_tool(span, args, kwargs, response)
+            self._llmobs_set_tags_tool(span, args, kwargs, response, instance)
 
         span._set_ctx_items(
             {
@@ -82,11 +85,15 @@ class PydanticAIIntegration(BaseLLMIntegration):
         )
 
     def _llmobs_set_tags_agent(
-        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any]
+        self,
+        span: Span,
+        args: List[Any],
+        kwargs: Dict[str, Any],
+        response: Optional[Any],
+        agent_instance: Optional[Any] = None,
     ) -> None:
         from pydantic_ai.agent import AgentRun
 
-        agent_instance = kwargs.get("instance", None)
         agent_name = getattr(agent_instance, "name", None)
         self._tag_agent_manifest(span, kwargs, agent_instance)
         user_prompt = get_argument_value(args, kwargs, 0, "user_prompt")
@@ -110,9 +117,13 @@ class PydanticAIIntegration(BaseLLMIntegration):
         )
 
     def _llmobs_set_tags_tool(
-        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None
+        self,
+        span: Span,
+        args: List[Any],
+        kwargs: Dict[str, Any],
+        response: Optional[Any] = None,
+        tool_instance: Optional[Any] = None,
     ) -> None:
-        tool_instance = kwargs.get("instance", None)
         tool_call = get_argument_value(args, kwargs, 0, "call", optional=True) or get_argument_value(
             args, kwargs, 0, "message", optional=True
         )

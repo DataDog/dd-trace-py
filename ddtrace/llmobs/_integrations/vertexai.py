@@ -44,9 +44,11 @@ class VertexAIIntegration(BaseLLMIntegration):
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
+        **extra_kwargs: Any,
     ) -> None:
-        instance = kwargs.get("instance", None)
-        history = kwargs.get("history", [])
+        instance = extra_kwargs.get("instance", None)
+        history = extra_kwargs.get("history", [])
+
         metrics = kwargs.get("metrics", {})
         metadata = llmobs_get_metadata_vertexai(kwargs, instance)
 

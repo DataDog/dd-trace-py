@@ -65,10 +65,10 @@ def _traced_agent_run_async(adk, pin, wrapped, instance, args, kwargs):
             span.set_exc_info(*sys.exc_info())
             raise
         finally:
-            kwargs["instance"] = instance.agent
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response_events, operation="agent")
+            integration.llmobs_set_tags(
+                span, args=args, kwargs=kwargs, response=response_events, operation="agent", instance=instance.agent
+            )
             span.finish()
-            del kwargs["instance"]
 
     return _generator()
 

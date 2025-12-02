@@ -48,8 +48,9 @@ def traced_kickoff(crewai, pin, func, instance, args, kwargs):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        kwargs["_dd.instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="crew")
+        integration.llmobs_set_tags(
+            span, args=args, kwargs=kwargs, response=result, operation="crew", instance=instance
+        )
         span.finish()
     return result
 
@@ -75,8 +76,9 @@ def traced_task_execute(crewai, pin, func, instance, args, kwargs):
     finally:
         if getattr(instance, "_ddtrace_ctx", None):
             delattr(instance, "_ddtrace_ctx")
-        kwargs["_dd.instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="task")
+        integration.llmobs_set_tags(
+            span, args=args, kwargs=kwargs, response=result, operation="task", instance=instance
+        )
         span.finish()
     return result
 
@@ -111,8 +113,9 @@ def traced_agent_execute(crewai, pin, func, instance, args, kwargs):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        kwargs["_dd.instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="agent")
+        integration.llmobs_set_tags(
+            span, args=args, kwargs=kwargs, response=result, operation="agent", instance=instance
+        )
         span.finish()
     return result
 
@@ -130,8 +133,9 @@ def traced_tool_run(crewai, pin, func, instance, args, kwargs):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        kwargs["_dd.instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="tool")
+        integration.llmobs_set_tags(
+            span, args=args, kwargs=kwargs, response=result, operation="tool", instance=instance
+        )
         span.finish()
     return result
 
@@ -142,7 +146,9 @@ async def traced_flow_kickoff(crewai, pin, func, instance, args, kwargs):
     span_name = getattr(type(instance), "__name__", "CrewAI Flow")
     with integration.trace(pin, "CrewAI Flow", span_name=span_name, operation="flow", submit_to_llmobs=True) as span:
         result = await func(*args, **kwargs)
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="flow")
+        integration.llmobs_set_tags(
+            span, args=args, kwargs=kwargs, response=result, operation="flow", instance=instance
+        )
         return result
 
 
@@ -165,9 +171,15 @@ async def traced_flow_method(crewai, pin, func, instance, args, kwargs):
         elif hasattr(flow_state, "model_dump"):
             initial_flow_state = flow_state.model_dump()
         result = await func(*args, **kwargs)
-        kwargs["_dd.instance"] = instance
-        kwargs["_dd.initial_flow_state"] = initial_flow_state
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="flow_method")
+        integration.llmobs_set_tags(
+            span,
+            args=args,
+            kwargs=kwargs,
+            response=result,
+            operation="flow_method",
+            instance=instance,
+            initial_flow_state=initial_flow_state,
+        )
         return result
 
 

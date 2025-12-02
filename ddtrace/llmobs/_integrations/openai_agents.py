@@ -95,6 +95,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         kwargs: Dict[str, Union[Any, OaiTraceAdapter, OaiSpanAdapter]],
         response: Optional[Any] = None,
         operation: str = "",
+        **extra_kwargs: Any,
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         oai_trace = kwargs.get("oai_trace")

@@ -100,28 +100,30 @@ class CrewAIIntegration(BaseLLMIntegration):
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
+        **extra_kwargs: Any,
     ) -> None:
+        instance = extra_kwargs.get("instance", None)
+        initial_flow_state = extra_kwargs.get("initial_flow_state", {})
         span._set_ctx_item(SPAN_KIND, OP_NAMES_TO_SPAN_KIND.get(operation, "task"))
         if operation == "crew":
             crew_id = _get_crew_id(span, "crew")
-            self._llmobs_set_tags_crew(span, args, kwargs, response)
+            self._llmobs_set_tags_crew(span, args, kwargs, response, instance)
             self._crews_to_task_span_ids.pop(crew_id, None)
             self._crews_to_tasks.pop(crew_id, None)
             if crew_id in self._planning_crew_ids:
                 self._planning_crew_ids.remove(crew_id)
         elif operation == "task":
-            self._llmobs_set_tags_task(span, args, kwargs, response)
+            self._llmobs_set_tags_task(span, args, kwargs, response, instance)
         elif operation == "agent":
-            self._llmobs_set_tags_agent(span, args, kwargs, response)
+            self._llmobs_set_tags_agent(span, args, kwargs, response, instance)
         elif operation == "tool":
-            self._llmobs_set_tags_tool(span, args, kwargs, response)
+            self._llmobs_set_tags_tool(span, args, kwargs, response, instance)
         elif operation == "flow":
             self._llmobs_set_tags_flow(span, args, kwargs, response)
         elif operation == "flow_method":
-            self._llmobs_set_tags_flow_method(span, args, kwargs, response)
+            self._llmobs_set_tags_flow_method(span, args, kwargs, response, instance, initial_flow_state)
 
-    def _llmobs_set_tags_crew(self, span, args, kwargs, response):
-        crew_instance = kwargs.pop("_dd.instance", None)
+    def _llmobs_set_tags_crew(self, span, args, kwargs, response, crew_instance):
         crew_id = _get_crew_id(span, "crew")
         task_span_ids = self._crews_to_task_span_ids.get(crew_id, [])
         if task_span_ids:
@@ -146,9 +148,8 @@ class CrewAIIntegration(BaseLLMIntegration):
             return
         span._set_ctx_item(OUTPUT_VALUE, getattr(response, "raw", ""))
 
-    def _llmobs_set_tags_task(self, span, args, kwargs, response):
+    def _llmobs_set_tags_task(self, span, args, kwargs, response, task_instance):
         crew_id = _get_crew_id(span, "task")
-        task_instance = kwargs.pop("_dd.instance", None)
         task_id = getattr(task_instance, "id", None)
         task_name = getattr(task_instance, "name", "")
         task_description = getattr(task_instance, "description", "")
@@ -178,11 +179,10 @@ class CrewAIIntegration(BaseLLMIntegration):
             return
         span._set_ctx_item(OUTPUT_VALUE, getattr(response, "raw", ""))
 
-    def _llmobs_set_tags_agent(self, span, args, kwargs, response):
+    def _llmobs_set_tags_agent(self, span, args, kwargs, response, agent_instance):
         """Set span links and metadata for agent spans.
         Agent spans are 1:1 with its parent (task/tool) span, so we link them directly here, even on the parent itself.
         """
-        agent_instance = kwargs.get("_dd.instance", None)
         self._tag_agent_manifest(span, agent_instance)
         agent_role = getattr(agent_instance, "role", "")
         task_description = getattr(kwargs.get("task"), "description", "")
@@ -213,8 +213,7 @@ class CrewAIIntegration(BaseLLMIntegration):
             return
         span._set_ctx_item(OUTPUT_VALUE, response)
 
-    def _llmobs_set_tags_tool(self, span, args, kwargs, response):
-        tool_instance = kwargs.pop("_dd.instance", None)
+    def _llmobs_set_tags_tool(self, span, args, kwargs, response, tool_instance):
         tool_name = getattr(tool_instance, "name", "")
         description = _extract_tool_description_field(getattr(tool_instance, "description", ""))
         tool_input = kwargs.get("input", "")
@@ -296,9 +295,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         span._set_ctx_items({NAME: span.name or "CrewAI Flow", INPUT_VALUE: inputs, OUTPUT_VALUE: str(response)})
         return
 
-    def _llmobs_set_tags_flow_method(self, span, args, kwargs, response):
-        flow_instance = kwargs.pop("_dd.instance", None)
-        initial_flow_state = kwargs.pop("_dd.initial_flow_state", {})
+    def _llmobs_set_tags_flow_method(self, span, args, kwargs, response, flow_instance, initial_flow_state):
         input_dict = {
             "args": [safe_json(arg) for arg in args[2:]],
             "kwargs": {k: safe_json(v) for k, v in kwargs.items()},
