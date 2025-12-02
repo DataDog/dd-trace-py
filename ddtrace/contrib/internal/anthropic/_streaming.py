@@ -207,26 +207,30 @@ def _on_error_chunk(chunk, message):
 
 
 def _is_stream(resp: Any) -> bool:
-    if hasattr(anthropic, "Stream") and isinstance(resp, anthropic.Stream):
-        return True
+    for attr in ("Stream", "BetaMessageStream"):
+        if hasattr(anthropic, attr) and isinstance(resp, getattr(anthropic, attr)):
+            return True
     return False
 
 
 def _is_async_stream(resp: Any) -> bool:
-    if hasattr(anthropic, "AsyncStream") and isinstance(resp, anthropic.AsyncStream):
-        return True
+    for attr in ("AsyncStream", "BetaAsyncMessageStream"):
+        if hasattr(anthropic, attr) and isinstance(resp, getattr(anthropic, attr)):
+            return True
     return False
 
 
 def _is_stream_manager(resp: Any) -> bool:
-    if hasattr(anthropic, "MessageStreamManager") and isinstance(resp, anthropic.MessageStreamManager):
-        return True
+    for attr in ("MessageStreamManager", "BetaMessageStreamManager"):
+        if hasattr(anthropic, attr) and isinstance(resp, getattr(anthropic, attr)):
+            return True
     return False
 
 
 def _is_async_stream_manager(resp: Any) -> bool:
-    if hasattr(anthropic, "AsyncMessageStreamManager") and isinstance(resp, anthropic.AsyncMessageStreamManager):
-        return True
+    for attr in ("AsyncMessageStreamManager", "BetaAsyncMessageStreamManager"):
+        if hasattr(anthropic, attr) and isinstance(resp, getattr(anthropic, attr)):
+            return True
     return False
 
 
