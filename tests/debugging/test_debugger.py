@@ -2,6 +2,7 @@ from collections import Counter
 from decimal import Decimal
 import json
 import os.path
+from pathlib import Path
 import sys
 import tempfile
 from threading import Thread
@@ -26,7 +27,6 @@ from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.snapshot import _EMPTY_CAPTURED_CONTEXT
 from ddtrace.debugging._signal.tracing import SPAN_NAME
 from ddtrace.debugging._signal.utils import redacted_value
-from ddtrace.internal.compat import Path
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import format_trace_id
