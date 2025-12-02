@@ -14,7 +14,6 @@ from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 COMMON_RESPONSE_LLM_METADATA = {
     "temperature": mock.ANY,
     "top_p": mock.ANY,
-    "reasoning_tokens": mock.ANY,
     "tool_choice": "auto",
     "tools": mock.ANY,
     "truncation": "disabled",
