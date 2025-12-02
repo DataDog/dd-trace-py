@@ -318,7 +318,7 @@ class BackendConnector(threading.local):
                 )
 
             if result.error_type and result.error_type in RETRIABLE_ERRORS and attempts_so_far < max_attempts:
-                delay_seconds = random.uniform(0, (1.618 ** (attempts_so_far - 1)))  # noqa: B311
+                delay_seconds = random.uniform(0, (1.618 ** (attempts_so_far - 1)))  # nosec: B311
                 log.debug(
                     "Retrying %s %s in %.3f seconds (%d attempts so far)", method, path, delay_seconds, attempts_so_far
                 )
