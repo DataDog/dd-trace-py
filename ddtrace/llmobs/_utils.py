@@ -540,7 +540,7 @@ class LLMObsExportSpansClient:
             response_data = resp.get_json()
 
             for span in response_data.get("data", []):
-                yield span
+                yield span.get("attributes", {})
 
             has_next_page = False
             next_cursor = self._extract_next_cursor(response_data)
