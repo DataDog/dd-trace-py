@@ -69,7 +69,7 @@ echo -e "\e[0Ksection_end:`date +%s`:list_so_files\r\e[0K"
 
 # Repair the wheel
 echo -e "\e[0Ksection_start:`date +%s`:repair_wheel\r\e[0KRepairing wheel with delocate-wheel"
-MACOSX_DEPLOYMENT_TARGET=12.7 uvx --with="delocate" delocate-wheel --require-archs "${ARCH_TAG}" -w "${TMP_WHEEL_DIR}" -v "${BUILT_WHEEL_FILE}"
+MACOSX_DEPLOYMENT_TARGET=12.7 uvx --from="delocate" delocate-wheel --require-archs "${ARCH_TAG}" -w "${TMP_WHEEL_DIR}" -v "${BUILT_WHEEL_FILE}"
 echo -e "\e[0Ksection_end:`date +%s`:repair_wheel\r\e[0K"
 
 # Move to final resting place
