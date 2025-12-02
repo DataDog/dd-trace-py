@@ -120,8 +120,6 @@ download_dependency_wheels:
   tags: [ "arch:amd64" ]
   stage: package
   needs:
-    - job: download_ddtrace_artifacts
-      artifacts: true
     - job: "build linux"
       artifacts: true
       parallel:

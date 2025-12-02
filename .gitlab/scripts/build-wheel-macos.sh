@@ -54,12 +54,12 @@ echo -e "\e[0Ksection_end:`date +%s`:build_wheel\r\e[0K"
 
 # Extract debug symbols
 echo -e "\e[0Ksection_start:`date +%s`:extract_debug_symbols\r\e[0KExtracting debug symbols"
-uv run scripts/extract_debug_symbols.py "${BUILT_WHEEL_FILE}" --output-dir "${DEBUG_WHEEL_DIR}"
+uv run --no-project scripts/extract_debug_symbols.py "${BUILT_WHEEL_FILE}" --output-dir "${DEBUG_WHEEL_DIR}"
 echo -e "\e[0Ksection_end:`date +%s`:extract_debug_symbols\r\e[0K"
 
 # Strip unneeded files from wheel
 echo -e "\e[0Ksection_start:`date +%s`:strip_wheel\r\e[0KStripping unneeded files from wheel"
-uv run scripts/zip_filter.py "${BUILT_WHEEL_FILE}" \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md
+uv run --no-project scripts/zip_filter.py "${BUILT_WHEEL_FILE}" \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md
 echo -e "\e[0Ksection_end:`date +%s`:strip_wheel\r\e[0K"
 
 # List all .so files in the wheel for verification
@@ -84,8 +84,9 @@ echo -e "\e[0Ksection_start:`date +%s`:test_wheel\r\e[0KTesting the wheel"
 TEST_WHEEL_DIR="/tmp/test_wheel/"
 mkdir -p "${TEST_WHEEL_DIR}"
 uv venv "${TEST_WHEEL_DIR}/venv"
+source "${TEST_WHEEL_DIR}/venv/bin/activate"
 # Install the package
-"${TEST_WHEEL_DIR}/venv/bin/pip" install "${FINAL_WHEEL_FILE}"
+uv pip install "${FINAL_WHEEL_FILE}"
 # Run the smoke tests
 cd "${TEST_WHEEL_DIR}" && "${TEST_WHEEL_DIR}/venv/bin/python" "${PROJECT_DIR}/tests/smoke_test.py"
 echo -e "\e[0Ksection_end:`date +%s`:test_wheel\r\e[0K"
