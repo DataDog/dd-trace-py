@@ -179,6 +179,16 @@ publish-wheels-to-s3:
             ARCH_TAG: "arm64"
             PYTHON_TAG: *PYTHON_TAGS
             LINUX_OS_IMAGE: *LINUX_OS_IMAGES
+    - job: "build macos"
+      artifacts: true
+      parallel:
+        matrix:
+          - IMAGE_ARCH: "x86_64"
+            ARCH_TAG: "amd64"
+            UV_PYTHON: *PYTHON_VERSIONS
+          - IMAGE_ARCH: "aarch64"
+            ARCH_TAG: "arm64"
+            UV_PYTHON: *PYTHON_VERSIONS
   variables:
     BUCKET: dd-trace-py-builds
   script:
