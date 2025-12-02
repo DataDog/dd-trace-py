@@ -231,3 +231,38 @@ These environment variables modify aspects of the build process.
 
     version_added:
         v3.10.0:
+
+  DD_DOWNLOAD_MAX_RETRIES:
+    type: Integer
+    default: 10
+
+    description: |
+        Maximum number of retry attempts for transient download failures from GitHub.
+        Retries are triggered by HTTP 429 (rate limit), 502/503/504 (server errors),
+        and network timeouts. Uses exponential backoff with jitter between retries.
+
+    version_added:
+        v4.1.0:
+
+  DD_DOWNLOAD_INITIAL_DELAY:
+    type: Float
+    default: 1.0
+
+    description: |
+        Initial delay in seconds before the first retry attempt.
+        Delay increases exponentially with backoff_factor=1.618 (Fibonacci-like).
+        Useful for tuning retry behavior in different environments.
+
+    version_added:
+        v4.1.0:
+
+  DD_DOWNLOAD_MAX_DELAY:
+    type: Integer
+    default: 120
+
+    description: |
+        Maximum delay in seconds between retry attempts.
+        Prevents excessive wait times during exponential backoff.
+
+    version_added:
+        v4.1.0:
