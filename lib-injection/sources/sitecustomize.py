@@ -42,7 +42,7 @@ TELEMETRY_DATA = []
 SCRIPT_DIR = os.path.dirname(__file__)
 RUNTIMES_ALLOW_LIST = {
     "cpython": {
-        "min": Version(version=(3, 8), constraint=""),
+        "min": Version(version=(3, 9), constraint=""),
         "max": Version(version=(3, 14), constraint=""),
     }
 }

@@ -614,6 +614,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                     "repository_url": self._git_data.repository_url,
                     "commit_message": self._git_data.commit_message,
                     "sha": self._git_data.commit_sha,
+                    "branch": self._git_data.branch,
                 },
             }
         }
