@@ -181,7 +181,7 @@ class TestBackendConnector:
 
     @patch("http.client.HTTPSConnection")
     @patch("time.sleep")
-    def test_post_json_network_error(self, mock_sleep: Mock, mock_https_connection: Mock) -> None:
+    def test_post_json_connection_refused(self, mock_sleep: Mock, mock_https_connection: Mock) -> None:
         mock_conn = Mock()
         mock_conn.getresponse.side_effect = ConnectionRefusedError("No connection for you")
         mock_https_connection.return_value = mock_conn
@@ -199,8 +199,58 @@ class TestBackendConnector:
         ]
         assert len(mock_sleep.call_args_list) == 4
 
-        assert result.error_type is ErrorType.NETWORK
+        assert result.error_type == ErrorType.NETWORK
         assert result.error_description == "No connection for you"
+        assert result.parsed_response is None
+        assert result.is_gzip_response is False
+        assert result.response_length is None
+        assert isinstance(result.elapsed_seconds, float)
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.sleep")
+    def test_post_json_timeout(self, mock_sleep: Mock, mock_https_connection: Mock) -> None:
+        mock_conn = Mock()
+        mock_conn.getresponse.side_effect = TimeoutError("ars longa, vita brevis")
+        mock_https_connection.return_value = mock_conn
+
+        connector = BackendConnector(url="https://api.example.com")
+
+        result = connector.post_json("/v1/some-endpoint", data={"question": 1})
+
+        assert mock_conn.request.call_args_list == [
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+        ]
+        assert len(mock_sleep.call_args_list) == 4
+
+        assert result.error_type == ErrorType.TIMEOUT
+        assert result.error_description == "ars longa, vita brevis"
+        assert result.parsed_response is None
+        assert result.is_gzip_response is False
+        assert result.response_length is None
+        assert isinstance(result.elapsed_seconds, float)
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.sleep")
+    def test_post_json_unknown_error(self, mock_sleep: Mock, mock_https_connection: Mock) -> None:
+        mock_conn = Mock()
+        mock_conn.getresponse.side_effect = ValueError("some internal error")
+        mock_https_connection.return_value = mock_conn
+
+        connector = BackendConnector(url="https://api.example.com")
+
+        result = connector.post_json("/v1/some-endpoint", data={"question": 1})
+
+        assert mock_conn.request.call_args_list == [
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+        ]
+        assert len(mock_sleep.call_args_list) == 0
+
+        assert result.error_type == ErrorType.UNKNOWN
+        assert result.error_description == "some internal error"
         assert result.parsed_response is None
         assert result.is_gzip_response is False
         assert result.response_length is None
