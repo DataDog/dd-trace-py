@@ -78,7 +78,7 @@ components:
     - ddtrace/commands/*
     - ddtrace/auto.py
 suites:
-  profile_v2:
+  profile:
     env:
       DD_TRACE_AGENT_URL: ''
     # `riot list --hash-only profile-v2$ | wc -1` = 26
@@ -89,6 +89,6 @@ suites:
       - '@profiling'
       - tests/profiling/suitespec.yml
       - tests/profiling/*
-    pattern: profile-v2
+    pattern: profile
     retry: 2
     runner: riot

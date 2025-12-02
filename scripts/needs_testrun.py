@@ -151,7 +151,7 @@ def needs_testrun(suite: str, pr_number: int, sha: t.Optional[str] = None) -> bo
     ...     needs_testrun("debugger", 6485)
     ...     needs_testrun("debugger", 6388)
     ...     needs_testrun("foobar", 6412)
-    ...     needs_testrun("profiling::profile_v2", 11690)
+    ...     needs_testrun("profiling::profile", 11690)
     True
     True
     True
