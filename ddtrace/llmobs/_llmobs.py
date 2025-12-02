@@ -1790,7 +1790,7 @@ class LLMObs(Service):
             to_timestamp=to_timestamp,
         ):
             for evaluation in evaluations:
-                evaluation_result = {}
+                evaluation_result: LLMObsEvaluationResult = {}
                 error = None
                 join_on = {
                     "span": {
@@ -1826,7 +1826,7 @@ class LLMObs(Service):
         if not exported_span:
             exported_span = {}
 
-        metric_type = evaluation_result.get("metric_type")
+        metric_type = evaluation_result.get("metric_type") or ""
         label = evaluation_result.get("label")
         value = evaluation_result.get("value")
         timestamp_ms = evaluation_result.get("timestamp_ms") or int(time.time() * 1000)

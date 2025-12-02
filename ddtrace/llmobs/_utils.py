@@ -589,7 +589,7 @@ class LLMObsExportSpansClient:
         ml_app: Optional[str] = None,
         from_timestamp: Optional[str] = None,
         to_timestamp: Optional[str] = None,
-    ) -> Dict[str, str]:
+    ) -> Dict[str, Any]:
         url_options = {}
         if span_id:
             url_options["filter[span_id]"] = span_id
