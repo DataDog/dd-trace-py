@@ -42,7 +42,7 @@ include:
   - local: ".gitlab/benchmarks/serverless.yml"
   - local: ".gitlab/native.yml"
 
-github variables:
+pipeline variables:
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   tags: [ "arch:amd64" ]
   stage: setup
