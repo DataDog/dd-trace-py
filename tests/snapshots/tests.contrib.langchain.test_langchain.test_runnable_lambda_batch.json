@@ -10,19 +10,19 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "692de98100000000",
+      "_dd.p.tid": "692ef60900000000",
       "language": "python",
-      "runtime-id": "b9253e7db88043278f68198b3b3a48b7"
+      "runtime-id": "a68883ab67584c508d0af032620ec63f"
     },
     "metrics": {
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 65041.0
+      "process_id": 12707.0
     },
-    "duration": 25772000,
-    "start": 1764616577024472000
+    "duration": 5278000,
+    "start": 1764685321931833000
   },
      {
        "name": "langchain.request",
@@ -36,8 +36,8 @@
        "metrics": {
          "_dd.measured": 1.0
        },
-       "duration": 23975000,
-       "start": 1764616577024942000
+       "duration": 3040000,
+       "start": 1764685321932451000
      },
      {
        "name": "langchain.request",
@@ -51,8 +51,8 @@
        "metrics": {
          "_dd.measured": 1.0
        },
-       "duration": 2628000,
-       "start": 1764616577047517000
+       "duration": 4031000,
+       "start": 1764685321932922000
      },
      {
        "name": "langchain.request",
@@ -66,6 +66,6 @@
        "metrics": {
          "_dd.measured": 1.0
        },
-       "duration": 1817000,
-       "start": 1764616577047662000
+       "duration": 3318000,
+       "start": 1764685321933181000
      }]]

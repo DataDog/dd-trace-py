@@ -434,7 +434,7 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
 
     llmobs_events.sort(key=lambda span: span["start_ns"])
     trace = tracer.pop_traces()[0]
-    assert len(llmobs_events) == 4
+    assert len(llmobs_events) == 5
     assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
         trace[0],
         input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}]),
@@ -447,8 +447,16 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
         output_value=mock.ANY,
         span_links=True,
     )
-    assert llmobs_events[2] == _expected_langchain_llmobs_llm_span(
+    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(
         trace[2],
+        span_kind="task",
+        input_value=json.dumps({"person": "Spongebob Squarepants", "language": "Spanish"}),
+        output_value="Spanish",
+        span_links=True,
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+    )
+    assert llmobs_events[3] == _expected_langchain_llmobs_llm_span(
+        trace[3],
         mock_token_metrics=True,
         span_links=True,
         prompt={
@@ -459,8 +467,8 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
             "_dd_query_variable_keys": ["question"],
         },
     )
-    assert llmobs_events[3] == _expected_langchain_llmobs_llm_span(
-        trace[3],
+    assert llmobs_events[4] == _expected_langchain_llmobs_llm_span(
+        trace[4],
         mock_token_metrics=True,
         span_links=True,
         prompt={

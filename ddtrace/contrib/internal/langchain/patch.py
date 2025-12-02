@@ -617,7 +617,7 @@ def traced_runnable_lambda_invoke(langchain_core, pin, func, instance, args, kwa
     integration: LangChainIntegration = langchain_core._datadog_integration
     span = integration.trace(
         pin,
-        getattr(instance, "name", f"{instance.__class__.__name__}.{func.__name__}"),
+        getattr(instance, "name", "") or f"{instance.__class__.__name__}.{func.__name__}",
         submit_to_llmobs=True,
         interface_type="runnable_lambda",
         instance=instance,
@@ -643,7 +643,7 @@ async def traced_runnable_lambda_ainvoke(langchain_core, pin, func, instance, ar
     integration: LangChainIntegration = langchain_core._datadog_integration
     span = integration.trace(
         pin,
-        getattr(instance, "name", f"{instance.__class__.__name__}.{func.__name__}"),
+        getattr(instance, "name", "") or f"{instance.__class__.__name__}.{func.__name__}",
         submit_to_llmobs=True,
         interface_type="runnable_lambda",
         instance=instance,
@@ -668,7 +668,7 @@ async def traced_runnable_lambda_ainvoke(langchain_core, pin, func, instance, ar
 def traced_runnable_lambda_batch(langchain_core, pin, func, instance, args, kwargs):
     integration: LangChainIntegration = langchain_core._datadog_integration
 
-    if hasattr(instance, "name"):
+    if hasattr(instance, "name") and instance.name:
         name = f"{instance.name}_batch"
     else:
         name = f"{instance.__class__.__name__}.{func.__name__}"
@@ -700,7 +700,7 @@ def traced_runnable_lambda_batch(langchain_core, pin, func, instance, args, kwar
 async def traced_runnable_lambda_abatch(langchain_core, pin, func, instance, args, kwargs):
     integration: LangChainIntegration = langchain_core._datadog_integration
 
-    if hasattr(instance, "name"):
+    if hasattr(instance, "name") and instance.name:
         name = f"{instance.name}_batch"
     else:
         name = f"{instance.__class__.__name__}.{func.__name__}"
@@ -805,6 +805,10 @@ def unpatch():
     unwrap(langchain_core.runnables.base.RunnableSequence, "abatch")
     unwrap(langchain_core.runnables.base.RunnableSequence, "stream")
     unwrap(langchain_core.runnables.base.RunnableSequence, "astream")
+    unwrap(langchain_core.runnables.base.RunnableLambda, "invoke")
+    unwrap(langchain_core.runnables.base.RunnableLambda, "ainvoke")
+    unwrap(langchain_core.runnables.base.RunnableLambda, "batch")
+    unwrap(langchain_core.runnables.base.RunnableLambda, "abatch")
     unwrap(langchain_core.language_models.chat_models.BaseChatModel, "stream")
     unwrap(langchain_core.language_models.chat_models.BaseChatModel, "astream")
     unwrap(langchain_core.language_models.llms.BaseLLM, "stream")
