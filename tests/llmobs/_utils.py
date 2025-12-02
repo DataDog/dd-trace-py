@@ -909,6 +909,7 @@ def _assert_span_link(from_span_event, to_span_event, from_io, to_io):
             break
     assert found
 
+
 def sample_score_evaluation(exported_span) -> LLMObsEvaluationResult:
     return LLMObsEvaluationResult(
         metric_type="score",
@@ -922,6 +923,7 @@ def sample_score_evaluation(exported_span) -> LLMObsEvaluationResult:
         metadata={"test-key": "test-value"},
     )
 
+
 def sample_categorical_evaluation(exported_span) -> LLMObsEvaluationResult:
     return LLMObsEvaluationResult(
         metric_type="categorical",
@@ -934,6 +936,7 @@ def sample_categorical_evaluation(exported_span) -> LLMObsEvaluationResult:
         reasoning="The answer is correct.",
         metadata={"test-key": "test-value"},
     )
+
 
 def sample_boolean_evaluation(exported_span) -> LLMObsEvaluationResult:
     return LLMObsEvaluationResult(
@@ -964,7 +967,7 @@ def mock_exported_spans():
             "ml_app": "test-ml-app",
             "input": {"messages": [{"content": "What is the capital of Germany?"}]},
             "output": {"messages": [{"content": "The capital of Germany is Berlin."}]},
-        }
+        },
     ]
 
 

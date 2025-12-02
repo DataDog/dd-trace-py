@@ -515,7 +515,9 @@ class LLMObsExportSpansClient:
         """
         Generator that yields spans from the LLMObs Export API, handling pagination automatically.
         """
-        url_options = self._build_url_options(span_id, trace_id, tags, span_kind, span_name, ml_app, from_timestamp, to_timestamp)
+        url_options = self._build_url_options(
+            span_id, trace_id, tags, span_kind, span_name, ml_app, from_timestamp, to_timestamp
+        )
 
         has_next_page = True
         page_num = 0
@@ -552,7 +554,7 @@ class LLMObsExportSpansClient:
     def _request(self, path: str, timeout: float) -> Response:
         if not self._api_key or not self._app_key:
             raise ValueError("Both an API key and an APP key are required to make requests to the LLMObs Export API")
-        
+
         headers = {
             "Content-Type": "application/vnd.api+json",
             "DD-API-KEY": self._api_key,
@@ -569,15 +571,25 @@ class LLMObsExportSpansClient:
             return Response.from_http_response(resp)
         finally:
             conn.close()
-    
+
     def _extract_next_cursor(self, response_data) -> Optional[str]:
         if not response_data:
             return None
         meta = response_data.get("meta", {}) or {}
         page = meta.get("page", {}) or {}
         return page.get("after", None)
-    
-    def _build_url_options(self, span_id: Optional[str] = None, trace_id: Optional[str] = None, tags: Optional[Dict[str, str]] = None, span_kind: Optional[str] = None, span_name: Optional[str] = None, ml_app: Optional[str] = None, from_timestamp: Optional[str] = None, to_timestamp: Optional[str] = None) -> Dict[str, str]:
+
+    def _build_url_options(
+        self,
+        span_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
+        tags: Optional[Dict[str, str]] = None,
+        span_kind: Optional[str] = None,
+        span_name: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        from_timestamp: Optional[str] = None,
+        to_timestamp: Optional[str] = None,
+    ) -> Dict[str, str]:
         url_options = {}
         if span_id:
             url_options["filter[span_id]"] = span_id

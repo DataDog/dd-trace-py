@@ -1614,7 +1614,8 @@ def test_submit_evaluation_span_with_tag_value_empty_key_or_val_raises_error(llm
 
 def test_submit_evaluation_invalid_timestamp_raises_error(llmobs, mock_llmobs_logs):
     with pytest.raises(
-        LLMObsSubmitEvaluationError, match="timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent"
+        LLMObsSubmitEvaluationError,
+        match="timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent",
     ):
         llmobs.submit_evaluation(
             span={"span_id": "123", "trace_id": "456"},
@@ -1641,11 +1642,15 @@ def test_submit_evaluation_label_value_with_a_period_raises_error(llmobs, mock_l
 
 
 def test_submit_evaluation_incorrect_metric_type_raises_error(llmobs, mock_llmobs_logs):
-    with pytest.raises(LLMObsSubmitEvaluationError, match="metric_type must be one of 'categorical', 'score', or 'boolean'."):
+    with pytest.raises(
+        LLMObsSubmitEvaluationError, match="metric_type must be one of 'categorical', 'score', or 'boolean'."
+    ):
         llmobs.submit_evaluation(
             span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="wrong", value="high"
         )
-    with pytest.raises(LLMObsSubmitEvaluationError, match="metric_type must be one of 'categorical', 'score', or 'boolean'."):
+    with pytest.raises(
+        LLMObsSubmitEvaluationError, match="metric_type must be one of 'categorical', 'score', or 'boolean'."
+    ):
         llmobs.submit_evaluation(
             span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="", value="high"
         )
@@ -2044,9 +2049,7 @@ def test_submit_evaluation_incorrect_categorical_value_type_raises_error(llmobs,
 
 
 @mock.patch("ddtrace.llmobs._llmobs.LLMObs._instance._export_spans_client.export_spans")
-async def test_run_evaluations_enqueues_evaluation_metrics(
-    mock_export_spans, llmobs, mock_llmobs_eval_metric_writer
-):
+async def test_run_evaluations_enqueues_evaluation_metrics(mock_export_spans, llmobs, mock_llmobs_eval_metric_writer):
     """
     Tests that enqueuing evaluation metrics works for multiple spans and evaluations.
     """
@@ -2054,95 +2057,107 @@ async def test_run_evaluations_enqueues_evaluation_metrics(
 
     await llmobs.run_evaluations(
         ml_app="test-ml-app",
-        evaluations=[sample_score_evaluation, sample_categorical_evaluation, sample_boolean_evaluation]
+        evaluations=[sample_score_evaluation, sample_categorical_evaluation, sample_boolean_evaluation],
     )
 
-    mock_llmobs_eval_metric_writer.enqueue.assert_has_calls([
-        mock.call(_expected_llmobs_eval_metric_event(
-            metric_type="score",
-            label="accuracy",
-            ml_app="test-ml-app",
-            span_id="test-span-123",
-            trace_id="test-trace-123",
-            timestamp_ms=1763676378390000000,
-            score_value=0.95,
-            tags=mock.ANY,
-            metadata={"test-key": "test-value"},
-            assessment="pass",
-            reasoning="The answer is correct.",
-        )),
-        mock.call(_expected_llmobs_eval_metric_event(
-            metric_type="categorical",
-            label="sentiment",
-            ml_app="test-ml-app",
-            span_id="test-span-123",
-            trace_id="test-trace-123",
-            timestamp_ms=1763676378390000000,
-            categorical_value="positive",
-            tags=mock.ANY,
-            metadata={"test-key": "test-value"},
-            assessment="pass",
-            reasoning="The answer is correct.",
-        )),
-        mock.call(_expected_llmobs_eval_metric_event(
-            metric_type="boolean",
-            label="is_correct",
-            ml_app="test-ml-app",
-            span_id="test-span-123",
-            trace_id="test-trace-123",
-            timestamp_ms=1763676378390000000,
-            boolean_value=True,
-            tags=mock.ANY,
-            metadata={"test-key": "test-value"},
-            assessment="pass",
-            reasoning="The answer is correct.",
-        )),
-        mock.call(_expected_llmobs_eval_metric_event(
-            metric_type="score",
-            label="accuracy",
-            ml_app="test-ml-app",
-            span_id="test-span-456",
-            trace_id="test-trace-456",
-            timestamp_ms=1763676378390000000,
-            score_value=0.95,
-            tags=mock.ANY,
-            metadata={"test-key": "test-value"},
-            assessment="pass",
-            reasoning="The answer is correct.",
-        )),
-        mock.call(_expected_llmobs_eval_metric_event(
-            metric_type="categorical",
-            label="sentiment",
-            ml_app="test-ml-app",
-            span_id="test-span-456",
-            trace_id="test-trace-456",
-            timestamp_ms=1763676378390000000,
-            categorical_value="positive",
-            tags=mock.ANY,
-            metadata={"test-key": "test-value"},
-            assessment="pass",
-            reasoning="The answer is correct.",
-        )),
-        mock.call(_expected_llmobs_eval_metric_event(
-            metric_type="boolean",
-            label="is_correct",
-            ml_app="test-ml-app",
-            span_id="test-span-456",
-            trace_id="test-trace-456",
-            timestamp_ms=1763676378390000000,
-            boolean_value=True,
-            tags=mock.ANY,
-            metadata={"test-key": "test-value"},
-            assessment="pass",
-            reasoning="The answer is correct.",
-        )),
-    ])
+    mock_llmobs_eval_metric_writer.enqueue.assert_has_calls(
+        [
+            mock.call(
+                _expected_llmobs_eval_metric_event(
+                    metric_type="score",
+                    label="accuracy",
+                    ml_app="test-ml-app",
+                    span_id="test-span-123",
+                    trace_id="test-trace-123",
+                    timestamp_ms=1763676378390000000,
+                    score_value=0.95,
+                    tags=mock.ANY,
+                    metadata={"test-key": "test-value"},
+                    assessment="pass",
+                    reasoning="The answer is correct.",
+                )
+            ),
+            mock.call(
+                _expected_llmobs_eval_metric_event(
+                    metric_type="categorical",
+                    label="sentiment",
+                    ml_app="test-ml-app",
+                    span_id="test-span-123",
+                    trace_id="test-trace-123",
+                    timestamp_ms=1763676378390000000,
+                    categorical_value="positive",
+                    tags=mock.ANY,
+                    metadata={"test-key": "test-value"},
+                    assessment="pass",
+                    reasoning="The answer is correct.",
+                )
+            ),
+            mock.call(
+                _expected_llmobs_eval_metric_event(
+                    metric_type="boolean",
+                    label="is_correct",
+                    ml_app="test-ml-app",
+                    span_id="test-span-123",
+                    trace_id="test-trace-123",
+                    timestamp_ms=1763676378390000000,
+                    boolean_value=True,
+                    tags=mock.ANY,
+                    metadata={"test-key": "test-value"},
+                    assessment="pass",
+                    reasoning="The answer is correct.",
+                )
+            ),
+            mock.call(
+                _expected_llmobs_eval_metric_event(
+                    metric_type="score",
+                    label="accuracy",
+                    ml_app="test-ml-app",
+                    span_id="test-span-456",
+                    trace_id="test-trace-456",
+                    timestamp_ms=1763676378390000000,
+                    score_value=0.95,
+                    tags=mock.ANY,
+                    metadata={"test-key": "test-value"},
+                    assessment="pass",
+                    reasoning="The answer is correct.",
+                )
+            ),
+            mock.call(
+                _expected_llmobs_eval_metric_event(
+                    metric_type="categorical",
+                    label="sentiment",
+                    ml_app="test-ml-app",
+                    span_id="test-span-456",
+                    trace_id="test-trace-456",
+                    timestamp_ms=1763676378390000000,
+                    categorical_value="positive",
+                    tags=mock.ANY,
+                    metadata={"test-key": "test-value"},
+                    assessment="pass",
+                    reasoning="The answer is correct.",
+                )
+            ),
+            mock.call(
+                _expected_llmobs_eval_metric_event(
+                    metric_type="boolean",
+                    label="is_correct",
+                    ml_app="test-ml-app",
+                    span_id="test-span-456",
+                    trace_id="test-trace-456",
+                    timestamp_ms=1763676378390000000,
+                    boolean_value=True,
+                    tags=mock.ANY,
+                    metadata={"test-key": "test-value"},
+                    assessment="pass",
+                    reasoning="The answer is correct.",
+                )
+            ),
+        ]
+    )
 
 
 @mock.patch("ddtrace.llmobs._llmobs.LLMObs._instance._export_spans_client.export_spans")
-async def test_run_evaluations_no_spans(
-    mock_export_spans, llmobs, mock_llmobs_eval_metric_writer
-):
+async def test_run_evaluations_no_spans(mock_export_spans, llmobs, mock_llmobs_eval_metric_writer):
     """
     Tests that when there are no spans, no evaluation metrics are enqueued.
     """
@@ -2150,16 +2165,14 @@ async def test_run_evaluations_no_spans(
 
     await llmobs.run_evaluations(
         ml_app="test-ml-app",
-        evaluations=[sample_score_evaluation, sample_categorical_evaluation, sample_boolean_evaluation]
+        evaluations=[sample_score_evaluation, sample_categorical_evaluation, sample_boolean_evaluation],
     )
 
     mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
 
 
 @mock.patch("ddtrace.llmobs._llmobs.LLMObs._instance._export_spans_client.export_spans")
-async def test_run_evaluations_no_evaluations(
-    mock_export_spans, llmobs, mock_llmobs_eval_metric_writer
-):
+async def test_run_evaluations_no_evaluations(mock_export_spans, llmobs, mock_llmobs_eval_metric_writer):
     """
     Tests that when there are no evaluations, no evaluation metrics are enqueued.
     """
@@ -2170,6 +2183,7 @@ async def test_run_evaluations_no_evaluations(
     )
 
     mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
+
 
 @mock.patch("ddtrace.llmobs._llmobs.LLMObs._build_evaluation_metric")
 @mock.patch("ddtrace.llmobs._llmobs.LLMObs._instance._export_spans_client.export_spans")
@@ -2198,13 +2212,10 @@ async def test_run_evaluations_with_faulty_evaluation(
             metadata={"test-key": "test-value"},
             assessment="pass",
             reasoning="The answer is correct.",
-        )
+        ),
     ]
 
-    await llmobs.run_evaluations(
-        ml_app="test-ml-app",
-        evaluations=[sample_score_evaluation]
-    )
+    await llmobs.run_evaluations(ml_app="test-ml-app", evaluations=[sample_score_evaluation])
 
     # only the second evaluation should have been enqueued
     mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
@@ -2223,7 +2234,4 @@ async def test_run_evaluations_with_faulty_evaluation(
         )
     )
 
-    mock_llmobs_logs.error.assert_called_once_with(
-        "Failed to submit evaluation metric accuracy for span test-span-123"
-    )
-
+    mock_llmobs_logs.error.assert_called_once_with("Failed to submit evaluation metric accuracy for span test-span-123")

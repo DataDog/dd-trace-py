@@ -172,7 +172,7 @@ class LLMObsAnnotateSpanError(Exception):
 
 class LLMObsSubmitEvaluationError(Exception):
     """Error raised when submitting an evaluation."""
-    
+
     error_type: str
 
 
@@ -186,6 +186,7 @@ class LLMObsActivateDistributedHeadersError(Exception):
     """Error raised when activating distributed headers."""
 
     pass
+
 
 class LLMObsEvaluationResult(TypedDict, total=False):
     metric_type: str
@@ -1722,7 +1723,7 @@ class LLMObs(Service):
                     "key": span_with_tag_value.get("tag_key"),
                     "value": span_with_tag_value.get("tag_value"),
                 }
-            
+
             evaluation_result = LLMObsEvaluationResult(
                 metric_type=metric_type,
                 label=label,
@@ -1743,10 +1744,9 @@ class LLMObs(Service):
         finally:
             telemetry.record_llmobs_submit_evaluation(join_on, metric_type, error)
 
-
     @classmethod
     async def run_evaluations(
-        cls, 
+        cls,
         span_id: Optional[str] = None,
         trace_id: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
@@ -1755,7 +1755,7 @@ class LLMObs(Service):
         ml_app: Optional[str] = None,
         from_timestamp: Optional[str] = None,
         to_timestamp: Optional[str] = None,
-        evaluations: Optional[List[Callable[[Dict[str, Any]], LLMObsEvaluationResult]]] = None
+        evaluations: Optional[List[Callable[[Dict[str, Any]], LLMObsEvaluationResult]]] = None,
     ) -> None:
         """
         Runs evaluations on spans that match the given filters and submits those evaluation metrics to LLMObs.
@@ -1774,7 +1774,7 @@ class LLMObs(Service):
         """
         if not evaluations:
             return
-        
+
         for exported_span in cls._instance._export_spans_client.export_spans(
             span_id=span_id,
             trace_id=trace_id,
@@ -1801,11 +1801,12 @@ class LLMObs(Service):
                     cls._instance._llmobs_eval_metric_writer.enqueue(evaluation_metric)
                 except LLMObsSubmitEvaluationError as e:
                     error = e.error_type
-                    log.error(f"Failed to submit evaluation metric {evaluation_result.get('label')} for span {exported_span.get('span_id')}")
+                    log.error(
+                        f"Failed to submit evaluation metric {evaluation_result.get('label')} for span {exported_span.get('span_id')}"
+                    )
                 finally:
                     metric_type = evaluation_result.get("metric_type") or ""
                     telemetry.record_llmobs_submit_evaluation(join_on, metric_type, error)
-        
 
     @staticmethod
     def _build_evaluation_metric(
@@ -1830,7 +1831,9 @@ class LLMObs(Service):
         ml_app = evaluation_result.get("ml_app") or exported_span.get("ml_app")
 
         if not isinstance(timestamp_ms, int) or timestamp_ms < 0:
-            error = LLMObsSubmitEvaluationError("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")
+            error = LLMObsSubmitEvaluationError(
+                "timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent"
+            )
             error.error_type = "invalid_timestamp"
             raise error
 
@@ -1887,7 +1890,9 @@ class LLMObs(Service):
                 try:
                     evaluation_tags[ensure_text(k)] = ensure_text(v)
                 except TypeError:
-                    error = LLMObsSubmitEvaluationError("Failed to parse tags. Tags for evaluation metrics must be strings.")
+                    error = LLMObsSubmitEvaluationError(
+                        "Failed to parse tags. Tags for evaluation metrics must be strings."
+                    )
                     error.error_type = "invalid_tags"
                     raise error
 
@@ -1927,9 +1932,9 @@ class LLMObs(Service):
                 metadata = safe_json(metadata)
                 if metadata and isinstance(metadata, str):
                     evaluation_metric["metadata"] = json.loads(metadata)
-        
+
         return evaluation_metric
-    
+
     @classmethod
     def _inject_llmobs_context(cls, span_context: Context, request_headers: Dict[str, str]) -> None:
         if cls.enabled is False:

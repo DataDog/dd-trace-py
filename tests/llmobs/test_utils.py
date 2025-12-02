@@ -303,6 +303,7 @@ def test_json_serialize_class_with_str():
     encoded_obj = safe_json(class_with_str)
     assert encoded_obj == '"Class"'
 
+
 def test_export_spans_client_build_url_options():
     export_spans_client = LLMObsExportSpansClient(
         api_key="test-api-key",
@@ -331,6 +332,7 @@ def test_export_spans_client_build_url_options():
         "page[limit]": 100,
     }
 
+
 def test_export_spans_client_build_url_options_empty():
     export_spans_client = LLMObsExportSpansClient(
         api_key="test-api-key",
@@ -342,6 +344,7 @@ def test_export_spans_client_build_url_options_empty():
     assert url_options == {
         "page[limit]": 100,
     }
+
 
 @mock.patch("ddtrace.llmobs._utils.LLMObsExportSpansClient._request")
 def test_export_spans_client_export_spans(mock_request):
@@ -362,9 +365,11 @@ def test_export_spans_client_export_spans(mock_request):
     )
     mock_request.side_effect = [mock_response_page_1, mock_response_page_2]
 
-    spans = list(export_spans_client.export_spans(
-        trace_id="trace-1",
-    ))
+    spans = list(
+        export_spans_client.export_spans(
+            trace_id="trace-1",
+        )
+    )
 
     assert mock_request.call_count == 2
 
@@ -389,6 +394,8 @@ def test_export_spans_client_export_spans_error(mock_request):
     mock_request.return_value = mock_response
 
     with pytest.raises(ExportSpansAPIError, match="Failed to export spans with status 500"):
-        list(export_spans_client.export_spans(
-            span_id="test-span-id",
-        ))
+        list(
+            export_spans_client.export_spans(
+                span_id="test-span-id",
+            )
+        )
