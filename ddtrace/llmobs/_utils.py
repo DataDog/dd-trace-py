@@ -530,14 +530,14 @@ class LLMObsExportSpansClient:
                 log.error(
                     "Failed to export spans: page=%d, status=%d, response=%s",
                     page_num,
-                    resp.status,
-                    resp.body,
+                    getattr(resp, "status", None),
+                    getattr(resp, "body", None),
                 )
                 raise ExportSpansAPIError(
                     f"Failed to export spans with status {resp.status} for url options {url_options}"
                 )
 
-            response_data = resp.get_json()
+            response_data = resp.get_json() if hasattr(resp, "get_json") else {}
 
             for span in response_data.get("data", []):
                 yield span.get("attributes", {})
