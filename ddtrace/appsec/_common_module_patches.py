@@ -13,6 +13,7 @@ from typing import Union
 from wrapt import FunctionWrapper
 from wrapt import resolve_path
 
+from ddtrace.appsec._asm_request_context import _get_asm_context
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
@@ -52,6 +53,7 @@ def patch_common_modules():
     try_wrap_function_wrapper(
         "urllib3.connectionpool", "HTTPConnectionPool._make_request", wrapped_urllib3_make_request
     )
+    try_wrap_function_wrapper("urllib3.connectionpool", "HTTPConnectionPool.urlopen", wrapped_urllib3_urlopen)
     try_wrap_function_wrapper("urllib3._request_methods", "RequestMethods.request", wrapped_request_D8CB81E472AF98A2)
     try_wrap_function_wrapper("urllib3.request", "RequestMethods.request", wrapped_request_D8CB81E472AF98A2)
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
@@ -163,7 +165,8 @@ def wrapped_request(original_request_callable, instance, args, kwargs):
     from ddtrace.appsec._asm_request_context import call_waf_callback
 
     full_url = core.get_item("full_url")
-    if full_url is not None:
+    env = _get_asm_context()
+    if _get_rasp_capability("ssrf") and full_url is not None and env is not None:
         use_body = core.get_item("use_body", False)
         method = args[0] if len(args) > 0 else kwargs.get("method", None)
         body = args[2] if len(args) > 2 else kwargs.get("body", None)
@@ -180,6 +183,8 @@ def wrapped_request(original_request_callable, instance, args, kwargs):
             crop_trace="wrapped_open_ED4CF71136E15EBF",
             rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
         )
+        env.downstream_requests += 1
+        core.discard_item("full_url")
         if res and _must_block(res.actions):
             raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
     return original_request_callable(*args, **kwargs)
@@ -204,7 +209,6 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
     """
     if _get_rasp_capability("ssrf"):
         try:
-            from ddtrace.appsec._asm_request_context import _get_asm_context
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import should_analyze_body_response
         except ImportError:
@@ -266,7 +270,8 @@ def wrapped_urllib3_make_request(original_request_callable, instance, args, kwar
     from ddtrace.appsec._asm_request_context import call_waf_callback
 
     full_url = core.get_item("full_url")
-    if full_url is not None:
+    env = _get_asm_context()
+    if _get_rasp_capability("ssrf") and full_url is not None and env is not None:
         use_body = core.get_item("use_body", False)
         method = args[1] if len(args) > 1 else kwargs.get("method", None)
         body = args[3] if len(args) > 3 else kwargs.get("body", None)
@@ -283,10 +288,21 @@ def wrapped_urllib3_make_request(original_request_callable, instance, args, kwar
             crop_trace="wrapped_request_D8CB81E472AF98A2",
             rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
         )
+        env.downstream_requests += 1
         core.discard_item("full_url")
         if res and _must_block(res.actions):
             raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
     return original_request_callable(*args, **kwargs)
+
+
+def wrapped_urllib3_urlopen(original_open_callable, instance, args, kwargs):
+    full_url = args[2] if len(args) > 2 else kwargs.get("url", None)
+    if core.get_item("full_url") is None:
+        core.set_item("full_url", full_url)
+    try:
+        return original_open_callable(*args, **kwargs)
+    finally:
+        core.discard_item("full_url")
 
 
 def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, kwargs):
