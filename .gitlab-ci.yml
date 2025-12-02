@@ -74,23 +74,7 @@ run-tests-trigger:
        job: tests-gen
    strategy: depend
 
-# Validate the ast-grep rule's test suite in .sg/tests
-"ast-grep rules":
-  extends: .testrunner
-  stage: tests
-  needs: []
-  script:
-  script:
-    - |
-      echo -e "\e[0Ksection_start:`date +%s`:sg_test[collapsed=true]\r\e[0KValidate ast-grep rules"
-      hatch run lint:sg-test
-      echo -e "\e[0Ksection_end:`date +%s`:sg_test\r\e[0K"
-    - |
-      echo -e "\e[0Ksection_start:`date +%s`:sg_scan[collapsed=true]\r\e[0Kast-grep scan"
-      hatch run lint:sg
-      echo -e "\e[0Ksection_end:`date +%s`:sg_scan\r\e[0K"
-
-"trigger serverless lambda tests":
+trigger serverless lambda tests:
   stage: tests
   trigger:
     project: DataDog/datadog-lambda-python/
@@ -107,6 +91,22 @@ run-tests-trigger:
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
     UPSTREAM_GITLAB_USER_LOGIN: $GITLAB_USER_LOGIN
     UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL
+
+# Validate the ast-grep rule's test suite in .sg/tests
+"ast-grep rules":
+  extends: .testrunner
+  stage: tests
+  needs: []
+  script:
+  script:
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:sg_test[collapsed=true]\r\e[0KValidate ast-grep rules"
+      hatch run lint:sg-test
+      echo -e "\e[0Ksection_end:`date +%s`:sg_test\r\e[0K"
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:sg_scan[collapsed=true]\r\e[0Kast-grep scan"
+      hatch run lint:sg
+      echo -e "\e[0Ksection_end:`date +%s`:sg_scan\r\e[0K"
 
 microbenchmarks:
   stage: benchmarks
