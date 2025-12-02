@@ -873,7 +873,7 @@ class TestLLMObsOpenaiV1:
                             "output_tokens": 36,
                             "total_tokens": 179,
                             "cache_read_input_tokens": 0,
-                            "reasoning_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -948,7 +948,7 @@ class TestLLMObsOpenaiV1:
                     "output_tokens": 275,
                     "total_tokens": 434,
                     "cache_read_input_tokens": 0,
-                    "reasoning_tokens": 256,
+                    "reasoning_output_tokens": 256,
                 },
                 tool_definitions=[
                     {
@@ -1037,7 +1037,7 @@ MUL: "*"
                     "output_tokens": 214,
                     "total_tokens": 455,
                     "cache_read_input_tokens": 0,
-                    "reasoning_tokens": 192,
+                    "reasoning_output_tokens": 192,
                 },
                 tool_definitions=[
                     {
@@ -1183,7 +1183,7 @@ MUL: "*"
                             "output_tokens": 100,
                             "total_tokens": 1321,
                             "cache_read_input_tokens": 0,
-                            "reasoning_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1202,7 +1202,7 @@ MUL: "*"
                             "output_tokens": 100,
                             "total_tokens": 1320,
                             "cache_read_input_tokens": 1152,
-                            "reasoning_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1431,7 +1431,7 @@ MUL: "*"
                             "output_tokens": 100,
                             "total_tokens": 1521,
                             "cache_read_input_tokens": 0,
-                            "reasoning_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1455,7 +1455,7 @@ MUL: "*"
                             "output_tokens": 100,
                             "total_tokens": 1520,
                             "cache_read_input_tokens": 1280,
-                            "reasoning_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1533,7 +1533,7 @@ MUL: "*"
                     "output_tokens": 40,
                     "total_tokens": 93,
                     "cache_read_input_tokens": 0,
-                    "reasoning_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -1576,7 +1576,7 @@ MUL: "*"
                     "output_tokens": 12,
                     "total_tokens": 21,
                     "cache_read_input_tokens": 0,
-                    "reasoning_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -1631,7 +1631,7 @@ MUL: "*"
                     "output_tokens": 0,
                     "total_tokens": 0,
                     "cache_read_input_tokens": 0,
-                    "reasoning_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -1670,7 +1670,7 @@ MUL: "*"
                     "output_tokens": 23,
                     "total_tokens": 98,
                     "cache_read_input_tokens": 0,
-                    "reasoning_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tool_definitions=[
                     {
@@ -1752,7 +1752,7 @@ MUL: "*"
                     "output_tokens": 23,
                     "total_tokens": 98,
                     "cache_read_input_tokens": 0,
-                    "reasoning_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -1821,7 +1821,7 @@ MUL: "*"
                     "output_tokens": 40,
                     "total_tokens": 93,
                     "cache_read_input_tokens": 0,
-                    "reasoning_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -1878,7 +1878,7 @@ MUL: "*"
                             "output_tokens": 14,
                             "total_tokens": 1529,
                             "cache_read_input_tokens": 0,
-                            "reasoning_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1904,7 +1904,7 @@ MUL: "*"
                             "output_tokens": 8,
                             "total_tokens": 1523,
                             "cache_read_input_tokens": 1390,
-                            "reasoning_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1968,7 +1968,7 @@ MUL: "*"
                             "output_tokens": 14,
                             "total_tokens": 1529,
                             "cache_read_input_tokens": 0,
-                            "reasoning_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1994,7 +1994,7 @@ MUL: "*"
                             "output_tokens": 8,
                             "total_tokens": 1523,
                             "cache_read_input_tokens": 1390,
-                            "reasoning_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -2101,7 +2101,7 @@ MUL: "*"
                     "output_tokens": 93,
                     "total_tokens": 220,
                     "cache_read_input_tokens": 0,
-                    "reasoning_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -2161,7 +2161,7 @@ MUL: "*"
                     "output_tokens": 99,
                     "total_tokens": 212,
                     "cache_read_input_tokens": 0,
-                    "reasoning_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -2259,7 +2259,7 @@ MUL: "*"
                 "output_tokens": 206,
                 "total_tokens": 848,
                 "cache_read_input_tokens": 0,
-                "reasoning_tokens": 128,
+                "reasoning_output_tokens": 128,
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             tool_definitions=[
@@ -2397,7 +2397,7 @@ MUL: "*"
                     "output_tokens": 164,
                     "total_tokens": 218,
                     "cache_read_input_tokens": 0,
-                    "reasoning_tokens": 128,
+                    "reasoning_output_tokens": 128,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )

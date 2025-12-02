@@ -43,7 +43,7 @@ TOTAL_TOKENS_METRIC_KEY = "total_tokens"
 CACHE_WRITE_INPUT_TOKENS_METRIC_KEY = "cache_write_input_tokens"
 CACHE_READ_INPUT_TOKENS_METRIC_KEY = "cache_read_input_tokens"
 BILLABLE_CHARACTER_COUNT_METRIC_KEY = "billable_character_count"
-REASONING_TOKENS_METRIC_KEY = "reasoning_tokens"
+REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
 
 EVAL_ENDPOINT = "/api/intake/llm-obs/v2/eval-metric"
 SPAN_ENDPOINT = "/api/v2/llmobs"
