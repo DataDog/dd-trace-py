@@ -80,13 +80,14 @@ class LangGraphIntegration(BaseLLMIntegration):
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",  # oneof graph, node
+        **extra_kwargs: Any,
     ):
         if not self.llmobs_enabled:
             return
 
         inputs = get_argument_value(args, kwargs, 0, "input")
-        config = get_argument_value(args, kwargs, 1, "config", optional=True) or {}
-        metadata = _get_attr(config, "metadata", {})
+        config: Dict[str, Any] = get_argument_value(args, kwargs, 1, "config", optional=True) or {}
+        metadata = cast(Dict[str, Any], config.get("metadata", {}))
         instance_id = metadata.get("langgraph_checkpoint_ns", "").split(":")[-1]
         is_subgraph = config.get("metadata", {}).get("_dd.subgraph", False)
 

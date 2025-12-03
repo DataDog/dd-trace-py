@@ -79,6 +79,7 @@ class MCPIntegration(BaseLLMIntegration):
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
+        **extra_kwargs: Any,
     ) -> None:
         if operation == CLIENT_TOOL_CALL_OPERATION_NAME:
             self._llmobs_set_tags_client(span, args, kwargs, response)

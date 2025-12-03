@@ -166,6 +166,7 @@ class LangChainIntegration(BaseLLMIntegration):
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",  # oneof "llm","chat","chain","embedding","retrieval","tool"
+        **extra_kwargs: Any,
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
@@ -195,13 +196,19 @@ class LangChainIntegration(BaseLLMIntegration):
                 LLMObs._integration_is_enabled(llmobs_integration) or span._get_ctx_item(PROXY_REQUEST) is True
             )
 
+        identifying_params = extra_kwargs.get("identifying_params", None)
+
         if operation == "llm":
-            self._llmobs_set_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)
+            self._llmobs_set_tags_from_llm(
+                span, args, kwargs, response, is_workflow=is_workflow, identifying_params=identifying_params
+            )
             update_proxy_workflow_input_output_value(span, "workflow" if is_workflow else "llm")
         elif operation == "chat":
             # langchain-openai will call a beta client "response_format" is passed in the kwargs, which we do not trace
             is_workflow = is_workflow and not (llmobs_integration == "openai" and ("response_format" in kwargs))
-            self._llmobs_set_tags_from_chat_model(span, args, kwargs, response, is_workflow=is_workflow)
+            self._llmobs_set_tags_from_chat_model(
+                span, args, kwargs, response, is_workflow=is_workflow, identifying_params=identifying_params
+            )
             update_proxy_workflow_input_output_value(span, "workflow" if is_workflow else "llm")
         elif operation == "chain":
             self._llmobs_set_meta_tags_from_chain(span, args, kwargs, outputs=response)
@@ -395,8 +402,9 @@ class LangChainIntegration(BaseLLMIntegration):
 
         return f"{module_name}.{variable_name}"
 
-    def _llmobs_set_metadata(self, span: Span, kwargs: Dict[str, Any]) -> None:
-        identifying_params = kwargs.pop("_dd.identifying_params", None)
+    def _llmobs_set_metadata(
+        self, span: Span, kwargs: Dict[str, Any], identifying_params: Optional[Dict[str, Any]] = None
+    ) -> None:
         if not identifying_params:
             return
         metadata = self._llmobs_extract_parameters(identifying_params)
@@ -428,7 +436,13 @@ class LangChainIntegration(BaseLLMIntegration):
         return metadata
 
     def _llmobs_set_tags_from_llm(
-        self, span: Span, args: List[Any], kwargs: Dict[str, Any], completions: Any, is_workflow: bool = False
+        self,
+        span: Span,
+        args: List[Any],
+        kwargs: Dict[str, Any],
+        completions: Any,
+        is_workflow: bool = False,
+        identifying_params: Optional[Dict[str, Any]] = None,
     ) -> None:
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
@@ -452,7 +466,7 @@ class LangChainIntegration(BaseLLMIntegration):
             }
         )
 
-        self._llmobs_set_metadata(span, kwargs)
+        self._llmobs_set_metadata(span, kwargs, identifying_params)
 
         if span.error:
             span._set_ctx_item(output_tag_key, [Message(content="")])
@@ -479,6 +493,7 @@ class LangChainIntegration(BaseLLMIntegration):
         kwargs: Dict[str, Any],
         chat_completions: Any,
         is_workflow: bool = False,
+        identifying_params: Optional[Dict[str, Any]] = None,
     ) -> None:
         span._set_ctx_items(
             {
@@ -488,7 +503,7 @@ class LangChainIntegration(BaseLLMIntegration):
             }
         )
 
-        self._llmobs_set_metadata(span, kwargs)
+        self._llmobs_set_metadata(span, kwargs, identifying_params)
 
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES

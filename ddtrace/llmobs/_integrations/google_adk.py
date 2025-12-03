@@ -43,9 +43,11 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",  # being used for span kind: one of "agent", "tool", "code_execute"
+        **extra_kwargs: Any,
     ) -> None:
         if operation == "agent":
-            self._llmobs_set_tags_agent(span, args, kwargs, response)
+            agent_instance = extra_kwargs.get("_dd.instance", None)
+            self._llmobs_set_tags_agent(span, args, kwargs, response, agent_instance)
         elif operation == "tool":
             self._llmobs_set_tags_tool(span, args, kwargs, response)
         elif operation == "code_execute":
@@ -60,9 +62,8 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         )
 
     def _llmobs_set_tags_agent(
-        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any]
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any], agent_instance: Any
     ) -> None:
-        agent_instance = kwargs.get("instance", None)
         agent_name = getattr(agent_instance, "name", None)
 
         self._tag_agent_manifest(span, kwargs, agent_instance)

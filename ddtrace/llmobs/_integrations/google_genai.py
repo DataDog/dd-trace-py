@@ -72,6 +72,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
+        **extra_kwargs: Any,
     ) -> None:
         provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
         if response is not None:

@@ -77,12 +77,13 @@ class BaseLLMIntegration:
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
+        **extra_kwargs: Any,
     ) -> None:
         """Extract input/output information from the request and response to be submitted to LLMObs."""
         if not self.llmobs_enabled or not self.is_pc_sampled_llmobs(span):
             return
         try:
-            self._llmobs_set_tags(span, args, kwargs, response, operation)
+            self._llmobs_set_tags(span, args, kwargs, response, operation, **extra_kwargs)
         except Exception:
             log.error("Error extracting LLMObs fields for span %s, likely due to malformed data", span, exc_info=True)
 
@@ -94,6 +95,7 @@ class BaseLLMIntegration:
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
+        **extra_kwargs: Any,
     ) -> None:
         raise NotImplementedError()
 

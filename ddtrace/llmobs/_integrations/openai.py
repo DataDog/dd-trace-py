@@ -107,6 +107,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",  # oneof "completion", "chat", "embedding", "response"
+        **extra_kwargs: Any,
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         span_kind = (

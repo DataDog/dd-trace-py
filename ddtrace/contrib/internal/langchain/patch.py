@@ -81,8 +81,14 @@ def traced_llm_generate(langchain_core, pin, func, instance, args, kwargs):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        kwargs["_dd.identifying_params"] = instance._identifying_params
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=completions, operation="llm")
+        integration.llmobs_set_tags(
+            span,
+            args=args,
+            kwargs=kwargs,
+            response=completions,
+            operation="llm",
+            identifying_params=instance._identifying_params,
+        )
         span.finish()
     return completions
 
@@ -115,8 +121,14 @@ async def traced_llm_agenerate(langchain_core, pin, func, instance, args, kwargs
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        kwargs["_dd.identifying_params"] = instance._identifying_params
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=completions, operation="llm")
+        integration.llmobs_set_tags(
+            span,
+            args=args,
+            kwargs=kwargs,
+            response=completions,
+            operation="llm",
+            identifying_params=instance._identifying_params,
+        )
         span.finish()
     return completions
 
@@ -148,8 +160,14 @@ def traced_chat_model_generate(langchain_core, pin, func, instance, args, kwargs
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        kwargs["_dd.identifying_params"] = instance._identifying_params
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
+        integration.llmobs_set_tags(
+            span,
+            args=args,
+            kwargs=kwargs,
+            response=chat_completions,
+            operation="chat",
+            identifying_params=instance._identifying_params,
+        )
         span.finish()
     return chat_completions
 
@@ -181,8 +199,14 @@ async def traced_chat_model_agenerate(langchain_core, pin, func, instance, args,
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        kwargs["_dd.identifying_params"] = instance._identifying_params
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
+        integration.llmobs_set_tags(
+            span,
+            args=args,
+            kwargs=kwargs,
+            response=chat_completions,
+            operation="chat",
+            identifying_params=instance._identifying_params,
+        )
         span.finish()
     return chat_completions
 
@@ -320,14 +344,20 @@ def traced_chat_stream(langchain_core, pin, func, instance, args, kwargs):
         integration.record_instance(instance, span)
 
     def _on_span_finished(span: Span, streamed_chunks):
-        kwargs["_dd.identifying_params"] = instance._identifying_params
         if len(streamed_chunks):
             joined_chunks = streamed_chunks[0]
             for chunk in streamed_chunks[1:]:
                 joined_chunks += chunk  # base message types support __add__ for concatenation
         else:
             joined_chunks = []
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=joined_chunks, operation="chat")
+        integration.llmobs_set_tags(
+            span,
+            args=args,
+            kwargs=kwargs,
+            response=joined_chunks,
+            operation="chat",
+            identifying_params=instance._identifying_params,
+        )
 
     return shared_stream(
         integration=integration,
@@ -364,8 +394,14 @@ def traced_llm_stream(langchain_core, pin, func, instance, args, kwargs):
 
     def _on_span_finished(span: Span, streamed_chunks):
         content = "".join([str(chunk) for chunk in streamed_chunks])
-        kwargs["_dd.identifying_params"] = instance._identifying_params
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=content, operation="llm")
+        integration.llmobs_set_tags(
+            span,
+            args=args,
+            kwargs=kwargs,
+            response=content,
+            operation="llm",
+            identifying_params=instance._identifying_params,
+        )
 
     return shared_stream(
         integration=integration,

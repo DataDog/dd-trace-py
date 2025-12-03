@@ -6,7 +6,6 @@ from typing import Tuple
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
@@ -65,6 +64,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
+        **extra_kwargs: Any,
     ) -> None:
         model_name = get_argument_value(args, kwargs, 0, "model", False) or ""
         model_name, model_provider = self._model_map.get(model_name, (model_name, ""))
@@ -76,7 +76,8 @@ class LiteLLMIntegration(BaseLLMIntegration):
             openai_set_meta_tags_from_chat(span, kwargs, response, integration_name="litellm")
 
         # custom logic for updating metadata on litellm spans
-        self._update_litellm_metadata(span, kwargs, operation)
+        llm_router = extra_kwargs.get("instance", None)
+        self._update_litellm_metadata(span, kwargs, operation, llm_router)
 
         # update input and output value for non-LLM spans
         span_kind = self._get_span_kind(span, kwargs, model_name, operation)
@@ -87,7 +88,9 @@ class LiteLLMIntegration(BaseLLMIntegration):
             {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
         )
 
-    def _update_litellm_metadata(self, span: Span, kwargs: Dict[str, Any], operation: str):
+    def _update_litellm_metadata(
+        self, span: Span, kwargs: Dict[str, Any], operation: str, llm_router: Optional[Any] = None
+    ):
         metadata = span._get_ctx_item(METADATA) or {}
         base_url = kwargs.get("base_url") or kwargs.get("api_base")
         # select certain keys within metadata to avoid sending sensitive data
@@ -113,7 +116,6 @@ class LiteLLMIntegration(BaseLLMIntegration):
             span._set_ctx_items({METADATA: metadata})
             return
 
-        llm_router = kwargs.get(LITELLM_ROUTER_INSTANCE_KEY)
         if not llm_router:
             span._set_ctx_items({METADATA: metadata})
             return

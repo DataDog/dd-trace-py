@@ -100,8 +100,6 @@ DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH = "on_openai_agent_span_finish"
 # When there are no tool call args, we use this as a place-holder lookup key
 OAI_HANDOFF_TOOL_ARG = "{}"
 
-LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"
-
 PROXY_REQUEST = "llmobs.proxy_request"
 
 EXPERIMENT_ID_KEY = "_ml_obs.experiment_id"

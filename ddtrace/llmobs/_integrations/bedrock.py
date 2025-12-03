@@ -55,6 +55,7 @@ class BedrockIntegration(BaseLLMIntegration):
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
+        **extra_kwargs: Any,
     ) -> None:
         """Extract prompt/response attributes from an execution context.
 
