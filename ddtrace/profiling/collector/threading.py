@@ -51,16 +51,24 @@ class ThreadingRLockCollector(_lock.LockCollector):
 # Also patch threading.Thread so echion can track thread lifetimes
 def init_stack_v2() -> None:
     if config.stack.enabled and stack_v2.is_available:
-        _thread_set_native_id = ddtrace_threading.Thread._set_native_id  # type: ignore[attr-defined]
-        _thread_bootstrap_inner = ddtrace_threading.Thread._bootstrap_inner  # type: ignore[attr-defined]
+        _thread_set_native_id = typing.cast(
+            typing.Callable[[threading.Thread], None],
+            ddtrace_threading.Thread._set_native_id,  # type: ignore[attr-defined]
+        )
+        _thread_bootstrap_inner = typing.cast(
+            typing.Callable[[threading.Thread], None],
+            ddtrace_threading.Thread._bootstrap_inner,  # type: ignore[attr-defined]
+        )
 
-        def thread_set_native_id(self, *args, **kwargs):
-            _thread_set_native_id(self, *args, **kwargs)
-            stack_v2.register_thread(self.ident, self.native_id, self.name)
+        def thread_set_native_id(self: threading.Thread) -> None:
+            _thread_set_native_id(self)
+            if self.ident is not None and self.native_id is not None:
+                stack_v2.register_thread(self.ident, self.native_id, self.name)
 
-        def thread_bootstrap_inner(self, *args, **kwargs):
+        def thread_bootstrap_inner(self: threading.Thread, *args: typing.Any, **kwargs: typing.Any) -> None:
             _thread_bootstrap_inner(self, *args, **kwargs)
-            stack_v2.unregister_thread(self.ident)
+            if self.ident is not None:
+                stack_v2.unregister_thread(self.ident)
 
         ddtrace_threading.Thread._set_native_id = thread_set_native_id  # type: ignore[attr-defined]
         ddtrace_threading.Thread._bootstrap_inner = thread_bootstrap_inner  # type: ignore[attr-defined]
