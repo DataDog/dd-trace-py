@@ -31,6 +31,11 @@ class TelemetryAPI:
     def __init__(self, connector_setup: BackendConnectorSetup) -> None:
         # DEV: In a beautiful world, this would set up a backend connector to the telemetry endpoint.
         # Currently we rely on ddtrace's telemetry infrastructure, so we don't have to do anything here.
+
+        # DEV: Currently we rely on ddtrace/internal/telemetry/__init__.py setting `telemetry_writer` to be a
+        # NoOpTelemetryWriter if the `DD_INSTRUMENTATION_TELEMETRY_ENABLED` environment variable is set to false.
+        # If we ever start having our own telemetry writer, we will have to handle this env var ourselves.
+
         self.writer = telemetry_writer
 
     def with_request_metric_names(
