@@ -15,7 +15,6 @@ Every night at 1 AM UTC, the system automatically detects the most recent 3 mino
 - Returns top 3 (e.g., `["4.0", "3.19", "3.18"]`)
 - **Additionally includes the last minor of the previous major** if not already in top 3
   - Example: If top 3 are `[4.3, 4.2, 4.1]` (all major 4.x), adds `3.19` (last of major 3.x)
-  - Does NOT include 2.x branches (only immediate previous major)
 
 This ensures coverage of both the latest releases AND the last release of the previous major version line, which may still be receiving security patches.
 
