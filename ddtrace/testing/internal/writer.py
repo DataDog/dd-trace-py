@@ -7,6 +7,7 @@ import uuid
 
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
+from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import TestItem
 from ddtrace.testing.internal.test_data import TestModule
 from ddtrace.testing.internal.test_data import TestRun
@@ -82,7 +83,7 @@ class BaseWriter(ABC):
 class TestOptWriter(BaseWriter):
     __test__ = False
 
-    def __init__(self, connector_setup: BackendConnectorSetup) -> None:
+    def __init__(self, connector_setup: BackendConnectorSetup, telemetry_api: TelemetryAPI) -> None:
         super().__init__()
 
         self.metadata: t.Dict[str, t.Dict[str, str]] = {
@@ -105,6 +106,7 @@ class TestOptWriter(BaseWriter):
         }
 
         self.connector = connector_setup.get_connector_for_subdomain("citestcycle-intake")
+        self.telemetry_api = telemetry_api
 
         self.serializers: t.Dict[t.Type[TestItem[t.Any, t.Any]], EventSerializer[t.Any]] = {
             TestRun: serialize_test_run,
@@ -135,14 +137,18 @@ class TestOptWriter(BaseWriter):
 class TestCoverageWriter(BaseWriter):
     __test__ = False
 
-    def __init__(self, connector_setup: BackendConnectorSetup) -> None:
+    def __init__(self, connector_setup: BackendConnectorSetup, telemetry_api: TelemetryAPI) -> None:
         super().__init__()
 
         self.connector = connector_setup.get_connector_for_subdomain("citestcov-intake")
+        self.telemetry_api = telemetry_api
 
     def put_coverage(self, test_run: TestRun, coverage_bitmaps: t.Iterable[t.Tuple[str, bytes]]) -> None:
         files = [{"filename": pathname, "bitmap": bitmap} for pathname, bitmap in coverage_bitmaps]
+        self.telemetry_api.record_coverage_files(len(files))
+
         if not files:
+            self.telemetry_api.record_coverage_is_empty()
             return
 
         event = Event(

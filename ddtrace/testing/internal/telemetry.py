@@ -41,6 +41,24 @@ class TelemetryAPI:
     def finish(self) -> None:
         self.writer.periodic(force_flush=True)
 
+    def record_coverage_started(self, test_framework: str, coverage_library: str) -> None:
+        log.debug("Recording code coverage started telemetry: %s, %s", test_framework, coverage_library)
+        tags = (("library", coverage_library), ("test_framework", test_framework))
+        self.writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "code_coverage_started", 1, tags)
+
+    def record_coverage_finished(self, test_framework: str, coverage_library: str) -> None:
+        log.debug("Recording code coverage finished telemetry: %s, %s", test_framework, coverage_library)
+        tags = (("library", coverage_library), ("test_framework", test_framework))
+        self.writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "code_coverage_finished", 1, tags)
+
+    def record_coverage_is_empty(self) -> None:
+        log.debug("Recording code coverage is empty")
+        self.writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "code_coverage.is_empty", 1)
+
+    def record_coverage_files(self, count_files: int) -> None:
+        log.debug("Recording code coverage files telemetry: %s", count_files)
+        self.writer.add_distribution_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "code_coverage.files", count_files)
+
 
 @dataclasses.dataclass
 class TelemetryAPIRequestMetrics:
@@ -66,8 +84,9 @@ class TelemetryAPIRequestMetrics:
         if response_bytes is not None and self.response_bytes is not None:
             # We don't always want to record response bytes (for settings requests), so assume that no metric name
             # means we don't want to record it.
+            response_tags = (("rs_compressed", "true"),) if compressed_response else None
             self.telemetry_api.writer.add_distribution_metric(
-                TELEMETRY_NAMESPACE.CIVISIBILITY, self.response_bytes, response_bytes
+                TELEMETRY_NAMESPACE.CIVISIBILITY, self.response_bytes, response_bytes, response_tags
             )
 
         if error is not None:

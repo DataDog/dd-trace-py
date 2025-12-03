@@ -241,8 +241,10 @@ class TestOptPlugin:
             item.user_properties += [("dd_quarantined", True)]
 
         with trace_context(self.enable_ddtrace) as context:
+            self.manager.telemetry_api.record_coverage_started(test_framework="pytest", coverage_library="ddtrace")
             with coverage_collection() as coverage_data:
                 yield
+            self.manager.telemetry_api.record_coverage_finished(test_framework="pytest", coverage_library="ddtrace")
 
         if not test.test_runs:
             # No test runs: our pytest_runtest_protocol did not run. This can happen if some other plugin (such as

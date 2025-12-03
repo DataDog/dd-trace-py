@@ -93,8 +93,10 @@ class SessionManager:
         # Retry handlers must be set up after collection phase for EFD faulty session logic to work.
         self.retry_handlers: t.List[RetryHandler] = []
 
-        self.writer = TestOptWriter(connector_setup=self.connector_setup)
-        self.coverage_writer = TestCoverageWriter(connector_setup=self.connector_setup)
+        self.writer = TestOptWriter(connector_setup=self.connector_setup, telemetry_api=self.telemetry_api)
+        self.coverage_writer = TestCoverageWriter(
+            connector_setup=self.connector_setup, telemetry_api=self.telemetry_api
+        )
         self.session = session
         self.session.set_service(self.service)
 
