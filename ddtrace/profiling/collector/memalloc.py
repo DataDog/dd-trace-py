@@ -8,6 +8,7 @@ from typing import Optional
 from typing import Set
 from typing import Type
 from typing import cast
+from typing_extensions import override
 
 
 try:
@@ -25,7 +26,7 @@ from ddtrace.profiling import collector
 LOG = logging.getLogger(__name__)
 
 
-class MemoryCollector:
+class MemoryCollector(collector.Collector):
     """Memory allocation collector."""
 
     def __init__(
@@ -152,3 +153,11 @@ class MemoryCollector:
             )
 
         return pprof_utils.parse_newest_profile(output_filename)
+    
+    @override
+    def _start_service(self, *args: Any, **kwargs: Any) -> None:
+        raise NotImplementedError("MemoryCollector cannot be started")
+
+    @override
+    def _stop_service(self, *args: Any, **kwargs: Any) -> None:
+        raise NotImplementedError("MemoryCollector cannot be stopped")
