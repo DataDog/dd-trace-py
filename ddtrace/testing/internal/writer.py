@@ -50,26 +50,28 @@ class BaseWriter(ABC):
         self.task = threading.Thread(target=self._periodic_task, daemon=True)
         self.task.start()
 
-    def finish(self) -> None:
-        log.debug("Waiting for writer thread to finish")
+    def signal_finish(self) -> None:
+        log.debug("Signalling for %s writer thread to finish", self.__class__.__name__)
         self.should_finish.set()
+
+    def wait_finish(self) -> None:
         self.task.join()
-        log.debug("Writer thread finished")
+        log.debug("%s writer thread finished", self.__class__.__name__)
 
     def _periodic_task(self) -> None:
         while True:
             self.should_finish.wait(timeout=self.flush_interval_seconds)
-            log.debug("Flushing events in background task")
+            log.debug("Flushing %s events in background task", self.__class__.__name__)
             self.flush()
 
             if self.should_finish.is_set():
                 break
 
-        log.debug("Exiting background task")
+        log.debug("Exiting %s background task", self.__class__.__name__)
 
     def flush(self) -> None:
         if events := self.pop_events():
-            log.debug("Sending %d events", len(events))
+            log.debug("Sending %d events for %s", len(events), self.__class__.__name__)
             self._send_events(events)
 
     @abstractmethod
@@ -125,7 +127,7 @@ class TestOptWriter(BaseWriter):
             "events": events,
         }
         pack = msgpack_packb(payload)
-        response, response_data = self.connector.request(
+        self.connector.request(
             "POST", "/api/v2/citestcycle", data=pack, headers={"Content-Type": "application/msgpack"}, send_gzip=True
         )
 
@@ -167,7 +169,7 @@ class TestCoverageWriter(BaseWriter):
             ),
         ]
 
-        response, response_data = self.connector.post_files("/api/v2/citestcov", files=files, send_gzip=True)
+        self.connector.post_files("/api/v2/citestcov", files=files, send_gzip=True)
 
 
 def serialize_test_run(test_run: TestRun) -> Event:
