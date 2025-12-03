@@ -1,0 +1,4 @@
+git+https://github.com/DataDog/dd-trace-py.git@dubloom/rnd-week-otel
+opentelemetry-distro
+opentelemetry-exporter-otlp
+emoji
