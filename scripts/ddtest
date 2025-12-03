@@ -32,9 +32,9 @@ fi
 # Ensure the directories are writable
 chmod -R u+w "$CACHE_DIR" 2>/dev/null || true
 
-COMPOSE_FILES=("-f" "$REPO_ROOT/docker-compose.yml")
+COMPOSE_FILES=("-f" "$PROJECT_ROOT/docker-compose.yml")
 if command -v nvidia-smi >/dev/null 2>&1; then
-    COMPOSE_FILES+=("-f" "$REPO_ROOT/docker-compose.gpu.yml")
+    COMPOSE_FILES+=("-f" "$PROJECT_ROOT/docker-compose.gpu.yml")
 fi
 
 docker compose ${COMPOSE_FILES[@]} run \

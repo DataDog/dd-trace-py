@@ -19,6 +19,7 @@ from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
+#from ddtrace.llmobs._constants import TIME_E2E_METRIC_KEY
 from ddtrace.llmobs._constants import TIME_IN_MODEL_DECODE_METRIC_KEY
 from ddtrace.llmobs._constants import TIME_IN_MODEL_INFERENCE_METRIC_KEY
 from ddtrace.llmobs._constants import TIME_IN_MODEL_PREFILL_METRIC_KEY
@@ -50,8 +51,8 @@ class VLLMIntegration(BaseLLMIntegration):
         """Set base tags on vLLM spans."""
         model_name = kwargs.get("model_name")
         if model_name:
-            span.set_tag_str("vllm.request.model", model_name)
-            span.set_tag_str("vllm.request.provider", "vllm")
+            span._set_tag_str("vllm.request.model", model_name)
+            span._set_tag_str("vllm.request.provider", "vllm")
 
     def _build_metadata(self, data: RequestData) -> Dict[str, Any]:
         """Extract metadata from request data."""
@@ -64,7 +65,7 @@ class VLLMIntegration(BaseLLMIntegration):
 
         return md
 
-    def _build_metrics(self, data: RequestData, stats=None) -> Dict[str, Any]:
+    def _build_metrics(self, data: RequestData, stats=None, iteration_stats=None) -> Dict[str, Any]:
         """Build token and latency metrics from request data."""
         it = int(data.input_tokens or 0)
         ot = int(data.output_tokens or 0)
@@ -96,14 +97,22 @@ class VLLMIntegration(BaseLLMIntegration):
             if scheduled and last_token:
                 metrics[TIME_IN_MODEL_INFERENCE_METRIC_KEY] = float(last_token - scheduled)
 
+            # Calculate e2e latency using iteration_stats.iteration_timestamp if available
+            # This matches how vLLM computes e2e time in do_tracing()
+            #if iteration_stats is not None and hasattr(iteration_stats, "iteration_timestamp"):
+            #    arrival_time = stats.arrival_time
+            #    if arrival_time:
+            #        e2e_time = iteration_stats.iteration_timestamp - arrival_time
+            #        metrics[TIME_E2E_METRIC_KEY] = float(e2e_time)
+
         return metrics
 
-    def _build_embedding_context(self, data: RequestData, stats=None) -> Dict[str, Any]:
+    def _build_embedding_context(self, data: RequestData, stats=None, iteration_stats=None) -> Dict[str, Any]:
         """Build LLMObs context for embedding operations."""
         ctx: Dict[str, Any] = {
             SPAN_KIND: "embedding",
             METADATA: self._build_metadata(data),
-            METRICS: self._build_metrics(data, stats),
+            METRICS: self._build_metrics(data, stats, iteration_stats),
         }
 
         docs: List[Document] = []
@@ -123,12 +132,12 @@ class VLLMIntegration(BaseLLMIntegration):
 
         return ctx
 
-    def _build_completion_context(self, data: RequestData, stats=None) -> Dict[str, Any]:
+    def _build_completion_context(self, data: RequestData, stats=None, iteration_stats=None) -> Dict[str, Any]:
         """Build LLMObs context for completion operations."""
         ctx: Dict[str, Any] = {
             SPAN_KIND: "llm",
             METADATA: self._build_metadata(data),
-            METRICS: self._build_metrics(data, stats),
+            METRICS: self._build_metrics(data, stats, iteration_stats),
         }
 
         if data.prompt:
@@ -153,10 +162,11 @@ class VLLMIntegration(BaseLLMIntegration):
             return
 
         stats = kwargs.get("stats")
+        iteration_stats = kwargs.get("iteration_stats")
         ctx = (
-            self._build_embedding_context(data, stats)
+            self._build_embedding_context(data, stats, iteration_stats)
             if operation == "embedding"
-            else self._build_completion_context(data, stats)
+            else self._build_completion_context(data, stats, iteration_stats)
         )
         ctx[MODEL_NAME] = span.get_tag("vllm.request.model") or ""
         ctx[MODEL_PROVIDER] = span.get_tag("vllm.request.provider") or ""
