@@ -612,120 +612,76 @@ def patched_vectorstore_init_subclass(func, instance, args, kwargs):
         log.warning("Unable to patch LangChain VectorStore class %s", str(cls))
 
 
-@with_traced_module
-def traced_runnable_lambda_invoke(langchain_core, pin, func, instance, args, kwargs):
-    integration: LangChainIntegration = langchain_core._datadog_integration
-    span = integration.trace(
-        pin,
-        getattr(instance, "name", "") or f"{instance.__class__.__name__}.{func.__name__}",
-        submit_to_llmobs=True,
-        interface_type="runnable_lambda",
-        instance=instance,
-    )
+def traced_runnable_lambda_operation(is_batch: bool = False):
+    @with_traced_module
+    def _traced_runnable_lambda_impl(langchain_core, pin, func, instance, args, kwargs):
+        integration: LangChainIntegration = langchain_core._datadog_integration
 
-    integration.record_instance(instance, span)
+        instance_name = getattr(instance, "name", None)
+        default_name = f"{instance.__class__.__name__}.{func.__name__}"
+        if is_batch:
+            span_name = f"{instance_name}_batch" if instance_name else default_name
+        else:
+            span_name = instance_name or default_name
 
-    result = None
+        span = integration.trace(
+            pin,
+            span_name,
+            submit_to_llmobs=True,
+            instance=instance,
+        )
 
-    try:
-        result = func(*args, **kwargs)
-        return result
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="runnable_lambda")
-        span.finish()
+        integration.record_instance(instance, span)
 
+        result = None
 
-@with_traced_module
-async def traced_runnable_lambda_ainvoke(langchain_core, pin, func, instance, args, kwargs):
-    integration: LangChainIntegration = langchain_core._datadog_integration
-    span = integration.trace(
-        pin,
-        getattr(instance, "name", "") or f"{instance.__class__.__name__}.{func.__name__}",
-        submit_to_llmobs=True,
-        interface_type="runnable_lambda",
-        instance=instance,
-    )
+        try:
+            result = func(*args, **kwargs)
+            return result
+        except Exception:
+            span.set_exc_info(*sys.exc_info())
+            raise
+        finally:
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="runnable_lambda")
+            span.finish()
 
-    integration.record_instance(instance, span)
-
-    result = None
-
-    try:
-        result = await func(*args, **kwargs)
-        return result
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="runnable_lambda")
-        span.finish()
+    return _traced_runnable_lambda_impl
 
 
-@with_traced_module
-def traced_runnable_lambda_batch(langchain_core, pin, func, instance, args, kwargs):
-    integration: LangChainIntegration = langchain_core._datadog_integration
+def traced_runnable_lambda_operation_async(is_batch: bool = False):
+    @with_traced_module
+    async def _traced_runnable_lambda_impl(langchain_core, pin, func, instance, args, kwargs):
+        integration: LangChainIntegration = langchain_core._datadog_integration
 
-    if hasattr(instance, "name") and instance.name:
-        name = f"{instance.name}_batch"
-    else:
-        name = f"{instance.__class__.__name__}.{func.__name__}"
+        instance_name = getattr(instance, "name", None)
+        default_name = f"{instance.__class__.__name__}.{func.__name__}"
+        if is_batch:
+            span_name = f"{instance_name}_batch" if instance_name else default_name
+        else:
+            span_name = instance_name or default_name
 
-    span = integration.trace(
-        pin,
-        name,
-        submit_to_llmobs=True,
-        interface_type="runnable_lambda",
-        instance=instance,
-    )
+        span = integration.trace(
+            pin,
+            span_name,
+            submit_to_llmobs=True,
+            instance=instance,
+        )
 
-    integration.record_instance(instance, span)
+        integration.record_instance(instance, span)
 
-    result = None
+        result = None
 
-    try:
-        result = func(*args, **kwargs)
-        return result
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="runnable_lambda")
-        span.finish()
+        try:
+            result = await func(*args, **kwargs)
+            return result
+        except Exception:
+            span.set_exc_info(*sys.exc_info())
+            raise
+        finally:
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="runnable_lambda")
+            span.finish()
 
-
-@with_traced_module
-async def traced_runnable_lambda_abatch(langchain_core, pin, func, instance, args, kwargs):
-    integration: LangChainIntegration = langchain_core._datadog_integration
-
-    if hasattr(instance, "name") and instance.name:
-        name = f"{instance.name}_batch"
-    else:
-        name = f"{instance.__class__.__name__}.{func.__name__}"
-
-    span = integration.trace(
-        pin,
-        name,
-        submit_to_llmobs=True,
-        interface_type="runnable_lambda",
-        instance=instance,
-    )
-
-    integration.record_instance(instance, span)
-
-    result = None
-
-    try:
-        result = await func(*args, **kwargs)
-        return result
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="runnable_lambda")
-        span.finish()
+    return _traced_runnable_lambda_impl
 
 
 def patch():
@@ -768,10 +724,10 @@ def patch():
     wrap(RunnableSequence, "stream", traced_chain_stream(langchain_core))
     wrap(RunnableSequence, "astream", traced_chain_stream(langchain_core))
 
-    wrap(RunnableLambda, "invoke", traced_runnable_lambda_invoke(langchain_core))
-    wrap(RunnableLambda, "ainvoke", traced_runnable_lambda_ainvoke(langchain_core))
-    wrap(RunnableLambda, "batch", traced_runnable_lambda_batch(langchain_core))
-    wrap(RunnableLambda, "abatch", traced_runnable_lambda_abatch(langchain_core))
+    wrap(RunnableLambda, "invoke", traced_runnable_lambda_operation(is_batch=False)(langchain_core))
+    wrap(RunnableLambda, "ainvoke", traced_runnable_lambda_operation_async(is_batch=False)(langchain_core))
+    wrap(RunnableLambda, "batch", traced_runnable_lambda_operation(is_batch=True)(langchain_core))
+    wrap(RunnableLambda, "abatch", traced_runnable_lambda_operation_async(is_batch=True)(langchain_core))
 
     wrap(BasePromptTemplate, "invoke", patched_base_prompt_template_invoke(langchain_core))
     wrap(BasePromptTemplate, "ainvoke", patched_base_prompt_template_ainvoke(langchain_core))

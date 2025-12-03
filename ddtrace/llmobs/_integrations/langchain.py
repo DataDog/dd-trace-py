@@ -165,7 +165,7 @@ class LangChainIntegration(BaseLLMIntegration):
         args: List[Any],
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
-        operation: str = "",  # oneof "llm","chat","chain","embedding","retrieval","tool"
+        operation: str = "",  # oneof SUPPORTED_OPERATIONS
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
