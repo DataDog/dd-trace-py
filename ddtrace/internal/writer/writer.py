@@ -1096,8 +1096,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         # FIXME: don't join() on stop(), let the caller handle this
         super(NativeWriter, self)._stop_service()
         forksafe.unregister_before_fork(self._fork_hook)
-        self.before_fork()
         self.join(timeout=timeout)
+        self.before_fork()
 
     def before_fork(self) -> None:
         self._exporter.stop_worker()
