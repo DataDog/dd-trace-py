@@ -293,6 +293,9 @@ class Git:
         with tempfile.TemporaryDirectory(dir=temp_dir_base) as output_dir:
             prefix = f"{output_dir}/{base_name}"
             result = self._call_git(["pack-objects", "--compression=9", "--max-pack-size=3m", prefix], revisions_text)
+
+            TelemetryAPI.get().record_git_command(GitTelemetry.PACK_OBJECTS, result.elapsed_seconds, result.return_code)
+
             if result.return_code != 0:
                 log.warning("Error calling git pack-objects: %s", result.stderr)
                 return None
