@@ -2,6 +2,7 @@ from abc import ABC
 from abc import abstractmethod
 import logging
 import threading
+import time
 import typing as t
 import uuid
 
@@ -83,7 +84,7 @@ class BaseWriter(ABC):
 class TestOptWriter(BaseWriter):
     __test__ = False
 
-    def __init__(self, connector_setup: BackendConnectorSetup, telemetry_api: TelemetryAPI) -> None:
+    def __init__(self, connector_setup: BackendConnectorSetup) -> None:
         super().__init__()
 
         self.metadata: t.Dict[str, t.Dict[str, str]] = {
@@ -106,7 +107,6 @@ class TestOptWriter(BaseWriter):
         }
 
         self.connector = connector_setup.get_connector_for_subdomain("citestcycle-intake")
-        self.telemetry_api = telemetry_api
 
         self.serializers: t.Dict[t.Type[TestItem[t.Any, t.Any]], EventSerializer[t.Any]] = {
             TestRun: serialize_test_run,
@@ -137,18 +137,17 @@ class TestOptWriter(BaseWriter):
 class TestCoverageWriter(BaseWriter):
     __test__ = False
 
-    def __init__(self, connector_setup: BackendConnectorSetup, telemetry_api: TelemetryAPI) -> None:
+    def __init__(self, connector_setup: BackendConnectorSetup) -> None:
         super().__init__()
 
         self.connector = connector_setup.get_connector_for_subdomain("citestcov-intake")
-        self.telemetry_api = telemetry_api
 
     def put_coverage(self, test_run: TestRun, coverage_bitmaps: t.Iterable[t.Tuple[str, bytes]]) -> None:
         files = [{"filename": pathname, "bitmap": bitmap} for pathname, bitmap in coverage_bitmaps]
-        self.telemetry_api.record_coverage_files(len(files))
+        TelemetryAPI.get().record_coverage_files(len(files))
 
         if not files:
-            self.telemetry_api.record_coverage_is_empty()
+            TelemetryAPI.get().record_coverage_is_empty()
             return
 
         event = Event(
@@ -160,12 +159,16 @@ class TestCoverageWriter(BaseWriter):
         self.put_event(event)
 
     def _send_events(self, events: t.List[Event]) -> None:
+        start_time = time.perf_counter()
+        events_pack = msgpack_packb({"version": 2, "coverages": events})
+        serialization_seconds = time.perf_counter() - start_time
+
         files = [
             FileAttachment(
                 name="coverage1",
                 filename="coverage1.msgpack",
                 content_type="application/msgpack",
-                data=msgpack_packb({"version": 2, "coverages": events}),
+                data=events_pack,
             ),
             FileAttachment(
                 name="event",

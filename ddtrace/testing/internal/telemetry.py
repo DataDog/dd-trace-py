@@ -57,7 +57,7 @@ class TelemetryAPI:
     @classmethod
     def get(cls) -> TelemetryAPI:
         if not cls._instance:
-            raise RuntimeError("Telemetry API is not initialized yet; this is a bug")
+            raise RuntimeError("Telemetry API called before being initialized; this is a bug")
         return cls._instance
 
     def with_request_metric_names(
