@@ -6,7 +6,6 @@ import re
 import typing as t
 
 from ddtrace.testing.internal.api_client import APIClient
-from ddtrace.testing.internal.api_client import TestProperties
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import DEFAULT_ENV_NAME
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
@@ -19,6 +18,7 @@ from ddtrace.testing.internal.retry_handlers import AttemptToFixHandler
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import EarlyFlakeDetectionHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
+from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import ITRSkippingLevel
 from ddtrace.testing.internal.test_data import SuiteRef

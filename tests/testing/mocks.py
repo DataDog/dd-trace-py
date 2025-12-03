@@ -19,13 +19,13 @@ from unittest.mock import patch
 
 from ddtrace.testing.internal.api_client import AutoTestRetriesSettings
 from ddtrace.testing.internal.api_client import EarlyFlakeDetectionSettings
-from ddtrace.testing.internal.api_client import Settings
 from ddtrace.testing.internal.api_client import TestManagementSettings
 from ddtrace.testing.internal.api_client import TestProperties
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.http import ErrorType
 from ddtrace.testing.internal.session_manager import SessionManager
+from ddtrace.testing.internal.settings_data import Settings
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test

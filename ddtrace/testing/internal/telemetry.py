@@ -7,6 +7,8 @@ import typing as t
 
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.testing.internal.settings_data import Settings
+from ddtrace.testing.internal.test_data import ITRSkippingLevel
 
 
 if t.TYPE_CHECKING:
@@ -58,6 +60,42 @@ class TelemetryAPI:
     def record_coverage_files(self, count_files: int) -> None:
         log.debug("Recording code coverage files telemetry: %s", count_files)
         self.writer.add_distribution_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "code_coverage.files", count_files)
+
+    def record_known_tests_count(self, count: int) -> None:
+        log.debug("Recording known tests count telemetry: %s", count)
+        self.writer.add_distribution_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.response_tests", count)
+
+    def record_skippable_count(self, count: int, level: ITRSkippingLevel) -> None:
+        log.debug("Recording skippable %s count: %s", level.value, count)
+        skippable_count_metric = (
+            "itr_skippable_tests.response_suites"
+            if level == ITRSkippingLevel.SUITE
+            else "itr_skippable_tests.response_tests"
+        )
+        self.writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, skippable_count_metric, count)
+
+    def record_settings(self, settings: Settings) -> None:
+        tags = []
+
+        if settings.coverage_enabled:
+            tags.append(("coverage_enabled", "true"))
+        if settings.skipping_enabled:
+            tags.append(("itrskip_enabled", "true"))
+        if settings.require_git:
+            tags.append(("require_git", "true"))
+        if settings.itr_enabled:
+            tags.append(("itr_enabled", "true"))
+        if settings.known_tests_enabled:
+            tags.append(("known_tests_enabled", "true"))
+
+        if settings.auto_test_retries.enabled:
+            tags.append(("flaky_test_retries_enabled", "true"))
+        if settings.early_flake_detection.enabled:
+            tags.append(("early_flake_detection_enabled", "true"))
+        if settings.test_management.enabled:
+            tags.append(("test_management_enabled", "true"))
+
+        self.writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "git_requests.settings_response", 1, tuple(tags))
 
 
 @dataclasses.dataclass
