@@ -1,3 +1,11 @@
+include:
+- project: 'DataDog/benchmarking-platform-tools'
+  file: 'images/templates/gitlab/check-slo-breaches.template.yml'
+
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible
+
 stages:
   - build
   - test
@@ -14,7 +22,6 @@ variables:
 
 .benchmarks:
   stage: test
-  when: on_success
   tags: ["runner:apm-k8s-tweaked-metal"]
   image: $MICROBENCHMARKS_CI_IMAGE
   rules:
@@ -203,10 +210,13 @@ benchmarks-pr-comment:
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME # The branch or tag name for which project is built.
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
 
+# Unlike pre-release SLO checks that run unconditionally (which have
+# "when: always"), this PR-level check runs only if benchmarks succeed. 
+# Since benchmark failures block the PR directly, this job blocks the PR if 
+# benchmarks succeed but there are SLO breaches.
 check-slo-breaches:
+  extends: .check-slo-breaches
   stage: gate
-  tags: ["arch:amd64"]
-  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:03c08c0
   artifacts:
     name: "artifacts"
     when: always
@@ -214,6 +224,7 @@ check-slo-breaches:
       - artifacts/
       - reports/
     expire_in: 3 months
-  script:
-    - export ARTIFACTS_DIR="$(pwd)/reports/"
-    - bp-runner .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
+  variables:
+    DDOCTOSTS_POLICY: "gitlab.github-access.read"
+    ARTIFACTS_DIR: "reports/"
+    SLO_FILE: ".gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml"
