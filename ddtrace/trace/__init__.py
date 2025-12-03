@@ -1,3 +1,4 @@
+from ddtrace import config
 from ddtrace._trace.context import Context
 from ddtrace._trace.filters import TraceFilter
 from ddtrace._trace.provider import BaseContextProvider
@@ -7,9 +8,12 @@ from ddtrace.internal import core
 
 
 # a global tracer instance with integration settings
-tracer = Tracer()
-core.tracer = tracer  # type: ignore
-
+if not config._otel_dd_instrumentation:
+    tracer = Tracer()
+    core.tracer = tracer  # type: ignore
+else:
+    tracer = None
+    core.tracer = None
 
 __all__ = [
     "BaseContextProvider",

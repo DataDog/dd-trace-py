@@ -54,6 +54,11 @@ class ProductManager:
         self._failed: t.Set[str] = set()
 
     def _load_products(self) -> None:
+        from ddtrace.internal.settings._config import config as dd_config
+
+        if dd_config._otel_dd_instrumentation:
+            return
+
         for product_plugin in get_product_entry_points():
             name = product_plugin.name
             log.debug("Discovered product plugin '%s'", name)

@@ -5,10 +5,11 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.compat import core
 from ddtrace.ext import SpanTypes
-from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.utils import get_argument_value
+
+# from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
 
