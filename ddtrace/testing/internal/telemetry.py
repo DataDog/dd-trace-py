@@ -1,3 +1,6 @@
+# For a reference on available telemetry metrics, see:
+# https://github.com/DataDog/dd-go/blob/prod/trace/apps/tracer-telemetry-intake/telemetry-metrics/static/common_metrics.json
+
 from __future__ import annotations
 
 import dataclasses
@@ -27,7 +30,19 @@ class ErrorType(str, Enum):
     UNKNOWN = "unknown"
 
 
+class GitTelemetry(str, Enum):
+    GET_REPOSITORY = "get_repository"
+    GET_BRANCH = "get_branch"
+    CHECK_SHALLOW = "check_shallow"
+    UNSHALLOW = "unshallow"
+    GET_LOCAL_COMMITS = "get_local_commits"
+    GET_OBJECTS = "get_objects"
+    PACK_OBJECTS = "pack_objects"
+
+
 class TelemetryAPI:
+    _instance: t.Optional[TelemetryAPI] = None
+
     def __init__(self, connector_setup: BackendConnectorSetup) -> None:
         # DEV: In a beautiful world, this would set up a backend connector to the telemetry endpoint.
         # Currently we rely on ddtrace's telemetry infrastructure, so we don't have to do anything here.
@@ -37,6 +52,13 @@ class TelemetryAPI:
         # If we ever start having our own telemetry writer, we will have to handle this env var ourselves.
 
         self.writer = telemetry_writer
+        TelemetryAPI._instance = self
+
+    @classmethod
+    def get(cls) -> TelemetryAPI:
+        if not cls._instance:
+            raise RuntimeError("Telemetry API is not initialized yet; this is a bug")
+        return cls._instance
 
     def with_request_metric_names(
         self, count: str, duration: str, response_bytes: t.Optional[str], error: str
@@ -108,6 +130,19 @@ class TelemetryAPI:
         self.writer.add_distribution_metric(
             TELEMETRY_NAMESPACE.CIVISIBILITY, "test_management_tests.response_tests", count
         )
+
+    def record_git_command(self, command: GitTelemetry, elapsed_seconds: float, exit_code: int) -> None:
+        log.debug("Recording git command telemetry: %s, %s, %s", command.value, elapsed_seconds, exit_code)
+
+        tags = (("command", command.value),)
+        self.writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "git.command", 1, tags)
+        self.writer.add_distribution_metric(
+            TELEMETRY_NAMESPACE.CIVISIBILITY, "git.command_ms", elapsed_seconds * 1000, tags
+        )
+
+        if exit_code:
+            error_tags = (("command", command.value), ("exit_code", str(exit_code)))
+            self.writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "git.command_errors", 1, error_tags)
 
 
 @dataclasses.dataclass

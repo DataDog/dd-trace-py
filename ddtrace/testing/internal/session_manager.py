@@ -39,6 +39,9 @@ log = logging.getLogger(__name__)
 
 class SessionManager:
     def __init__(self, session: TestSession) -> None:
+        self.connector_setup = BackendConnectorSetup.detect_setup()
+        self.telemetry_api = TelemetryAPI(connector_setup=self.connector_setup)
+
         self.env_tags = get_env_tags()
         if workspace_path := self.env_tags.get(CITag.WORKSPACE_PATH):
             self.workspace_path = Path(workspace_path)
@@ -62,10 +65,6 @@ class SessionManager:
             self.service = _get_service_name_from_git_repo(self.env_tags) or DEFAULT_SERVICE_NAME
 
         self.env = os.environ.get("DD_ENV") or DEFAULT_ENV_NAME
-
-        self.connector_setup = BackendConnectorSetup.detect_setup()
-
-        self.telemetry_api = TelemetryAPI(connector_setup=self.connector_setup)
 
         self.api_client = APIClient(
             service=self.service,
