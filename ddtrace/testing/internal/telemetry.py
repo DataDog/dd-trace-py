@@ -95,7 +95,14 @@ class TelemetryAPI:
         if settings.test_management.enabled:
             tags.append(("test_management_enabled", "true"))
 
+        log.debug("Recording test settings telemetry: %s", tags)
         self.writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "git_requests.settings_response", 1, tuple(tags))
+
+    def record_test_management_tests_count(self, count: int) -> None:
+        log.debug("Recording Test Management tests count telemetry: %s", count)
+        self.writer.add_distribution_metric(
+            TELEMETRY_NAMESPACE.CIVISIBILITY, "test_management_tests.response_tests", count
+        )
 
 
 @dataclasses.dataclass

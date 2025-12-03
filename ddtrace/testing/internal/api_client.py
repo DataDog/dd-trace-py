@@ -166,6 +166,8 @@ class APIClient:
                             attempt_to_fix=properties.get("attempt_to_fix", False),
                         )
 
+            self.telemetry_api.record_test_management_tests_count(len(test_properties))
+
             return test_properties
 
         except Exception:
