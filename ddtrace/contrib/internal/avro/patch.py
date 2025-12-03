@@ -62,10 +62,12 @@ def _traced_serialize(func, instance, args, kwargs):
     active = pin.tracer.current_span()
 
     try:
-        func(*args, **kwargs)
+        result = func(*args, **kwargs)
     finally:
         if active:
             SchemaExtractor.attach_schema_on_span(instance.writers_schema, active, SchemaExtractor.SERIALIZATION)
+    
+    return result
 
 
 def _traced_deserialize(func, instance, args, kwargs):
@@ -80,8 +82,10 @@ def _traced_deserialize(func, instance, args, kwargs):
     active = pin.tracer.current_span()
 
     try:
-        func(*args, **kwargs)
+        result = func(*args, **kwargs)
     finally:
         reader = instance
         if active and reader:
             SchemaExtractor.attach_schema_on_span(reader.writers_schema, active, SchemaExtractor.DESERIALIZATION)
+    
+    return result
