@@ -6,11 +6,11 @@ import re
 import shutil
 import subprocess  # nosec: B404
 import tempfile
-import time
 import typing as t
 
 from ddtrace.testing.internal.telemetry import GitTelemetry
 from ddtrace.testing.internal.telemetry import TelemetryAPI
+from ddtrace.testing.internal.tracer_api import StopWatch
 
 
 log = logging.getLogger(__name__)
@@ -108,24 +108,23 @@ class Git:
         git_cmd = [self.git_command, *args]
         log.debug("Running git command: %r", git_cmd)
 
-        start_time = time.perf_counter()
-        process = subprocess.Popen(  # nosec: B603
-            git_cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            stdin=subprocess.PIPE,
-            cwd=self.cwd,
-            encoding="utf-8",
-            errors="surrogateescape",
-        )
-        stdout, stderr = process.communicate(input=input_string)
-        elapsed_seconds = time.perf_counter() - start_time
+        with StopWatch() as sw:
+            process = subprocess.Popen(  # nosec: B603
+                git_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                stdin=subprocess.PIPE,
+                cwd=self.cwd,
+                encoding="utf-8",
+                errors="surrogateescape",
+            )
+            stdout, stderr = process.communicate(input=input_string)
 
         return _GitSubprocessDetails(
             stdout=stdout.strip(),
             stderr=stderr.strip(),
             return_code=process.returncode,
-            elapsed_seconds=elapsed_seconds,
+            elapsed_seconds=sw.elapsed(),
         )
 
     def _git_output(self, args: t.List[str], telemetry_type: t.Optional[GitTelemetry] = None) -> str:
@@ -255,8 +254,9 @@ class Git:
         return self.unshallow_repository(None)
 
     def try_all_unshallow_repository_methods(self) -> bool:
-        start_time = time.perf_counter()
         return_code = 0
+        sw = StopWatch()
+        sw.start()
 
         try:
             result = self.unshallow_repository_to_local_head()
@@ -276,8 +276,8 @@ class Git:
             return False
 
         finally:
-            elapsed_seconds = time.perf_counter() - start_time
-            TelemetryAPI.get().record_git_command(GitTelemetry.UNSHALLOW, elapsed_seconds, return_code)
+            sw.stop()
+            TelemetryAPI.get().record_git_command(GitTelemetry.UNSHALLOW, sw.elapsed(), return_code)
 
     def pack_objects(self, revisions: t.List[str]) -> t.Iterable[Path]:
         base_name = str(random.randint(1, 1000000))  # nosec: B311

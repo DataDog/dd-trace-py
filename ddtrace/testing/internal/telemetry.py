@@ -144,6 +144,59 @@ class TelemetryAPI:
             error_tags = (("command", command.value), ("exit_code", str(exit_code)))
             self.writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "git.command_errors", 1, error_tags)
 
+    def record_event_payload(
+        self,
+        endpoint: str,
+        payload_size: int,
+        request_seconds: float,
+        events_count: int,
+        serialization_seconds: float,
+        error: t.Optional[ErrorType],
+    ) -> None:
+        log.debug(
+            "Recording event payload: endpoint %s, payload size: %s, request seconds: %.3f, events count: %s, "
+            "serialization seconds: %.3f, error: %s",
+            endpoint,
+            payload_size,
+            request_seconds,
+            events_count,
+            serialization_seconds,
+            error,
+        )
+
+        tags = (("endpoint", endpoint),)
+        self.writer.add_distribution_metric(
+            TELEMETRY_NAMESPACE.CIVISIBILITY, "endpoint_payload.bytes", payload_size, tags
+        )
+        self.writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "endpoint_payload.requests", 1, tags)
+        self.writer.add_distribution_metric(
+            TELEMETRY_NAMESPACE.CIVISIBILITY, "endpoint_payload.requests_ms", request_seconds * 1000, tags
+        )
+        self.writer.add_distribution_metric(
+            TELEMETRY_NAMESPACE.CIVISIBILITY, "endpoint_payload.events_count", events_count, tags
+        )
+
+        self.writer.add_distribution_metric(
+            TELEMETRY_NAMESPACE.CIVISIBILITY,
+            "endpoint_payload.events_serialization_ms",
+            serialization_seconds * 1000,
+            tags,
+        )
+        if error:
+            self.record_event_payload_error(endpoint, error)
+
+    def record_event_payload_error(self, endpoint: str, error: ErrorType) -> None:
+        # `endpoint_payload.requests_errors` accepts a different set of error types, so we need to convert them here.
+        if error == ErrorType.TIMEOUT:
+            endpoint_error = "timeout"
+        elif error in (ErrorType.CODE_4XX, ErrorType.CODE_5XX):
+            endpoint_error = "status_code"
+        else:
+            endpoint_error = "network"
+
+        tags = (("endpoint", endpoint), ("error_type", endpoint_error))
+        self.writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "endpoint_payload.requests_errors", 1, tags)
+
 
 @dataclasses.dataclass
 class TelemetryAPIRequestMetrics:
