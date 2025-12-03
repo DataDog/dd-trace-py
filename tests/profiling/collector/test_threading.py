@@ -1595,3 +1595,34 @@ class TestThreadingBoundedSemaphoreCollector(BaseSemaphoreTest):
             # This proves our profiling wrapper doesn't break BoundedSemaphore's behavior
             with pytest.raises(ValueError, match="Semaphore released too many times"):
                 sem.release()
+
+
+def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
+    """Test that Semaphore and BoundedSemaphore collectors can run simultaneously.
+
+    Tests proper patching where inheritance is involved if both parent and child classes are patched, 
+    e.g. when BoundedSemaphore's c-tor calls Semaphore c-tor.
+    We expect that the call to Semaphore c-tor goes to the unpatched version, and NOT our patched version.
+    """
+    # Both collectors active at the same time - this triggers the inheritance case
+    with ThreadingSemaphoreCollector(capture_pct=100), ThreadingBoundedSemaphoreCollector(capture_pct=100):
+        sem = threading.Semaphore(2)
+        sem.acquire()
+        sem.release()
+
+        bsem = threading.BoundedSemaphore(3)
+        bsem.acquire()
+        bsem.release()
+
+        # If inheritance delegation failed, these attributes will be missing.
+        wrapped_bsem = bsem.__wrapped__
+        assert hasattr(wrapped_bsem, "_cond"), "BoundedSemaphore._cond not initialized (inheritance bug)"
+        assert hasattr(wrapped_bsem, "_value"), "BoundedSemaphore._value not initialized (inheritance bug)"
+        assert hasattr(wrapped_bsem, "_initial_value"), "BoundedSemaphore._initial_value not initialized"
+
+        # Verify BoundedSemaphore behavior is preserved (i.e. it raises on over-release)
+        bsem2 = threading.BoundedSemaphore(1)
+        bsem2.acquire()
+        bsem2.release()
+        with pytest.raises(ValueError, match="Semaphore released too many times"):
+            bsem2.release()
