@@ -1341,6 +1341,30 @@ def _on_aiokafka_getmany_message(
                     span.link_span(context)
 
 
+def _on_httpx_send(ctx, request):
+    span = ctx.span
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
+
+    if trace_utils.distributed_tracing_enabled(config.httpx):
+        HTTPPropagator.inject(span.context, request.headers)
+
+
+def _on_httpx_send_completed(ctx, request, response, url):
+    span = ctx.span
+
+    trace_utils.set_http_meta(
+        span,
+        config.httpx,
+        method=request.method,
+        url=url,
+        target_host=request.url.host,
+        status_code=response.status_code if response else None,
+        query=request.url.query,
+        request_headers=request.headers,
+        response_headers=response.headers if response else None,
+    )
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -1424,6 +1448,9 @@ def listen():
     core.on("rq.queue.enqueue_job", _propagate_context)
     core.on("molten.router.match", _on_router_match)
 
+    core.on("httpx.send", _on_httpx_send)
+    core.on("httpx.send.completed", _on_httpx_send_completed)
+
     for context_name in (
         # web frameworks
         "aiohttp.request",
@@ -1485,6 +1512,7 @@ def listen():
         "aiokafka.getone",
         "aiokafka.getmany",
         "emoji.emojize",
+        "httpx.request.sync",
     ):
         core.on(f"context.started.{context_name}", _start_span)
 
@@ -1520,6 +1548,7 @@ def listen():
         "aiokafka.getone",
         "aiokafka.getmany",
         "emoji.emojize",
+        "httpx.request.sync",
     ):
         core.on(f"context.ended.{name}", _finish_span)
 
