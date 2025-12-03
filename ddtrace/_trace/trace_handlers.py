@@ -1484,6 +1484,7 @@ def listen():
         "aiokafka.send",
         "aiokafka.getone",
         "aiokafka.getmany",
+        "emoji.emojize",
     ):
         core.on(f"context.started.{context_name}", _start_span)
 
@@ -1518,6 +1519,7 @@ def listen():
         "azure.eventhubs.patched_producer_send_batch",
         "aiokafka.getone",
         "aiokafka.getmany",
+        "emoji.emojize",
     ):
         core.on(f"context.ended.{name}", _finish_span)
 

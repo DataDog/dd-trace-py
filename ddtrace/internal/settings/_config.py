@@ -197,6 +197,7 @@ INTEGRATION_CONFIGS = frozenset(
         "mcp",
         "ray",
         "aiokafka",
+        "emoji",
     }
 )
 
@@ -636,6 +637,8 @@ class Config(object):
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._otel_enabled = self._otel_trace_enabled or self._otel_metrics_enabled or self._otel_logs_enabled
+
+        self._otel_dd_instrumentation = _get_config("EXPERIMENTAL_OTEL_DD_INSTRUMENTATION_ENABLED", False, asbool)
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
