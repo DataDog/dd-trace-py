@@ -29,6 +29,7 @@ from ddtrace.profiling.collector import pytorch
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
 
+
 LOG = logging.getLogger(__name__)
 
 
@@ -170,7 +171,7 @@ class _ProfilerInstance(service.Service):
             env=self.env,
             service=self.service,
             version=self.version,
-            tags=self.tags,
+            tags=self.tags,  # type: ignore[arg-type]
             max_nframes=profiling_config.max_frames,
             timeline_enabled=profiling_config.timeline_enabled,
             output_filename=profiling_config.output_pprof,
@@ -180,7 +181,6 @@ class _ProfilerInstance(service.Service):
         ddup.start()
 
     def __post_init__(self) -> None:
-
         if self._stack_collector_enabled:
             LOG.debug("Profiling collector (stack) enabled")
             try:
@@ -192,7 +192,7 @@ class _ProfilerInstance(service.Service):
         if self._lock_collector_enabled:
             # These collectors require the import of modules, so we create them
             # if their import is detected at runtime.
-            def start_collector(collector_class: Type) -> None:
+            def start_collector(collector_class: Type[collector.Collector]) -> None:
                 with self._service_lock:
                     col = collector_class(tracer=self.tracer)
 
@@ -221,7 +221,7 @@ class _ProfilerInstance(service.Service):
 
         if self._pytorch_collector_enabled:
 
-            def start_collector(collector_class: Type[collector.Collector]) -> None:
+            def start_pytorch_collector(collector_class: Type[collector.Collector]) -> None:
                 with self._service_lock:
                     col = collector_class()
 
@@ -240,7 +240,7 @@ class _ProfilerInstance(service.Service):
                     self._collectors.append(col)
 
             self._collectors_on_import = [
-                ("torch", lambda _: start_collector(pytorch.TorchProfilerCollector)),
+                ("torch", lambda _: start_pytorch_collector(pytorch.TorchProfilerCollector)),
             ]
 
             for module, hook in self._collectors_on_import:
@@ -301,7 +301,7 @@ class _ProfilerInstance(service.Service):
         :param flush: Flush a last profile.
         """
         # Prevent doing more initialisation now that we are shutting down.
-        if self._lock_collector_enabled:
+        if self._lock_collector_enabled and self._collectors_on_import is not None:
             for module, hook in self._collectors_on_import:
                 try:
                     ModuleWatchdog.unregister_module_hook(module, hook)
