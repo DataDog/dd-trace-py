@@ -57,7 +57,9 @@ def initialize_runtime_coverage() -> bool:
         # Determine root directory for coverage collection (shared with test coverage)
         root_dir = get_coverage_root_dir()
 
-        # Install the coverage collector
+        # Install the coverage collector with import-time coverage enabled
+        # Import-time coverage tracks modules imported at app startup (before any requests)
+        # Imports during requests are handled by the request's own coverage context
         install(include_paths=[root_dir], collect_import_time_coverage=True)
 
         # Verify instance was created
@@ -87,7 +89,8 @@ def build_runtime_coverage_payload(coverage_ctx, root_dir: Path) -> Optional[Lis
         List of file coverage dicts: [{"filename": str, "bitmap": bytes}, ...]
     """
     try:
-        covered_lines_dict = coverage_ctx.get_covered_lines()
+        # Include import-time coverage (modules imported at app startup)
+        covered_lines_dict = coverage_ctx.get_covered_lines(include_imported=True)
         if not covered_lines_dict:
             return None
 

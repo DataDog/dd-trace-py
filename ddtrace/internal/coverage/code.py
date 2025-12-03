@@ -27,7 +27,7 @@ log = get_logger(__name__)
 
 _original_exec = exec
 
-ctx_covered: ContextVar[t.List[t.DefaultDict[str, CoverageLines]]] = ContextVar("ctx_covered", default=[])
+ctx_covered: ContextVar[t.Optional[t.List[t.DefaultDict[str, CoverageLines]]]] = ContextVar("ctx_covered", default=None)
 ctx_is_import_coverage = ContextVar("ctx_is_import_coverage", default=False)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 
@@ -222,10 +222,10 @@ class ModuleCodeCollector(ModuleWatchdog):
     class CollectInContext:
         def __init__(self, is_import_coverage: bool = False):
             self.is_import_coverage = is_import_coverage
-            if ctx_covered.get() is None:
-                ctx_covered.set([])
 
         def __enter__(self):
+            if ctx_covered.get() is None:
+                ctx_covered.set([])
             ctx_covered.get().append(defaultdict(CoverageLines))
             ctx_coverage_enabled.set(True)
 
@@ -241,16 +241,20 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         def __exit__(self, *args, **kwargs):
             covered_lines_stack = ctx_covered.get()
+            if covered_lines_stack is None or len(covered_lines_stack) == 0:
+                return
+
             covered_lines_stack.pop()
 
             # Stop coverage if we're exiting the last context
             if len(covered_lines_stack) == 0:
                 ctx_coverage_enabled.set(False)
 
-        def get_covered_lines(self) -> t.Dict[str, CoverageLines]:
+        def get_covered_lines(self, include_imported: bool = True) -> t.Dict[str, CoverageLines]:
             covered_lines = _get_ctx_covered_lines()
-            if global_instance := ModuleCodeCollector._instance:
-                global_instance._add_import_time_lines(covered_lines)
+            if include_imported:
+                if global_instance := ModuleCodeCollector._instance:
+                    global_instance._add_import_time_lines(covered_lines)
             return covered_lines
 
     @classmethod
@@ -345,9 +349,13 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         if self._collect_import_coverage:
             self._import_time_name_to_path[_module.__name__] = code.co_filename
-            module_context = self.CollectInContext(is_import_coverage=True)
-            module_context.__enter__()
-            self._import_time_contexts[code.co_filename] = module_context
+            # Only create import-time context if NO request context is currently active
+            # If a request context is active, the import's coverage will be captured
+            # by the request's own coverage context (not stored as global import-time coverage)
+            if not ctx_coverage_enabled.get():
+                module_context = self.CollectInContext(is_import_coverage=True)
+                module_context.__enter__()
+                self._import_time_contexts[code.co_filename] = module_context
 
         return retval
 
