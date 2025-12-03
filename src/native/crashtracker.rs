@@ -1,12 +1,13 @@
+use anyhow;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Once;
 use std::time::Duration;
 
-use libdd_common::Endpoint;
-use libdd_crashtracker::{
+use datadog_crashtracker::{
     CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, StacktraceCollection,
 };
+use ddcommon::Endpoint;
 use pyo3::prelude::*;
 
 pub trait RustWrapper {
@@ -19,7 +20,7 @@ pub trait RustWrapper {
     }
 }
 
-// We redefine the Enum here to expose it to Python as libdd_crashtracker::StacktraceCollection
+// We redefine the Enum here to expose it to Python as datadog_crashtracker::StacktraceCollection
 // is defined in an external crate.
 #[pyclass(
     eq,
@@ -91,7 +92,7 @@ impl CrashtrackerConfigurationPy {
                 use_alt_stack,
                 endpoint,
                 resolve_frames,
-                libdd_crashtracker::default_signals(),
+                datadog_crashtracker::default_signals(),
                 Some(Duration::from_millis(timeout_ms)),
                 unix_socket_path,
                 true, /* demangle_names */
@@ -208,7 +209,8 @@ impl std::convert::TryFrom<u8> for CrashtrackerStatus {
             1 => Ok(CrashtrackerStatus::Initialized),
             2 => Ok(CrashtrackerStatus::FailedToInitialize),
             _ => Err(anyhow::anyhow!(
-                "Invalid value for CrashtrackerStatus: {value}"
+                "Invalid value for CrashtrackerStatus: {}",
+                value
             )),
         }
     }
@@ -233,11 +235,11 @@ pub fn crashtracker_init<'py>(
         if let (Some(config), Some(receiver_config), Some(metadata)) =
             (config_opt, receiver_config_opt, metadata_opt)
         {
-            match libdd_crashtracker::init(config, receiver_config, metadata) {
+            match datadog_crashtracker::init(config, receiver_config, metadata) {
                 Ok(_) => CRASHTRACKER_STATUS
                     .store(CrashtrackerStatus::Initialized as u8, Ordering::SeqCst),
                 Err(e) => {
-                    eprintln!("Failed to initialize crashtracker: {e}");
+                    eprintln!("Failed to initialize crashtracker: {}", e);
                     CRASHTRACKER_STATUS.store(
                         CrashtrackerStatus::FailedToInitialize as u8,
                         Ordering::SeqCst,
@@ -267,7 +269,7 @@ pub fn crashtracker_on_fork<'py>(
 
     // Note to self: is it possible to call crashtracker_on_fork before crashtracker_init?
     // dd-trace-py seems to start crashtracker early on.
-    libdd_crashtracker::on_fork(inner_config, inner_receiver_config, inner_metadata)
+    datadog_crashtracker::on_fork(inner_config, inner_receiver_config, inner_metadata)
 }
 
 #[pyfunction(name = "crashtracker_status")]
@@ -284,5 +286,5 @@ pub fn crashtracker_status() -> anyhow::Result<CrashtrackerStatus> {
 // binary names for the receiver, since Python installs the script as a command.
 #[pyfunction(name = "crashtracker_receiver")]
 pub fn crashtracker_receiver() -> anyhow::Result<()> {
-    libdd_crashtracker::receiver_entry_point_stdin()
+    datadog_crashtracker::receiver_entry_point_stdin()
 }

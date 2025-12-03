@@ -345,38 +345,6 @@ impl TracerFlareManagerPy {
         })
     }
 
-    /// Generates a config file in JSON format.
-    ///
-    /// Args:
-    ///     file_path: Path where to write the config file
-    ///     config_dict: Dictionary of configuration to write
-    ///
-    /// Returns:
-    ///     None
-    ///
-    /// Raises:
-    ///     ZipError: If file writing fails
-    fn write_config_file(&self, file_path: &str, config_dict: &str) -> PyResult<()> {
-        use std::fs::File;
-        use std::io::Write;
-
-        // Validate JSON
-        let json_value: serde_json::Value = serde_json::from_str(config_dict)
-            .map_err(|e| ParsingError::new_err(format!("Invalid config JSON: {e}")))?;
-
-        // Write to file
-        let mut file = File::create(file_path)
-            .map_err(|e| ZipError::new_err(format!("Failed to create config file: {e}")))?;
-
-        let json_string = serde_json::to_string_pretty(&json_value)
-            .map_err(|e| ParsingError::new_err(format!("Failed to serialize config JSON: {e}")))?;
-
-        file.write_all(json_string.as_bytes())
-            .map_err(|e| ZipError::new_err(format!("Failed to write config file: {e}")))?;
-
-        Ok(())
-    }
-
     /// Cleans up a directory and all its contents.
     ///
     /// Args:

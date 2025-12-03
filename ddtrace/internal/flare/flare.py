@@ -90,7 +90,6 @@ class Flare:
 
         # Setup logging and create config file
         pid = self._setup_flare_logging(flare_log_level_int)
-        self._generate_config_file(pid)
         return True
 
     def send(self, flare_send_req: FlareSendRequest):
@@ -109,34 +108,6 @@ class Flare:
             self._send_flare_request(flare_send_req)
         finally:
             self.clean_up_files()
-
-    def _generate_config_file(self, pid: int):
-        config_file = self.flare_dir / f"tracer_config_{pid}.json"
-
-        # Redact API key if present
-        api_key = self.ddconfig.get("_dd_api_key")
-        if api_key:
-            self.ddconfig["_dd_api_key"] = "*" * (len(api_key) - 4) + api_key[-4:]
-
-        tracer_configs = {
-            "configs": self.ddconfig,
-        }
-
-        config_json = json.dumps(
-            tracer_configs,
-            default=lambda obj: obj.__repr__() if hasattr(obj, "__repr__") else obj.__dict__,
-        )
-
-        try:
-            self._native_manager.write_config_file(str(config_file), config_json)
-        except Exception as e:
-            log.warning("Failed to write config file %s: %s", config_file, e)
-            # Clean up partial file if it exists
-            if os.path.exists(config_file):
-                try:
-                    os.remove(config_file)
-                except Exception as cleanup_error:
-                    log.debug("Failed to clean up partial config file: %s", cleanup_error)
 
     def revert_configs(self):
         ddlogger = get_logger("ddtrace")
@@ -282,9 +253,6 @@ class Flare:
         if not os.path.exists(lock_path):
             open(lock_path, "w").close()
 
-            # Collect all files in the flare directory
-            files_to_send = [str(f) for f in self.flare_dir.iterdir() if f.is_file()]
-
             # Create AgentTaskFile for the send action
             try:
                 # Convert case_id to integer, handling test patterns
@@ -310,7 +278,7 @@ class Flare:
 
             # Use native zip_and_send
             try:
-                self._native_manager.zip_and_send(files_to_send, send_action)
+                self._native_manager.zip_and_send(str(self.flare_dir.absolute()), send_action)
                 log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
             except Exception as e:
                 log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
