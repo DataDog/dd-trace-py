@@ -2115,8 +2115,8 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
                 "httpx": [
-                    "~=0.17.0",
-                    "~=0.23.0",
+                    "~=0.24.0",
+                    "~=0.27.0",
                     latest,
                 ],
             },
