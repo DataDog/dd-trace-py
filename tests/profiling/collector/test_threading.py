@@ -5,6 +5,7 @@ import glob
 import os
 import sys
 import threading
+import time
 from typing import Callable
 from typing import List
 from typing import Optional
@@ -27,6 +28,9 @@ from tests.profiling.collector.lock_utils import LineNo
 from tests.profiling.collector.lock_utils import get_lock_linenos
 from tests.profiling.collector.lock_utils import init_linenos
 from tests.profiling.collector.pprof_utils import pprof_pb2
+
+
+PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
 
 
 # Type aliases for supported classes
@@ -154,10 +158,6 @@ def test_user_threads_have_native_id():
 
     from ddtrace.profiling import profiler
 
-    # DEV: We used to run this test with ddtrace_run=True passed into the
-    # subprocess decorator, but that caused this to be flaky for Python 3.8.x
-    # with gevent. When it failed for that specific venv, current_thread()
-    # returned a DummyThread instead of a _MainThread.
     p = profiler.Profiler()
     p.start()
 
@@ -214,7 +214,12 @@ def test_lock_gevent_tasks() -> None:
     test_name: str = "test_lock_gevent_tasks"
     pprof_prefix: str = "/tmp" + os.sep + test_name
     output_filename: str = pprof_prefix + "." + str(os.getpid())
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)  # pyright: ignore[reportCallIssue]
+    ddup.config(
+        env="test",
+        service=test_name,
+        version="my_version",
+        output_filename=pprof_prefix,
+    )  # pyright: ignore[reportCallIssue]
     ddup.start()
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
@@ -302,7 +307,12 @@ def test_rlock_gevent_tasks() -> None:
     test_name: str = "test_rlock_gevent_tasks"
     pprof_prefix: str = "/tmp" + os.sep + test_name
     output_filename: str = pprof_prefix + "." + str(os.getpid())
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)  # pyright: ignore[reportCallIssue]
+    ddup.config(
+        env="test",
+        service=test_name,
+        version="my_version",
+        output_filename=pprof_prefix,
+    )  # pyright: ignore[reportCallIssue]
     ddup.start()
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
@@ -376,7 +386,12 @@ def test_assertion_error_raised_with_enable_asserts():
 
     # Initialize ddup (required before using collectors)
     assert ddup.is_available, "ddup is not available"
-    ddup.config(env="test", service="test_asserts", version="1.0", output_filename="/tmp/test_asserts")
+    ddup.config(
+        env="test",
+        service="test_asserts",
+        version="1.0",
+        output_filename="/tmp/test_asserts",
+    )
     ddup.start()
 
     with ThreadingLockCollector(capture_pct=100):
@@ -405,7 +420,12 @@ def test_all_exceptions_suppressed_by_default() -> None:
 
     # Initialize ddup (required before using collectors)
     assert ddup.is_available, "ddup is not available"
-    ddup.config(env="test", service="test_exceptions", version="1.0", output_filename="/tmp/test_exceptions")
+    ddup.config(
+        env="test",
+        service="test_exceptions",
+        version="1.0",
+        output_filename="/tmp/test_exceptions",
+    )
     ddup.start()
 
     with ThreadingLockCollector(capture_pct=100):
@@ -440,7 +460,7 @@ class BaseThreadingLockCollectorTest:
     # setup_method and teardown_method which will be called before and after
     # each test method, respectively, part of pytest api.
     def setup_method(self, method: Callable[..., None]) -> None:
-        self.test_name: str = method.__name__
+        self.test_name: str = method.__qualname__ if PY_311_OR_ABOVE else method.__name__
         self.pprof_prefix: str = "/tmp" + os.sep + self.test_name
         # The output filename will be /tmp/method_name.<pid>.<counter>.
         # The counter number is incremented for each test case, as the tests are
@@ -449,7 +469,12 @@ class BaseThreadingLockCollectorTest:
 
         # ddup is available when the native module is compiled
         assert ddup.is_available, "ddup is not available"
-        ddup.config(env="test", service=self.test_name, version="my_version", output_filename=self.pprof_prefix)  # pyright: ignore[reportCallIssue]
+        ddup.config(
+            env="test",
+            service=self.test_name,
+            version="my_version",
+            output_filename=self.pprof_prefix,
+        )  # pyright: ignore[reportCallIssue]
         ddup.start()
 
     def teardown_method(self, method: Callable[..., None]) -> None:
@@ -512,6 +537,9 @@ class BaseThreadingLockCollectorTest:
         )
 
     def test_lock_acquire_events_class(self) -> None:
+        # Store reference to class for later qualname access
+        foobar_class: Optional[Type] = None
+
         with self.collector_class(capture_pct=100):
             lock_class: LockClassType = self.lock_class  # Capture for inner class
 
@@ -520,6 +548,8 @@ class BaseThreadingLockCollectorTest:
                     lock: LockClassInst = lock_class()  # !CREATE! test_lock_acquire_events_class
                     lock.acquire()  # !ACQUIRE! test_lock_acquire_events_class
 
+            # Capture reference before context manager exits
+            foobar_class = Foobar
             Foobar().lockfunc()
 
         ddup.upload()  # pyright: ignore[reportCallIssue]
@@ -527,11 +557,13 @@ class BaseThreadingLockCollectorTest:
         linenos: LineNo = get_lock_linenos("test_lock_acquire_events_class")
 
         profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+        assert foobar_class is not None
+        caller_name = foobar_class.lockfunc.__qualname__ if PY_311_OR_ABOVE else foobar_class.lockfunc.__name__
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
                 pprof_utils.LockAcquireEvent(
-                    caller_name="lockfunc",
+                    caller_name=caller_name,
                     filename=os.path.basename(__file__),
                     linenos=linenos,
                     lock_name="lock",
@@ -794,7 +826,10 @@ class BaseThreadingLockCollectorTest:
         [True, False],
     )
     def test_class_member_lock(self, inspect_dir_enabled: bool) -> None:
-        with mock.patch("ddtrace.internal.settings.profiling.config.lock.name_inspect_dir", inspect_dir_enabled):
+        with mock.patch(
+            "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
+            inspect_dir_enabled,
+        ):
             expected_lock_name: Optional[str] = "foo_lock" if inspect_dir_enabled else None
 
             with self.collector_class(capture_pct=100):
@@ -812,11 +847,13 @@ class BaseThreadingLockCollectorTest:
             release_samples: List[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
             assert len(release_samples) >= 2, "Expected at least 2 lock-release samples"
 
+            caller_name = Foo.foo.__qualname__ if PY_311_OR_ABOVE else Foo.foo.__name__
+
             pprof_utils.assert_lock_events(
                 profile,
                 expected_acquire_events=[
                     pprof_utils.LockAcquireEvent(
-                        caller_name="foo",
+                        caller_name=caller_name,
                         filename=os.path.basename(__file__),
                         linenos=linenos,
                         lock_name=expected_lock_name,
@@ -824,7 +861,7 @@ class BaseThreadingLockCollectorTest:
                 ],
                 expected_release_events=[
                     pprof_utils.LockReleaseEvent(
-                        caller_name="foo",
+                        caller_name=caller_name,
                         filename=os.path.basename(__file__),
                         linenos=linenos,
                         lock_name=expected_lock_name,
@@ -833,6 +870,9 @@ class BaseThreadingLockCollectorTest:
             )
 
     def test_private_lock(self) -> None:
+        # Store reference to class for later qualname access
+        foo_class: Optional[Type] = None
+
         class Foo:
             def __init__(self, lock_class: LockClassType) -> None:
                 self.__lock: LockClassInst = lock_class()  # !CREATE! test_private_lock
@@ -840,6 +880,9 @@ class BaseThreadingLockCollectorTest:
             def foo(self) -> None:
                 with self.__lock:  # !RELEASE! !ACQUIRE! test_private_lock
                     pass
+
+        # Capture reference before context manager
+        foo_class = Foo
 
         with self.collector_class(capture_pct=100):
             foo: Foo = Foo(self.lock_class)
@@ -851,11 +894,13 @@ class BaseThreadingLockCollectorTest:
 
         profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
 
+        assert foo_class is not None
+        caller_name = foo_class.foo.__qualname__ if PY_311_OR_ABOVE else foo_class.foo.__name__
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
                 pprof_utils.LockAcquireEvent(
-                    caller_name="foo",
+                    caller_name=caller_name,
                     filename=os.path.basename(__file__),
                     linenos=linenos,
                     lock_name="_Foo__lock",
@@ -863,7 +908,7 @@ class BaseThreadingLockCollectorTest:
             ],
             expected_release_events=[
                 pprof_utils.LockReleaseEvent(
-                    caller_name="foo",
+                    caller_name=caller_name,
                     filename=os.path.basename(__file__),
                     linenos=linenos,
                     lock_name="_Foo__lock",
@@ -872,6 +917,9 @@ class BaseThreadingLockCollectorTest:
         )
 
     def test_inner_lock(self) -> None:
+        # Store reference to class for later qualname access
+        bar_class: Optional[Type] = None
+
         class Bar:
             def __init__(self, lock_class: LockClassType) -> None:
                 self.foo: Foo = Foo(lock_class)
@@ -879,6 +927,9 @@ class BaseThreadingLockCollectorTest:
             def bar(self) -> None:
                 with self.foo.foo_lock:  # !RELEASE! !ACQUIRE! test_inner_lock
                     pass
+
+        # Capture reference before context manager
+        bar_class = Bar
 
         with self.collector_class(capture_pct=100):
             bar: Bar = Bar(self.lock_class)
@@ -893,18 +944,20 @@ class BaseThreadingLockCollectorTest:
         )
 
         profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+        assert bar_class is not None
+        caller_name = bar_class.bar.__qualname__ if PY_311_OR_ABOVE else bar_class.bar.__name__
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
                 pprof_utils.LockAcquireEvent(
-                    caller_name="bar",
+                    caller_name=caller_name,
                     filename=os.path.basename(__file__),
                     linenos=linenos_bar,
                 ),
             ],
             expected_release_events=[
                 pprof_utils.LockReleaseEvent(
-                    caller_name="bar",
+                    caller_name=caller_name,
                     filename=os.path.basename(__file__),
                     linenos=linenos_bar,
                 ),
@@ -941,6 +994,10 @@ class BaseThreadingLockCollectorTest:
     def test_global_locks(self) -> None:
         global _test_global_lock, _test_global_bar_instance
 
+        # Store references to functions/classes for later qualname access
+        foo_func: Optional[Callable[[], None]] = None
+        test_bar_class: Optional[Type] = None
+
         with self.collector_class(capture_pct=100):
             # Create true module-level globals
             _test_global_lock = self.lock_class()  # !CREATE! _test_global_lock
@@ -959,6 +1016,10 @@ class BaseThreadingLockCollectorTest:
                 with _test_global_lock:  # !ACQUIRE! !RELEASE! _test_global_lock
                     pass
 
+            # Capture references before context manager exits
+            foo_func = foo
+            test_bar_class = TestBar
+
             _test_global_bar_instance = TestBar(self.lock_class)
 
             # Use the locks
@@ -974,17 +1035,22 @@ class BaseThreadingLockCollectorTest:
         linenos_global: LineNo = get_lock_linenos("_test_global_lock", with_stmt=True)
         linenos_bar: LineNo = get_lock_linenos("bar_lock", with_stmt=True)
 
+        assert foo_func is not None
+        assert test_bar_class is not None
+        caller_name_foo = foo_func.__qualname__ if PY_311_OR_ABOVE else foo_func.__name__
+        caller_name_bar = test_bar_class.bar.__qualname__ if PY_311_OR_ABOVE else test_bar_class.bar.__name__
+
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
                 pprof_utils.LockAcquireEvent(
-                    caller_name="foo",
+                    caller_name=caller_name_foo,
                     filename=os.path.basename(__file__),
                     linenos=linenos_global,
                     lock_name="_test_global_lock",
                 ),
                 pprof_utils.LockAcquireEvent(
-                    caller_name="bar",
+                    caller_name=caller_name_bar,
                     filename=os.path.basename(__file__),
                     linenos=linenos_bar,
                     lock_name="bar_lock",
@@ -992,13 +1058,13 @@ class BaseThreadingLockCollectorTest:
             ],
             expected_release_events=[
                 pprof_utils.LockReleaseEvent(
-                    caller_name="foo",
+                    caller_name=caller_name_foo,
                     filename=os.path.basename(__file__),
                     linenos=linenos_global,
                     lock_name="_test_global_lock",
                 ),
                 pprof_utils.LockReleaseEvent(
-                    caller_name="bar",
+                    caller_name=caller_name_bar,
                     filename=os.path.basename(__file__),
                     linenos=linenos_bar,
                     lock_name="bar_lock",
@@ -1128,8 +1194,6 @@ class BaseThreadingLockCollectorTest:
 
     def test_lock_profiling_overhead_reasonable(self) -> None:
         """Test that profiling overhead with 0% capture is bounded."""
-        import time
-
         # Measure without profiling (collector stopped)
         regular_lock: LockClassInst = self.lock_class()
         start: float = time.perf_counter()
@@ -1157,6 +1221,27 @@ class BaseThreadingLockCollectorTest:
             f"Overhead too high: {overhead_multiplier}x (regular: {regular_time:.6f}s, "
             f"profiled: {profiled_time_zero:.6f}s)"
         )  # noqa: E501
+
+    def test_release_not_sampled_when_acquire_not_sampled(self) -> None:
+        """Test that lock release events are NOT sampled if their corresponding acquire was not sampled."""
+        # Use capture_pct=0 to ensure acquire is NEVER sampled
+        with self.collector_class(capture_pct=0):
+            lock: LockClassInst = self.lock_class()
+            # Do multiple acquire/release cycles
+            for _ in range(10):
+                lock.acquire()
+                time.sleep(0.001)
+                lock.release()
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename, assert_samples=False)
+        release_samples: List[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+
+        # release samples should NOT be generated when acquire wasn't sampled
+        assert len(release_samples) == 0, (
+            f"Expected no release samples when acquire wasn't sampled, got {len(release_samples)}"
+        )
 
 
 class TestThreadingLockCollector(BaseThreadingLockCollectorTest):

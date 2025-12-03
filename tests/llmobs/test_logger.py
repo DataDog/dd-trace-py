@@ -60,6 +60,7 @@ def test_send_log_bad_api_key(mock_logs):
         "https://http-intake.logs.datadoghq.com/api/v2/logs",
         403,
         b'{"errors":[{"status":"403","title":"Forbidden","detail":"API key is invalid"}]}',
+        extra={"send_to_telemetry": False},
     )
 
 

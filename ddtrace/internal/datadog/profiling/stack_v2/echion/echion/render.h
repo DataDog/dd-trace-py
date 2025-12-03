@@ -4,13 +4,13 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
 
 #include <echion/config.h>
 #include <echion/errors.h>
-#include <echion/mojo.h>
 #include <echion/timing.h>
 
 // Forward declaration
@@ -31,19 +31,14 @@ class RendererInterface
     virtual void metadata(const std::string& label, const std::string& value) = 0;
     // If a renderer has its own caching mechanism for frames, this can be used
     // to store frame information.
-    virtual void frame(mojo_ref_t key,
-                       mojo_ref_t filename,
-                       mojo_ref_t name,
-                       mojo_int_t line,
-                       mojo_int_t line_end,
-                       mojo_int_t column,
-                       mojo_int_t column_end) = 0;
+    virtual void
+    frame(uintptr_t key, uintptr_t filename, uintptr_t name, int line, int line_end, int column, int column_end) = 0;
     // Refers to the frame stored using above function
-    virtual void frame_ref(mojo_ref_t key) = 0;
+    virtual void frame_ref(uintptr_t key) = 0;
     virtual void frame_kernel(const std::string& scope) = 0;
     // Simlar to frame/frame_ref functions, helpers for string tables
-    virtual void string(mojo_ref_t key, const std::string& value) = 0;
-    virtual void string_ref(mojo_ref_t key) = 0;
+    virtual void string(uintptr_t key, const std::string& value) = 0;
+    virtual void string_ref(uintptr_t key) = 0;
 
     virtual void render_message(std::string_view msg) = 0;
     virtual void render_thread_begin(PyThreadState* tstate,
@@ -72,12 +67,12 @@ class NullRenderer : public RendererInterface
     bool is_valid() override { return true; }
     void header() override {}
     void metadata(const std::string&, const std::string&) override {}
-    void frame(mojo_ref_t, mojo_ref_t, mojo_ref_t, mojo_int_t, mojo_int_t, mojo_int_t, mojo_int_t) override {}
-    void frame_ref(mojo_ref_t) override {}
+    void frame(uintptr_t, uintptr_t, uintptr_t, int, int, int, int) override {}
+    void frame_ref(uintptr_t) override {}
     void frame_kernel(const std::string&) override {}
 
-    void string(mojo_ref_t, const std::string&) override {}
-    void string_ref(mojo_ref_t) override {}
+    void string(uintptr_t, const std::string&) override {}
+    void string_ref(uintptr_t) override {}
     void render_message(std::string_view) override {}
     void render_thread_begin(PyThreadState*, std::string_view, microsecond_t, uintptr_t, unsigned long) override {}
     void render_task_begin(std::string, bool) override {}
@@ -126,26 +121,20 @@ class Renderer
 
     void metadata(const std::string& label, const std::string& value) { getActiveRenderer()->metadata(label, value); }
 
-    void string(mojo_ref_t key, const std::string& value) { getActiveRenderer()->string(key, value); }
+    void string(uintptr_t key, const std::string& value) { getActiveRenderer()->string(key, value); }
 
-    void frame(mojo_ref_t key,
-               mojo_ref_t filename,
-               mojo_ref_t name,
-               mojo_int_t line,
-               mojo_int_t line_end,
-               mojo_int_t column,
-               mojo_int_t column_end)
+    void frame(uintptr_t key, uintptr_t filename, uintptr_t name, int line, int line_end, int column, int column_end)
     {
         getActiveRenderer()->frame(key, filename, name, line, line_end, column, column_end);
     }
 
-    void frame_ref(mojo_ref_t key) { getActiveRenderer()->frame_ref(key); }
+    void frame_ref(uintptr_t key) { getActiveRenderer()->frame_ref(key); }
 
     void frame_kernel(const std::string& scope) { getActiveRenderer()->frame_kernel(scope); }
 
-    void string(mojo_ref_t key, const char* value) { getActiveRenderer()->string(key, value); }
+    void string(uintptr_t key, const char* value) { getActiveRenderer()->string(key, value); }
 
-    void string_ref(mojo_ref_t key) { getActiveRenderer()->string_ref(key); }
+    void string_ref(uintptr_t key) { getActiveRenderer()->string_ref(key); }
 
     void render_message(std::string_view msg) { getActiveRenderer()->render_message(msg); }
 

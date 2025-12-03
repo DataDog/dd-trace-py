@@ -298,19 +298,58 @@ impl TracerFlareManagerPy {
         }
     }
 
-    /// Zips the specified files and sends them to the agent.
+    /// Zips files from a directory and sends them to the agent.
     ///
     /// Args:
-    ///     files: List of file paths to include in the zip
+    ///     directory: Path to directory containing files to include in the zip
     ///     send_action: ReturnAction that must be a Send action
     ///
     /// Returns:
     ///     None
     ///
     /// Raises:
-    ///     ZipError: If zipping fails
+    ///     ZipError: If zipping fails or directory doesn't exist
     ///     SendError: If sending fails
-    fn zip_and_send(&self, files: Vec<String>, send_action: Py<PyAny>) -> PyResult<()> {
+    fn zip_and_send(&self, directory: &str, send_action: Py<PyAny>) -> PyResult<()> {
+        use std::fs;
+        use std::path::Path;
+
+        // Collect all files from the directory
+        let dir_path = Path::new(directory);
+        if !dir_path.exists() {
+            return Err(ZipError::new_err(format!(
+                "Directory does not exist: {}",
+                directory
+            )));
+        }
+        if !dir_path.is_dir() {
+            return Err(ZipError::new_err(format!(
+                "Path is not a directory: {}",
+                directory
+            )));
+        }
+
+        let files: Vec<String> = fs::read_dir(dir_path)
+            .map_err(|e| ZipError::new_err(format!("Failed to read directory {}: {}", directory, e)))?
+            .filter_map(|entry| {
+                entry.ok().and_then(|e| {
+                    let path = e.path();
+                    if path.is_file() {
+                        path.to_str().map(|s| s.to_string())
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect();
+
+        if files.is_empty() {
+            return Err(ZipError::new_err(format!(
+                "No files found in directory: {}",
+                directory
+            )));
+        }
+
         Python::with_gil(|py| {
             let send_action_obj = send_action.extract::<ReturnActionPy>(py)?;
             let rust_action: ReturnAction = send_action_obj.into();
