@@ -181,7 +181,10 @@ def _print_runtime_coverage_debug(
         # This matches the x-datadog-trace-id header format used in distributed tracing
         payload: Dict[str, Any] = {
             "trace_id": span._trace_id_64bits,
-            "span_id": span.span_id,
+            "span_id": span.parent_id,
+            "test_id": span.get_tag("_dd.p.test_id"),
+            "session_id": span.get_tag("_dd.p.test_session_id"),
+            "suite_id": span.get_tag("_dd.p.test_suite_id"),
             "files": files_serializable,
         }
 

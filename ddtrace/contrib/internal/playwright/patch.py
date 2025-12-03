@@ -50,17 +50,20 @@ def _get_tracing_headers() -> Dict[str, str]:
 
     headers = {}
     try:
-        current_span = tracer.current_span()
-        if current_span:
-            # HTTPPropagator.inject mutates the headers dict in place
-            HTTPPropagator.inject(current_span.context, headers)
-        else:
-            # No active span, create a temporary span for header injection
-            with tracer.trace("playwright.browser.request", span_type=SpanTypes.HTTP) as span:
-                span._set_tag_str(SPAN_KIND, "client")
-                span._set_tag_str("component", config.playwright.integration_name)
-                # HTTPPropagator.inject mutates the headers dict in place
-                HTTPPropagator.inject(span.context, headers)
+        test_span = tracer.current_span()
+        if not test_span:
+            raise Exception("Failed to get test span")
+
+        # HTTPPropagator.inject mutates the headers dict in place
+        test_span.context._meta["_dd.p.test_id"] = str(test_span.span_id)
+        test_span.context._meta["_dd.p.test_session_id"] = test_span.get_tag(
+            "test_session_id"
+        )
+        test_span.context._meta["_dd.p.test_suite_id"] = test_span.get_tag(
+            "test_suite_id"
+        )
+        HTTPPropagator.inject(test_span.context, headers)
+
     except Exception as e:
         log.debug("Failed to get distributed tracing headers: %s", e)
 

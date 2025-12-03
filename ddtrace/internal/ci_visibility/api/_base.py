@@ -198,6 +198,8 @@ class TestVisibilityItemBase(abc.ABC):
         # Setting initial tags is necessary for integrations that might look at the span before it is finished
         self._span.set_tag(EVENT_TYPE, self._event_type)
         self._span.set_tag(SPAN_KIND, "test")
+        self._set_test_hierarchy_tags()
+        self._add_all_tags_to_span()
         log.debug("Started span %s for item %s", self._span, self)
 
     @_require_span
@@ -206,7 +208,6 @@ class TestVisibilityItemBase(abc.ABC):
             return
 
         self._set_default_tags()
-        self._set_test_hierarchy_tags()
         self._add_coverage_data_tag()
 
         # ITR-related tags should only be set if ITR is enabled in the first place
