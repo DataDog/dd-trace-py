@@ -1205,3 +1205,5 @@ usr/libexec/grepconf.sh
 uwsgi
 # crashtracker receiver
 _dd_crashtracker_receiver
+# Google cloud cli
+gsutil
