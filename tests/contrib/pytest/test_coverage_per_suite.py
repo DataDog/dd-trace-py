@@ -95,10 +95,14 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
 
-        with _ci_override_env({"DD_API_KEY": "foobar.baz", "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(True, False, False, True),
-        ), _mock_ddconfig_test_visibility(itr_skipping_level=ITR_SKIPPING_LEVEL.SUITE):
+        with (
+            _ci_override_env({"DD_API_KEY": "foobar.baz", "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(True, False, False, True),
+            ),
+            _mock_ddconfig_test_visibility(itr_skipping_level=ITR_SKIPPING_LEVEL.SUITE),
+        ):
             self.inline_run(
                 "-p",
                 "no:randomly",
@@ -190,21 +194,24 @@ class PytestTestCase(PytestTestCaseBase):
             )
         )
 
-        with _ci_override_env(
-            {
-                "DD_API_KEY": "foobar.baz",
-                "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True",
-                "DD_APPLICATION_KEY": "not_an_app_key_at_all",
-                "DD_CIVISIBILITY_AGENTLESS_ENABLED": "True",
-            },
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(True, True, False, True),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
-            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
-        ), _mock_ddconfig_test_visibility(
-            itr_skipping_level=ITR_SKIPPING_LEVEL.SUITE
+        with (
+            _ci_override_env(
+                {
+                    "DD_API_KEY": "foobar.baz",
+                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True",
+                    "DD_APPLICATION_KEY": "not_an_app_key_at_all",
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "True",
+                },
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(True, True, False, True),
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+                side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+            ),
+            _mock_ddconfig_test_visibility(itr_skipping_level=ITR_SKIPPING_LEVEL.SUITE),
         ):
             self.inline_run(
                 "-p",
@@ -228,7 +235,7 @@ class PytestTestCase(PytestTestCaseBase):
             assert first_suite_coverage["/test_cov.py"] == [(1, 2), (4, 5), (7, 9)]
             assert first_suite_coverage["/lib_fn.py"] == [(1, 2)]
             assert first_suite_coverage["/ret_false.py"] == [(1, 2)]
-            assert second_suite_span.get_struct_tag(COVERAGE_TAG_NAME) is None
+            assert second_suite_span._get_struct_tag(COVERAGE_TAG_NAME) is None
         else:
             assert len(first_suite_coverage) == 3
             assert first_suite_coverage["test_cov.py"] == [(5, 5), (8, 9)]

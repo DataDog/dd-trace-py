@@ -41,13 +41,13 @@ To see the current build dependencies, check the `[build-system]` section in the
 .. code-block:: toml
 
     [build-system]
-    requires = ["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28; python_version>='3.8'", "setuptools-rust<2"]
+    requires = ["cython", "cmake>=3.24.2,<3.28; python_version>='3.8'", "setuptools-rust<2"]
 
 To install all dependencies in one step, use:
 
 .. code-block:: bash
 
-    pip install 'setuptools_scm[toml]>=4' 'cython' 'cmake>=3.24.2,<3.28' 'setuptools-rust<2'
+    pip install 'cython' 'cmake>=3.24.2,<3.28' 'setuptools-rust<2'
 
 Note that `pip install -e` (described below) also installs these build dependencies automatically.
 
@@ -183,6 +183,13 @@ These environment variables modify aspects of the build process.
     version_added:
         v3.3.0:
 
+  DD_CYTHONIZE:
+    type: Boolean
+    default: True
+    description: |
+      If enabled, then Cython extensions are included in the build. Disabling will exclude them.
+      This is mostly useful for source distribution builds so we can skip calling ``cythonize`` on source files.
+
   DD_FAST_BUILD:
     type: Boolean
     default: False
@@ -224,3 +231,38 @@ These environment variables modify aspects of the build process.
 
     version_added:
         v3.10.0:
+
+  DD_DOWNLOAD_MAX_RETRIES:
+    type: Integer
+    default: 10
+
+    description: |
+        Maximum number of retry attempts for transient download failures from GitHub.
+        Retries are triggered by HTTP 429 (rate limit), 502/503/504 (server errors),
+        and network timeouts. Uses exponential backoff with jitter between retries.
+
+    version_added:
+        v4.1.0:
+
+  DD_DOWNLOAD_INITIAL_DELAY:
+    type: Float
+    default: 1.0
+
+    description: |
+        Initial delay in seconds before the first retry attempt.
+        Delay increases exponentially with backoff_factor=1.618 (Fibonacci-like).
+        Useful for tuning retry behavior in different environments.
+
+    version_added:
+        v4.1.0:
+
+  DD_DOWNLOAD_MAX_DELAY:
+    type: Integer
+    default: 120
+
+    description: |
+        Maximum delay in seconds between retry attempts.
+        Prevents excessive wait times during exponential backoff.
+
+    version_added:
+        v4.1.0:

@@ -9,6 +9,7 @@ Module 3 should fail, suite 3 should fail but suite 4 should pass
 
 Comment lines in the test start/finish lines are there for visual distinction.
 """
+
 import json
 from multiprocessing import freeze_support
 from pathlib import Path

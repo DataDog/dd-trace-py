@@ -44,7 +44,8 @@ class PytestEarlyConfigTestCase(PytestTestCaseBase):
         [suite_span] = _get_spans_from_list(spans, "suite")
         [test_span] = _get_spans_from_list(spans, "test")
         assert (
-            suite_span.get_struct_tag(COVERAGE_TAG_NAME) is not None or test_span.get_tag(COVERAGE_TAG_NAME) is not None
+            suite_span._get_struct_tag(COVERAGE_TAG_NAME) is not None
+            or test_span.get_tag(COVERAGE_TAG_NAME) is not None
         )
 
     def test_coverage_enabled_via_pytest_addopts_env_var(self):
@@ -54,7 +55,8 @@ class PytestEarlyConfigTestCase(PytestTestCaseBase):
         [suite_span] = _get_spans_from_list(spans, "suite")
         [test_span] = _get_spans_from_list(spans, "test")
         assert (
-            suite_span.get_struct_tag(COVERAGE_TAG_NAME) is not None or test_span.get_tag(COVERAGE_TAG_NAME) is not None
+            suite_span._get_struct_tag(COVERAGE_TAG_NAME) is not None
+            or test_span.get_tag(COVERAGE_TAG_NAME) is not None
         )
 
     def test_coverage_enabled_via_addopts_ini_file_option(self):
@@ -65,7 +67,8 @@ class PytestEarlyConfigTestCase(PytestTestCaseBase):
         [suite_span] = _get_spans_from_list(spans, "suite")
         [test_span] = _get_spans_from_list(spans, "test")
         assert (
-            suite_span.get_struct_tag(COVERAGE_TAG_NAME) is not None or test_span.get_tag(COVERAGE_TAG_NAME) is not None
+            suite_span._get_struct_tag(COVERAGE_TAG_NAME) is not None
+            or test_span.get_tag(COVERAGE_TAG_NAME) is not None
         )
 
     def test_coverage_enabled_via_ddtrace_ini_file_option(self):
@@ -76,5 +79,6 @@ class PytestEarlyConfigTestCase(PytestTestCaseBase):
         [suite_span] = _get_spans_from_list(spans, "suite")
         [test_span] = _get_spans_from_list(spans, "test")
         assert (
-            suite_span.get_struct_tag(COVERAGE_TAG_NAME) is not None or test_span.get_tag(COVERAGE_TAG_NAME) is not None
+            suite_span._get_struct_tag(COVERAGE_TAG_NAME) is not None
+            or test_span.get_tag(COVERAGE_TAG_NAME) is not None
         )

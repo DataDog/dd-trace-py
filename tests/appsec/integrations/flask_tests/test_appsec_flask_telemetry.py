@@ -1,8 +1,10 @@
+import json
 from urllib.parse import urlencode
 
 import pytest
 
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
+from ddtrace.internal.utils.http import _format_template
 from tests.appsec.appsec.test_telemetry import _assert_generate_metrics
 import tests.appsec.rules as rules
 from tests.contrib.flask import BaseFlaskTestCase
@@ -24,7 +26,9 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             resp = self.client.get("/", headers={"X-Real-Ip": rules._IP.BLOCKED})
             assert resp.status_code == 403
             if hasattr(resp, "text"):
-                assert resp.text == BLOCKED_RESPONSE_JSON
+                assert resp.text
+                content = json.loads(resp.text)
+                assert resp.text == _format_template(BLOCKED_RESPONSE_JSON, content["security_response_id"])
 
         _assert_generate_metrics(
             self.telemetry_writer._namespace.flush(),

@@ -3,6 +3,7 @@ cffi==1.16.0
 
 https://pypi.org/project/cffi/
 """
+
 from flask import Blueprint
 from flask import request
 

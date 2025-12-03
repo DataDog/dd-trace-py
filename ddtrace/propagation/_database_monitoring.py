@@ -6,13 +6,13 @@ import ddtrace
 from ddtrace import config as dd_config
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings.peer_service import PeerServiceConfig
+from ddtrace.internal.settings.peer_service import PeerServiceConfig
 from ddtrace.vendor.sqlcommenter import generate_sql_comment as _generate_sql_comment
 
 from ..internal import compat
+from ..internal.settings._database_monitoring import dbm_config
 from ..internal.utils import get_argument_value
 from ..internal.utils import set_argument_value
-from ..settings._database_monitoring import dbm_config
 
 
 if TYPE_CHECKING:
@@ -125,7 +125,7 @@ class _DBM_Propagator(object):
             dbm_tags[DBM_PEER_SERVICE_KEY] = peer_service
 
         if dbm_config.propagation_mode == "full":
-            db_span.set_tag_str(DBM_TRACE_INJECTED_TAG, "true")
+            db_span._set_tag_str(DBM_TRACE_INJECTED_TAG, "true")
             dbm_tags[DBM_TRACE_PARENT_KEY] = db_span.context._traceparent
 
         sql_comment = self.comment_generator(**dbm_tags)

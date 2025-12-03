@@ -79,20 +79,23 @@ def patch_app_call(wrapped, instance, args, kwargs):
     request = molten.http.Request.from_environ(environ)
     resource = func_name(wrapped)
 
-    with core.context_with_data(
-        "molten.request",
-        span_name=schematize_url_operation("molten.request", protocol="http", direction=SpanDirection.INBOUND),
-        span_type=SpanTypes.WEB,
-        service=trace_utils.int_service(pin, config.molten),
-        resource=resource,
-        tags={},
-        tracer=pin.tracer,
-        distributed_headers=dict(request.headers),  # request.headers is type Iterable[Tuple[str, str]]
-        integration_config=config.molten,
-        allow_default_resource=True,
-        activate_distributed_headers=True,
-        headers_case_sensitive=True,
-    ) as ctx, ctx.span as req_span:
+    with (
+        core.context_with_data(
+            "molten.request",
+            span_name=schematize_url_operation("molten.request", protocol="http", direction=SpanDirection.INBOUND),
+            span_type=SpanTypes.WEB,
+            service=trace_utils.int_service(pin, config.molten),
+            resource=resource,
+            tags={},
+            tracer=pin.tracer,
+            distributed_headers=dict(request.headers),  # request.headers is type Iterable[Tuple[str, str]]
+            integration_config=config.molten,
+            allow_default_resource=True,
+            activate_distributed_headers=True,
+            headers_case_sensitive=True,
+        ) as ctx,
+        ctx.span as req_span,
+    ):
         ctx.set_item("req_span", req_span)
         core.dispatch("web.request.start", (ctx, config.molten))
 

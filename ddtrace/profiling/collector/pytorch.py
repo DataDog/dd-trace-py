@@ -8,9 +8,9 @@ import typing
 import wrapt
 
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
-from ddtrace.settings.profiling import config
 from ddtrace.trace import Tracer
 
 
@@ -31,9 +31,9 @@ class _WrappedTorchProfiler(wrapt.ObjectProxy):
 class MLProfilerCollector(collector.CaptureSamplerCollector):
     """Record ML framework (i.e. pytorch) profiler usage."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.tracer = None
+        self.tracer: typing.Union[Tracer, None] = None
         # Holds the pytorch profiler object which is wrapped by this class
         self._original: typing.Any = None
 

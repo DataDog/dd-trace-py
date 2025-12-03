@@ -23,6 +23,10 @@ _STUB_TO_REAL[ddtrace_api.tracer] = ddtrace.tracer
 log = get_logger(__name__)
 T = TypeVar("T")
 _FN_PARAMS: Dict[str, List[str]] = dict()
+# for situations where the intended internal target doesn't have the same name
+# as the API method. one example is when a public ddtrace method gets internalized
+# in a major version
+_API_TO_IMPL_NAME: Dict[str, str] = {"finish_with_ancestors": "_finish_with_ancestors"}
 
 
 def _params_for_fn(wrapping_context: WrappingContext, instance: ddtrace_api._Stub, fn_name: str):
@@ -38,7 +42,7 @@ class DDTraceAPIWrappingContextBase(WrappingContext):
         fn_name = self.__frame__.f_code.co_name
         _call_on_real_instance(
             stub,
-            fn_name,
+            _API_TO_IMPL_NAME.get(fn_name, fn_name),
             self.get_local("retval"),
             **{param: self.get_local(param) for param in _params_for_fn(self, stub, fn_name) if param != "self"},
         )

@@ -12,6 +12,7 @@ from tests.contrib.openai.utils import chat_completion_input_description
 from tests.contrib.openai.utils import get_openai_vcr
 from tests.contrib.openai.utils import mock_openai_chat_completions_response
 from tests.contrib.openai.utils import mock_openai_completions_response
+from tests.contrib.openai.utils import mock_response_mcp_tool_call
 from tests.contrib.openai.utils import multi_message_input
 from tests.contrib.openai.utils import response_tool_function
 from tests.contrib.openai.utils import response_tool_function_expected_output
@@ -207,7 +208,9 @@ class TestLLMObsOpenaiV1:
         self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
         prompt = "why do some languages have words that can't directly be translated to other languages?"
-        expected_output = '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
+        expected_output = (
+            '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
+        )
         with get_openai_vcr(subdirectory_name="v1").use_cassette("azure_completion.yaml"):
             azure_client = openai.AzureOpenAI(
                 api_version=azure_openai_config["api_version"],
@@ -241,7 +244,9 @@ class TestLLMObsOpenaiV1:
         self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
         prompt = "why do some languages have words that can't directly be translated to other languages?"
-        expected_output = '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
+        expected_output = (
+            '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
+        )
         with get_openai_vcr(subdirectory_name="v1").use_cassette("azure_completion.yaml"):
             azure_client = openai.AsyncAzureOpenAI(
                 api_version=azure_openai_config["api_version"],
@@ -269,16 +274,14 @@ class TestLLMObsOpenaiV1:
 
     def test_completion_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("completion_streamed.yaml"):
-            with mock.patch("ddtrace.llmobs._integrations.utils.encoding_for_model", create=True) as mock_encoding:
-                with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
-                    mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
-                    mock_est.return_value = 2
-                    model = "ada"
-                    expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
-                    client = openai.OpenAI()
-                    resp = client.completions.create(model=model, prompt="Hello world", stream=True)
-                    for _ in resp:
-                        pass
+            with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
+                mock_est.return_value = 2
+                model = "ada"
+                expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
+                client = openai.OpenAI()
+                resp = client.completions.create(model=model, prompt="Hello world", stream=True)
+                for _ in resp:
+                    pass
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -565,24 +568,22 @@ class TestLLMObsOpenaiV1:
         """
 
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
-            with mock.patch("ddtrace.llmobs._integrations.utils.encoding_for_model", create=True) as mock_encoding:
-                with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
-                    mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
-                    mock_est.return_value = 8
-                    model = "gpt-3.5-turbo"
-                    resp_model = model
-                    input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
-                    expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
-                    client = openai.OpenAI()
-                    resp = client.chat.completions.create(
-                        model=model,
-                        messages=input_messages,
-                        stream=True,
-                        user="ddtrace-test",
-                        stream_options={"include_usage": False},
-                    )
-                    for chunk in resp:
-                        resp_model = chunk.model
+            with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
+                mock_est.return_value = 8
+                model = "gpt-3.5-turbo"
+                resp_model = model
+                input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+                expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
+                client = openai.OpenAI()
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=input_messages,
+                    stream=True,
+                    user="ddtrace-test",
+                    stream_options={"include_usage": False},
+                )
+                for chunk in resp:
+                    resp_model = chunk.model
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -2043,6 +2044,295 @@ MUL: "*"
         assert (
             span_event["meta"]["input"]["messages"][2]["tool_results"][0]["result"]
             == '{"temperature": "72°F", "conditions": "sunny", "humidity": "65%"}'
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
+    )
+    def test_chat_completion_parse(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        from typing import List
+
+        from pydantic import BaseModel
+
+        class Step(BaseModel):
+            explanation: str
+            output: str
+
+        class MathResponse(BaseModel):
+            steps: List[Step]
+            final_answer: str
+
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_parse.yaml"):
+            client = openai.OpenAI()
+            resp = client.chat.completions.parse(
+                model="gpt-4o-2024-08-06",
+                messages=[
+                    {"role": "system", "content": "You are a helpful math tutor."},
+                    {"role": "user", "content": "solve 8x + 31 = 2"},
+                ],
+                response_format=MathResponse,
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp.model,
+                model_provider="openai",
+                input_messages=[
+                    {"role": "system", "content": "You are a helpful math tutor."},
+                    {"role": "user", "content": "solve 8x + 31 = 2"},
+                ],
+                output_messages=[{"role": "assistant", "content": mock.ANY}],
+                metadata={"response_format": "MathResponse"},
+                token_metrics={
+                    "input_tokens": 127,
+                    "output_tokens": 93,
+                    "total_tokens": 220,
+                    "cache_read_input_tokens": 0,
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
+    )
+    def test_response_parse(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        from typing import List
+
+        from pydantic import BaseModel
+
+        class Step(BaseModel):
+            explanation: str
+            output: str
+
+        class MathResponse(BaseModel):
+            steps: List[Step]
+            final_answer: str
+
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_parse.yaml"):
+            client = openai.OpenAI()
+            resp = client.responses.parse(
+                model="gpt-4o-2024-08-06",
+                input="solve 8x + 31 = 2",
+                text_format=MathResponse,
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp.model,
+                model_provider="openai",
+                input_messages=[
+                    {"role": "user", "content": "solve 8x + 31 = 2"},
+                ],
+                output_messages=[{"role": "assistant", "content": mock.ANY}],
+                metadata={
+                    "temperature": 1.0,
+                    "top_p": 1.0,
+                    "tool_choice": "auto",
+                    "truncation": "disabled",
+                    "text": {
+                        "format": {
+                            "name": "MathResponse",
+                            "schema_": mock.ANY,
+                            "type": "json_schema",
+                            "strict": True,
+                        },
+                        "verbosity": "medium",
+                    },
+                    "reasoning_tokens": 0,
+                },
+                token_metrics={
+                    "input_tokens": 113,
+                    "output_tokens": 99,
+                    "total_tokens": 212,
+                    "cache_read_input_tokens": 0,
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 80),
+        reason="Full OpenAI MCP support only available with openai >= 1.80",
+    )
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_response_mcp_tool_call(
+        self, mock_response_post, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
+        mock_response_post.return_value = mock_response_mcp_tool_call()
+
+        client = openai.OpenAI()
+        client.responses.create(
+            model="gpt-5",
+            tools=[
+                {
+                    "type": "mcp",
+                    "server_label": "dice_roller",
+                    "server_description": "Public dice-roller MCP server for testing.",
+                    "server_url": "https://dice-rolling-mcp.vercel.app/sse",
+                    "require_approval": "never",
+                },
+            ],
+            input="Roll 2d4+1",
+        )
+
+        traces = mock_tracer.pop_traces()
+        assert len(traces[0]) == 2
+
+        response_span = traces[0][0]
+        tool_span = traces[0][1]
+
+        assert mock_llmobs_writer.enqueue.call_count == 2
+
+        assert mock_llmobs_writer.enqueue.call_args_list[0][0][0] == _expected_llmobs_non_llm_span_event(
+            tool_span,
+            "tool",
+            input_value=safe_json(
+                {"notation": "2d4+1", "label": "2d4+1 roll", "verbose": True},
+                ensure_ascii=False,
+            ),
+            output_value="You rolled 2d4+1 for 2d4+1 roll:\n🎲 Total: 8\n📊 Breakdown: 2d4:[3,4] + 1",
+            metadata={"tool_id": "mcp_0f873afd7ff4f5b30168ffa1f7ddec81a0a114abda192da6b3"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+        )
+        assert tool_span.parent_id == response_span.span_id
+
+        assert mock_llmobs_writer.enqueue.call_args_list[1][0][0] == _expected_llmobs_llm_span_event(
+            response_span,
+            model_name="gpt-5-2025-08-07",
+            model_provider="openai",
+            input_messages=[{"role": "user", "content": "Roll 2d4+1"}],
+            output_messages=[
+                {
+                    "role": "reasoning",
+                    "content": (
+                        '{"summary": [], "encrypted_content": null, '
+                        '"id": "rs_0f873afd7ff4f5b30168ffa1f5d91c81a0890e78a4873fbc1b"}'
+                    ),
+                },
+                {
+                    "tool_calls": [
+                        {
+                            "name": "dice_roll",
+                            "type": "mcp_call",
+                            "tool_id": "mcp_0f873afd7ff4f5b30168ffa1f7ddec81a0a114abda192da6b3",
+                            "arguments": {"notation": "2d4+1", "label": "2d4+1 roll", "verbose": True},
+                        }
+                    ],
+                    "tool_results": [
+                        {
+                            "name": "dice_roll",
+                            "type": "mcp_tool_result",
+                            "tool_id": "mcp_0f873afd7ff4f5b30168ffa1f7ddec81a0a114abda192da6b3",
+                            "result": "You rolled 2d4+1 for 2d4+1 roll:\n🎲 Total: 8\n📊 Breakdown: 2d4:[3,4] + 1",
+                        }
+                    ],
+                    "role": "assistant",
+                },
+                {"role": "assistant", "content": "You rolled 2d4+1:\n- Total: 8\n- Breakdown: 2d4 → [3, 4] + 1"},
+            ],
+            metadata={
+                "temperature": 1.0,
+                "top_p": 1.0,
+                "tool_choice": "auto",
+                "truncation": "disabled",
+                "text": {"format": {"type": "text"}, "verbosity": "medium"},
+                "reasoning_tokens": 128,
+            },
+            token_metrics={
+                "input_tokens": 642,
+                "output_tokens": 206,
+                "total_tokens": 848,
+                "cache_read_input_tokens": 0,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            tool_definitions=[
+                {
+                    "name": "dice_roll",
+                    "description": (
+                        "Roll dice using standard notation. IMPORTANT: For D&D advantage use '2d20kh1' (NOT '2d20')"
+                    ),
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "notation": {
+                                "type": "string",
+                                "description": (
+                                    'Dice notation. Examples: "1d20+5" (basic), "2d20kh1" (advantage), '
+                                    '"2d20kl1" (disadvantage), "4d6kh3" (stats), "3d6!" (exploding), '
+                                    '"4d6r1" (reroll 1s), "5d10>7" (successes)'
+                                ),
+                            },
+                            "label": {
+                                "type": "string",
+                                "description": 'Optional label e.g., "Attack roll", "Fireball damage"',
+                            },
+                            "verbose": {
+                                "type": "boolean",
+                                "description": "Show detailed breakdown of individual dice results",
+                            },
+                        },
+                        "required": ["notation"],
+                        "additionalProperties": False,
+                        "$schema": "http://json-schema.org/draft-07/schema#",
+                    },
+                }
+            ],
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 87),
+        reason="Reusable prompts only available in openai >= 1.87",
+    )
+    def test_response_with_prompt_tracking(self, openai, mock_llmobs_writer, mock_tracer):
+        """Test that prompt metadata (id, version, variables) is captured for reusable prompts."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_with_prompt.yaml"):
+            client = openai.OpenAI()
+            client.responses.create(
+                prompt={
+                    "id": "pmpt_690b24669d8c81948acc0e98da10e6490190feb3a62eee0b",
+                    "version": "4",
+                    "variables": {"question": "What is machine learning?"},
+                }
+            )
+        mock_tracer.pop_traces()
+        assert mock_llmobs_writer.enqueue.call_count == 1
+
+        call_args = mock_llmobs_writer.enqueue.call_args[0][0]
+
+        # Verify prompt metadata is captured
+        assert "prompt" in call_args["meta"]["input"]
+        actual_prompt = call_args["meta"]["input"]["prompt"]
+        assert actual_prompt["id"] == "pmpt_690b24669d8c81948acc0e98da10e6490190feb3a62eee0b"
+        assert actual_prompt["version"] == "4"
+        assert actual_prompt["variables"] == {"question": "What is machine learning?"}
+
+        # Verify chat_template is extracted with variable placeholders
+        assert "chat_template" in actual_prompt
+        chat_template = actual_prompt["chat_template"]
+        assert len(chat_template) == 2
+        # First message: developer role
+        assert chat_template[0]["role"] == "developer"
+        assert chat_template[0]["content"] == "Direct & Conversational tone"
+        # Second message: user role with variable placeholder
+        assert chat_template[1]["role"] == "user"
+        assert chat_template[1]["content"] == "You are a helpful assistant. Please answer this question: {{question}}"
+
+        # Verify the actual prompt content is captured in input messages
+        input_messages = call_args["meta"]["input"]["messages"]
+        assert len(input_messages) == 2
+        # Developer message
+        assert input_messages[0]["role"] == "developer"
+        assert input_messages[0]["content"] == "Direct & Conversational tone"
+        # User message with rendered variables
+        assert input_messages[1]["role"] == "user"
+        assert (
+            input_messages[1]["content"]
+            == "You are a helpful assistant. Please answer this question: What is machine learning?"
         )
 
 

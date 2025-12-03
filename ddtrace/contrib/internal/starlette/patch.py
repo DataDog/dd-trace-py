@@ -9,7 +9,6 @@ import starlette
 from starlette import requests as starlette_requests
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware import Middleware
-from wrapt import ObjectProxy
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -20,16 +19,17 @@ from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Span  # noqa:F401
 from ddtrace.vendor.packaging.version import parse as parse_version
 
@@ -108,14 +108,14 @@ def patch():
     Pin().onto(starlette)
 
     # We need to check that Fastapi instrumentation hasn't already patched these
-    if not isinstance(starlette.routing.Route.__init__, ObjectProxy):
+    if not is_wrapted(starlette.routing.Route.__init__):
         _w("starlette.routing", "Route.__init__", traced_route_init)
-    if not isinstance(starlette.routing.Route.handle, ObjectProxy):
+    if not is_wrapted(starlette.routing.Route.handle):
         _w("starlette.routing", "Route.handle", traced_handler)
-    if not isinstance(starlette.routing.Mount.handle, ObjectProxy):
+    if not is_wrapted(starlette.routing.Mount.handle):
         _w("starlette.routing", "Mount.handle", traced_handler)
 
-    if not isinstance(starlette.background.BackgroundTasks.add_task, ObjectProxy):
+    if not is_wrapted(starlette.background.BackgroundTasks.add_task):
         _w("starlette.background", "BackgroundTasks.add_task", _trace_background_tasks(starlette))
 
 
@@ -128,13 +128,13 @@ def unpatch():
     _u(starlette.applications.Starlette, "__init__")
 
     # We need to check that Fastapi instrumentation hasn't already unpatched these
-    if isinstance(starlette.routing.Route.handle, ObjectProxy):
+    if is_wrapted(starlette.routing.Route.handle):
         _u(starlette.routing.Route, "handle")
 
-    if isinstance(starlette.routing.Mount.handle, ObjectProxy):
+    if is_wrapted(starlette.routing.Mount.handle):
         _u(starlette.routing.Mount, "handle")
 
-    if isinstance(starlette.background.BackgroundTasks.add_task, ObjectProxy):
+    if is_wrapted(starlette.background.BackgroundTasks.add_task):
         _u(starlette.background.BackgroundTasks, "add_task")
 
 
@@ -176,7 +176,7 @@ def traced_handler(wrapped, instance, args, kwargs):
                 span.resource = path
             # route should only be in the root span
             if index == 0:
-                span.set_tag_str(http.ROUTE, path)
+                span._set_tag_str(http.ROUTE, path)
     # at least always update the root asgi span resource name request_spans[0].resource = "".join(resource_paths)
     elif request_spans and resource_paths:
         route = "".join(resource_paths)
@@ -184,7 +184,7 @@ def traced_handler(wrapped, instance, args, kwargs):
             request_spans[0].resource = "{} {}".format(scope["method"], route)
         else:
             request_spans[0].resource = route
-        request_spans[0].set_tag_str(http.ROUTE, route)
+        request_spans[0]._set_tag_str(http.ROUTE, route)
     else:
         log.debug(
             "unable to update the request span resource name, request_spans:%r, resource_paths:%r",

@@ -3,9 +3,9 @@ import sys
 import threading
 
 from ddtrace.internal import service
-import ddtrace.profiling.auto
+import ddtrace.profiling.auto  # noqa: F401
 import ddtrace.profiling.bootstrap
-import ddtrace.profiling.profiler
+import ddtrace.profiling.profiler  # noqa: F401
 
 
 lock = threading.Lock()

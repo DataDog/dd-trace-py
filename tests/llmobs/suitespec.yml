@@ -4,8 +4,6 @@ components:
     - ddtrace/contrib/internal/anthropic/*
   google_adk:
     - ddtrace/contrib/internal/google_adk/*
-  google_generativeai:
-    - ddtrace/contrib/internal/google_generativeai/*
   google_genai:
     - ddtrace/contrib/internal/google_genai/*
   vertexai:
@@ -55,19 +53,6 @@ suites:
       - '@google_adk'
       - '@llmobs'
       - tests/contrib/google_adk/*
-    runner: riot
-    snapshot: true
-  google_generativeai:
-    parallelism: 1
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
-      - '@google_generativeai'
-      - '@llmobs'
-      - tests/contrib/google_generativeai/*
-      - tests/snapshots/tests.contrib.google_generativeai.*
     runner: riot
     snapshot: true
   google_genai:
@@ -122,6 +107,7 @@ suites:
       - tests/snapshots/tests.contrib.litellm.*
     runner: riot
     snapshot: true
+    venvs_per_job: 1
   llmobs:
     paths:
       - '@bootstrap'
@@ -131,6 +117,7 @@ suites:
       - tests/llmobs/*
     runner: riot
     snapshot: true
+    venvs_per_job: 1
   mcp:
     parallelism: 1
     paths:
@@ -145,7 +132,7 @@ suites:
     runner: riot
     snapshot: true
   openai:
-    parallelism: 10
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -198,6 +185,7 @@ suites:
       - tests/snapshots/tests.contrib.openai_agents.*
     runner: riot
     snapshot: true
+    venvs_per_job: 2
   pydantic_ai:
     paths:
       - '@bootstrap'
@@ -210,6 +198,7 @@ suites:
       - tests/snapshots/tests.contrib.pydantic_ai.*
     runner: riot
     snapshot: true
+    venvs_per_job: 2
   vllm:
     parallelism: 1
     paths:

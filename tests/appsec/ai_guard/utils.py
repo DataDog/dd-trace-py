@@ -1,21 +1,20 @@
+import contextlib
 import random
 import string
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Union
 from unittest.mock import Mock
 
+import ddtrace
+from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.appsec.ai_guard import AIGuardClient
-from ddtrace.appsec.ai_guard import Prompt
-from ddtrace.appsec.ai_guard import ToolCall
+from ddtrace.appsec.ai_guard._api_client import Message
+from ddtrace.internal.settings.asm import ai_guard_config
 from tests.utils import DummyTracer
-
-
-Evaluation = Union[Prompt, ToolCall]
 
 
 def random_string(length: int) -> str:
@@ -31,21 +30,32 @@ def find_ai_guard_span(tracer: DummyTracer) -> Span:
 
 
 def assert_ai_guard_span(
-    tracer: DummyTracer, history: List[Evaluation], current: Evaluation, tags: Dict[str, Any]
+    tracer: DummyTracer,
+    tags: Dict[str, Any],
+    meta_struct: Dict[str, Any],
 ) -> None:
     span = find_ai_guard_span(tracer)
-    for key, value in tags.items():
-        assert span.get_tag(key) == value
-    struct = span.get_struct_tag(AI_GUARD.TAG)
-    assert struct["history"] == history
-    assert struct["current"] == current
+    for tag, value in tags.items():
+        assert tag in span.get_tags(), f"Missing {tag} from spans tags"
+        assert span.get_tag(tag) == value, f"Wrong value {span.get_tag(tag)}, expected {value}"
+    struct = span._get_struct_tag(AI_GUARD.TAG)
+    for meta, value in meta_struct.items():
+        assert meta in struct.keys(), f"Missing {meta} from meta_struct keys"
+        assert struct[meta] == value, f"Wrong value {struct[meta]}, expected {value}"
 
 
-def mock_evaluate_response(action: str, reason: str = "", block: bool = True) -> Mock:
+def mock_evaluate_response(action: str, reason: str = "", tags: List[str] = None, block: bool = True) -> Mock:
     mock_response = Mock()
     mock_response.status = 200
     mock_response.get_json.return_value = {
-        "data": {"attributes": {"action": action, "reason": reason, "is_blocking_enabled": block}}
+        "data": {
+            "attributes": {
+                "action": action,
+                "reason": reason,
+                "tags": tags if tags else [],
+                "is_blocking_enabled": block,
+            }
+        }
     }
     return mock_response
 
@@ -53,17 +63,10 @@ def mock_evaluate_response(action: str, reason: str = "", block: bool = True) ->
 def assert_mock_execute_request_call(
     mock_execute_request,
     ai_guard_client: AIGuardClient,
-    history: List[Evaluation],
-    current: Evaluation,
+    messages: List[Message],
     meta: Optional[Dict[str, Any]] = None,
 ):
-    expected_attributes = {
-        "history": history,
-        "current": current,
-    }
-
-    if meta is not None:
-        expected_attributes["meta"] = meta
+    expected_attributes = {"messages": messages, "meta": meta or {"service": config.service, "env": config.env}}
 
     expected_payload = {"data": {"attributes": expected_attributes}}
 
@@ -71,3 +74,46 @@ def assert_mock_execute_request_call(
         f"{ai_guard_client._endpoint}/evaluate",
         expected_payload,
     )
+
+
+@contextlib.contextmanager
+def override_ai_guard_config(values):
+    """
+    Temporarily override an ai_guard configuration:
+
+        >>> with self.override_ai_guard_config(dict(name=value,...)):
+            # Your test
+    """
+    # List of global variables we allow overriding
+    global_config_keys = [
+        "_dd_api_key",
+        "_dd_app_key",
+    ]
+
+    ai_guard_config_keys = ai_guard_config._ai_guard_config_keys
+
+    # Grab the current values of all keys
+    originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
+    ai_guard_originals = dict((key, getattr(ai_guard_config, key)) for key in ai_guard_config_keys)
+
+    # Override from the passed in keys
+    for key, value in values.items():
+        if key in global_config_keys:
+            setattr(ddtrace.config, key, value)
+    # rebuild ai guard config from env vars and global config
+    for key, value in values.items():
+        if key in ai_guard_config_keys:
+            setattr(ai_guard_config, key, value)
+
+    try:
+        yield
+    finally:
+        # Reset all to their original values
+        for key, value in originals.items():
+            setattr(ddtrace.config, key, value)
+
+        ai_guard_config.reset()
+        for key, value in ai_guard_originals.items():
+            setattr(ai_guard_config, key, value)
+
+        ddtrace.config._reset()

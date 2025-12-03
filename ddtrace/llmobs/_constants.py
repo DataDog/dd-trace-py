@@ -50,10 +50,14 @@ TIME_IN_MODEL_PREFILL_METRIC_KEY = "time_in_model_prefill"
 TIME_IN_MODEL_DECODE_METRIC_KEY = "time_in_model_decode"
 TIME_IN_MODEL_INFERENCE_METRIC_KEY = "time_in_model_inference"
 
-EVP_PROXY_AGENT_BASE_PATH = "/evp_proxy/v2"
+TIME_TO_FIRST_TOKEN_METRIC_KEY = "time_to_first_token"  # nosec B105
+TIME_IN_QUEUE_METRIC_KEY = "time_in_queue"
+TIME_IN_MODEL_PREFILL_METRIC_KEY = "time_in_model_prefill"
+TIME_IN_MODEL_DECODE_METRIC_KEY = "time_in_model_decode"
+TIME_IN_MODEL_INFERENCE_METRIC_KEY = "time_in_model_inference"
+
 EVAL_ENDPOINT = "/api/intake/llm-obs/v2/eval-metric"
 SPAN_ENDPOINT = "/api/v2/llmobs"
-EVP_SUBDOMAIN_HEADER_NAME = "X-Datadog-EVP-Subdomain"
 SPAN_SUBDOMAIN_NAME = "llmobs-intake"
 EVAL_SUBDOMAIN_NAME = "api"
 EXP_SUBDOMAIN_NAME = "api"
@@ -63,9 +67,6 @@ AGENTLESS_EXP_BASE_URL = "https://{}".format(EXP_SUBDOMAIN_NAME)
 
 # from https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site
 DD_SITES_NEEDING_APP_SUBDOMAIN = {"datadoghq.com", "datadoghq.eu", "ddog-gov.com"}
-
-EVP_PAYLOAD_SIZE_LIMIT = 5 << 20  # 5MB (actual limit is 5.1MB)
-EVP_EVENT_SIZE_LIMIT = 5_000_000  # 5MB LLM Obs event size limit
 
 EXPERIMENT_CSV_FIELD_MAX_SIZE = 10 * 1024 * 1024
 
@@ -116,6 +117,8 @@ LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"
 PROXY_REQUEST = "llmobs.proxy_request"
 
 EXPERIMENT_ID_KEY = "_ml_obs.experiment_id"
+EXPERIMENT_RUN_ID_KEY = "_ml_obs.experiment_run_id"
+EXPERIMENT_RUN_ITERATION_KEY = "_ml_obs.experiment_run_iteration"
 EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
 EXPERIMENTS_INPUT = "_ml_obs.meta.input"
 EXPERIMENTS_OUTPUT = "_ml_obs.meta.output"

@@ -6,11 +6,11 @@ import shutil
 import subprocess
 import sys
 
-import clonevirtualenv
 import pytest
 
 from ddtrace.appsec._constants import IAST
 from tests.appsec.appsec_utils import flask_server
+from tests.appsec.iast_packages import clonevirtualenv
 from tests.utils import DDTRACE_PATH
 from tests.utils import override_env
 
@@ -244,6 +244,7 @@ _PACKAGES = [
         "",
         import_module_to_validate="attr.validators",
         test_propagation=True,
+        skip_python_version=[(3, 14)],
     ),
     PackageForTesting(
         "azure-core",
@@ -382,7 +383,6 @@ _PACKAGES = [
         "Content of foobar:\nThis is the default content of the file.",
         "",
         import_name="importlib_resources",
-        skip_python_version=[(3, 8)],
         import_module_to_validate="importlib_resources.readers",
     ),
     PackageForTesting(
@@ -413,10 +413,6 @@ _PACKAGES = [
         fixme_propagation_fails=True,
     ),
     PackageForTesting("jmespath", "1.0.1", "", "Seattle", "", import_module_to_validate="jmespath.functions"),
-    # jsonschema fails for Python 3.8
-    #        except KeyError:
-    # >           raise exceptions.NoSuchResource(ref=uri) from None
-    # E           referencing.exceptions.NoSuchResource: 'http://json-schema.org/draft-03/schema#'
     PackageForTesting(
         "jsonschema",
         "4.22.0",
@@ -431,7 +427,6 @@ _PACKAGES = [
             "validation": "successful",
         },
         "",
-        skip_python_version=[(3, 8)],
     ),
     PackageForTesting(
         "markupsafe",
@@ -442,7 +437,7 @@ _PACKAGES = [
     ),
     PackageForTesting(
         "lxml",
-        "5.2.2",
+        "6.0.2",
         "<root><element>foobar</element></root>",
         "Element text: foobar",
         "",
@@ -501,9 +496,7 @@ _PACKAGES = [
     #     "specifier": ">=1.0.0", "version": "1.2.3"},
     #     "",
     # ),
-    ## Skip due to pandas added to the denylist
-    # Pandas dropped Python 3.8 support in pandas>2.0.3
-    # PackageForTesting("pandas", "2.2.2", "foobar", "Written value: foobar", "", skip_python_version=[(3, 8)]),
+    PackageForTesting("pandas", "2.3.3", "foobar", "Written value: foobar", ""),
     PackageForTesting(
         "platformdirs",
         "4.2.2",
@@ -534,16 +527,18 @@ _PACKAGES = [
     ),
     ## Skip due to pygments added to the denylist
     # PackageForTesting("pycparser", "2.22", "", "", ""),
+    # Pydantic fails for py314 installation with error: failed to run custom build command for `pyo3-ffi v0.21.1`
     PackageForTesting(
         "pydantic",
-        "2.7.1",
+        "2.12.5",
         '{"name": "foobar", "description": "A test item"}',
         "Validated item: name=foobar, description=A test item",
         "",
     ),
+    # Pydantic fails for py314 installation with error: failed to run custom build command for `pyo3-ffi v0.21.1`
     PackageForTesting(
         "pydantic-core",
-        "2.18.2",
+        "2.41.5",
         "",
         "",
         "",
@@ -583,7 +578,7 @@ _PACKAGES = [
     # ),
     PackageForTesting(
         "PyYAML",
-        "6.0.1",
+        "6.0.3",
         '{"a": 1, "b": {"c": 3, "d": 4}}',
         {"a": 1, "b": {"c": 3, "d": 4}},
         "a: 1\nb:\n  c: 3\n  d: 4\n",
@@ -591,6 +586,7 @@ _PACKAGES = [
         import_module_to_validate="yaml.resolver",
         test_propagation=True,
         fixme_propagation_fails=True,
+        skip_python_version=[(3, 14)],
     ),
     PackageForTesting(
         "requests",
@@ -611,12 +607,13 @@ _PACKAGES = [
     ),
     PackageForTesting(
         "sqlalchemy",
-        "2.0.30",
+        "2.0.44",
         "Bruce Dickinson",
         {"age": 65, "id": 1, "name": "Bruce Dickinson"},
         "",
         import_module_to_validate="sqlalchemy.orm.session",
         test_propagation=True,
+        skip_python_version=[(3, 14)],
     ),
     PackageForTesting(
         "s3fs", "2024.5.0", "", "", "", extras=[("pyopenssl", "24.1.0")], import_module_to_validate="s3fs.core"
@@ -661,14 +658,14 @@ _PACKAGES = [
     ),
     ## Skip due to tqdm added to the denylist
     # PackageForTesting("tqdm", "4.66.4", "", "", "", test_e2e=False, import_module_to_validate="tqdm.std"),
-    # Python 3.8 and 3.9 fail with ImportError: cannot import name 'get_host' from 'urllib3.util.url'
+    # Python 3.9 fail with ImportError: cannot import name 'get_host' from 'urllib3.util.url'
     PackageForTesting(
         "urllib3",
         "2.1.0",
         "https://www.datadoghq.com/",
         ["https", None, "www.datadoghq.com", None, "/", None, None],
         "www.datadoghq.com",
-        skip_python_version=[(3, 8), (3, 9)],
+        skip_python_version=[(3, 9)],
     ),
     PackageForTesting(
         "virtualenv",
@@ -688,7 +685,6 @@ _PACKAGES = [
         "",
         import_module_to_validate="soupsieve.css_match",
         extras=[("beautifulsoup4", "4.12.3")],
-        skip_python_version=[(3, 8)],
         test_propagation=True,
         fixme_propagation_fails=True,
     ),
@@ -700,7 +696,6 @@ _PACKAGES = [
     #     "Original password: your-password\nHashed password: replaced_hashed\nPassword match: True",
     #     "",
     #     import_module_to_validate="werkzeug.http",
-    #     skip_python_version=[(3, 8)],
     # ),
     PackageForTesting(
         "yarl",
@@ -710,37 +705,33 @@ _PACKAGES = [
         + " example.com\nPath: /path\nQuery: <MultiDictProxy('query': 'param')>\n",
         "",
         import_module_to_validate="yarl._url",
-        skip_python_version=[(3, 8)],
         test_propagation=True,
         fixme_propagation_fails=True,
     ),
     ## Skip due to zipp added to the denylist
-    # PackageForTesting(
-    #     "zipp",
-    #     "3.18.2",
-    #     "example.zip",
-    #     "Contents of example.zip: ['example.zip/example.txt']",
-    #     "",
-    #     skip_python_version=[(3, 8)],
-    # ),
+    PackageForTesting(
+        "zipp",
+        "3.18.2",
+        "example.zip",
+        "Contents of example.zip: ['example.zip/example.txt']",
+        "",
+    ),
     ## Skip due to typing-extensions added to the denylist
-    # PackageForTesting(
-    #     "typing-extensions",
-    #     "4.11.0",
-    #     "",
-    #     "",
-    #     "",
-    #     import_name="typing_extensions",
-    #     test_e2e=False,
-    #     skip_python_version=[(3, 8)],
-    # ),
+    PackageForTesting(
+        "typing-extensions",
+        "4.11.0",
+        "",
+        "",
+        "",
+        import_name="typing_extensions",
+        test_e2e=False,
+    ),
     PackageForTesting(
         "six",
         "1.16.0",
         "",
         "We're in Python 3",
         "",
-        skip_python_version=[(3, 8)],
     ),
     ## Skip due to pillow added to the denylist
     # PackageForTesting(
@@ -750,10 +741,9 @@ _PACKAGES = [
     #     "Image correctly generated",
     #     "",
     #     import_name="PIL.Image",
-    #     skip_python_version=[(3, 8)],
     # ),
     PackageForTesting(
-        "aiobotocore", "2.13.0", "", "", "", test_e2e=False, test_import=False, import_name="aiobotocore.session"
+        "aiobotocore", "2.26.0", "", "", "", test_e2e=False, test_import=False, import_name="aiobotocore.session"
     ),
     PackageForTesting(
         "pyjwt",
@@ -780,14 +770,12 @@ _PACKAGES = [
         "",
         test_propagation=False,
     ),
-    # docutils dropped Python 3.8 support in docutils > 1.10.10.21.2
     PackageForTesting(
         "docutils",
-        "0.21.2",
+        "0.22.3",
         "Hello, **world**!",
         "Conversion successful!",
         "",
-        skip_python_version=[(3, 8)],
         test_propagation=True,
         fixme_propagation_fails=True,
     ),
@@ -826,17 +814,14 @@ _PACKAGES = [
     #     "",
     #     test_e2e=False,
     # ),
-    ## Skip due to scipy added to the denylist
-    # # scipy dropped Python 3.8 support in scipy > 1.10.1
-    # PackageForTesting(
-    #     "scipy",
-    #     "1.13.0",
-    #     "1,2,3,4,5",
-    #     "Mean: 3.0, Standard Deviation: 1.581",
-    #     "",
-    #     import_name="scipy.special",
-    #     skip_python_version=[(3, 8)],
-    # ),
+    PackageForTesting(
+        "scipy",
+        "1.16.3",
+        "1,2,3,4,5",
+        "Mean: 3.0, Standard Deviation: 1.581",
+        "",
+        import_name="scipy.special",
+    ),
     PackageForTesting(
         "iniconfig",
         "2.0.0",
@@ -853,16 +838,14 @@ _PACKAGES = [
         "Original list: <FrozenList(frozen=True, [1, 2, 3])> Attempt to modify frozen list!",
         "",
     ),
-    # TODO: e2e implemented but fails unpatched: "Signal handlers results: None"
-    # TODO: recursivity error in format_aspect with the new refactored package tests
-    # PackageForTesting(
-    #     "aiosignal",
-    #     "1.3.1",
-    #     "test_value",
-    #     "Signal handlers results: [('Handler 1 called', None), ('Handler 2 called', None)]",
-    #     "",
-    #     test_e2e=False,
-    # ),
+    PackageForTesting(
+        "aiosignal",
+        "1.4.0",
+        "test_value",
+        "Signal handlers results: [('Handler 1 called', None), ('Handler 2 called', None)]",
+        "",
+        test_e2e=False,
+    ),
     PackageForTesting(
         "pygments",
         "2.18.0",
@@ -873,7 +856,15 @@ _PACKAGES = [
         test_propagation=True,
         fixme_propagation_fails=True,
     ),
-    PackageForTesting("grpcio", "1.64.0", "", "", "", test_e2e=False, import_name="grpc"),
+    PackageForTesting(
+        "grpcio",
+        "1.76.0",
+        "",
+        "",
+        "",
+        test_e2e=False,
+        import_name="grpc",
+    ),
     PackageForTesting(
         "pyopenssl",
         "24.1.0",
@@ -908,7 +899,6 @@ _PACKAGES = [
         test_propagation=True,
         fixme_propagation_fails=True,
     ),
-    # Requires "Annotated" from "typing" which was included in 3.9
     PackageForTesting(
         "annotated-types",
         "0.7.0",
@@ -916,7 +906,6 @@ _PACKAGES = [
         "Processed value: 15",
         "",
         import_name="annotated_types",
-        skip_python_version=[(3, 8)],
     ),
     PackageForTesting(
         "babel",
@@ -926,6 +915,7 @@ _PACKAGES = [
         "",
         test_import=False,
         test_propagation=True,
+        skip_python_version=[(3, 14)],
     ),
 ]
 

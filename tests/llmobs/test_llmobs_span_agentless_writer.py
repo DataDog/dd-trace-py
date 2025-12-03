@@ -95,6 +95,7 @@ def test_send_completion_bad_api_key(mock_writer_logs):
         "https://llmobs-intake.datad0g.com/api/v2/llmobs",
         403,
         b'{"errors":[{"status":"403","title":"Forbidden","detail":"API key is invalid"}]}',
+        extra={"send_to_telemetry": False},
     )
 
 

@@ -11,17 +11,21 @@ from typing import Tuple
 from typing import TypedDict
 from typing import Union
 from typing import cast
+import urllib
 from urllib.parse import quote
 from urllib.parse import urlparse
 
-import ddtrace
 from ddtrace import config
 from ddtrace.internal import agent
 from ddtrace.internal import forksafe
+from ddtrace.internal.evp_proxy.constants import EVP_EVENT_SIZE_LIMIT
+from ddtrace.internal.evp_proxy.constants import EVP_PAYLOAD_SIZE_LIMIT
+from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
+from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.utils.http import Response
-from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENTLESS_EVAL_BASE_URL
@@ -31,10 +35,6 @@ from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
 from ddtrace.llmobs._constants import EVAL_ENDPOINT
 from ddtrace.llmobs._constants import EVAL_SUBDOMAIN_NAME
-from ddtrace.llmobs._constants import EVP_EVENT_SIZE_LIMIT
-from ddtrace.llmobs._constants import EVP_PAYLOAD_SIZE_LIMIT
-from ddtrace.llmobs._constants import EVP_PROXY_AGENT_BASE_PATH
-from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.llmobs._constants import EXP_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
@@ -44,10 +44,11 @@ from ddtrace.llmobs._experiment import DatasetRecordRaw
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import UpdatableDatasetRecord
+from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _SpanLink
-from ddtrace.settings._agent import config as agent_config
+from ddtrace.version import __version__
 
 
 logger = get_logger(__name__)
@@ -86,6 +87,8 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     ml_app: str
     timestamp_ms: int
     tags: List[str]
+    assessment: str
+    reasoning: str
 
 
 class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
@@ -243,7 +246,12 @@ class BaseLLMObsWriter(PeriodicService):
         except Exception:
             telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error="connection_error")
             logger.error(
-                "failed to send %d LLMObs %s events to %s", len(events), self.EVENT_TYPE, self._intake, exc_info=True
+                "failed to send %d LLMObs %s events to %s",
+                len(events),
+                self.EVENT_TYPE,
+                self._intake,
+                exc_info=True,
+                extra={"send_to_telemetry": False},
             )
 
     def _send_payload(self, payload: bytes, num_events: int):
@@ -259,6 +267,7 @@ class BaseLLMObsWriter(PeriodicService):
                     self._url,
                     resp.status,
                     resp.read(),
+                    extra={"send_to_telemetry": False},
                 )
                 telemetry.record_dropped_payload(num_events, event_type=self.EVENT_TYPE, error="http_error")
             else:
@@ -266,7 +275,12 @@ class BaseLLMObsWriter(PeriodicService):
             return Response.from_http_response(resp)
         except Exception:
             logger.error(
-                "failed to send %d LLMObs %s events to %s", num_events, self.EVENT_TYPE, self._intake, exc_info=True
+                "failed to send %d LLMObs %s events to %s",
+                num_events,
+                self.EVENT_TYPE,
+                self._intake,
+                exc_info=True,
+                extra={"send_to_telemetry": False},
             )
             raise
         finally:
@@ -398,7 +412,16 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         if dataset_id is None or dataset_id == "":
             raise ValueError(f"unexpected dataset state, invalid ID (is None: {dataset_id is None})")
         curr_version = response_data["data"]["attributes"]["current_version"]
-        return Dataset(dataset_name, project, dataset_id, [], description, curr_version, _dne_client=self)
+        return Dataset(
+            name=dataset_name,
+            project=project,
+            dataset_id=dataset_id,
+            records=[],
+            description=description,
+            latest_version=curr_version,
+            version=curr_version,
+            _dne_client=self,
+        )
 
     @staticmethod
     def _get_record_json(record: Union[UpdatableDatasetRecord, DatasetRecordRaw], is_update: bool) -> JSONType:
@@ -456,10 +479,14 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         new_record_ids: List[str] = [r["id"] for r in data] if data else []
         return new_version, new_record_ids
 
-    def dataset_get_with_records(self, dataset_name: str, project_name: Optional[str] = None) -> Dataset:
+    def dataset_get_with_records(
+        self, dataset_name: str, project_name: Optional[str] = None, version: Optional[int] = None
+    ) -> Dataset:
         project = self.project_create_or_get(project_name)
         project_id = project.get("_id")
-        logger.debug("getting records with project ID %s for %s", project_id, project_name)
+        logger.debug(
+            "getting records with project ID %s for %s, version: %s", project_id, project_name, str(version) or "latest"
+        )
 
         path = f"/api/unstable/llm-obs/v1/{project_id}/datasets?filter[name]={quote(dataset_name)}"
         resp = self.request("GET", path)
@@ -478,11 +505,17 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         dataset_id = data[0]["id"]
 
         list_base_path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
+
         has_next_page = True
         class_records: List[DatasetRecord] = []
-        list_path = list_base_path
         page_num = 0
+        url_options = {}
         while has_next_page:
+            if version:
+                url_options["filter[version]"] = version
+
+            list_path = f"{list_base_path}?{urllib.parse.urlencode(url_options, safe='[]')}"
+            logger.debug("list records page %d, request path=%s", page_num, list_path)
             resp = self.request("GET", list_path, timeout=self.LIST_RECORDS_TIMEOUT)
             if resp.status != 200:
                 raise ValueError(
@@ -502,14 +535,22 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     }
                 )
             next_cursor = records_data.get("meta", {}).get("after")
+
+            url_options = {}
             has_next_page = False
             if next_cursor:
                 has_next_page = True
-                list_path = f"{list_base_path}?page[cursor]={next_cursor}"
-                logger.debug("next list records request path %s", list_path)
+                url_options["page[cursor]"] = next_cursor
                 page_num += 1
         return Dataset(
-            dataset_name, project, dataset_id, class_records, dataset_description, curr_version, _dne_client=self
+            name=dataset_name,
+            project=project,
+            dataset_id=dataset_id,
+            records=class_records,
+            description=dataset_description,
+            latest_version=curr_version,
+            version=version or curr_version,
+            _dne_client=self,
         )
 
     def dataset_bulk_upload(self, dataset_id: str, records: List[DatasetRecord]):
@@ -609,6 +650,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         exp_config: Optional[Dict[str, JSONType]] = None,
         tags: Optional[List[str]] = None,
         description: Optional[str] = None,
+        runs: Optional[int] = 1,
     ) -> Tuple[str, str]:
         path = "/api/unstable/llm-obs/v1/experiments"
         resp = self.request(
@@ -626,6 +668,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                         "config": exp_config or {},
                         "metadata": {"tags": cast(JSONType, tags or [])},
                         "ensure_unique": True,
+                        "run_count": runs,
                     },
                 }
             },
@@ -691,7 +734,7 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
         for event in events:
             event_data = {
                 "_dd.stage": "raw",
-                "_dd.tracer_version": ddtrace.__version__,
+                "_dd.tracer_version": __version__,
                 "event_type": "span",
                 "spans": [event],
             }

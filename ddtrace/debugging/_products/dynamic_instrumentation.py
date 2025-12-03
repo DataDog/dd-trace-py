@@ -1,6 +1,6 @@
 import enum
 
-from ddtrace.settings.dynamic_instrumentation import config
+from ddtrace.internal.settings.dynamic_instrumentation import config
 
 
 requires = ["remote-configuration"]

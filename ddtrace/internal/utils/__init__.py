@@ -2,6 +2,7 @@ from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import Protocol  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
@@ -74,19 +75,30 @@ def set_argument_value(
 
 def _get_metas_to_propagate(context):
     # type: (Any) -> List[Tuple[str, str]]
-    metas_to_propagate = []
-    # copying context._meta.items() to avoid RuntimeError: dictionary changed size during iteration
-    for k, v in list(context._meta.items()):
-        if isinstance(k, str) and k.startswith("_dd.p."):
-            metas_to_propagate.append((k, v))
-    return metas_to_propagate
+    # Using list comprehension for improved performance and memory efficiency
+    return [(k, v) for k, v in context._meta.items() if isinstance(k, str) and k.startswith("_dd.p.")]
 
 
-def get_blocked() -> Optional[Dict[str, Any]]:
+class Block_config(Protocol):
+    block_id: str
+    grpc_status_code: int
+    status_code: int
+    type: str
+    location: str
+    content_type: str
+
+    def get(self, key: str, default: Any = None) -> Union[str, int]: ...
+
+    def __getitem__(self, key: str) -> Optional[Union[str, int]]: ...
+
+    def __contains__(self, key: str) -> bool: ...
+
+
+def get_blocked() -> Optional[Block_config]:
     # local import to avoid circular dependency
     from ddtrace.internal import core
 
-    res = core.dispatch_with_results("asm.get_blocked")
+    res = core.dispatch_with_results("asm.get_blocked")  # ast-grep-ignore: core-dispatch-with-results
     if res and res.block_config:
         return res.block_config.value
     return None

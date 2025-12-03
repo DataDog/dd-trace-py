@@ -101,7 +101,11 @@ class FlaskScenarioMixin:
 
         if self.profiler_enabled:
             os.environ.update(
-                {"DD_PROFILING_ENABLED": "1", "DD_PROFILING_API_TIMEOUT": "0.1", "DD_PROFILING_UPLOAD_INTERVAL": "10"}
+                {
+                    "DD_PROFILING_ENABLED": "1",
+                    "DD_PROFILING_API_TIMEOUT_MS": "100",
+                    "DD_PROFILING_UPLOAD_INTERVAL": "10",
+                }
             )
             if not self.tracer_enabled:
                 import ddtrace.profiling.auto  # noqa:F401

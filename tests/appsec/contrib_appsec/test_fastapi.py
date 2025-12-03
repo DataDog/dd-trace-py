@@ -15,7 +15,7 @@ HTTPX_VERSION = tuple(int(v) for v in httpx.__version__.split("."))
 
 class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
     @pytest.fixture
-    def interface(self, tracer, printer):
+    def interface(self, printer):
         from fastapi.testclient import TestClient
 
         # for fastapi, test tracer needs to be set before the app is created

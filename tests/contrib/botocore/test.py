@@ -47,7 +47,6 @@ from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
-from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -251,9 +250,9 @@ class BotocoreTest(TracerTestCase):
 
         spans = self.get_spans()
         span = spans[0]
-        assert (
-            span.service == DEFAULT_SPAN_SERVICE_NAME
-        ), "Expected 'internal.schema.DEFAULT_SPAN_SERVICE_NAME' but got {}".format(span.service)
+        assert span.service == DEFAULT_SPAN_SERVICE_NAME, (
+            "Expected 'internal.schema.DEFAULT_SPAN_SERVICE_NAME' but got {}".format(span.service)
+        )
         assert span.name == "aws.ec2.request"
 
     @mock_dynamodb
@@ -1426,8 +1425,11 @@ class BotocoreTest(TracerTestCase):
     @mock_sqs
     def _test_data_streams_sns_to_sqs(self, use_raw_delivery):
         # DEV: We want to mock time to ensure we only create a single bucket
-        with mock.patch("time.time") as mt, mock.patch(
-            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        with (
+            mock.patch("time.time") as mt,
+            mock.patch(
+                "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+            ),
         ):
             mt.return_value = 1642544540
 
@@ -1519,8 +1521,11 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs(self):
         # DEV: We want to mock time to ensure we only create a single bucket
-        with mock.patch("time.time") as mt, mock.patch(
-            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        with (
+            mock.patch("time.time") as mt,
+            mock.patch(
+                "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+            ),
         ):
             mt.return_value = 1642544540
 
@@ -1580,8 +1585,11 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_batch(self):
         # DEV: We want to mock time to ensure we only create a single bucket
-        with mock.patch("time.time") as mt, mock.patch(
-            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        with (
+            mock.patch("time.time") as mt,
+            mock.patch(
+                "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+            ),
         ):
             mt.return_value = 1642544540
 
@@ -1660,8 +1668,11 @@ class BotocoreTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sqs_no_header(self):
         # DEV: We want to mock time to ensure we only create a single bucket
-        with mock.patch("time.time") as mt, mock.patch(
-            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+        with (
+            mock.patch("time.time") as mt,
+            mock.patch(
+                "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
+            ),
         ):
             mt.return_value = 1642544540
 
@@ -2244,43 +2255,6 @@ class BotocoreTest(TracerTestCase):
         assert len(spans) == 1
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
         assert span.name == "aws.kms.request"
-
-    @mock_ec2
-    def test_traced_client_ot(self):
-        """OpenTracing version of test_traced_client."""
-        ot_tracer = init_tracer("ec2_svc", self.tracer)
-
-        with ot_tracer.start_active_span("ec2_op"):
-            ec2 = self.session.create_client("ec2", region_name="us-west-2")
-            pin = Pin(service=self.TEST_SERVICE)
-            pin._tracer = self.tracer
-            pin.onto(ec2)
-            ec2.describe_instances()
-
-        spans = self.get_spans()
-        assert spans
-        assert len(spans) == 2
-
-        ot_span, dd_span = spans
-
-        # confirm the parenting
-        assert ot_span.parent_id is None
-        assert dd_span.parent_id == ot_span.span_id
-
-        assert ot_span.name == "ec2_op"
-        assert ot_span.service == "ec2_svc"
-
-        assert dd_span.get_tag("aws.agent") == "botocore"
-        assert dd_span.get_tag("aws.region") == "us-west-2"
-        assert dd_span.get_tag("region") == "us-west-2"
-        assert dd_span.get_tag("aws.operation") == "DescribeInstances"
-        assert dd_span.get_tag("component") == "botocore"
-        assert dd_span.get_tag("span.kind"), "client"
-        assert_span_http_status_code(dd_span, 200)
-        assert dd_span.get_metric("retry_attempts") == 0
-        assert dd_span.service == "test-botocore-tracing.ec2"
-        assert dd_span.resource == "ec2.describeinstances"
-        assert dd_span.name == "ec2.command"
 
     @unittest.skipIf(BOTOCORE_VERSION < (1, 9, 0), "Skipping for older versions of botocore without Stubber")
     def test_stubber_no_response_metadata(self):

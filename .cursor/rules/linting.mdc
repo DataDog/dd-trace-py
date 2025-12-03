@@ -1,0 +1,41 @@
+---
+description: Linting and code quality - use lint skill for formatting and validation
+globs: ["**/*.py", "**/*.c", "**/*.h", "**/*.cmake", "CMakeLists.txt"]
+alwaysApply: false
+---
+
+<!-- ⚠️ EDITOR WARNING ⚠️ -->
+<!-- Don't update this file. If you want to extend the rules and description, -->
+<!-- go to the skill: .claude/skills/lint/SKILL.md -->
+
+# Linting and Code Quality
+
+## Overview
+
+Use the **`lint` skill** for all formatting, linting, type checking, and code quality validation. It provides targeted checks with support for auto-fixing and specific file validation.
+
+## Usage
+
+Use the Skill tool with command "lint"
+
+## Quick Reference
+
+**Most common commands:**
+- `hatch run lint:fmt -- <file>` - Format after editing
+- `hatch run lint:typing -- <file>` - Type check
+- `hatch run lint:checks` - Run all checks before committing
+
+## Full Documentation
+
+For complete documentation including:
+- Key principles and best practices
+- All 14+ available lint scripts
+- Common workflows and examples
+- Passing arguments and troubleshooting
+- Security, spelling, and test infrastructure validation
+
+See: `.claude/skills/lint/SKILL.md`
+
+## Related
+
+- Lint configuration: `hatch.toml`, `pyproject.toml`

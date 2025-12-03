@@ -91,7 +91,9 @@ class ErrorTestCases(TracerTestCase):
         )
         # This asserts that the reported span event contained the info
         # of the last time the error is handled
-        assert "line 30" in self.spans[0]._events[0].attributes["exception.stacktrace"]
+        assert "line 48" in self.spans[0]._events[0].attributes["exception.stacktrace"], (
+            self.spans[0]._events[0].attributes["exception.stacktrace"]
+        )
 
     @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
     def test_handled_same_error_different_type(self):
@@ -159,10 +161,29 @@ class ErrorTestCases(TracerTestCase):
         self.spans[0].assert_span_event_attributes(
             0, {"exception.type": "builtins.ValueError", "exception.message": "auto caught error"}
         )
-        assert "line 72" in self.spans[0]._events[0].attributes["exception.stacktrace"]
+        assert "line 100" in self.spans[0]._events[0].attributes["exception.stacktrace"], (
+            self.spans[0]._events[0].attributes["exception.stacktrace"]
+        )
 
         assert self.spans[1].name == "child_span"
         assert len(self.spans[1]._events) == 0
+
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
+    def test_unhashable_exception(self):
+        """Test that unhashable exceptions (e.g., with mutable attributes) are handled correctly."""
+        self._run_error_test(
+            "test_unhashable_exception_f",
+            initial_value=0,
+            expected_value=10,
+            expected_events=[
+                [
+                    {
+                        "exception.type": "tests.errortracking._test_functions.UnhashableException",
+                        "exception.message": "unhashable error",
+                    }
+                ]
+            ],
+        )
 
 
 @skipif_errortracking_not_supported

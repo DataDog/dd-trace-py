@@ -75,14 +75,17 @@ def asm_context(
             processor = AppSecSpanProcessor._instance
             if processor:
                 processor._update_rules([], rc_payload)
-        with core.context_with_data(
-            "test.asm",
-            remote_addr=ip_addr,
-            headers_case_sensitive=headers_case_sensitive,
-            headers=headers,
-            block_request_callable=block_request_callable,
-            service=service,
-        ), tracer.trace(span_name or "test", span_type=span_type, service=service) as span:
+        with (
+            core.context_with_data(
+                "test.asm",
+                remote_addr=ip_addr,
+                headers_case_sensitive=headers_case_sensitive,
+                headers=headers,
+                block_request_callable=block_request_callable,
+                service=service,
+            ),
+            tracer.trace(span_name or "test", span_type=span_type, service=service) as span,
+        ):
             yield span
         unpatch_for_waf_addresses()
 

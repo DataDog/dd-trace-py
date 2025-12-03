@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    AAP: This PR is a tentative fix for rare memory problems with libddwaf that we were unable to reproduce for now.

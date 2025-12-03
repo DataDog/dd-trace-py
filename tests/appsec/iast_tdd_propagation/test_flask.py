@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import sys
 from unittest.mock import ANY
 
 import pytest
@@ -20,6 +21,7 @@ _PORT = 8060
         ("tortoise", True),  # TODO: Tortoise ORM is not yet supported
     ],
 )
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="Test not supported in Python 3.14")
 def test_iast_flask_orm(orm, xfail):
     with flask_server(
         iast_enabled="true",
@@ -54,6 +56,7 @@ def test_iast_flask_orm(orm, xfail):
         assert content["params_are_tainted"] is True
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="Test relies on behavior not supported in Python 3.14")
 def test_iast_flask_weak_cipher():
     """Verify a segmentation fault on pycriptodome and AES"""
     with flask_server(

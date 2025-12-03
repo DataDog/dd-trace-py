@@ -1,7 +1,10 @@
+import gzip
 import os
 import time
 
 import mock
+import msgpack
+import pytest
 
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
@@ -13,6 +16,63 @@ from ddtrace.internal.datastreams.processor import PartitionKey
 
 processor = DataStreamsProcessor("http://localhost:8126")
 mocked_time = 1642544540
+
+
+def _decode_datastreams_payload(payload):
+    decompressed = gzip.decompress(payload)
+    decoded = msgpack.unpackb(decompressed, raw=False, strict_map_key=False)
+
+    return decoded
+
+
+def test_periodic_payload_tags():
+    processor = DataStreamsProcessor("http://localhost:8126")
+    try:
+        captured_payloads = []
+        with mock.patch.object(processor, "_flush_stats_with_backoff", side_effect=captured_payloads.append):
+            processor.on_checkpoint_creation(1, 2, ["direction:out", "topic:topicA", "type:kafka"], mocked_time, 1, 1)
+            processor.periodic()
+
+        assert captured_payloads, "expected periodic to send a payload"
+        decoded = _decode_datastreams_payload(captured_payloads[0])
+        assert decoded["Service"] == processor._service
+        assert decoded["TracerVersion"] == processor._version
+        assert decoded["Lang"] == "python"
+        assert decoded["Hostname"] == processor._hostname
+        assert "ProcessTags" not in decoded
+    finally:
+        processor.stop()
+        processor.join()
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="true",
+    )
+)
+def test_periodic_payload_process_tags():
+    import mock
+
+    from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+    from tests.datastreams.test_processor import _decode_datastreams_payload
+
+    processor = DataStreamsProcessor("http://localhost:8126")
+    try:
+        captured_payloads = []
+        with mock.patch.object(processor, "_flush_stats_with_backoff", side_effect=captured_payloads.append):
+            processor.on_checkpoint_creation(1, 2, ["direction:out", "topic:topicA", "type:kafka"], 1642544540, 1, 1)
+            processor.periodic()
+
+        assert captured_payloads, "expected periodic to send a payload"
+        decoded = _decode_datastreams_payload(captured_payloads[0])
+        assert decoded["Service"] == processor._service
+        assert decoded["TracerVersion"] == processor._version
+        assert decoded["Lang"] == "python"
+        assert decoded["Hostname"] == processor._hostname
+        assert "ProcessTags" in decoded
+    finally:
+        processor.stop()
+        processor.join()
 
 
 def test_data_streams_processor():

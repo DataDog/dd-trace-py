@@ -8,6 +8,7 @@ import ddtrace
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
@@ -34,7 +35,7 @@ def includeme(config):
     # Add our tween just before the default exception handler
     config.add_tween(DD_TWEEN_NAME, over=pyramid.tweens.EXCVIEW)
     # ensure we only patch the renderer once.
-    if not isinstance(pyramid.renderers.RendererHelper.render, wrapt.ObjectProxy):
+    if not is_wrapted(pyramid.renderers.RendererHelper.render):
         wrapt.wrap_function_wrapper("pyramid.renderers", "RendererHelper.render", trace_render)
 
 
@@ -50,7 +51,7 @@ def trace_render(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     with tracer.trace("pyramid.render", span_type=SpanTypes.TEMPLATE) as span:
-        span.set_tag_str(COMPONENT, config.pyramid.integration_name)
+        span._set_tag_str(COMPONENT, config.pyramid.integration_name)
 
         return func(*args, **kwargs)
 
@@ -68,19 +69,24 @@ def trace_tween_factory(handler, registry):
     if enabled:
         # make a request tracing function
         def trace_tween(request):
-            with core.context_with_data(
-                "pyramid.request",
-                span_name=schematize_url_operation("pyramid.request", protocol="http", direction=SpanDirection.INBOUND),
-                span_type=SpanTypes.WEB,
-                service=service,
-                resource="404",
-                tags={},
-                tracer=tracer,
-                distributed_headers=request.headers,
-                integration_config=config.pyramid,
-                activate_distributed_headers=True,
-                headers_case_sensitive=True,
-            ) as ctx, ctx.span as req_span:
+            with (
+                core.context_with_data(
+                    "pyramid.request",
+                    span_name=schematize_url_operation(
+                        "pyramid.request", protocol="http", direction=SpanDirection.INBOUND
+                    ),
+                    span_type=SpanTypes.WEB,
+                    service=service,
+                    resource="404",
+                    tags={},
+                    tracer=tracer,
+                    distributed_headers=request.headers,
+                    integration_config=config.pyramid,
+                    activate_distributed_headers=True,
+                    headers_case_sensitive=True,
+                ) as ctx,
+                ctx.span as req_span,
+            ):
                 ctx.set_item("req_span", req_span)
                 core.dispatch("web.request.start", (ctx, config.pyramid))
 
@@ -104,7 +110,7 @@ def trace_tween_factory(handler, registry):
                     # set request tags
                     if request.matched_route:
                         req_span.resource = "{} {}".format(request.method, request.matched_route.name)
-                        req_span.set_tag_str("pyramid.route.name", request.matched_route.name)
+                        req_span._set_tag_str("pyramid.route.name", request.matched_route.name)
                     # set response tags
                     if response:
                         status = response.status_code

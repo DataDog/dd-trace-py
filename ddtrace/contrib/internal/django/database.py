@@ -8,8 +8,6 @@ from typing import Tuple
 from typing import Type
 from typing import cast
 
-import wrapt
-
 import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
@@ -18,13 +16,14 @@ from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.ext import sql as sqlx
+from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import wrap
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.settings.integration import IntegrationConfig
 
 
 log = get_logger(__name__)
@@ -68,7 +67,7 @@ def cursor(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
     # Don't double wrap Django database cursors:
     #   If the underlying cursor is already wrapped (e.g. by another library),
     #   we just add the Django tags to the existing Pin (if any) and return
-    if isinstance(cursor.cursor, wrapt.ObjectProxy) and not config_django.always_create_database_spans:
+    if is_wrapted(cursor.cursor):
         instance = args[0]
         tags = {
             "django.db.vendor": getattr(instance, "vendor", "db"),
@@ -87,8 +86,8 @@ def cursor(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
         return cursor
 
     # Always wrap Django database cursors:
-    #   If the underlying cursor is not already wrapped, or if `always_create_database_spans`
-    #   is set to True, we wrap the underlying cursor with our TracedCursor class
+    #   If the underlying cursor is not already wrapped,
+    #   we wrap the underlying cursor with our TracedCursor class
     #
     #   This allows us to get Database spans for any query executed where we don't
     #   have an integration for the database library in use, or in the case that

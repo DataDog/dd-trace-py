@@ -3,6 +3,7 @@ markupsafe==2.1.5
 
 https://pypi.org/project/markupsafe/
 """
+
 from flask import Blueprint
 from flask import request
 from jinja2 import Template

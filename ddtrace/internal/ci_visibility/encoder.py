@@ -262,7 +262,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         spans_with_coverage = [
             span
             for span in item
-            if COVERAGE_TAG_NAME in span.get_tags() or span.get_struct_tag(COVERAGE_TAG_NAME) is not None
+            if COVERAGE_TAG_NAME in span.get_tags() or span._get_struct_tag(COVERAGE_TAG_NAME) is not None
         ]
         # Also include session span for parent session ID lookup, even if it doesn't have coverage data
         session_span = next((span for span in item if span.get_tag(EVENT_TYPE) == SESSION_TYPE), None)
@@ -304,7 +304,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             self._convert_span(span, new_parent_session_span_id=new_parent_session_span_id)
             for trace in traces
             for span in trace
-            if (COVERAGE_TAG_NAME in span.get_tags() or span.get_struct_tag(COVERAGE_TAG_NAME) is not None)
+            if (COVERAGE_TAG_NAME in span.get_tags() or span._get_struct_tag(COVERAGE_TAG_NAME) is not None)
         ]
         if not normalized_covs:
             return None
@@ -324,7 +324,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         # DEV: new_parent_session_span_id is unused here, but it is used in super class
         files: dict[str, Any] = {}
 
-        files_struct_tag_value = span.get_struct_tag(COVERAGE_TAG_NAME)
+        files_struct_tag_value = span._get_struct_tag(COVERAGE_TAG_NAME)
         if files_struct_tag_value is not None and "files" in files_struct_tag_value:
             files = files_struct_tag_value["files"]
         elif COVERAGE_TAG_NAME in span.get_tags():

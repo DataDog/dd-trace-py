@@ -3,6 +3,7 @@ Pillow==9.1.0
 
 https://pypi.org/project/Pillow/
 """
+
 import os
 
 from flask import Blueprint

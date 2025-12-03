@@ -924,9 +924,7 @@ async def test_client_streaming(server_info, tracer):
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__, "--asyncio-mode=auto"]))
-    """.format(
-        expected_operation_name_format
-    )
+    """.format(expected_operation_name_format)
     env = os.environ.copy()
     if service:
         env["DD_SERVICE"] = service
@@ -1055,17 +1053,17 @@ repr_test_cases = [
 def test_parse_rpc_repr_string(case):
     try:
         code, details = _parse_rpc_repr_string(case["rpc_string"], grpc)
-        assert not case[
-            "expect_error"
-        ], f"Test case with repr string: {case['rpc_string']} expected error but got result"
-        assert (
-            code == case["expected_code"]
-        ), f"Test case with repr string: {case['rpc_string']} expected code {case['expected_code']} but got {code}"
+        assert not case["expect_error"], (
+            f"Test case with repr string: {case['rpc_string']} expected error but got result"
+        )
+        assert code == case["expected_code"], (
+            f"Test case with repr string: {case['rpc_string']} expected code {case['expected_code']} but got {code}"
+        )
         assert details == case["expected_details"], (
             f"Test case with repr string: {case['rpc_string']} expected details {case['expected_details']} but"
             f"got {details}"
         )
     except ValueError as e:
-        assert case[
-            "expect_error"
-        ], f"Test case with repr string: {case['rpc_string']} did not expect error but got {e}"
+        assert case["expect_error"], (
+            f"Test case with repr string: {case['rpc_string']} did not expect error but got {e}"
+        )

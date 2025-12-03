@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ray: This fix resolves an issue where exceptions raised in Ray child spans were not properly recorded in the trace.

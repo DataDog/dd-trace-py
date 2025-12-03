@@ -9,8 +9,6 @@ from typing import Text
 from typing import Tuple
 
 from ddtrace._trace._span_link import SpanLink
-from ddtrace._trace.types import _MetaDictType
-from ddtrace._trace.types import _MetricDictType
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _USER_ID_KEY
@@ -25,8 +23,8 @@ from ddtrace.internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_li
 _ContextState = Tuple[
     Optional[int],  # trace_id
     Optional[int],  # span_id
-    _MetaDictType,  # _meta
-    _MetricDictType,  # _metrics
+    Dict[str, str],  # _meta
+    Dict[str, NumericType],  # _metrics
     List[SpanLink],  #  span_links
     Dict[str, Any],  # baggage
     bool,  # is_remote
@@ -63,15 +61,15 @@ class Context(object):
         span_id: Optional[int] = None,
         dd_origin: Optional[str] = None,
         sampling_priority: Optional[float] = None,
-        meta: Optional[_MetaDictType] = None,
-        metrics: Optional[_MetricDictType] = None,
+        meta: Optional[Dict[str, str]] = None,
+        metrics: Optional[Dict[str, NumericType]] = None,
         lock: Optional[threading.RLock] = None,
         span_links: Optional[List[SpanLink]] = None,
         baggage: Optional[Dict[str, Any]] = None,
         is_remote: bool = True,
     ):
-        self._meta: _MetaDictType = meta if meta is not None else {}
-        self._metrics: _MetricDictType = metrics if metrics is not None else {}
+        self._meta: Dict[str, str] = meta if meta is not None else {}
+        self._metrics: Dict[str, NumericType] = metrics if metrics is not None else {}
         self._baggage: Dict[str, Any] = baggage if baggage is not None else {}
 
         self.trace_id: Optional[int] = trace_id
@@ -157,9 +155,9 @@ class Context(object):
             # grab the original traceparent trace id, not the converted value
             trace_id = tp.split("-")[1]
         else:
-            trace_id = "{:032x}".format(self.trace_id)
+            trace_id = f"{self.trace_id:032x}"
 
-        return "00-{}-{:016x}-{}".format(trace_id, self.span_id, self._traceflags)
+        return f"00-{trace_id}-{self.span_id:016x}-{self._traceflags}"
 
     @property
     def _traceflags(self) -> str:
@@ -175,12 +173,12 @@ class Context(object):
             # cut out the original dd list member from tracestate so we can replace it with the new one we created
             ts_w_out_dd = re.sub("dd=(.+?)(?:,|$)", "", ts)
             if ts_w_out_dd:
-                ts = "dd={},{}".format(dd_list_member, ts_w_out_dd)
+                ts = f"dd={dd_list_member},{ts_w_out_dd}"
             else:
-                ts = "dd={}".format(dd_list_member)
+                ts = f"dd={dd_list_member}"
         # if there is no original tracestate value then tracestate is just the dd list member we created
         elif dd_list_member:
-            ts = "dd={}".format(dd_list_member)
+            ts = f"dd={dd_list_member}"
         return ts
 
     @property

@@ -4,6 +4,7 @@ mod crashtracker;
 pub use datadog_profiling_ffi::*;
 mod data_pipeline;
 mod ddsketch;
+mod ffe;
 mod library_config;
 mod log;
 
@@ -34,6 +35,9 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<library_config::PyAnonymousFileHandle>()?;
     m.add_wrapped(wrap_pyfunction!(library_config::store_metadata))?;
     data_pipeline::register_data_pipeline(m)?;
+
+    // Add FFE submodule
+    m.add_wrapped(pyo3::wrap_pymodule!(ffe::ffe))?;
 
     // Add logger submodule
     let logger_module = pyo3::wrap_pymodule!(log::logger);

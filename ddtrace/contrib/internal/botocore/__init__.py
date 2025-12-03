@@ -86,29 +86,6 @@ Configuration
     Default: ``False``
 
 
-.. py:data:: ddtrace.config.botocore['span_prompt_completion_sample_rate']
-
-   Configure the sample rate for the collection of bedrock prompts and completions as span tags.
-
-   Alternatively, you can set this option with the ``DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE`` environment
-   variable.
-
-   Default: ``1.0``
-
-
-.. py:data:: (beta) ddtrace.config.botocore["span_char_limit"]
-
-   Configure the maximum number of characters for bedrock span tags for prompt/response text.
-
-   Text exceeding the maximum number of characters is truncated to the character limit
-   and has ``...`` appended to the end.
-
-   Alternatively, you can set this option with the ``DD_BEDROCK_SPAN_CHAR_LIMIT`` environment
-   variable.
-
-   Default: ``128``
-
-
 .. py:data:: ddtrace.config.botocore['dynamodb_primary_key_names_for_tables']
 
     This enables DynamoDB API calls to be instrumented with span pointers. Many

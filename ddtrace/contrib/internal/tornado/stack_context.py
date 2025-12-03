@@ -61,7 +61,7 @@ if _USE_STACK_CONTEXT:
 
             if final_contexts is not self.new_contexts:
                 raise StackContextInconsistentError(
-                    "stack_context inconsistency (may be caused by yield " 'within a "with TracerStackContext" block)'
+                    'stack_context inconsistency (may be caused by yield within a "with TracerStackContext" block)'
                 )
 
             # break the reference to allow faster GC on CPython

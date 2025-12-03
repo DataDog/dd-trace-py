@@ -19,7 +19,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"gevent": ">=20.12"}
+    return {"gevent": ">=21.1.2"}
 
 
 def patch():

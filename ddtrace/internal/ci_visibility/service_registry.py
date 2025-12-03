@@ -1,4 +1,5 @@
 """Service registry to avoid circular imports in CI Visibility system."""
+
 import typing as t
 
 

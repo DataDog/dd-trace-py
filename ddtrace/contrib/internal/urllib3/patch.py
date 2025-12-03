@@ -16,12 +16,12 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.settings.asm import config as asm_config
 
 
 # Ports which, if set, will not be used in hostnames/service names
@@ -124,10 +124,10 @@ def _wrap_urlopen(func, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.urllib3),
         span_type=SpanTypes.HTTP,
     ) as span:
-        span.set_tag_str(COMPONENT, config.urllib3.integration_name)
+        span._set_tag_str(COMPONENT, config.urllib3.integration_name)
 
         # set span.kind to the type of operation being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         if config.urllib3.split_by_domain:
             span.service = hostname
@@ -158,6 +158,6 @@ def _wrap_urlopen(func, instance, args, kwargs):
                 response_headers={} if response is None else dict(response.headers),
                 retries_remain=retries,
             )
-            span.set_tag_str(net.SERVER_ADDRESS, instance.host)
+            span._set_tag_str(net.SERVER_ADDRESS, instance.host)
 
         return response

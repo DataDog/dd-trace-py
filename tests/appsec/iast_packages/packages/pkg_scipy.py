@@ -3,6 +3,7 @@ scipy==1.13.0
 
 https://pypi.org/project/scipy/
 """
+
 from flask import Blueprint
 from flask import jsonify
 from flask import request

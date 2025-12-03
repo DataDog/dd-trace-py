@@ -10,8 +10,12 @@ from json import loads as unpatched_json_loads  # noqa
 # to get a reference to the right threading module.
 import threading as _threading  # noqa
 import gc as _gc  # noqa
-
 import sys
+
+threading_Lock = _threading.Lock
+threading_RLock = _threading.RLock
+threading_Event = _threading.Event
+
 
 previous_loaded_modules = frozenset(sys.modules.keys())
 from subprocess import Popen as unpatched_Popen  # noqa # nosec B404

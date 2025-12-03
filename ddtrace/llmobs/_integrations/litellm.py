@@ -54,9 +54,9 @@ class LiteLLMIntegration(BaseLLMIntegration):
         self, span: Span, model: Optional[str] = None, host: Optional[str] = None, **kwargs: Dict[str, Any]
     ) -> None:
         if model is not None:
-            span.set_tag_str("litellm.request.model", model)
+            span._set_tag_str("litellm.request.model", model)
         if host is not None:
-            span.set_tag_str("litellm.request.host", host)
+            span._set_tag_str("litellm.request.host", host)
 
     def _llmobs_set_tags(
         self,

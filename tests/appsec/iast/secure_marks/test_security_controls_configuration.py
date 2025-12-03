@@ -1,4 +1,5 @@
 """Tests for DD_IAST_SECURITY_CONTROLS_CONFIGURATION environment variable functionality."""
+
 import functools
 import os
 from unittest.mock import patch
@@ -147,7 +148,7 @@ def test_parse_security_controls_config_single():
 
 def test_parse_security_controls_config_multiple():
     """Test parsing multiple security control configurations."""
-    config = "INPUT_VALIDATOR:COMMAND_INJECTION:shlex:quote;" "SANITIZER:XSS,SQLI:html:escape"
+    config = "INPUT_VALIDATOR:COMMAND_INJECTION:shlex:quote;SANITIZER:XSS,SQLI:html:escape"
     result = parse_security_controls_config(config)
 
     assert len(result) == 2

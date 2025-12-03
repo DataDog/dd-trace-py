@@ -3,6 +3,7 @@ Ensure that if the ``AsyncioTracer`` is not properly configured,
 bad traces are produced but the ``Context`` object will not
 leak memory.
 """
+
 import asyncio
 import threading
 from urllib import request

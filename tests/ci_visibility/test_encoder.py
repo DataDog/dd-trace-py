@@ -58,8 +58,8 @@ def test_encode_traces_civisibility_v0():
         ],
     ]
     test_trace = traces[2]
-    test_trace[0].set_tag_str("type", "test")
-    test_trace[1].set_tag_str("type", "test")
+    test_trace[0]._set_tag_str("type", "test")
+    test_trace[1]._set_tag_str("type", "test")
 
     encoder = CIVisibilityEncoderV01(0, 0)
     encoder.set_metadata("*", {"language": "python"})
@@ -169,7 +169,7 @@ def test_build_payload_large_trace_splitting():
         for j in range(50):  # Each trace has many spans
             span = Span(name=f"large_test_{i}_{j}", span_id=0x100000 + i * 100 + j, service="test")
             # Add large metadata to increase payload size
-            span.set_tag_str("large_data", "x" * 1000)  # 1KB per span
+            span._set_tag_str("large_data", "x" * 1000)  # 1KB per span
             trace.append(span)
         large_traces.append(trace)
 
@@ -201,7 +201,7 @@ def test_build_payload_recursive_splitting():
         trace = []
         for j in range(10):  # Each with 10 spans
             span = Span(name=f"test_{i}_{j}", span_id=0x200000 + i * 100 + j, service="test")
-            span.set_tag_str("data", "x" * 500)  # Make each span moderately large
+            span._set_tag_str("data", "x" * 500)  # Make each span moderately large
             trace.append(span)
         traces.append(trace)
 
@@ -239,7 +239,7 @@ def test_build_payload_with_filtered_spans():
 
     try:
         # Add session type tag to trigger filtering
-        traces[0][0].set_tag_str(EVENT_TYPE, SESSION_TYPE)
+        traces[0][0]._set_tag_str(EVENT_TYPE, SESSION_TYPE)
 
         encoder = CIVisibilityEncoderV01(0, 0)
         payloads = encoder._build_payload(traces)
@@ -276,7 +276,7 @@ def test_build_payload_all_spans_filtered():
     try:
         # Make both spans session types to trigger filtering
         for trace in traces:
-            trace[0].set_tag_str(EVENT_TYPE, SESSION_TYPE)
+            trace[0]._set_tag_str(EVENT_TYPE, SESSION_TYPE)
 
         encoder = CIVisibilityEncoderV01(0, 0)
         payloads = encoder._build_payload(traces)
@@ -297,7 +297,7 @@ def test_build_payload_no_infinite_recursion():
     large_trace = []
     for i in range(100):
         span = Span(name=f"large_span_{i}", span_id=0x400000 + i, service="test")
-        span.set_tag_str("large_data", "x" * 1000)
+        span._set_tag_str("large_data", "x" * 1000)
         large_trace.append(span)
 
     encoder = CIVisibilityEncoderV01(0, 0)

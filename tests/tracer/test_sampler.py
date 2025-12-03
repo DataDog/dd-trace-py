@@ -98,15 +98,15 @@ class RateSamplerTest(unittest.TestCase):
             span.finish()
 
             samples = tracer.pop()
-            assert (
-                len(samples) == 1
-            ), f"DummyTracer should always store a single span, regardless of sampling decision {samples}"
+            assert len(samples) == 1, (
+                f"DummyTracer should always store a single span, regardless of sampling decision {samples}"
+            )
             sampled = len(samples) == 1 and samples[0].context.sampling_priority > 0
             for _ in range(10):
                 other_span = Span(str(i), trace_id=span.trace_id)
-                assert sampled == tracer._sampler.sample(
-                    other_span
-                ), "sampling should give the same result for a given trace_id"
+                assert sampled == tracer._sampler.sample(other_span), (
+                    "sampling should give the same result for a given trace_id"
+                )
 
     def test_deterministic_behavior_with_list_of_trace_ids(self):
         """Test that specific trace IDs are consistently kept or dropped"""
@@ -144,9 +144,9 @@ class RateSamplerTest(unittest.TestCase):
     def test_sample_rate_0_does_not_reset_to_1(self):
         tracer = DummyTracer()
         tracer._sampler = RateSampler(sample_rate=0)
-        assert (
-            tracer._sampler.sample_rate == 0
-        ), "Setting the sample rate to zero should result in the sample rate being zero"
+        assert tracer._sampler.sample_rate == 0, (
+            "Setting the sample rate to zero should result in the sample rate being zero"
+        )
 
 
 # RateByServiceSamplerTest Cases
@@ -155,21 +155,21 @@ def test_default_key():
 
 
 def test_key():
-    assert DatadogSampler._default_key == DatadogSampler._key(
-        None, None
-    ), "_key() with None arguments returns the default key"
-    assert "service:mcnulty,env:" == DatadogSampler._key(
-        service="mcnulty", env=None
-    ), "_key call with service name returns expected result"
-    assert "service:,env:test" == DatadogSampler._key(
-        None, env="test"
-    ), "_key call with env name returns expected result"
-    assert "service:mcnulty,env:test" == DatadogSampler._key(
-        service="mcnulty", env="test"
-    ), "_key call with service and env name returns expected result"
-    assert "service:mcnulty,env:test" == DatadogSampler._key(
-        "mcnulty", "test"
-    ), "_key call with service and env name as positional args returns expected result"
+    assert DatadogSampler._default_key == DatadogSampler._key(None, None), (
+        "_key() with None arguments returns the default key"
+    )
+    assert "service:mcnulty,env:" == DatadogSampler._key(service="mcnulty", env=None), (
+        "_key call with service name returns expected result"
+    )
+    assert "service:,env:test" == DatadogSampler._key(None, env="test"), (
+        "_key call with env name returns expected result"
+    )
+    assert "service:mcnulty,env:test" == DatadogSampler._key(service="mcnulty", env="test"), (
+        "_key call with service and env name returns expected result"
+    )
+    assert "service:mcnulty,env:test" == DatadogSampler._key("mcnulty", "test"), (
+        "_key call with service and env name as positional args returns expected result"
+    )
 
 
 @pytest.mark.parametrize(
@@ -188,9 +188,9 @@ def test_key():
 )
 def test_sampling_rule_init_sample_rate(sample_rate, expectation):
     rule = SamplingRule(sample_rate=sample_rate)
-    assert rule.sample_rate == (
-        sample_rate if expectation is True else expectation
-    ), "SamplingRule should store the rate it's initialized with"
+    assert rule.sample_rate == (sample_rate if expectation is True else expectation), (
+        "SamplingRule should store the rate it's initialized with"
+    )
 
 
 def test_sampling_rule_init_defaults():
@@ -539,18 +539,18 @@ def test_sampling_rule_sample_rate_1():
     rule = SamplingRule(sample_rate=1)
 
     iterations = int(1e4)
-    assert all(
-        rule.sample(Span(name=str(i))) for i in range(iterations)
-    ), "SamplingRule with rate=1 should always keep samples"
+    assert all(rule.sample(Span(name=str(i))) for i in range(iterations)), (
+        "SamplingRule with rate=1 should always keep samples"
+    )
 
 
 def test_sampling_rule_sample_rate_0():
     rule = SamplingRule(sample_rate=0)
 
     iterations = int(1e4)
-    assert (
-        sum(rule.sample(Span(name=str(i))) for i in range(iterations)) == 0
-    ), "SamplingRule with rate=0 should never keep samples"
+    assert sum(rule.sample(Span(name=str(i))) for i in range(iterations)) == 0, (
+        "SamplingRule with rate=0 should never keep samples"
+    )
 
 
 @pytest.mark.subprocess(
@@ -600,19 +600,19 @@ def test_partial_flush_with_sampling_rules():
 def test_datadog_sampler_init():
     sampler = DatadogSampler()
     assert sampler.rules == [], "DatadogSampler initialized with no arguments should hold no rules"
-    assert isinstance(
-        sampler.limiter, RateLimiter
-    ), "DatadogSampler initialized with no arguments should hold a RateLimiter"
-    assert (
-        sampler.limiter.rate_limit == DEFAULT_SAMPLING_RATE_LIMIT
-    ), "DatadogSampler initialized with no arguments should hold a RateLimiter with the default limit"
+    assert isinstance(sampler.limiter, RateLimiter), (
+        "DatadogSampler initialized with no arguments should hold a RateLimiter"
+    )
+    assert sampler.limiter.rate_limit == DEFAULT_SAMPLING_RATE_LIMIT, (
+        "DatadogSampler initialized with no arguments should hold a RateLimiter with the default limit"
+    )
 
     rule = SamplingRule(sample_rate=1)
     sampler = DatadogSampler(rules=[rule])
     assert sampler.rules == [rule], "DatadogSampler initialized with a rule should hold that rule"
-    assert (
-        sampler.limiter.rate_limit == DEFAULT_SAMPLING_RATE_LIMIT
-    ), "DatadogSampler initialized with a rule should hold the default rate limit"
+    assert sampler.limiter.rate_limit == DEFAULT_SAMPLING_RATE_LIMIT, (
+        "DatadogSampler initialized with a rule should hold the default rate limit"
+    )
 
     sampler = DatadogSampler(rate_limit=10)
     assert sampler.limiter.rate_limit == 10, "DatadogSampler initialized with a rate limit should hold that rate limit"
@@ -793,9 +793,9 @@ def test_datadog_sampler_sample_rules(sampler, sampling_priority, sampling_mecha
     spans = dummy_tracer.pop()
     assert len(spans) > 0, "A tracer using DatadogSampler should always emit its spans"
     span = spans[0]
-    assert (
-        span.context.sampling_priority is not None
-    ), "A span emitted from a tracer using DatadogSampler should always have the 'sampled' flag set"
+    assert span.context.sampling_priority is not None, (
+        "A span emitted from a tracer using DatadogSampler should always have the 'sampled' flag set"
+    )
     trace_tag = "-%d" % sampling_mechanism if sampling_mechanism is not None else None
     assert_sampling_decision_tags(
         span, rule=rule, limit=limit, sampling_priority=sampling_priority, trace_tag=trace_tag

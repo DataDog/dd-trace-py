@@ -3,6 +3,7 @@ numpy==1.26.2
 
 https://pypi.org/project/numpy/
 """
+
 from flask import Blueprint
 from flask import request
 

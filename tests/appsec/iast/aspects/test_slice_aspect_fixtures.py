@@ -110,9 +110,7 @@ def test_string_slice_2(input_str, start_pos, end_pos, step, expected_result, ta
 def test_string_slice_2_and_two_strings(
     input_str_not_tainted, input_str_tainted, start_pos, end_pos, step, expected_result
 ):
-    result = mod.do_slice_2_and_two_strings(
-        input_str_not_tainted, input_str_tainted, start_pos + 5, end_pos + 5, step
-    )  # pylint: disable=no-member
+    result = mod.do_slice_2_and_two_strings(input_str_not_tainted, input_str_tainted, start_pos + 5, end_pos + 5, step)  # pylint: disable=no-member
     assert result == expected_result
 
     tainted_input = taint_pyobject(
@@ -121,9 +119,7 @@ def test_string_slice_2_and_two_strings(
         source_value="foo",
         source_origin=OriginType.PARAMETER,
     )
-    result = mod.do_slice_2_and_two_strings(
-        input_str_not_tainted, tainted_input, start_pos + 5, end_pos + 5, step
-    )  # pylint: disable=no-member
+    result = mod.do_slice_2_and_two_strings(input_str_not_tainted, tainted_input, start_pos + 5, end_pos + 5, step)  # pylint: disable=no-member
     assert result == expected_result
     tainted_ranges = get_tainted_ranges(result)
     assert len(tainted_ranges) == 1
@@ -162,9 +158,7 @@ def test_string_slice_2_and_two_strings(
 def test_string_slice_2_and_two_strings_two_tainted(
     input_str_tainted1, input_str_tainted2, start_pos, end_pos, step, expected_result
 ):
-    result = mod.do_slice_2_and_two_strings(
-        input_str_tainted1, input_str_tainted2, start_pos + 5, end_pos + 5, step
-    )  # pylint: disable=no-member
+    result = mod.do_slice_2_and_two_strings(input_str_tainted1, input_str_tainted2, start_pos + 5, end_pos + 5, step)  # pylint: disable=no-member
     assert result == expected_result
 
     tainted_input1 = taint_pyobject(
@@ -181,9 +175,7 @@ def test_string_slice_2_and_two_strings_two_tainted(
         source_origin=OriginType.PARAMETER,
     )
 
-    result = mod.do_slice_2_and_two_strings(
-        tainted_input1, tainted_input2, start_pos + 5, end_pos + 5, step
-    )  # pylint: disable=no-member
+    result = mod.do_slice_2_and_two_strings(tainted_input1, tainted_input2, start_pos + 5, end_pos + 5, step)  # pylint: disable=no-member
     assert result == expected_result
     tainted_ranges = get_tainted_ranges(result)
     assert len(tainted_ranges) == 1
@@ -201,9 +193,7 @@ def test_string_slice_2_and_two_strings_two_tainted(
 def test_string_slice_2_and_two_strings_two_tainted_overlap_tained(
     input_str_tainted1, input_str_tainted2, start_pos, end_pos, step, expected_result
 ):
-    result = mod.do_slice_2_and_two_strings(
-        input_str_tainted1, input_str_tainted2, start_pos, end_pos, step
-    )  # pylint: disable=no-member
+    result = mod.do_slice_2_and_two_strings(input_str_tainted1, input_str_tainted2, start_pos, end_pos, step)  # pylint: disable=no-member
     assert result == expected_result
 
     tainted_input1 = taint_pyobject(
@@ -220,9 +210,7 @@ def test_string_slice_2_and_two_strings_two_tainted_overlap_tained(
         source_origin=OriginType.PARAMETER,
     )
 
-    result = mod.do_slice_2_and_two_strings(
-        tainted_input1, tainted_input2, start_pos, end_pos, step
-    )  # pylint: disable=no-member
+    result = mod.do_slice_2_and_two_strings(tainted_input1, tainted_input2, start_pos, end_pos, step)  # pylint: disable=no-member
     assert result == expected_result
     tainted_ranges = get_tainted_ranges(result)
     assert len(tainted_ranges) == 2

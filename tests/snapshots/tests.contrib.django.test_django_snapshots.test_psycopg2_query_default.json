@@ -1,0 +1,78 @@
+[[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "SELECT set_config('TimeZone', %s, false)",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6913a9ec00000000",
+      "component": "psycopg",
+      "db.application": "None",
+      "db.name": "postgres",
+      "db.system": "postgresql",
+      "db.user": "postgres",
+      "django.db.alias": "postgres",
+      "django.db.vendor": "postgresql",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "runtime-id": "425ea5115eb047fa9fcaeafd3e15afdc",
+      "server.address": "127.0.0.1",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": 1,
+      "network.destination.port": 5432,
+      "process_id": 1416
+    },
+    "duration": 531542,
+    "start": 1762896364850910298
+  }],
+[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "select 'one' as x",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6913a9ec00000000",
+      "component": "psycopg",
+      "db.application": "None",
+      "db.name": "postgres",
+      "db.system": "postgresql",
+      "db.user": "postgres",
+      "django.db.alias": "postgres",
+      "django.db.vendor": "postgresql",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "runtime-id": "425ea5115eb047fa9fcaeafd3e15afdc",
+      "server.address": "127.0.0.1",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": 1,
+      "network.destination.port": 5432,
+      "process_id": 1416
+    },
+    "duration": 126333,
+    "start": 1762896364851734590
+  }]]

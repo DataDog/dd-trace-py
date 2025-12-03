@@ -17,18 +17,15 @@ from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
-from ddtrace.ext import net
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.settings._config import Config
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.settings._config import Config
-from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.trace import Context
 from ddtrace.trace import Span
-from tests.appsec.utils import asm_context
 from tests.utils import override_global_config
 
 
@@ -389,129 +386,7 @@ def test_set_http_meta_with_http_header_tags_config():
     assert response_span.get_tag("third-header") == "value3"
 
 
-@pytest.mark.parametrize("appsec_enabled", [False, True])
-@pytest.mark.parametrize("span_type", [SpanTypes.WEB, SpanTypes.HTTP, None])
-@pytest.mark.parametrize(
-    "method,url,status_code,status_msg,query,request_headers,response_headers,uri,path_params,cookies,target_host",
-    [
-        ("GET", "http://localhost/", 0, None, None, None, None, None, None, None, "localhost"),
-        ("GET", "http://localhost/", 200, "OK", None, None, None, None, None, None, "localhost"),
-        (None, None, None, None, None, None, None, None, None, None, None),
-        (
-            "GET",
-            "http://localhost/",
-            200,
-            "OK",
-            None,
-            {"my-header": "value1"},
-            {"resp-header": "val"},
-            "http://localhost/",
-            None,
-            None,
-            "localhost",
-        ),
-        (
-            "GET",
-            "http://localhost/",
-            200,
-            "OK",
-            "q=test+query&q2=val",
-            {"my-header": "value1"},
-            {"resp-header": "val"},
-            "http://localhost/search?q=test+query&q2=val",
-            {"id": "val", "name": "vlad"},
-            None,
-            "localhost",
-        ),
-        ("GET", "http://user:pass@localhost/", 0, None, None, None, None, None, None, None, None),
-        ("GET", "http://user@localhost/", 0, None, None, None, None, None, None, None, None),
-        ("GET", "http://user:pass@localhost/api?q=test", 0, None, None, None, None, None, None, None, None),
-        ("GET", "http://localhost/api@test", 0, None, None, None, None, None, None, None, None),
-        ("GET", "http://localhost/?api@test", 0, None, None, None, None, None, None, None, None),
-    ],
-)
-def test_set_http_meta(
-    span,
-    int_config,
-    method,
-    url,
-    target_host,
-    status_code,
-    status_msg,
-    query,
-    request_headers,
-    response_headers,
-    uri,
-    path_params,
-    cookies,
-    appsec_enabled,
-    span_type,
-):
-    int_config.myint.http.trace_headers(["my-header"])
-    int_config.myint.http.trace_query_string = True
-    span.span_type = span_type
-    with asm_context(config={"_asm_enabled": appsec_enabled}):
-        trace_utils.set_http_meta(
-            span,
-            int_config.myint,
-            method=method,
-            url=url,
-            target_host=target_host,
-            status_code=status_code,
-            status_msg=status_msg,
-            query=query,
-            raw_uri=uri,
-            request_headers=request_headers,
-            response_headers=response_headers,
-            request_cookies=cookies,
-            request_path_params=path_params,
-        )
-    if method is not None:
-        assert span.get_tag(http.METHOD) == method
-    else:
-        assert http.METHOD not in span.get_tags()
-
-    if target_host is not None:
-        assert span.get_tag(net.TARGET_HOST) == target_host
-    else:
-        assert net.TARGET_HOST not in span.get_tags()
-
-    if url is not None:
-        if url.startswith("http://user"):
-            # Remove any userinfo that may be in the original url
-            expected_url = url[: url.index(":")] + "://" + url[url.index("@") + 1 :]
-        else:
-            expected_url = url
-
-        if query and int_config.myint.http.trace_query_string:
-            assert span.get_tag(http.URL) == str(expected_url + "?" + query)
-        else:
-            assert span.get_tag(http.URL) == str(expected_url)
-    else:
-        assert http.URL not in span.get_tags()
-
-    if status_code is not None:
-        assert span.get_tag(http.STATUS_CODE) == str(status_code)
-        if 500 <= int(status_code) < 600:
-            assert span.error == 1
-        else:
-            assert span.error == 0
-    else:
-        assert http.STATUS_CODE not in span.get_tags()
-
-    if status_msg is not None:
-        assert span.get_tag(http.STATUS_MSG) == str(status_msg)
-
-    if query is not None and int_config.myint.http.trace_query_string:
-        assert span.get_tag(http.QUERY_STRING) == query
-
-    if request_headers is not None:
-        for header, value in request_headers.items():
-            tag = "http.request.headers." + header
-            assert span.get_tag(tag) == value
-
-
-@mock.patch("ddtrace.settings._config.log")
+@mock.patch("ddtrace.internal.settings._config.log")
 @pytest.mark.parametrize(
     "error_codes,status_code,error,log_call",
     [
@@ -540,7 +415,7 @@ def test_set_http_meta_custom_errors(mock_log, span, int_config, error_codes, st
 def test_set_http_meta_custom_errors_via_env():
     from ddtrace import config
     from ddtrace.contrib.internal.trace_utils import set_http_meta
-    from ddtrace.settings.integration import IntegrationConfig
+    from ddtrace.internal.settings.integration import IntegrationConfig
     from ddtrace.trace import tracer
 
     config.myint = IntegrationConfig(config, "myint")
@@ -1118,7 +993,7 @@ def test_url_in_http_with_empty_obfuscation_regex():
     from ddtrace import config
     from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.ext import http
-    from ddtrace.settings.integration import IntegrationConfig
+    from ddtrace.internal.settings.integration import IntegrationConfig
     from ddtrace.trace import tracer
 
     assert config._obfuscation_query_string_pattern.pattern == b"", config._obfuscation_query_string_pattern
@@ -1144,7 +1019,7 @@ def test_url_in_http_with_obfuscation_enabled_and_empty_regex():
     from ddtrace import config
     from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.ext import http
-    from ddtrace.settings.integration import IntegrationConfig
+    from ddtrace.internal.settings.integration import IntegrationConfig
     from ddtrace.trace import tracer
 
     # assert obfuscation is disabled when the regex is an empty string

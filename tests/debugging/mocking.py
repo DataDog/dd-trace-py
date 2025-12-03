@@ -20,7 +20,7 @@ from ddtrace.debugging._redaction import redact
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import SignalUploader
-from ddtrace.settings._core import DDConfig
+from ddtrace.internal.settings._core import DDConfig
 from tests.debugging.probe.test_status import DummyProbeStatusLogger
 
 
@@ -111,6 +111,9 @@ class MockSignalUploader(SignalUploader):
             sleep(0.05)
 
         return self.payloads
+
+    def flush(self) -> None:
+        self.queue.clear()
 
     @property
     def collector(self):

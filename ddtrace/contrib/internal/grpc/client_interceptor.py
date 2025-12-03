@@ -1,4 +1,5 @@
 import collections
+from contextlib import contextmanager
 
 import grpc
 import wrapt
@@ -12,6 +13,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.grpc import constants
 from ddtrace.contrib.internal.grpc import utils
+from ddtrace.contrib.internal.grpc.utils import is_otlp_export
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -20,6 +22,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import Span
+from ddtrace.trace import Tracer
 
 
 log = get_logger(__name__)
@@ -61,7 +65,7 @@ def _future_done_callback(span):
             # pull out response code from gRPC response to use both for `grpc.status.code`
             # tag and the error type tag if the response is an exception
             response_code = response.code()
-            span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, str(response_code))
+            span._set_tag_str(constants.GRPC_STATUS_CODE_KEY, str(response_code))
 
             if response_code != grpc.StatusCode.OK:
                 _handle_error(span, response, response_code)
@@ -98,8 +102,8 @@ def _handle_error(span, response_error, status_code):
         # handle cancelled futures separately to avoid raising grpc.FutureCancelledError
         span.error = 1
         exc_val = str(response_error.details())
-        span.set_tag_str(ERROR_MSG, exc_val)
-        span.set_tag_str(ERROR_TYPE, str(status_code))
+        span._set_tag_str(ERROR_MSG, exc_val)
+        span._set_tag_str(ERROR_TYPE, str(status_code))
         return
 
     exception = response_error.exception()
@@ -111,19 +115,30 @@ def _handle_error(span, response_error, status_code):
             # handle internal gRPC exceptions separately to get status code and
             # details as tags properly
             exc_val = str(response_error.details())
-            span.set_tag_str(ERROR_MSG, exc_val)
-            span.set_tag_str(ERROR_TYPE, str(status_code))
-            span.set_tag_str(ERROR_STACK, str(traceback))
+            span._set_tag_str(ERROR_MSG, exc_val)
+            span._set_tag_str(ERROR_TYPE, str(status_code))
+            span._set_tag_str(ERROR_STACK, str(traceback))
         else:
             exc_type = type(exception)
             span.set_exc_info(exc_type, exception, traceback)
             status_code = str(response_error.code())
 
 
+@contextmanager
+def _activated_span(tracer: Tracer, span: Span):
+    prev_span = tracer.context_provider.active()
+    tracer.context_provider.activate(span)
+    try:
+        yield
+    finally:
+        tracer.context_provider.activate(prev_span)
+
+
 class _WrappedResponseCallFuture(wrapt.ObjectProxy):
-    def __init__(self, wrapped, span):
+    def __init__(self, wrapped, span, tracer):
         super(_WrappedResponseCallFuture, self).__init__(wrapped)
         self._span = span
+        self._tracer = tracer
         # Registers callback on the _MultiThreadedRendezvous future to finish
         # span in case StopIteration is never raised but RPC is terminated
         _handle_response(self._span, self.__wrapped__)
@@ -140,7 +155,8 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
         # https://github.com/googleapis/python-api-core/blob/35e87e0aca52167029784379ca84e979098e1d6c/google/api_core/grpc_helpers.py#L84
         # https://github.com/GoogleCloudPlatform/grpc-gcp-python/blob/5a2cd9807bbaf1b85402a2a364775e5b65853df6/src/grpc_gcp/_channel.py#L102
         try:
-            return next(self.__wrapped__)
+            with _activated_span(self._tracer, self._span):
+                return next(self.__wrapped__)
         except StopIteration:
             # Callback will handle span finishing
             raise
@@ -178,26 +194,37 @@ class _ClientInterceptor(
         self._port = port
 
     def _intercept_client_call(self, method_kind, client_call_details):
-        tracer = self._pin.tracer
+        metadata = []
+        if client_call_details.metadata is not None:
+            metadata = list(client_call_details.metadata)
 
-        span = tracer.trace(
+        if is_otlp_export(metadata):
+            return None, client_call_details
+
+        tracer: Tracer = self._pin.tracer
+
+        # Instead of using .trace, create the span and activate it at points where we call the continuations
+        # This avoids the issue of spans being leaked when using the .future interface.
+        parent = tracer.context_provider.active()
+        span = tracer.start_span(
             schematize_url_operation("grpc", protocol="grpc", direction=SpanDirection.OUTBOUND),
             span_type=SpanTypes.GRPC,
             service=trace_utils.ext_service(self._pin, config.grpc),
             resource=client_call_details.method,
+            child_of=parent,
         )
 
-        span.set_tag_str(COMPONENT, config.grpc.integration_name)
+        span._set_tag_str(COMPONENT, config.grpc.integration_name)
 
         # set span.kind to the type of operation being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
 
         utils.set_grpc_method_meta(span, client_call_details.method, method_kind)
         utils.set_grpc_client_meta(span, self._host, self._port)
-        span.set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
+        span._set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
 
         # inject tags from pin
         if self._pin.tags:
@@ -206,11 +233,8 @@ class _ClientInterceptor(
         # propagate distributed tracing headers if available
         headers = {}
         if config.grpc.distributed_tracing_enabled:
-            HTTPPropagator.inject(span.context, headers)
+            HTTPPropagator.inject(span, headers)
 
-        metadata = []
-        if client_call_details.metadata is not None:
-            metadata = list(client_call_details.metadata)
         metadata.extend(headers.items())
 
         client_call_details = _ClientCallDetails(
@@ -227,15 +251,18 @@ class _ClientInterceptor(
             constants.GRPC_METHOD_KIND_UNARY,
             client_call_details,
         )
-        try:
-            response = continuation(client_call_details, request)
-            _handle_response(span, response)
-        except grpc.RpcError as rpc_error:
-            # DEV: grpcio<1.18.0 grpc.RpcError is raised rather than returned as response
-            # https://github.com/grpc/grpc/commit/8199aff7a66460fbc4e9a82ade2e95ef076fd8f9
-            # handle as a response
-            _handle_response(span, rpc_error)
-            raise
+        if span is None:
+            return continuation(client_call_details, request)
+        with _activated_span(self._pin.tracer, span):
+            try:
+                response = continuation(client_call_details, request)
+                _handle_response(span, response)
+            except grpc.RpcError as rpc_error:
+                # DEV: grpcio<1.18.0 grpc.RpcError is raised rather than returned as response
+                # https://github.com/grpc/grpc/commit/8199aff7a66460fbc4e9a82ade2e95ef076fd8f9
+                # handle as a response
+                _handle_response(span, rpc_error)
+                raise
 
         return response
 
@@ -244,8 +271,11 @@ class _ClientInterceptor(
             constants.GRPC_METHOD_KIND_SERVER_STREAMING,
             client_call_details,
         )
-        response_iterator = continuation(client_call_details, request)
-        response_iterator = _WrappedResponseCallFuture(response_iterator, span)
+        if span is None:
+            return continuation(client_call_details, request)
+        with _activated_span(self._pin.tracer, span):
+            response_iterator = continuation(client_call_details, request)
+            response_iterator = _WrappedResponseCallFuture(response_iterator, span, self._pin.tracer)
         return response_iterator
 
     def intercept_stream_unary(self, continuation, client_call_details, request_iterator):
@@ -253,15 +283,18 @@ class _ClientInterceptor(
             constants.GRPC_METHOD_KIND_CLIENT_STREAMING,
             client_call_details,
         )
-        try:
-            response = continuation(client_call_details, request_iterator)
-            _handle_response(span, response)
-        except grpc.RpcError as rpc_error:
-            # DEV: grpcio<1.18.0 grpc.RpcError is raised rather than returned as response
-            # https://github.com/grpc/grpc/commit/8199aff7a66460fbc4e9a82ade2e95ef076fd8f9
-            # handle as a response
-            _handle_response(span, rpc_error)
-            raise
+        if span is None:
+            return continuation(client_call_details, request_iterator)
+        with _activated_span(self._pin.tracer, span):
+            try:
+                response = continuation(client_call_details, request_iterator)
+                _handle_response(span, response)
+            except grpc.RpcError as rpc_error:
+                # DEV: grpcio<1.18.0 grpc.RpcError is raised rather than returned as response
+                # https://github.com/grpc/grpc/commit/8199aff7a66460fbc4e9a82ade2e95ef076fd8f9
+                # handle as a response
+                _handle_response(span, rpc_error)
+                raise
 
         return response
 
@@ -270,6 +303,9 @@ class _ClientInterceptor(
             constants.GRPC_METHOD_KIND_BIDI_STREAMING,
             client_call_details,
         )
-        response_iterator = continuation(client_call_details, request_iterator)
-        response_iterator = _WrappedResponseCallFuture(response_iterator, span)
+        if span is None:
+            return continuation(client_call_details, request_iterator)
+        with _activated_span(self._pin.tracer, span):
+            response_iterator = continuation(client_call_details, request_iterator)
+            response_iterator = _WrappedResponseCallFuture(response_iterator, span, self._pin.tracer)
         return response_iterator

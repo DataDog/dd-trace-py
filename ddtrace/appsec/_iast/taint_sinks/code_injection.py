@@ -13,7 +13,7 @@ from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_CODE_INJECTION
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -63,27 +63,39 @@ def _iast_coi(wrapped, instance, args, kwargs):
         # See ddtrace/internal/iast/product.py for detailed explanation.
         import inspect
 
-        caller_frame = None
-        if len(args) > 1:
-            func_globals = args[1]
-        elif kwargs.get("globals"):
-            func_globals = kwargs.get("globals")
-        else:
-            frames = inspect.currentframe()
-            caller_frame = frames.f_back
-            func_globals = caller_frame.f_globals
-
+        func_globals = None
+        func_locals = None
         func_locals_copy_to_check = None
-        if len(args) > 2:
-            func_locals = args[2]
-        elif kwargs.get("locals"):
-            func_locals = kwargs.get("locals")
+
+        # Check if inspect.currentframe is available (not available in some Python implementations)
+        if not hasattr(inspect, "currentframe"):
+            # Use provided globals/locals or None defaults
+            func_globals = args[1] if len(args) > 1 else kwargs.get("globals")
+            func_locals = args[2] if len(args) > 2 else kwargs.get("locals")
         else:
-            if caller_frame is None:
+            caller_frame = None
+            if len(args) > 1:
+                func_globals = args[1]
+            elif kwargs.get("globals"):
+                func_globals = kwargs.get("globals")
+            else:
                 frames = inspect.currentframe()
-                caller_frame = frames.f_back
-            func_locals = caller_frame.f_locals
-            func_locals_copy_to_check = func_locals.copy() if func_locals else None
+                if frames is not None:
+                    caller_frame = frames.f_back
+                    func_globals = caller_frame.f_globals
+
+            if len(args) > 2:
+                func_locals = args[2]
+            elif kwargs.get("locals"):
+                func_locals = kwargs.get("locals")
+            else:
+                if caller_frame is None:
+                    frames = inspect.currentframe()
+                    if frames is not None:
+                        caller_frame = frames.f_back
+                if caller_frame is not None:
+                    func_locals = caller_frame.f_locals
+                    func_locals_copy_to_check = func_locals.copy() if func_locals else None
     except Exception as e:
         iast_propagation_sink_point_debug_log(f"Error in _iast_code_injection. {e}")
         return wrapped(*args, **kwargs)

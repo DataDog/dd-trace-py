@@ -8,15 +8,14 @@ from tempfile import NamedTemporaryFile
 from textwrap import dedent
 import unittest
 
-import wrapt
-
-from ddtrace.version import get_version
+from ddtrace import __version__
+from ddtrace.internal.compat import is_wrapted
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import call_program
 
 
-TRACER_VERSION = get_version()
+TRACER_VERSION = __version__
 
 
 class PatchMixin(unittest.TestCase):
@@ -43,7 +42,7 @@ class PatchMixin(unittest.TestCase):
         assert not self.module_imported(modname), "{} module is imported".format(modname)
 
     def is_wrapped(self, obj):
-        return isinstance(obj, wrapt.ObjectProxy) or hasattr(obj, "__dd_wrapped__")
+        return is_wrapted(obj) or hasattr(obj, "__dd_wrapped__")
 
     def assert_wrapped(self, obj):
         """
@@ -65,7 +64,7 @@ class PatchMixin(unittest.TestCase):
         """
         self.assert_wrapped(obj)
 
-        wrapped = obj.__wrapped__ if isinstance(obj, wrapt.ObjectProxy) else obj.__dd_wrapped__
+        wrapped = obj.__wrapped__ if is_wrapted(obj) else obj.__dd_wrapped__
 
         self.assert_not_wrapped(wrapped)
 
@@ -815,7 +814,7 @@ class PatchTestCase(object):
 
                 if module_name in _MODULES_FOR_CONTRIB:
                     module_name = _MODULES_FOR_CONTRIB[module_name][0]
-                elif module_name in {"azure.servicebus.aio"}:
+                elif module_name in {"azure.eventhub.aio", "azure.servicebus.aio"}:
                     # handle specific submodules where the top level module name includes a dot
                     module_name = module_name.rpartition(".")[0]
                 else:

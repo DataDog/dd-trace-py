@@ -33,6 +33,8 @@ from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.module import origin
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.safety import _isinstance
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings.symbol_db import config as symdb_config
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import FormData
 from ddtrace.internal.utils.http import connector
@@ -40,8 +42,6 @@ from ddtrace.internal.utils.http import multipart
 from ddtrace.internal.utils.inspection import linenos
 from ddtrace.internal.utils.inspection import resolved_code_origin
 from ddtrace.internal.utils.inspection import undecorated
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings.symbol_db import config as symdb_config
 
 
 log = get_logger(__name__)

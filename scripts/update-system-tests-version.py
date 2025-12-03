@@ -61,7 +61,7 @@ def update_system_tests_version(latest_version: str):
         if lines[i].strip().startswith("SYSTEM_TESTS_REF:"):
             # Replace the entire line with the new commit hash
             indent = len(lines[i]) - len(lines[i].lstrip())
-            lines[i] = f"{' ' * indent}SYSTEM_TESTS_REF: \"{latest_version}\""
+            lines[i] = f'{" " * indent}SYSTEM_TESTS_REF: "{latest_version}"'
             break
 
     if lines and lines[-1]:

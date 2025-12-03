@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Prevent a potential ``ResourceWarning`` in multiprocess scenarios.

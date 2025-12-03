@@ -8,7 +8,7 @@ import ddtrace
 from ddtrace.debugging._exception import replay
 from ddtrace.internal.packages import _third_party_packages
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
-from ddtrace.settings.exception_replay import ExceptionReplayConfig
+from ddtrace.internal.settings.exception_replay import ExceptionReplayConfig
 from tests.debugging.mocking import exception_replay
 from tests.utils import TracerTestCase
 from tests.utils import override_third_party_packages
@@ -34,19 +34,19 @@ def test_tb_frames_from_exception_chain():
         c()
     except Exception as e:
         chain, _ = replay.unwind_exception_chain(e, e.__traceback__)
-        frames = replay.get_tb_frames_from_exception_chain(chain)
+        frames = list(replay.get_tb_frames_from_exception_chain(chain))
         # There are two tracebacks in the chain: one for KeyError and one for
         # ValueError. The innermost goes from the call to a in b up to the point
         # where the exception is raised in a. The outermost goes from the call
         # in this test function up to the point in b where the exception from a
         # is caught and the the KeyError is raised.
         assert len(frames) == 2 + 3
-        assert [f.tb_frame.f_code.co_name for f in frames] == [
-            "b",
-            "a",
-            "test_tb_frames_from_exception_chain",
-            "c",
-            "b",
+        assert [(n, f.tb_frame.f_code.co_name) for n, f in frames] == [
+            (2, "a"),
+            (1, "b"),
+            (5, "b"),
+            (4, "c"),
+            (3, "test_tb_frames_from_exception_chain"),
         ]
 
 
@@ -55,18 +55,6 @@ def test_exception_replay_config_enabled(monkeypatch):
 
     er_config = ExceptionReplayConfig()
     assert er_config.enabled
-
-
-def test_exception_replay_config_enabled_deprecated(monkeypatch):
-    monkeypatch.setenv("DD_EXCEPTION_DEBUGGING_ENABLED", "1")
-
-    er_config = ExceptionReplayConfig()
-    assert er_config.enabled
-
-    monkeypatch.setenv("DD_EXCEPTION_REPLAY_ENABLED", "false")
-
-    er_config = ExceptionReplayConfig()
-    assert not er_config.enabled
 
 
 def test_exception_chain_ident():

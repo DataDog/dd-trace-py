@@ -40,9 +40,7 @@ class TestCase(TracerTestCase, testing.TestCase, FalconTestMixin):
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_service_name
-    )
+    """.format(expected_service_name)
     env = os.environ.copy()
     if schema_version is not None:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
@@ -88,9 +86,7 @@ class TestCase(TracerTestCase, testing.TestCase, FalconTestMixin):
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_operation_name
-    )
+    """.format(expected_operation_name)
     env = os.environ.copy()
     if schema_version is not None:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version

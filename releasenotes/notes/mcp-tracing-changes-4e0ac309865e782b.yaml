@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    mcp: Marks client mcp tool call spans as errors when the corresponding server tool call errored
+  - |
+    LLM Observability: Adds additional tags to MCP client session and tool call spans to power LLM Observability MCP tool call features.

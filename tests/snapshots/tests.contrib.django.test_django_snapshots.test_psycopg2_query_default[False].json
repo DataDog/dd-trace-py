@@ -17,8 +17,6 @@
       "db.name": "test_postgres",
       "db.system": "postgresql",
       "db.user": "postgres",
-      "django.db.alias": "postgres",
-      "django.db.vendor": "postgresql",
       "language": "python",
       "out.host": "127.0.0.1",
       "runtime-id": "b29b553f30da448fa6e487f751a456fc",

@@ -1,6 +1,7 @@
 """
 Tags for common CI attributes
 """
+
 import json
 import logging
 import os
@@ -164,9 +165,7 @@ def extract_appveyor(env):
     if env.get("APPVEYOR_REPO_PROVIDER") == "github":
         repository = "https://github.com/{0}.git".format(env.get("APPVEYOR_REPO_NAME"))  # type: Optional[str]
         commit = env.get("APPVEYOR_REPO_COMMIT")  # type: Optional[str]
-        branch = env.get("APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH") or env.get(
-            "APPVEYOR_REPO_BRANCH"
-        )  # type: Optional[str]
+        branch = env.get("APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH") or env.get("APPVEYOR_REPO_BRANCH")  # type: Optional[str]
         tag = env.get("APPVEYOR_REPO_TAG_NAME")  # type: Optional[str]
     else:
         repository = commit = branch = tag = None
@@ -203,9 +202,7 @@ def extract_azure_pipelines(env):
             env.get("SYSTEM_TEAMFOUNDATIONSERVERURI"), env.get("SYSTEM_TEAMPROJECTID"), env.get("BUILD_BUILDID")
         )
         pipeline_url = base_url  # type: Optional[str]
-        job_url = base_url + "&view=logs&j={0}&t={1}".format(
-            env.get("SYSTEM_JOBID"), env.get("SYSTEM_TASKINSTANCEID")
-        )  # type: Optional[str]
+        job_url = base_url + "&view=logs&j={0}&t={1}".format(env.get("SYSTEM_JOBID"), env.get("SYSTEM_TASKINSTANCEID"))  # type: Optional[str]
     else:
         pipeline_url = job_url = None
 

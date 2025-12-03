@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue where ``self`` was being annotated as an input parameter using LLM Observability function decorators.

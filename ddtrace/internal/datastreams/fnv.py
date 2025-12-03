@@ -2,6 +2,7 @@
 Implementation of Fowler/Noll/Vo hash algorithm in pure Python.
 See http://isthe.com/chongo/tech/comp/fnv/
 """
+
 import sys
 
 

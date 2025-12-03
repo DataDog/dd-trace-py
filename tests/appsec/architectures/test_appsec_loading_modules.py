@@ -9,7 +9,7 @@ from urllib.request import urlopen
 
 import pytest
 
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 MODULES_ALWAYS_LOADED = ["ddtrace.appsec", "ddtrace.appsec._constants"]

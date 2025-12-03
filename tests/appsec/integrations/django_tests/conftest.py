@@ -11,7 +11,9 @@ from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast.main import patch_iast
 from ddtrace.contrib.internal.django.patch import patch as django_patch
+from ddtrace.contrib.internal.psycopg.patch import patch as psycopg_patch
 from ddtrace.contrib.internal.requests.patch import patch as requests_patch
+from ddtrace.contrib.internal.sqlite3.patch import patch as sqlite3_patch
 from ddtrace.internal import core
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
@@ -25,17 +27,22 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tests.appsec.integrations.djang
 
 # `pytest` automatically calls this function once when tests are run.
 def pytest_configure():
-    with override_global_config(
-        dict(
-            _iast_enabled=True,
-            _iast_deduplication_enabled=False,
-            _iast_request_sampling=100.0,
-        )
-    ), override_env(dict(_DD_IAST_PATCH_MODULES="tests.appsec.integrations")):
+    with (
+        override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
+        ),
+        override_env(dict(_DD_IAST_PATCH_MODULES="tests.appsec.integrations")),
+    ):
         settings.DEBUG = False
         patch_iast()
         load_iast()
+        psycopg_patch()
         requests_patch()
+        sqlite3_patch()
         django_patch()
         enable_iast_propagation()
         django.setup()

@@ -25,7 +25,7 @@ def record_api_request(
     error: Optional[ERROR_TYPES] = None,
 ):
     log.debug(
-        "Recording early flake detection telemetry for %s: %s, %s, %s",
+        "Recording Test Optimization telemetry for %s: %s, %s, %s",
         metric_names.count,
         duration,
         response_bytes,
@@ -47,5 +47,5 @@ def record_api_request(
 
 
 def record_api_request_error(error_metric_name: str, error: ERROR_TYPES):
-    log.debug("Recording early flake detection request error telemetry: %s", error)
+    log.debug("Recording Test Optimization request error telemetry: %s", error)
     telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, error_metric_name, 1, (("error_type", error),))

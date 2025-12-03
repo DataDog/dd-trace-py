@@ -2,6 +2,7 @@ import functools
 import json
 import re
 from types import TracebackType
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -17,8 +18,7 @@ from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import Constant_Class
-from ddtrace.appsec._utils import DDWaf_info
-from ddtrace.appsec._utils import DDWaf_result
+from ddtrace.appsec._utils import Block_config
 from ddtrace.appsec._utils import Telemetry_result
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
@@ -26,8 +26,12 @@ from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 import ddtrace.internal.logger as ddlogger
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
+
+if TYPE_CHECKING:
+    from ddtrace.appsec._utils import DDWaf_info
+    from ddtrace.appsec._utils import DDWaf_result
 
 logger = ddlogger.get_logger(__name__)
 
@@ -68,8 +72,8 @@ def report_error_on_entry_span(error: str, message: str) -> None:
     entry_span = get_entry_span()
     if not entry_span:
         return
-    entry_span.set_tag_str(APPSEC.ERROR_TYPE, error)
-    entry_span.set_tag_str(APPSEC.ERROR_MESSAGE, message)
+    entry_span._set_tag_str(APPSEC.ERROR_TYPE, error)
+    entry_span._set_tag_str(APPSEC.ERROR_MESSAGE, message)
 
 
 class ASM_Environment:
@@ -95,13 +99,13 @@ class ASM_Environment:
         else:
             self.framework = self.span.name
         self.framework = self.framework.lower().replace(" ", "_")
-        self.waf_info: Optional[Callable[[], DDWaf_info]] = None
+        self.waf_info: Optional[Callable[[], "DDWaf_info"]] = None
         self.waf_addresses: Dict[str, Any] = {}
         self.callbacks: Dict[str, Any] = {_CONTEXT_CALL: []}
         self.telemetry: Telemetry_result = Telemetry_result()
         self.addresses_sent: Set[str] = set()
         self.waf_triggers: List[Dict[str, Any]] = []
-        self.blocked: Optional[Dict[str, Any]] = None
+        self.blocked: Optional[Block_config] = None
         self.finalized: bool = False
         self.api_security_reported: int = 0
         self.rc_products: str = rc_products
@@ -123,11 +127,11 @@ def is_blocked() -> bool:
     return env.blocked is not None
 
 
-def get_blocked() -> Dict[str, Any]:
+def get_blocked() -> Optional[Block_config]:
     env = _get_asm_context()
     if env is None:
-        return {}
-    return env.blocked or {}
+        return None
+    return env.blocked or None
 
 
 def get_entry_span() -> Optional[Span]:
@@ -151,9 +155,8 @@ class DownstreamRequests:
 
 
 def should_analyze_body_response(env) -> bool:
-    """Must be called only after should_analyze_downstream returned True."""
+    """Check if we should analyze body for API10."""
     DownstreamRequests.counter += 1
-    env.downstream_requests += 1
     return (
         env.downstream_requests <= asm_config._dr_body_limit_per_request
         and (DownstreamRequests.counter * KNUTH_FACTOR) % UINT64_MAX <= DownstreamRequests.sampling_rate
@@ -197,21 +200,27 @@ def _use_html(headers) -> bool:
 
 def _ctype_from_headers(block_config, headers) -> None:
     """compute MIME type of the blocked response and store it in the block config"""
-    desired_type = block_config.get("type", "auto")
-    if desired_type == "auto":
-        block_config["content-type"] = "text/html" if _use_html(headers) else "application/json"
-    else:
-        block_config["content-type"] = "text/html" if block_config["type"] == "html" else "application/json"
+    if (block_config.type == "auto" and _use_html(headers)) or block_config.type == "html":
+        block_config.content_type = "text/html"
 
 
-def set_blocked(blocked: Dict[str, Any]) -> None:
-    blocked = blocked.copy()
+def set_blocked(blocked: Block_config) -> None:
     env = _get_asm_context()
     if env is None:
         logger.warning(WARNING_TAGS.SET_BLOCKED_NO_ASM_CONTEXT, extra=log_extra, stack_info=True)
         return
     _ctype_from_headers(blocked, get_headers())
     env.blocked = blocked
+
+
+def set_blocked_dict(block: Union[Dict[str, Any], Block_config, None]) -> None:
+    if isinstance(block, dict):
+        blocked = Block_config(**block)
+    elif block is None:
+        blocked = Block_config()
+    else:
+        blocked = block
+    set_blocked(blocked)
 
 
 def update_span_metrics(span: Span, name: str, value: Union[float, int]) -> None:
@@ -229,13 +238,15 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
         else:
             report_list = env.waf_triggers
         if asm_config._use_metastruct_for_triggers:
-            entry_span.set_struct_tag(APPSEC.STRUCT, {"triggers": report_list})
+            entry_span._set_struct_tag(APPSEC.STRUCT, {"triggers": report_list})
         else:
             entry_span.set_tag(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
         env.waf_triggers = []
     telemetry_results: Telemetry_result = env.telemetry
 
-    entry_span.set_tag_str(APPSEC.WAF_VERSION, ddwaf_version)
+    entry_span._set_tag_str(APPSEC.WAF_VERSION, ddwaf_version)
+    if env.downstream_requests:
+        update_span_metrics(entry_span, APPSEC.DOWNSTREAM_REQUESTS, env.downstream_requests)
     if telemetry_results.total_duration:
         update_span_metrics(entry_span, APPSEC.WAF_DURATION, telemetry_results.duration)
         telemetry_results.duration = 0.0
@@ -273,10 +284,10 @@ def finalize_asm_env(env: ASM_Environment) -> None:
             info = env.waf_info()
             try:
                 if info.errors:
-                    entry_span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, info.errors)
+                    entry_span._set_tag_str(APPSEC.EVENT_RULE_ERRORS, info.errors)
                     extra = {"product": "appsec", "more_info": info.errors, "stack_limit": 4}
                     logger.debug("asm_context::finalize_asm_env::waf_errors", extra=extra, stack_info=True)
-                entry_span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
+                entry_span._set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
                 entry_span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
                 entry_span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
             except Exception:
@@ -291,7 +302,7 @@ def finalize_asm_env(env: ASM_Environment) -> None:
         if res_headers:
             _set_headers(entry_span, res_headers, kind="response")
         if env.rc_products:
-            entry_span.set_tag_str(APPSEC.RC_PRODUCTS, env.rc_products)
+            entry_span._set_tag_str(APPSEC.RC_PRODUCTS, env.rc_products)
 
     core.discard_local_item(_ASM_CONTEXT)
 
@@ -375,7 +386,7 @@ def set_waf_callback(value) -> None:
     set_value(_CALLBACKS, _WAF_CALL, value)
 
 
-def set_waf_info(info: Callable[[], DDWaf_info]) -> None:
+def set_waf_info(info: Callable[[], "DDWaf_info"]) -> None:
     env = _get_asm_context()
     if env is None:
         logger.warning(WARNING_TAGS.SET_WAF_INFO_NO_ASM_CONTEXT, extra=log_extra, stack_info=True)
@@ -383,7 +394,7 @@ def set_waf_info(info: Callable[[], DDWaf_info]) -> None:
     env.waf_info = info
 
 
-def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None, **kwargs) -> Optional[DDWaf_result]:
+def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None, **kwargs) -> Optional["DDWaf_result"]:
     if not asm_config._asm_enabled:
         return None
     callback = get_value(_CALLBACKS, _WAF_CALL)
@@ -480,7 +491,7 @@ def asm_request_context_set(
 def set_waf_telemetry_results(
     rules_version: str,
     is_blocked: bool,
-    waf_results: DDWaf_result,
+    waf_results: "DDWaf_result",
     rule_type: Optional[str],
     is_sampled: bool,
 ) -> None:
@@ -708,7 +719,7 @@ def asm_listen():
     core.on("asgi.start_response", _call_waf)
     core.on("asgi.finalize_response", _set_headers_and_response)
 
-    core.on("asm.set_blocked", set_blocked)
+    core.on("asm.set_blocked", set_blocked_dict)
     core.on("asm.get_blocked", get_blocked, "block_config")
 
     core.on("context.ended.wsgi.__call__", _on_context_ended)

@@ -1,4 +1,3 @@
-import os
 import sys
 from typing import Dict
 
@@ -19,13 +18,7 @@ from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 
 
-config._add(
-    "vertexai",
-    {
-        "span_prompt_completion_sample_rate": float(os.getenv("DD_VERTEXAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        "span_char_limit": int(os.getenv("DD_VERTEXAI_SPAN_CHAR_LIMIT", 128)),
-    },
-)
+config._add("vertexai", {})
 
 
 def get_version():

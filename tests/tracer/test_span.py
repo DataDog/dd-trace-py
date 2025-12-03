@@ -10,7 +10,6 @@ import pytest
 
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_pointer import _SpanPointerDirection
-from ddtrace._trace.context import Context
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import ERROR_MSG
@@ -303,9 +302,9 @@ class SpanTestCase(TracerTestCase):
                 #      ZeroDivisionError: division by zero
                 header_and_footer_lines += 1
 
-            assert (
-                len(stack.splitlines()) == tb_length_limit * multiplier + header_and_footer_lines
-            ), "stacktrace should contain two lines per entry"
+            assert len(stack.splitlines()) == tb_length_limit * multiplier + header_and_footer_lines, (
+                "stacktrace should contain two lines per entry"
+            )
 
     def test_ctx_mgr(self):
         s = Span("bar")
@@ -678,51 +677,12 @@ def test_set_tag_measured_change_value():
     assert_is_measured(s)
 
 
-@mock.patch("ddtrace._trace.span.log")
-def test_span_key(span_log):
-    # Span tag keys must be strings
-    s = Span(name="test.span")
-
-    s.set_tag(123, True)
-    span_log.warning.assert_called_once_with("Ignoring tag pair %s:%s. Key must be a string.", 123, True)
-    assert s.get_tag(123) is None
-    assert s.get_tag("123") is None
-
-    span_log.reset_mock()
-
-    s.set_tag(None, "val")
-    span_log.warning.assert_called_once_with("Ignoring tag pair %s:%s. Key must be a string.", None, "val")
-    assert s.get_tag(123.32) is None
-
-
-def test_spans_finished():
-    span = Span(None)
-    assert span.finished is False
-    assert span.duration_ns is None
-
-    span.finished = True
-    assert span.finished is True
-    assert span.duration_ns is not None
-    duration = span.duration_ns
-
-    span.finished = True
-    assert span.finished is True
-    assert span.duration_ns == duration
-
-    span.finished = False
-    assert span.finished is False
-
-    span.finished = True
-    assert span.finished is True
-    assert span.duration_ns != duration
-
-
 def test_span_unicode_set_tag():
     span = Span(None)
     span.set_tag("key", "😌")
     span.set_tag("😐", "😌")
-    span.set_tag_str("key", "😌")
-    span.set_tag_str("😐", "😌")
+    span._set_tag_str("key", "😌")
+    span._set_tag_str("😐", "😌")
 
 
 @pytest.mark.skipif(sys.version_info.major != 2, reason="This test only applies Python 2")
@@ -730,7 +690,7 @@ def test_span_unicode_set_tag():
 def test_span_binary_unicode_set_tag(span_log):
     span = Span(None)
     span.set_tag("key", "🤔")
-    span.set_tag_str("key_str", "🤔")
+    span._set_tag_str("key_str", "🤔")
     # only span.set_tag() will fail
     span_log.warning.assert_called_once_with("error setting tag %s, ignoring it", "key", exc_info=True)
     assert "key" not in span.get_tags()
@@ -742,7 +702,7 @@ def test_span_binary_unicode_set_tag(span_log):
 def test_span_bytes_string_set_tag(span_log):
     span = Span(None)
     span.set_tag("key", b"\xf0\x9f\xa4\x94")
-    span.set_tag_str("key_str", b"\xf0\x9f\xa4\x94")
+    span._set_tag_str("key_str", b"\xf0\x9f\xa4\x94")
     assert span.get_tag("key") == "b'\\xf0\\x9f\\xa4\\x94'"
     assert span.get_tag("key_str") == "🤔"
     span_log.warning.assert_not_called()
@@ -751,7 +711,7 @@ def test_span_bytes_string_set_tag(span_log):
 @mock.patch("ddtrace._trace.span.log")
 def test_span_encoding_set_str_tag(span_log):
     span = Span(None)
-    span.set_tag_str("foo", "/?foo=bar&baz=정상처리".encode("euc-kr"))
+    span._set_tag_str("foo", "/?foo=bar&baz=정상처리".encode("euc-kr"))
     span_log.warning.assert_not_called()
     assert span.get_tag("foo") == "/?foo=bar&baz=����ó��"
 
@@ -759,7 +719,7 @@ def test_span_encoding_set_str_tag(span_log):
 def test_span_nonstring_set_str_tag_exc():
     span = Span(None)
     with pytest.raises(TypeError):
-        span.set_tag_str("foo", dict(a=1))
+        span._set_tag_str("foo", dict(a=1))
     assert "foo" not in span.get_tags()
 
 
@@ -767,7 +727,7 @@ def test_span_nonstring_set_str_tag_exc():
 def test_span_nonstring_set_str_tag_warning(span_log):
     with override_global_config(dict(_raise=False)):
         span = Span(None)
-        span.set_tag_str("foo", dict(a=1))
+        span._set_tag_str("foo", dict(a=1))
         span_log.warning.assert_called_once_with(
             "Failed to set text tag '%s'",
             "foo",
@@ -864,52 +824,6 @@ def test_span_preconditions(arg):
     Span("test", **{arg: None})
     with pytest.raises(TypeError):
         Span("test", **{arg: "foo"})
-
-
-def test_span_pprint():
-    root = Span("test.span", service="s", resource="r", span_type=SpanTypes.WEB, context=Context(trace_id=1, span_id=2))
-    root.set_tag("t", "v")
-    root.set_metric("m", 1.0)
-    root._add_event("message", {"importance": 10}, 16789898242)
-    root.set_link(trace_id=99, span_id=10, attributes={"link.name": "s1_to_s2", "link.kind": "scheduled_by"})
-    root._add_span_pointer("test_kind", _SpanPointerDirection.DOWNSTREAM, "test_hash_123", {"extra": "attr"})
-
-    root.finish()
-    actual = root._pprint()
-    assert "name='test.span'" in actual
-    assert "service='s'" in actual
-    assert "resource='r'" in actual
-    assert "type='web'" in actual
-    assert "error=0" in actual
-    assert "tags={'t': 'v'}" in actual
-    assert "metrics={'m': 1.0}" in actual
-    assert "events=[SpanEvent(name='message', time=16789898242, attributes={'importance': 10})]" in actual
-    assert (
-        "SpanLink(trace_id=99, span_id=10, attributes={'link.name': 's1_to_s2', 'link.kind': 'scheduled_by'}, "
-        "tracestate=None, flags=None, dropped_attributes=0)"
-    ) in actual
-    assert "SpanPointer(trace_id=0, span_id=0, kind=span-pointer" in actual
-    assert "direction=d, hash=test_hash_123" in actual
-    assert (
-        f"context=Context(trace_id={root.trace_id}, span_id={root.span_id}, _meta={{}}, "
-        "_metrics={}, _span_links=[], _baggage={}, _is_remote=False)"
-    ) in actual
-    assert f"span_id={root.span_id}" in actual
-    assert f"trace_id={root.trace_id}" in actual
-    assert f"parent_id={root.parent_id}" in actual
-    assert f"start={root.start_ns}" in actual
-    assert f"duration={root.duration_ns}" in actual
-    assert f"end={root.start_ns + root.duration_ns}" in actual
-
-    root = Span("test.span", service="s", resource="r", span_type=SpanTypes.WEB)
-    root.error = 1
-    kv = {f"😌{i}": "😌" for i in range(100)}
-    root.set_tags(kv)
-    actual = root._pprint()
-    assert "duration=None" in actual
-    assert "end=None" in actual
-    assert "error=1" in actual
-    assert f"tags={kv}" in actual
 
 
 def test_manual_context_usage():

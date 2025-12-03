@@ -14,7 +14,7 @@ from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
 from ddtrace.internal.ci_visibility.recorder import CIVisibilityTracer
-from ddtrace.settings._config import Config
+from ddtrace.internal.settings._config import Config
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import override_env
 
@@ -109,36 +109,43 @@ def set_up_mock_civisibility(
     if efd_settings is None:
         efd_settings = EarlyFlakeDetectionSettings()
 
-    with override_env(env_overrides), mock.patch(
-        "ddtrace.internal.ci_visibility.recorder.ddconfig",
-        _get_default_civisibility_ddconfig(
-            ITR_SKIPPING_LEVEL.SUITE if suite_skipping_mode else ITR_SKIPPING_LEVEL.TEST
+    with (
+        override_env(env_overrides),
+        mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(
+                ITR_SKIPPING_LEVEL.SUITE if suite_skipping_mode else ITR_SKIPPING_LEVEL.TEST
+            ),
         ),
-    ), mock.patch(
-        "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-        return_value=TestVisibilityAPISettings(
-            coverage_enabled=coverage_enabled,
-            skipping_enabled=skipping_enabled,
-            require_git=require_git,
-            itr_enabled=itr_enabled,
-            early_flake_detection=efd_settings,
+        mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(
+                coverage_enabled=coverage_enabled,
+                skipping_enabled=skipping_enabled,
+                require_git=require_git,
+                itr_enabled=itr_enabled,
+                early_flake_detection=efd_settings,
+            ),
         ),
-    ), mock.patch(
-        "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
-        side_effect=_fake_fetch_tests_to_skip,
-    ), mock.patch(
-        "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_known_tests",
-        return_value=_fetch_known_tests_side_effect(known_test_ids),
-    ), mock.patch.multiple(
-        CIVisibilityGitClient,
-        _get_repository_url=classmethod(lambda *args, **kwargs: "git@github.com:TestDog/dd-test-py.git"),
-        _is_shallow_repository=classmethod(lambda *args, **kwargs: False),
-        _get_latest_commits=classmethod(lambda *args, **kwwargs: ["latest1", "latest2"]),
-        _search_commits=classmethod(lambda *args: ["latest1", "searched1", "searched2"]),
-        _get_filtered_revisions=classmethod(lambda *args, **kwargs: "revision1\nrevision2"),
-        _upload_packfiles=classmethod(lambda *args, **kwargs: None),
-        upload_git_metadata=_mock_upload_git_metadata,
-        _do_request=NotImplementedError,
+        mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+            side_effect=_fake_fetch_tests_to_skip,
+        ),
+        mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_known_tests",
+            return_value=_fetch_known_tests_side_effect(known_test_ids),
+        ),
+        mock.patch.multiple(
+            CIVisibilityGitClient,
+            _get_repository_url=classmethod(lambda *args, **kwargs: "git@github.com:TestDog/dd-test-py.git"),
+            _is_shallow_repository=classmethod(lambda *args, **kwargs: False),
+            _get_latest_commits=classmethod(lambda *args, **kwwargs: ["latest1", "latest2"]),
+            _search_commits=classmethod(lambda *args: ["latest1", "searched1", "searched2"]),
+            _get_filtered_revisions=classmethod(lambda *args, **kwargs: "revision1\nrevision2"),
+            _upload_packfiles=classmethod(lambda *args, **kwargs: None),
+            upload_git_metadata=_mock_upload_git_metadata,
+            _do_request=NotImplementedError,
+        ),
     ):
         yield
 

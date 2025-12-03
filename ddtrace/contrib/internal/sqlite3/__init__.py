@@ -41,7 +41,7 @@ Instance Configuration
 To configure the integration on an per-connection basis use the
 ``Pin`` API::
 
-    from ddtrace.trace import Pin
+    from ddtrace._trace.pin import Pin
     import sqlite3
 
     # This will report a span with the default settings

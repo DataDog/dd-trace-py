@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    tornado: Updated minimum supported version to v6.1+.

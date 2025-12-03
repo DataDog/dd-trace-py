@@ -1,3 +1,5 @@
+import pytest
+
 from ddtrace.contrib.internal.django.patch import get_version
 from ddtrace.contrib.internal.django.patch import patch
 from tests.contrib.patch import PatchTestCase
@@ -22,7 +24,7 @@ class TestDjangoPatch(PatchTestCase.Base):
 
         import django.template.base
 
-        self.assert_wrapped(django.template.base.Template.render)
+        self.assert_not_wrapped(django.template.base.Template.render)
         if django.VERSION >= (2, 0, 0):
             self.assert_wrapped(django.urls.path)
             self.assert_wrapped(django.urls.re_path)
@@ -46,9 +48,27 @@ class TestDjangoPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(django.apps.registry.Apps.populate)
         self.assert_not_double_wrapped(django.core.handlers.base.BaseHandler.load_middleware)
         self.assert_not_double_wrapped(django.core.handlers.base.BaseHandler.get_response)
-        self.assert_not_double_wrapped(django.template.base.Template.render)
+        self.assert_not_wrapped(django.template.base.Template.render)
 
         if django.VERSION >= (2, 0, 0):
             self.assert_not_double_wrapped(django.urls.path)
             self.assert_not_double_wrapped(django.urls.re_path)
         self.assert_not_double_wrapped(django.views.generic.base.View.as_view)
+
+
+@pytest.mark.subprocess(ddtrace_run=True, env={"DD_DJANGO_INSTRUMENT_TEMPLATES": "true"})
+def test_instrument_templates_patching():
+    import django.template.base
+
+    from ddtrace.internal.wrapping import is_wrapped
+
+    assert is_wrapped(django.template.base.Template.render)
+
+
+@pytest.mark.subprocess(ddtrace_run=True, env={"DD_DJANGO_TRACING_MINIMAL": "false"})
+def test_tracing_minimal_patching():
+    import django.template.base
+
+    from ddtrace.internal.wrapping import is_wrapped
+
+    assert is_wrapped(django.template.base.Template.render)

@@ -10,8 +10,8 @@ from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
 from ddtrace.internal.products import manager  # noqa:F401
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa:F401
-from ddtrace.settings.crashtracker import config as crashtracker_config
-from ddtrace.settings.profiling import config as profiling_config  # noqa:F401
+from ddtrace.internal.settings.crashtracker import config as crashtracker_config
+from ddtrace.internal.settings.profiling import config as profiling_config  # noqa:F401
 from ddtrace.trace import tracer
 
 
@@ -64,40 +64,65 @@ if profiling_config.enabled:
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()
 
-if config._otel_trace_enabled:
 
-    @ModuleWatchdog.after_module_imported("opentelemetry.trace")
-    def _ot_traces(_):
+@ModuleWatchdog.after_module_imported("opentelemetry")
+def _otel_signals(_):
+    if config._otel_trace_enabled:
         from opentelemetry.trace import set_tracer_provider
 
         from ddtrace.opentelemetry import TracerProvider
 
         set_tracer_provider(TracerProvider())
 
-
-if config._otel_metrics_enabled:
-
-    @ModuleWatchdog.after_module_imported("opentelemetry.metrics")
-    def _otel_metrics(_):
-        from ddtrace.internal.opentelemetry.metrics import set_otel_meter_provider
-
-        set_otel_meter_provider()
-
-
-if config._otel_logs_enabled:
-
-    @register_post_preload
-    def _otel_logs():
-        # Post load to ensure that the logger provider is not overridden by module unloading
+    if config._otel_logs_enabled:
         from ddtrace.internal.opentelemetry.logs import set_otel_logs_provider
 
         set_otel_logs_provider()
+
+    if config._otel_metrics_enabled:
+        from ddtrace.internal.opentelemetry.metrics import set_otel_meter_provider
+
+        set_otel_meter_provider()
 
 
 if config._llmobs_enabled:
     from ddtrace.llmobs import LLMObs
 
     LLMObs.enable(_auto=True)
+
+
+@ModuleWatchdog.after_module_imported("gevent.monkey")
+def _(_):
+    # uWSGI + gevent support: when the application module is imported, the
+    # internal module lock of importlib._bootstrap gets a thread ID that does
+    # not match what is returned by get_ident when the lock is being released.
+    # We wrap the lock release method to fix the owner and undo the patch as
+    # soon as we have dealt with the expected failure.
+    import sys
+
+    if "uwsgi" not in sys.modules:
+        # Not running under uWSGI, nothing to do
+        return
+
+    import importlib._bootstrap as bs
+
+    if (bst := bs._thread) is None:
+        return
+
+    original_release = (ml := bs._ModuleLock).release
+
+    def ModuleLock_release(self, *args, **kwargs):
+        if self.owner != (tid := bst.get_ident()):
+            # Fix the owner
+            self.owner = tid
+
+            # Undo the patching as we don't expect any more bad cases.
+            ml.release = original_release
+
+        # Call the original function
+        return original_release(self, *args, **kwargs)
+
+    ml.release = ModuleLock_release
 
 
 @register_post_preload

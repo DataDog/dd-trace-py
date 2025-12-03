@@ -1,0 +1,109 @@
+interactions:
+- request:
+    body: '{"messages":[{"content":"Can you explain what Descartes meant by ''I think,
+      therefore I am''?","role":"user"}],"model":"gpt-3.5-turbo","n":1,"stream":false,"temperature":0.7}'
+    headers:
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - gzip, deflate
+      ? !!python/object/apply:multidict._multidict.istr
+      - Connection
+      : - keep-alive
+      Content-Length:
+      - '172'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - User-Agent
+      : - AzureOpenAI/Python 1.109.1
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Arch
+      : - arm64
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Async
+      : - 'false'
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Lang
+      : - python
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-OS
+      : - MacOS
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Package-Version
+      : - 1.109.1
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime
+      : - CPython
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime-Version
+      : - 3.11.13
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-retry-count
+      : - '0'
+    method: POST
+    uri: https://llmobs-test-resource.openai.azure.com/openai/deployments/gpt-4.1-mini/chat/completions?api-version=2024-12-01-preview
+  response:
+    body:
+      string: "{\"choices\":[{\"content_filter_results\":{\"hate\":{\"filtered\":false,\"severity\":\"safe\"},\"protected_material_code\":{\"filtered\":false,\"detected\":false},\"protected_material_text\":{\"filtered\":false,\"detected\":false},\"self_harm\":{\"filtered\":false,\"severity\":\"safe\"},\"sexual\":{\"filtered\":false,\"severity\":\"safe\"},\"violence\":{\"filtered\":false,\"severity\":\"safe\"}},\"finish_reason\":\"stop\",\"index\":0,\"logprobs\":null,\"message\":{\"annotations\":[],\"content\":\"Certainly!
+        The phrase **\\\"I think, therefore I am\\\"** (originally in Latin: *Cogito,
+        ergo sum*) was coined by the French philosopher Ren\xE9 Descartes. It appears
+        in his work *Discourse on the Method* (1637) and later in *Meditations on
+        First Philosophy* (1641).\\n\\n### What Descartes Meant:\\n\\n1. **Foundation
+        of Certainty:**  \\n   Descartes was searching for an undeniable foundation
+        for knowledge. He wanted to find something that could not be doubted, as many
+        beliefs could be mistaken.\\n\\n2. **Method of Doubt:**  \\n   He began by
+        doubting everything \u2014 the evidence of the senses, the existence of the
+        physical world, even mathematical truths \u2014 to see if anything remained
+        absolutely certain.\\n\\n3. **The Indubitable Truth:**  \\n   While doubting,
+        Descartes realized that the very act of doubting implied a thinking subject.
+        If he is doubting or thinking, then he must exist in some form to be doing
+        that thinking.\\n\\n4. **\\\"I think, therefore I am\\\":**  \\n   Therefore,
+        the one thing he could not doubt was that he exists as a thinking being. The
+        act of thinking itself proved his own existence. This statement became the
+        first principle in his philosophy.\\n\\n### In summary:\\n\\nDescartes meant
+        that the fact that you are consciously thinking is proof of your own existence.
+        Even if everything else is uncertain or illusory, the very experience of thought
+        confirms that there is a \\\"self\\\" doing the thinking. It\u2019s a foundational
+        claim about knowledge and existence.\\n\\nIf you want, I can also explain
+        how this idea influenced philosophy or its criticisms!\",\"refusal\":null,\"role\":\"assistant\"}}],\"created\":1760724000,\"id\":\"chatcmpl-CRj28rdRKqhnTBkcKCmXlz0vReldy\",\"model\":\"gpt-4.1-mini-2025-04-14\",\"object\":\"chat.completion\",\"prompt_filter_results\":[{\"prompt_index\":0,\"content_filter_results\":{\"hate\":{\"filtered\":false,\"severity\":\"safe\"},\"jailbreak\":{\"filtered\":false,\"detected\":false},\"self_harm\":{\"filtered\":false,\"severity\":\"safe\"},\"sexual\":{\"filtered\":false,\"severity\":\"safe\"},\"violence\":{\"filtered\":false,\"severity\":\"safe\"}}}],\"system_fingerprint\":\"fp_3dcd5944f5\",\"usage\":{\"completion_tokens\":342,\"completion_tokens_details\":{\"accepted_prediction_tokens\":0,\"audio_tokens\":0,\"reasoning_tokens\":0,\"rejected_prediction_tokens\":0},\"prompt_tokens\":24,\"prompt_tokens_details\":{\"audio_tokens\":0,\"cached_tokens\":0},\"total_tokens\":366}}\n"
+    headers:
+      Content-Length:
+      - '2780'
+      Content-Type:
+      - application/json
+      Date:
+      - Fri, 17 Oct 2025 18:00:13 GMT
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      apim-request-id:
+      - 381a6525-4f15-481a-8884-dd8ec1b0d6fc
+      azureml-model-session:
+      - d213-20251016082839
+      x-accel-buffering:
+      - 'no'
+      x-content-type-options:
+      - nosniff
+      x-ms-deployment-name:
+      - gpt-4.1-mini
+      x-ms-rai-invoked:
+      - 'true'
+      x-ms-region:
+      - East US 2
+      x-ratelimit-limit-requests:
+      - '250'
+      x-ratelimit-limit-tokens:
+      - '250000'
+      x-ratelimit-remaining-requests:
+      - '248'
+      x-ratelimit-remaining-tokens:
+      - '249979'
+      x-request-id:
+      - 8e52694a-22a0-42fa-9e2d-54539ebd2113
+    status:
+      code: 200
+      message: OK
+version: 1

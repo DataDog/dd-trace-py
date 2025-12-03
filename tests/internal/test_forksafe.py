@@ -1,5 +1,6 @@
 from collections import Counter
 import os
+import sys
 
 import pytest
 
@@ -202,6 +203,37 @@ def test_lock_fork():
     _, status = os.waitpid(pid, 0)
     exit_code = os.WEXITSTATUS(status)
     assert exit_code == 12
+
+
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="Profiling is not supported on Python 3.14 yet")
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_ENABLED="1"),
+    ddtrace_run=True,
+)
+def test_lock_unpatched():
+    """Check that a forksafe.Lock is not patched when profiling is enabled."""
+
+    from ddtrace.internal import forksafe
+    from ddtrace.profiling import bootstrap
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+
+    # When Profiler is started, bootstrap.profiler is set to the Profiler
+    # instance. We explicitly access the Profiler instance and the collector list
+    # to verify that the forksafe.Lock is not using the same class that is
+    # patched by ThreadingLockCollector that's running.
+    profiler = bootstrap.profiler._profiler
+    lock_collector = None
+    for c in profiler._collectors:
+        if isinstance(c, ThreadingLockCollector):
+            lock_collector = c
+            break
+
+    assert lock_collector is not None, "ThreadingLockCollector not found in profiler collectors"
+
+    lock = forksafe.Lock()
+    assert lock_collector._get_patch_target() is not lock._self_wrapped_class, (
+        "forksafe.Lock is using the same class that is patched by ThreadingLockCollector"
+    )
 
 
 def test_rlock_basic():

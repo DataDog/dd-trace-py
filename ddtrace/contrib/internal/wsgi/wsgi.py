@@ -12,7 +12,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Optional  # noqa:F401
 
     from ddtrace._trace.pin import Pin  # noqa:F401
-    from ddtrace.settings._config import Config  # noqa:F401
+    from ddtrace.internal.settings._config import Config  # noqa:F401
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.trace import Tracer  # noqa:F401
 
@@ -118,7 +118,9 @@ class _DDWSGIMiddlewareBase(object):
             ctx.set_item("wsgi.construct_url", construct_url)
 
             def blocked_view():
-                result = core.dispatch_with_results("wsgi.block.started", (ctx, construct_url)).status_headers_content
+                result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+                    "wsgi.block.started", (ctx, construct_url)
+                ).status_headers_content
                 if result:
                     status, headers, content = result.value
                 else:
@@ -160,13 +162,13 @@ class _DDWSGIMiddlewareBase(object):
                     raise
                 else:
                     if get_blocked():
-                        _, _, content = core.dispatch_with_results(
+                        _, _, content = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
                             "wsgi.block.started", (ctx, construct_url)
                         ).status_headers_content.value or (None, None, "")
                         closing_iterable = [content]
                     core.dispatch("wsgi.app.success", (ctx, closing_iterable))
 
-            result = core.dispatch_with_results(
+            result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
                 "wsgi.request.complete", (ctx, closing_iterable, self.app_is_iterator)
             ).traced_iterable
 
@@ -286,19 +288,22 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
         self.span_modifier = span_modifier
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
-        with core.context_with_data(
-            "wsgi.response",
-            middleware=self,
-            request_span=request_span,
-            parent_call=app_span,
-            status=status,
-            environ=environ,
-            span_type=SpanTypes.WEB,
-            span_name="wsgi.start_response",
-            service=trace_utils.int_service(None, self._config),
-            start_span=True,
-            tags={COMPONENT: self._config.integration_name, SPAN_KIND: SpanKind.SERVER},
-        ) as ctx, ctx.span:
+        with (
+            core.context_with_data(
+                "wsgi.response",
+                middleware=self,
+                request_span=request_span,
+                parent_call=app_span,
+                status=status,
+                environ=environ,
+                span_type=SpanTypes.WEB,
+                span_name="wsgi.start_response",
+                service=trace_utils.int_service(None, self._config),
+                start_span=True,
+                tags={COMPONENT: self._config.integration_name, SPAN_KIND: SpanKind.SERVER},
+            ) as ctx,
+            ctx.span,
+        ):
             return start_response(status, environ, exc_info)
 
     def _request_span_modifier(self, req_span, environ, parsed_headers=None):

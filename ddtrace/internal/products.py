@@ -9,13 +9,13 @@ from typing import Protocol  # noqa:F401
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import report_configuration
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.uwsgi import check_uwsgi
 from ddtrace.internal.uwsgi import uWSGIConfigDeprecationWarning
 from ddtrace.internal.uwsgi import uWSGIConfigError
 from ddtrace.internal.uwsgi import uWSGIMasterProcess
-from ddtrace.settings._core import DDConfig
 
 
 log = get_logger(__name__)
@@ -35,20 +35,15 @@ else:
 class Product(Protocol):
     requires: t.List[str]
 
-    def post_preload(self) -> None:
-        ...
+    def post_preload(self) -> None: ...
 
-    def start(self) -> None:
-        ...
+    def start(self) -> None: ...
 
-    def restart(self, join: bool = False) -> None:
-        ...
+    def restart(self, join: bool = False) -> None: ...
 
-    def stop(self, join: bool = False) -> None:
-        ...
+    def stop(self, join: bool = False) -> None: ...
 
-    def at_exit(self, join: bool = False) -> None:
-        ...
+    def at_exit(self, join: bool = False) -> None: ...
 
 
 class ProductManager:

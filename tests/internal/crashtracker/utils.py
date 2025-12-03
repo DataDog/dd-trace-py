@@ -17,7 +17,7 @@ def start_crashtracker(port: int, stdout: Optional[str] = None, stderr: Optional
     ret = False
     try:
         from ddtrace.internal.core import crashtracking
-        from ddtrace.settings.crashtracker import config as crashtracker_config
+        from ddtrace.internal.settings.crashtracker import config as crashtracker_config
 
         crashtracker_config.debug_url = "http://localhost:%d" % port
         crashtracker_config.stdout_filename = stdout
@@ -146,14 +146,13 @@ def get_crash_report(test_agent_client: TestAgentClient) -> TestAgentRequest:
     # We want at least the crash report
     assert len(crash_messages) == 2, f"Expected at least 2 messages; got {len(crash_messages)}"
 
-    # Find the crash report (the one with "is_crash":"true")
     crash_report = None
     for message in crash_messages:
-        if b"is_crash:true" in message["body"]:
+        if b'"level":"ERROR"' in message["body"]:
             crash_report = message
             break
+    assert crash_report is not None, "Could not find crash report with level ERROR tag"
 
-    assert crash_report is not None, "Could not find crash report with 'is_crash:true' tag"
     return crash_report
 
 
@@ -162,14 +161,13 @@ def get_crash_ping(test_agent_client: TestAgentClient) -> TestAgentRequest:
     crash_messages = get_all_crash_messages(test_agent_client)
     assert len(crash_messages) == 2, f"Expected at least 2 messages; got {len(crash_messages)}"
 
-    # Find the crash ping (the one with "is_crash_ping":"true")
     crash_ping = None
     for message in crash_messages:
-        if b"is_crash_ping:true" in message["body"]:
+        if b'"level":"DEBUG"' in message["body"]:
             crash_ping = message
             break
+    assert crash_ping is not None, "Could not find crash ping with level DEBUG tag"
 
-    assert crash_ping is not None, "Could not find crash ping with 'is_crash_ping:true' tag"
     return crash_ping
 
 

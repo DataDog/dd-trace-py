@@ -3,6 +3,7 @@ werkzeug==3.0.3
 
 https://pypi.org/project/werkzeug/
 """
+
 from flask import Blueprint
 from flask import request
 

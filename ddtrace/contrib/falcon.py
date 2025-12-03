@@ -44,6 +44,7 @@ Example::
 
 :ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 """
+
 from ddtrace.contrib.internal.falcon.middleware import TraceMiddleware
 
 

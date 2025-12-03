@@ -1,7 +1,9 @@
 import asyncio
 import hashlib
 import json
+import logging
 import subprocess
+import time
 from urllib.parse import parse_qs
 
 from fastapi import FastAPI
@@ -9,6 +11,11 @@ from fastapi import Form
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from fastapi.responses import Response
+from fastapi.responses import StreamingResponse
+import requests
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import RequestResponseEndpoint
+from starlette.responses import PlainTextResponse
 import urllib3
 import uvicorn
 
@@ -16,8 +23,39 @@ from ddtrace import tracer
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 
 
+logger = logging.getLogger()
+
+
+class RequestLogMiddleware(BaseHTTPMiddleware):
+    """
+    A Starlette middleware that logs all HTTP requests.
+    """
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        t1 = time.time()
+        response = await call_next(request)
+        logattrs = {
+            "http.method": request.method,
+            "http.referer": request.headers.get("Referer", ""),
+            "http.useragent": request.headers.get("User-Agent", ""),
+            "http.version": f"HTTP/{request.scope['http_version']}",
+            "http.url_details.scheme": request.url.scheme,
+            "http.url_details.host": (request.client.host if request.client is not None else None),
+            "http.url_details.path": request.url.path,
+            "http.status_code": response.status_code,
+            "http.duration": time.time() - t1,
+            "http.client_cert_san": request.headers.get("dd-downstream-uri-san", "_VALUE_MISSING_"),
+        }
+        msg = "http request complete"
+
+        logger.warning(msg, extra=logattrs)
+
+        return response
+
+
 def get_app():
     app = FastAPI()
+    app.add_middleware(RequestLogMiddleware)
 
     @app.get("/")
     async def index():
@@ -66,6 +104,24 @@ def get_app():
         subp.communicate()
         subp.wait()
         return Response(content="OK")
+
+    @app.post("/iast/ssrf/test_secure", response_class=PlainTextResponse)
+    async def view_iast_ssrf_secure(url: str = Form(...)):
+        from urllib.parse import urlparse
+
+        # Validate the URL and enforce whitelist
+        allowed_domains = ["example.com", "api.example.com", "www.datadoghq.com", "localhost"]
+        if type(url) == bytes:
+            url = url.decode("utf-8")
+        parsed_url = urlparse(url)
+        if parsed_url.hostname not in allowed_domains:
+            return PlainTextResponse("Forbidden", status_code=403)
+        try:
+            requests.get(parsed_url.geturl())
+        except Exception:
+            pass
+
+        return "OK"
 
     @app.get("/iast-cmdi-vulnerability-secure")
     async def cmdi_secure(filename: str):
@@ -192,6 +248,38 @@ def get_app():
         # Sending a GET request and getting back response as HTTPResponse object.
         response = http_.request("GET", f"http://0.0.0.0:{port}/returnheaders")
         return response.data
+
+    @app.get("/iast-stream")
+    async def iast_stream(data: str = "stream_data"):
+        """Test endpoint for streaming response with IAST.
+
+        Returns a streaming response using tainted data to test IAST with streaming.
+        """
+
+        async def stream_generator():
+            # Yield tainted data in chunks
+            yield data.encode()
+            yield b" "
+            yield b"streamed"
+
+        return StreamingResponse(stream_generator(), media_type="text/plain")
+
+    @app.post("/iast-stream-cmdi")
+    async def iast_stream_cmdi(command: str = Form(...)):
+        """Test endpoint for streaming response with CMDI vulnerability.
+
+        Accepts form data and uses it in a command injection sink, then returns streaming response.
+        """
+        # Trigger CMDI vulnerability
+        subp = subprocess.Popen(args=["ls", "-la", command])
+        subp.communicate()
+        subp.wait()
+
+        async def stream_generator():
+            yield b"Command executed: "
+            yield command.encode()
+
+        return StreamingResponse(stream_generator(), media_type="text/plain")
 
     return app
 

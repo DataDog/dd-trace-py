@@ -3,6 +3,7 @@ oauthlib==3.2.2
 
 https://pypi.org/project/oauthlib/
 """
+
 from flask import Blueprint
 from flask import request
 

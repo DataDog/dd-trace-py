@@ -1,9 +1,4 @@
 ---
-description: 
-globs: 
-alwaysApply: false
----
----
 description: dd-trace-py repository structure
 globs: 
 alwaysApply: false

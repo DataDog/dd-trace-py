@@ -194,27 +194,6 @@ def test_inject_tags_unicode(tracer):  # noqa: F811
         assert tags == set(["_dd.p.test=unicode"])
 
 
-def test_inject_tags_bytes(tracer):  # noqa: F811
-    """We properly encode when the meta key as long as it is just ascii characters"""
-    # Context._meta allows str and bytes for keys
-    # FIXME: W3C does not support byte headers
-    overrides = {
-        "_propagation_style_extract": [PROPAGATION_STYLE_DATADOG],
-        "_propagation_style_inject": [PROPAGATION_STYLE_DATADOG],
-    }
-    with override_global_config(overrides):
-        meta = {"_dd.p.test": b"bytes"}
-        ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
-        tracer.context_provider.activate(ctx)
-        with tracer.trace("global_root_span") as span:
-            headers = {}
-            HTTPPropagator.inject(span.context, headers)
-
-            # The ordering is non-deterministic, so compare as a list of tags
-            tags = set(headers[_HTTP_HEADER_TAGS].split(","))
-            assert tags == set(["_dd.p.test=bytes"])
-
-
 def test_inject_tags_unicode_error(tracer):  # noqa: F811
     """Unicode characters are not allowed"""
     meta = {"_dd.p.test": "unicode value ☺️"}
@@ -324,7 +303,10 @@ def test_extract(tracer):  # noqa: F811
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
-    tracer, sca_enabled, appsec_enabled, iast_enabled  # noqa: F811
+    tracer,  # noqa: F811
+    sca_enabled,
+    appsec_enabled,
+    iast_enabled,  # noqa: F811
 ):
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
@@ -382,7 +364,10 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
-    tracer, sca_enabled, appsec_enabled, iast_enabled  # noqa: F811
+    tracer,  # noqa: F811
+    sca_enabled,
+    appsec_enabled,
+    iast_enabled,  # noqa: F811
 ):
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
@@ -461,7 +446,10 @@ def test_asm_standalone_missing_propagation_tags_appsec_event_present_trace_kept
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
-    tracer, sca_enabled, appsec_enabled, iast_enabled  # noqa: F811
+    tracer,  # noqa: F811
+    sca_enabled,
+    appsec_enabled,
+    iast_enabled,  # noqa: F811
 ):
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
@@ -569,7 +557,11 @@ def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_user_keep(
-    tracer, upstream_priority, sca_enabled, appsec_enabled, iast_enabled  # noqa: F811
+    tracer,  # noqa: F811
+    upstream_priority,
+    sca_enabled,
+    appsec_enabled,
+    iast_enabled,  # noqa: F811
 ):
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
@@ -637,7 +629,11 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
 def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_force_keep(
-    tracer, upstream_priority, sca_enabled, appsec_enabled, iast_enabled  # noqa: F811
+    tracer,  # noqa: F811
+    upstream_priority,
+    sca_enabled,
+    appsec_enabled,
+    iast_enabled,  # noqa: F811
 ):
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
@@ -2589,9 +2585,7 @@ else:
       "sampling_priority": context.sampling_priority,
       "dd_origin": context.dd_origin,
     }}))
-    """.format(
-        headers
-    )
+    """.format(headers)
     env = os.environ.copy()
     if styles is not None:
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
@@ -3293,9 +3287,7 @@ headers = {{}}
 HTTPPropagator.inject(context, headers)
 
 print(json.dumps(headers))
-    """.format(
-        context
-    )
+    """.format(context)
 
     env = os.environ.copy()
     if styles is not None:
@@ -3360,9 +3352,7 @@ headers = {{}}
 HTTPPropagator.inject(context, headers)
 
 print(json.dumps(headers))
-    """.format(
-        context
-    )
+    """.format(context)
 
     env = os.environ.copy()
     if styles is not None:
@@ -3443,9 +3433,9 @@ def test_baggageheader_maxbytes_inject():
     # multiple baggage items to test dropping items when the total size exceeds the limit
     headers = {}
     baggage_items = {
-        "key1": "a" * ((DD_TRACE_BAGGAGE_MAX_BYTES // 3)),
-        "key2": "b" * ((DD_TRACE_BAGGAGE_MAX_BYTES // 3)),
-        "key3": "c" * ((DD_TRACE_BAGGAGE_MAX_BYTES // 3)),
+        "key1": "a" * (DD_TRACE_BAGGAGE_MAX_BYTES // 3),
+        "key2": "b" * (DD_TRACE_BAGGAGE_MAX_BYTES // 3),
+        "key3": "c" * (DD_TRACE_BAGGAGE_MAX_BYTES // 3),
         "key4": "d",
     }
     span_context = Context(baggage=baggage_items)
@@ -3515,22 +3505,6 @@ def test_http_propagator_baggage_extract(headers):
     assert context._baggage == {"key1": "val1", "key2": "val2", "foo": "bar", "x": "y"}
 
 
-@pytest.mark.subprocess(
-    env=dict(DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED="True"),
-    parametrize=dict(DD_TRACE_PROPAGATION_EXTRACT_FIRST=["True", "False"]),
-)
-def test_opentracer_propagator_baggage_extract():
-    from ddtrace.propagation.http import HTTPPropagator
-
-    headers = {
-        "x-datadog-trace-id": "1234",
-        "x-datadog-parent-id": "5678",
-        "http_ot_baggage_key1": "value1",
-    }
-    context = HTTPPropagator.extract(headers)
-    assert context._baggage == {"key1": "value1"}
-
-
 def test_baggage_span_tags_default():
     headers = {"baggage": "user.id=123,correlation_id=abc,region=us-east"}
     context = HTTPPropagator.extract(headers)
@@ -3595,84 +3569,6 @@ def test_baggage_span_tags_wildcard():
     assert "baggage.session.id" not in context._meta
 
 
-def test_inject_non_active_span_parameter_deprecated():
-    """Test that the non_active_span parameter triggers a deprecation warning."""
-    headers = {}
-    with ddtracer.start_span("non_active_span") as span:
-        assert span.context.sampling_priority is None  # No sampling decision yet
-        with pytest.warns() as warnings_list:
-            HTTPPropagator.inject(context=Context(), headers=headers, non_active_span=span)
-        assert span.context.sampling_priority is not None  # Sampling should be triggered
-    assert not headers, f"No headers should be injected, Context is empty: {headers}"
-
-    # Should capture exactly one deprecation warning
-    assert len(warnings_list) == 1
-    assert "non_active_span parameter is deprecated" in str(warnings_list[0].message)
-
-
-def test_inject_context_and_span_same_trace_deprecated():
-    """Test injecting Context + non_active_span from the same trace (parent-child)."""
-    headers = {}
-    with ddtracer.trace("parent") as parent:
-        with ddtracer.start_span("child", child_of=parent) as non_active_child:
-            assert non_active_child.context.sampling_priority is None  # No sampling yet
-            assert ddtracer.current_span() is not non_active_child  # Child is not active
-            with mock.patch("ddtrace.propagation.http.log.debug") as mock_debug, pytest.warns() as warnings_list:
-                HTTPPropagator.inject(
-                    context=non_active_child.context, headers=headers, non_active_span=non_active_child
-                )
-            # Sampling decision should be set on root span even when child is used for propagation
-            assert parent.context.sampling_priority is not None
-            assert non_active_child.context.sampling_priority is not None
-
-    mock_debug.assert_has_calls(
-        [
-            mock.call(
-                "%s sampled before propagating trace: span_context=%s",
-                non_active_child._local_root,
-                non_active_child.context,
-            )
-        ]
-    )
-    assert headers.get("x-datadog-sampling-priority") == str(parent.context.sampling_priority)
-    # Parent span info propagated (context takes precedence over non_active_span)
-    # Non_active_span is only used to make a sampling decision, not to inject headers.
-    assert headers.get("x-datadog-parent-id") == str(non_active_child.span_id)
-
-    # Should capture deprecation warning
-    assert len(warnings_list) == 1
-    assert "non_active_span parameter is deprecated" in str(warnings_list[0].message)
-
-
-def test_inject_context_and_span_different_trace_deprecated():
-    """Test injecting Context + non_active_span from completely different traces."""
-    headers = {}
-    with ddtracer.start_span("span1", child_of=None) as span1:
-        with ddtracer.start_span("span2", child_of=None) as span2:
-            with mock.patch("ddtrace.propagation.http.log.debug") as mock_debug, pytest.warns() as warnings_list:
-                HTTPPropagator.inject(context=span1.context, headers=headers, non_active_span=span2)
-
-    mock_debug.assert_has_calls(
-        [
-            mock.call(
-                "Sampling decision not available. Downstream spans will not inherit a sampling priority"
-                ": args=(context=%s, ..., non_active_span=%s) detected span context=%s",
-                span1.context,
-                span2,
-                span1.context,
-            )
-        ]
-    )
-
-    # Span1 span info propagated (context takes precedence over Span2)
-    # non_active_span parameter is only used to make a sampling decision, not to inject headers.
-    assert headers.get("x-datadog-parent-id") == str(span1.span_id)
-
-    # Should capture deprecation warning
-    assert len(warnings_list) == 1
-    assert "non_active_span parameter is deprecated" in str(warnings_list[0].message)
-
-
 def test_inject_context_without_sampling_priority_active_trace():
     """Test injecting a Context without sampling priority when there's an active trace."""
     headers = {}
@@ -3709,9 +3605,8 @@ def test_inject_context_without_sampling_priority_inactive_trace():
         [
             mock.call(
                 "Sampling decision not available. Downstream spans will not inherit a sampling priority"
-                ": args=(context=%s, ..., non_active_span=%s) detected span context=%s",
+                ": args=(context=%s, ...) detected span context=%s",
                 span.context,
-                None,
                 span.context,
             )
         ]

@@ -3,6 +3,7 @@ pytz==2024.1
 
 https://pypi.org/project/pytz/
 """
+
 from flask import Blueprint
 from flask import request
 

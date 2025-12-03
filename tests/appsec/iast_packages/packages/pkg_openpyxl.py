@@ -3,6 +3,7 @@ openpyxl==3.0.10
 
 https://pypi.org/project/openpyxl/
 """
+
 import os
 
 from flask import Blueprint

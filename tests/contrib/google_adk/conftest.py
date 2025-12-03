@@ -124,7 +124,7 @@ async def setup_test_agent():
     # Wrap Python callables as tools the agent can invoke
     tools = [
         FunctionTool(func=search_docs),
-        FunctionTool(func=multiply),
+        multiply,
     ]
 
     # Enable code execution so the model can emit code blocks that get executed

@@ -116,20 +116,20 @@ def traced_receive(func, instance, args, kwargs):
         service=pin.service,
         span_type=SpanTypes.WORKER,
     ) as s:
-        s.set_tag_str(COMPONENT, config.kombu.integration_name)
+        s._set_tag_str(COMPONENT, config.kombu.integration_name)
 
         # set span.kind to the type of operation being performed
-        s.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+        s._set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
 
         # PERF: avoid setting via Span.set_tag
         s.set_metric(_SPAN_MEASURED_KEY, 1)
         # run the command
         exchange = message.delivery_info["exchange"]
         s.resource = exchange
-        s.set_tag_str(kombux.EXCHANGE, exchange)
+        s._set_tag_str(kombux.EXCHANGE, exchange)
 
         s.set_tags(extract_conn_tags(message.channel.connection))
-        s.set_tag_str(kombux.ROUTING_KEY, message.delivery_info["routing_key"])
+        s._set_tag_str(kombux.ROUTING_KEY, message.delivery_info["routing_key"])
         result = func(*args, **kwargs)
         core.dispatch("kombu.amqp.receive.post", [instance, message, s])
         return result
@@ -145,19 +145,19 @@ def traced_publish(func, instance, args, kwargs):
         service=pin.service,
         span_type=SpanTypes.WORKER,
     ) as s:
-        s.set_tag_str(COMPONENT, config.kombu.integration_name)
+        s._set_tag_str(COMPONENT, config.kombu.integration_name)
 
         # set span.kind to the type of operation being performed
-        s.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+        s._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
         # PERF: avoid setting via Span.set_tag
         s.set_metric(_SPAN_MEASURED_KEY, 1)
         exchange_name = get_exchange_from_args(args)
         s.resource = exchange_name
-        s.set_tag_str(kombux.EXCHANGE, exchange_name)
+        s._set_tag_str(kombux.EXCHANGE, exchange_name)
         if pin.tags:
             s.set_tags(pin.tags)
-        s.set_tag_str(kombux.ROUTING_KEY, get_routing_key_from_args(args))
+        s._set_tag_str(kombux.ROUTING_KEY, get_routing_key_from_args(args))
         s.set_tags(extract_conn_tags(instance.channel.connection))
         s.set_metric(kombux.BODY_LEN, get_body_length_from_args(args))
         # run the command

@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Code Origin for Spans: Outgoing requests are no longer included with code origin for spans.

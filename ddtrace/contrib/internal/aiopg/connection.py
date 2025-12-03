@@ -40,11 +40,11 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             resource=resource,
             span_type=SpanTypes.SQL,
         ) as s:
-            s.set_tag_str(COMPONENT, config.aiopg.integration_name)
-            s.set_tag_str(db.SYSTEM, "postgresql")
+            s._set_tag_str(COMPONENT, config.aiopg.integration_name)
+            s._set_tag_str(db.SYSTEM, "postgresql")
 
             # set span.kind to the type of request being performed
-            s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            s._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             # PERF: avoid setting via Span.set_tag
             s.set_metric(_SPAN_MEASURED_KEY, 1)

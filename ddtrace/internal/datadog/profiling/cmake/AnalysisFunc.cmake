@@ -1,9 +1,9 @@
 include(CheckIPOSupported)
 
 function(add_ddup_config target)
-    # Profiling native extensions are built with C++17, even though underlying repo adheres to the manylinux 2014
+    # Profiling native extensions are built with C++20, even though underlying repo adheres to the manylinux 2014
     # standard. This isn't currently a problem, but if it becomes one, we may have to structure the library differently.
-    target_compile_features(${target} PUBLIC cxx_std_17)
+    target_compile_features(${target} PUBLIC cxx_std_20)
 
     # Common compile options
     target_compile_options(

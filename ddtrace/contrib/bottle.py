@@ -32,6 +32,7 @@ Example::
     config.bottle['distributed_tracing'] = True
 
 """
+
 from ddtrace.contrib.internal.bottle.trace import TracePlugin
 
 

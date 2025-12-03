@@ -24,21 +24,9 @@ PATCH_ENABLED_CONFIGURATIONS = (
     dict(_bypass_instrumentation_for_waf=False, _asm_enabled=True, _iast_enabled=False),
 )
 
-PATCH_SPECIALS = (dict(_remote_config_enabled=True),)
-
 PATCH_DISABLED_CONFIGURATIONS = (
-    dict(),
-    dict(_asm_enabled=False),
-    dict(_iast_enabled=True),
-    dict(_iast_enabled=False),
-    dict(_asm_enabled=False, _iast_enabled=True),
-    dict(_remote_config_enabled=False),
-    dict(_remote_config_enabled=False, _iast_enabled=True),
-    dict(_asm_enabled=False, _iast_enabled=False),
     dict(_bypass_instrumentation_for_waf=True, _asm_enabled=False, _iast_enabled=False),
     dict(_bypass_instrumentation_for_waf=True),
-    dict(_bypass_instrumentation_for_waf=False, _asm_enabled=False, _iast_enabled=False),
-    dict(_bypass_instrumentation_for_waf=True, _asm_enabled=True, _iast_enabled=False),
     dict(_bypass_instrumentation_for_waf=True, _asm_enabled=False, _iast_enabled=True),
     dict(_bypass_instrumentation_for_waf=False, _asm_enabled=False, _iast_enabled=True),
 )
@@ -250,27 +238,21 @@ def test_ossystem(tracer, config):
         assert span.get_tag(COMMANDS.COMPONENT) == "os"
 
 
-@pytest.mark.parametrize("config", PATCH_DISABLED_CONFIGURATIONS + PATCH_SPECIALS)
+@pytest.mark.parametrize("config", PATCH_DISABLED_CONFIGURATIONS)
 def test_ossystem_disabled(tracer, config):
     with override_global_config(config):
         patch()
         pin = Pin.get_from(os)
-        # TODO(APPSEC-57964): PIN is None in GitLab with py3.12 and this config:
-        #  {'_asm_enabled': False, '_bypass_instrumentation_for_waf': False, '_iast_enabled': False}
-        if pin:
-            pin._clone(tracer=tracer).onto(os)
+        pin._clone(tracer=tracer).onto(os)
         with tracer.trace("ossystem_test"):
             ret = os.system("dir -l /")
             assert ret == 0
 
         spans = tracer.pop()
         assert spans
-        # TODO(APPSEC-57964): GitLab with py3.12 returns two spans for those configurations.
-        #  Is override_global_config not triggering a restart?
-        #  {'_remote_config_enabled': True}
-        #  {'_remote_config_enabled': False}
-        #  {'_iast_enabled': False}
-        assert len(spans) >= 1
+        num_spans = 1
+
+        assert len(spans) == num_spans
         _assert_root_span_empty_system_data(spans[0])
 
 

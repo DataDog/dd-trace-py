@@ -353,9 +353,10 @@ def update_wheel_with_stripped_dynamic_libraries(wheel_path: str, temp_dir: str)
     temp_wheel_path = f"{wheel_path}.tmp"
 
     # Create new wheel with stripped dynamic library files
-    with zipfile.ZipFile(wheel_path, "r") as source_wheel, zipfile.ZipFile(
-        temp_wheel_path, "w", zipfile.ZIP_DEFLATED
-    ) as temp_wheel:
+    with (
+        zipfile.ZipFile(wheel_path, "r") as source_wheel,
+        zipfile.ZipFile(temp_wheel_path, "w", zipfile.ZIP_DEFLATED) as temp_wheel,
+    ):
         for file_info in source_wheel.infolist():
             if file_info.filename.endswith(".so") or file_info.filename.endswith(".dylib"):
                 # Replace with stripped version, preserving directory structure

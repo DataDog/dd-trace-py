@@ -90,8 +90,7 @@ class RagasContextPrecisionEvaluator(BaseRagasEvaluator):
                 ctx_precision_inputs = self._extract_evaluation_inputs_from_span(span_event)
                 if ctx_precision_inputs is None:
                     logger.debug(
-                        "Failed to extract evaluation inputs from "
-                        "span sampled for `ragas_context_precision` evaluation"
+                        "Failed to extract evaluation inputs from span sampled for `ragas_context_precision` evaluation"
                     )
                     return "fail_extract_context_precision_inputs", evaluation_metadata
 

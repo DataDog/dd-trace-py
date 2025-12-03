@@ -1,0 +1,226 @@
+id: ddtrace-version-import
+snapshots:
+  ddtrace.__version__:
+    labels:
+    - source: ddtrace.__version__
+      style: primary
+      start: 0
+      end: 19
+  from ddtrace import __version__:
+    labels:
+    - source: from ddtrace import __version__
+      style: primary
+      start: 0
+      end: 31
+  from ddtrace import __version__ as V:
+    labels:
+    - source: from ddtrace import __version__ as V
+      style: primary
+      start: 0
+      end: 36
+  from ddtrace import __version__ as V, config, tracer:
+    labels:
+    - source: from ddtrace import __version__ as V, config, tracer
+      style: primary
+      start: 0
+      end: 52
+  from ddtrace import __version__ as VERSION:
+    labels:
+    - source: from ddtrace import __version__ as VERSION
+      style: primary
+      start: 0
+      end: 42
+  from ddtrace import __version__ as VERSION, tracer:
+    labels:
+    - source: from ddtrace import __version__ as VERSION, tracer
+      style: primary
+      start: 0
+      end: 50
+  from ddtrace import __version__ as VERSION, tracer, config, pin:
+    labels:
+    - source: from ddtrace import __version__ as VERSION, tracer, config, pin
+      style: primary
+      start: 0
+      end: 63
+  from ddtrace import __version__, config:
+    labels:
+    - source: from ddtrace import __version__, config
+      style: primary
+      start: 0
+      end: 39
+  from ddtrace import __version__, config, tracer:
+    labels:
+    - source: from ddtrace import __version__, config, tracer
+      style: primary
+      start: 0
+      end: 47
+  from ddtrace import __version__, tracer:
+    labels:
+    - source: from ddtrace import __version__, tracer
+      style: primary
+      start: 0
+      end: 39
+  from ddtrace import __version__, tracer, config, pin:
+    labels:
+    - source: from ddtrace import __version__, tracer, config, pin
+      style: primary
+      start: 0
+      end: 52
+  from ddtrace import config, __version__:
+    labels:
+    - source: from ddtrace import config, __version__
+      style: primary
+      start: 0
+      end: 39
+  from ddtrace import config, __version__ as V:
+    labels:
+    - source: from ddtrace import config, __version__ as V
+      style: primary
+      start: 0
+      end: 44
+  from ddtrace import config, __version__ as V, tracer, pin:
+    labels:
+    - source: from ddtrace import config, __version__ as V, tracer, pin
+      style: primary
+      start: 0
+      end: 57
+  from ddtrace import config, __version__ as VERSION, tracer:
+    labels:
+    - source: from ddtrace import config, __version__ as VERSION, tracer
+      style: primary
+      start: 0
+      end: 58
+  from ddtrace import config, __version__, tracer:
+    labels:
+    - source: from ddtrace import config, __version__, tracer
+      style: primary
+      start: 0
+      end: 47
+  from ddtrace import config, __version__, tracer, pin:
+    labels:
+    - source: from ddtrace import config, __version__, tracer, pin
+      style: primary
+      start: 0
+      end: 52
+  from ddtrace import config, tracer, __version__:
+    labels:
+    - source: from ddtrace import config, tracer, __version__
+      style: primary
+      start: 0
+      end: 47
+  from ddtrace import config, tracer, __version__ as VERSION:
+    labels:
+    - source: from ddtrace import config, tracer, __version__ as VERSION
+      style: primary
+      start: 0
+      end: 58
+  from ddtrace import config, tracer, pin, __version__:
+    labels:
+    - source: from ddtrace import config, tracer, pin, __version__
+      style: primary
+      start: 0
+      end: 52
+  from ddtrace import config, tracer, pin, __version__ as V:
+    labels:
+    - source: from ddtrace import config, tracer, pin, __version__ as V
+      style: primary
+      start: 0
+      end: 57
+  ? |-
+    from ddtrace import tracer
+    version = ddtrace.__version__
+  : labels:
+    - source: ddtrace.__version__
+      style: primary
+      start: 37
+      end: 56
+  ? |
+    from ddtrace import tracer
+    version = ddtrace.__version__
+  : labels:
+    - source: ddtrace.__version__
+      style: primary
+      start: 37
+      end: 56
+  from ddtrace import tracer, __version__:
+    labels:
+    - source: from ddtrace import tracer, __version__
+      style: primary
+      start: 0
+      end: 39
+  from ddtrace import tracer, __version__ as VERSION:
+    labels:
+    - source: from ddtrace import tracer, __version__ as VERSION
+      style: primary
+      start: 0
+      end: 50
+  from ddtrace import tracer, config, __version__ as VERSION, pin, span:
+    labels:
+    - source: from ddtrace import tracer, config, __version__ as VERSION, pin, span
+      style: primary
+      start: 0
+      end: 69
+  from ddtrace import tracer, config, __version__, pin, span:
+    labels:
+    - source: from ddtrace import tracer, config, __version__, pin, span
+      style: primary
+      start: 0
+      end: 58
+  ? |
+    import ddtrace
+    compare = ddtrace.__version__ > "1.0"
+  : labels:
+    - source: ddtrace.__version__
+      style: primary
+      start: 25
+      end: 44
+  ? |
+    import ddtrace
+    config = {"version": ddtrace.__version__}
+  : labels:
+    - source: ddtrace.__version__
+      style: primary
+      start: 36
+      end: 55
+  ? |
+    import ddtrace
+    def get_version():
+      return ddtrace.__version__
+  : labels:
+    - source: ddtrace.__version__
+      style: primary
+      start: 43
+      end: 62
+  ? |
+    import ddtrace
+    if ddtrace.__version__:
+      pass
+  : labels:
+    - source: ddtrace.__version__
+      style: primary
+      start: 18
+      end: 37
+  ? |
+    import ddtrace
+    print(ddtrace.__version__)
+  : labels:
+    - source: ddtrace.__version__
+      style: primary
+      start: 21
+      end: 40
+  ? |-
+    import ddtrace
+    version = ddtrace.__version__
+  : labels:
+    - source: ddtrace.__version__
+      style: primary
+      start: 25
+      end: 44
+  ? |
+    import ddtrace
+    version = ddtrace.__version__
+  : labels:
+    - source: ddtrace.__version__
+      style: primary
+      start: 25
+      end: 44

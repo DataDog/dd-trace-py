@@ -3,6 +3,7 @@ frozenlist==1.4.1
 
 https://pypi.org/project/frozenlist/
 """
+
 from flask import Blueprint
 from flask import jsonify
 from flask import request

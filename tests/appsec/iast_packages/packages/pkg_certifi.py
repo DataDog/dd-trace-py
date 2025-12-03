@@ -3,6 +3,7 @@ certifi==2024.2.2
 
 https://pypi.org/project/certifi/
 """
+
 from flask import Blueprint
 from flask import request
 

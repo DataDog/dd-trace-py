@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Error Tracking: Modifies the way exception events are stored such that the exception id is stored instead of the exception object, to prevent TypeErrors with custom exception objects.

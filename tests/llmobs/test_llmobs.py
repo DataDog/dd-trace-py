@@ -500,20 +500,6 @@ def test_structured_prompt_data_v2(llmobs, llmobs_backend):
     }
 
 
-def test_structured_io_data_unserializable(llmobs, llmobs_backend):
-    class CustomObj:
-        pass
-
-    expected_repr = '"<tests.llmobs.test_llmobs.test_structured_io_data_unserializable.<locals>.CustomObj object at 0x'
-    for m in [llmobs.workflow, llmobs.task, llmobs.llm, llmobs.retrieval]:
-        with m() as span:
-            llmobs.annotate(span, input_data=CustomObj(), output_data=CustomObj())
-        events = llmobs_backend.wait_for_num_events(num=1)
-        assert len(events) == 1
-        assert expected_repr in events[0][0]["spans"][0]["meta"]["input"]["value"]
-        assert expected_repr in events[0][0]["spans"][0]["meta"]["output"]["value"]
-
-
 def test_annotate_with_tool_definitions(llmobs, llmobs_backend):
     """Test that tool_definitions parameter is correctly set on spans."""
     tool_definitions = [

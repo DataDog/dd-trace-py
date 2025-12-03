@@ -6,7 +6,7 @@ from typing import List
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast.reporter import Vulnerability
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -31,7 +31,7 @@ try:
             return
 
         # looking for IAST data in the span
-        dict_data = ddspan.get_struct_tag(IAST.STRUCT)
+        dict_data = ddspan._get_struct_tag(IAST.STRUCT)
         if dict_data is None:
             data = ddspan.get_tag(IAST.JSON)
             if data is None:

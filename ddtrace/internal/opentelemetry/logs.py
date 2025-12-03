@@ -8,9 +8,9 @@ import opentelemetry.version
 from ddtrace import config
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.settings._opentelemetry import otel_config
 
 
 log = get_logger(__name__)
@@ -21,9 +21,6 @@ API_VERSION = tuple(int(x) for x in opentelemetry.version.__version__.split(".")
 
 DEFAULT_PROTOCOL = "grpc"
 DD_LOGS_PROVIDER_CONFIGURED = False
-GRPC_PORT = 4317
-HTTP_PORT = 4318
-HTTP_LOGS_ENDPOINT = "/v1/logs"
 
 
 def set_otel_logs_provider() -> None:
@@ -145,7 +142,7 @@ def _import_exporter(protocol):
             from opentelemetry.exporter.otlp.proto.http.version import __version__ as exporter_version
         else:
             log.warning(
-                "OpenTelemetry Logs exporter protocol '%s' is not supported. " "Use 'grpc' or 'http/protobuf'.",
+                "OpenTelemetry Logs exporter protocol '%s' is not supported. Use 'grpc' or 'http/protobuf'.",
                 protocol,
             )
             return None
@@ -160,7 +157,7 @@ def _import_exporter(protocol):
             )
             return None
 
-        return _dd_logs_exporter(OTLPLogExporter, protocol, "protobuf")
+        return _dd_logs_exporter(OTLPLogExporter, protocol.split("/")[0], "protobuf")
 
     except ImportError as e:
         log.warning(
@@ -178,9 +175,9 @@ def _initialize_logging(exporter_class, protocol, resource):
     try:
         from opentelemetry.sdk._configuration import _init_logging
 
-        # Ensure logging exporter is configured to send payloads to a Datadog Agent.
-        # The default endpoint is resolved using the hostname from DD_AGENT.. and DD_TRACE_AGENT_... configs
-        os.environ["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"] = otel_config.exporter.LOGS_ENDPOINT
+        # Ensure logs exporter is configured to send payloads to a Datadog Agent.
+        if "OTEL_EXPORTER_OTLP_ENDPOINT" not in os.environ and "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT" not in os.environ:
+            os.environ["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"] = otel_config.exporter.LOGS_ENDPOINT
         _init_logging({protocol: exporter_class}, resource=resource)
         return True
     except ImportError as e:

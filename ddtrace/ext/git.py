@@ -206,6 +206,7 @@ def _unshallow_repository_with_details(
         "--update-shallow",
         "--filter=blob:none",
         "--recurse-submodules=no",
+        "--no-tags",
     ]
     if repo is not None:
         cmd.append(repo)

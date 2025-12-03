@@ -75,8 +75,8 @@ class Session:
         return self._counts.get(probe_id, 0)
 
     @classmethod
-    def from_trace(cls) -> t.List["Session"]:
-        return SessionManager.get_sessions_for_trace()
+    def from_trace(cls, trace_context: t.Optional[t.Any] = None) -> t.List["Session"]:
+        return SessionManager.get_sessions_for_trace(trace_context)
 
     @classmethod
     def lookup(cls, ident: SessionId) -> t.Optional["Session"]:
@@ -88,9 +88,9 @@ class Session:
 
 
 class SessionManager:
-    _sessions_trace_map: t.MutableMapping[
-        t.Any, t.Dict[SessionId, Session]
-    ] = wkdict()  # Trace context to Sessions mapping
+    _sessions_trace_map: t.MutableMapping[t.Any, t.Dict[SessionId, Session]] = (
+        wkdict()
+    )  # Trace context to Sessions mapping
 
     @classmethod
     def link_session_to_trace(cls, session: Session, trace_context: t.Optional[t.Any] = None) -> None:
@@ -112,12 +112,12 @@ class SessionManager:
         cls._sessions_trace_map.get(context, {}).pop(session.ident, None)
 
     @classmethod
-    def get_sessions_for_trace(cls) -> t.List[Session]:
-        context = tracer.current_trace_context()
-        if context is None:
-            return []
-
-        return list(cls._sessions_trace_map.get(context, {}).values())
+    def get_sessions_for_trace(cls, trace_context: t.Optional[t.Any] = None) -> t.List[Session]:
+        return (
+            list(cls._sessions_trace_map.get(context, {}).values())
+            if cls._sessions_trace_map and (context := (trace_context or tracer.current_trace_context())) is not None
+            else []
+        )
 
     @classmethod
     def lookup_session(cls, ident: SessionId) -> t.Optional[Session]:

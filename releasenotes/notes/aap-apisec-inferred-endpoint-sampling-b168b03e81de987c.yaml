@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    AAP: API Security schema collection is now supported in AWS Lambda behind an Application Load Balancer or the Lambda Function URL service where the endpoint cannot be reliably known. API Security reuses the endpoint inferred by the trace resource renaming feature or recomputes it when it is not available to perform sampling instead.

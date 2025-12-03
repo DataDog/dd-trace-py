@@ -9,6 +9,7 @@ import pytest
 
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+from ddtrace.internal.ci_visibility.errors import CIVisibilityAPIServerError
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
 from ddtrace.internal.utils.http import Response
 from tests.ci_visibility.api_client._util import TestTestVisibilityAPIClientBase
@@ -129,7 +130,7 @@ class TestTestVisibilityAPIClientSettingResponses(TestTestVisibilityAPIClientBas
             [socket.timeout, socket.timeout],
             [RemoteDisconnected, RemoteDisconnected],
             [Response(403), CIVisibilityAuthenticationException],
-            [Response(500), ValueError],
+            [Response(500), CIVisibilityAPIServerError],
             [Response(200, "this is not json"), JSONDecodeError],
             [Response(200, '{"valid_json": "invalid_structure"}'), KeyError],
             [Response(200, '{"errors": "there was an error"}'), ValueError],
@@ -138,8 +139,10 @@ class TestTestVisibilityAPIClientSettingResponses(TestTestVisibilityAPIClientBas
     def test_civisibility_api_client_setting_errors(self, do_request_side_effect, expected_exception):
         """Tests that the client reports errors correctly based on the API response"""
         client = self._get_test_client()
-        with mock.patch.object(client, "_do_request", side_effect=[do_request_side_effect]), pytest.raises(
-            expected_exception
+        with (
+            mock.patch.object(client, "_do_request", side_effect=[do_request_side_effect] * 5),
+            pytest.raises(expected_exception),
+            mock.patch("ddtrace.internal.ci_visibility.utils.sleep"),
         ):
             settings = client.fetch_settings(read_from_cache=False)
             assert settings is None

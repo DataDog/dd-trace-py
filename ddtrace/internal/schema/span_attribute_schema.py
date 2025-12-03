@@ -4,7 +4,7 @@ from typing import Dict
 from typing import Optional
 
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.settings._inferred_base_service import detect_service
+from ddtrace.internal.settings._inferred_base_service import detect_service
 
 
 class SpanDirection(Enum):

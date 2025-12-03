@@ -270,8 +270,10 @@ def load_data_value(value):
         return [load_data_value(item) for item in value]
     elif isinstance(value, dict):
         return {str(k): load_data_value(v) for k, v in value.items()}
+    elif isinstance(value, type):
+        return value.__name__
     elif hasattr(value, "model_dump"):
-        return value.model_dump()
+        return value.model_dump(exclude_none=True)
     elif is_dataclass(value):
         return asdict(value)
     elif isinstance(value, (int, float, str, bool)) or value is None:

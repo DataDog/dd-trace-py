@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# --- utility: ensure uv exists ---
+ensure_uv() {
+  if command -v uv >/dev/null 2>&1; then
+    return 0
+  fi
+
+  # Common install locations
+  local CANDIDATE_PATHS=(
+    "$HOME/.local/bin"
+    "$HOME/.cargo/bin"
+  )
+
+  for path in "${CANDIDATE_PATHS[@]}"; do
+    if [[ -x "$path/uv" ]]; then
+      export PATH="$path:$PATH"
+      return 0
+    fi
+  done
+
+  # Try to install if still missing
+  echo "[uv-run-script] uv not found, installing..."
+  if [[ "$OSTYPE" == "darwin"* ]] || command -v brew >/dev/null 2>&1; then
+    echo "[uv-run-script] Installing via Homebrew..."
+    brew install uv
+  else
+    echo "[uv-run-script] Installing via installer script..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+  fi
+
+  # Recheck after install — maybe it landed in .local/bin
+  for path in "${CANDIDATE_PATHS[@]}"; do
+    if [[ -x "$path/uv" ]]; then
+      export PATH="$path:$PATH"
+      return 0
+    fi
+  done
+
+  echo "[uv-run-script] ERROR: uv installation failed or not found in PATH."
+  return 1
+}
+
+# --- main logic ---
+if ! ensure_uv; then
+  exit 1
+fi
+
+TARGET_SCRIPT="$1"
+shift
+
+exec uv run --script "$TARGET_SCRIPT" "$@"

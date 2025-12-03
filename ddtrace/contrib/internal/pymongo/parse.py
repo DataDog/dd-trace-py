@@ -51,7 +51,7 @@ class Command(object):
         self.query = None
 
     def __repr__(self):
-        return ("Command(" "name=%s," "db=%s," "coll=%s)") % (self.name, self.db, self.coll)
+        return ("Command(name=%s,db=%s,coll=%s)") % (self.name, self.db, self.coll)
 
 
 def parse_msg(msg_bytes):

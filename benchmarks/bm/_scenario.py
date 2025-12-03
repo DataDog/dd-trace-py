@@ -97,5 +97,4 @@ class Scenario:
             next(rungen)
         except StopIteration:
             pass
-        finally:
-            return dt  # noqa: B012
+        return dt

@@ -3,6 +3,7 @@ urllib3==2.31.0
 
 https://pypi.org/project/urllib3/
 """
+
 from flask import Blueprint
 from flask import request
 

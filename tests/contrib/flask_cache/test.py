@@ -5,7 +5,6 @@ from ddtrace.contrib.internal.flask_cache.patch import CACHE_BACKEND
 from ddtrace.contrib.internal.flask_cache.patch import get_traced_cache
 from ddtrace.ext import net
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_dict_issuperset
 from tests.utils import assert_is_measured
@@ -317,44 +316,6 @@ class FlaskCacheTest(TracerTestCase):
             self.assertEqual(span.get_tag(net.TARGET_HOST), "127.0.0.1")
             self.assertEqual(span.get_metric("network.destination.port"), self.TEST_MEMCACHED_PORT)
 
-    def test_simple_cache_get_ot(self):
-        """OpenTracing version of test_simple_cache_get."""
-        ot_tracer = init_tracer("my_svc", self.tracer)
-
-        # create the TracedCache instance for a Flask app
-        Cache = get_traced_cache(self.tracer, service=self.SERVICE)
-        app = Flask(__name__)
-        cache = Cache(app, config={"CACHE_TYPE": "simple"})
-
-        with ot_tracer.start_active_span("ot_span"):
-            cache.get("á_complex_operation")
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 2)
-        ot_span, dd_span = spans
-
-        # confirm the parenting
-        self.assertIsNone(ot_span.parent_id)
-        self.assertEqual(dd_span.parent_id, ot_span.span_id)
-
-        self.assertEqual(ot_span.resource, "ot_span")
-        self.assertEqual(ot_span.service, "my_svc")
-
-        assert_is_measured(dd_span)
-        self.assertEqual(dd_span.service, self.SERVICE)
-        self.assertEqual(dd_span.resource, "get")
-        self.assertEqual(dd_span.name, "flask_cache.cmd")
-        self.assertEqual(dd_span.span_type, "cache")
-        self.assertEqual(dd_span.error, 0)
-
-        expected_meta = {
-            "flask_cache.key": "á_complex_operation",
-            "flask_cache.backend": "simple",
-            "component": "flask_cache",
-        }
-
-        assert_dict_issuperset(dd_span.get_tags(), expected_meta)
-
 
 class TestFlaskCacheSchematization(TracerTestCase):
     TEST_REDIS_PORT = REDIS_CONFIG["port"]
@@ -451,9 +412,9 @@ class TestFlaskCacheSchematization(TracerTestCase):
         spans = self.get_spans()
 
         for span in spans:
-            assert (
-                span.service == DEFAULT_SPAN_SERVICE_NAME
-            ), "Expected service name to be 'internal.schema.DEFAULT_SEVICE_NAME' but was '{}'".format(span.service)
+            assert span.service == DEFAULT_SPAN_SERVICE_NAME, (
+                "Expected service name to be 'internal.schema.DEFAULT_SEVICE_NAME' but was '{}'".format(span.service)
+            )
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematization_operation_name_v0(self):
@@ -481,6 +442,6 @@ class TestFlaskCacheSchematization(TracerTestCase):
         spans = self.get_spans()
 
         for span in spans:
-            assert (
-                span.name == "flask_cache.command"
-            ), "Expected span name to be 'flask_cache.command' but was '{}'".format(span.name)
+            assert span.name == "flask_cache.command", (
+                "Expected span name to be 'flask_cache.command' but was '{}'".format(span.name)
+            )

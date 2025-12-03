@@ -3,10 +3,9 @@ from time import sleep
 
 from mock.mock import ANY
 
+from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
-from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 from tests.utils import override_global_config
 
 
@@ -14,11 +13,11 @@ def _assert_metric(
     test_agent,
     expected_metrics,
     namespace=TELEMETRY_NAMESPACE.TRACERS,
-    type_paypload=TELEMETRY_TYPE_GENERATE_METRICS,
+    type_payload=TELEMETRY_EVENT_TYPE.METRICS,
 ):
     assert len(expected_metrics) > 0, "expected_metrics should not be empty"
     test_agent.telemetry_writer.periodic(force_flush=True)
-    metrics_events = test_agent.get_events(type_paypload)
+    metrics_events = test_agent.get_events(type_payload.value)
     assert len(metrics_events) > 0, "captured metrics events should not be empty"
 
     metrics = []
@@ -201,100 +200,6 @@ def test_send_tracers_count_metric(telemetry_writer, test_agent_session, mock_ti
     _assert_metric(test_agent_session, expected_series)
 
 
-def test_send_appsec_rate_metric(telemetry_writer, test_agent_session, mock_time):
-    telemetry_writer.add_rate_metric(
-        TELEMETRY_NAMESPACE.APPSEC,
-        "test-metric",
-        6,
-        (("hi", "HELLO"), ("NAME", "CANDY")),
-    )
-    telemetry_writer.add_rate_metric(TELEMETRY_NAMESPACE.APPSEC, "test-metric", 6, tuple())
-    telemetry_writer.add_rate_metric(TELEMETRY_NAMESPACE.APPSEC, "test-metric", 6, tuple())
-
-    expected_series = [
-        {
-            "common": True,
-            "interval": 10,
-            "metric": "test-metric",
-            "points": [[1642544540, 0.6]],
-            "tags": ["hi:hello", "name:candy"],
-            "type": "rate",
-        },
-        {
-            "common": True,
-            "interval": 10,
-            "metric": "test-metric",
-            "points": [[1642544540, 1.2]],
-            "tags": [],
-            "type": "rate",
-        },
-    ]
-
-    _assert_metric(test_agent_session, expected_series, namespace=TELEMETRY_NAMESPACE.APPSEC)
-
-
-def test_send_appsec_gauge_metric(telemetry_writer, test_agent_session, mock_time):
-    telemetry_writer.add_gauge_metric(
-        TELEMETRY_NAMESPACE.APPSEC,
-        "test-metric",
-        5,
-        (
-            ("hi", "HELLO"),
-            ("NAME", "CANDY"),
-        ),
-    )
-    telemetry_writer.add_gauge_metric(TELEMETRY_NAMESPACE.APPSEC, "test-metric", 5, (("a", "b"),))
-    telemetry_writer.add_gauge_metric(TELEMETRY_NAMESPACE.APPSEC, "test-metric", 6, tuple())
-
-    expected_series = [
-        {
-            "common": True,
-            "interval": 10,
-            "metric": "test-metric",
-            "points": [[1642544540, 5.0]],
-            "tags": ["hi:hello", "name:candy"],
-            "type": "gauge",
-        },
-        {
-            "common": True,
-            "interval": 10,
-            "metric": "test-metric",
-            "points": [[1642544540, 5.0]],
-            "tags": ["a:b"],
-            "type": "gauge",
-        },
-        {
-            "common": True,
-            "interval": 10,
-            "metric": "test-metric",
-            "points": [[1642544540, 6.0]],
-            "tags": [],
-            "type": "gauge",
-        },
-    ]
-    _assert_metric(test_agent_session, expected_series, namespace=TELEMETRY_NAMESPACE.APPSEC)
-
-
-def test_send_appsec_distributions_metric(telemetry_writer, test_agent_session, mock_time):
-    telemetry_writer.add_distribution_metric(TELEMETRY_NAMESPACE.APPSEC, "test-metric", 4, tuple())
-    telemetry_writer.add_distribution_metric(TELEMETRY_NAMESPACE.APPSEC, "test-metric", 5, tuple())
-    telemetry_writer.add_distribution_metric(TELEMETRY_NAMESPACE.APPSEC, "test-metric", 6, tuple())
-
-    expected_series = [
-        {
-            "metric": "test-metric",
-            "points": [4.0, 5.0, 6.0],
-            "tags": [],
-        }
-    ]
-    _assert_metric(
-        test_agent_session,
-        expected_series,
-        namespace=TELEMETRY_NAMESPACE.APPSEC,
-        type_paypload=TELEMETRY_TYPE_DISTRIBUTION,
-    )
-
-
 def test_send_metric_flush_and_distributions_series_is_restarted(telemetry_writer, test_agent_session, mock_time):
     """Check the queue of metrics is empty after run periodic method of PeriodicService"""
     telemetry_writer.add_distribution_metric(TELEMETRY_NAMESPACE.APPSEC, "test-metric", 4, tuple())
@@ -312,7 +217,7 @@ def test_send_metric_flush_and_distributions_series_is_restarted(telemetry_write
         test_agent_session,
         expected_series,
         namespace=TELEMETRY_NAMESPACE.APPSEC,
-        type_paypload=TELEMETRY_TYPE_DISTRIBUTION,
+        type_payload=TELEMETRY_EVENT_TYPE.DISTRIBUTIONS,
     )
 
     expected_series = [
@@ -329,7 +234,7 @@ def test_send_metric_flush_and_distributions_series_is_restarted(telemetry_write
         test_agent_session,
         expected_series,
         namespace=TELEMETRY_NAMESPACE.APPSEC,
-        type_paypload=TELEMETRY_TYPE_DISTRIBUTION,
+        type_payload=TELEMETRY_EVENT_TYPE.DISTRIBUTIONS,
     )
 
 

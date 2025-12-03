@@ -1,14 +1,11 @@
 Dependency,Version Specifier,Python Version
-bytecode,>=0.17.0,python_version>='3.14.0'
-bytecode,>=0.16.0,python_version>='3.13.0'
-bytecode,>=0.15.1,python_version~='3.12.0'
-bytecode,>=0.14.0,python_version~='3.11.0'
-bytecode,>=0.13.0,python_version<'3.11'
+bytecode,">=0.17.0,<1",python_version>='3.14.0'
+bytecode,">=0.16.0,<1",python_version>='3.13.0'
+bytecode,">=0.15.1,<1",python_version~='3.12.0'
+bytecode,">=0.14.0,<1",python_version~='3.11.0'
+bytecode,">=0.13.0,<1",python_version<'3.11'
 envier,~=0.6.1,
-legacy-cgi,>=2.0.0,python_version>='3.13.0'
-opentelemetry-api,>=1,
-protobuf,>=3,
-wrapt,>=1,
-opentracing,>=2.0.0,
-opentelemetry-exporter-otlp,>=1.0.0,
-tiktoken,,
+opentelemetry-api,">=1,<2",
+wrapt,">=1,<3",
+opentracing,">=2,<3",
+opentelemetry-exporter-otlp,">=1,<2",

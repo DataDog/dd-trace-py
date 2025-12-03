@@ -1,0 +1,117 @@
+interactions:
+- request:
+    body: '{"input":"solve 8x + 31 = 2","model":"gpt-4o-2024-08-06","text":{"format":{"type":"json_schema","strict":true,"name":"MathResponse","schema":{"$defs":{"Step":{"properties":{"explanation":{"title":"Explanation","type":"string"},"output":{"title":"Output","type":"string"}},"required":["explanation","output"],"title":"Step","type":"object","additionalProperties":false}},"properties":{"steps":{"items":{"$ref":"#/$defs/Step"},"title":"Steps","type":"array"},"final_answer":{"title":"Final
+      Answer","type":"string"}},"required":["steps","final_answer"],"title":"MathResponse","type":"object","additionalProperties":false}}}}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '621'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.109.1
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - Linux
+      x-stainless-package-version:
+      - 1.109.1
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.18
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA5RWy67bNhDd+ysINrvaiSQ/ZSCLAGl3RYtmeXUhjMSRzVxKVMiRcw3D/16IsvWw
+        ZSPdGPKc4Zn3kKcJY1wKvmXcoC1jT2Doz/3Ew3CDgAvPX21wk6brNIAs3fjhMlwH8yX4i5VYJvPl
+        fM2nNYVOvmNKVxpdWGzkqUEgFDHUmL9eed5m7a8WDrMEVNn6TKrzUiGhaA4lkL7tjK6K2q8MlMVG
+        LJWSxY5v2WnCGGO8hCOa+rzAAypdouETxs5OGY3RNVZUSjmBLK5WYoEEUtkhaslUKUldDOQ5vMe6
+        orKimPQb3oOktYpTUEO6XAtUtWe7kmYLPQu8YDHzNjNvdUmXo+Rb9uIiaeJpK5Hb3eNCCE+kXl2I
+        TRB6q0UYLiHwV8ukKYRjoWOJjgethR12wKOMOzDVBWHROdV3bEB7zQe+U3vaKUBRaIJrDl9eB6DS
+        u9LoZARxRFvGTxG3hKWN+PblFHF8LxUUji7i24h/qxIykBKb+ywzOmeJpj2zUqBlpJm0WgEhoz0y
+        QpOzn5L27P1jxKfRxWVHs3lnv9cUs/rnMwvcR8TP0zGTMi+VzI59UzpzJvBH5fTG+D+zWRA+oPwq
+        D1JgnzA5sk0dgNXqgCzTZsRpxxlFUZQZSE9BeD5tzhE/v04jnskCVAyF/YnmmS5vU36+fLVV4EYr
+        V1mwVlqCghrlWtEp8RIMKIVq2O5kqmYyS4MHqSsbX4c/do3cjkNpdF5SnEK6x/gNj33MIFhdDOYa
+        s0wb6inVrVvlOZjryXbMLWRIx1gKLEhmEgcjb9EcZIoxyeuayKBSTdNyS9rgYL8Q5iUaoMrJ/Y/e
+        Req68+Japk0O3f/eVHy3uohtusccupkSaFMjy7r6g3AY4wXk7txfQPt/+zuzCbch2vYmkH8QmNmB
+        iDH+jbC8kTUJL9GQRHuH1fntenIErmOS1DTEHz3N6YjeJXZLpi7gjcL59kS39p7Z/LtR+v/mJk+M
+        c4M/KmlQDNbbSD4e+TwQv96Qt767atyC17XZXJE3KAgha8Og/unXzHXlZCy4XmCPy9ws0vu+kIT5
+        aEt8MJjVTv72yXXZJxfI04QOYraPggZj4NgnGtAMlte9t62JP2s19qVRe2DpvinGc/agES4Ze+zd
+        ZKT4nYejU/ys+L9S+HPv4jbSPa/qlTvpYfyAJtFW0rG58IWs8u4R1GzrvZZpU4yKNG+B7ibmpMu4
+        dz97rbDsL0JTFel1aXAhLSTq+mKr3Duj3ZKyGDyYfH8+vQd6z7B2mbobQnQnvUGstw+xMBwDxnjb
+        S+YRNWkC1YGBH7RJrOzwVsmRQAC55XyenP8DAAD//wMADkZzXEILAAA=
+    headers:
+      CF-RAY:
+      - 98c4f5a539f79ed0-CDG
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Fri, 10 Oct 2025 09:06:09 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=uvY.QOYRC07m8jW6QBiQ6T0xzmUwnYVVu3pKMXsGOGU-1760087169-1.0.1.1-WzBEBiYycqeFaJSIyWSYjAmXCtvFr_7IlL0LBJqx3s4aMgSG9rpeG6PXdX8eC57btRirh8pjNaByEaQjD5E1kEqG1kf676WRQ._jEOis9eI;
+        path=/; expires=Fri, 10-Oct-25 09:36:09 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=W1tN3RMMss.p5kXcqOerpFsr9lvOxv8Fcq65OCyPYec-1760087169417-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '5206'
+      openai-project:
+      - proj_6cMiry5CHgK3zKotG0LtMb9H
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '5213'
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '30000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '29999868'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_94e0885b4e444ea1a6d442a4db2bb5af
+    status:
+      code: 200
+      message: OK
+version: 1

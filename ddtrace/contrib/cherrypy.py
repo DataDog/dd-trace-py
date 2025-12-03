@@ -52,6 +52,7 @@ Here is the end result, in a sample app::
 
     cherrypy.quickstart(HelloWorld())
 """
+
 from ddtrace.contrib.internal.cherrypy.patch import TraceMiddleware
 
 

@@ -26,10 +26,15 @@ from tests.utils import override_global_config
 )
 class TestLLMObsBedrock:
     @staticmethod
-    def expected_llmobs_span_event(span, n_output, message=False, metadata=None, token_metrics=None):
+    def expected_llmobs_span_event(
+        span, n_output, input_message=False, output_message=False, metadata=None, token_metrics=None
+    ):
         expected_input = [{"content": mock.ANY}]
-        if message:
+        if input_message:
             expected_input = [{"content": mock.ANY, "role": "user"}]
+        expected_output = []
+        if output_message:
+            expected_output = [{"content": mock.ANY} for _ in range(n_output)]
 
         # Use empty dicts as defaults for _expected_llmobs_llm_span_event to avoid None issues
         expected_parameters = metadata if metadata is not None else {}
@@ -40,7 +45,7 @@ class TestLLMObsBedrock:
             model_name=span.get_tag("bedrock.request.model"),
             model_provider=span.get_tag("bedrock.request.model_provider"),
             input_messages=expected_input,
-            output_messages=[{"content": mock.ANY} for _ in range(n_output)],
+            output_messages=expected_output,
             metadata=expected_parameters,
             token_metrics=expected_token_metrics,
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
@@ -86,7 +91,7 @@ class TestLLMObsBedrock:
 
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == cls.expected_llmobs_span_event(
-            span, n_output, message="message" in provider, metadata=expected_metadata
+            span, n_output, input_message="message" in provider, output_message=True, metadata=expected_metadata
         )
         LLMObs.disable()
 
@@ -121,7 +126,7 @@ class TestLLMObsBedrock:
 
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == cls.expected_llmobs_span_event(
-            span, n_output, message="message" in provider, metadata=expected_metadata
+            span, n_output, input_message="message" in provider, output_message=True, metadata=expected_metadata
         )
 
     def test_llmobs_ai21_invoke(self, ddtrace_global_config, bedrock_client, mock_tracer, llmobs_events):
@@ -155,6 +160,24 @@ class TestLLMObsBedrock:
 
     def test_llmobs_meta_invoke(self, ddtrace_global_config, bedrock_client, mock_tracer, llmobs_events):
         self._test_llmobs_invoke("meta", bedrock_client, mock_tracer, llmobs_events)
+
+    def test_llmobs_cohere_rerank_invoke(self, ddtrace_global_config, bedrock_client, mock_tracer, llmobs_events):
+        cassette_name = "cohere_rerank_invoke.yaml"
+        model = "cohere.rerank-v3-5:0"
+        prompt_data = "What is the capital of the United States?"
+        documents = [
+            "Carson City is the capital city of the American state of Nevada.",
+            "The Commonwealth of the Northern Mariana Islands's capital is Saipan.",
+        ]
+        body = json.dumps({"query": prompt_data, "documents": documents, "api_version": 2, "top_n": 3})
+        with get_request_vcr().use_cassette(cassette_name):
+            response = bedrock_client.invoke_model(body=body, modelId=model)
+            json.loads(response.get("body").read())
+        span = mock_tracer.pop_traces()[0][0]
+
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == self.expected_llmobs_span_event(span, 1)
+        LLMObs.disable()
 
     def test_llmobs_amazon_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_tracer, llmobs_events):
         self._test_llmobs_invoke_stream("amazon", bedrock_client, mock_tracer, llmobs_events)
@@ -430,18 +453,21 @@ class TestLLMObsBedrock:
             {"cachePoint": {"type": "default"}},
         ]
         with request_vcr.use_cassette("bedrock_converse_prompt_caching.yaml"):
-            _, _ = bedrock_client.converse(
-                **create_bedrock_converse_request(
-                    system=large_system_content,
-                    user_message="What is a service",
-                    modelId="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
-                )
-            ), bedrock_client.converse(
-                **create_bedrock_converse_request(
-                    system=large_system_content,
-                    user_message="What is a ml app",
-                    modelId="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
-                )
+            _, _ = (
+                bedrock_client.converse(
+                    **create_bedrock_converse_request(
+                        system=large_system_content,
+                        user_message="What is a service",
+                        modelId="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                    )
+                ),
+                bedrock_client.converse(
+                    **create_bedrock_converse_request(
+                        system=large_system_content,
+                        user_message="What is a ml app",
+                        modelId="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                    )
+                ),
             )
             assert len(llmobs_events) == 2
             spans = mock_tracer.pop_traces()

@@ -1,3 +1,5 @@
+import json
+
 import mock
 import pytest
 
@@ -828,3 +830,23 @@ def test_generator_exit_exception_sync(llmobs, llmobs_events):
         error_message=span.get_tag("error.message"),
         error_stack=span.get_tag("error.stack"),
     )
+
+
+@pytest.mark.parametrize(
+    "decorator",
+    [task, tool, workflow, agent],
+    ids=["task", "tool", "workflow", "agent"],
+)
+def test_generator_for_class_does_not_annotate_self(llmobs, llmobs_events, decorator):
+    class TestClass:
+        @decorator
+        def add(self, a: int, b: int) -> int:
+            return a + b
+
+    test_class = TestClass()
+    test_class.add(1, 2)
+
+    assert len(llmobs_events) == 1
+
+    input_value = json.loads(llmobs_events[0]["meta"]["input"]["value"])
+    assert input_value == {"a": 1, "b": 2}

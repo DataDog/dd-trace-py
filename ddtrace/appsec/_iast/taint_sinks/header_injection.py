@@ -54,6 +54,7 @@ General notes:
 This module implements taint sink detection to track and block cases where tainted data
 is passed to header-setting APIs without proper sanitization.
 """  # noqa: D301
+
 import typing
 from typing import Text
 
@@ -71,7 +72,7 @@ from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.appsec._iast.taint_sinks.unvalidated_redirect import _iast_report_unvalidated_redirect
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)

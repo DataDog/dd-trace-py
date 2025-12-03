@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: uploading snapshots now retries on all HTTP error codes.

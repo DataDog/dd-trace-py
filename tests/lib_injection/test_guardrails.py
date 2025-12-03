@@ -28,9 +28,7 @@ try:
 except ImportError:
     print("ddtrace not found")
     exit(1)
-""" % (
-        import_line
-    )
+""" % (import_line)
 
 
 TEST_CASES = [
@@ -131,9 +129,9 @@ def test_integration_compatibility_guardrail(
 
         expected_disabled_names = {d["name"] for d in expected_disabled_integrations}
         unexpectedly_disabled = all_disabled_integrations - expected_disabled_names
-        assert (
-            not unexpectedly_disabled
-        ), f"Found unexpected disabled integrations: {unexpectedly_disabled}. stderr: {stderr}"
+        assert not unexpectedly_disabled, (
+            f"Found unexpected disabled integrations: {unexpectedly_disabled}. stderr: {stderr}"
+        )
 
     except subprocess.CalledProcessError as e:
         pytest.fail(f"Subprocess failed:\\nExit Code: {e.returncode}\\nstdout:\\n{e.stdout}\\nstderr:\\n{e.stderr}")

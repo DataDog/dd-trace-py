@@ -41,9 +41,8 @@ def _resolve_source_file(_path: str) -> Optional[Path]:
     if path.is_file():
         return path.resolve()
 
-    for relpath in (path.relative_to(_) for _ in path.parents):
-        resolved_path = _resolve(relpath)
-        if resolved_path is not None:
+    for relpath in (path.relative_to(_) for _ in reversed(path.parents)):
+        if (resolved_path := _resolve(relpath)) is not None:
             return resolved_path
 
     return None
@@ -100,8 +99,7 @@ class Probe(abc.ABC):
 
 
 class AbstractProbeMixIn(abc.ABC):
-    def __post_init__(self):
-        ...
+    def __post_init__(self): ...
 
 
 @dataclass

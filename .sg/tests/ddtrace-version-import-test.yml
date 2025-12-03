@@ -1,0 +1,103 @@
+id: ddtrace-version-import
+valid:
+  # These should NOT trigger the rule (valid code)
+  # ============================================
+  # Direct import from ddtrace.version (correct way)
+  - from ddtrace.version import __version__
+  - from ddtrace.version import __version__ as VERSION
+  - from ddtrace.version import __version__ as VERSION, get_version
+  - from ddtrace.version import other, __version__
+  # Import version module and access __version__ via attribute (correct way)
+  - |
+    from ddtrace import version
+    v = version.__version__
+  - |
+    import ddtrace.version
+    v = ddtrace.version.__version__
+  - |
+    import ddtrace.version as ver
+    v = ver.__version__
+  - |
+    from ddtrace import version as ver
+    v = ver.__version__
+  - |
+    from ddtrace import version
+    print(version.__version__)
+  - |
+    from ddtrace import version as v
+    def get_version():
+      return v.__version__
+  - |
+    import ddtrace.version
+    if ddtrace.version.__version__:
+      pass
+  # Other imports from ddtrace (not __version__)
+  - from ddtrace import tracer
+  - from ddtrace import config, tracer
+  - from ddtrace import config, tracer, pin
+  - from ddtrace import tracer, config, pin, span
+  # Using __version__ that's defined locally (not imported from ddtrace)
+  - |
+    __version__ = "1.0.0"
+    print(__version__)
+
+invalid:
+  # These should trigger the rule (errors)
+  # ======================================
+  # Simple direct import cases
+  - from ddtrace import __version__
+  - from ddtrace import __version__ as VERSION
+  - from ddtrace import __version__ as V
+  # __version__ at beginning with other items
+  - from ddtrace import __version__, tracer
+  - from ddtrace import __version__, config
+  - from ddtrace import __version__, config, tracer
+  - from ddtrace import __version__, tracer, config, pin
+  # __version__ with alias at beginning with other items
+  - from ddtrace import __version__ as VERSION, tracer
+  - from ddtrace import __version__ as V, config, tracer
+  - from ddtrace import __version__ as VERSION, tracer, config, pin
+  # __version__ at end with other items
+  - from ddtrace import tracer, __version__
+  - from ddtrace import config, __version__
+  - from ddtrace import config, tracer, __version__
+  - from ddtrace import config, tracer, pin, __version__
+  # __version__ with alias at end with other items
+  - from ddtrace import tracer, __version__ as VERSION
+  - from ddtrace import config, __version__ as V
+  - from ddtrace import config, tracer, __version__ as VERSION
+  - from ddtrace import config, tracer, pin, __version__ as V
+  # __version__ in middle with other items (2 on each side)
+  - from ddtrace import config, __version__, tracer
+  - from ddtrace import config, __version__, tracer, pin
+  - from ddtrace import tracer, config, __version__, pin, span
+  # __version__ with alias in middle
+  - from ddtrace import config, __version__ as VERSION, tracer
+  - from ddtrace import config, __version__ as V, tracer, pin
+  - from ddtrace import tracer, config, __version__ as VERSION, pin, span
+  # Attribute access on ddtrace module (direct __version__ access)
+  - ddtrace.__version__
+  - |
+    import ddtrace
+    version = ddtrace.__version__
+  - |
+    from ddtrace import tracer
+    version = ddtrace.__version__
+  # ddtrace.__version__ in various contexts
+  - |
+    import ddtrace
+    print(ddtrace.__version__)
+  - |
+    import ddtrace
+    if ddtrace.__version__:
+      pass
+  - |
+    import ddtrace
+    compare = ddtrace.__version__ > "1.0"
+  - |
+    import ddtrace
+    config = {"version": ddtrace.__version__}
+  - |
+    import ddtrace
+    def get_version():
+      return ddtrace.__version__

@@ -4,7 +4,7 @@ import sqlalchemy
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace.contrib.internal.trace_utils import unwrap
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 from .engine import _wrap_create_engine
 

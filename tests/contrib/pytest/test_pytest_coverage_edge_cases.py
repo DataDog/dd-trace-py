@@ -27,12 +27,15 @@ def test_another_one():
         )
 
         # Mock coverage collection to raise an exception
-        with mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._coverage_collector_get_covered_lines",
-            side_effect=Exception("Coverage collection failed"),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(coverage_enabled=True),
+        with (
+            mock.patch(
+                "ddtrace.contrib.internal.pytest._plugin_v2._coverage_collector_get_covered_lines",
+                side_effect=Exception("Coverage collection failed"),
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(coverage_enabled=True),
+            ),
         ):
             rec = self.inline_run("--ddtrace")
 
@@ -139,21 +142,26 @@ def test_conditional_skip():
             nonlocal coverage_exit_call_count
             coverage_exit_call_count += 1
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(coverage_enabled=True),
-        ), mock.patch(
-            # "ddtrace.internal.coverage.code.ModuleCodeCollector.CollectInContext.get_covered_lines",
-            "ddtrace.contrib.internal.pytest._plugin_v2._coverage_collector_enter",
-            side_effect=count_coverage_enter_calls,
-        ), mock.patch(
-            # "ddtrace.internal.coverage.code.ModuleCodeCollector.CollectInContext.get_covered_lines",
-            "ddtrace.contrib.internal.pytest._plugin_v2._coverage_collector_exit",
-            side_effect=count_coverage_exit_calls,
-        ), mock.patch(
-            # "ddtrace.internal.coverage.code.ModuleCodeCollector.CollectInContext.get_covered_lines",
-            "ddtrace.contrib.internal.pytest._plugin_v2._coverage_collector_get_covered_lines",
-            side_effect=count_coverage_lines_calls,
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(coverage_enabled=True),
+            ),
+            mock.patch(
+                # "ddtrace.internal.coverage.code.ModuleCodeCollector.CollectInContext.get_covered_lines",
+                "ddtrace.contrib.internal.pytest._plugin_v2._coverage_collector_enter",
+                side_effect=count_coverage_enter_calls,
+            ),
+            mock.patch(
+                # "ddtrace.internal.coverage.code.ModuleCodeCollector.CollectInContext.get_covered_lines",
+                "ddtrace.contrib.internal.pytest._plugin_v2._coverage_collector_exit",
+                side_effect=count_coverage_exit_calls,
+            ),
+            mock.patch(
+                # "ddtrace.internal.coverage.code.ModuleCodeCollector.CollectInContext.get_covered_lines",
+                "ddtrace.contrib.internal.pytest._plugin_v2._coverage_collector_get_covered_lines",
+                side_effect=count_coverage_lines_calls,
+            ),
         ):
             rec = self.inline_run("--ddtrace")
 
@@ -204,12 +212,15 @@ def test_concurrent_3():
                     }
                 )
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(coverage_enabled=True),
-        ), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._handle_collected_coverage",
-            side_effect=thread_safe_coverage_handler,
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(coverage_enabled=True),
+            ),
+            mock.patch(
+                "ddtrace.contrib.internal.pytest._plugin_v2._handle_collected_coverage",
+                side_effect=thread_safe_coverage_handler,
+            ),
         ):
             rec = self.inline_run("--ddtrace")
 
@@ -217,9 +228,9 @@ def test_concurrent_3():
             rec.assertoutcome(passed=3, failed=0)
 
             # Verify thread safety - should have collected coverage for each test
-            assert (
-                len(collector_access_log) == 3
-            ), f"Expected at least 3 coverage collections, got {len(collector_access_log)}"
+            assert len(collector_access_log) == 3, (
+                f"Expected at least 3 coverage collections, got {len(collector_access_log)}"
+            )
 
             # Each coverage collection should have had access to the correct collector
             for log_entry in collector_access_log:
@@ -250,12 +261,15 @@ def test_worker_2():
             nonlocal coverage_call_count
             coverage_call_count += 1
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(coverage_enabled=True),
-        ), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._handle_collected_coverage",
-            side_effect=count_coverage_calls,
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(coverage_enabled=True),
+            ),
+            mock.patch(
+                "ddtrace.contrib.internal.pytest._plugin_v2._handle_collected_coverage",
+                side_effect=count_coverage_calls,
+            ),
         ):
             rec = self.inline_run("--ddtrace")
 
@@ -330,12 +344,15 @@ def test_good_2():
             # Other tests should work fine
             return None
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(coverage_enabled=True),
-        ), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._coverage_collector_get_covered_lines",
-            side_effect=selective_failure_handler,
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(coverage_enabled=True),
+            ),
+            mock.patch(
+                "ddtrace.contrib.internal.pytest._plugin_v2._coverage_collector_get_covered_lines",
+                side_effect=selective_failure_handler,
+            ),
         ):
             rec = self.inline_run("--ddtrace")
 

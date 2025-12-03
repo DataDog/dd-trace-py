@@ -1,11 +1,8 @@
 #include "sample.hpp"
 
-#include "code_provenance.hpp"
-
 #include <algorithm>
 #include <chrono>
 #include <string_view>
-#include <thread>
 
 Datadog::internal::StringArena::StringArena()
 {
@@ -119,11 +116,12 @@ Datadog::Sample::push_label(const ExportLabelKey key, int64_t val)
         return true;
     }
 
+    auto empty_string = to_slice("");
     auto& label = labels.emplace_back();
     label.key = to_slice(key_sv);
-    label.str = to_slice("");
+    label.str = empty_string;
     label.num = val;
-    label.num_unit = to_slice("");
+    label.num_unit = empty_string;
     return true;
 }
 
@@ -525,16 +523,10 @@ Datadog::Sample::is_timeline_enabled() const
     return timeline_enabled;
 }
 
-ddog_prof_Profile&
+Datadog::ProfileBorrow
 Datadog::Sample::profile_borrow()
 {
-    return profile_state.profile_borrow();
-}
-
-void
-Datadog::Sample::profile_release()
-{
-    profile_state.profile_release();
+    return profile_state.borrow();
 }
 
 void

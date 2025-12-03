@@ -1,4 +1,4 @@
-from ddtrace.settings.live_debugging import config
+from ddtrace.internal.settings.live_debugging import config
 
 
 # TODO[gab]: Uncomment when the product is ready

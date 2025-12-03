@@ -1,8 +1,6 @@
-#ifndef _DDTRACE_MEMALLOC_DEBUG_H
-#define _DDTRACE_MEMALLOC_DEBUG_H
+#pragma once
 
-#include <assert.h>
-#include <stdbool.h>
+#include <cassert>
 
 #include <Python.h>
 
@@ -17,47 +15,54 @@ memalloc_debug_gil_release(void)
 #endif
 }
 
-typedef struct
+class memalloc_gil_debug_check_t
 {
-    bool acquired;
-} memalloc_gil_debug_check_t;
+  public:
+    memalloc_gil_debug_check_t() = default;
 
-static void
-memalloc_gil_debug_check_init(memalloc_gil_debug_check_t* c)
-{
-    c->acquired = false;
-}
+    bool acquired = false;
+};
 
 #ifndef NDEBUG
-/* Annotate that we are beginning a critical section where we don't want other
- * memalloc code to run. If compiled assertions enabled, this will check that the
- * GIL is held and that the guard has not already been acquired elsewhere.
- *
- * This is a macro so we get file/line info where it's actually used */
-#define MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(c)                                                                            \
-    do {                                                                                                               \
-        memalloc_gil_debug_check_t* p = c;                                                                             \
-        assert(PyGILState_Check());                                                                                    \
-        assert(!p->acquired);                                                                                          \
-        p->acquired = true;                                                                                            \
-    } while (0)
+/* RAII guard for GIL debug checking. Automatically acquires the guard in the
+ * constructor and releases it in the destructor. */
+class memalloc_gil_debug_guard_t
+{
+  public:
+    explicit memalloc_gil_debug_guard_t(memalloc_gil_debug_check_t& guard)
+      : guard_(guard)
+    {
+        assert(PyGILState_Check());
+        assert(!guard_.acquired);
+        guard_.acquired = true;
+    }
 
-/* Annotate that we are ending a critical section where we don't want other
- * memalloc code to run. If compiled assertions enabled, this will check that the
- * guard is acquired.
- *
- * This is a macro so we get file/line info where it's actually used */
-#define MEMALLOC_GIL_DEBUG_CHECK_RELEASE(c)                                                                            \
-    do {                                                                                                               \
-        memalloc_gil_debug_check_t* p = c;                                                                             \
-        assert(p->acquired);                                                                                           \
-        p->acquired = false;                                                                                           \
-    } while (0)
+    ~memalloc_gil_debug_guard_t()
+    {
+        assert(guard_.acquired);
+        guard_.acquired = false;
+    }
+
+    // Non-copyable, non-movable
+    memalloc_gil_debug_guard_t(const memalloc_gil_debug_guard_t&) = delete;
+    memalloc_gil_debug_guard_t& operator=(const memalloc_gil_debug_guard_t&) = delete;
+    memalloc_gil_debug_guard_t(memalloc_gil_debug_guard_t&&) = delete;
+    memalloc_gil_debug_guard_t& operator=(memalloc_gil_debug_guard_t&&) = delete;
+
+  private:
+    memalloc_gil_debug_check_t& guard_;
+};
 #else
+/* In release builds, the guard is a no-op */
+class memalloc_gil_debug_guard_t
+{
+  public:
+    explicit memalloc_gil_debug_guard_t(memalloc_gil_debug_check_t&) {}
 
-#define MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(c)
-#define MEMALLOC_GIL_DEBUG_CHECK_RELEASE(c)
-
-#endif
-
+    // Non-copyable, non-movable
+    memalloc_gil_debug_guard_t(const memalloc_gil_debug_guard_t&) = delete;
+    memalloc_gil_debug_guard_t& operator=(const memalloc_gil_debug_guard_t&) = delete;
+    memalloc_gil_debug_guard_t(memalloc_gil_debug_guard_t&&) = delete;
+    memalloc_gil_debug_guard_t& operator=(memalloc_gil_debug_guard_t&&) = delete;
+};
 #endif

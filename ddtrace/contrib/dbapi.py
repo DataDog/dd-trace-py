@@ -1,6 +1,7 @@
 """
 Generic dbapi tracing code.
 """
+
 import wrapt
 
 from ddtrace import config
@@ -10,13 +11,13 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 
+from .._trace.pin import Pin
 from ..constants import _SPAN_MEASURED_KEY
 from ..constants import SPAN_KIND
 from ..ext import SpanKind
 from ..ext import SpanTypes
 from ..ext import db
 from ..ext import sql
-from ..trace import Pin
 from .internal.trace_utils import ext_service
 from .internal.trace_utils import iswrapped
 
@@ -95,10 +96,10 @@ class TracedCursor(wrapt.ObjectProxy):
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
-            s.set_tag_str(COMPONENT, self._self_config.integration_name)
+            s._set_tag_str(COMPONENT, self._self_config.integration_name)
 
             # set span.kind to the type of request being performed
-            s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            s._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             # Security and IAST validations
             core.dispatch("db_query_check", (args, kwargs, self._self_config.integration_name, method))
@@ -106,7 +107,7 @@ class TracedCursor(wrapt.ObjectProxy):
             # dispatch DBM
             if dbm_propagator:
                 # this check is necessary to prevent fetch methods from trying to add dbm propagation
-                result = core.dispatch_with_results(
+                result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
                     f"{self._self_config.integration_name}.execute", (self._self_config, s, args, kwargs)
                 ).result
                 if result:
@@ -295,10 +296,10 @@ class TracedConnection(wrapt.ObjectProxy):
             return method(*args, **kwargs)
 
         with pin.tracer.trace(name, service=ext_service(pin, self._self_config)) as s:
-            s.set_tag_str(COMPONENT, self._self_config.integration_name)
+            s._set_tag_str(COMPONENT, self._self_config.integration_name)
 
             # set span.kind to the type of request being performed
-            s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            s._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)

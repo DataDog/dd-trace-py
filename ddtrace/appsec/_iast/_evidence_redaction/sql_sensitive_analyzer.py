@@ -41,7 +41,19 @@ patterns[DBAPI_PYMYSQL] = patterns[DBAPI_MYSQL]
 patterns[DBAPI_MYSQLDB] = patterns[DBAPI_MYSQL]
 
 
-def sql_sensitive_analyzer(evidence, name_pattern, value_pattern):
+def sql_sensitive_analyzer(evidence, name_pattern, value_pattern, query_string_pattern=None):
+    """
+    SQL sensitive analyzer for evidence redaction.
+
+    Args:
+    - evidence: The evidence to analyze
+    - name_pattern: Pattern for matching sensitive names
+    - value_pattern: Pattern for matching sensitive values
+    - query_string_pattern: Query string obfuscation pattern (unused in SQL analyzer)
+
+    Returns:
+    - list: List of sensitive ranges to redact
+    """
     pattern = patterns.get(evidence.dialect, patterns[DBAPI_MYSQL])
     tokens = []
 

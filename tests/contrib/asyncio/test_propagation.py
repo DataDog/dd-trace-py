@@ -7,7 +7,6 @@ from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace.contrib.internal.asyncio.patch import patch
 from ddtrace.contrib.internal.asyncio.patch import unpatch
 from ddtrace.trace import Context
-from tests.opentracer.utils import init_tracer
 
 
 _orig_create_task = asyncio.BaseEventLoop.create_task
@@ -115,59 +114,3 @@ async def test_propagation_with_new_context(tracer):
     span = traces[0][0]
     assert span.trace_id == 100
     assert span.parent_id == 101
-
-
-@pytest.mark.asyncio
-async def test_trace_multiple_coroutines_ot_outer(tracer):
-    """OpenTracing version of test_trace_multiple_coroutines."""
-
-    # if multiple coroutines have nested tracing, they must belong
-    # to the same trace
-    async def coro():
-        # another traced coroutine
-        with tracer.trace("coroutine_2"):
-            return 42
-
-    ot_tracer = init_tracer("asyncio_svc", tracer)
-    with ot_tracer.start_active_span("coroutine_1"):
-        value = await coro()
-
-    # the coroutine has been called correctly
-    assert 42 == value
-    # a single trace has been properly reported
-    traces = tracer.pop_traces()
-    assert 1 == len(traces)
-    assert 2 == len(traces[0])
-    assert "coroutine_1" == traces[0][0].name
-    assert "coroutine_2" == traces[0][1].name
-    # the parenting is correct
-    assert traces[0][0] == traces[0][1]._parent
-    assert traces[0][0].trace_id == traces[0][1].trace_id
-
-
-@pytest.mark.asyncio
-async def test_trace_multiple_coroutines_ot_inner(tracer):
-    """OpenTracing version of test_trace_multiple_coroutines."""
-    # if multiple coroutines have nested tracing, they must belong
-    # to the same trace
-    ot_tracer = init_tracer("asyncio_svc", tracer)
-
-    async def coro():
-        # another traced coroutine
-        with ot_tracer.start_active_span("coroutine_2"):
-            return 42
-
-    with tracer.trace("coroutine_1"):
-        value = await coro()
-
-    # the coroutine has been called correctly
-    assert 42 == value
-    # a single trace has been properly reported
-    traces = tracer.pop_traces()
-    assert 1 == len(traces)
-    assert 2 == len(traces[0])
-    assert "coroutine_1" == traces[0][0].name
-    assert "coroutine_2" == traces[0][1].name
-    # the parenting is correct
-    assert traces[0][0] == traces[0][1]._parent
-    assert traces[0][0].trace_id == traces[0][1].trace_id
