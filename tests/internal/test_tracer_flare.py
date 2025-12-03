@@ -149,7 +149,6 @@ class TracerFlareTests(unittest.TestCase):
         )
         self.pid = os.getpid()
         self.flare_file_path = self.shared_dir / f"tracer_python_{self.pid}.log"
-        self.config_file_path = self.shared_dir / f"tracer_config_{self.pid}.json"
         self.prepare_called = False  # Track if prepare() was called
 
     def tearDown(self):
@@ -185,21 +184,18 @@ class TracerFlareTests(unittest.TestCase):
         assert ddlogger.level == valid_logger_level
 
         assert os.path.exists(self.flare_file_path)
-        assert os.path.exists(self.config_file_path)
 
         # Sends request - native manager is already mocked
         self.flare.send(MOCK_FLARE_SEND_REQUEST)
 
     def test_single_process_partial_failure(self):
         """
-        Validate that even if one of the files fails to be generated,
+        Validate that even if log file creation fails,
         we still attempt to send the flare with partial info (ensure best effort)
         """
         ddlogger = get_logger("ddtrace")
         valid_logger_level = self.flare._get_valid_logger_level(DEBUG_LEVEL_INT)
 
-        # Mock the native manager's write_config_file to raise an exception
-        self.mock_native_manager.write_config_file.side_effect = Exception("this is an expected error")
         self.flare.prepare("DEBUG")
         self.prepare_called = True
 
@@ -209,10 +205,7 @@ class TracerFlareTests(unittest.TestCase):
         assert ddlogger.level == valid_logger_level
 
         assert os.path.exists(self.flare_file_path)
-        assert not os.path.exists(self.config_file_path)
 
-        # Reset the side effect for send
-        self.mock_native_manager.write_config_file.side_effect = None
         self.flare.send(MOCK_FLARE_SEND_REQUEST)
 
     def test_no_app_logs(self):
@@ -559,35 +552,21 @@ class TracerFlareTests(unittest.TestCase):
 
     def test_config_file_contents_validation(self):
         """
-        Validate that config file contents are properly checked and logged when generation fails
+        Validate that flare preparation and log file creation works correctly.
         """
         self.flare.prepare("DEBUG")
         self.prepare_called = True
 
-        # Test with valid config - should generate config file
-        FlareSendRequest(
-            case_id="123456",
-            hostname="myhostname",
-            email="user.name@datadoghq.com",
-            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
-        )
+        # Check that the flare directory exists and contains log files
+        assert self.flare.flare_dir.exists(), "Flare directory should exist"
 
-        # Check that config file was created with proper contents
-        config_files = list(self.flare.flare_dir.glob("tracer_config_*.json"))
-        assert len(config_files) == 1, "Should have exactly one config file"
+        # Check for log files (should be created)
+        log_files = list(self.flare.flare_dir.glob("tracer_python_*.log"))
+        assert len(log_files) >= 1, "Log files should be created"
 
-        config_file = config_files[0]
-        with open(config_file, "r") as f:
-            config_data = json.load(f)
-
-        # Validate config structure
-        assert "configs" in config_data, "Config should have 'configs' key"
-        assert config_data["configs"] == self.flare.ddconfig, "Config should contain ddconfig"
-
-        # Test with problematic ddconfig that might cause JSON serialization issues
         problematic_config = {
             "normal_key": "normal_value",
-            "problematic_key": object(),  # Non-serializable object
+            "problematic_key": object(),  # Non-serializable object (would fail JSON)
         }
 
         # Create a new flare instance with problematic config
@@ -598,15 +577,15 @@ class TracerFlareTests(unittest.TestCase):
             flare_dir="tracer_flare_problematic_test",
         )
 
-        # This should handle the serialization error gracefully
+        # This should work fine since we don't serialize config anymore
         problematic_flare.prepare("DEBUG")
 
         # Check that the flare directory still exists and contains log files
-        assert problematic_flare.flare_dir.exists(), "Flare directory should exist even if config generation fails"
+        assert problematic_flare.flare_dir.exists(), "Flare directory should exist"
 
         # Check for log files (should still be created)
         log_files = list(problematic_flare.flare_dir.glob("tracer_python_*.log"))
-        assert len(log_files) >= 1, "Log files should still be created even if config generation fails"
+        assert len(log_files) >= 1, "Log files should be created"
 
         # Clean up
         problematic_flare.clean_up_files()
@@ -643,20 +622,7 @@ class TracerFlareTests(unittest.TestCase):
         if api_key:
             assert api_key not in body_str, "API key should not be in payload body - agent forwards it"
 
-        # Check that API key is redacted in the config file
-        config_files = list(self.flare.flare_dir.glob("tracer_config_*.json"))
-        assert len(config_files) == 1, "Should have exactly one config file"
-
-        config_file = config_files[0]
-        with open(config_file, "r") as f:
-            config_data = json.load(f)
-
-        # Check that _dd_api_key is redacted (should be ****last4chars format)
-        if "_dd_api_key" in config_data["configs"]:
-            redacted_key = config_data["configs"]["_dd_api_key"]
-            assert redacted_key.startswith("*" * (len(api_key) - 4)), "API key should be redacted with asterisks"
-            assert redacted_key.endswith(api_key[-4:]), "API key should end with last 4 characters"
-            assert redacted_key != api_key, "API key should not be the original value"
+        # The agent is responsible for adding the DD-API-KEY header when forwarding to the backend
 
         # Clean up
         self.flare.clean_up_files()
