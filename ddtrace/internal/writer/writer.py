@@ -1,6 +1,7 @@
 import abc
 import binascii
 from collections import defaultdict
+import functools
 import gzip
 import logging
 import os
@@ -12,6 +13,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import TextIO
+import weakref
 
 from ddtrace import config
 from ddtrace.internal import forksafe
@@ -76,6 +78,29 @@ class NoEncodableSpansError(Exception):
 # 2s timeout, the java tracer has a 10s timeout, so we set the window size
 # to 10 buckets of 1s duration.
 DEFAULT_SMA_WINDOW = 10
+
+
+def make_weak_method_hook(bound_method):
+    """
+    Wrap a bound method so that it is called via a weakref to its instance.
+    If the instance has been garbage-collected, the hook is a no-op.
+    """
+    if not hasattr(bound_method, "__self__") or bound_method.__self__ is None:
+        raise TypeError("make_weak_method_hook expects a bound method")
+
+    instance = bound_method.__self__
+    func = bound_method.__func__
+    instance_ref = weakref.ref(instance)
+
+    @functools.wraps(func)
+    def hook(*args, **kwargs):
+        inst = instance_ref()
+        if inst is None:
+            # The instance was garbage-collected
+            return
+        return func(inst, *args, **kwargs)
+
+    return hook
 
 
 def _human_size(nbytes: float) -> str:
@@ -778,7 +803,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._max_payload_size = max_payload_size
         self._test_session_token = test_session_token
 
-        forksafe.register_before_fork(self.before_fork)
+        fork_hook = make_weak_method_hook(self.before_fork)
+
+        forksafe.register_before_fork(fork_hook)
+        self._fork_hook = fork_hook
 
         self._clients = [client]
         self.dogstatsd = dogstatsd
@@ -1067,8 +1095,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     ) -> None:
         # FIXME: don't join() on stop(), let the caller handle this
         super(NativeWriter, self)._stop_service()
-        forksafe.unregister_before_fork(self.before_fork)
-        self._exporter.shutdown(int(timeout or 0))
+        forksafe.unregister_before_fork(self._fork_hook)
+        self.before_fork()
         self.join(timeout=timeout)
 
     def before_fork(self) -> None:
