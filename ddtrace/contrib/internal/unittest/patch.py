@@ -52,7 +52,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.settings._env import get_env as _get_env
+from ddtrace.settings import _env
 
 
 log = get_logger(__name__)
@@ -63,8 +63,8 @@ config._add(
     "unittest",
     dict(
         _default_service="unittest",
-        operation_name=_get_env("DD_UNITTEST_OPERATION_NAME", default="unittest.test"),
-        strict_naming=asbool(_get_env("DD_CIVISIBILITY_UNITTEST_STRICT_NAMING", default=True)),
+        operation_name=_env.getenv("DD_UNITTEST_OPERATION_NAME", default="unittest.test"),
+        strict_naming=asbool(_env.getenv("DD_CIVISIBILITY_UNITTEST_STRICT_NAMING", default=True)),
     ),
 )
 

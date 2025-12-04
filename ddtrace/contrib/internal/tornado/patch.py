@@ -8,7 +8,7 @@ from ddtrace import config
 from ddtrace.contrib.internal.tornado.stack_context import context_provider
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.settings._env import get_env as _get_env
+from ddtrace.settings import _env
 
 from . import application
 from . import decorators
@@ -19,7 +19,7 @@ from . import template
 config._add(
     "tornado",
     dict(
-        distributed_tracing=asbool(_get_env("DD_TORNADO_DISTRIBUTED_TRACING", default=True)),
+        distributed_tracing=asbool(_env.getenv("DD_TORNADO_DISTRIBUTED_TRACING", default=True)),
     ),
 )
 

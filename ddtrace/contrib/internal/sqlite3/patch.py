@@ -13,7 +13,7 @@ from ddtrace.ext import db
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings._env import get_env as _get_env
+from ddtrace.settings import _env
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -26,7 +26,7 @@ config._add(
         _default_service=schematize_service_name("sqlite"),
         _dbapi_span_name_prefix="sqlite",
         _dbapi_span_operation_name=schematize_database_operation("sqlite.query", database_provider="sqlite"),
-        trace_fetch_methods=asbool(_get_env("DD_SQLITE_TRACE_FETCH_METHODS", default=False)),
+        trace_fetch_methods=asbool(_env.getenv("DD_SQLITE_TRACE_FETCH_METHODS", default=False)),
     ),
 )
 

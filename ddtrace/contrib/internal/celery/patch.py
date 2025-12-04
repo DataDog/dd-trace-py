@@ -8,16 +8,16 @@ from ddtrace.contrib.internal.celery.app import unpatch_app
 from ddtrace.contrib.internal.celery.constants import PRODUCER_SERVICE
 from ddtrace.contrib.internal.celery.constants import WORKER_SERVICE
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings._env import get_env as _get_env
+from ddtrace.settings import _env
 
 
 # Celery default settings
 config._add(
     "celery",
     {
-        "distributed_tracing": asbool(_get_env("DD_CELERY_DISTRIBUTED_TRACING", default=False)),
-        "producer_service_name": _get_env("DD_CELERY_PRODUCER_SERVICE_NAME", default=PRODUCER_SERVICE),
-        "worker_service_name": _get_env("DD_CELERY_WORKER_SERVICE_NAME", default=WORKER_SERVICE),
+        "distributed_tracing": asbool(_env.getenv("DD_CELERY_DISTRIBUTED_TRACING", default=False)),
+        "producer_service_name": _env.getenv("DD_CELERY_PRODUCER_SERVICE_NAME", default=PRODUCER_SERVICE),
+        "worker_service_name": _env.getenv("DD_CELERY_WORKER_SERVICE_NAME", default=WORKER_SERVICE),
     },
 )
 

@@ -20,7 +20,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.settings._env import get_env as _get_env
+from ddtrace.settings import _env
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -32,9 +32,9 @@ config._add(
     "urllib3",
     {
         "_default_service": schematize_service_name("urllib3"),
-        "distributed_tracing": asbool(_get_env("DD_URLLIB3_DISTRIBUTED_TRACING", default=True)),
+        "distributed_tracing": asbool(_env.getenv("DD_URLLIB3_DISTRIBUTED_TRACING", default=True)),
         "default_http_tag_query_string": config._http_client_tag_query_string,
-        "split_by_domain": asbool(_get_env("DD_URLLIB3_SPLIT_BY_DOMAIN", default=False)),
+        "split_by_domain": asbool(_env.getenv("DD_URLLIB3_SPLIT_BY_DOMAIN", default=False)),
     },
 )
 

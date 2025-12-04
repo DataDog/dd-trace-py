@@ -16,14 +16,14 @@ from ddtrace.contrib.internal.vertexai._utils import VertexAIStreamHandler
 from ddtrace.llmobs._integrations import VertexAIIntegration
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
-from ddtrace.settings._env import get_env as _get_env
+from ddtrace.settings import _env
 
 
 config._add(
     "vertexai",
     {
-        "span_prompt_completion_sample_rate": float(_get_env("DD_VERTEXAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        "span_char_limit": int(_get_env("DD_VERTEXAI_SPAN_CHAR_LIMIT", 128)),
+        "span_prompt_completion_sample_rate": float(_env.getenv("DD_VERTEXAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
+        "span_char_limit": int(_env.getenv("DD_VERTEXAI_SPAN_CHAR_LIMIT", 128)),
     },
 )
 

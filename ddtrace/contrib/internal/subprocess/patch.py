@@ -21,8 +21,8 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.forksafe import RLock
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings import _env
 from ddtrace.settings._config import config
-from ddtrace.settings._env import get_env as _get_env
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -30,7 +30,7 @@ log = get_logger(__name__)
 
 config._add(
     "subprocess",
-    dict(sensitive_wildcards=_get_env("DD_SUBPROCESS_SENSITIVE_WILDCARDS", default="").split(",")),
+    dict(sensitive_wildcards=_env.getenv("DD_SUBPROCESS_SENSITIVE_WILDCARDS", default="").split(",")),
 )
 
 

@@ -23,7 +23,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.settings._env import get_env as _get_env
+from ddtrace.settings import _env
 
 from .constants import DEFAULT_SERVICE
 from .utils import HEADER_POS
@@ -43,8 +43,8 @@ def get_version():
 config._add(
     "kombu",
     {
-        "distributed_tracing_enabled": asbool(_get_env("DD_KOMBU_DISTRIBUTED_TRACING", default=True)),
-        "service_name": config.service or _get_env("DD_KOMBU_SERVICE_NAME", default=DEFAULT_SERVICE),
+        "distributed_tracing_enabled": asbool(_env.getenv("DD_KOMBU_DISTRIBUTED_TRACING", default=True)),
+        "service_name": config.service or _env.getenv("DD_KOMBU_SERVICE_NAME", default=DEFAULT_SERVICE),
     },
 )
 
@@ -80,7 +80,7 @@ def patch():
         prod_service = None
     # DEV: backwards-compatibility for users who set a kombu service
     else:
-        prod_service = _get_env("DD_KOMBU_SERVICE_NAME", default=DEFAULT_SERVICE)
+        prod_service = _env.getenv("DD_KOMBU_SERVICE_NAME", default=DEFAULT_SERVICE)
 
     Pin(
         service=schematize_service_name(prod_service),

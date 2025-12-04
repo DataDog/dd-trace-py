@@ -27,7 +27,7 @@ from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTPPropagator as Propagator
-from ddtrace.settings._env import get_env as _get_env
+from ddtrace.settings import _env
 
 
 _Producer = confluent_kafka.Producer
@@ -45,8 +45,8 @@ config._add(
     "kafka",
     dict(
         _default_service=schematize_service_name("kafka"),
-        distributed_tracing_enabled=asbool(_get_env("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
-        trace_empty_poll_enabled=asbool(_get_env("DD_KAFKA_EMPTY_POLL_ENABLED", default=True)),
+        distributed_tracing_enabled=asbool(_env.getenv("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
+        trace_empty_poll_enabled=asbool(_env.getenv("DD_KAFKA_EMPTY_POLL_ENABLED", default=True)),
     ),
 )
 
