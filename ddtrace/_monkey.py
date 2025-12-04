@@ -29,26 +29,6 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
-def _register_wrapt_pickle_reducers():
-    """Register pickle reducers for wrapt proxy types.
-
-    This enables serialization of ddtrace-wrapped objects by frameworks
-    like Ray that use cloudpickle. The reducer unwraps proxies to their
-    underlying objects - ddtrace will re-patch on the deserialization side.
-    """
-    import copyreg
-
-    import wrapt
-
-    def _reduce_wrapt_proxy(proxy):
-        # Return the wrapped object directly
-        return (lambda x: x, (proxy.__wrapped__,))
-
-    for cls in [wrapt.ObjectProxy, wrapt.FunctionWrapper, wrapt.BoundFunctionWrapper]:
-        if cls not in copyreg.dispatch_table:
-            copyreg.dispatch_table[cls] = _reduce_wrapt_proxy
-
-
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
     "aiokafka": True,
@@ -362,8 +342,6 @@ def patch_all(**patch_modules: bool) -> None:
 
 
 def _patch_all(**patch_modules: bool) -> None:
-    _register_wrapt_pickle_reducers()
-
     modules = PATCH_MODULES.copy()
 
     # The enabled setting can be overridden by environment variables
