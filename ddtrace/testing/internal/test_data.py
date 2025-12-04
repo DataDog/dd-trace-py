@@ -84,6 +84,9 @@ class TestItem(t.Generic[TParentClass, TChildClass]):
         self.set_final_tags()
         self.duration_ns = time.time_ns() - self.start_ns
 
+    def is_started(self) -> bool:
+        return self.start_ns is not None
+
     def is_finished(self) -> bool:
         return self.duration_ns is not None
 

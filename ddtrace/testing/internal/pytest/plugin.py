@@ -45,6 +45,7 @@ ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 
 SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
 
+TEST_FRAMEWORK = "pytest"
 
 log = logging.getLogger(__name__)
 
@@ -227,9 +228,17 @@ class TestOptPlugin:
         test_ref = nodeid_to_test_ref(item.nodeid)
         next_test_ref = nodeid_to_test_ref(nextitem.nodeid) if nextitem else None
 
-        test_module, test_suite, test = test_items = self._discover_test(item, test_ref)
-        for test_item in test_items:
-            test_item.ensure_started()
+        test_module, test_suite, test = self._discover_test(item, test_ref)
+
+        if not test_module.is_started():
+            test_module.start()
+            TelemetryAPI.get().record_module_created(test_framework=TEST_FRAMEWORK)
+
+        if not test_suite.is_started():
+            test_suite.start()
+            TelemetryAPI.get().record_suite_created(test_framework=TEST_FRAMEWORK)
+
+        test.start()
 
         self.tests_by_nodeid[item.nodeid] = test
 
@@ -243,10 +252,10 @@ class TestOptPlugin:
             item.user_properties += [("dd_quarantined", True)]
 
         with trace_context(self.enable_ddtrace) as context:
-            TelemetryAPI.get().record_coverage_started(test_framework="pytest", coverage_library="ddtrace")
+            TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
             with coverage_collection() as coverage_data:
                 yield
-            TelemetryAPI.get().record_coverage_finished(test_framework="pytest", coverage_library="ddtrace")
+            TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
 
         if not test.test_runs:
             # No test runs: our pytest_runtest_protocol did not run. This can happen if some other plugin (such as
@@ -277,10 +286,12 @@ class TestOptPlugin:
         if not next_test_ref or test_ref.suite != next_test_ref.suite:
             test_suite.finish()
             self.manager.writer.put_item(test_suite)
+            TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
 
         if not next_test_ref or test_ref.suite.module != next_test_ref.suite.module:
             test_module.finish()
             self.manager.writer.put_item(test_module)
+            TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
     @catch_and_log_exceptions()
     def pytest_runtest_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> bool:
@@ -296,7 +307,7 @@ class TestOptPlugin:
         test_run = test.make_test_run()
         test_run.start()
 
-        TelemetryAPI.get().record_test_created(test_framework="pytest", test_run=test_run)
+        TelemetryAPI.get().record_test_created(test_framework=TEST_FRAMEWORK, test_run=test_run)
 
         reports = _make_reports_dict(runtestprotocol(item, nextitem=nextitem, log=False))
         status, tags = self._get_test_outcome(item.nodeid)
@@ -305,7 +316,7 @@ class TestOptPlugin:
         test_run.set_context(context)
 
         TelemetryAPI.get().record_test_finished(
-            test_framework="pytest",
+            test_framework=TEST_FRAMEWORK,
             test_run=test_run,
             ci_provider_name=self.manager.env_tags.get(CITag.CI_PROVIDER_NAME),
             is_auto_injected=self.manager.is_auto_injected,
@@ -637,10 +648,10 @@ def pytest_load_initial_conftests(
 
     setup_logging()
 
-    session = TestSession(name="pytest")
+    session = TestSession(name=TEST_FRAMEWORK)
     session.set_attributes(
         test_command=_get_test_command(early_config),
-        test_framework="pytest",
+        test_framework=TEST_FRAMEWORK,
         test_framework_version=pytest.__version__,
     )
 

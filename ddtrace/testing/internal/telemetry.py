@@ -259,13 +259,27 @@ class TelemetryAPI:
         tags = (("event_type", EventType.MODULE), ("test_framework", test_framework))
         telemetry_writer.add_count_metric(CIVISIBILITY, "event_finished", 1, tags)
 
-    def record_session_created(self, test_framework: str) -> None:
-        tags = (("event_type", EventType.SESSION), ("test_framework", test_framework))
-        telemetry_writer.add_count_metric(CIVISIBILITY, "event_created", 1, tags)
+    def record_session_created(self, test_framework: str, has_codeowners: bool, is_unsupported_ci: bool) -> None:
+        tags = [("event_type", EventType.SESSION), ("test_framework", test_framework)]
+        if has_codeowners:
+            tags.append(("has_codeowners", "true"))
+        if is_unsupported_ci:
+            tags.append(("is_unsupported_ci", "true"))
 
-    def record_session_finished(self, test_framework: str) -> None:
-        tags = (("event_type", EventType.SESSION), ("test_framework", test_framework))
-        telemetry_writer.add_count_metric(CIVISIBILITY, "event_created", 1, tags)
+        telemetry_writer.add_count_metric(CIVISIBILITY, "event_created", 1, tuple(tags))
+
+    def record_session_finished(
+        self, test_framework: str, has_codeowners: bool, is_unsupported_ci: bool, efd_abort_reason: t.Optional[str]
+    ) -> None:
+        tags = [("event_type", EventType.SESSION), ("test_framework", test_framework)]
+        if has_codeowners:
+            tags.append(("has_codeowners", "true"))
+        if is_unsupported_ci:
+            tags.append(("is_unsupported_ci", "true"))
+        if efd_abort_reason:
+            tags.append(("early_flake_detection_abort_reason", efd_abort_reason))
+
+        telemetry_writer.add_count_metric(CIVISIBILITY, "event_finished", 1, tuple(tags))
 
 
 @dataclasses.dataclass
