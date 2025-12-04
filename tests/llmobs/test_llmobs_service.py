@@ -2237,7 +2237,5 @@ async def test_run_evaluations_with_faulty_evaluation(
     )
 
     mock_llmobs_logs.error.assert_called_once_with(
-        "Failed to submit evaluation metric %s for span %s",
-        "accuracy",
-        "test-span-123"
+        "Failed to submit evaluation metric %s for span %s", "accuracy", "test-span-123"
     )
