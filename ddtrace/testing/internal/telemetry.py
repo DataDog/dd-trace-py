@@ -62,6 +62,7 @@ class TelemetryAPI:
         # If we ever start having our own telemetry writer, we will have to handle this env var ourselves.
 
         self.writer = telemetry_writer
+        self.namespace = TELEMETRY_NAMESPACE.CIVISIBILITY
         TelemetryAPI._instance = self
 
     @classmethod
@@ -80,31 +81,61 @@ class TelemetryAPI:
     def finish(self) -> None:
         self.writer.periodic(force_flush=True)
 
+    def add_count_metric(self, metric_name: str, value: int, tags: t.Optional[t.Dict[str, t.Any]] = None) -> None:
+        self.writer.add_count_metric(self.namespace, metric_name, value, self._make_tags(tags))
+
+    def add_distribution_metric(
+        self, metric_name: str, value: float, tags: t.Optional[t.Dict[str, t.Any]] = None
+    ) -> None:
+        self.writer.add_distribution_metric(self.namespace, metric_name, value, self._make_tags(tags))
+
+    def _make_tags(self, tags: t.Optional[t.Dict[str, t.Any]]) -> t.Optional[t.Tuple[t.Tuple[str, str], ...]]:
+        """
+        Convert a tag dictionary into a tag tuple.
+
+        The boolean tag value `true` is converted to the string "true". Boolean `false` as well as `None` are omitted
+        from the final result. Everything else is converted to string.
+        """
+        if not tags:
+            return None
+
+        tag_list: t.List[t.Tuple[str, str]] = []
+        for key, value in tags.items():
+            if not value:
+                continue
+            if value is True:
+                string_value = "true"
+            else:
+                string_value = str(value)
+            tag_list.append((key, string_value))
+
+        return tuple(tag_list)
+
     # Coverage.
 
     def record_coverage_started(self, test_framework: str, coverage_library: str) -> None:
         log.debug("Recording code coverage started telemetry: %s, %s", test_framework, coverage_library)
-        tags = (("library", coverage_library), ("test_framework", test_framework))
-        self.writer.add_count_metric(CIVISIBILITY, "code_coverage_started", 1, tags)
+        tags = {"library": coverage_library, "test_framework": test_framework}
+        self.add_count_metric("code_coverage_started", 1, tags)
 
     def record_coverage_finished(self, test_framework: str, coverage_library: str) -> None:
         log.debug("Recording code coverage finished telemetry: %s, %s", test_framework, coverage_library)
-        tags = (("library", coverage_library), ("test_framework", test_framework))
-        self.writer.add_count_metric(CIVISIBILITY, "code_coverage_finished", 1, tags)
+        tags = {"library": coverage_library, "test_framework": test_framework}
+        self.add_count_metric("code_coverage_finished", 1, tags)
 
     def record_coverage_is_empty(self) -> None:
         log.debug("Recording code coverage is empty")
-        self.writer.add_count_metric(CIVISIBILITY, "code_coverage.is_empty", 1)
+        self.add_count_metric("code_coverage.is_empty", 1)
 
     def record_coverage_files(self, count_files: int) -> None:
         log.debug("Recording code coverage files telemetry: %s", count_files)
-        self.writer.add_distribution_metric(CIVISIBILITY, "code_coverage.files", count_files)
+        self.add_distribution_metric("code_coverage.files", count_files)
 
     # API calls.
 
     def record_known_tests_count(self, count: int) -> None:
         log.debug("Recording known tests count telemetry: %s", count)
-        self.writer.add_distribution_metric(CIVISIBILITY, "known_tests.response_tests", count)
+        self.add_distribution_metric("known_tests.response_tests", count)
 
     def record_skippable_count(self, count: int, level: ITRSkippingLevel) -> None:
         log.debug("Recording skippable %s count: %s", level.value, count)
@@ -113,46 +144,36 @@ class TelemetryAPI:
             if level == ITRSkippingLevel.SUITE
             else "itr_skippable_tests.response_tests"
         )
-        self.writer.add_count_metric(CIVISIBILITY, skippable_count_metric, count)
+        self.add_count_metric(skippable_count_metric, count)
 
     def record_settings(self, settings: Settings) -> None:
-        tags = []
-
-        if settings.coverage_enabled:
-            tags.append(("coverage_enabled", "true"))
-        if settings.skipping_enabled:
-            tags.append(("itrskip_enabled", "true"))
-        if settings.require_git:
-            tags.append(("require_git", "true"))
-        if settings.itr_enabled:
-            tags.append(("itr_enabled", "true"))
-        if settings.known_tests_enabled:
-            tags.append(("known_tests_enabled", "true"))
-
-        if settings.auto_test_retries.enabled:
-            tags.append(("flaky_test_retries_enabled", "true"))
-        if settings.early_flake_detection.enabled:
-            tags.append(("early_flake_detection_enabled", "true"))
-        if settings.test_management.enabled:
-            tags.append(("test_management_enabled", "true"))
+        tags = {
+            "coverage_enabled": settings.coverage_enabled,
+            "itrskip_enabled": settings.skipping_enabled,
+            "require_git": settings.require_git,
+            "itr_enabled": settings.itr_enabled,
+            "known_tests_enabled": settings.known_tests_enabled,
+            "flaky_test_retries_enabled": settings.auto_test_retries.enabled,
+            "early_flake_detection_enabled": settings.early_flake_detection.enabled,
+            "test_management_enabled": settings.test_management.enabled,
+        }
 
         log.debug("Recording test settings telemetry: %s", tags)
-        self.writer.add_count_metric(CIVISIBILITY, "git_requests.settings_response", 1, tuple(tags))
+        self.add_count_metric("git_requests.settings_response", 1, tags)
 
     def record_test_management_tests_count(self, count: int) -> None:
         log.debug("Recording Test Management tests count telemetry: %s", count)
-        self.writer.add_distribution_metric(CIVISIBILITY, "test_management_tests.response_tests", count)
+        self.add_distribution_metric("test_management_tests.response_tests", count)
 
     def record_git_command(self, command: GitTelemetry, elapsed_seconds: float, exit_code: int) -> None:
         log.debug("Recording git command telemetry: %s, %s, %s", command.value, elapsed_seconds, exit_code)
 
-        tags = (("command", command.value),)
-        self.writer.add_count_metric(CIVISIBILITY, "git.command", 1, tags)
-        self.writer.add_distribution_metric(CIVISIBILITY, "git.command_ms", elapsed_seconds * 1000, tags)
+        tags = {"command": command.value}
+        self.add_count_metric("git.command", 1, tags)
+        self.add_distribution_metric("git.command_ms", elapsed_seconds * 1000, tags)
 
         if exit_code:
-            error_tags = (("command", command.value), ("exit_code", str(exit_code)))
-            self.writer.add_count_metric(CIVISIBILITY, "git.command_errors", 1, error_tags)
+            self.add_count_metric("git.command_errors", 1, {"command": command.value, "exit_code": str(exit_code)})
 
     # Event payloads sent by writers.
 
@@ -176,15 +197,13 @@ class TelemetryAPI:
             error,
         )
 
-        tags = (("endpoint", endpoint),)
+        tags = {"endpoint": endpoint}
 
-        self.writer.add_distribution_metric(CIVISIBILITY, "endpoint_payload.bytes", payload_size, tags)
-        self.writer.add_count_metric(CIVISIBILITY, "endpoint_payload.requests", 1, tags)
-        self.writer.add_distribution_metric(CIVISIBILITY, "endpoint_payload.requests_ms", request_seconds * 1000, tags)
-        self.writer.add_distribution_metric(CIVISIBILITY, "endpoint_payload.events_count", events_count, tags)
-        self.writer.add_distribution_metric(
-            CIVISIBILITY, "endpoint_payload.events_serialization_ms", serialization_seconds * 1000, tags
-        )
+        self.add_distribution_metric("endpoint_payload.bytes", payload_size, tags)
+        self.add_count_metric("endpoint_payload.requests", 1, tags)
+        self.add_distribution_metric("endpoint_payload.requests_ms", request_seconds * 1000, tags)
+        self.add_distribution_metric("endpoint_payload.events_count", events_count, tags)
+        self.add_distribution_metric("endpoint_payload.events_serialization_ms", serialization_seconds * 1000, tags)
 
         if error:
             self.record_event_payload_error(endpoint, error)
@@ -198,88 +217,87 @@ class TelemetryAPI:
         else:
             endpoint_error = "network"
 
-        tags = (("endpoint", endpoint), ("error_type", endpoint_error))
-        self.writer.add_count_metric(CIVISIBILITY, "endpoint_payload.requests_errors", 1, tags)
+        tags = {"endpoint": endpoint, "error_type": endpoint_error}
+        self.add_count_metric("endpoint_payload.requests_errors", 1, tags)
 
     # Test creation/finish events.
 
     def record_test_created(self, test_framework: str, test_run: TestRun) -> None:
-        tags = [("event_type", EventType.TEST), ("test_framework", test_framework)]
-        if test_run.is_benchmark():
-            tags.append(("is_benchmark", "true"))
-
+        tags = {
+            "event_type": EventType.TEST.value,
+            "test_framework": test_framework,
+            "is_benchmark": test_run.is_benchmark(),
+        }
         log.debug("Recording test event created: test_framework=%s, test=%s, tags=%s", test_framework, test_run, tags)
-        self.writer.add_count_metric(CIVISIBILITY, "event_created", 1, tuple(tags))
+        self.add_count_metric("event_created", 1, tags)
 
     def record_test_finished(
         self, test_framework: str, test_run: TestRun, ci_provider_name: t.Optional[str], is_auto_injected: bool
     ) -> None:
-        tags = [("event_type", EventType.TEST), ("test_framework", test_framework)]
-        if test_run.is_benchmark():
-            tags.append(("is_benchmark", "true"))
-        if test_run.test.is_new():
-            tags.append(("is_new", "true"))
-        if test_run.is_retry():
-            tags.append(("is_retry", "true"))
-        if test_run.is_rum():
-            tags.append(("is_rum", "true"))
-        if (browser_driver := test_run.get_browser_driver()) is not None:
-            tags.append(("browser_driver", browser_driver))
-        if (efd_abort_reason := test_run.get_early_flake_detection_abort_reason()) is not None:
-            tags.append(("early_flake_detection_abort_reason", efd_abort_reason))
-        if test_run.test.is_quarantined():
-            tags.append(("is_quarantined", "true"))
-        if test_run.test.is_disabled():
-            tags.append(("is_disabled", "true"))
-        if test_run.test.is_attempt_to_fix():
-            tags.append(("is_attempt_to_fix", "true"))
-        if test_run.has_failed_all_retries():
-            tags.append(("has_failed_all_retries", "true"))
-        if ci_provider_name:
-            tags.append(("provider_name", ci_provider_name))
-        if is_auto_injected:
-            tags.append(("auto_injected", "true"))
+        tags = {
+            "event_type": EventType.TEST.value,
+            "test_framework": test_framework,
+            "is_benchmark": test_run.is_benchmark(),
+            "is_new": test_run.test.is_new(),
+            "is_retry": test_run.is_retry(),
+            "is_rum": test_run.is_rum(),
+            "browser_driver": test_run.get_browser_driver(),
+            "early_flake_detection_abort_reason": test_run.get_early_flake_detection_abort_reason(),
+            "is_quarantined": test_run.test.is_quarantined(),
+            "is_disabled": test_run.test.is_disabled(),
+            "is_attempt_to_fix": test_run.test.is_attempt_to_fix(),
+            "has_failed_all_retries": test_run.has_failed_all_retries(),
+            "provider_name": ci_provider_name,
+            "auto_injected": is_auto_injected,
+        }
 
-        log.debug("Recording test event created: test_framework=%s, test=%s, tags=%s", test_framework, test_run, tags)
-        self.writer.add_count_metric(CIVISIBILITY, "event_finished", 1, tuple(tags))
+        log.debug("Recording test event finished: test_framework=%s, test=%s, tags=%s", test_framework, test_run, tags)
+        self.add_count_metric("event_finished", 1, tags)
 
     def record_suite_created(self, test_framework: str) -> None:
-        tags = (("event_type", EventType.SUITE), ("test_framework", test_framework))
-        telemetry_writer.add_count_metric(CIVISIBILITY, "event_created", 1, tags)
+        tags = {"event_type": EventType.SUITE.value, "test_framework": test_framework}
+        log.debug("Recording suite event created: test_framework=%s", test_framework)
+        self.add_count_metric("event_created", 1, tags)
 
     def record_suite_finished(self, test_framework: str) -> None:
-        tags = (("event_type", EventType.SUITE), ("test_framework", test_framework))
-        telemetry_writer.add_count_metric(CIVISIBILITY, "event_finished", 1, tags)
+        tags = {"event_type": EventType.SUITE.value, "test_framework": test_framework}
+        log.debug("Recording suite event finished: test_framework=%s", test_framework)
+        self.add_count_metric("event_finished", 1, tags)
 
     def record_module_created(self, test_framework: str) -> None:
-        tags = (("event_type", EventType.MODULE), ("test_framework", test_framework))
-        telemetry_writer.add_count_metric(CIVISIBILITY, "event_created", 1, tags)
+        tags = {"event_type": EventType.MODULE.value, "test_framework": test_framework}
+        log.debug("Recording module event created: test_framework=%s", test_framework)
+        self.add_count_metric("event_created", 1, tags)
 
     def record_module_finished(self, test_framework: str) -> None:
-        tags = (("event_type", EventType.MODULE), ("test_framework", test_framework))
-        telemetry_writer.add_count_metric(CIVISIBILITY, "event_finished", 1, tags)
+        tags = {"event_type": EventType.MODULE.value, "test_framework": test_framework}
+        log.debug("Recording module event finished: test_framework=%s", test_framework)
+        self.add_count_metric("event_finished", 1, tags)
 
     def record_session_created(self, test_framework: str, has_codeowners: bool, is_unsupported_ci: bool) -> None:
-        tags = [("event_type", EventType.SESSION), ("test_framework", test_framework)]
-        if has_codeowners:
-            tags.append(("has_codeowners", "true"))
-        if is_unsupported_ci:
-            tags.append(("is_unsupported_ci", "true"))
+        tags = {
+            "event_type": EventType.SESSION.value,
+            "test_framework": test_framework,
+            "has_codeowners": has_codeowners,
+            "is_unsupported_ci": is_unsupported_ci,
+        }
 
-        telemetry_writer.add_count_metric(CIVISIBILITY, "event_created", 1, tuple(tags))
+        log.debug("Recording session event created: test_framework=%s, tags=%s", test_framework, tags)
+        self.add_count_metric("event_created", 1, tags)
 
     def record_session_finished(
         self, test_framework: str, has_codeowners: bool, is_unsupported_ci: bool, efd_abort_reason: t.Optional[str]
     ) -> None:
-        tags = [("event_type", EventType.SESSION), ("test_framework", test_framework)]
-        if has_codeowners:
-            tags.append(("has_codeowners", "true"))
-        if is_unsupported_ci:
-            tags.append(("is_unsupported_ci", "true"))
-        if efd_abort_reason:
-            tags.append(("early_flake_detection_abort_reason", efd_abort_reason))
+        tags = {
+            "event_type": EventType.SESSION.value,
+            "test_framework": test_framework,
+            "has_codeowners": has_codeowners,
+            "is_unsupported_ci": is_unsupported_ci,
+            "early_flake_detection_abort_reason": efd_abort_reason,
+        }
 
-        telemetry_writer.add_count_metric(CIVISIBILITY, "event_finished", 1, tuple(tags))
+        log.debug("Recording session event finished: test_framework=%s, tags=%s", test_framework, tags)
+        self.add_count_metric("event_finished", 1, tags)
 
 
 @dataclasses.dataclass
