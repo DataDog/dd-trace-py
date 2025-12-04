@@ -28,6 +28,13 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "aiokafka",
+        "integration": "aiokafka",
+        "minimum_tracer_supported": "0.9.0",
+        "max_tracer_supported": "0.12.0",
+        "auto-instrumented": false
+    },
+    {
         "dependency": "aiomysql",
         "integration": "aiomysql",
         "minimum_tracer_supported": "0.1.1",
@@ -54,7 +61,7 @@
         "dependency": "anthropic",
         "integration": "anthropic",
         "minimum_tracer_supported": "0.28.1",
-        "max_tracer_supported": "0.69.0",
+        "max_tracer_supported": "0.74.1",
         "auto-instrumented": true
     },
     {
@@ -475,7 +482,7 @@
         "integration": "protobuf",
         "minimum_tracer_supported": "6.30.1",
         "max_tracer_supported": "6.32.0",
-        "auto-instrumented": true
+        "auto-instrumented": false
     },
     {
         "dependency": "psycopg",

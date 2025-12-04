@@ -41,15 +41,10 @@ def start():
 
     log.debug("Registered entrypoint patching hook for code origin for spans")
 
-    if config.span.enabled:
-        from ddtrace.debugging._origin.span import SpanCodeOriginProcessorExit
-
-        SpanCodeOriginProcessorExit.enable()
-
-        _start()
     # If dynamic instrumentation is enabled, and code origin for spans is not explicitly disabled,
-    # we'll enable entry spans only.
-    elif product_manager.is_enabled(DI_PRODUCT_KEY) and config.value_source(CO_ENABLED) == ValueSource.DEFAULT:
+    # we'll enable code origin for spans.
+    di_enabled = product_manager.is_enabled(DI_PRODUCT_KEY) and config.value_source(CO_ENABLED) == ValueSource.DEFAULT
+    if config.span.enabled or di_enabled:
         _start()
 
 
@@ -64,16 +59,9 @@ def _stop():
 
 
 def stop(join=False):
-    if config.span.enabled:
-        from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
-        from ddtrace.debugging._origin.span import SpanCodeOriginProcessorExit
-
-        SpanCodeOriginProcessorEntry.disable()
-        SpanCodeOriginProcessorExit.disable()
-    elif product_manager.is_enabled(DI_PRODUCT_KEY):
-        from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
-
-        SpanCodeOriginProcessorEntry.disable()
+    di_enabled = product_manager.is_enabled(DI_PRODUCT_KEY) and config.value_source(CO_ENABLED) == ValueSource.DEFAULT
+    if config.span.enabled or di_enabled:
+        _stop()
 
 
 def at_exit(join=False):

@@ -378,7 +378,11 @@ class SpanAggregator(SpanProcessor):
             elif self.partial_flush_enabled and num_finished >= self.partial_flush_min_spans:
                 should_partial_flush = True
                 finished = trace.remove_finished()
-                finished[0].set_metric("_dd.py.partial_flush", num_finished)
+                if finished:
+                    finished[0].set_metric("_dd.py.partial_flush", num_finished)
+                else:
+                    # num_finished was out of sync with the actual finished spans, skip partial flush
+                    return
             else:
                 return
 
@@ -446,17 +450,16 @@ class SpanAggregator(SpanProcessor):
         self._queue_span_count_metrics("spans_finished", "integration_name", 1)
         # Log a warning if the tracer is shutdown before spans are finished
         if log.isEnabledFor(logging.WARNING):
-            unfinished_spans = [
+            unsent_spans = [
                 f"trace_id={s.trace_id} parent_id={s.parent_id} span_id={s.span_id} name={s.name} resource={s.resource} started={s.start} sampling_priority={s.context.sampling_priority}"  # noqa: E501
                 for t in self._traces.values()
                 for s in t.spans
-                if not s.finished
             ]
-            if unfinished_spans:
+            if unsent_spans:
                 log.warning(
-                    "Shutting down tracer with %d unfinished spans. Unfinished spans will not be sent to Datadog: %s",
-                    len(unfinished_spans),
-                    ", ".join(unfinished_spans),
+                    "Shutting down tracer with %d spans. These spans will not be sent to Datadog: %s",
+                    len(unsent_spans),
+                    ", ".join(unsent_spans),
                 )
 
         try:

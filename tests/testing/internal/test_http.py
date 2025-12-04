@@ -3,6 +3,7 @@
 import http.client
 import os
 from unittest.mock import Mock
+from unittest.mock import call
 from unittest.mock import patch
 
 import pytest
@@ -15,6 +16,7 @@ from ddtrace.testing.internal.http import BackendConnectorEVPProxySetup
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.http import UnixDomainSocketHTTPConnection
+from ddtrace.testing.internal.telemetry import ErrorType
 from tests.testing.mocks import mock_backend_connector
 
 
@@ -53,6 +55,308 @@ class TestBackendConnector:
         )
         assert connector.default_headers == {}
         assert connector.base_path == "/evp_proxy/over9000"
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.perf_counter", return_value=0.0)
+    def test_post_json_ok(self, mock_time: Mock, mock_https_connection: Mock) -> None:
+        mock_response = Mock()
+        mock_response.headers = {"Content-Length": 14}
+        mock_response.read.return_value = b'{"answer": 42}'
+        mock_response.status = 200
+
+        mock_conn = Mock()
+        mock_conn.getresponse.return_value = mock_response
+        mock_https_connection.return_value = mock_conn
+
+        mock_telemetry = Mock()
+
+        connector = BackendConnector(url="https://api.example.com")
+
+        result = connector.post_json("/v1/some-endpoint", data={"question": 1}, telemetry=mock_telemetry)
+
+        assert mock_conn.request.call_args_list == [
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"})
+        ]
+        assert result.error_type is None
+        assert result.error_description is None
+        assert result.parsed_response == {"answer": 42}
+        assert result.is_gzip_response is False
+        assert result.response_length == 14
+        assert isinstance(result.elapsed_seconds, float)
+
+        assert mock_telemetry.record_request.call_args_list == [
+            call(seconds=0.0, response_bytes=14, compressed_response=False, error=None)
+        ]
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.sleep")
+    @patch("time.perf_counter", return_value=0.0)
+    def test_post_json_retry_then_ok(self, mock_time: Mock, mock_sleep: Mock, mock_https_connection: Mock) -> None:
+        mock_response_error = Mock()
+        mock_response_error.headers = {}
+        mock_response_error.read.return_value = b"Internal Server Error :("
+        mock_response_error.status = 500
+
+        mock_response_ok = Mock()
+        mock_response_ok.headers = {"Content-Length": 14}
+        mock_response_ok.read.return_value = b'{"answer": 42}'
+        mock_response_ok.status = 200
+
+        mock_conn = Mock()
+        mock_conn.getresponse.side_effect = [mock_response_error, mock_response_ok]
+        mock_https_connection.return_value = mock_conn
+
+        mock_telemetry = Mock()
+
+        connector = BackendConnector(url="https://api.example.com")
+
+        result = connector.post_json("/v1/some-endpoint", data={"question": 1}, telemetry=mock_telemetry)
+
+        assert mock_conn.request.call_args_list == [
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+        ]
+        assert len(mock_sleep.call_args_list) == 1
+
+        assert result.error_type is None
+        assert result.error_description is None
+        assert result.parsed_response == {"answer": 42}
+        assert result.is_gzip_response is False
+        assert result.response_length == 14
+        assert isinstance(result.elapsed_seconds, float)
+
+        assert mock_telemetry.record_request.call_args_list == [
+            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_5XX),
+            call(seconds=0.0, response_bytes=14, compressed_response=False, error=None),
+        ]
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.sleep")
+    @patch("time.perf_counter", return_value=0.0)
+    def test_post_json_retry_limit(self, mock_time: Mock, mock_sleep: Mock, mock_https_connection: Mock) -> None:
+        mock_response_error = Mock()
+        mock_response_error.headers = {}
+        mock_response_error.read.return_value = b"Internal Server Error :("
+        mock_response_error.status = 500
+        mock_response_error.reason = "Internal Server Error"
+
+        mock_conn = Mock()
+        mock_conn.getresponse.return_value = mock_response_error
+        mock_https_connection.return_value = mock_conn
+
+        mock_telemetry = Mock()
+
+        connector = BackendConnector(url="https://api.example.com")
+
+        result = connector.post_json("/v1/some-endpoint", data={"question": 1}, telemetry=mock_telemetry)
+
+        assert mock_conn.request.call_args_list == [
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+        ]
+
+        assert len(mock_sleep.call_args_list) == 4
+
+        assert result.error_type is ErrorType.CODE_5XX
+        assert result.error_description == "500 Internal Server Error"
+        assert result.parsed_response is None
+        assert result.is_gzip_response is False
+        assert result.response_length == 0
+        assert isinstance(result.elapsed_seconds, float)
+
+        assert mock_telemetry.record_request.call_args_list == [
+            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_5XX),
+            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_5XX),
+            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_5XX),
+            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_5XX),
+            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_5XX),
+        ]
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.sleep")
+    @patch("time.perf_counter", return_value=0.0)
+    def test_post_json_bad_json(self, mock_time: Mock, mock_sleep: Mock, mock_https_connection: Mock) -> None:
+        mock_response = Mock()
+        mock_response.headers = {"Content-Length": 14}
+        mock_response.read.return_value = b'{"answer": ???'
+        mock_response.status = 200
+
+        mock_conn = Mock()
+        mock_conn.getresponse.return_value = mock_response
+        mock_https_connection.return_value = mock_conn
+
+        mock_telemetry = Mock()
+
+        connector = BackendConnector(url="https://api.example.com")
+
+        result = connector.post_json("/v1/some-endpoint", data={"question": 1}, telemetry=mock_telemetry)
+
+        assert mock_conn.request.call_args_list == [
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+        ]
+        assert result.error_type is ErrorType.BAD_JSON
+        assert result.error_description == "Expecting value: line 1 column 12 (char 11)"
+        assert result.parsed_response is None
+        assert result.is_gzip_response is False
+        assert result.response_length == 14
+        assert isinstance(result.elapsed_seconds, float)
+
+        assert mock_telemetry.record_request.call_args_list == [
+            call(seconds=0.0, response_bytes=14, compressed_response=False, error=ErrorType.BAD_JSON),
+            call(seconds=0.0, response_bytes=14, compressed_response=False, error=ErrorType.BAD_JSON),
+            call(seconds=0.0, response_bytes=14, compressed_response=False, error=ErrorType.BAD_JSON),
+            call(seconds=0.0, response_bytes=14, compressed_response=False, error=ErrorType.BAD_JSON),
+            call(seconds=0.0, response_bytes=14, compressed_response=False, error=ErrorType.BAD_JSON),
+        ]
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.sleep")
+    @patch("time.perf_counter", return_value=0.0)
+    def test_post_json_unretriable_error(self, mock_time: Mock, mock_sleep: Mock, mock_https_connection: Mock) -> None:
+        mock_response_error = Mock()
+        mock_response_error.headers = {}
+        mock_response_error.read.return_value = b"No bueno"
+        mock_response_error.status = 400
+        mock_response_error.reason = "Bad Request"
+
+        mock_conn = Mock()
+        mock_conn.getresponse.return_value = mock_response_error
+        mock_https_connection.return_value = mock_conn
+
+        mock_telemetry = Mock()
+
+        connector = BackendConnector(url="https://api.example.com")
+
+        result = connector.post_json("/v1/some-endpoint", data={"question": 1}, telemetry=mock_telemetry)
+
+        assert mock_conn.request.call_args_list == [
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+        ]
+        assert len(mock_sleep.call_args_list) == 0
+
+        assert result.error_type is ErrorType.CODE_4XX
+        assert result.error_description == "400 Bad Request"
+        assert result.parsed_response is None
+        assert result.is_gzip_response is False
+        assert result.response_length == 0
+        assert isinstance(result.elapsed_seconds, float)
+
+        assert mock_telemetry.record_request.call_args_list == [
+            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_4XX),
+        ]
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.sleep")
+    @patch("time.perf_counter", return_value=0.0)
+    def test_post_json_connection_refused(self, mock_time: Mock, mock_sleep: Mock, mock_https_connection: Mock) -> None:
+        mock_conn = Mock()
+        mock_conn.getresponse.side_effect = ConnectionRefusedError("No connection for you")
+        mock_https_connection.return_value = mock_conn
+
+        mock_telemetry = Mock()
+
+        connector = BackendConnector(url="https://api.example.com")
+
+        result = connector.post_json("/v1/some-endpoint", data={"question": 1}, telemetry=mock_telemetry)
+
+        assert mock_conn.request.call_args_list == [
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+        ]
+        assert len(mock_sleep.call_args_list) == 4
+
+        assert result.error_type == ErrorType.NETWORK
+        assert result.error_description == "No connection for you"
+        assert result.parsed_response is None
+        assert result.is_gzip_response is False
+        assert result.response_length is None
+        assert isinstance(result.elapsed_seconds, float)
+
+        assert mock_telemetry.record_request.call_args_list == [
+            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.NETWORK),
+            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.NETWORK),
+            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.NETWORK),
+            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.NETWORK),
+            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.NETWORK),
+        ]
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.sleep")
+    @patch("time.perf_counter", return_value=0.0)
+    def test_post_json_timeout(self, mock_time: Mock, mock_sleep: Mock, mock_https_connection: Mock) -> None:
+        mock_conn = Mock()
+        mock_conn.getresponse.side_effect = TimeoutError("ars longa, vita brevis")
+        mock_https_connection.return_value = mock_conn
+
+        mock_telemetry = Mock()
+
+        connector = BackendConnector(url="https://api.example.com")
+
+        result = connector.post_json("/v1/some-endpoint", data={"question": 1}, telemetry=mock_telemetry)
+
+        assert mock_conn.request.call_args_list == [
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+        ]
+        assert len(mock_sleep.call_args_list) == 4
+
+        assert result.error_type == ErrorType.TIMEOUT
+        assert result.error_description == "ars longa, vita brevis"
+        assert result.parsed_response is None
+        assert result.is_gzip_response is False
+        assert result.response_length is None
+        assert isinstance(result.elapsed_seconds, float)
+
+        assert mock_telemetry.record_request.call_args_list == [
+            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.TIMEOUT),
+            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.TIMEOUT),
+            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.TIMEOUT),
+            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.TIMEOUT),
+            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.TIMEOUT),
+        ]
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.sleep")
+    @patch("time.perf_counter", return_value=0.0)
+    def test_post_json_unknown_error(self, mock_time: Mock, mock_sleep: Mock, mock_https_connection: Mock) -> None:
+        mock_conn = Mock()
+        mock_conn.getresponse.side_effect = ValueError("some internal error")
+        mock_https_connection.return_value = mock_conn
+
+        mock_telemetry = Mock()
+
+        connector = BackendConnector(url="https://api.example.com")
+
+        result = connector.post_json("/v1/some-endpoint", data={"question": 1}, telemetry=mock_telemetry)
+
+        assert mock_conn.request.call_args_list == [
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+        ]
+        assert len(mock_sleep.call_args_list) == 0
+
+        assert result.error_type == ErrorType.UNKNOWN
+        assert result.error_description == "some internal error"
+        assert result.parsed_response is None
+        assert result.is_gzip_response is False
+        assert result.response_length is None
+        assert isinstance(result.elapsed_seconds, float)
+
+        assert mock_telemetry.record_request.call_args_list == [
+            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.UNKNOWN),
+        ]
 
     @patch("http.client.HTTPSConnection")
     @patch("uuid.uuid4")

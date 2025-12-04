@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <optional>
+
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <weakrefobject.h>
@@ -111,8 +113,8 @@ GenInfo::create(PyObject* gen_addr)
         // Type-pun the PyGenObject to a PyAsyncGenASend. *gen_addr was actually never a PyGenObject to begin with,
         // but we do not care as the only thing we will use from it is the ags_gen field.
         PyAsyncGenASend* asend = reinterpret_cast<PyAsyncGenASend*>(&gen);
-        PyAsyncGenObject* gen = asend->ags_gen;
-        auto asend_yf = reinterpret_cast<PyObject*>(gen);
+        PyAsyncGenObject* gen_ptr = asend->ags_gen;
+        auto asend_yf = reinterpret_cast<PyObject*>(gen_ptr);
         auto result = GenInfo::create(asend_yf);
         recursion_depth--;
         return result;
@@ -176,6 +178,7 @@ class TaskInfo
 
     // Information to reconstruct the async stack as best as we can
     TaskInfo::Ptr waiter = nullptr;
+    std::optional<bool> is_on_cpu_ = std::nullopt;
 
     [[nodiscard]] static Result<TaskInfo::Ptr> create(TaskObj*);
     TaskInfo(PyObject* origin, PyObject* loop, GenInfo::Ptr coro, StringTable::Key name, TaskInfo::Ptr waiter)
@@ -189,6 +192,27 @@ class TaskInfo
 
     [[nodiscard]] static Result<TaskInfo::Ptr> current(PyObject*);
     inline size_t unwind(FrameStack&);
+
+    // Check if any coroutine in the chain is currently running (on CPU)
+    inline bool is_on_cpu()
+    {
+        if (is_on_cpu_.has_value()) {
+            return *is_on_cpu_;
+        }
+
+        auto* last_coro = static_cast<GenInfo*>(nullptr);
+        auto* current_coro = this->coro.get();
+
+        // Check if the innermost coroutine is running.
+        // We don't need to test all the other coroutines as they are awaiting, by definition.
+        while (current_coro) {
+            last_coro = current_coro;
+            current_coro = current_coro->await.get();
+        }
+
+        is_on_cpu_ = last_coro && last_coro->is_running;
+        return *is_on_cpu_;
+    }
 };
 
 inline std::unordered_map<PyObject*, PyObject*> task_link_map;

@@ -612,6 +612,78 @@ def patched_vectorstore_init_subclass(func, instance, args, kwargs):
         log.warning("Unable to patch LangChain VectorStore class %s", str(cls))
 
 
+def traced_runnable_lambda_operation(is_batch: bool = False):
+    @with_traced_module
+    def _traced_runnable_lambda_impl(langchain_core, pin, func, instance, args, kwargs):
+        integration: LangChainIntegration = langchain_core._datadog_integration
+
+        instance_name = getattr(instance, "name", None)
+        default_name = f"{instance.__class__.__name__}.{func.__name__}"
+        if is_batch:
+            span_name = f"{instance_name}_batch" if instance_name else default_name
+        else:
+            span_name = instance_name or default_name
+
+        span = integration.trace(
+            pin,
+            span_name,
+            submit_to_llmobs=True,
+            instance=instance,
+        )
+
+        integration.record_instance(instance, span)
+
+        result = None
+
+        try:
+            result = func(*args, **kwargs)
+            return result
+        except Exception:
+            span.set_exc_info(*sys.exc_info())
+            raise
+        finally:
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="runnable_lambda")
+            span.finish()
+
+    return _traced_runnable_lambda_impl
+
+
+def traced_runnable_lambda_operation_async(is_batch: bool = False):
+    @with_traced_module
+    async def _traced_runnable_lambda_impl(langchain_core, pin, func, instance, args, kwargs):
+        integration: LangChainIntegration = langchain_core._datadog_integration
+
+        instance_name = getattr(instance, "name", None)
+        default_name = f"{instance.__class__.__name__}.{func.__name__}"
+        if is_batch:
+            span_name = f"{instance_name}_batch" if instance_name else default_name
+        else:
+            span_name = instance_name or default_name
+
+        span = integration.trace(
+            pin,
+            span_name,
+            submit_to_llmobs=True,
+            instance=instance,
+        )
+
+        integration.record_instance(instance, span)
+
+        result = None
+
+        try:
+            result = await func(*args, **kwargs)
+            return result
+        except Exception:
+            span.set_exc_info(*sys.exc_info())
+            raise
+        finally:
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="runnable_lambda")
+            span.finish()
+
+    return _traced_runnable_lambda_impl
+
+
 def patch():
     if getattr(langchain_core, "_datadog_patch", False):
         return
@@ -626,6 +698,7 @@ def patch():
     from langchain_core.language_models.chat_models import BaseChatModel
     from langchain_core.language_models.llms import BaseLLM
     from langchain_core.prompts.base import BasePromptTemplate
+    from langchain_core.runnables.base import RunnableLambda
     from langchain_core.runnables.base import RunnableSequence
     from langchain_core.tools import BaseTool
     from langchain_core.vectorstores import VectorStore
@@ -650,6 +723,11 @@ def patch():
     wrap(RunnableSequence, "abatch", traced_lcel_runnable_sequence_async(langchain_core))
     wrap(RunnableSequence, "stream", traced_chain_stream(langchain_core))
     wrap(RunnableSequence, "astream", traced_chain_stream(langchain_core))
+
+    wrap(RunnableLambda, "invoke", traced_runnable_lambda_operation(is_batch=False)(langchain_core))
+    wrap(RunnableLambda, "ainvoke", traced_runnable_lambda_operation_async(is_batch=False)(langchain_core))
+    wrap(RunnableLambda, "batch", traced_runnable_lambda_operation(is_batch=True)(langchain_core))
+    wrap(RunnableLambda, "abatch", traced_runnable_lambda_operation_async(is_batch=True)(langchain_core))
 
     wrap(BasePromptTemplate, "invoke", patched_base_prompt_template_invoke(langchain_core))
     wrap(BasePromptTemplate, "ainvoke", patched_base_prompt_template_ainvoke(langchain_core))
@@ -683,6 +761,10 @@ def unpatch():
     unwrap(langchain_core.runnables.base.RunnableSequence, "abatch")
     unwrap(langchain_core.runnables.base.RunnableSequence, "stream")
     unwrap(langchain_core.runnables.base.RunnableSequence, "astream")
+    unwrap(langchain_core.runnables.base.RunnableLambda, "invoke")
+    unwrap(langchain_core.runnables.base.RunnableLambda, "ainvoke")
+    unwrap(langchain_core.runnables.base.RunnableLambda, "batch")
+    unwrap(langchain_core.runnables.base.RunnableLambda, "abatch")
     unwrap(langchain_core.language_models.chat_models.BaseChatModel, "stream")
     unwrap(langchain_core.language_models.chat_models.BaseChatModel, "astream")
     unwrap(langchain_core.language_models.llms.BaseLLM, "stream")
