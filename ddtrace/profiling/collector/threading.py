@@ -1,7 +1,6 @@
 from __future__ import absolute_import
 
 import threading
-import typing
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack_v2
@@ -18,34 +17,32 @@ class _ProfiledThreadingRLock(_lock._ProfiledLock):
     pass
 
 
+class _ProfiledThreadingSemaphore(_lock._ProfiledLock):
+    pass
+
+
 class ThreadingLockCollector(_lock.LockCollector):
     """Record threading.Lock usage."""
 
     PROFILED_LOCK_CLASS = _ProfiledThreadingLock
-
-    def _get_patch_target(self) -> typing.Type[threading.Lock]:
-        return threading.Lock
-
-    def _set_patch_target(
-        self,
-        value: typing.Any,
-    ) -> None:
-        threading.Lock = value
+    MODULE = threading
+    PATCHED_LOCK_NAME = "Lock"
 
 
 class ThreadingRLockCollector(_lock.LockCollector):
     """Record threading.RLock usage."""
 
     PROFILED_LOCK_CLASS = _ProfiledThreadingRLock
+    MODULE = threading
+    PATCHED_LOCK_NAME = "RLock"
 
-    def _get_patch_target(self) -> typing.Type[threading.RLock]:
-        return threading.RLock
 
-    def _set_patch_target(
-        self,
-        value: typing.Any,
-    ) -> None:
-        threading.RLock = value
+class ThreadingSemaphoreCollector(_lock.LockCollector):
+    """Record threading.Semaphore usage."""
+
+    PROFILED_LOCK_CLASS = _ProfiledThreadingSemaphore
+    MODULE = threading
+    PATCHED_LOCK_NAME = "Semaphore"
 
 
 # Also patch threading.Thread so echion can track thread lifetimes

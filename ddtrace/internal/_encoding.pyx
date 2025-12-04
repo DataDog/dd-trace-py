@@ -21,7 +21,6 @@ from ._utils cimport PyBytesLike_Check
 from ..constants import _ORIGIN_KEY as ORIGIN_KEY
 from .constants import SPAN_LINKS_KEY
 from .constants import SPAN_EVENTS_KEY
-from .constants import MAX_UINT_64BITS
 from .logger import get_logger
 from .._trace._limits import MAX_SPAN_META_VALUE_LEN
 from .._trace._limits import TRUNCATED_SPAN_ATTRIBUTE_LEN
@@ -1234,7 +1233,6 @@ cdef class Packer(object):
     cdef int _pack(self, object o) except -1:
         cdef long long llval
         cdef unsigned long long ullval
-        cdef long longval
         cdef double dval
         cdef char* rawval
         cdef int ret
