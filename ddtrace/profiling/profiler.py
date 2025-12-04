@@ -220,6 +220,8 @@ class _ProfilerInstance(service.Service):
             self._collectors_on_import = [
                 ("threading", lambda _: start_collector(threading.ThreadingLockCollector)),
                 ("threading", lambda _: start_collector(threading.ThreadingRLockCollector)),
+                ("threading", lambda _: start_collector(threading.ThreadingSemaphoreCollector)),
+                ("threading", lambda _: start_collector(threading.ThreadingBoundedSemaphoreCollector)),
                 ("asyncio", lambda _: start_collector(asyncio.AsyncioLockCollector)),
             ]
 

@@ -11,7 +11,12 @@ set(INSTALL_GMOCK
     OFF
     CACHE BOOL "" FORCE)
 
-FetchContent_Declare(googletest URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip)
+FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG v1.14.0
+    TIMEOUT 180
+    INACTIVITY_TIMEOUT 120)
 
 # For Windows: Prevent overriding the parent project's compiler/linker settings
 set(gtest_force_shared_crt
