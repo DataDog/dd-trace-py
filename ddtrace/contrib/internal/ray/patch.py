@@ -23,8 +23,7 @@ from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import _TraceContext
-from ddtrace.settings._env import environ as _environ
-from ddtrace.settings._env import get_env as _get_env
+from ddtrace.settings import _env
 
 from .constants import DD_RAY_TRACE_CTX
 from .constants import DEFAULT_JOB_NAME
@@ -67,7 +66,7 @@ from .utils import set_tag_or_truncate
 
 log = get_logger(__name__)
 
-RAY_SERVICE_NAME = _get_env(RAY_JOB_NAME)
+RAY_SERVICE_NAME = _env.getenv(RAY_JOB_NAME)
 
 # Ray modules that should be excluded from tracing
 RAY_MODULE_DENYLIST = {
@@ -81,8 +80,10 @@ config._add(
     "ray",
     dict(
         _default_service=schematize_service_name("ray"),
-        use_entrypoint_as_service_name=asbool(_get_env("DD_TRACE_RAY_USE_ENTRYPOINT_AS_SERVICE_NAME", default=False)),
-        redact_entrypoint_paths=asbool(_get_env("DD_TRACE_RAY_REDACT_ENTRYPOINT_PATHS", default=True)),
+        use_entrypoint_as_service_name=asbool(
+            _env.getenv("DD_TRACE_RAY_USE_ENTRYPOINT_AS_SERVICE_NAME", default=False)
+        ),
+        redact_entrypoint_paths=asbool(_env.getenv("DD_TRACE_RAY_REDACT_ENTRYPOINT_PATHS", default=True)),
         trace_core_api=_get_config("DD_TRACE_RAY_CORE_API", default=False, modifier=asbool),
         trace_args_kwargs=_get_config("DD_TRACE_RAY_ARGS_KWARGS", default=False, modifier=asbool),
     ),
@@ -388,12 +389,12 @@ def _job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
         from ddtrace.ext import SpanTypes
 
         context = _TraceContext._extract(_dd_ray_trace_ctx)
-        submission_id = _environ.get(RAY_SUBMISSION_ID)
+        submission_id = _env.environ.get(RAY_SUBMISSION_ID)
 
         with long_running_ray_span(
             "actor_method.execute",
             resource=f"{self.__class__.__name__}.{method.__name__}",
-            service=_get_env(RAY_JOB_NAME, DEFAULT_JOB_NAME),
+            service=_env.getenv(RAY_JOB_NAME, DEFAULT_JOB_NAME),
             span_type=SpanTypes.RAY,
             child_of=context,
             activate=True,
@@ -431,7 +432,7 @@ def _exec_entrypoint_wrapper(method: Callable[..., Any]) -> Any:
         with tracer.trace(
             "exec entrypoint",
             resource=f"exec {entrypoint_name}",
-            service=_environ.get(RAY_JOB_NAME, DEFAULT_JOB_NAME),
+            service=_env.environ.get(RAY_JOB_NAME, DEFAULT_JOB_NAME),
             span_type=SpanTypes.RAY,
         ) as span:
             span._set_tag_str(SPAN_KIND, SpanKind.CONSUMER)

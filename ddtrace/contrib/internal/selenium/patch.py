@@ -7,7 +7,7 @@ from wrapt.importer import when_imported
 from ddtrace import config
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.wrapping.context import WrappingContext
-from ddtrace.settings._env import get_env as _get_env
+from ddtrace.settings import _env
 from ddtrace.trace import tracer
 
 
@@ -31,7 +31,7 @@ _DEFAULT_FLUSH_SLEEP_MS = 500
 
 
 def _get_flush_sleep_ms() -> int:
-    env_flush_sleep_ms = _get_env("DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS")
+    env_flush_sleep_ms = _env.getenv("DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS")
     if env_flush_sleep_ms is None:
         return _DEFAULT_FLUSH_SLEEP_MS
 

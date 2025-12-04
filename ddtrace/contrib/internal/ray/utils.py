@@ -24,7 +24,7 @@ from ddtrace.constants import _FILTER_KEPT_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.propagation.http import _TraceContext
-from ddtrace.settings._env import environ as _environ
+from ddtrace.settings import _env
 
 from .constants import DD_RAY_TRACE_CTX
 from .constants import RAY_ACTOR_ID
@@ -72,16 +72,16 @@ def _inject_context_in_kwargs(context: Context, kwargs: Dict[str, Any]) -> None:
 def _inject_context_in_env(context: Context) -> None:
     headers = {}
     _TraceContext._inject(context, headers)
-    _environ["traceparent"] = headers.get("traceparent", "")
-    _environ["tracestate"] = headers.get("tracestate", "")
+    _env.environ["traceparent"] = headers.get("traceparent", "")
+    _env.environ["tracestate"] = headers.get("tracestate", "")
 
 
 def _extract_tracing_context_from_env() -> Optional[Context]:
-    if _environ.get("traceparent") is not None and _environ.get("tracestate") is not None:
+    if _env.environ.get("traceparent") is not None and _env.environ.get("tracestate") is not None:
         return _TraceContext._extract(
             {
-                "traceparent": _environ.get("traceparent"),
-                "tracestate": _environ.get("tracestate"),
+                "traceparent": _env.environ.get("traceparent"),
+                "tracestate": _env.environ.get("tracestate"),
             }
         )
     return None
@@ -96,7 +96,7 @@ def _inject_ray_span_tags_and_metrics(span: Span) -> None:
     span.set_metric(_SPAN_MEASURED_KEY, 1)
     span.set_metric(_SAMPLING_PRIORITY_KEY, 2)
 
-    submission_id = _environ.get(RAY_SUBMISSION_ID)
+    submission_id = _env.environ.get(RAY_SUBMISSION_ID)
     if submission_id is not None:
         span._set_tag_str(RAY_SUBMISSION_ID_TAG, submission_id)
 

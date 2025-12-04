@@ -15,15 +15,15 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
-from ddtrace.settings._env import get_env as _get_env
+from ddtrace.settings import _env
 
 
 config._add(
     "redis",
     {
         "_default_service": schematize_service_name("redis"),
-        "cmd_max_length": int(_get_env("DD_REDIS_CMD_MAX_LENGTH", CMD_MAX_LEN)),
-        "resource_only_command": asbool(_get_env("DD_REDIS_RESOURCE_ONLY_COMMAND", True)),
+        "cmd_max_length": int(_env.getenv("DD_REDIS_CMD_MAX_LENGTH", CMD_MAX_LEN)),
+        "resource_only_command": asbool(_env.getenv("DD_REDIS_RESOURCE_ONLY_COMMAND", True)),
     },
 )
 

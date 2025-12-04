@@ -5,7 +5,7 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings._env import get_env as _get_env
+from ddtrace.settings import _env
 
 from .trace import TracePlugin
 
@@ -14,7 +14,7 @@ from .trace import TracePlugin
 config._add(
     "bottle",
     dict(
-        distributed_tracing=asbool(_get_env("DD_BOTTLE_DISTRIBUTED_TRACING", default=True)),
+        distributed_tracing=asbool(_env.getenv("DD_BOTTLE_DISTRIBUTED_TRACING", default=True)),
     ),
 )
 

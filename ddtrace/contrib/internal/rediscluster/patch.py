@@ -23,7 +23,7 @@ from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.settings._env import get_env as _get_env
+from ddtrace.settings import _env
 
 
 # DEV: In `2.0.0` `__version__` is a string and `VERSION` is a tuple,
@@ -34,8 +34,8 @@ config._add(
     "rediscluster",
     dict(
         _default_service=schematize_service_name("rediscluster"),
-        cmd_max_length=int(_get_env("DD_REDISCLUSTER_CMD_MAX_LENGTH", CMD_MAX_LEN)),
-        resource_only_command=asbool(_get_env("DD_REDIS_RESOURCE_ONLY_COMMAND", True)),
+        cmd_max_length=int(_env.getenv("DD_REDISCLUSTER_CMD_MAX_LENGTH", CMD_MAX_LEN)),
+        resource_only_command=asbool(_env.getenv("DD_REDIS_RESOURCE_ONLY_COMMAND", True)),
     ),
 )
 

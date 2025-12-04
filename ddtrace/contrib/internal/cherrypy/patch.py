@@ -18,7 +18,7 @@ from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings._env import get_env as _get_env
+from ddtrace.settings import _env
 
 
 log = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ log = logging.getLogger(__name__)
 config._add(
     "cherrypy",
     dict(
-        distributed_tracing=asbool(_get_env("DD_CHERRYPY_DISTRIBUTED_TRACING", default=True)),
+        distributed_tracing=asbool(_env.getenv("DD_CHERRYPY_DISTRIBUTED_TRACING", default=True)),
     ),
 )
 
