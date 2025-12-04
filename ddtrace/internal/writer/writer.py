@@ -818,6 +818,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
         self._exporter = self._create_exporter()
+    
+    def __del__(self):
+        if self._fork_hook:
+            forksafe.unregister_before_fork(self._fork_hook)
+            self._fork_hook = None
 
     def _create_exporter(self) -> native.TraceExporter:
         """
@@ -1095,7 +1100,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     ) -> None:
         # FIXME: don't join() on stop(), let the caller handle this
         super(NativeWriter, self)._stop_service()
-        forksafe.unregister_before_fork(self._fork_hook)
+        if self._fork_hook:
+            forksafe.unregister_before_fork(self._fork_hook)
+            self._fork_hook = None
         self.join(timeout=timeout)
         self.before_fork()
 
