@@ -250,19 +250,69 @@ class _ProfiledLock:
 
 
 class _LockAllocatorWrapper:
-    """Wrapper for lock allocator functions that prevents method binding."""
+    """Wrapper for lock allocator functions that prevents method binding.
 
-    __slots__ = ("_func",)
+    For simple locks (Lock, RLock), this wrapper just intercepts instantiation.
 
-    def __init__(self, func: Callable[..., Any]) -> None:
-        self._func: Callable[..., Any] = func
+    For class-based locks with inheritance (Semaphore, BoundedSemaphore), this wrapper
+    also handles the case where a subclass calls Parent.__init__(self, value). Example:
 
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        # In Python's threading.py:
+        class BoundedSemaphore(Semaphore):
+            def __init__(self, value=1):
+                Semaphore.__init__(self, value)  # <-- We intercept this!
+                self._initial_value = value
+
+    When we patch threading.Semaphore with this wrapper, the call to Semaphore.__init__
+    goes to our __init__, which detects the inheritance case and delegates to the
+    original Semaphore.__init__.
+    """
+
+    __slots__ = ("_func", "_original_class")
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        # This __init__ handles TWO different cases:
+        #
+        # Case 1 - Normal wrapper initialization (most common):
+        #   Called when setting up the profiling wrapper.
+        #
+        # Case 2 - Inheritance delegation (Semaphore/BoundedSemaphore only):
+        #   We detect this by checking if args[0] is an instance of the original class.
+
+        # Case 2: inheritance call where first arg is an instance being initialized
+        # This happens when BoundedSemaphore.__init__ calls Semaphore.__init__(self, value)
+        if args and hasattr(self, "_original_class") and self._original_class is not None:
+            first_arg: Any = args[0]
+            if isinstance(first_arg, self._original_class):
+                # Delegate to the real Semaphore.__init__
+                self._original_class.__init__(*args, **kwargs)
+                return
+
+        # Case 1: Normal wrapper initialization
+        self._func: Callable[..., _ProfiledLock]
+        self._original_class: Optional[Type[Any]]
+        if args:
+            self._func = args[0]
+            self._original_class = kwargs.get("original_class") or (args[1] if len(args) > 1 else None)
+        else:
+            self._func = kwargs.get("func")  # type: ignore[assignment]
+            self._original_class = kwargs.get("original_class")
+
+    def __call__(self, *args: Any, **kwargs: Any) -> _ProfiledLock:
         return self._func(*args, **kwargs)
 
-    def __get__(self, instance: Any, owner: Optional[Type] = None) -> _LockAllocatorWrapper:
+    def __get__(self, instance: Any, owner: Optional[Type[Any]] = None) -> _LockAllocatorWrapper:
         # Prevent automatic method binding (e.g., Foo.lock_class = threading.Lock)
         return self
+
+    def __getattr__(self, name: str) -> Any:
+        # Delegate attribute access to the original class.
+        # This is needed for Semaphore/BoundedSemaphore inheritance where code accesses
+        # Semaphore.__init__ c-tor through our wrapper.
+        original_class: Optional[Type[Any]] = object.__getattribute__(self, "_original_class")
+        if original_class is not None:
+            return getattr(original_class, name)
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
 
 class LockCollector(collector.CaptureSamplerCollector):
@@ -337,7 +387,7 @@ class LockCollector(collector.CaptureSamplerCollector):
                 is_internal=is_internal,
             )
 
-        self._set_patch_target(_LockAllocatorWrapper(_profiled_allocate_lock))
+        self._set_patch_target(_LockAllocatorWrapper(_profiled_allocate_lock, original_class=original_lock))
 
     def unpatch(self) -> None:
         """Unpatch the threading module for tracking lock allocation."""
