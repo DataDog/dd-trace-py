@@ -10,6 +10,10 @@ from opentelemetry.trace.status import Status
 from opentelemetry.trace.status import StatusCode
 
 from ddtrace.contrib.compat import core
+from ddtrace.contrib.internal import trace_utils
+from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.constants import _SPAN_MEASURED_KEY
+from ddtrace import config
 
 
 def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs):
@@ -76,12 +80,38 @@ def _finish_span(
     if token is not None:
         detach(token)
 
+def _on_httpx_send(ctx, request):
+    span = ctx.span
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
+
+    if trace_utils.distributed_tracing_enabled(config.httpx):
+        HTTPPropagator.inject(span.context, request.headers)
+
+
+def _on_httpx_send_completed(ctx, request, response, url):
+    span = ctx.span
+
+    trace_utils.set_http_meta(
+        span,
+        config.httpx,
+        method=request.method,
+        url=url,
+        target_host=request.url.host,
+        status_code=response.status_code if response else None,
+        query=request.url.query,
+        request_headers=request.headers,
+        response_headers=response.headers if response else None,
+    )
+
 
 def listen():
-    for context_name in ("emoji.emojize",):
+    core.on("httpx.send", _on_httpx_send)
+    core.on("httpx.send.completed", _on_httpx_send_completed)
+
+    for context_name in ("emoji.emojize","httpx.request.sync"):
         core.on(f"context.started.{context_name}", _start_span)
 
-    for name in ("emoji.emojize",):
+    for name in ("emoji.emojize","httpx.request.sync"):
         core.on(f"context.ended.{name}", _finish_span)
 
 
