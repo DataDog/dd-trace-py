@@ -101,9 +101,9 @@ section_end "finalize_wheel"
 
 # Test wheel
 section_start "test_wheel" "Testing wheel"
-TEST_WHEEL_DIR="/tmp/test_wheel/"
+TEST_WHEEL_DIR="${WORK_DIR}/test_wheel"
 mkdir -p "${TEST_WHEEL_DIR}"
-uv venv "${TEST_WHEEL_DIR}/venv"
+uv venv --python="${UV_PYTHON}" "${TEST_WHEEL_DIR}/venv"
 source "${TEST_WHEEL_DIR}/venv/bin/activate"
 uv pip install "${FINAL_WHEEL_FILE}"
 cd "${TEST_WHEEL_DIR}" && python "${PROJECT_DIR}/tests/smoke_test.py"
