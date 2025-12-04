@@ -103,7 +103,7 @@ class TelemetryAPI:
 
         tag_list: t.List[t.Tuple[str, str]] = []
         for key, value in tags.items():
-            if not value:
+            if value is None or value is False:
                 continue
             if value is True:
                 string_value = "true"
