@@ -162,6 +162,7 @@ class SessionManagerMockBuilder:
         mock_manager.test_properties = self._test_properties
         mock_manager.workspace_path = self._workspace_path
         mock_manager.retry_handlers = self._retry_handlers
+        mock_manager.env_tags = self._env_tags
 
         mock_manager.session = Mock()
         mock_manager.writer = Mock()
