@@ -125,6 +125,23 @@ Datadog::Sample::push_label(const ExportLabelKey key, int64_t val)
     return true;
 }
 
+bool
+Datadog::Sample::push_label(std::string_view key, std::string_view val)
+{
+    // Push a custom label with arbitrary key and value
+    if (val.empty() || key.empty()) {
+        return true;
+    }
+
+    // Persist both key and val strings in the arena
+    key = string_storage.insert(key);
+    val = string_storage.insert(val);
+    auto& label = labels.emplace_back();
+    label.key = to_slice(key);
+    label.str = to_slice(val);
+    return true;
+}
+
 void
 Datadog::Sample::clear_buffers()
 {
@@ -336,6 +353,22 @@ Datadog::Sample::push_gpu_flops(int64_t size, int64_t count)
     if (!already_warned) {
         already_warned = true;
         std::cerr << "bad push gpu flops" << std::endl;
+    }
+    return false;
+}
+
+bool
+Datadog::Sample::push_event(std::string_view event_type)
+{
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+    if (0U != (type_mask & SampleType::Event)) {
+        push_label(ExportLabelKey::event_type, event_type);
+        values[profile_state.val().event_count] += 0;
+        return true;
+    }
+    if (!already_warned) {
+        already_warned = true;
+        std::cerr << "bad push event" << std::endl;
     }
     return false;
 }

@@ -91,6 +91,7 @@ class Sample
     // Helpers
     bool push_label(ExportLabelKey key, std::string_view val);
     bool push_label(ExportLabelKey key, int64_t val);
+    bool push_label(std::string_view key, std::string_view val);
     void push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line);
     void clear_buffers();
 
@@ -104,6 +105,7 @@ class Sample
     bool push_gpu_gputime(int64_t time, int64_t count);
     bool push_gpu_memory(int64_t size, int64_t count);
     bool push_gpu_flops(int64_t flops, int64_t count);
+    bool push_event(std::string_view event_type);
 
     // Adds metadata to sample
     bool push_lock_name(std::string_view lock_name);

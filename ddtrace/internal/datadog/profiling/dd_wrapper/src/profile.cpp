@@ -116,6 +116,9 @@ Datadog::Profile::setup_samplers()
         val_idx.gpu_flops = get_value_idx("gpu-flops", "count");
         val_idx.gpu_flops_samples = get_value_idx("gpu-flops-samples", "count");
     }
+    if (0U != (type_mask & SampleType::Event)) {
+        val_idx.event_count = get_value_idx("event-samples", "count");
+    }
 
     // Whatever the first sampler happens to be is the default "period" for the profile
     // The value of 1 is a pointless default.

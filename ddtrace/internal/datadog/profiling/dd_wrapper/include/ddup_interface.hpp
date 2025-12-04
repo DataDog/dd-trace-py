@@ -67,6 +67,8 @@ extern "C"
                          int64_t line);
     void ddup_push_absolute_ns(Datadog::Sample* sample, int64_t timestamp_ns);
     void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
+    void ddup_push_event(Datadog::Sample* sample, std::string_view event_type);
+    void ddup_push_label(Datadog::Sample* sample, std::string_view key, std::string_view val);
 
     void ddup_increment_sampling_event_count();
     void ddup_increment_sample_count();

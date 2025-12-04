@@ -14,7 +14,9 @@ enum SampleType : unsigned int
     GPUTime = 1 << 7,
     GPUMemory = 1 << 8,
     GPUFlops = 1 << 9,
-    All = CPU | Wall | Exception | LockAcquire | LockRelease | Allocation | Heap | GPUTime | GPUMemory | GPUFlops
+    Event = 1 << 10,
+    All =
+      CPU | Wall | Exception | LockAcquire | LockRelease | Allocation | Heap | GPUTime | GPUMemory | GPUFlops | Event
 };
 
 // Every Sample object has a corresponding `values` vector, since libdatadog expects contiguous values per sample.
@@ -39,6 +41,7 @@ struct ValueIndex
     unsigned short gpu_alloc_count;
     unsigned short gpu_flops;
     unsigned short gpu_flops_samples; // Should be "count," but flops is already a count
+    unsigned short event_count;
 };
 
 } // namespace Datadog

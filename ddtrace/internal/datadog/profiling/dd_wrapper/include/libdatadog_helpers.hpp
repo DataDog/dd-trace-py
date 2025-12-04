@@ -46,7 +46,8 @@ namespace Datadog {
     X(trace_type, "trace type")                                                                                        \
     X(class_name, "class name")                                                                                        \
     X(lock_name, "lock name")                                                                                          \
-    X(gpu_device_name, "gpu device name")
+    X(gpu_device_name, "gpu device name")                                                                              \
+    X(event_type, "event type")
 
 #define X_ENUM(a, b) a,
 #define X_STR(a, b) b,

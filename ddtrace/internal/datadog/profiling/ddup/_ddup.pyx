@@ -83,6 +83,8 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_frame(Sample *sample, string_view _name, string_view _filename, uint64_t address, int64_t line)
     void ddup_push_monotonic_ns(Sample *sample, int64_t monotonic_ns)
     void ddup_push_absolute_ns(Sample *sample, int64_t monotonic_ns)
+    void ddup_push_event(Sample *sample, string_view event_type)
+    void ddup_push_label(Sample *sample, string_view key, string_view val)
     void ddup_flush_sample(Sample *sample)
     void ddup_drop_sample(Sample *sample)
 
@@ -300,6 +302,37 @@ cdef call_ddup_push_trace_type(Sample* sample, trace_type: StringType):
     if utf8_data != NULL:
         ddup_push_trace_type(sample, string_view(utf8_data, utf8_size))
 
+cdef call_ddup_push_event(Sample* sample, event_type: StringType):
+    if not event_type:
+        return
+    if isinstance(event_type, bytes):
+        ddup_push_event(sample, string_view(<const char*>event_type, len(event_type)))
+        return
+    cdef const char* utf8_data
+    cdef Py_ssize_t utf8_size
+    utf8_data = PyUnicode_AsUTF8AndSize(event_type, &utf8_size)
+    if utf8_data != NULL:
+        ddup_push_event(sample, string_view(utf8_data, utf8_size))
+
+cdef call_ddup_push_label(Sample* sample, key: StringType, val: StringType):
+    if not key or not val:
+        return
+    if isinstance(key, bytes) and isinstance(val, bytes):
+        ddup_push_label(sample, string_view(<const char*>key, len(key)), string_view(<const char*>val, len(val)))
+        return
+    cdef const char* key_utf8_data
+    cdef Py_ssize_t key_utf8_size
+    cdef const char* val_utf8_data
+    cdef Py_ssize_t val_utf8_size
+    key_utf8_data = PyUnicode_AsUTF8AndSize(key, &key_utf8_size)
+    val_utf8_data = PyUnicode_AsUTF8AndSize(val, &val_utf8_size)
+    if key_utf8_data != NULL and val_utf8_data != NULL:
+        ddup_push_label(
+            sample,
+            string_view(key_utf8_data, key_utf8_size),
+            string_view(val_utf8_data, val_utf8_size)
+        )
+
 # Conversion functions
 cdef uint64_t clamp_to_uint64_unsigned(value):
     # This clamps a Python int to the nonnegative range of an unsigned 64-bit integer.
@@ -321,6 +354,50 @@ cdef int64_t clamp_to_int64_unsigned(value):
 
 # Module-level flag to track if code provenance has been set
 cdef bint _code_provenance_set = False
+
+
+def push_event(
+    event_type: str,
+    labels: Optional[Dict[str, str]] = None,
+    capture_stack: bool = True,
+    max_nframes: Optional[int] = None,
+) -> None:
+    """Push a custom event to the profiler.
+
+    Events are samples with a value of 0 that represent points in time.
+    They are tagged with an event_type label and optional custom labels.
+
+    Args:
+        event_type: The type of event (e.g., "task_start", "task_end")
+        labels: Optional dictionary of custom labels to attach to the event
+        capture_stack: Whether to capture the current stack trace (default: True)
+        max_nframes: Maximum number of frames to capture (default: use global config)
+    """
+    import sys
+    from types import FrameType
+    from ddtrace.profiling.collector import _traceback
+    from ddtrace.internal.settings.profiling import config
+
+    handle = SampleHandle()
+
+    # Push the event type label
+    handle.push_event(event_type)
+
+    # Push any custom labels
+    if labels:
+        for key, value in labels.items():
+            handle.push_label(str(key), str(value))
+
+    # Capture stack trace if requested
+    if capture_stack:
+        nframes = max_nframes if max_nframes is not None else config.max_frames
+        # Skip this function's frame (sys._getframe(0) is push_event itself)
+        frame: FrameType = sys._getframe(1)
+        frames, _ = _traceback.pyframe_to_frames(frame, nframes)
+        for ddframe in frames:
+            handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
+
+    handle.flush_sample()
 
 
 def config(
@@ -522,6 +599,14 @@ cdef class SampleHandle:
     def push_absolute_ns(self, timestamp_ns: int) -> None:
         if self.ptr is not NULL:
             ddup_push_absolute_ns(self.ptr, <int64_t>timestamp_ns)
+
+    def push_event(self, event_type: StringType) -> None:
+        if self.ptr is not NULL:
+            call_ddup_push_event(self.ptr, event_type)
+
+    def push_label(self, key: StringType, val: StringType) -> None:
+        if self.ptr is not NULL:
+            call_ddup_push_label(self.ptr, key, val)
 
     def flush_sample(self) -> None:
         # Flushing the sample consumes it.  The user will no longer be able to use

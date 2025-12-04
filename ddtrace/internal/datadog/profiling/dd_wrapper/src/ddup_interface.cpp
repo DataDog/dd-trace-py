@@ -304,6 +304,18 @@ ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns) // cppchec
 }
 
 void
+ddup_push_event(Datadog::Sample* sample, std::string_view event_type) // cppcheck-suppress unusedFunction
+{
+    sample->push_event(event_type);
+}
+
+void
+ddup_push_label(Datadog::Sample* sample, std::string_view key, std::string_view val) // cppcheck-suppress unusedFunction
+{
+    sample->push_label(key, val);
+}
+
+void
 ddup_increment_sampling_event_count() // cppcheck-suppress unusedFunction
 {
     auto borrowed = Datadog::Sample::profile_borrow();
