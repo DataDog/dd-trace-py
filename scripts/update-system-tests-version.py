@@ -48,6 +48,9 @@ def update_system_tests_version(latest_version: str):
             lines[i] = f"{pre}: '{latest_version}'"
             update_ref = False
 
+        if lines[i] == f"    uses: DataDog/system-tests/.github/workflows/system-tests.yml@{current_version}":
+            lines[i] = f"    uses: DataDog/system-tests/.github/workflows/system-tests.yml@{latest_version}"
+
     with open(system_tests_workflows_path, "w") as file:
         file.write("\n".join(lines))
 
