@@ -14,14 +14,12 @@ Usage:
 
 import os
 from typing import Dict
-from typing import Optional
 
 # Enable OTel DD instrumentation mode by default when using this package
 os.environ.setdefault("EXPERIMENTAL_OTEL_DD_INSTRUMENTATION_ENABLED", "true")
 
 # Import and initialize the OTel trace handlers
-from ddtrace.contrib.compat import otel_trace_handlers  # noqa: E402
-
+from ddtrace.contrib.compat import otel_trace_handlers  # noqa: F401
 
 __version__ = "0.1.0"
 
@@ -122,4 +120,3 @@ __all__ = [
     "get_available_integrations",
     "__version__",
 ]
-

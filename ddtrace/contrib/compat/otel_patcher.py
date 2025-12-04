@@ -3,7 +3,7 @@
 Monkey-patches OpenTelemetry Span classes to support Datadog's span interface.
 
 This module should be imported early (e.g., in sitecustomize or auto.py) when
-EXPERIMENTAL_OTEL_DD_INSTRUMENTATION_ENABLED=true. After patching, all OTel 
+EXPERIMENTAL_OTEL_DD_INSTRUMENTATION_ENABLED=true. After patching, all OTel
 spans natively support DD methods like _set_tag_str(), set_metric(), error property, etc.
 
 No re-exports needed - all code uses the original trace_utils unchanged.

@@ -9,11 +9,11 @@ from opentelemetry.context import detach
 from opentelemetry.trace.status import Status
 from opentelemetry.trace.status import StatusCode
 
+from ddtrace import config
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.compat import core
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.constants import _SPAN_MEASURED_KEY
-from ddtrace import config
 
 
 def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs):
@@ -80,6 +80,7 @@ def _finish_span(
     if token is not None:
         detach(token)
 
+
 def _on_httpx_send(ctx, request):
     span = ctx.span
     span.set_metric(_SPAN_MEASURED_KEY, 1)
@@ -108,10 +109,10 @@ def listen():
     core.on("httpx.send", _on_httpx_send)
     core.on("httpx.send.completed", _on_httpx_send_completed)
 
-    for context_name in ("emoji.emojize","httpx.request.sync"):
+    for context_name in ("emoji.emojize", "httpx.request.sync"):
         core.on(f"context.started.{context_name}", _start_span)
 
-    for name in ("emoji.emojize","httpx.request.sync"):
+    for name in ("emoji.emojize", "httpx.request.sync"):
         core.on(f"context.ended.{name}", _finish_span)
 
 

@@ -6,9 +6,7 @@ This ensures the ddtrace subset is copied only during build time,
 not kept permanently in the source directory.
 """
 
-import hashlib
 import shutil
-import sys
 from pathlib import Path
 
 from setuptools import setup
@@ -137,4 +135,3 @@ if __name__ == "__main__":
             "egg_info": SyncAndEggInfo,
         }
     )
-

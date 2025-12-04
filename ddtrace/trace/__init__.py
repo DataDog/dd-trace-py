@@ -12,7 +12,7 @@ if not config._otel_dd_instrumentation:
     tracer = Tracer()
     core.tracer = tracer  # type: ignore
 else:
-    tracer = None
+    tracer = None  # type: ignore[assignment]
     core.tracer = None
 
 __all__ = [
