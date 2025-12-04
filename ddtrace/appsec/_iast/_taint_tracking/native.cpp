@@ -6,6 +6,7 @@
  * - Taint ranges: Information related to tainted values.
  */
 #include <memory>
+#include <pthread.h>
 #include <pybind11/pybind11.h>
 
 #include "aspects/aspect_extend.h"
@@ -62,12 +63,74 @@ static struct PyModuleDef ops __attribute__((used)) = { PyModuleDef_HEAD_INIT,
                                                         .m_methods = OpsMethods };
 
 /**
+ * Initialize or reinitialize the native IAST global state.
+ *
+ * This creates fresh instances of the global singletons:
+ * - initializer: manages memory pools for taint ranges and objects
+ * - taint_engine_context: manages per-request taint maps
+ *
+ * Can be called:
+ * - At module load time (automatic)
+ * - From Python explicitly (for manual control)
+ * - After fork in child process (to reset inherited state)
+ */
+static void
+initialize_native_state()
+{
+    // Create fresh instances of global singletons
+    initializer = make_unique<Initializer>();
+    taint_engine_context = make_unique<TaintEngineContext>();
+}
+
+/**
+ * Reset native IAST state after fork.
+ *
+ * This function safely resets all C++ global state that may have been
+ * inherited from the parent process during fork. It:
+ *
+ * 1. Clears all taint maps (they contain stale PyObject pointers)
+ * 2. Resets the taint_engine_context (recreates the context array)
+ * 3. Resets the initializer (recreates memory pools)
+ *
+ * This prevents crashes from:
+ * - Dereferencing stale PyObject pointers from parent
+ * - Using corrupted shared_ptr control blocks
+ * - Accessing invalid memory in std::vector/map internals
+ *
+ * Called automatically via pthread_atfork in child processes.
+ */
+static void
+reset_native_state_after_fork()
+{
+    // Important: We're in the child process after fork.
+    // The Python GIL is held by the forking thread in the child.
+
+    // Step 1: Clear all taint maps to remove stale PyObject pointers
+    if (taint_engine_context) {
+        taint_engine_context->clear_all_request_context_slots();
+        taint_engine_context.reset();
+    }
+
+    // Step 2: Reset the initializer memory pools
+    if (initializer) {
+        initializer.reset();
+    }
+
+    // Step 3: Recreate fresh instances
+    initialize_native_state();
+}
+
+/**
  * This function initializes the native module.
  */
 PYBIND11_MODULE(_native, m)
 {
-    initializer = make_unique<Initializer>();
-    taint_engine_context = make_unique<TaintEngineContext>();
+    // Register pthread_atfork handler to reset state in child processes
+    // This provides automatic fork-safety:
+    // - prepare: NULL (nothing to do before fork in parent)
+    // - parent: NULL (nothing to do after fork in parent)
+    // - child: reset_native_state_after_fork (reset globals in child)
+    pthread_atfork(nullptr, nullptr, reset_native_state_after_fork);
 
     // Create a atexit callback to cleanup the Initializer before the interpreter finishes
     auto atexit_register = safe_import("atexit", "register");
@@ -103,6 +166,19 @@ PYBIND11_MODULE(_native, m)
     pyexport_m_taint_tracking(m);
 
     pyexport_m_aspect_helpers(m);
+
+    // Export fork-safety functions
+    m.def("reset_native_state",
+          &reset_native_state_after_fork,
+          "Reset native IAST state after fork. "
+          "This recreates all global C++ singletons with fresh state, "
+          "clearing any inherited PyObject pointers or corrupted memory from parent process.");
+
+    m.def("initialize_native_state",
+          &initialize_native_state,
+          "Explicitly initialize native IAST state. "
+          "Normally called automatically at module load, but can be called manually "
+          "from Python for explicit initialization control.");
 
     // Note: the order of these definitions matter. For example,
     // stacktrace_element definitions must be before the ones of the

@@ -1,5 +1,4 @@
 #include "aspect_slice.h"
-#include "helpers.h"
 
 /**
  * This function reduces the taint ranges from the given index range map.
@@ -19,7 +18,7 @@ reduce_ranges_from_index_range_map(const TaintRangeRefs& index_range_map)
     for (index = 0; index < index_range_map.size(); ++index) {
         if (const auto& taint_range{ index_range_map.at(index) }; taint_range != current_range) {
             if (current_range) {
-                new_ranges.emplace_back(initializer->allocate_taint_range(
+                new_ranges.emplace_back(safe_allocate_taint_range(
                   current_start, index - current_start, current_range->source, current_range->secure_marks));
             }
             current_range = taint_range;
@@ -27,7 +26,7 @@ reduce_ranges_from_index_range_map(const TaintRangeRefs& index_range_map)
         }
     }
     if (current_range != nullptr) {
-        new_ranges.emplace_back(initializer->allocate_taint_range(
+        new_ranges.emplace_back(safe_allocate_taint_range(
           current_start, index - current_start, current_range->source, current_range->secure_marks));
     }
     return new_ranges;
@@ -105,7 +104,7 @@ build_index_range_map(PyObject* text, TaintRangeRefs& ranges, PyObject* start, P
 PyObject*
 slice_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* start, PyObject* stop, PyObject* step)
 {
-    const auto ctx_map = taint_engine_context->get_tainted_object_map(candidate_text);
+    const auto ctx_map = safe_get_tainted_object_map(candidate_text);
 
     if (not ctx_map or ctx_map->empty()) {
         return result_o;
@@ -143,6 +142,8 @@ api_slice_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     }
 
     PyObject* result_o = PyObject_GetItem(candidate_text, slice);
+
+    CHECK_IAST_INITIALIZED_OR_RETURN(result_o);
 
     TRY_CATCH_ASPECT("slice_aspect", return result_o, Py_XDECREF(slice), {
         // If no result or the params are not None|Number or the result is the same as the candidate text, nothing
