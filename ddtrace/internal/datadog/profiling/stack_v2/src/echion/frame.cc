@@ -246,7 +246,21 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
 
     // We cannot use _PyInterpreterFrame_LASTI because _PyCode_CODE reads
     // from the code object.
-#if PY_VERSION_HEX >= 0x030d0000
+#if PY_VERSION_HEX >= 0x030e0000
+    // Python 3.14+: f_executable is _PyStackRef, access bits directly
+    // We can't use CPython API helpers as we're copying partial structs
+    const int lasti =
+      (static_cast<int>(
+        (frame_addr->instr_ptr - 1 -
+         reinterpret_cast<_Py_CODEUNIT*>((reinterpret_cast<PyCodeObject*>(frame_addr->f_executable.bits)))))) -
+      offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
+    auto maybe_frame = Frame::get(reinterpret_cast<PyCodeObject*>(frame_addr->f_executable.bits), lasti);
+    if (!maybe_frame) {
+        return ErrorKind::FrameError;
+    }
+
+    auto& frame = maybe_frame->get();
+#elif PY_VERSION_HEX >= 0x030d0000
     const int lasti =
       (static_cast<int>(
         (frame_addr->instr_ptr - 1 -
@@ -268,7 +282,7 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
     }
 
     auto& frame = maybe_frame->get();
-#endif // PY_VERSION_HEX >= 0x030d0000
+#endif // PY_VERSION_HEX >= 0x030e0000
     if (&frame != &INVALID_FRAME) {
 #if PY_VERSION_HEX >= 0x030c0000
         frame.is_entry = (frame_addr->owner == FRAME_OWNED_BY_CSTACK); // Shim frame
@@ -277,7 +291,32 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
 #endif                                                                 // PY_VERSION_HEX >= 0x030c0000
     }
 
+#if PY_VERSION_HEX >= 0x030e0000
+    // Python 3.14+: Generator frames have previous = NULL (intentionally broken frame chain)
+    // See docs/python-3.14-generator-frame-limitation.md for details
+    // In _PyFrame_Copy(), CPython explicitly sets dest->previous = NULL to prevent
+    // dangling pointers when creating generator/coroutine frames.
+    if (frame_addr->previous == NULL && frame_addr->owner == FRAME_OWNED_BY_GENERATOR) {
+        // Best-effort fallback: try frame_obj->f_back->f_frame if available
+        // This is unreliable because frame_obj is lazily created and often NULL,
+        // and even when it exists, f_back is often NULL for generator frames.
+        // However, it might occasionally help in edge cases.
+        *prev_addr = NULL;
+        if (frame_addr->frame_obj != NULL) {
+            PyFrameObject frame_obj;
+            if (copy_type(frame_addr->frame_obj, frame_obj) == 0 && frame_obj.f_back != NULL) {
+                PyFrameObject prev_frame_obj;
+                if (copy_type(frame_obj.f_back, prev_frame_obj) == 0 && prev_frame_obj.f_frame != NULL) {
+                    *prev_addr = prev_frame_obj.f_frame;
+                }
+            }
+        }
+    } else {
+        *prev_addr = &frame == &INVALID_FRAME ? NULL : frame_addr->previous;
+    }
+#else
     *prev_addr = &frame == &INVALID_FRAME ? NULL : frame_addr->previous;
+#endif
 
 #else  // PY_VERSION_HEX < 0x030b0000
     // Unwind the stack from leaf to root and store it in a stack. This way we

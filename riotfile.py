@@ -3280,7 +3280,7 @@ venv = Venv(
                 Venv(
                     name="profile-uwsgi",
                     command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/test_uwsgi.py",  # noqa: E501
-                    pys=select_pys(max_version="3.13"),
+                    pys=select_pys(max_version="3.14"),
                     pkgs={
                         "uwsgi": "<2.0.30",
                         "protobuf": latest,
@@ -3365,7 +3365,7 @@ venv = Venv(
                 ),
                 # Python >= 3.11
                 Venv(
-                    pys=select_pys("3.11", "3.13"),
+                    pys=select_pys("3.11", "3.14"),
                     pkgs={"uwsgi": latest},
                     venvs=[
                         Venv(
@@ -3398,8 +3398,7 @@ venv = Venv(
                 Venv(
                     name="profile-memalloc",
                     command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py",  # noqa: E501
-                    # skipping v3.14 for now due to an unstable `lz4 ` lib issue: https://gitlab.ddbuild.io/DataDog/apm-reliability/dd-trace-py/-/jobs/1163312347
-                    pys=select_pys(max_version="3.13"),
+                    pys=select_pys(max_version="3.14"),
                     pkgs={
                         "protobuf": latest,
                     },

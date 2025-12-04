@@ -10,6 +10,7 @@ import pytest
 # For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
 def test_generators_stacks() -> None:
     import os
+    import sys
     import time
     from typing import Generator
 
@@ -49,29 +50,59 @@ def test_generators_stacks() -> None:
     samples = list(profile.sample)
     assert len(samples) > 0
 
-    # Test that we have samples with the expected stack trace
-    # Main Thread should have: my_function -> generator -> generator2
-    pprof_utils.assert_profile_has_sample(
-        profile,
-        samples,
-        expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
-            locations=[
-                pprof_utils.StackLocation(
-                    function_name="generator2",
-                    filename="test_generators.py",
-                    line_no=generator2.__code__.co_firstlineno + 1,
-                ),
-                pprof_utils.StackLocation(
-                    function_name="generator",
-                    filename="test_generators.py",
-                    line_no=generator.__code__.co_firstlineno + 1,
-                ),
-                pprof_utils.StackLocation(
-                    function_name="my_function",
-                    filename="test_generators.py",
-                    line_no=my_function.__code__.co_firstlineno + 2,
-                ),
-            ],
-        ),
-    )
+    # In Python 3.14+, generator frames intentionally break the frame chain by setting
+    # previous = NULL to prevent dangling pointers. This means we cannot unwind from
+    # generator frames back to their callers. See docs/python-3.14-generator-frame-limitation.md
+    # for details.
+    #
+    # Expected behavior:
+    # - Python < 3.14: my_function -> generator -> generator2 (full stack trace)
+    # - Python >= 3.14: generator -> generator2 (cannot unwind to my_function)
+    if sys.version_info >= (3, 14):
+        # Python 3.14+: Generator frames have previous = NULL, so we can only unwind
+        # generator -> generator2, but not generator -> my_function
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_name="MainThread",
+                locations=[
+                    pprof_utils.StackLocation(
+                        function_name="generator2",
+                        filename="test_generators.py",
+                        line_no=generator2.__code__.co_firstlineno + 1,
+                    ),
+                    pprof_utils.StackLocation(
+                        function_name="generator",
+                        filename="test_generators.py",
+                        line_no=generator.__code__.co_firstlineno + 1,
+                    ),
+                ],
+            ),
+        )
+    else:
+        # Python < 3.14: Full stack trace should be available
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_name="MainThread",
+                locations=[
+                    pprof_utils.StackLocation(
+                        function_name="generator2",
+                        filename="test_generators.py",
+                        line_no=generator2.__code__.co_firstlineno + 1,
+                    ),
+                    pprof_utils.StackLocation(
+                        function_name="generator",
+                        filename="test_generators.py",
+                        line_no=generator.__code__.co_firstlineno + 1,
+                    ),
+                    pprof_utils.StackLocation(
+                        function_name="my_function",
+                        filename="test_generators.py",
+                        line_no=my_function.__code__.co_firstlineno + 2,
+                    ),
+                ],
+            ),
+        )

@@ -43,7 +43,15 @@ def _task_get_name(task: "asyncio.Task[typing.Any]") -> str:
 def _call_init_asyncio(asyncio: ModuleType) -> None:
     from asyncio import tasks as asyncio_tasks
 
-    if sys.hexversion >= 0x030C0000:
+    if sys.hexversion >= 0x030E0000:
+        # Python 3.14+:
+        # - Native tasks are in linked-list (handled in C++)
+        # - Third-party tasks are in Python _scheduled_tasks WeakSet
+        # - Pass _scheduled_tasks.data (set) so C++ can iterate it with MirrorSet
+        scheduled_tasks = asyncio_tasks._scheduled_tasks.data  # type: ignore[attr-defined]
+        eager_tasks = asyncio_tasks._eager_tasks  # type: ignore[attr-defined]
+    elif sys.hexversion >= 0x030C0000:
+        # Python 3.12-3.13: _scheduled_tasks has .data attribute from C extension
         scheduled_tasks = asyncio_tasks._scheduled_tasks.data  # type: ignore[attr-defined]
         eager_tasks = asyncio_tasks._eager_tasks  # type: ignore[attr-defined]
     else:
@@ -103,20 +111,32 @@ def _(asyncio: ModuleType) -> None:
 
     init_stack_v2: bool = config.stack.enabled and stack_v2.is_available
 
-    @partial(wrap, sys.modules["asyncio.events"].BaseDefaultEventLoopPolicy.set_event_loop)
-    def _(
-        f: typing.Callable[..., typing.Any], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]
-    ) -> typing.Any:
-        loop: typing.Optional["aio.AbstractEventLoop"] = get_argument_value(args, kwargs, 1, "loop")
-        try:
-            if init_stack_v2:
-                stack_v2.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
-            return f(*args, **kwargs)
-        finally:
-            assert THREAD_LINK is not None  # nosec: assert is used for typing
-            THREAD_LINK.clear_threads(set(sys._current_frames().keys()))
-            if loop is not None:
-                THREAD_LINK.link_object(loop)
+    # Python 3.14+: BaseDefaultEventLoopPolicy was renamed to _BaseDefaultEventLoopPolicy
+    # Try both names for compatibility
+    events_module = sys.modules["asyncio.events"]
+    if sys.hexversion >= 0x030E0000:
+        # Python 3.14+: Use _BaseDefaultEventLoopPolicy
+        policy_class = getattr(events_module, "_BaseDefaultEventLoopPolicy", None)
+    else:
+        # Python < 3.14: Use BaseDefaultEventLoopPolicy
+        policy_class = getattr(events_module, "BaseDefaultEventLoopPolicy", None)
+
+    if policy_class is not None:
+
+        @partial(wrap, policy_class.set_event_loop)
+        def _(
+            f: typing.Callable[..., typing.Any], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]
+        ) -> typing.Any:
+            loop: typing.Optional["aio.AbstractEventLoop"] = get_argument_value(args, kwargs, 1, "loop")
+            try:
+                if init_stack_v2:
+                    stack_v2.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
+                return f(*args, **kwargs)
+            finally:
+                assert THREAD_LINK is not None  # nosec: assert is used for typing
+                THREAD_LINK.clear_threads(set(sys._current_frames().keys()))
+                if loop is not None:
+                    THREAD_LINK.link_object(loop)
 
     if init_stack_v2:
 

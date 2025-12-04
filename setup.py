@@ -269,8 +269,7 @@ def is_64_bit_python():
 rust_features = []
 if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
     rust_features.append("crashtracker")
-    if sys.version_info[:2] < (3, 14):
-        rust_features.append("profiling")
+    rust_features.append("profiling")
 
 
 class PatchedDistribution(Distribution):
@@ -618,7 +617,7 @@ class CustomBuildExt(build_ext):
         self.build_rust()
 
         # Build libdd_wrapper before building other extensions that depend on it
-        if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 14):
+        if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
             self.build_libdd_wrapper()
 
         super().run()
@@ -1157,40 +1156,39 @@ if not IS_PYSTON:
         )
 
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
-        if sys.version_info < (3, 14):
-            # Memory profiler now uses CMake to support Abseil dependency
-            MEMALLOC_DIR = HERE / "ddtrace" / "profiling" / "collector"
-            ext_modules.append(
-                CMakeExtension(
-                    "ddtrace.profiling.collector._memalloc",
-                    source_dir=MEMALLOC_DIR,
-                    optional=False,
-                )
+        # Memory profiler now uses CMake to support Abseil dependency
+        MEMALLOC_DIR = HERE / "ddtrace" / "profiling" / "collector"
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.profiling.collector._memalloc",
+                source_dir=MEMALLOC_DIR,
+                optional=False,
             )
+        )
 
-            ext_modules.append(
-                CMakeExtension(
-                    "ddtrace.internal.datadog.profiling.ddup._ddup",
-                    source_dir=DDUP_DIR,
-                    extra_source_dirs=[
-                        DDUP_DIR / ".." / "cmake",
-                        DDUP_DIR / ".." / "dd_wrapper",
-                    ],
-                    optional=False,
-                )
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.ddup._ddup",
+                source_dir=DDUP_DIR,
+                extra_source_dirs=[
+                    DDUP_DIR / ".." / "cmake",
+                    DDUP_DIR / ".." / "dd_wrapper",
+                ],
+                optional=False,
             )
+        )
 
-            ext_modules.append(
-                CMakeExtension(
-                    "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
-                    source_dir=STACK_V2_DIR,
-                    extra_source_dirs=[
-                        STACK_V2_DIR / ".." / "cmake",
-                        STACK_V2_DIR / ".." / "dd_wrapper",
-                    ],
-                    optional=False,
-                ),
-            )
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
+                source_dir=STACK_V2_DIR,
+                extra_source_dirs=[
+                    STACK_V2_DIR / ".." / "cmake",
+                    STACK_V2_DIR / ".." / "dd_wrapper",
+                ],
+                optional=False,
+            ),
+        )
 
 
 else:

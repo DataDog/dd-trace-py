@@ -11,7 +11,15 @@
 #include <cpython/genobject.h>
 
 #define Py_BUILD_CORE
-#if PY_VERSION_HEX >= 0x030d0000
+#if PY_VERSION_HEX >= 0x030e0000
+// Python 3.14+: _PyInterpreterFrame moved to new header
+#include <internal/pycore_frame.h>
+#include <internal/pycore_interpframe.h>
+#include <internal/pycore_interpframe_structs.h>
+#include <internal/pycore_llist.h> // For llist_node structure
+#include <internal/pycore_stackref.h>
+#include <opcode.h>
+#elif PY_VERSION_HEX >= 0x030d0000
 #include <opcode.h>
 #else
 #include <internal/pycore_frame.h>
@@ -38,7 +46,32 @@ extern "C"
         STATE_FINISHED
     } fut_state;
 
-#if PY_VERSION_HEX >= 0x030d0000
+#if PY_VERSION_HEX >= 0x030e0000
+// Python 3.14+: New fields added (awaited_by, is_task, awaited_by_is_set)
+#define FutureObj_HEAD(prefix)                                                                                         \
+    PyObject_HEAD PyObject* prefix##_loop;                                                                             \
+    PyObject* prefix##_callback0;                                                                                      \
+    PyObject* prefix##_context0;                                                                                       \
+    PyObject* prefix##_callbacks;                                                                                      \
+    PyObject* prefix##_exception;                                                                                      \
+    PyObject* prefix##_exception_tb;                                                                                   \
+    PyObject* prefix##_result;                                                                                         \
+    PyObject* prefix##_source_tb;                                                                                      \
+    PyObject* prefix##_cancel_msg;                                                                                     \
+    PyObject* prefix##_cancelled_exc;                                                                                  \
+    PyObject* prefix##_awaited_by;                                                                                     \
+    fut_state prefix##_state;                                                                                          \
+    /* Used by profilers to make traversing the stack from an external                                                 \
+       process faster. */                                                                                              \
+    char prefix##_is_task;                                                                                             \
+    char prefix##_awaited_by_is_set;                                                                                   \
+    /* These bitfields need to be at the end of the struct                                                             \
+       so that these and bitfields from TaskObj are contiguous.                                                        \
+    */                                                                                                                 \
+    unsigned prefix##_log_tb : 1;                                                                                      \
+    unsigned prefix##_blocking : 1;
+
+#elif PY_VERSION_HEX >= 0x030d0000
 #define FutureObj_HEAD(prefix)                                                                                         \
     PyObject_HEAD PyObject* prefix##_loop;                                                                             \
     PyObject* prefix##_callback0;                                                                                      \
@@ -131,7 +164,24 @@ extern "C"
         FutureObj_HEAD(future)
     } FutureObj;
 
-#if PY_VERSION_HEX >= 0x030d0000
+#if PY_VERSION_HEX >= 0x030e0000
+    // Python 3.14+: TaskObj includes task_node for linked-list storage
+    typedef struct
+    {
+        FutureObj_HEAD(task) unsigned task_must_cancel : 1;
+        unsigned task_log_destroy_pending : 1;
+        int task_num_cancels_requested;
+        PyObject* task_fut_waiter;
+        PyObject* task_coro;
+        PyObject* task_name;
+        PyObject* task_context;
+        struct llist_node task_node;
+#ifdef Py_GIL_DISABLED
+        // thread id of the thread where this task was created
+        uintptr_t task_tid;
+#endif
+    } TaskObj;
+#elif PY_VERSION_HEX >= 0x030d0000
     typedef struct
     {
         FutureObj_HEAD(task) unsigned task_must_cancel : 1;
@@ -173,7 +223,56 @@ extern "C"
 #define RESUME_QUICK INSTRUMENTED_RESUME
 #endif
 
-#if PY_VERSION_HEX >= 0x030d0000
+#if PY_VERSION_HEX >= 0x030e0000
+    // Python 3.14+: Use stackpointer and _PyStackRef
+    // We can't use CPython API helpers as we're copying partial structs
+    inline PyObject* PyGen_yf(PyGenObject* gen, PyObject* frame_addr)
+    {
+        if (gen->gi_frame_state != FRAME_SUSPENDED_YIELD_FROM) {
+            return nullptr;
+        }
+
+        _PyInterpreterFrame frame;
+        if (copy_type(frame_addr, frame)) {
+            return nullptr;
+        }
+
+        // Get the code object from f_executable.bits to know co_nlocalsplus
+        PyCodeObject code;
+        PyCodeObject* code_ptr = reinterpret_cast<PyCodeObject*>(frame.f_executable.bits);
+        if (copy_type(code_ptr, code)) {
+            return nullptr;
+        }
+
+        // Calculate addresses in remote process
+        uintptr_t frame_addr_uint = reinterpret_cast<uintptr_t>(frame_addr);
+        uintptr_t localsplus_addr = frame_addr_uint + offsetof(_PyInterpreterFrame, localsplus);
+        uintptr_t stackbase_addr = localsplus_addr + code.co_nlocalsplus * sizeof(_PyStackRef);
+
+        // stackpointer is a pointer field - when copied, it contains the remote address
+        // Calculate stacktop from pointer difference
+        uintptr_t stackpointer_addr = reinterpret_cast<uintptr_t>(frame.stackpointer);
+        if (stackpointer_addr < stackbase_addr) {
+            return nullptr;
+        }
+
+        int stacktop = (int)((stackpointer_addr - stackbase_addr) / sizeof(_PyStackRef));
+
+        if (stacktop < 1 || stacktop > MAX_STACK_SIZE) {
+            return nullptr;
+        }
+
+        // Read the top of stack directly from remote memory
+        _PyStackRef top_ref;
+        if (copy_type(reinterpret_cast<void*>(stackpointer_addr - sizeof(_PyStackRef)), top_ref)) {
+            return nullptr;
+        }
+
+        // Extract PyObject* from _PyStackRef.bits
+        return reinterpret_cast<PyObject*>(top_ref.bits);
+    }
+
+#elif PY_VERSION_HEX >= 0x030d0000
 
     inline PyObject* PyGen_yf(PyGenObject* gen, PyObject* frame_addr)
     {

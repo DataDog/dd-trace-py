@@ -50,8 +50,8 @@ class ThreadInfo
     [[nodiscard]] Result<void> update_cpu_time();
     bool is_running();
 
-    [[nodiscard]] Result<void> sample(int64_t, PyThreadState*, microsecond_t);
-    void unwind(PyThreadState*);
+    [[nodiscard]] Result<void> sample(int64_t, PyThreadState*, microsecond_t, uintptr_t tstate_addr = 0);
+    void unwind(PyThreadState*, uintptr_t tstate_addr = 0);
 
     // ------------------------------------------------------------------------
 #if defined PL_LINUX
@@ -101,7 +101,7 @@ class ThreadInfo
     };
 
   private:
-    [[nodiscard]] Result<void> unwind_tasks();
+    [[nodiscard]] Result<void> unwind_tasks(PyThreadState* tstate, uintptr_t tstate_addr = 0);
     void unwind_greenlets(PyThreadState*, unsigned long);
 };
 
@@ -186,13 +186,14 @@ inline std::mutex thread_info_map_lock;
 
 // ----------------------------------------------------------------------------
 inline void
-ThreadInfo::unwind(PyThreadState* tstate)
+ThreadInfo::unwind(PyThreadState* tstate, uintptr_t tstate_addr)
 {
     unwind_python_stack(tstate);
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
         // We cast it to void to ignore failures.
-        (void)unwind_tasks();
+        // Pass tstate and tstate_addr to unwind_tasks() so it can access this thread's linked-list
+        (void)unwind_tasks(tstate, tstate_addr);
     }
 
     // We make the assumption that gevent and asyncio are not mixed
@@ -203,14 +204,16 @@ ThreadInfo::unwind(PyThreadState* tstate)
 
 // ----------------------------------------------------------------------------
 inline Result<void>
-ThreadInfo::unwind_tasks()
+ThreadInfo::unwind_tasks(PyThreadState* tstate, uintptr_t tstate_addr)
 {
     std::vector<TaskInfo::Ref> leaf_tasks;
     std::unordered_set<PyObject*> parent_tasks;
     std::unordered_map<PyObject*, TaskInfo::Ref> waitee_map; // Indexed by task origin
     std::unordered_map<PyObject*, TaskInfo::Ref> origin_map; // Indexed by task origin
 
-    auto maybe_all_tasks = get_all_tasks(reinterpret_cast<PyObject*>(asyncio_loop));
+    // Pass tstate and tstate_addr to get_all_tasks() to get tasks from this thread's linked-list (Python 3.14+)
+    // tstate is used for dereferencing (e.g., tstate->interp), tstate_addr is used for offset calculations
+    auto maybe_all_tasks = get_all_tasks(reinterpret_cast<PyObject*>(asyncio_loop), tstate, tstate_addr);
     if (!maybe_all_tasks) {
         return ErrorKind::TaskInfoError;
     }
@@ -245,12 +248,28 @@ ThreadInfo::unwind_tasks()
     for (auto& task : all_tasks) {
         origin_map.emplace(task->origin, std::ref(*task));
 
-        if (task->waiter != NULL)
+        // task->waiter is only set if task_fut_waiter points to another Task
+        // If task_fut_waiter points to a Future/Coroutine, waiter will be NULL
+        if (task->waiter != NULL) {
             waitee_map.emplace(task->waiter->origin, std::ref(*task));
-        else if (parent_tasks.find(task->origin) == parent_tasks.end()) {
+        } else if (parent_tasks.find(task->origin) == parent_tasks.end()) {
             leaf_tasks.push_back(std::ref(*task));
         }
     }
+
+#if PY_VERSION_HEX >= 0x030e0000
+    // Python 3.14+: If no leaf tasks found but we have tasks, unwind all tasks that aren't in parent_tasks
+    // This handles the case where all tasks are waiting on other Tasks (not Futures/Coroutines)
+    // In normal asyncio usage, tasks awaiting Futures/Coroutines should have waiter=NULL and be leaf tasks
+    // But if all tasks are waiting on other Tasks, we need this fallback
+    if (leaf_tasks.empty() && !all_tasks.empty()) {
+        for (auto& task : all_tasks) {
+            if (parent_tasks.find(task->origin) == parent_tasks.end()) {
+                leaf_tasks.push_back(std::ref(*task));
+            }
+        }
+    }
+#endif
 
     // Only one Task can be on CPU at a time.
     // Since determining if a task is on CPU is somewhat costly, we
@@ -263,7 +282,9 @@ ThreadInfo::unwind_tasks()
             on_cpu_task_seen = on_cpu;
         }
 
-        auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, on_cpu);
+        // Start with leaf task name, but we'll update it if we follow parent chain to a parent task
+        StringTable::Key sample_task_name = leaf_task.get().name;
+        auto stack_info = std::make_unique<StackInfo>(sample_task_name, on_cpu);
         auto& stack = stack_info->stack;
         for (auto current_task = leaf_task;;) {
             auto& task = current_task.get();
@@ -295,20 +316,21 @@ ThreadInfo::unwind_tasks()
 
             // Get the next task in the chain
             PyObject* task_origin = task.origin;
-            if (waitee_map.find(task_origin) != waitee_map.end()) {
-                current_task = waitee_map.find(task_origin)->second;
-                continue;
-            }
 
+            // Check for parent (gather) links first
             {
-                // Check for, e.g., gather links
                 std::lock_guard<std::mutex> lock(task_link_map_lock);
-
                 if (task_link_map.find(task_origin) != task_link_map.end() &&
                     origin_map.find(task_link_map[task_origin]) != origin_map.end()) {
                     current_task = origin_map.find(task_link_map[task_origin])->second;
                     continue;
                 }
+            }
+
+            // Then check for waiter links
+            if (waitee_map.find(task_origin) != waitee_map.end()) {
+                current_task = waitee_map.find(task_origin)->second;
+                continue;
             }
 
             break;
@@ -390,7 +412,7 @@ ThreadInfo::unwind_greenlets(PyThreadState* tstate, unsigned long cur_native_id)
 
 // ----------------------------------------------------------------------------
 inline Result<void>
-ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
+ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta, uintptr_t tstate_addr)
 {
     Renderer::get().render_thread_begin(tstate, name, delta, thread_id, native_id);
 
@@ -404,7 +426,7 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
 
     Renderer::get().render_cpu_time(thread_is_running ? cpu_time - previous_cpu_time : 0);
 
-    this->unwind(tstate);
+    this->unwind(tstate, tstate_addr);
 
     // Render in this order of priority
     // 1. asyncio Tasks stacks (if any)
@@ -465,7 +487,7 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
 
 // ----------------------------------------------------------------------------
 static void
-for_each_thread(InterpreterInfo& interp, std::function<void(PyThreadState*, ThreadInfo&)> callback)
+for_each_thread(InterpreterInfo& interp, std::function<void(PyThreadState*, uintptr_t, ThreadInfo&)> callback)
 {
     std::unordered_set<PyThreadState*> threads;
     std::unordered_set<PyThreadState*> seen_threads;
@@ -533,8 +555,11 @@ for_each_thread(InterpreterInfo& interp, std::function<void(PyThreadState*, Thre
                 thread_info_map.emplace(tstate.thread_id, std::move(*maybe_thread_info));
             }
 
-            // Call back with the thread state and thread info.
-            callback(&tstate, *thread_info_map.find(tstate.thread_id)->second);
+            // Call back with the thread state, actual address, and thread info.
+            // CRITICAL: Pass both &tstate (local copy for dereferencing) and tstate_addr (actual address for offset
+            // calculations)
+            callback(
+              &tstate, reinterpret_cast<uintptr_t>(tstate_addr), *thread_info_map.find(tstate.thread_id)->second);
         }
     }
 }
