@@ -69,14 +69,23 @@ static struct PyModuleDef ops __attribute__((used)) = { PyModuleDef_HEAD_INIT,
  * - initializer: manages memory pools for taint ranges and objects
  * - taint_engine_context: manages per-request taint maps
  *
+ * IMPORTANT: This function is idempotent. If already initialized, it does nothing.
+ * This ensures that calling it multiple times doesn't destroy existing taint state.
+ *
  * Can be called:
  * - At module load time (automatic)
  * - From Python explicitly (for manual control)
- * - After fork in child process (to reset inherited state)
+ * - Multiple times safely (idempotent)
  */
 static void
 initialize_native_state()
 {
+    // Idempotent: only initialize if not already initialized
+    // This preserves existing taint state when called multiple times
+    if (initializer && taint_engine_context) {
+        return; // Already initialized, nothing to do
+    }
+
     // Create fresh instances of global singletons
     initializer = make_unique<Initializer>();
     taint_engine_context = make_unique<TaintEngineContext>();

@@ -59,6 +59,12 @@ TaintRange::has_origin(OriginType origin) const
 TaintRangePtr
 shift_taint_range(const TaintRangePtr& source_taint_range, const RANGE_START offset, const RANGE_LENGTH new_length = -1)
 {
+    // CRITICAL: Check if the shared_ptr is valid before accessing its members.
+    // After fork or during cleanup, taint ranges can become null/empty.
+    if (!source_taint_range) {
+        return nullptr;
+    }
+
     const auto new_length_to_use = new_length == -1 ? source_taint_range->length : new_length;
     auto tptr = safe_allocate_taint_range(source_taint_range->start + offset,
                                           new_length_to_use,
@@ -76,6 +82,11 @@ shift_taint_ranges(const TaintRangeRefs& source_taint_ranges,
     new_ranges.reserve(source_taint_ranges.size());
 
     for (const auto& trange : source_taint_ranges) {
+        // Skip ONLY if the input range itself is null/empty (data corruption from fork/cleanup).
+        // Do NOT skip if allocation fails - that should propagate as nullptr to caller.
+        if (!trange) {
+            continue; // Skip corrupted/null input ranges
+        }
         new_ranges.emplace_back(shift_taint_range(trange, offset, new_length));
     }
     return new_ranges;
