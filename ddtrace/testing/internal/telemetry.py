@@ -324,10 +324,8 @@ class TelemetryAPIRequestMetrics:
         if response_bytes is not None and self.response_bytes is not None:
             # We don't always want to record response bytes (for settings requests), so assume that no metric name
             # means we don't want to record it.
-            response_tags = (("rs_compressed", "true"),) if compressed_response else None
-            self.telemetry_api.writer.add_distribution_metric(
-                CIVISIBILITY, self.response_bytes, response_bytes, response_tags
-            )
+            response_tags = {"rs_compressed": compressed_response}
+            self.telemetry_api.add_distribution_metric(self.response_bytes, response_bytes, response_tags)
 
         if error is not None:
             self.record_error(error)
