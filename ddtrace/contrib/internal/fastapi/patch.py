@@ -24,27 +24,25 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 
 log = get_logger(__name__)
 
+_WRAPT_REDUCERS_REGISTERED = False
+
 
 def _identity(x):
-    """Identity function used for pickle reconstruction of unwrapped objects."""
     return x
 
 
 def _reduce_wrapt_proxy(proxy):
-    """Pickle reducer for wrapt proxy types - returns the unwrapped object."""
     return (_identity, (proxy.__wrapped__,))
 
 
 def _register_wrapt_pickle_reducers():
-    """Register pickle reducers for wrapt proxy types.
-
-    This enables serialization of ddtrace-wrapped objects by frameworks
-    like Ray Serve that use cloudpickle. The reducer unwraps proxies to
-    their underlying objects.
-    """
+    global _WRAPT_REDUCERS_REGISTERED
+    if _WRAPT_REDUCERS_REGISTERED:
+        return
     for cls in [wrapt.ObjectProxy, wrapt.FunctionWrapper, wrapt.BoundFunctionWrapper]:
         if cls not in copyreg.dispatch_table:
             copyreg.dispatch_table[cls] = _reduce_wrapt_proxy
+    _WRAPT_REDUCERS_REGISTERED = True
 
 
 config._add(
@@ -113,8 +111,6 @@ def patch():
     if getattr(fastapi, "_datadog_patch", False):
         return
 
-    # Register pickle reducers for wrapt proxies to enable serialization
-    # by frameworks like Ray Serve that use cloudpickle
     _register_wrapt_pickle_reducers()
 
     fastapi._datadog_patch = True
