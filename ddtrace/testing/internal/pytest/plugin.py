@@ -157,6 +157,12 @@ class TestOptPlugin:
         self.session.start()
         self.manager.start()
 
+        TelemetryAPI.get().record_session_created(
+            test_framework=TEST_FRAMEWORK,
+            has_codeowners=self.manager.has_codeowners(),
+            is_unsupported_ci=self.manager.is_unsupported_ci(),
+        )
+
         if self.enable_ddtrace:
             install_global_trace_filter(self.manager.writer)
 
@@ -173,6 +179,13 @@ class TestOptPlugin:
             session.config.workeroutput["tests_skipped_by_itr"] = self.session.tests_skipped_by_itr
 
         self.session.finish()
+
+        TelemetryAPI.get().record_session_finished(
+            test_framework=TEST_FRAMEWORK,
+            has_codeowners=self.manager.has_codeowners(),
+            is_unsupported_ci=self.manager.is_unsupported_ci(),
+            efd_abort_reason=None,  # TODO: keep track of EFD faulty session status.
+        )
 
         if not self.is_xdist_worker:
             # When running with xdist, only the main process writes the session event.
