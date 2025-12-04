@@ -12,10 +12,7 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.testing.internal.settings_data import Settings
 from ddtrace.testing.internal.test_data import ITRSkippingLevel
-from ddtrace.testing.internal.test_data import TestModule
 from ddtrace.testing.internal.test_data import TestRun
-from ddtrace.testing.internal.test_data import TestSession
-from ddtrace.testing.internal.test_data import TestSuite
 
 
 if t.TYPE_CHECKING:
@@ -246,17 +243,29 @@ class TelemetryAPI:
         log.debug("Recording test event created: test_framework=%s, test=%s, tags=%s", test_framework, test_run, tags)
         self.writer.add_count_metric(CIVISIBILITY, "event_finished", 1, tuple(tags))
 
-    def record_suite_created(self, test_framework: str, suite: TestSuite) -> None: ...
+    def record_suite_created(self, test_framework: str) -> None:
+        tags = (("event_type", EventType.SUITE), ("test_framework", test_framework))
+        telemetry_writer.add_count_metric(CIVISIBILITY, "event_created", 1, tags)
 
-    def record_suite_finished(self, test_framework: str, suite: TestSuite) -> None: ...
+    def record_suite_finished(self, test_framework: str) -> None:
+        tags = (("event_type", EventType.SUITE), ("test_framework", test_framework))
+        telemetry_writer.add_count_metric(CIVISIBILITY, "event_finished", 1, tags)
 
-    def record_module_created(self, test_framework: str, module: TestModule) -> None: ...
+    def record_module_created(self, test_framework: str) -> None:
+        tags = (("event_type", EventType.MODULE), ("test_framework", test_framework))
+        telemetry_writer.add_count_metric(CIVISIBILITY, "event_created", 1, tags)
 
-    def record_module_finished(self, test_framework: str, module: TestModule) -> None: ...
+    def record_module_finished(self, test_framework: str) -> None:
+        tags = (("event_type", EventType.MODULE), ("test_framework", test_framework))
+        telemetry_writer.add_count_metric(CIVISIBILITY, "event_finished", 1, tags)
 
-    def record_session_created(self, test_framework: str, session: TestSession) -> None: ...
+    def record_session_created(self, test_framework: str) -> None:
+        tags = (("event_type", EventType.SESSION), ("test_framework", test_framework))
+        telemetry_writer.add_count_metric(CIVISIBILITY, "event_created", 1, tags)
 
-    def record_session_finished(self, test_framework: str, session: TestSession) -> None: ...
+    def record_session_finished(self, test_framework: str) -> None:
+        tags = (("event_type", EventType.SESSION), ("test_framework", test_framework))
+        telemetry_writer.add_count_metric(CIVISIBILITY, "event_created", 1, tags)
 
 
 @dataclasses.dataclass
