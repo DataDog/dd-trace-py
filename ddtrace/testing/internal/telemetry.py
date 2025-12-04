@@ -82,11 +82,13 @@ class TelemetryAPI:
         self.writer.periodic(force_flush=True)
 
     def add_count_metric(self, metric_name: str, value: int, tags: t.Optional[t.Dict[str, t.Any]] = None) -> None:
+        log.debug("Recording Test Optimization telemetry count: %r %r %r", metric_name, value, tags)
         self.writer.add_count_metric(self.namespace, metric_name, value, self._make_tags(tags))
 
     def add_distribution_metric(
         self, metric_name: str, value: float, tags: t.Optional[t.Dict[str, t.Any]] = None
     ) -> None:
+        log.debug("Recording Test Optimization telemetry distribution: %r %r %r", metric_name, value, tags)
         self.writer.add_distribution_metric(self.namespace, metric_name, value, self._make_tags(tags))
 
     def _make_tags(self, tags: t.Optional[t.Dict[str, t.Any]]) -> t.Optional[t.Tuple[t.Tuple[str, str], ...]]:
@@ -114,31 +116,25 @@ class TelemetryAPI:
     # Coverage.
 
     def record_coverage_started(self, test_framework: str, coverage_library: str) -> None:
-        log.debug("Recording code coverage started telemetry: %s, %s", test_framework, coverage_library)
         tags = {"library": coverage_library, "test_framework": test_framework}
         self.add_count_metric("code_coverage_started", 1, tags)
 
     def record_coverage_finished(self, test_framework: str, coverage_library: str) -> None:
-        log.debug("Recording code coverage finished telemetry: %s, %s", test_framework, coverage_library)
         tags = {"library": coverage_library, "test_framework": test_framework}
         self.add_count_metric("code_coverage_finished", 1, tags)
 
     def record_coverage_is_empty(self) -> None:
-        log.debug("Recording code coverage is empty")
         self.add_count_metric("code_coverage.is_empty", 1)
 
     def record_coverage_files(self, count_files: int) -> None:
-        log.debug("Recording code coverage files telemetry: %s", count_files)
         self.add_distribution_metric("code_coverage.files", count_files)
 
     # API calls.
 
     def record_known_tests_count(self, count: int) -> None:
-        log.debug("Recording known tests count telemetry: %s", count)
         self.add_distribution_metric("known_tests.response_tests", count)
 
     def record_skippable_count(self, count: int, level: ITRSkippingLevel) -> None:
-        log.debug("Recording skippable %s count: %s", level.value, count)
         skippable_count_metric = (
             "itr_skippable_tests.response_suites"
             if level == ITRSkippingLevel.SUITE
@@ -158,16 +154,12 @@ class TelemetryAPI:
             "test_management_enabled": settings.test_management.enabled,
         }
 
-        log.debug("Recording test settings telemetry: %s", tags)
         self.add_count_metric("git_requests.settings_response", 1, tags)
 
     def record_test_management_tests_count(self, count: int) -> None:
-        log.debug("Recording Test Management tests count telemetry: %s", count)
         self.add_distribution_metric("test_management_tests.response_tests", count)
 
     def record_git_command(self, command: GitTelemetry, elapsed_seconds: float, exit_code: int) -> None:
-        log.debug("Recording git command telemetry: %s, %s, %s", command.value, elapsed_seconds, exit_code)
-
         tags = {"command": command.value}
         self.add_count_metric("git.command", 1, tags)
         self.add_distribution_metric("git.command_ms", elapsed_seconds * 1000, tags)
@@ -186,17 +178,6 @@ class TelemetryAPI:
         serialization_seconds: float,
         error: t.Optional[ErrorType],
     ) -> None:
-        log.debug(
-            "Recording event payload: endpoint %s, payload size: %s, request seconds: %.3f, events count: %s, "
-            "serialization seconds: %.3f, error: %s",
-            endpoint,
-            payload_size,
-            request_seconds,
-            events_count,
-            serialization_seconds,
-            error,
-        )
-
         tags = {"endpoint": endpoint}
 
         self.add_distribution_metric("endpoint_payload.bytes", payload_size, tags)
@@ -228,7 +209,6 @@ class TelemetryAPI:
             "test_framework": test_framework,
             "is_benchmark": test_run.is_benchmark(),
         }
-        log.debug("Recording test event created: test_framework=%s, test=%s, tags=%s", test_framework, test_run, tags)
         self.add_count_metric("event_created", 1, tags)
 
     def record_test_finished(
@@ -251,27 +231,22 @@ class TelemetryAPI:
             "auto_injected": is_auto_injected,
         }
 
-        log.debug("Recording test event finished: test_framework=%s, test=%s, tags=%s", test_framework, test_run, tags)
         self.add_count_metric("event_finished", 1, tags)
 
     def record_suite_created(self, test_framework: str) -> None:
         tags = {"event_type": EventType.SUITE.value, "test_framework": test_framework}
-        log.debug("Recording suite event created: test_framework=%s", test_framework)
         self.add_count_metric("event_created", 1, tags)
 
     def record_suite_finished(self, test_framework: str) -> None:
         tags = {"event_type": EventType.SUITE.value, "test_framework": test_framework}
-        log.debug("Recording suite event finished: test_framework=%s", test_framework)
         self.add_count_metric("event_finished", 1, tags)
 
     def record_module_created(self, test_framework: str) -> None:
         tags = {"event_type": EventType.MODULE.value, "test_framework": test_framework}
-        log.debug("Recording module event created: test_framework=%s", test_framework)
         self.add_count_metric("event_created", 1, tags)
 
     def record_module_finished(self, test_framework: str) -> None:
         tags = {"event_type": EventType.MODULE.value, "test_framework": test_framework}
-        log.debug("Recording module event finished: test_framework=%s", test_framework)
         self.add_count_metric("event_finished", 1, tags)
 
     def record_session_created(self, test_framework: str, has_codeowners: bool, is_unsupported_ci: bool) -> None:
@@ -282,7 +257,6 @@ class TelemetryAPI:
             "is_unsupported_ci": is_unsupported_ci,
         }
 
-        log.debug("Recording session event created: test_framework=%s, tags=%s", test_framework, tags)
         self.add_count_metric("event_created", 1, tags)
 
     def record_session_finished(
@@ -296,7 +270,6 @@ class TelemetryAPI:
             "early_flake_detection_abort_reason": efd_abort_reason,
         }
 
-        log.debug("Recording session event finished: test_framework=%s, tags=%s", test_framework, tags)
         self.add_count_metric("event_finished", 1, tags)
 
 
@@ -311,14 +284,6 @@ class TelemetryAPIRequestMetrics:
     def record_request(
         self, seconds: float, response_bytes: t.Optional[int], compressed_response: bool, error: t.Optional[ErrorType]
     ) -> None:
-        log.debug(
-            "Recording Test Optimization telemetry for %s: %s %s %s %s",
-            self.count,
-            seconds,
-            response_bytes,
-            compressed_response,
-            error,
-        )
         self.telemetry_api.add_count_metric(self.count, 1)
         self.telemetry_api.add_distribution_metric(self.duration, seconds)
         if response_bytes is not None and self.response_bytes is not None:
@@ -331,5 +296,4 @@ class TelemetryAPIRequestMetrics:
             self.record_error(error)
 
     def record_error(self, error: ErrorType) -> None:
-        log.debug("Recording Test Optimization request error telemetry: %s", error)
         self.telemetry_api.add_count_metric(self.error, 1, {"error_type": error})
