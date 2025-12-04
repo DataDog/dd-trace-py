@@ -253,16 +253,16 @@ class _LockAllocatorWrapper:
     """Wrapper for lock allocator functions that prevents method binding.
 
     For simple locks (Lock, RLock), this wrapper just intercepts instantiation.
-    
+
     For class-based locks with inheritance (Semaphore, BoundedSemaphore), this wrapper
     also handles the case where a subclass calls Parent.__init__(self, value). Example:
-    
+
         # In Python's threading.py:
         class BoundedSemaphore(Semaphore):
             def __init__(self, value=1):
                 Semaphore.__init__(self, value)  # <-- We intercept this!
                 self._initial_value = value
-    
+
     When we patch threading.Semaphore with this wrapper, the call to Semaphore.__init__
     goes to our __init__, which detects the inheritance case and delegates to the
     original Semaphore.__init__.

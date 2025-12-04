@@ -1600,7 +1600,7 @@ class TestThreadingBoundedSemaphoreCollector(BaseSemaphoreTest):
 def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
     """Test that Semaphore and BoundedSemaphore collectors can run simultaneously.
 
-    Tests proper patching where inheritance is involved if both parent and child classes are patched, 
+    Tests proper patching where inheritance is involved if both parent and child classes are patched,
     e.g. when BoundedSemaphore's c-tor calls Semaphore c-tor.
     We expect that the call to Semaphore c-tor goes to the unpatched version, and NOT our patched version.
     """
