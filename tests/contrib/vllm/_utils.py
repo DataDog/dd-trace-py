@@ -29,15 +29,12 @@ def create_async_engine(model: str, *, engine_mode: str = "0", **kwargs):
 
 
 def get_simple_chat_template() -> str:
-    """Return a simple chat template for testing."""
+    """Return a ChatML-style template for testing."""
     return (
         "{% for message in messages %}"
-        "{% if message['role'] == 'system' %}{{ message['content'] }}\n"
-        "{% elif message['role'] == 'user' %}User: {{ message['content'] }}\n"
-        "{% elif message['role'] == 'assistant' %}Assistant: {{ message['content'] }}\n"
-        "{% endif %}"
+        "<|im_start|>{{ message['role'] }}\n{{ message['content'] }}<|im_end|>\n"
         "{% endfor %}"
-        "Assistant:"
+        "<|im_start|>assistant\n"
     )
 
 

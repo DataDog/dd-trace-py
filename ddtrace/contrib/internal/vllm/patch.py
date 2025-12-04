@@ -95,13 +95,13 @@ def traced_output_processor_process_outputs(vllm, pin, func, instance, args, kwa
         data = extract_request_data(req_state, engine_core_output)
 
         spans_data[req_id] = {
-            "req_id": req_id,
-            "trace_headers": engine_core_output.trace_headers,
-            "arrival_time": arrival_time,
-            "data": data,
-            "stats": stats,
+                "req_id": req_id,
+                "trace_headers": engine_core_output.trace_headers,
+                "arrival_time": arrival_time,
+                "data": data,
+                "stats": stats,
             "iteration_stats": iteration_stats,
-        }
+            }
 
     # Now call the original function
     result = func(*args, **kwargs)

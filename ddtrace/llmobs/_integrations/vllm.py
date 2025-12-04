@@ -8,6 +8,8 @@ from typing import List
 from typing import Optional
 
 from ddtrace.contrib.internal.vllm.extractors import RequestData
+from ddtrace.contrib.internal.vllm.extractors import parse_prompt_to_messages
+from ddtrace.llmobs.types import Message
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -141,10 +143,10 @@ class VLLMIntegration(BaseLLMIntegration):
         }
 
         if data.prompt:
-            ctx[INPUT_MESSAGES] = [{"content": data.prompt}]
+            ctx[INPUT_MESSAGES] = parse_prompt_to_messages(data.prompt)
 
         if data.output_text:
-            ctx[OUTPUT_MESSAGES] = [{"content": data.output_text}]
+            ctx[OUTPUT_MESSAGES] = [Message(content=data.output_text)]
 
         return ctx
 

@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from typing import List
 from typing import Optional
+
+from ddtrace.llmobs.types import Message
 
 
 @dataclass
@@ -89,3 +93,56 @@ def extract_request_data(req_state, engine_core_output) -> RequestData:
 def get_model_name(instance) -> Optional[str]:
     """Extract injected model name (set by traced_engine_init)"""
     return getattr(instance, "_dd_model_name", None)
+
+
+# Role extraction patterns for common chat templates
+_ROLE_PATTERNS = [
+    # Llama 3: <|start_header_id|>role<|end_header_id|>
+    re.compile(r"<\|start_header_id\|>(system|user|assistant)<\|end_header_id\|>", re.IGNORECASE),
+    # ChatML: <|im_start|>role
+    re.compile(r"<\|im_start\|>(system|user|assistant)", re.IGNORECASE),
+    # Phi: <|role|>
+    re.compile(r"<\|(system|user|assistant)\|>", re.IGNORECASE),
+    # DeepSeek: <|Role|>:
+    re.compile(r"<\|(User|Assistant|System)\|>:", re.IGNORECASE),
+    # Simple newline-delimited: role on its own line
+    re.compile(r"^(system|user|assistant)\s*$", re.IGNORECASE | re.MULTILINE),
+]
+
+# End-of-turn markers to strip from content
+_END_MARKERS = re.compile(r"<\|im_end\|>|<\|eot_id\|>|<\|end\|>", re.IGNORECASE)
+
+
+def parse_prompt_to_messages(prompt: Optional[str]) -> List[Message]:
+    """Parse a formatted prompt into structured messages."""
+    if not prompt:
+        return []
+
+    for pattern in _ROLE_PATTERNS:
+        messages = _parse_with_pattern(prompt, pattern)
+        if messages:
+            return messages
+
+    return [Message(content=prompt)]
+
+
+def _parse_with_pattern(prompt: str, role_pattern) -> List[Message]:
+    """Parse prompt using a specific role pattern."""
+    matches = list(role_pattern.finditer(prompt))
+    if not matches:
+        return []
+
+    messages: List[Message] = []
+    for i, match in enumerate(matches):
+        role = match.group(1).lower()
+        start = match.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(prompt)
+        content = _END_MARKERS.sub("", prompt[start:end]).lstrip(":").strip()
+
+        # Skip empty trailing assistant
+        if role == "assistant" and not content and i == len(matches) - 1:
+            continue
+
+        messages.append(Message(role=role, content=content))
+
+    return messages

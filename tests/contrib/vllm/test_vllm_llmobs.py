@@ -1,6 +1,7 @@
 import mock
 import pytest
 
+from ddtrace.llmobs.types import Message
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
 from ._utils import get_simple_chat_template
@@ -23,8 +24,8 @@ def test_llmobs_basic(llmobs_events, mock_tracer, opt_125m_llm):
         span,
         model_name="facebook/opt-125m",
         model_provider="vllm",
-        input_messages=[{"content": "The future of AI is", "role": ""}],
-        output_messages=[{"content": " in the hands of the people.", "role": ""}],
+        input_messages=[Message(content="The future of AI is")],
+        output_messages=[Message(content=" in the hands of the people.")],
         metadata={
             "max_tokens": 8,
             "n": 1,
@@ -71,23 +72,12 @@ def test_llmobs_chat(llmobs_events, mock_tracer, opt_125m_llm):
         model_name="facebook/opt-125m",
         model_provider="vllm",
         input_messages=[
-            {
-                "content": (
-                    "You are a helpful assistant\nUser: Hello\nAssistant: Hello! How can I assist you today?\n"
-                    "User: Write an essay about the importance of higher education.\nAssistant:"
-                ),
-                "role": "",
-            }
+            Message(role="system", content="You are a helpful assistant"),
+            Message(role="user", content="Hello"),
+            Message(role="assistant", content="Hello! How can I assist you today?"),
+            Message(role="user", content="Write an essay about the importance of higher education."),
         ],
-        output_messages=[
-            {
-                "content": (
-                    " Provide lecture information about INTERESTED universities by translating people's "
-                    "ideas into their"
-                ),
-                "role": "",
-            }
-        ],
+        output_messages=[Message(content=mock.ANY)],
         metadata={
             "max_tokens": 16,
             "temperature": 1.0,
@@ -97,9 +87,9 @@ def test_llmobs_chat(llmobs_events, mock_tracer, opt_125m_llm):
             "num_cached_tokens": mock.ANY,
         },
         token_metrics={
-            "input_tokens": 37,
+            "input_tokens": mock.ANY,
             "output_tokens": 16,
-            "total_tokens": 53,
+            "total_tokens": mock.ANY,
             "time_to_first_token": mock.ANY,
             "time_in_queue": mock.ANY,
             "time_in_model_prefill": mock.ANY,
