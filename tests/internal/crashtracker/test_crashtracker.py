@@ -765,3 +765,44 @@ def test_crashtracker_no_zombies():
                 break
             except Exception as e:
                 pytest.fail("Unexpected exception: %s" % e)
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess()
+def test_crashtracker_receiver_env_inheritance():
+    """
+    The receiver is spawned using execve() and doesn't automatically inherit the
+    env, so we need to ensure all env variables are explicitly passed
+    when building the receiver config.
+    """
+    import ctypes
+    import os
+
+    import tests.internal.crashtracker.utils as utils
+
+    test_env_key = "MY_TEST_ENV_VAR"
+    test_env_value = "my_test_value"
+    os.environ[test_env_key] = test_env_value
+
+    with utils.with_test_agent() as client:
+        pid = os.fork()
+        if pid == 0:
+            assert os.environ.get(test_env_key) == test_env_value
+
+            ct = utils.CrashtrackerWrapper(base_name="env_inheritance")
+            assert ct.start()
+            stdout_msg, stderr_msg = ct.logs()
+            assert not stdout_msg, stdout_msg
+            assert not stderr_msg, stderr_msg
+
+            ctypes.string_at(0)
+            sys.exit(-1)
+
+        # Check for crash ping
+        _ping = utils.get_crash_ping(client)
+        # Check for crash report
+        report = utils.get_crash_report(client)
+        assert b"string_at" in report["body"]
+
+    # Clean up
+    os.environ.pop(test_env_key, None)
