@@ -96,7 +96,7 @@ class TelemetryAPI:
         Convert a tag dictionary into a tag tuple.
 
         The boolean tag value `true` is converted to the string "true". Boolean `false` as well as `None` are omitted
-        from the final result. Everything else is converted to string.
+        from the final result. Enum items are converted to their values. Everything else is converted to string.
         """
         if not tags:
             return None
@@ -107,6 +107,8 @@ class TelemetryAPI:
                 continue
             if value is True:
                 string_value = "true"
+            elif isinstance(value, Enum):
+                string_value = str(value.value)
             else:
                 string_value = str(value)
             tag_list.append((key, string_value))

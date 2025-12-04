@@ -28,15 +28,18 @@ class TestTelemetry:
         )
 
         assert mock_writer.add_count_metric.call_args_list == [
-            call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.request", 1),
+            call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.request", 1, None),
             call(
-                TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.request_errors", 1, (("error_type", ErrorType.CODE_4XX),)
+                TELEMETRY_NAMESPACE.CIVISIBILITY,
+                "known_tests.request_errors",
+                1,
+                (("error_type", ErrorType.CODE_4XX.value),),
             ),
         ]
 
         assert mock_writer.add_distribution_metric.call_args_list == [
-            call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.request_ms", 1.41),
-            call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.response_bytes", 42, None),
+            call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.request_ms", 1.41, None),
+            call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.response_bytes", 42, ()),
         ]
 
     def test_record_request_without_response_bytes(self) -> None:
@@ -60,14 +63,17 @@ class TestTelemetry:
         )
 
         assert mock_writer.add_count_metric.call_args_list == [
-            call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.request", 1),
+            call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.request", 1, None),
             call(
-                TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.request_errors", 1, (("error_type", ErrorType.CODE_4XX),)
+                TELEMETRY_NAMESPACE.CIVISIBILITY,
+                "known_tests.request_errors",
+                1,
+                (("error_type", ErrorType.CODE_4XX.value),),
             ),
         ]
 
         assert mock_writer.add_distribution_metric.call_args_list == [
-            call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.request_ms", 1.41),
+            call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.request_ms", 1.41, None),
         ]
 
     def test_record_request_without_error(self) -> None:
@@ -91,10 +97,10 @@ class TestTelemetry:
         )
 
         assert mock_writer.add_count_metric.call_args_list == [
-            call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.request", 1),
+            call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.request", 1, None),
         ]
 
         assert mock_writer.add_distribution_metric.call_args_list == [
-            call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.request_ms", 1.41),
-            call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.response_bytes", 42, None),
+            call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.request_ms", 1.41, None),
+            call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.response_bytes", 42, ()),
         ]
