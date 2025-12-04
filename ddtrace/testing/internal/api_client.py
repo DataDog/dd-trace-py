@@ -12,6 +12,7 @@ from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
+from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import ITRSkippingLevel
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
@@ -30,6 +31,7 @@ class APIClient:
         itr_skipping_level: ITRSkippingLevel,
         configurations: t.Dict[str, str],
         connector_setup: BackendConnectorSetup,
+        telemetry_api: TelemetryAPI,
     ) -> None:
         self.service = service
         self.env = env
@@ -37,11 +39,19 @@ class APIClient:
         self.itr_skipping_level = itr_skipping_level
         self.configurations = configurations
         self.connector = connector_setup.get_connector_for_subdomain("api")
+        self.telemetry_api = telemetry_api
 
     def close(self) -> None:
         self.connector.close()
 
     def get_settings(self) -> Settings:
+        telemetry = self.telemetry_api.with_request_metric_names(
+            count="git_requests.settings",
+            duration="git_requests.settings_ms",
+            response_bytes=None,
+            error="git_requests.settings_errors",
+        )
+
         request_data = {
             "data": {
                 "id": str(uuid.uuid4()),
@@ -59,8 +69,11 @@ class APIClient:
         }
 
         try:
-            response, response_data = self.connector.post_json("/api/v2/libraries/tests/services/setting", request_data)
-            attributes = response_data["data"]["attributes"]
+            result = self.connector.post_json(
+                "/api/v2/libraries/tests/services/setting", request_data, telemetry=telemetry
+            )
+            result.on_error_raise_exception()
+            attributes = result.parsed_response["data"]["attributes"]
             return Settings.from_attributes(attributes)
 
         except Exception:
@@ -68,6 +81,13 @@ class APIClient:
             return Settings()
 
     def get_known_tests(self) -> t.Set[TestRef]:
+        telemetry = self.telemetry_api.with_request_metric_names(
+            count="known_tests.request",
+            duration="known_tests.request_ms",
+            response_bytes="known_tests.response_bytes",
+            error="known_tests.request_errors",
+        )
+
         request_data = {
             "data": {
                 "id": str(uuid.uuid4()),
@@ -82,8 +102,9 @@ class APIClient:
         }
 
         try:
-            response, response_data = self.connector.post_json("/api/v2/ci/libraries/tests", request_data)
-            tests_data = response_data["data"]["attributes"]["tests"]
+            result = self.connector.post_json("/api/v2/ci/libraries/tests", request_data, telemetry=telemetry)
+            result.on_error_raise_exception()
+            tests_data = result.parsed_response["data"]["attributes"]["tests"]
             known_test_ids = set()
 
             for module, suites in tests_data.items():
@@ -100,6 +121,13 @@ class APIClient:
             return set()
 
     def get_test_management_properties(self) -> t.Dict[TestRef, TestProperties]:
+        telemetry = self.telemetry_api.with_request_metric_names(
+            count="test_management_tests.request",
+            duration="test_management_tests.request_ms",
+            response_bytes="test_management_tests.response_bytes",
+            error="test_management_tests.request_errors",
+        )
+
         request_data = {
             "data": {
                 "id": str(uuid.uuid4()),
@@ -113,11 +141,12 @@ class APIClient:
         }
 
         try:
-            response, response_data = self.connector.post_json(
-                "/api/v2/test/libraries/test-management/tests", request_data
+            result = self.connector.post_json(
+                "/api/v2/test/libraries/test-management/tests", request_data, telemetry=telemetry
             )
+            result.on_error_raise_exception()
             test_properties: t.Dict[TestRef, TestProperties] = {}
-            modules = response_data["data"]["attributes"]["modules"]
+            modules = result.parsed_response["data"]["attributes"]["modules"]
 
             for module_name, module_data in modules.items():
                 module_ref = ModuleRef(module_name)
@@ -149,8 +178,9 @@ class APIClient:
         }
 
         try:
-            response, response_data = self.connector.post_json("/api/v2/git/repository/search_commits", request_data)
-            return [item["id"] for item in response_data["data"] if item["type"] == "commit"]
+            result = self.connector.post_json("/api/v2/git/repository/search_commits", request_data)
+            result.on_error_raise_exception()
+            return [item["id"] for item in result.parsed_response["data"] if item["type"] == "commit"]
 
         except Exception:
             log.exception("Failed to parse search_commits data")
@@ -173,14 +203,21 @@ class APIClient:
                 name="packfile", filename=packfile.name, content_type="application/octet-stream", data=content
             ),
         ]
-        response, response_data = self.connector.post_files(
-            "/api/v2/git/repository/packfile", files=files, send_gzip=False
-        )
+        try:
+            result = self.connector.post_files("/api/v2/git/repository/packfile", files=files, send_gzip=False)
+            result.on_error_raise_exception()
 
-        if response.status != 204:
-            log.warning("Failed to upload git pack data: %s %s", response.status, response_data)
+        except Exception:
+            log.warning("Failed to upload git pack data")
 
     def get_skippable_tests(self) -> t.Tuple[t.Set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
+        telemetry = self.telemetry_api.with_request_metric_names(
+            count="itr_skippable_tests.request",
+            duration="itr_skippable_tests.request_ms",
+            response_bytes="itr_skippable_tests.response_bytes",
+            error="itr_skippable_tests.request_errors",
+        )
+
         request_data = {
             "data": {
                 "id": str(uuid.uuid4()),
@@ -196,10 +233,12 @@ class APIClient:
             }
         }
         try:
-            response, response_data = self.connector.post_json("/api/v2/ci/tests/skippable", request_data)
+            result = self.connector.post_json("/api/v2/ci/tests/skippable", request_data, telemetry=telemetry)
+            result.on_error_raise_exception()
+
             skippable_items: t.Set[t.Union[SuiteRef, TestRef]] = set()
 
-            for item in response_data["data"]:
+            for item in result.parsed_response["data"]:
                 if item["type"] in ("test", "suite"):
                     module_ref = ModuleRef(item["attributes"].get("configurations", {}).get("test.bundle", EMPTY_NAME))
                     suite_ref = SuiteRef(module_ref, item["attributes"].get("suite", EMPTY_NAME))
@@ -209,7 +248,7 @@ class APIClient:
                         test_ref = TestRef(suite_ref, item["attributes"].get("name", EMPTY_NAME))
                         skippable_items.add(test_ref)
 
-            correlation_id = response_data["meta"]["correlation_id"]
+            correlation_id = result.parsed_response["meta"]["correlation_id"]
 
             return skippable_items, correlation_id
 

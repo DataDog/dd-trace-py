@@ -19,6 +19,7 @@ from ddtrace.testing.internal.retry_handlers import AttemptToFixHandler
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import EarlyFlakeDetectionHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
+from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import ITRSkippingLevel
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
@@ -64,6 +65,8 @@ class SessionManager:
 
         self.connector_setup = BackendConnectorSetup.detect_setup()
 
+        self.telemetry_api = TelemetryAPI(connector_setup=self.connector_setup)
+
         self.api_client = APIClient(
             service=self.service,
             env=self.env,
@@ -71,6 +74,7 @@ class SessionManager:
             itr_skipping_level=self.itr_skipping_level,
             configurations=self.platform_tags,
             connector_setup=self.connector_setup,
+            telemetry_api=self.telemetry_api,
         )
         self.settings = self.api_client.get_settings()
         self.known_tests = self.api_client.get_known_tests() if self.settings.known_tests_enabled else set()
@@ -155,9 +159,19 @@ class SessionManager:
         atexit.register(self.finish)
 
     def finish(self) -> None:
+        # Avoid being called again by atexit if we've already been called by the pytest plugin.
         atexit.unregister(self.finish)
-        self.writer.finish()
-        self.coverage_writer.finish()
+
+        # Start writer shutdown in background, so both can do it at the same time.
+        self.writer.signal_finish()
+        self.coverage_writer.signal_finish()
+
+        # Telemetry API is based on ddtrace, we don't have fine-grained control over the background process.
+        self.telemetry_api.finish()
+
+        # Wait for the writer threads to finish.
+        self.writer.wait_finish()
+        self.coverage_writer.wait_finish()
 
     def discover_test(
         self,
