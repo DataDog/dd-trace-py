@@ -7,6 +7,8 @@ from unittest.mock import Mock
 
 import pytest
 
+from ddtrace.testing.internal.telemetry import TelemetryAPI
+
 
 # Enable pytester plugin for testing pytest plugins
 pytest_plugins = ["pytester"]
@@ -79,10 +81,10 @@ def git_shallow_repo(git_repo: str, tmpdir: t.Any) -> t.Tuple[str, str]:
 
 
 @pytest.fixture(autouse=True)
-def mock_telemetry(monkeypatch: pytest.MonkeyPatch) -> None:
+def mock_telemetry(monkeypatch: pytest.MonkeyPatch) -> Mock:
     """
-    Make sure that we don't send inner tests to Datadog.
+    Mock the telemetry API instance so tests don't fail due to uninitialized telemetry.
     """
-    from ddtrace.testing.internal.telemetry import TelemetryAPI
-
-    monkeypatch.setattr(TelemetryAPI, "_instance", Mock())
+    telemetry_api = Mock()
+    monkeypatch.setattr(TelemetryAPI, "_instance", telemetry_api)
+    yield telemetry_api
