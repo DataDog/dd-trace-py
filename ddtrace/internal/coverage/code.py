@@ -31,6 +31,11 @@ ctx_covered: ContextVar[t.Optional[t.List[t.DefaultDict[str, CoverageLines]]]] =
 ctx_is_import_coverage = ContextVar("ctx_is_import_coverage", default=False)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 
+# Track import dependencies per coverage context (not globally)
+# This ensures that only imports executed in the current request are included
+ImportNamesType = t.DefaultDict[str, t.Set[t.Tuple[str, t.Tuple[str, ...]]]]
+ctx_import_names: ContextVar[t.Optional[t.List[ImportNamesType]]] = ContextVar("ctx_import_names", default=None)
+
 
 def _get_ctx_covered_lines() -> t.DefaultDict[str, CoverageLines]:
     if ctx_coverage_enabled.get():
@@ -39,6 +44,54 @@ def _get_ctx_covered_lines() -> t.DefaultDict[str, CoverageLines]:
         log.debug("_get_ctx_covered_lines() called but ctx_covered stack is empty")
 
     return defaultdict(CoverageLines)
+
+
+def _get_ctx_import_names() -> ImportNamesType:
+    """Get the current context's import names (for dependency tracking)."""
+    if ctx_coverage_enabled.get():
+        if import_names_stack := ctx_import_names.get():
+            return import_names_stack[-1]
+    return defaultdict(set)
+
+
+def _add_to_contexts(
+    path: str,
+    line: t.Optional[int] = None,
+    import_name: t.Optional[t.Tuple[str, t.Tuple[str, ...]]] = None,
+    add_to_all: bool = False,
+) -> None:
+    """Add coverage data to active contexts.
+
+    Args:
+        path: The file path
+        line: Line number to add (if tracking line coverage)
+        import_name: Import dependency to add (if tracking imports)
+        add_to_all: If True, add to ALL contexts in the stack (for import-time coverage).
+                   If False, add only to the current (top) context.
+
+    When add_to_all=True (during module import), we add to all contexts so that:
+    1. The request context gets the coverage (for the current request)
+    2. The import-time context gets the coverage (for future requests)
+    """
+    if not ctx_coverage_enabled.get():
+        return
+
+    if add_to_all:
+        # Add to ALL contexts in the stack
+        if line is not None:
+            if context_stack := ctx_covered.get():
+                for ctx in context_stack:
+                    ctx[path].add(line)
+        if import_name is not None:
+            if import_names_stack := ctx_import_names.get():
+                for ctx in import_names_stack:
+                    ctx[path].add(import_name)
+    else:
+        # Add to current (top) context only
+        if line is not None:
+            _get_ctx_covered_lines()[path].add(line)
+        if import_name is not None:
+            _get_ctx_import_names()[path].add(import_name)
 
 
 class ModuleCodeCollector(ModuleWatchdog):
@@ -100,23 +153,26 @@ class ModuleCodeCollector(ModuleWatchdog):
             )
 
     def hook(self, arg: t.Tuple[int, str, t.Optional[t.Tuple[str, t.Tuple[str, ...]]]]):
-        line: int
-        path: str
-        import_name: t.Optional[t.Tuple[str, t.Tuple[str, ...]]]
         line, path, import_name = arg
 
+        # Global coverage (non-context)
         if self._coverage_enabled:
-            lines = self.covered[path]
-            lines.add(line)
+            self.covered[path].add(line)
 
-        if ctx_coverage_enabled.get():
-            # Import-time contexts store their lines in a non-context variable to be aggregated on request when
-            # reporting coverage
-            ctx_lines = _get_ctx_covered_lines()[path]
-            ctx_lines.add(line)
+        # Context-based coverage
+        is_import_time = ctx_is_import_coverage.get()
 
+        # Add line coverage to context(s)
+        _add_to_contexts(path, line=line, add_to_all=is_import_time)
+
+        # Track import dependencies
         if import_name is not None and self._collect_import_coverage:
-            self._import_names_by_path[path].add(import_name)
+            # Global import tracking: only for module-level (static) imports
+            if is_import_time:
+                self._import_names_by_path[path].add(import_name)
+
+            # Context-specific import tracking: for per-request dependency resolution
+            _add_to_contexts(path, import_name=import_name, add_to_all=is_import_time)
 
     @classmethod
     def inject_coverage(
@@ -169,38 +225,63 @@ class ModuleCodeCollector(ModuleWatchdog):
 
     def _get_covered_lines(self, include_imported: bool = False) -> t.Dict[str, CoverageLines]:
         # Covered lines should always be a copy to make sure the original cannot be altered
-        covered_lines = deepcopy(_get_ctx_covered_lines() if ctx_coverage_enabled.get() else self.covered)
+        in_context = ctx_coverage_enabled.get()
+        covered_lines = deepcopy(_get_ctx_covered_lines() if in_context else self.covered)
         if include_imported:
-            self._add_import_time_lines(covered_lines)
+            # Use context-specific import names when in a coverage context
+            ctx_imports = _get_ctx_import_names() if in_context else None
+            self._add_import_time_lines(covered_lines, ctx_imports)
 
         return covered_lines
 
-    def _add_import_time_lines(self, covered_lines):
-        """Modify given covered_lines in place and add lines that were covered at import time"""
-        visited_paths = set()
+    def _add_import_time_lines(self, covered_lines, ctx_imports: t.Optional[ImportNamesType] = None):
+        """Add import-time coverage for dependencies of covered files.
+
+        This resolves import dependencies and adds coverage for imported modules.
+        Dependencies come from two sources:
+        - ctx_imports: Dynamic imports executed during this request (e.g., inside functions)
+        - _import_names_by_path: Static module-level imports (e.g., at file top)
+        """
+        visited_paths: t.Set[str] = set()
         to_visit_paths = set(covered_lines.keys())
 
         while to_visit_paths:
             path = to_visit_paths.pop()
-
             if path in visited_paths:
                 continue
-
             visited_paths.add(path)
 
-            if path not in self._import_time_covered:
-                continue
+            # Add import-time coverage for this module
+            if path in self._import_time_covered:
+                covered_lines[path].update(self._import_time_covered[path])
 
-            imported_module_lines = self._import_time_covered[path]
-            covered_lines[path].update(imported_module_lines)
+            # Collect all import dependencies for this path
+            all_dependencies: t.Set[t.Tuple[str, t.Tuple[str, ...]]] = set()
 
-            # Queue up dependencies of current path, if they exist, have valid paths, and haven't been visited yet
-            for dependencies in self._import_names_by_path.get(path, set()):
+            # Dynamic imports from current request
+            if ctx_imports is not None:
+                all_dependencies.update(ctx_imports.get(path, set()))
+
+            # Static imports (for files with import-time coverage, or when not in a context)
+            if path in self._import_time_covered or ctx_imports is None:
+                all_dependencies.update(self._import_names_by_path.get(path, set()))
+
+            # Resolve dependencies and queue them for processing
+            for dependencies in all_dependencies:
                 package, modules = dependencies
                 for module in modules:
                     dep_fqdn = f"{package}.{module}" if package else module
-                    dep_name = dep_fqdn if dep_fqdn in self._import_time_name_to_path else module
-                    if dep_name in self._import_time_name_to_path:
+                    # Only fall back to short module name for top-level imports (no package).
+                    # This prevents `from thirdparty import utils` from incorrectly matching
+                    # a local `utils` module when `thirdparty.utils` isn't tracked.
+                    if dep_fqdn in self._import_time_name_to_path:
+                        dep_name = dep_fqdn
+                    elif not package and module in self._import_time_name_to_path:
+                        dep_name = module
+                    else:
+                        dep_name = None  # Not found, skip
+
+                    if dep_name is not None:
                         dependency_path = self._import_time_name_to_path[dep_name]
                         if dependency_path not in visited_paths:
                             to_visit_paths.add(dependency_path)
@@ -224,9 +305,16 @@ class ModuleCodeCollector(ModuleWatchdog):
             self.is_import_coverage = is_import_coverage
 
         def __enter__(self):
+            # Initialize covered lines stack
             if ctx_covered.get() is None:
                 ctx_covered.set([])
             ctx_covered.get().append(defaultdict(CoverageLines))
+
+            # Initialize import names stack (for per-context dependency tracking)
+            if ctx_import_names.get() is None:
+                ctx_import_names.set([])
+            ctx_import_names.get().append(defaultdict(set))
+
             ctx_coverage_enabled.set(True)
 
             if self.is_import_coverage:
@@ -246,6 +334,11 @@ class ModuleCodeCollector(ModuleWatchdog):
 
             covered_lines_stack.pop()
 
+            # Also pop import names stack
+            import_names_stack = ctx_import_names.get()
+            if import_names_stack:
+                import_names_stack.pop()
+
             # Stop coverage if we're exiting the last context
             if len(covered_lines_stack) == 0:
                 ctx_coverage_enabled.set(False)
@@ -254,7 +347,9 @@ class ModuleCodeCollector(ModuleWatchdog):
             covered_lines = _get_ctx_covered_lines()
             if include_imported:
                 if global_instance := ModuleCodeCollector._instance:
-                    global_instance._add_import_time_lines(covered_lines)
+                    # Pass context-specific import names for per-request dependency tracking
+                    ctx_imports = _get_ctx_import_names()
+                    global_instance._add_import_time_lines(covered_lines, ctx_imports)
             return covered_lines
 
     @classmethod
@@ -348,39 +443,51 @@ class ModuleCodeCollector(ModuleWatchdog):
         retval = self.instrument_code(code, _module.__package__ if _module is not None else "")
 
         if self._collect_import_coverage:
-            self._import_time_name_to_path[_module.__name__] = code.co_filename
-            # Only create import-time context if NO request context is currently active
-            # If a request context is active, the import's coverage will be captured
-            # by the request's own coverage context (not stored as global import-time coverage)
-            if not ctx_coverage_enabled.get():
-                module_context = self.CollectInContext(is_import_coverage=True)
-                module_context.__enter__()
-                self._import_time_contexts[code.co_filename] = module_context
+            # Warn about module name collisions (different files with same module name)
+            module_name = _module.__name__
+            if module_name in self._import_time_name_to_path:
+                existing_path = self._import_time_name_to_path[module_name]
+                if existing_path != code.co_filename:
+                    log.debug(
+                        "Module name collision for '%s': %s overwrites %s",
+                        module_name,
+                        code.co_filename,
+                        existing_path,
+                    )
+            self._import_time_name_to_path[module_name] = code.co_filename
+
+            # Create import-time context to capture module's coverage for future requests
+            module_context = self.CollectInContext(is_import_coverage=True)
+            module_context.__enter__()
+            self._import_time_contexts[code.co_filename] = module_context
 
         return retval
 
-    def _exit_context_on_exception_hook(self, _, _module: ModuleType) -> None:
-        if hasattr(_module, "__file__") and _module.__file__ in self._import_time_contexts:
-            collector = self._import_time_contexts[_module.__file__]
-            covered_lines = collector.get_covered_lines()
-            collector.__exit__()
-            if covered_lines[_module.__file__]:
-                self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
+    def _finalize_import_coverage(self, module_file: str) -> None:
+        """Finalize import-time coverage collection for a module.
 
-            del self._import_time_contexts[_module.__file__]
-
-    def after_import(self, _module: ModuleType) -> None:
-        if not self._collect_import_coverage:
+        Called when a module finishes importing (either successfully or with an exception).
+        Stores the collected coverage and cleans up the import-time context.
+        """
+        if module_file not in self._import_time_contexts:
             return
 
-        if hasattr(_module, "__file__") and _module.__file__ in self._import_time_contexts:
-            collector = self._import_time_contexts[_module.__file__]
-            covered_lines = collector.get_covered_lines()
-            collector.__exit__()
-            if covered_lines[_module.__file__]:
-                self._import_time_covered[_module.__file__].update(covered_lines[_module.__file__])
+        collector = self._import_time_contexts[module_file]
+        covered_lines = collector.get_covered_lines()
+        collector.__exit__()
 
-            del self._import_time_contexts[_module.__file__]
+        if covered_lines[module_file]:
+            self._import_time_covered[module_file].update(covered_lines[module_file])
+
+        del self._import_time_contexts[module_file]
+
+    def _exit_context_on_exception_hook(self, _, _module: ModuleType) -> None:
+        if hasattr(_module, "__file__"):
+            self._finalize_import_coverage(_module.__file__)
+
+    def after_import(self, _module: ModuleType) -> None:
+        if self._collect_import_coverage and hasattr(_module, "__file__"):
+            self._finalize_import_coverage(_module.__file__)
 
     def instrument_code(self, code: CodeType, package) -> CodeType:
         # Avoid instrumenting the same code object multiple times
