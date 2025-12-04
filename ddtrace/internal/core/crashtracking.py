@@ -117,9 +117,11 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
     )
 
     # Create crashtracker receiver configuration
+    # Pass all environment variables to the receiver process so it can access
+    # all env vars since it's spawned using execve() and not fork()
     receiver_config = CrashtrackerReceiverConfig(
         [],  # args
-        {},  # env
+        dict(os.environ),  # env - pass all environment variables
         dd_crashtracker_receiver,  # path_to_receiver_binary
         crashtracker_config.stderr_filename,
         crashtracker_config.stdout_filename,
