@@ -13,8 +13,10 @@ section_end() {
 # Setup directories
 section_start "setup_env" "Setup environment"
 PROJECT_DIR="${CI_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
-BUILT_WHEEL_DIR="/tmp/cibuildwheel/built_wheel"
-TMP_WHEEL_DIR="/tmp/cibuildwheel/tmp_wheel"
+WORK_DIR=$(mktemp -d)
+trap "rm -rf '${WORK_DIR}'" EXIT
+BUILT_WHEEL_DIR="${WORK_DIR}/built_wheel"
+TMP_WHEEL_DIR="${WORK_DIR}/tmp_wheel"
 FINAL_WHEEL_DIR="${PROJECT_DIR}/pywheels"
 DEBUG_WHEEL_DIR="${PROJECT_DIR}/debugwheelhouse"
 mkdir -p "${BUILT_WHEEL_DIR}" "${TMP_WHEEL_DIR}" "${FINAL_WHEEL_DIR}" "${DEBUG_WHEEL_DIR}"
