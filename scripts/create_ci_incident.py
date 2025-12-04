@@ -207,4 +207,5 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # sys.exit(main())
+    print("Disabled until we check that the nightly-branch-monitor.yml automation works")
