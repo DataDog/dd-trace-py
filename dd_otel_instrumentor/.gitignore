@@ -1,0 +1,10 @@
+# Synced ddtrace files (generated at build time)
+ddtrace/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.pyc
+
