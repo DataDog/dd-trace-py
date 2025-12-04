@@ -404,23 +404,13 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
 
     Renderer::get().render_cpu_time(thread_is_running ? cpu_time - previous_cpu_time : 0);
 
-    unwind(tstate);
+    this->unwind(tstate);
 
-    // Asyncio tasks
-    if (current_tasks.empty()) {
-        // If we don't have any asyncio tasks, we check that we don't have any
-        // greenlets either. In this case, we print the ordinary thread stack.
-        // With greenlets, we recover the thread stack from the active greenlet,
-        // so if we don't skip here we would have a double print.
-        if (current_greenlets.empty()) {
-            // Print the PID and thread name
-            Renderer::get().render_stack_begin(pid, iid, name);
-            // Print the stack
-            python_stack.render();
-
-            Renderer::get().render_stack_end(MetricType::Time, delta);
-        }
-    } else {
+    // Render in this order of priority
+    // 1. asyncio Tasks stacks (if any)
+    // 2. Greenlets stacks (if any)
+    // 3. The normal thread stack (if no asyncio tasks or greenlets)
+    if (!current_tasks.empty()) {
         for (auto& task_stack_info : current_tasks) {
             auto maybe_task_name = string_table.lookup(task_stack_info->task_name);
             if (!maybe_task_name) {
@@ -437,10 +427,7 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
         }
 
         current_tasks.clear();
-    }
-
-    // Greenlet stacks
-    if (!current_greenlets.empty()) {
+    } else if (!current_greenlets.empty()) {
         for (auto& greenlet_stack : current_greenlets) {
             auto maybe_task_name = string_table.lookup(greenlet_stack->task_name);
             if (!maybe_task_name) {
@@ -458,6 +445,19 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
         }
 
         current_greenlets.clear();
+    } else {
+        // If we don't have any asyncio tasks, we check that we don't have any
+        // greenlets either. In this case, we print the ordinary thread stack.
+        // With greenlets, we recover the thread stack from the active greenlet,
+        // so if we don't skip here we would have a double print.
+        if (current_greenlets.empty()) {
+            // Print the PID and thread name
+            Renderer::get().render_stack_begin(pid, iid, name);
+            // Print the stack
+            python_stack.render();
+
+            Renderer::get().render_stack_end(MetricType::Time, delta);
+        }
     }
 
     return Result<void>::ok();
