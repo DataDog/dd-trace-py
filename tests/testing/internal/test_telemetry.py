@@ -36,7 +36,7 @@ class TestTelemetry:
 
         assert mock_writer.add_distribution_metric.call_args_list == [
             call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.request_ms", 1.41),
-            call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.response_bytes", 42),
+            call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.response_bytes", 42, None),
         ]
 
     def test_record_request_without_response_bytes(self) -> None:
@@ -96,5 +96,5 @@ class TestTelemetry:
 
         assert mock_writer.add_distribution_metric.call_args_list == [
             call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.request_ms", 1.41),
-            call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.response_bytes", 42),
+            call(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.response_bytes", 42, None),
         ]

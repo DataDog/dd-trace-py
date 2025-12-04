@@ -3,6 +3,7 @@
 import os
 import subprocess
 import typing as t
+from unittest.mock import Mock
 
 import pytest
 
@@ -75,3 +76,13 @@ def git_shallow_repo(git_repo: str, tmpdir: t.Any) -> t.Tuple[str, str]:
     subprocess.check_output("git rev-parse HEAD", shell=True, text=True, cwd=git_repo).strip()
     head_sha = subprocess.check_output("git rev-parse HEAD^", shell=True, text=True, cwd=git_repo).strip()
     return (f"{cwd}/shallow_repo", head_sha)
+
+
+@pytest.fixture(autouse=True)
+def mock_telemetry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Make sure that we don't send inner tests to Datadog.
+    """
+    from ddtrace.testing.internal.telemetry import TelemetryAPI
+
+    monkeypatch.setattr(TelemetryAPI, "_instance", Mock())

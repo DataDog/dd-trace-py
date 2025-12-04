@@ -17,15 +17,15 @@ import typing as t
 from unittest.mock import Mock
 from unittest.mock import patch
 
-from ddtrace.testing.internal.api_client import AutoTestRetriesSettings
-from ddtrace.testing.internal.api_client import EarlyFlakeDetectionSettings
-from ddtrace.testing.internal.api_client import TestManagementSettings
-from ddtrace.testing.internal.api_client import TestProperties
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.http import ErrorType
 from ddtrace.testing.internal.session_manager import SessionManager
+from ddtrace.testing.internal.settings_data import AutoTestRetriesSettings
+from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
 from ddtrace.testing.internal.settings_data import Settings
+from ddtrace.testing.internal.settings_data import TestManagementSettings
+from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
@@ -166,6 +166,7 @@ class SessionManagerMockBuilder:
         mock_manager.session = Mock()
         mock_manager.writer = Mock()
         mock_manager.coverage_writer = Mock()
+        mock_manager.telemetry_api = Mock()
 
         return mock_manager
 
