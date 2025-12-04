@@ -818,7 +818,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
         self._exporter = self._create_exporter()
-    
+
     def __del__(self):
         if self._fork_hook:
             forksafe.unregister_before_fork(self._fork_hook)
