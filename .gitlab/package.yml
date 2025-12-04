@@ -79,44 +79,22 @@ variables:
     matrix:
       - IMAGE_ARCH: "x86_64"
         ARCH_TAG: "amd64"
+        UV_PYTHON: *PYTHON_VERSIONS
       - IMAGE_ARCH: "aarch64"
         ARCH_TAG: "arm64"
+        UV_PYTHON: *PYTHON_VERSIONS
   variables:
     SYSTEM_VERSION_COMPAT: "0"
+  rules:
+    # Skip non-3.14 versions on PRs/feature branches - only run 3.14 for quick validation
+    - if: '($IS_MAIN_BRANCH == "false") && ($IS_RELEASE_BRANCH == "false") && ($IS_RELEASE == "false") && ($UV_PYTHON != "3.14")'
+      when: never
+    # Run all versions on main, release branches, and releases
+    - when: always
   script:
-    - |
-      set -euo pipefail
-      PYTHON_VERSIONS=(3.9 3.10 3.11 3.12 3.13 3.14)
-      BUILD_PIDS=()
-      FAILED=0
-
-      for PYTHON_VERSION in "${PYTHON_VERSIONS[@]}"; do
-        (
-          export UV_PYTHON="${PYTHON_VERSION}"
-          .gitlab/scripts/build-wheel.sh
-        ) &
-        BUILD_PIDS+=($!)
-        echo "Started build for Python ${PYTHON_VERSION} (PID: $!)"
-      done
-
-      echo "Waiting for all builds to complete..."
-      for i in "${!BUILD_PIDS[@]}"; do
-        PID=${BUILD_PIDS[$i]}
-        PYTHON_VERSION=${PYTHON_VERSIONS[$i]}
-        if wait "$PID"; then
-          echo "✓ Python ${PYTHON_VERSION} build completed successfully"
-        else
-          echo "✗ Python ${PYTHON_VERSION} build failed"
-          FAILED=1
-        fi
-      done
-
-      if [ $FAILED -eq 1 ]; then
-        echo "One or more builds failed"
-        exit 1
-      fi
+    - .gitlab/scripts/build-wheel.sh
   cache:
-    - key: v0-build-macos-cache-${ARCH_TAG}
+    - key: v0-build-macos-cache-${ARCH_TAG}-${UV_PYTHON}
       paths:
         - .cache
         - .uv
@@ -213,8 +191,10 @@ publish-wheels-to-s3:
         matrix:
           - IMAGE_ARCH: "x86_64"
             ARCH_TAG: "amd64"
+            UV_PYTHON: *PYTHON_VERSIONS
           - IMAGE_ARCH: "aarch64"
             ARCH_TAG: "arm64"
+            UV_PYTHON: *PYTHON_VERSIONS
   variables:
     BUCKET: dd-trace-py-builds
   script:
