@@ -157,6 +157,26 @@ class TestRun(TestItem["Test", t.NoReturn]):
         self.set_tags(context.get_tags())
         self.set_metrics(context.get_metrics())
 
+    def is_retry(self) -> bool:
+        return self.attempt_number > 0
+
+    def has_failed_all_retries(self) -> bool:
+        return self.tags.get(TestTag.HAS_FAILED_ALL_RETRIES) == TAG_TRUE
+
+    def is_benchmark(self) -> bool:
+        return False  # TODO: change when benchmark tests are implemented
+
+    # Selenium / RUM functionality. These tags are only available after the test has finished and ddtrace span tags have
+    # been copied over to the test run object.
+    def is_rum(self) -> bool:
+        return self.tags.get(TestTag.IS_RUM_ACTIVE) == "true"
+
+    def get_browser_driver(self) -> t.Optional[str]:
+        return self.tags.get(TestTag.BROWSER_DRIVER)
+
+    def get_early_flake_detection_abort_reason(self) -> t.Optional[str]:
+        return self.tags.get(TestTag.EFD_ABORT_REASON)  # TODO: actually set this tag when relevant
+
 
 class Test(TestItem["TestSuite", "TestRun"]):
     __test__ = False
@@ -327,7 +347,7 @@ class TestTag:
     IS_DISABLED = "test.test_management.is_test_disabled"
     IS_ATTEMPT_TO_FIX = "test.test_management.is_attempt_to_fix"
     ATTEMPT_TO_FIX_PASSED = "test.test_management.attempt_to_fix_passed"
-
+    EFD_ABORT_REASON = "test.early_flake.abort_reason"
     IS_RETRY = "test.is_retry"
     RETRY_REASON = "test.retry_reason"
     HAS_FAILED_ALL_RETRIES = "test.has_failed_all_retries"
@@ -345,5 +365,8 @@ class TestTag:
     SOURCE_START = "test.source.start"
 
     CODEOWNERS = "test.codeowners"
+
+    IS_RUM_ACTIVE = "test.is_rum_active"
+    BROWSER_DRIVER = "test.browser.driver"
 
     __test__ = False

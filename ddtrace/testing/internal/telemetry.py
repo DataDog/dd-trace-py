@@ -12,6 +12,10 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.testing.internal.settings_data import Settings
 from ddtrace.testing.internal.test_data import ITRSkippingLevel
+from ddtrace.testing.internal.test_data import TestModule
+from ddtrace.testing.internal.test_data import TestRun
+from ddtrace.testing.internal.test_data import TestSession
+from ddtrace.testing.internal.test_data import TestSuite
 
 
 if t.TYPE_CHECKING:
@@ -19,6 +23,8 @@ if t.TYPE_CHECKING:
 
 
 log = logging.getLogger(__name__)
+
+CIVISIBILITY = TELEMETRY_NAMESPACE.CIVISIBILITY
 
 
 class ErrorType(str, Enum):
@@ -28,6 +34,13 @@ class ErrorType(str, Enum):
     CODE_5XX = "status_code_5xx_response"
     BAD_JSON = "bad_json"
     UNKNOWN = "unknown"
+
+
+class EventType(str, Enum):
+    TEST = "test"
+    SUITE = "suite"
+    MODULE = "module"
+    SESSION = "session"
 
 
 class GitTelemetry(str, Enum):
@@ -70,27 +83,31 @@ class TelemetryAPI:
     def finish(self) -> None:
         self.writer.periodic(force_flush=True)
 
+    # Coverage.
+
     def record_coverage_started(self, test_framework: str, coverage_library: str) -> None:
         log.debug("Recording code coverage started telemetry: %s, %s", test_framework, coverage_library)
         tags = (("library", coverage_library), ("test_framework", test_framework))
-        self.writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "code_coverage_started", 1, tags)
+        self.writer.add_count_metric(CIVISIBILITY, "code_coverage_started", 1, tags)
 
     def record_coverage_finished(self, test_framework: str, coverage_library: str) -> None:
         log.debug("Recording code coverage finished telemetry: %s, %s", test_framework, coverage_library)
         tags = (("library", coverage_library), ("test_framework", test_framework))
-        self.writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "code_coverage_finished", 1, tags)
+        self.writer.add_count_metric(CIVISIBILITY, "code_coverage_finished", 1, tags)
 
     def record_coverage_is_empty(self) -> None:
         log.debug("Recording code coverage is empty")
-        self.writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "code_coverage.is_empty", 1)
+        self.writer.add_count_metric(CIVISIBILITY, "code_coverage.is_empty", 1)
 
     def record_coverage_files(self, count_files: int) -> None:
         log.debug("Recording code coverage files telemetry: %s", count_files)
-        self.writer.add_distribution_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "code_coverage.files", count_files)
+        self.writer.add_distribution_metric(CIVISIBILITY, "code_coverage.files", count_files)
+
+    # API calls.
 
     def record_known_tests_count(self, count: int) -> None:
         log.debug("Recording known tests count telemetry: %s", count)
-        self.writer.add_distribution_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "known_tests.response_tests", count)
+        self.writer.add_distribution_metric(CIVISIBILITY, "known_tests.response_tests", count)
 
     def record_skippable_count(self, count: int, level: ITRSkippingLevel) -> None:
         log.debug("Recording skippable %s count: %s", level.value, count)
@@ -99,7 +116,7 @@ class TelemetryAPI:
             if level == ITRSkippingLevel.SUITE
             else "itr_skippable_tests.response_tests"
         )
-        self.writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, skippable_count_metric, count)
+        self.writer.add_count_metric(CIVISIBILITY, skippable_count_metric, count)
 
     def record_settings(self, settings: Settings) -> None:
         tags = []
@@ -123,26 +140,24 @@ class TelemetryAPI:
             tags.append(("test_management_enabled", "true"))
 
         log.debug("Recording test settings telemetry: %s", tags)
-        self.writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "git_requests.settings_response", 1, tuple(tags))
+        self.writer.add_count_metric(CIVISIBILITY, "git_requests.settings_response", 1, tuple(tags))
 
     def record_test_management_tests_count(self, count: int) -> None:
         log.debug("Recording Test Management tests count telemetry: %s", count)
-        self.writer.add_distribution_metric(
-            TELEMETRY_NAMESPACE.CIVISIBILITY, "test_management_tests.response_tests", count
-        )
+        self.writer.add_distribution_metric(CIVISIBILITY, "test_management_tests.response_tests", count)
 
     def record_git_command(self, command: GitTelemetry, elapsed_seconds: float, exit_code: int) -> None:
         log.debug("Recording git command telemetry: %s, %s, %s", command.value, elapsed_seconds, exit_code)
 
         tags = (("command", command.value),)
-        self.writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "git.command", 1, tags)
-        self.writer.add_distribution_metric(
-            TELEMETRY_NAMESPACE.CIVISIBILITY, "git.command_ms", elapsed_seconds * 1000, tags
-        )
+        self.writer.add_count_metric(CIVISIBILITY, "git.command", 1, tags)
+        self.writer.add_distribution_metric(CIVISIBILITY, "git.command_ms", elapsed_seconds * 1000, tags)
 
         if exit_code:
             error_tags = (("command", command.value), ("exit_code", str(exit_code)))
-            self.writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "git.command_errors", 1, error_tags)
+            self.writer.add_count_metric(CIVISIBILITY, "git.command_errors", 1, error_tags)
+
+    # Event payloads sent by writers.
 
     def record_event_payload(
         self,
@@ -165,23 +180,17 @@ class TelemetryAPI:
         )
 
         tags = (("endpoint", endpoint),)
+        request_ms = request_seconds * 1000
+        serialization_ms = serialization_seconds * 1000
+
+        self.writer.add_distribution_metric(CIVISIBILITY, "endpoint_payload.bytes", payload_size, tags)
+        self.writer.add_count_metric(CIVISIBILITY, "endpoint_payload.requests", 1, tags)
+        self.writer.add_distribution_metric(CIVISIBILITY, "endpoint_payload.requests_ms", request_ms, tags)
+        self.writer.add_distribution_metric(CIVISIBILITY, "endpoint_payload.events_count", events_count, tags)
         self.writer.add_distribution_metric(
-            TELEMETRY_NAMESPACE.CIVISIBILITY, "endpoint_payload.bytes", payload_size, tags
-        )
-        self.writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "endpoint_payload.requests", 1, tags)
-        self.writer.add_distribution_metric(
-            TELEMETRY_NAMESPACE.CIVISIBILITY, "endpoint_payload.requests_ms", request_seconds * 1000, tags
-        )
-        self.writer.add_distribution_metric(
-            TELEMETRY_NAMESPACE.CIVISIBILITY, "endpoint_payload.events_count", events_count, tags
+            CIVISIBILITY, "endpoint_payload.events_serialization_ms", serialization_ms, tags
         )
 
-        self.writer.add_distribution_metric(
-            TELEMETRY_NAMESPACE.CIVISIBILITY,
-            "endpoint_payload.events_serialization_ms",
-            serialization_seconds * 1000,
-            tags,
-        )
         if error:
             self.record_event_payload_error(endpoint, error)
 
@@ -195,7 +204,61 @@ class TelemetryAPI:
             endpoint_error = "network"
 
         tags = (("endpoint", endpoint), ("error_type", endpoint_error))
-        self.writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, "endpoint_payload.requests_errors", 1, tags)
+        self.writer.add_count_metric(CIVISIBILITY, "endpoint_payload.requests_errors", 1, tags)
+
+    # Test creation/finish events.
+
+    def record_test_created(self, test_framework: str, test_run: TestRun) -> None:
+        tags = [("event_type", EventType.TEST), ("test_framework", test_framework)]
+        if test_run.is_benchmark():
+            tags.append(("is_benchmark", "true"))
+
+        log.debug("Recording test event created: test_framework=%s, test=%s, tags=%s", test_framework, test_run, tags)
+        self.writer.add_count_metric(CIVISIBILITY, "event_created", 1, tuple(tags))
+
+    def record_test_finished(
+        self, test_framework: str, test_run: TestRun, ci_provider_name: t.Optional[str], is_auto_injected: bool
+    ) -> None:
+        tags = [("event_type", EventType.TEST), ("test_framework", test_framework)]
+        if test_run.is_benchmark():
+            tags.append(("is_benchmark", "true"))
+        if test_run.test.is_new():
+            tags.append(("is_new", "true"))
+        if test_run.is_retry():
+            tags.append(("is_retry", "true"))
+        if test_run.is_rum():
+            tags.append(("is_rum", "true"))
+        if (browser_driver := test_run.get_browser_driver()) is not None:
+            tags.append(("browser_driver", browser_driver))
+        if (efd_abort_reason := test_run.get_early_flake_detection_abort_reason()) is not None:
+            tags.append(("early_flake_detection_abort_reason", efd_abort_reason))
+        if test_run.test.is_quarantined():
+            tags.append(("is_quarantined", "true"))
+        if test_run.test.is_disabled():
+            tags.append(("is_disabled", "true"))
+        if test_run.test.is_attempt_to_fix():
+            tags.append(("is_attempt_to_fix", "true"))
+        if test_run.has_failed_all_retries():
+            tags.append(("has_failed_all_retries", "true"))
+        if ci_provider_name:
+            tags.append(("provider_name", ci_provider_name))
+        if is_auto_injected:
+            tags.append(("auto_injected", "true"))
+
+        log.debug("Recording test event created: test_framework=%s, test=%s, tags=%s", test_framework, test_run, tags)
+        self.writer.add_count_metric(CIVISIBILITY, "event_finished", 1, tuple(tags))
+
+    def record_suite_created(self, test_framework: str, suite: TestSuite) -> None: ...
+
+    def record_suite_finished(self, test_framework: str, suite: TestSuite) -> None: ...
+
+    def record_module_created(self, test_framework: str, module: TestModule) -> None: ...
+
+    def record_module_finished(self, test_framework: str, module: TestModule) -> None: ...
+
+    def record_session_created(self, test_framework: str, session: TestSession) -> None: ...
+
+    def record_session_finished(self, test_framework: str, session: TestSession) -> None: ...
 
 
 @dataclasses.dataclass
@@ -217,14 +280,14 @@ class TelemetryAPIRequestMetrics:
             compressed_response,
             error,
         )
-        self.telemetry_api.writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, self.count, 1)
-        self.telemetry_api.writer.add_distribution_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, self.duration, seconds)
+        self.telemetry_api.writer.add_count_metric(CIVISIBILITY, self.count, 1)
+        self.telemetry_api.writer.add_distribution_metric(CIVISIBILITY, self.duration, seconds)
         if response_bytes is not None and self.response_bytes is not None:
             # We don't always want to record response bytes (for settings requests), so assume that no metric name
             # means we don't want to record it.
             response_tags = (("rs_compressed", "true"),) if compressed_response else None
             self.telemetry_api.writer.add_distribution_metric(
-                TELEMETRY_NAMESPACE.CIVISIBILITY, self.response_bytes, response_bytes, response_tags
+                CIVISIBILITY, self.response_bytes, response_bytes, response_tags
             )
 
         if error is not None:
@@ -232,6 +295,4 @@ class TelemetryAPIRequestMetrics:
 
     def record_error(self, error: ErrorType) -> None:
         log.debug("Recording Test Optimization request error telemetry: %s", error)
-        self.telemetry_api.writer.add_count_metric(
-            TELEMETRY_NAMESPACE.CIVISIBILITY, self.error, 1, (("error_type", error),)
-        )
+        self.telemetry_api.writer.add_count_metric(CIVISIBILITY, self.error, 1, (("error_type", error),))
