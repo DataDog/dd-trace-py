@@ -2,7 +2,6 @@ from __future__ import absolute_import
 from __future__ import annotations
 
 import _thread
-import abc
 import os.path
 import sys
 import time
@@ -52,6 +51,7 @@ class _ProfiledLock:
         "init_location",
         "acquired_time",
         "name",
+        "is_internal",
     )
 
     def __init__(
@@ -60,6 +60,7 @@ class _ProfiledLock:
         tracer: Optional[Tracer],
         max_nframes: int,
         capture_sampler: collector.CaptureSampler,
+        is_internal: bool = False,
     ) -> None:
         self.__wrapped__: Any = wrapped
         self.tracer: Optional[Tracer] = tracer
@@ -71,6 +72,9 @@ class _ProfiledLock:
         self.init_location: str = f"{os.path.basename(code.co_filename)}:{frame.f_lineno}"
         self.acquired_time: Optional[int] = None
         self.name: Optional[str] = None
+        # If True, this lock is internal to another sync primitive (e.g., Lock inside Semaphore)
+        # and should not generate profile samples to avoid double-counting
+        self.is_internal: bool = is_internal
 
     ### DUNDER methods ###
 
@@ -159,6 +163,11 @@ class _ProfiledLock:
             end: End timestamp in nanoseconds
             is_acquire: True for acquire operations, False for release operations
         """
+        # Skip profiling for internal locks (e.g., Lock inside Semaphore/Condition)
+        # to avoid double-counting when multiple collectors are active
+        if self.is_internal:
+            return
+
         handle: ddup.SampleHandle = ddup.SampleHandle()
 
         handle.push_monotonic_ns(end)
@@ -260,6 +269,8 @@ class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
     PROFILED_LOCK_CLASS: Type[Any]
+    MODULE: ModuleType  # e.g., threading module
+    PATCHED_LOCK_NAME: str  # e.g., "Lock", "RLock", "Semaphore"
 
     def __init__(
         self,
@@ -273,11 +284,11 @@ class LockCollector(collector.CaptureSamplerCollector):
         self.tracer: Optional[Tracer] = tracer
         self._original_lock: Any = None
 
-    @abc.abstractmethod
-    def _get_patch_target(self) -> Callable[..., Any]: ...
+    def _get_patch_target(self) -> Callable[..., Any]:
+        return getattr(self.MODULE, self.PATCHED_LOCK_NAME)
 
-    @abc.abstractmethod
-    def _set_patch_target(self, value: Any) -> None: ...
+    def _set_patch_target(self, value: Any) -> None:
+        setattr(self.MODULE, self.PATCHED_LOCK_NAME, value)
 
     def _start_service(self) -> None:
         """Start collecting lock usage."""
@@ -295,12 +306,35 @@ class LockCollector(collector.CaptureSamplerCollector):
         original_lock: Any = self._original_lock  # Capture non-None value
 
         def _profiled_allocate_lock(*args: Any, **kwargs: Any) -> _ProfiledLock:
-            """Simple wrapper that returns profiled locks."""
+            """Simple wrapper that returns profiled locks.
+
+            Detects if the lock is being created from within threading.py stdlib
+            (i.e., internal to Semaphore/Condition) to avoid double-counting.
+            """
+            import threading as threading_module
+
+            # Check if caller is from threading.py (internal lock)
+            is_internal: bool = False
+            try:
+                # Frame 0: _profiled_allocate_lock
+                # Frame 1: _LockAllocatorWrapper.__call__
+                # Frame 2: actual caller (threading.Lock() call site)
+                caller_filename = sys._getframe(2).f_code.co_filename
+                threading_module_file = threading_module.__file__
+                if threading_module_file and caller_filename:
+                    # Normalize paths to handle symlinks and different path formats
+                    caller_filename_normalized = os.path.normpath(os.path.realpath(caller_filename))
+                    threading_file_normalized = os.path.normpath(os.path.realpath(threading_module_file))
+                    is_internal = caller_filename_normalized == threading_file_normalized
+            except (ValueError, AttributeError, OSError):
+                pass
+
             return self.PROFILED_LOCK_CLASS(
                 wrapped=original_lock(*args, **kwargs),
                 tracer=self.tracer,
                 max_nframes=self.nframes,
                 capture_sampler=self._capture_sampler,
+                is_internal=is_internal,
             )
 
         self._set_patch_target(_LockAllocatorWrapper(_profiled_allocate_lock))

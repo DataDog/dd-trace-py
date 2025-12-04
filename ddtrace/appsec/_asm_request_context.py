@@ -158,7 +158,7 @@ def should_analyze_body_response(env) -> bool:
     """Check if we should analyze body for API10."""
     DownstreamRequests.counter += 1
     return (
-        env.downstream_requests <= asm_config._dr_body_limit_per_request
+        env.downstream_requests < asm_config._dr_body_limit_per_request
         and (DownstreamRequests.counter * KNUTH_FACTOR) % UINT64_MAX <= DownstreamRequests.sampling_rate
     )
 
