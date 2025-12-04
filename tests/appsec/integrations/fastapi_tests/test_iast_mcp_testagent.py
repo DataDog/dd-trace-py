@@ -11,10 +11,15 @@ from contextlib import asynccontextmanager
 import json
 import sys
 
+import pytest
+
+
+# Skip all tests in this module if mcp is not installed
+pytest.importorskip("mcp")
+
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 from mcp.shared.memory import create_connected_server_and_client_session
-import pytest
 
 from tests.appsec.appsec_utils import uvicorn_server
 from tests.appsec.iast.iast_utils import load_iast_report
