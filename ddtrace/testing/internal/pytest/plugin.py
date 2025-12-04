@@ -12,7 +12,7 @@ from _pytest.runner import runtestprotocol
 import pluggy
 import pytest
 
-from ddtrace.testing.internal.ci_data import CITag
+from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
@@ -160,7 +160,7 @@ class TestOptPlugin:
         TelemetryAPI.get().record_session_created(
             test_framework=TEST_FRAMEWORK,
             has_codeowners=self.manager.has_codeowners(),
-            is_unsupported_ci=self.manager.is_unsupported_ci(),
+            is_unsupported_ci=(self.manager.env_tags.get(CITag.PROVIDER_NAME) is None),
         )
 
         if self.enable_ddtrace:
@@ -183,7 +183,7 @@ class TestOptPlugin:
         TelemetryAPI.get().record_session_finished(
             test_framework=TEST_FRAMEWORK,
             has_codeowners=self.manager.has_codeowners(),
-            is_unsupported_ci=self.manager.is_unsupported_ci(),
+            is_unsupported_ci=(self.manager.env_tags.get(CITag.PROVIDER_NAME) is None),
             efd_abort_reason=None,  # TODO: keep track of EFD faulty session status.
         )
 
@@ -331,7 +331,7 @@ class TestOptPlugin:
         TelemetryAPI.get().record_test_finished(
             test_framework=TEST_FRAMEWORK,
             test_run=test_run,
-            ci_provider_name=self.manager.env_tags.get(CITag.CI_PROVIDER_NAME),
+            ci_provider_name=self.manager.env_tags.get(CITag.PROVIDER_NAME),
             is_auto_injected=self.manager.is_auto_injected,
         )
 

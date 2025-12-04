@@ -287,9 +287,6 @@ class SessionManager:
     def has_codeowners(self) -> bool:
         return self.codeowners is not None
 
-    def is_unsupported_ci(self) -> bool:
-        return self.env_tags.get(CITag.PROVIDER_NAME) is None
-
 
 def _get_service_name_from_git_repo(env_tags: t.Dict[str, str]) -> t.Optional[str]:
     repo_name = env_tags.get(GitTag.REPOSITORY_URL)
