@@ -12,6 +12,7 @@ from _pytest.runner import runtestprotocol
 import pluggy
 import pytest
 
+from ddtrace.testing.internal.ci_data import CITag
 from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
@@ -19,6 +20,7 @@ from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
+from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
@@ -241,10 +243,10 @@ class TestOptPlugin:
             item.user_properties += [("dd_quarantined", True)]
 
         with trace_context(self.enable_ddtrace) as context:
-            self.manager.telemetry_api.record_coverage_started(test_framework="pytest", coverage_library="ddtrace")
+            TelemetryAPI.get().record_coverage_started(test_framework="pytest", coverage_library="ddtrace")
             with coverage_collection() as coverage_data:
                 yield
-            self.manager.telemetry_api.record_coverage_finished(test_framework="pytest", coverage_library="ddtrace")
+            TelemetryAPI.get().record_coverage_finished(test_framework="pytest", coverage_library="ddtrace")
 
         if not test.test_runs:
             # No test runs: our pytest_runtest_protocol did not run. This can happen if some other plugin (such as
@@ -293,11 +295,21 @@ class TestOptPlugin:
         test = self.tests_by_nodeid[item.nodeid]
         test_run = test.make_test_run()
         test_run.start()
+
+        TelemetryAPI.get().record_test_created(test_framework="pytest", test_run=test_run)
+
         reports = _make_reports_dict(runtestprotocol(item, nextitem=nextitem, log=False))
         status, tags = self._get_test_outcome(item.nodeid)
         test_run.set_status(status)
         test_run.set_tags(tags)
         test_run.set_context(context)
+
+        TelemetryAPI.get().record_test_finished(
+            test_framework="pytest",
+            test_run=test_run,
+            ci_provider_name=self.manager.env_tags.get(CITag.CI_PROVIDER_NAME),
+            is_auto_injected=self.manager.is_auto_injected,
+        )
 
         return test_run, reports
 

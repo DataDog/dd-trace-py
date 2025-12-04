@@ -180,15 +180,13 @@ class TelemetryAPI:
         )
 
         tags = (("endpoint", endpoint),)
-        request_ms = request_seconds * 1000
-        serialization_ms = serialization_seconds * 1000
 
         self.writer.add_distribution_metric(CIVISIBILITY, "endpoint_payload.bytes", payload_size, tags)
         self.writer.add_count_metric(CIVISIBILITY, "endpoint_payload.requests", 1, tags)
-        self.writer.add_distribution_metric(CIVISIBILITY, "endpoint_payload.requests_ms", request_ms, tags)
+        self.writer.add_distribution_metric(CIVISIBILITY, "endpoint_payload.requests_ms", request_seconds * 1000, tags)
         self.writer.add_distribution_metric(CIVISIBILITY, "endpoint_payload.events_count", events_count, tags)
         self.writer.add_distribution_metric(
-            CIVISIBILITY, "endpoint_payload.events_serialization_ms", serialization_ms, tags
+            CIVISIBILITY, "endpoint_payload.events_serialization_ms", serialization_seconds * 1000, tags
         )
 
         if error:

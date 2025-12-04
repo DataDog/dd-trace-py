@@ -151,6 +151,9 @@ class TestRun(TestItem["Test", t.NoReturn]):
         self.module = self.suite.parent
         self.session = self.module.parent
 
+    def __str__(self) -> str:
+        return f"{self.test} #{self.attempt_number}"
+
     def set_context(self, context: TestContext) -> None:
         self.span_id = context.span_id
         self.trace_id = context.trace_id

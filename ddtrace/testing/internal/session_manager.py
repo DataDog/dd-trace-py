@@ -64,6 +64,8 @@ class SessionManager:
             self.is_user_provided_service = False
             self.service = _get_service_name_from_git_repo(self.env_tags) or DEFAULT_SERVICE_NAME
 
+        self.is_auto_injected = bool(os.getenv("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
+
         self.env = os.environ.get("DD_ENV") or DEFAULT_ENV_NAME
 
         self.api_client = APIClient(
