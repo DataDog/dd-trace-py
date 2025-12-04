@@ -319,8 +319,8 @@ class TelemetryAPIRequestMetrics:
             compressed_response,
             error,
         )
-        self.telemetry_api.writer.add_count_metric(CIVISIBILITY, self.count, 1)
-        self.telemetry_api.writer.add_distribution_metric(CIVISIBILITY, self.duration, seconds)
+        self.telemetry_api.add_count_metric(self.count, 1)
+        self.telemetry_api.add_distribution_metric(self.duration, seconds)
         if response_bytes is not None and self.response_bytes is not None:
             # We don't always want to record response bytes (for settings requests), so assume that no metric name
             # means we don't want to record it.
@@ -334,4 +334,4 @@ class TelemetryAPIRequestMetrics:
 
     def record_error(self, error: ErrorType) -> None:
         log.debug("Recording Test Optimization request error telemetry: %s", error)
-        self.telemetry_api.writer.add_count_metric(CIVISIBILITY, self.error, 1, (("error_type", error),))
+        self.telemetry_api.add_count_metric(self.error, 1, {"error_type": error})
