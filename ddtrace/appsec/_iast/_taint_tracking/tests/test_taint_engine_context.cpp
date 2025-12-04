@@ -2,6 +2,7 @@
 #include <pybind11/embed.h>
 #include <pybind11/pybind11.h>
 
+#include "api/safe_context.h"
 #include "context/taint_engine_context.h"
 #include "taint_tracking/taint_range.h"
 #include "taint_tracking/tainted_object.h"

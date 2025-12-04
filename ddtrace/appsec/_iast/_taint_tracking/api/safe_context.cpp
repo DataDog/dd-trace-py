@@ -1,3 +1,4 @@
+#include "api/safe_context.h"
 
 // ============================================================================
 // Safe wrapper functions for global pointers

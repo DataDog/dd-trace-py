@@ -1,3 +1,4 @@
+#include "api/safe_initializer.h"
 
 TaintRangePtr
 safe_allocate_taint_range(RANGE_START start, RANGE_LENGTH length, const Source& source, const SecureMarks secure_marks)
@@ -14,7 +15,7 @@ safe_allocate_tainted_object_copy(const TaintedObjectPtr& from)
     if (!initializer) {
         return nullptr;
     }
-    return safe_allocate_tainted_object_copy(from);
+    return initializer->allocate_tainted_object_copy(from);
 }
 
 TaintedObjectPtr
