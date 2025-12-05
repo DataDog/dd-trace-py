@@ -523,7 +523,7 @@ class TestRunner:
 
                 # Add riot args if provided
                 if riot_args:
-                    cmd.extend(["--"] + riot_args)
+                    cmd.extend(riot_args)
 
                 if dry_run:
                     print(f"[DRY RUN] Would execute: {' '.join(cmd)}")
