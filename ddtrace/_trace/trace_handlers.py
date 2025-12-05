@@ -1365,7 +1365,7 @@ def _on_httpx_send_completed(ctx, request, response, url):
     )
 
 
-def listen():
+def listen_dd_handlers():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
     core.on("wsgi.app.success", _on_app_success)
@@ -1447,9 +1447,6 @@ def listen():
     core.on("rq.worker.after.perform.job", _on_end_of_traced_method_in_fork)
     core.on("rq.queue.enqueue_job", _propagate_context)
     core.on("molten.router.match", _on_router_match)
-
-    core.on("httpx.send", _on_httpx_send)
-    core.on("httpx.send.completed", _on_httpx_send_completed)
 
     for context_name in (
         # web frameworks
@@ -1552,6 +1549,14 @@ def listen():
 
     # Special/extra handling before calling _finish_span
     core.on("context.ended.django.cache", _on_django_cache)
+
+
+def listen():
+    core.on("httpx.send", _on_httpx_send)
+    core.on("httpx.send.completed", _on_httpx_send_completed)
+
+    if not config._otel_dd_instrumentation:
+        listen_dd_handlers()
 
 
 listen()
