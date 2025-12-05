@@ -17,8 +17,8 @@ string
 TaintRange::toString() const
 {
     ostringstream ret;
-    ret << "TaintRange at " << this << " "
-        << "[start=" << start << ", length=" << length << " source=" << source.toString() << "]";
+    ret << "TaintRange at " << this << " " << "[start=" << start << ", length=" << length
+        << " source=" << source.toString() << "]";
     return ret.str();
 }
 
