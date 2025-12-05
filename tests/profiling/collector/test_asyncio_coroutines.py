@@ -132,7 +132,7 @@ def test_asyncio_coroutines() -> None:
     # Test that we see the background_math_function task
     pprof_utils.assert_profile_has_sample(
         profile,
-        samples,
+        list(profile.sample),
         expected_sample=pprof_utils.StackEvent(
             thread_name="MainThread",
             locations=[

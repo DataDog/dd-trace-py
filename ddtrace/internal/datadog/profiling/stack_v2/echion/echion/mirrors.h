@@ -55,6 +55,8 @@ typedef PyObject* PyDictValues;
 
 #include <echion/vm.h>
 
+constexpr ssize_t MAX_MIRROR_SIZE = 1 << 20; // 1 MiB
+
 class MirrorObject
 {
   protected:
@@ -109,7 +111,7 @@ MirrorDict::create(PyObject* dict_addr)
 
     // Allocate the buffer
     ssize_t data_size = keys_size + (keys.dk_nentries * entry_size) + values_size;
-    if (data_size < 0 || data_size > (1 << 20)) {
+    if (data_size < 0 || data_size > MAX_MIRROR_SIZE) {
         return ErrorKind::MirrorError;
     }
 
@@ -165,7 +167,7 @@ MirrorSet::create(PyObject* set_addr)
 
     auto size = set.mask + 1;
     ssize_t table_size = size * sizeof(setentry);
-    if (table_size < 0 || table_size > (1 << 20)) {
+    if (table_size < 0 || table_size > MAX_MIRROR_SIZE) {
         return ErrorKind::MirrorError;
     }
 
