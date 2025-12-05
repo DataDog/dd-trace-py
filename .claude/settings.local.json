@@ -35,6 +35,10 @@
       "mcp__github__get_pull_request_review_comments",
       "mcp__github__pull_request_read",
       "Skill(run-tests)",
+      "Bash(scripts/run-tests:*)",
+      "Bash(pytest:*)"
+      "Bash(gh pr list:*)",
+      "Bash(git remote:*)"
       "Skill(lint)"
     ],
     "deny": []
