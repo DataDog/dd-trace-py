@@ -642,6 +642,8 @@ class Config(object):
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._otel_enabled = self._otel_trace_enabled or self._otel_metrics_enabled or self._otel_logs_enabled
 
+        self._otel_dd_instrumentation = _get_config("EXPERIMENTAL_OTEL_DD_INSTRUMENTATION_ENABLED", False, asbool)
+
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
         self._dd_api_key = _get_config("DD_API_KEY")
