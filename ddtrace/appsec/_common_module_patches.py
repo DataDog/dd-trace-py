@@ -59,6 +59,7 @@ def patch_common_modules():
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
     try_wrap_function_wrapper("http.client", "HTTPConnection.request", wrapped_request)
+    try_wrap_function_wrapper("http.client", "HTTPConnection.getresponse", wrapped_response)
     core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
     log.debug("Patching common modules: builtins and urllib.request")
     _is_patched = True
@@ -74,6 +75,8 @@ def unpatch_common_modules():
     try_unwrap("urllib3.request", "RequestMethods.request")
     try_unwrap("builtins", "open")
     try_unwrap("urllib.request", "OpenerDirector.open")
+    try_unwrap("http.client", "HTTPConnection.request")
+    try_unwrap("http.client", "HTTPConnection.getresponse")
     try_unwrap("_io", "BytesIO.read")
     try_unwrap("_io", "StringIO.read")
     subprocess_patch.unpatch()
@@ -188,6 +191,26 @@ def wrapped_request(original_request_callable, instance, args, kwargs):
         if res and _must_block(res.actions):
             raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
     return original_request_callable(*args, **kwargs)
+
+
+def wrapped_response(original_response_callable, instance, args, kwargs):
+    from ddtrace.appsec._asm_request_context import call_waf_callback
+
+    response = original_response_callable(*args, *kwargs)
+    env = _get_asm_context()
+    try:
+        if _get_rasp_capability("ssrf") and response.__class__.__name__ == "HTTPResponse" and env is not None:
+            status = response.getcode()
+            if 300 <= status < 400:
+                # api10 for redirected response status and headers in urllib
+                addresses = {
+                    "DOWN_RES_STATUS": str(status),
+                    "DOWN_RES_HEADERS": _build_headers(response.getheaders()),
+                }
+                call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
+    except Exception:
+        pass
+    return response
 
 
 def _parse_http_response_body(response):
