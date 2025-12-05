@@ -81,7 +81,7 @@ The ``scripts/run-tests`` script handles this automatically:
 
 .. code-block:: bash
 
-    # Add riot arguments for avoid unnecessary compilation
+    # Add riot arguments to avoid unnecessary compilation
     $ scripts/run-tests tests/contrib/django/ -- -s
 
     # Add pytest arguments for test selection
