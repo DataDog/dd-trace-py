@@ -66,15 +66,6 @@ class BaseAsyncioLockCollectorTest:
     def lock_class(self) -> LockType:
         raise NotImplementedError("Child classes must implement lock_class")
 
-    @property
-    def lock_init_args(self) -> tuple:
-        """Arguments to pass to lock constructor. Override for Semaphore-like locks."""
-        return ()
-
-    def create_lock(self) -> Union[asyncio.Lock, asyncio.Semaphore]:
-        """Create a lock instance with the appropriate arguments."""
-        return self.lock_class(*self.lock_init_args)
-
     def setup_method(self, method):
         self.test_name = method.__qualname__ if PY_311_OR_ABOVE else method.__name__
         self.output_prefix = "/tmp" + os.sep + self.test_name
@@ -238,7 +229,3 @@ class TestAsyncioSemaphoreCollector(BaseAsyncioLockCollectorTest):
     @property
     def lock_class(self) -> Type[asyncio.Semaphore]:
         return asyncio.Semaphore
-
-    @property
-    def lock_init_args(self):
-        return (2,)  # Initial semaphore value
