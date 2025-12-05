@@ -956,7 +956,8 @@ def test_llmobs_runnable_with_span_links(langchain_core, llmobs_events):
     llmobs_events.sort(key=lambda span: span["start_ns"])
 
     # assert output -> output links for runnable sequence span from last two runnable lambdas
-    assert llmobs_events[0]["span_links"] == [
+    # the order of the links is not guaranteed
+    expected_links = [
         {
             "trace_id": mock.ANY,
             "span_id": llmobs_events[2]["span_id"],
@@ -968,6 +969,9 @@ def test_llmobs_runnable_with_span_links(langchain_core, llmobs_events):
             "attributes": {"from": "output", "to": "output"},
         },
     ]
+    assert len(llmobs_events[0]["span_links"]) == len(expected_links)
+    for expected_link in expected_links:
+        assert expected_link in llmobs_events[0]["span_links"]
 
     # assert input -> input links for add_1 span
     assert llmobs_events[1]["span_links"] == [
