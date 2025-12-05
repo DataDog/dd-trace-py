@@ -91,14 +91,20 @@ def _disable_iast_after_fork():
         from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
         from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 
-        # Note: The C++ pthread_atfork handler (in native.cpp) has ALREADY reset
-        # native state automatically at this point. We don't need to call
-        # reset_native_state() or clear_all_request_context_slots() explicitly.
+        # Import context clearing function
+        from ddtrace.appsec._iast._taint_tracking._context import clear_all_request_context_slots
+
+        # Note: The C++ pthread_atfork handler (in native.cpp) automatically resets
+        # native state on ACTUAL forks. However, when this function is called directly
+        # in tests (simulating fork handling), pthread_atfork doesn't run. To ensure
+        # proper cleanup in both scenarios, we always clear context slots explicitly.
+        # This is idempotent and safe to call multiple times.
 
         # In pytest mode, always disable IAST in child processes to avoid segfaults
         # when tests create multiprocesses (e.g., for testing fork behavior)
         if _iast_in_pytest_mode:
             log.debug("IAST fork handler: Pytest mode detected, disabling IAST in child process")
+            clear_all_request_context_slots()
             IAST_CONTEXT.set(None)
             asm_config._iast_enabled = False
             return
@@ -123,6 +129,8 @@ def _disable_iast_after_fork():
             "Native state auto-reset by pthread_atfork. Disabling IAST in child."
         )
 
+        # Clear context slots (idempotent, ensures cleanup in test scenarios)
+        clear_all_request_context_slots()
         # Clear Python side: reset the context ID
         IAST_CONTEXT.set(None)
 

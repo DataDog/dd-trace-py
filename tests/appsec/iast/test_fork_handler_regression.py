@@ -71,7 +71,6 @@ def test_fork_handler_with_active_context(iast_context_defaults):
     asm_config._iast_enabled = original_state
 
 
-@pytest.mark.skip(reason="multiprocessing fork doesn't work correctly in ddtrace-py 4.0")
 def test_multiprocessing_with_iast_no_segfault(iast_context_defaults):
     """
     Regression test: Verify that late forks (multiprocessing) safely disable IAST.
@@ -128,7 +127,6 @@ def test_multiprocessing_with_iast_no_segfault(iast_context_defaults):
     assert result[3] is False, "Objects should not be tainted in child (IAST disabled)"
 
 
-@pytest.mark.skip(reason="multiprocessing fork doesn't work correctly in ddtrace-py 4.0")
 def test_multiple_fork_operations(iast_context_defaults):
     """
     Test that multiple sequential fork operations don't cause segfaults.
@@ -227,6 +225,8 @@ def test_fork_with_os_fork_no_segfault(iast_context_defaults):
         _, status = os.waitpid(pid, 0)
         exit_code = os.WEXITSTATUS(status)
         assert exit_code == 0, f"Child process failed with exit code {exit_code}"
+        # Clean up the manually started context to avoid leaving context slots occupied
+        _end_iast_context_and_oce()
 
 
 def test_fork_handler_clears_state(iast_context_defaults):
@@ -267,7 +267,6 @@ def test_fork_handler_clears_state(iast_context_defaults):
     asm_config._iast_enabled = original_state
 
 
-@pytest.mark.skip(reason="multiprocessing fork doesn't work correctly in ddtrace-py 4.0")
 def test_eval_in_forked_process(iast_context_defaults):
     """
     Regression test: Verify that eval() doesn't crash in forked processes.
