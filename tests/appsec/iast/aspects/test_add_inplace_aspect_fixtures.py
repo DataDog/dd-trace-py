@@ -1,6 +1,5 @@
 # -*- encoding: utf-8 -*-
 from copy import copy
-import sys
 
 import pytest
 
@@ -40,7 +39,6 @@ def test_operator_add_inplace_dis() -> None:
     assert bytecode.codeobj.co_names == ("_ddtrace_aspects", "add_inplace_aspect")
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9), reason="+= and dict are a inplace aspect in version 3.8")
 def test_operator_add_inplace_keys_dis() -> None:
     import dis
 
@@ -49,7 +47,6 @@ def test_operator_add_inplace_keys_dis() -> None:
     assert bytecode.codeobj.co_names == ("_ddtrace_aspects", "add_inplace_aspect", "index_aspect")
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9), reason="+= and dict are a inplace aspect in version 3.8")
 def test_operator_add_inplace_dict_key_from_function_dis() -> None:
     import dis
 
@@ -58,7 +55,6 @@ def test_operator_add_inplace_dict_key_from_function_dis() -> None:
     assert bytecode.codeobj.co_names == ("_ddtrace_aspects", "add_inplace_aspect", "_get_dictionary", "index_aspect")
 
 
-@pytest.mark.skipif(sys.version_info > (3, 9), reason="+= and dict are a inplace aspect in version 3.8")
 def test_operator_add_inplace_keys_dis_py38() -> None:
     import dis
 
