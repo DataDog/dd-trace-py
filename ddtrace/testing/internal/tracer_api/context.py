@@ -80,6 +80,8 @@ def _ddtrace_context() -> t.Generator[DDTraceTestContext, None, None]:
     ddtrace.tracer.context_provider.activate(None)
 
     with ddtrace.tracer.trace(DDTESTOPT_ROOT_SPAN_RESOURCE) as root_span:
+        root_span.set_tag("type", "test")  # Selenium integration checks the span type.
+        root_span.set_tag("span.kind", "test")
         yield DDTraceTestContext(root_span)
 
 
