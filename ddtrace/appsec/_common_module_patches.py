@@ -209,7 +209,7 @@ def wrapped_response(original_response_callable, instance, args, kwargs):
                 }
                 call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
     except Exception:
-        pass # nosec
+        pass  # nosec
     return response
 
 
