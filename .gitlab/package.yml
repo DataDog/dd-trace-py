@@ -170,31 +170,56 @@ publish-wheels-to-s3:
   tags: ["arch:amd64"]
   image: registry.ddbuild.io/images/mirror/amazon/aws-cli:2.4.29
   stage: package
-  needs:
-    # - job: download_ddtrace_artifacts
-    #   artifacts: true
-    - job: "build linux"
-      artifacts: true
-      parallel:
-        matrix:
-          - IMAGE_ARCH: "x86_64"
-            ARCH_TAG: "amd64"
-            PYTHON_TAG: *PYTHON_TAGS
-            LINUX_OS_IMAGE: *LINUX_OS_IMAGES
-          - IMAGE_ARCH: "aarch64"
-            ARCH_TAG: "arm64"
-            PYTHON_TAG: *PYTHON_TAGS
-            LINUX_OS_IMAGE: *LINUX_OS_IMAGES
-    - job: "build macos"
-      artifacts: true
-      parallel:
-        matrix:
-          - IMAGE_ARCH: "x86_64"
-            ARCH_TAG: "amd64"
-            UV_PYTHON: *PYTHON_VERSIONS
-          - IMAGE_ARCH: "aarch64"
-            ARCH_TAG: "arm64"
-            UV_PYTHON: *PYTHON_VERSIONS
+  rules:
+    # On PRs/feature branches: only depend on 3.14 macos builds
+    - if: '($IS_MAIN_BRANCH == "false") && ($IS_RELEASE_BRANCH == "false") && ($IS_RELEASE == "false")'
+      needs:
+        - job: "build linux"
+          artifacts: true
+          parallel:
+            matrix:
+              - IMAGE_ARCH: "x86_64"
+                ARCH_TAG: "amd64"
+                PYTHON_TAG: *PYTHON_TAGS
+                LINUX_OS_IMAGE: *LINUX_OS_IMAGES
+              - IMAGE_ARCH: "aarch64"
+                ARCH_TAG: "arm64"
+                PYTHON_TAG: *PYTHON_TAGS
+                LINUX_OS_IMAGE: *LINUX_OS_IMAGES
+        - job: "build macos"
+          artifacts: true
+          parallel:
+            matrix:
+              - IMAGE_ARCH: "x86_64"
+                ARCH_TAG: "amd64"
+                UV_PYTHON: "3.14"
+              - IMAGE_ARCH: "aarch64"
+                ARCH_TAG: "arm64"
+                UV_PYTHON: "3.14"
+    # On main, release branches, and releases: depend on all macos builds
+    - needs:
+        - job: "build linux"
+          artifacts: true
+          parallel:
+            matrix:
+              - IMAGE_ARCH: "x86_64"
+                ARCH_TAG: "amd64"
+                PYTHON_TAG: *PYTHON_TAGS
+                LINUX_OS_IMAGE: *LINUX_OS_IMAGES
+              - IMAGE_ARCH: "aarch64"
+                ARCH_TAG: "arm64"
+                PYTHON_TAG: *PYTHON_TAGS
+                LINUX_OS_IMAGE: *LINUX_OS_IMAGES
+        - job: "build macos"
+          artifacts: true
+          parallel:
+            matrix:
+              - IMAGE_ARCH: "x86_64"
+                ARCH_TAG: "amd64"
+                UV_PYTHON: *PYTHON_VERSIONS
+              - IMAGE_ARCH: "aarch64"
+                ARCH_TAG: "arm64"
+                UV_PYTHON: *PYTHON_VERSIONS
   variables:
     BUCKET: dd-trace-py-builds
   script:
