@@ -11,8 +11,8 @@ anyio==4.12.0
 argcomplete==3.6.3
 attrs==25.4.0
 backports-asyncio-runner==1.2.0
-boto3==1.42.3
-botocore==1.42.3
+boto3==1.42.4
+botocore==1.42.4
 cachetools==6.2.2
 certifi==2025.11.12
 cffi==2.0.0

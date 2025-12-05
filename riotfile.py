@@ -3026,7 +3026,16 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(),
+                    # pydantic-ai<1.0.0 is compatible with Python 3.9
+                    pys=select_pys(min_version="3.9", max_version="3.9"),
+                    pkgs={
+                        "pydantic-ai": ["==0.3.0", "==0.4.4"],
+                        "pydantic": "==2.12.0a1",
+                    },
+                ),
+                Venv(
+                    # pydantic-ai>=1.0.0 requires Python 3.10+
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
                     pkgs={
                         "pydantic-ai": ["==0.3.0", "==0.4.4", "==1.0.0", latest],
                         "pydantic": "==2.12.0a1",
