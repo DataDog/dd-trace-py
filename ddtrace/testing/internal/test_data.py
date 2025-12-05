@@ -175,7 +175,7 @@ class TestRun(TestItem["Test", t.NoReturn]):
     # Selenium / RUM functionality. These tags are only available after the test has finished and ddtrace span tags have
     # been copied over to the test run object.
     def is_rum(self) -> bool:
-        return self.tags.get(TestTag.IS_RUM_ACTIVE) == "true"
+        return self.tags.get(TestTag.IS_RUM_ACTIVE) == TAG_TRUE
 
     def get_browser_driver(self) -> t.Optional[str]:
         return self.tags.get(TestTag.BROWSER_DRIVER)

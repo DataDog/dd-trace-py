@@ -91,7 +91,7 @@ class TelemetryAPI:
         log.debug("Recording Test Optimization telemetry distribution: %r %r %r", metric_name, value, tags)
         self.writer.add_distribution_metric(self.namespace, metric_name, value, self._make_tags(tags))
 
-    def _make_tags(self, tags: t.Optional[t.Dict[str, t.Any]]) -> t.Optional[t.Tuple[t.Tuple[str, str], ...]]:
+    def _make_tags(self, tags: t.Optional[t.Dict[str, t.Any]]) -> t.Tuple[t.Tuple[str, str], ...]:
         """
         Convert a tag dictionary into a tag tuple.
 
@@ -99,7 +99,7 @@ class TelemetryAPI:
         from the final result. Enum items are converted to their values. Everything else is converted to string.
         """
         if not tags:
-            return None
+            return ()
 
         tag_list: t.List[t.Tuple[str, str]] = []
         for key, value in tags.items():
