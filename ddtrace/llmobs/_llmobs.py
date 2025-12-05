@@ -13,7 +13,6 @@ from typing import Literal
 from typing import Optional
 from typing import Set
 from typing import Tuple
-from typing import TypedDict
 from typing import Union
 from typing import cast
 
@@ -114,6 +113,7 @@ from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.types import ExportedLLMObsSpan
+from ddtrace.llmobs.types import LLMObsEvaluationResult
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import _ErrorField
@@ -186,18 +186,6 @@ class LLMObsActivateDistributedHeadersError(Exception):
     """Error raised when activating distributed headers."""
 
     pass
-
-
-class LLMObsEvaluationResult(TypedDict, total=False):
-    metric_type: str
-    label: str
-    value: Union[str, int, float, bool]
-    timestamp_ms: Optional[int]
-    tags: Optional[Dict[str, str]]
-    ml_app: Optional[str]
-    assessment: Optional[str]
-    reasoning: Optional[str]
-    metadata: Optional[Dict[str, object]]
 
 
 @dataclass
@@ -1742,7 +1730,7 @@ class LLMObs(Service):
             error = e.error_type
             raise e
         finally:
-            telemetry.record_llmobs_submit_evaluation(join_on, metric_type, error)
+            telemetry.record_llmobs_submit_evaluation(join_on, metric_type, "submit_evaluation", error)
 
     @classmethod
     async def run_evaluations(
@@ -1798,7 +1786,6 @@ class LLMObs(Service):
                         "trace_id": exported_span.get("trace_id"),
                     },
                 }
-                metric_type = ""
                 try:
                     evaluation_result = evaluation(exported_span)
                     evaluation_metric = cls._build_evaluation_metric(evaluation_result, join_on, exported_span)
@@ -1812,7 +1799,7 @@ class LLMObs(Service):
                     )
                 finally:
                     metric_type = evaluation_result.get("metric_type") or ""
-                    telemetry.record_llmobs_submit_evaluation(join_on, metric_type, error)
+                    telemetry.record_llmobs_submit_evaluation(join_on, metric_type, "run_evaluations", error)
 
     @staticmethod
     def _build_evaluation_metric(

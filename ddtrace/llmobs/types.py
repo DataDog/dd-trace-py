@@ -1,6 +1,7 @@
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import TypedDict
 from typing import Union
 
@@ -108,3 +109,14 @@ class _SpanLink(TypedDict):
     span_id: str
     trace_id: str
     attributes: Dict[str, str]
+
+class LLMObsEvaluationResult(TypedDict, total=False):
+    metric_type: str
+    label: str
+    value: Union[str, int, float, bool]
+    timestamp_ms: Optional[int]
+    tags: Optional[Dict[str, str]]
+    ml_app: Optional[str]
+    assessment: Optional[str]
+    reasoning: Optional[str]
+    metadata: Optional[Dict[str, Any]]
