@@ -101,7 +101,7 @@ class RuntimeWorker(periodic.PeriodicService):
         else:
             self._platform_tags = self._format_tags(PlatformTags())
 
-        self._process_tags = self._format_tags(ProcessTags())
+        self._process_tags: List[str] = ProcessTags()  # type: ignore[assignment]
 
     @classmethod
     def disable(cls) -> None:

@@ -107,12 +107,4 @@ class ProcessTagCollector(RuntimeTagCollector):
         # DEV: we do not access direct process_tags_list so we can
         # reload it in the tests
         process_tags_list = process_tags.process_tags_list
-        if process_tags_list is None:
-            return []
-
-        tags = []
-        for tag_string in process_tags_list:
-            key, value = tag_string.split(":")
-            tags.append((key, value))
-
-        return tags
+        return process_tags_list or []

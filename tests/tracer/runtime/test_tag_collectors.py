@@ -127,10 +127,10 @@ def test_process_tags_enabled():
         process_tag_reload()
 
         ptc = tag_collectors.ProcessTagCollector()
-        tags = list(ptc.collect())
+        tags: list[str] = ptc.collect()
         assert len(tags) == 4, f"Expected 4 process tags, got {len(tags)}: {tags}"
 
-        tags_dict = dict(tags)
+        tags_dict = {k: v for k, v in (s.split(":") for s in tags)}
         assert ENTRYPOINT_NAME_TAG in tags_dict
         assert ENTRYPOINT_WORKDIR_TAG in tags_dict
         assert ENTRYPOINT_BASEDIR_TAG in tags_dict
