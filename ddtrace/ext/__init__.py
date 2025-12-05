@@ -32,18 +32,3 @@ class SpanKind(object):
 class SpanLinkKind(object):
     EXECUTED = "executed_by"
     RESUMING = "resuming"
-
-
-EXIT_SPAN_TYPES = frozenset(
-    {
-        SpanTypes.CACHE,
-        SpanTypes.CASSANDRA,
-        SpanTypes.ELASTICSEARCH,
-        SpanTypes.GRPC,
-        SpanTypes.HTTP,
-        SpanTypes.REDIS,
-        SpanTypes.SQL,
-        SpanTypes.WORKER,
-        SpanTypes.VALKEY,
-    }
-)

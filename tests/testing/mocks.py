@@ -23,6 +23,8 @@ from ddtrace.testing.internal.api_client import Settings
 from ddtrace.testing.internal.api_client import TestManagementSettings
 from ddtrace.testing.internal.api_client import TestProperties
 from ddtrace.testing.internal.http import BackendConnectorSetup
+from ddtrace.testing.internal.http import BackendResult
+from ddtrace.testing.internal.http import ErrorType
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
@@ -442,6 +444,11 @@ class BackendConnectorMockBuilder:
         self._request_responses[f"{method}:{path}"] = response_data
         return self
 
+    def _make_404_response(self) -> BackendResult:
+        return BackendResult(
+            response=Mock(status=404), error_type=ErrorType.CODE_4XX, error_description="Not found", parsed_response={}
+        )
+
     def build(self) -> Mock:
         """Build the BackendConnector mock."""
         mock_connector = Mock()
@@ -449,22 +456,22 @@ class BackendConnectorMockBuilder:
         # Mock methods to prevent real HTTP calls
         def mock_post_json(endpoint: str, data: t.Any) -> t.Tuple[Mock, t.Any]:
             if endpoint in self._post_json_responses:
-                return Mock(status=200), self._post_json_responses[endpoint]
-            return Mock(status=404), {}
+                return BackendResult(response=Mock(status=200), parsed_response=self._post_json_responses[endpoint])
+            return self._make_404_response()
 
-        def mock_get_json(endpoint: str) -> t.Tuple[Mock, t.Any]:
+        def mock_get_json(endpoint: str, max_attempts: int = 0) -> t.Tuple[Mock, t.Any]:
             if endpoint in self._get_json_responses:
-                return Mock(status=200), self._get_json_responses[endpoint]
-            return Mock(status=404), {}
+                return BackendResult(response=Mock(status=200), parsed_response=self._get_json_responses[endpoint])
+            return self._make_404_response()
 
         def mock_request(method: str, path: str, **kwargs: t.Any) -> t.Tuple[Mock, t.Any]:
             key = f"{method}:{path}"
             if key in self._request_responses:
-                return Mock(status=200), self._request_responses[key]
-            return Mock(status=404), {}
+                BackendResult(response=Mock(status=200), parsed_response=self._request_responses[key])
+            return self._make_404_response()
 
         def mock_post_files(path: str, files: t.Any, **kwargs: t.Any) -> t.Tuple[Mock, t.Dict[str, t.Any]]:
-            return Mock(status=200), {}
+            return BackendResult(response=Mock(status=200))
 
         mock_connector.post_json.side_effect = mock_post_json
         mock_connector.get_json.side_effect = mock_get_json
