@@ -1,70 +1,26 @@
 #include "aspect_slice.h"
+#include <algorithm>
 
 /**
- * This function reduces the taint ranges from the given index range map.
+ * Optimized function to compute taint ranges for a slice operation.
+ * This avoids creating an intermediate character-by-character index map,
+ * directly computing overlapping ranges instead. This reduces memory usage
+ * from O(n) to O(m) where n=string length, m=number of taint ranges.
  *
- * @param index_range_map The index range map from which the taint ranges are to be reduced.
+ * @param text The text object being sliced.
+ * @param ranges The taint ranges of the original text.
+ * @param start The start index of the slice (or nullptr/None).
+ * @param stop The stop index of the slice (or nullptr/None).
+ * @param step The step of the slice (or nullptr/None).
  *
- * @return A map of taint ranges for the given index range map.
+ * @return Taint ranges for the sliced result.
  */
 TaintRangeRefs
-reduce_ranges_from_index_range_map(const TaintRangeRefs& index_range_map)
+compute_slice_ranges(PyObject* text, const TaintRangeRefs& ranges, PyObject* start, PyObject* stop, PyObject* step)
 {
-    TaintRangeRefs new_ranges;
-    TaintRangePtr current_range;
-    size_t current_start = 0;
-    size_t index;
+    long length_text = static_cast<long>(py::len(text));
 
-    for (index = 0; index < index_range_map.size(); ++index) {
-        if (const auto& taint_range{ index_range_map.at(index) }; taint_range != current_range) {
-            if (current_range) {
-                new_ranges.emplace_back(safe_allocate_taint_range(
-                  current_start, index - current_start, current_range->source, current_range->secure_marks));
-            }
-            current_range = taint_range;
-            current_start = index;
-        }
-    }
-    if (current_range != nullptr) {
-        new_ranges.emplace_back(safe_allocate_taint_range(
-          current_start, index - current_start, current_range->source, current_range->secure_marks));
-    }
-    return new_ranges;
-}
-
-/**
- * This function builds a map of taint ranges for the given text object.
- *
- * @param text The text object for which the taint ranges are to be built.
- * @param ranges The taint range map that stores taint information.
- * @param start The start index of the text object.
- * @param stop The stop index of the text object.
- * @param step The step index of the text object.
- *
- * @return A map of taint ranges for the given text object.
- */
-TaintRangeRefs
-build_index_range_map(PyObject* text, TaintRangeRefs& ranges, PyObject* start, PyObject* stop, PyObject* step)
-{
-    TaintRangeRefs index_range_map;
-    long long index = 0;
-    for (const auto& taint_range : ranges) {
-        auto shared_range = taint_range;
-        while (index < taint_range->start) {
-            index_range_map.emplace_back(nullptr);
-            index++;
-        }
-        while (index < (taint_range->start + taint_range->length)) {
-            index_range_map.emplace_back(shared_range);
-            index++;
-        }
-    }
-    long length_text = static_cast<long long>(py::len(text));
-    while (index < length_text) {
-        index_range_map.emplace_back(nullptr);
-        index++;
-    }
-    TaintRangeRefs index_range_map_result;
+    // Parse slice parameters
     long start_int = 0;
     if (start != nullptr and start != Py_None) {
         start_int = PyLong_AsLong(start);
@@ -94,11 +50,74 @@ build_index_range_map(PyObject* text, TaintRangeRefs& ranges, PyObject* start, P
         step_int = PyLong_AsLong(step);
     }
 
-    for (auto i = start_int; i < stop_int; i += step_int) {
-        index_range_map_result.emplace_back(index_range_map[i]);
+    // For step != 1, we need to track which positions are included
+    // Build a mapping of original positions to result positions
+    if (step_int != 1) {
+        // Use the original algorithm for non-unit steps (rare case)
+        // Build position-to-range map only for the slice range
+        std::vector<TaintRangePtr> position_map;
+        position_map.reserve(stop_int - start_int);
+
+        for (long i = start_int; i < stop_int; i += step_int) {
+            TaintRangePtr range_at_pos = nullptr;
+            for (const auto& taint_range : ranges) {
+                if (i >= taint_range->start && i < (taint_range->start + taint_range->length)) {
+                    range_at_pos = taint_range;
+                    break;
+                }
+            }
+            position_map.push_back(range_at_pos);
+        }
+
+        // Consolidate consecutive ranges
+        TaintRangeRefs result_ranges;
+        TaintRangePtr current_range = nullptr;
+        size_t current_start = 0;
+
+        for (size_t i = 0; i < position_map.size(); ++i) {
+            if (position_map[i] != current_range) {
+                if (current_range) {
+                    result_ranges.emplace_back(safe_allocate_taint_range(
+                      current_start, i - current_start, current_range->source, current_range->secure_marks));
+                }
+                current_range = position_map[i];
+                current_start = i;
+            }
+        }
+        if (current_range != nullptr) {
+            result_ranges.emplace_back(safe_allocate_taint_range(
+              current_start, position_map.size() - current_start, current_range->source, current_range->secure_marks));
+        }
+
+        return result_ranges;
     }
 
-    return index_range_map_result;
+    // Optimized path for step == 1 (common case)
+    // Directly compute overlapping ranges without intermediate array
+    TaintRangeRefs result_ranges;
+
+    for (const auto& taint_range : ranges) {
+        long range_start = taint_range->start;
+        long range_end = range_start + taint_range->length;
+
+        // Check if this range overlaps with [start_int, stop_int)
+        if (range_end <= start_int || range_start >= stop_int) {
+            continue; // No overlap
+        }
+
+        // Compute the overlapping portion
+        long overlap_start = std::max(range_start, start_int);
+        long overlap_end = std::min(range_end, stop_int);
+
+        // Translate to result coordinates (relative to start of slice)
+        long result_start = overlap_start - start_int;
+        long result_length = overlap_end - overlap_start;
+
+        result_ranges.emplace_back(
+          safe_allocate_taint_range(result_start, result_length, taint_range->source, taint_range->secure_marks));
+    }
+
+    return result_ranges;
 }
 
 PyObject*
@@ -113,9 +132,7 @@ slice_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* start, PyOb
     if (ranges_error or ranges.empty()) {
         return result_o;
     }
-    set_ranges(result_o,
-               reduce_ranges_from_index_range_map(build_index_range_map(candidate_text, ranges, start, stop, step)),
-               ctx_map);
+    set_ranges(result_o, compute_slice_ranges(candidate_text, ranges, start, stop, step), ctx_map);
     return result_o;
 }
 
