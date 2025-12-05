@@ -109,9 +109,9 @@ class _ProfiledLock:
             if config.enable_asserts:
                 # Ensure acquired_time is not set when acquire is not sampled
                 # (else a bogus release sample is produced)
-                assert self.acquired_time is None, (
-                    f"Expected acquired_time to be None when acquire is not sampled, got {self.acquired_time!r}"
-                )  # nosec
+                assert (
+                    self.acquired_time is None
+                ), f"Expected acquired_time to be None when acquire is not sampled, got {self.acquired_time!r}"  # nosec
 
             return inner_func(*args, **kwargs)
 
