@@ -8,6 +8,7 @@ Includes both in-memory MCP connections and HTTP/SSE-based streaming tests.
 """
 
 from contextlib import asynccontextmanager
+import json
 import sys
 
 import pytest
@@ -564,16 +565,105 @@ async def test_iast_mcp_sse_streaming_multiple_calls(iast_test_token):
             # Call multiple tools in sequence
             result1 = await session.call_tool("calculator", {"operation": "add", "a": 10, "b": 20})
             assert not result1.isError
+            assert result1.content
+            assert len(result1.content) > 0
+            assert json.loads(result1.content[0].text)["result"] == 30
 
             result2 = await session.call_tool("get_weather", {"location": "San Francisco"})
             assert not result2.isError
+            assert len(result2.content) > 0
+            assert result2.content[0].text == "Weather in San Francisco is 72°F"
 
             result3 = await session.call_tool("calculator", {"operation": "multiply", "a": 5, "b": 8})
             assert not result3.isError
+            assert not result3.isError
+            assert result3.content
+            assert len(result3.content) > 0
+            assert json.loads(result3.content[0].text)["result"] == 40
 
             # Finally call the vulnerable one
             result4 = await session.call_tool("execute_command", {"command": "multi_stream_test.txt"})
             assert result4 is not None
+
+    response_tracer = _get_span(iast_test_token)
+    spans_with_iast = []
+    for trace in response_tracer:
+        for span in trace:
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
+                spans_with_iast.append(span)
+
+    # Should have spans with IAST from HTTP requests
+    assert len(spans_with_iast) >= 1
+
+
+@pytest.mark.asyncio
+async def test_iast_mcp_sse_streaming_stress_test_hundreds(iast_test_token):
+    """Stress test: Call the same endpoint hundreds of times via HTTP/SSE streaming.
+
+    This test repeatedly calls the same MCP tool endpoint hundreds of times to detect:
+    - Memory leaks
+    - Context corruption with repeated operations
+    - Segfaults that only occur after many iterations
+    - IAST taint tracking issues with high-volume requests
+
+    This is critical for production readiness where systems handle high throughput.
+    """
+    NUM_ITERATIONS = 100
+
+    with uvicorn_server(
+        python_cmd=sys.executable,
+        iast_enabled="true",
+        token=iast_test_token,
+        port=8053,
+        app="tests.appsec.integrations.fastapi_tests.mcp_app:app",
+        env=MCP_IAST_ENV,
+    ) as context:
+        _, fastapi_client, pid = context
+
+        headers = {
+            "User-Agent": "DatadogIAST/1.0 (MCP-SSE-Test; Stress-Test-Hundreds)",
+            "Referer": "https://test.datadoghq.com/mcp-sse-stress",
+            "Accept": "text/event-stream",
+            "X-Test-Session": "mcp-sse-stress-test",
+        }
+
+        # Ensure server is ready
+        response = fastapi_client.get("/", headers=headers)
+        assert response.status_code == 200
+
+        # Make hundreds of calls to the same endpoint via HTTP/SSE streaming
+        async with mcp_client_session(8053) as session:
+            # Initialize
+            await session.initialize()
+
+            # Track errors and successful calls
+            successful_calls = 0
+            errors = []
+
+            # Call the same tool hundreds of times
+            for i in range(NUM_ITERATIONS):
+                try:
+                    result = await session.call_tool("calculator", {"operation": "add", "a": i, "b": i * 2})
+                    assert result is not None, f"Result is None at iteration {i}"
+                    assert not result.isError, f"Tool returned error at iteration {i}: {result}"
+                    assert result.content, f"No content in result at iteration {i}"
+                    assert len(result.content) > 0, f"Empty content at iteration {i}"
+
+                    expected_result = i + (i * 2)
+                    actual_result = json.loads(result.content[0].text)["result"]
+                    assert actual_result == expected_result, (
+                        f"Wrong result at iteration {i}: expected {expected_result}, got {actual_result}"
+                    )
+
+                    successful_calls += 1
+                except Exception as e:
+                    errors.append((i, str(e)))
+
+            # Assert that most calls succeeded (allow for some transient failures)
+            assert successful_calls >= NUM_ITERATIONS * 0.95, (
+                f"Too many failures: {len(errors)}/{NUM_ITERATIONS}. Errors: {errors[:10]}"
+            )
+            assert len(errors) == 0, f"Errors occurred during stress test: {errors}"
 
     response_tracer = _get_span(iast_test_token)
     spans_with_iast = []
