@@ -25,7 +25,7 @@ class TracedPydanticAsyncContextManager(wrapt.ObjectProxy):
             await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
             if exc_type:
                 self._dd_span.set_exc_info(exc_type, exc_val, exc_tb)
-            elif self._dd_integration.is_pc_sampled_llmobs(self._dd_span):
+            else:
                 self._dd_integration.llmobs_set_tags(
                     self._dd_span, args=self._args, kwargs=self._kwargs, response=self._agent_run
                 )
@@ -76,6 +76,16 @@ class TracedPydanticStreamedRunResult(wrapt.ObjectProxy):
     def stream(self, *args, **kwargs):
         self._generator = TracedPydanticGenerator(
             self.__wrapped__.stream(*args, **kwargs), self._dd_span, self._dd_integration, self._args, self._kwargs
+        )
+        return self._generator
+
+    def stream_output(self, *args, **kwargs):
+        self._generator = TracedPydanticGenerator(
+            self.__wrapped__.stream_output(*args, **kwargs),
+            self._dd_span,
+            self._dd_integration,
+            self._args,
+            self._kwargs,
         )
         return self._generator
 

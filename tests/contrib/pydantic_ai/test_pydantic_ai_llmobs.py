@@ -67,6 +67,18 @@ class TestLLMObsPydanticAI:
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(span, output)
 
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 0, 0), reason="pydantic-ai < 1.0.0 does not support stream_output")
+    async def test_agent_run_stream_output(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
+        output = ""
+        with request_vcr.use_cassette("agent_run_stream_output.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            async with agent.run_stream("Hello, world!") as result:
+                async for chunk in result.stream_output(debounce_by=None):
+                    output = chunk
+        span = mock_tracer.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected_run_agent_span_event(span, output)
+
     @pytest.mark.parametrize("delta", [False, True])
     async def test_agent_run_stream_text(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer, delta):
         """
