@@ -79,6 +79,12 @@ def test_multiprocessing_with_iast_no_segfault(iast_context_defaults):
     The fork handler should detect the active state and disable IAST in the child
     to prevent segmentation faults from corrupted native extension state.
     """
+    import multiprocessing
+
+    # Python 3.14+ defaults to 'forkserver' which requires pickling.
+    # Force 'fork' method for this test since we use local functions.
+    original_start_method = multiprocessing.get_start_method(allow_none=True)
+    multiprocessing.set_start_method("fork", force=True)
 
     def child_process_work(queue):
         """Child process where IAST should be disabled."""
@@ -126,6 +132,10 @@ def test_multiprocessing_with_iast_no_segfault(iast_context_defaults):
     assert result[2] == 0, "Child should have 0 tainted objects (IAST disabled)"
     assert result[3] is False, "Objects should not be tainted in child (IAST disabled)"
 
+    # Restore original start method
+    if original_start_method:
+        multiprocessing.set_start_method(original_start_method, force=True)
+
 
 def test_multiple_fork_operations(iast_context_defaults):
     """
@@ -134,6 +144,12 @@ def test_multiple_fork_operations(iast_context_defaults):
     Each child process should have IAST safely disabled by the fork handler,
     ensuring no crashes occur even with multiple forks.
     """
+    import multiprocessing
+
+    # Python 3.14+ defaults to 'forkserver' which requires pickling.
+    # Force 'fork' method for this test since we use local functions.
+    original_start_method = multiprocessing.get_start_method(allow_none=True)
+    multiprocessing.set_start_method("fork", force=True)
 
     def simple_child_work(queue, child_id):
         """Simple child process work - IAST will be disabled."""
@@ -175,6 +191,10 @@ def test_multiple_fork_operations(iast_context_defaults):
     for result in results:
         assert result[0] == "success", f"Child failed: {result}"
         assert result[2] is False, f"IAST should be disabled in child {result[1]}"
+
+    # Restore original start method
+    if original_start_method:
+        multiprocessing.set_start_method(original_start_method, force=True)
 
 
 def test_fork_with_os_fork_no_segfault(iast_context_defaults):
@@ -274,6 +294,12 @@ def test_eval_in_forked_process(iast_context_defaults):
     With IAST disabled in the child, eval() should work normally without
     any instrumentation or tainting.
     """
+    import multiprocessing
+
+    # Python 3.14+ defaults to 'forkserver' which requires pickling.
+    # Force 'fork' method for this test since we use local functions.
+    original_start_method = multiprocessing.get_start_method(allow_none=True)
+    multiprocessing.set_start_method("fork", force=True)
 
     def child_eval_work(queue):
         """Child process with IAST disabled."""
@@ -314,6 +340,10 @@ def test_eval_in_forked_process(iast_context_defaults):
     assert result[1] == 2, "Eval should return correct result"
     assert result[2] is False, "IAST should be disabled in child"
     assert result[3] is False, "Code should not be tainted (IAST disabled)"
+
+    # Restore original start method
+    if original_start_method:
+        multiprocessing.set_start_method(original_start_method, force=True)
 
 
 def test_early_fork_keeps_iast_enabled():
