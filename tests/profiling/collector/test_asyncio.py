@@ -4,7 +4,6 @@ import glob
 import os
 import sys
 from typing import Any
-from typing import Callable
 from typing import Type
 from typing import Union
 import uuid
@@ -57,7 +56,6 @@ class BaseAsyncioLockCollectorTest:
     Child classes must implement:
         - collector_class: The collector class to test
         - lock_class: The asyncio lock class to test
-        - lock_init_args: Arguments to pass to lock constructor (default: ())
     """
 
     @property
@@ -68,10 +66,19 @@ class BaseAsyncioLockCollectorTest:
     def lock_class(self) -> LockType:
         raise NotImplementedError("Child classes must implement lock_class")
 
-    def setup_method(self, method: Callable[..., Any]) -> None:
-        self.test_name: str = method.__qualname__ if PY_311_OR_ABOVE else method.__name__
-        self.output_prefix: str = "/tmp" + os.sep + self.test_name
-        self.output_filename: str = self.output_prefix + "." + str(os.getpid())
+    @property
+    def lock_init_args(self) -> tuple:
+        """Arguments to pass to lock constructor. Override for Semaphore-like locks."""
+        return ()
+
+    def create_lock(self) -> Union[asyncio.Lock, asyncio.Semaphore]:
+        """Create a lock instance with the appropriate arguments."""
+        return self.lock_class(*self.lock_init_args)
+
+    def setup_method(self, method):
+        self.test_name = method.__qualname__ if PY_311_OR_ABOVE else method.__name__
+        self.output_prefix = "/tmp" + os.sep + self.test_name
+        self.output_filename = self.output_prefix + "." + str(os.getpid())
 
         assert ddup.is_available, "ddup is not available"
         ddup.config(
@@ -231,3 +238,7 @@ class TestAsyncioSemaphoreCollector(BaseAsyncioLockCollectorTest):
     @property
     def lock_class(self) -> Type[asyncio.Semaphore]:
         return asyncio.Semaphore
+
+    @property
+    def lock_init_args(self):
+        return (2,)  # Initial semaphore value

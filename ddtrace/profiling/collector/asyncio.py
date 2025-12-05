@@ -1,6 +1,9 @@
 import asyncio
+<<<<<<< HEAD
 from types import ModuleType
 from typing import Type
+=======
+>>>>>>> b5d411c10b (feat(profiling): profile asyncio.Semaphore primitives with Python Lock profiler)
 
 from . import _lock
 
