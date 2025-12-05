@@ -3,8 +3,11 @@
 import os
 import subprocess
 import typing as t
+from unittest.mock import Mock
 
 import pytest
+
+from ddtrace.testing.internal.telemetry import TelemetryAPI
 
 
 # Enable pytester plugin for testing pytest plugins
@@ -75,3 +78,13 @@ def git_shallow_repo(git_repo: str, tmpdir: t.Any) -> t.Tuple[str, str]:
     subprocess.check_output("git rev-parse HEAD", shell=True, text=True, cwd=git_repo).strip()
     head_sha = subprocess.check_output("git rev-parse HEAD^", shell=True, text=True, cwd=git_repo).strip()
     return (f"{cwd}/shallow_repo", head_sha)
+
+
+@pytest.fixture(autouse=True)
+def mock_telemetry(monkeypatch: pytest.MonkeyPatch) -> Mock:
+    """
+    Mock the telemetry API instance so tests don't fail due to uninitialized telemetry.
+    """
+    telemetry_api = Mock()
+    monkeypatch.setattr(TelemetryAPI, "_instance", telemetry_api)
+    yield telemetry_api

@@ -1058,6 +1058,9 @@ class LLMObs(Service):
         """Returns a simple representation of a span to export its span and trace IDs.
         If no span is provided, the current active LLMObs-type span will be used.
         """
+        if not cls.enabled:
+            log.warning("LLMObs.export_span() called when LLMObs is disabled. No span will be exported.")
+            return None
         if span is None:
             span = cls._instance._current_span()
             if span is None:

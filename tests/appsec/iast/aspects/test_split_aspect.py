@@ -1,5 +1,4 @@
 import logging
-import sys
 
 from hypothesis import given
 from hypothesis.strategies import one_of
@@ -171,7 +170,6 @@ def test_aspect_splitlines_keepend_true():
 
 
 @pytest.mark.skip_iast_check_logs
-@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 def test_propagate_ranges_with_no_context(caplog):
     """Test taint_pyobject without context. This test is to ensure that the function does not raise an exception."""
     input_str = "abc|def"

@@ -310,15 +310,57 @@ jobs:
           name: logs_parametric
           path: artifact.tar.gz
 
+  serverless-system-tests-build-layer:
+    runs-on: ubuntu-latest
+    needs: [build-wheels]
+    steps:
+      - name: Checkout datadog-lambda-python
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          repository: "DataDog/datadog-lambda-python"
+
+      - name: Download wheel to binaries directory
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: wheels-cp313-manylinux_x86_64
+          path: artifacts/
+
+      - name: Build datadog_lambda layer
+        run: |
+          wheel_path=$(find ./artifacts -name "*.whl" | head -n 1)
+          sed -i 's|^ddtrace =.*$|ddtrace = { file = "'"$wheel_path"'" }|' pyproject.toml
+          ARCH=amd64 PYTHON_VERSION=3.13 ./scripts/build_layers.sh
+
+      - name: Upload layer artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          path: .layers/datadog_lambda_py-amd64-3.13.zip
+          name: serverless_system_tests_binaries
+
+  serverless-system-tests:
+    needs: [serverless-system-tests-build-layer]
+    # Automatically managed, use scripts/update-system-tests-version to update
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@2eb26336ed43c2db1b7f90fff17ce4f5fc36a12b
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+    with:
+      library: python_lambda
+      binaries_artifact: serverless_system_tests_binaries
+      scenarios_groups: lambda_end_to_end
+      skip_empty_scenarios: true
+
   finished:
     name: system-tests finished
     runs-on: ubuntu-latest
-    needs: [parametric, system-tests]
+    needs: [parametric, system-tests, serverless-system-tests]
     if: success() || failure()
     steps:
       - name: True when everything else succeeded
-        if: needs.parametric.result == 'success' && needs.system-tests.result == 'success'
+        if: needs.parametric.result == 'success' && needs.system-tests.result == 'success' && needs.serverless-system-tests.result == 'success'
         run: exit 0
       - name: Fails if anything else failed
-        if: needs.parametric.result != 'success' || needs.system-tests.result != 'success'
+        if: needs.parametric.result != 'success' || needs.system-tests.result != 'success' || needs.serverless-system-tests.result != 'success'
         run: exit 1

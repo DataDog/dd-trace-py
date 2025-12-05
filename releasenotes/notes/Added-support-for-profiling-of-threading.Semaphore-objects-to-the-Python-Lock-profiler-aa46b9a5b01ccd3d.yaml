@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    profiling: Add support for ``threading.Semaphore`` locking type profiling in Python. 
+    The Lock profiler now detects and marks "internal" Lock objects, i.e. those that are part of implementation of higher-level locking types. 
+    One example of such higher-level primitive is ``threading.Semaphore``, which is implemented with ``threading.Condition``, which itself uses ``threading.Lock`` internally. 
+    Marking internal lock as "internal" will prevent it from being sampled, ensuring that the high-level (e.g. Semaphore) sample is processed.
