@@ -489,40 +489,38 @@ class TestLLMObsLiteLLM:
         assert len(llmobs_events) == 1
         assert llmobs_events[0]["name"] == "OpenAI.createChatCompletion" if not stream else "litellm.request"
 
-
-def test_enable_llmobs_after_litellm_was_imported(mock_llmobs_logs, clear_litellm_from_sys_modules):
+def test_enable_llmobs_after_litellm_was_imported(run_python_code_in_subprocess):
     """
     Test that LLMObs.enable() logs a warning if litellm is imported before LLMObs.enable() is called.
     """
-    from ddtrace.llmobs import LLMObs
-
-    LLMObs.disable()
-    import litellm  # noqa: F401
-
-    LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
-    assert LLMObs.enabled
-    mock_llmobs_logs.warning.assert_called_once_with(
-        "LLMObs.enable() called after litellm was imported but before it was patched. "
-        "This may cause tracing issues if you are importing patched methods like 'completion' directly. "
-        "To ensure proper tracing, either run your application with ddtrace-run, "
-        "call ddtrace.patch_all() before importing litellm, or "
-        "enable LLMObs before importing other modules."
+    _, err, _, _ = run_python_code_in_subprocess(
+        """
+import litellm
+from ddtrace.llmobs import LLMObs
+LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+assert LLMObs.enabled
+LLMObs.disable()
+"""
     )
 
-    LLMObs.disable()
+    assert (
+        "LLMObs.enable() called after litellm was imported but before it was patched"
+    ) in err.decode()
 
-
-def test_import_litellm_after_llmobs_was_enabled(mock_llmobs_logs, clear_litellm_from_sys_modules):
+def test_import_litellm_after_llmobs_was_enabled(run_python_code_in_subprocess):
     """
     Test that LLMObs.enable() does not logs a warning if litellm is imported after LLMObs.enable() is called.
     """
-    from ddtrace.llmobs import LLMObs
+    _, err, _, _ = run_python_code_in_subprocess(
+        """
+from ddtrace.llmobs import LLMObs
+LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+assert LLMObs.enabled
+import litellm
+LLMObs.disable()
+"""
+    )
 
-    LLMObs.disable()
-    LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
-    assert LLMObs.enabled
-    import litellm  # noqa: F401
-
-    mock_llmobs_logs.warning.assert_not_called()
-
-    LLMObs.disable()
+    assert (
+        "LLMObs.enable() called after litellm was imported but before it was patched"
+    ) not in err.decode()

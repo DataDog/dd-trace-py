@@ -1,4 +1,3 @@
-import mock
 import pytest
 
 from ddtrace._trace.pin import Pin
@@ -84,22 +83,3 @@ def router():
     from litellm import Router
 
     yield Router(model_list=model_list)
-
-
-@pytest.fixture
-def mock_llmobs_logs():
-    with mock.patch("ddtrace.llmobs._llmobs.log") as m:
-        yield m
-        m.reset_mock()
-
-
-@pytest.fixture
-def clear_litellm_from_sys_modules():
-    import sys
-
-    litellm = sys.modules.get("litellm")
-    del sys.modules["litellm"]
-
-    yield
-
-    sys.modules["litellm"] = litellm
