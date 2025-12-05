@@ -4,29 +4,23 @@
 
 """Routines common to all posix systems."""
 
+import enum
 import glob
 import os
-import sys
+import signal
 import time
 
+from ._common import MACOS
+from ._common import TimeoutExpired
 from ._common import memoize
 from ._common import sdiskusage
 from ._common import usage_percent
-from ._compat import ChildProcessError
-from ._compat import FileNotFoundError
-from ._compat import InterruptedError
-from ._compat import PermissionError
-from ._compat import ProcessLookupError
-from ._compat import PY3
-from ._compat import unicode
+
+if MACOS:
+    from . import _psutil_osx
 
 
 __all__ = ['pid_exists', 'wait_pid', 'disk_usage', 'get_terminal_map']
-
-
-# This object gets set on "import psutil" from the __init__.py
-# file, see: https://github.com/giampaolo/psutil/issues/1402
-TimeoutExpired = None
 
 
 def pid_exists(pid):
@@ -51,67 +45,113 @@ def pid_exists(pid):
         return True
 
 
-def wait_pid(pid, timeout=None, proc_name=None):
-    """Wait for process with pid 'pid' to terminate and return its
-    exit status code as an integer.
+Negsignal = enum.IntEnum(
+    'Negsignal', {x.name: -x.value for x in signal.Signals}
+)
 
-    If pid is not a children of os.getpid() (current process) just
-    waits until the process disappears and return None.
 
-    If pid does not exist at all return None immediately.
+def negsig_to_enum(num):
+    """Convert a negative signal value to an enum."""
+    try:
+        return Negsignal(num)
+    except ValueError:
+        return num
 
-    Raise TimeoutExpired on timeout expired.
+
+def wait_pid(
+    pid,
+    timeout=None,
+    proc_name=None,
+    _waitpid=os.waitpid,
+    _timer=getattr(time, 'monotonic', time.time),  # noqa: B008
+    _min=min,
+    _sleep=time.sleep,
+    _pid_exists=pid_exists,
+):
+    """Wait for a process PID to terminate.
+
+    If the process terminated normally by calling exit(3) or _exit(2),
+    or by returning from main(), the return value is the positive integer
+    passed to *exit().
+
+    If it was terminated by a signal it returns the negated value of the
+    signal which caused the termination (e.g. -SIGTERM).
+
+    If PID is not a children of os.getpid() (current process) just
+    wait until the process disappears and return None.
+
+    If PID does not exist at all return None immediately.
+
+    If *timeout* != None and process is still alive raise TimeoutExpired.
+    timeout=0 is also possible (either return immediately or raise).
     """
-    def check_timeout(delay):
-        if timeout is not None:
-            if timer() >= stop_at:
-                raise TimeoutExpired(timeout, pid=pid, name=proc_name)
-        time.sleep(delay)
-        return min(delay * 2, 0.04)
-
-    timer = getattr(time, 'monotonic', time.time)
+    if pid <= 0:
+        # see "man waitpid"
+        msg = "can't wait for PID 0"
+        raise ValueError(msg)
+    interval = 0.0001
+    flags = 0
     if timeout is not None:
-        def waitcall():
-            return os.waitpid(pid, os.WNOHANG)
-        stop_at = timer() + timeout
-    else:
-        def waitcall():
-            return os.waitpid(pid, 0)
+        flags |= os.WNOHANG
+        stop_at = _timer() + timeout
 
-    delay = 0.0001
+    def sleep(interval):
+        # Sleep for some time and return a new increased interval.
+        if timeout is not None:
+            if _timer() >= stop_at:
+                raise TimeoutExpired(timeout, pid=pid, name=proc_name)
+        _sleep(interval)
+        return _min(interval * 2, 0.04)
+
+    # See: https://linux.die.net/man/2/waitpid
     while True:
         try:
-            retpid, status = waitcall()
+            retpid, status = os.waitpid(pid, flags)
         except InterruptedError:
-            delay = check_timeout(delay)
+            interval = sleep(interval)
         except ChildProcessError:
             # This has two meanings:
-            # - pid is not a child of os.getpid() in which case
+            # - PID is not a child of os.getpid() in which case
             #   we keep polling until it's gone
-            # - pid never existed in the first place
+            # - PID never existed in the first place
             # In both cases we'll eventually return None as we
             # can't determine its exit status code.
-            while True:
-                if pid_exists(pid):
-                    delay = check_timeout(delay)
-                else:
-                    return
+            while _pid_exists(pid):
+                interval = sleep(interval)
+            return None
         else:
             if retpid == 0:
-                # WNOHANG was used, pid is still running
-                delay = check_timeout(delay)
+                # WNOHANG flag was used and PID is still running.
+                interval = sleep(interval)
                 continue
-            # process exited due to a signal; return the integer of
-            # that signal
-            if os.WIFSIGNALED(status):
-                return -os.WTERMSIG(status)
-            # process exited using exit(2) system call; return the
-            # integer exit(2) system call has been called with
-            elif os.WIFEXITED(status):
+
+            if os.WIFEXITED(status):
+                # Process terminated normally by calling exit(3) or _exit(2),
+                # or by returning from main(). The return value is the
+                # positive integer passed to *exit().
                 return os.WEXITSTATUS(status)
+            elif os.WIFSIGNALED(status):
+                # Process exited due to a signal. Return the negative value
+                # of that signal.
+                return negsig_to_enum(-os.WTERMSIG(status))
+            # elif os.WIFSTOPPED(status):
+            #     # Process was stopped via SIGSTOP or is being traced, and
+            #     # waitpid() was called with WUNTRACED flag. PID is still
+            #     # alive. From now on waitpid() will keep returning (0, 0)
+            #     # until the process state doesn't change.
+            #     # It may make sense to catch/enable this since stopped PIDs
+            #     # ignore SIGTERM.
+            #     interval = sleep(interval)
+            #     continue
+            # elif os.WIFCONTINUED(status):
+            #     # Process was resumed via SIGCONT and waitpid() was called
+            #     # with WCONTINUED flag.
+            #     interval = sleep(interval)
+            #     continue
             else:
-                # should never happen
-                raise ValueError("unknown process exit status %r" % status)
+                # Should never happen.
+                msg = f"unknown process exit status {status!r}"
+                raise ValueError(msg)
 
 
 def disk_usage(path):
@@ -121,33 +161,19 @@ def disk_usage(path):
     total and used disk space whereas "free" and "percent" represent
     the "free" and "used percent" user disk space.
     """
-    if PY3:
-        st = os.statvfs(path)
-    else:
-        # os.statvfs() does not support unicode on Python 2:
-        # - https://github.com/giampaolo/psutil/issues/416
-        # - http://bugs.python.org/issue18695
-        try:
-            st = os.statvfs(path)
-        except UnicodeEncodeError:
-            if isinstance(path, unicode):
-                try:
-                    path = path.encode(sys.getfilesystemencoding())
-                except UnicodeEncodeError:
-                    pass
-                st = os.statvfs(path)
-            else:
-                raise
-
+    st = os.statvfs(path)
     # Total space which is only available to root (unless changed
     # at system level).
-    total = (st.f_blocks * st.f_frsize)
+    total = st.f_blocks * st.f_frsize
     # Remaining free space usable by root.
-    avail_to_root = (st.f_bfree * st.f_frsize)
+    avail_to_root = st.f_bfree * st.f_frsize
     # Remaining free space usable by user.
-    avail_to_user = (st.f_bavail * st.f_frsize)
+    avail_to_user = st.f_bavail * st.f_frsize
     # Total space being used in general.
-    used = (total - avail_to_root)
+    used = total - avail_to_root
+    if MACOS:
+        # see: https://github.com/giampaolo/psutil/pull/2152
+        used = _psutil_osx.disk_usage_used(path, used)
     # Total space which is available to user (same as 'total' but
     # for the user).
     total_user = used + avail_to_user
@@ -160,13 +186,14 @@ def disk_usage(path):
     # reserved blocks that we are currently not considering:
     # https://github.com/giampaolo/psutil/issues/829#issuecomment-223750462
     return sdiskusage(
-        total=total, used=used, free=avail_to_user, percent=usage_percent_user)
+        total=total, used=used, free=avail_to_user, percent=usage_percent_user
+    )
 
 
 @memoize
 def get_terminal_map():
     """Get a map of device-id -> path as a dict.
-    Used by Process.terminal()
+    Used by Process.terminal().
     """
     ret = {}
     ls = glob.glob('/dev/tty*') + glob.glob('/dev/pts/*')
