@@ -56,21 +56,6 @@ CollectorTypeInst = Union[
 ]
 
 
-def _init_ddup(test_name: str) -> None:
-    """Initialize ddup for profiling tests.
-
-    Must be called before using any lock collectors.
-    """
-    assert ddup.is_available, "ddup is not available"
-    ddup.config(
-        env="test",
-        service=test_name,
-        version="1.0",
-        output_filename="/tmp/" + test_name,
-    )
-    ddup.start()
-
-
 # Module-level globals for testing global lock profiling
 _test_global_lock: LockTypeInst
 
@@ -438,18 +423,10 @@ def test_assertion_error_raised_with_enable_asserts():
     import mock
     import pytest
 
-    from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
 
-    # Initialize ddup (required before using collectors)
-    assert ddup.is_available, "ddup is not available"
-    ddup.config(
-        env="test",
-        service="test_asserts",
-        version="1.0",
-        output_filename="/tmp/test_asserts",
-    )
-    ddup.start()
+    init_ddup("test_asserts")
 
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
@@ -472,18 +449,10 @@ def test_all_exceptions_suppressed_by_default() -> None:
 
     import mock
 
-    from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
 
-    # Initialize ddup (required before using collectors)
-    assert ddup.is_available, "ddup is not available"
-    ddup.config(
-        env="test",
-        service="test_exceptions",
-        version="1.0",
-        output_filename="/tmp/test_exceptions",
-    )
-    ddup.start()
+    init_ddup("test_exceptions")
 
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
@@ -511,7 +480,9 @@ def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
     e.g. when BoundedSemaphore's c-tor calls Semaphore c-tor.
     We expect that the call to Semaphore c-tor goes to the unpatched version, and NOT our patched version.
     """
-    _init_ddup("test_semaphore_and_bounded_semaphore_collectors_coexist")
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_semaphore_and_bounded_semaphore_collectors_coexist")
 
     # Both collectors active at the same time - this triggers the inheritance case
     with ThreadingSemaphoreCollector(capture_pct=100), ThreadingBoundedSemaphoreCollector(capture_pct=100):
