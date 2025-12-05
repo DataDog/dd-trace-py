@@ -55,11 +55,12 @@ def extract_request_data(req_state, engine_core_output) -> RequestData:
     is_embedding = engine_core_output.pooling_output is not None
 
     # Get prompt text - if not available, decode from token IDs (but not for embeddings)
+    # skip_special_tokens=False preserves chat template markers for parsing
     prompt_text = req_state.prompt
     if not is_embedding and prompt_text is None and req_state.prompt_token_ids and req_state.detokenizer:
         tokenizer = getattr(req_state.detokenizer, "tokenizer", None)
         if tokenizer:
-            prompt_text = tokenizer.decode(req_state.prompt_token_ids)
+            prompt_text = tokenizer.decode(req_state.prompt_token_ids, skip_special_tokens=False)
 
     data = RequestData(
         prompt=prompt_text,
