@@ -8,36 +8,53 @@ These tests verify that:
 4. No crashes occur when calling IAST functions before initialization
 """
 
+import subprocess
+import sys
+
 import pytest
 
 
+@pytest.mark.skip_iast_check_logs
 class TestUninitializedStateHandling:
     """Test that IAST functions handle uninitialized state gracefully."""
 
     def test_context_functions_before_init_return_safe_defaults(self):
-        """Test that context functions return safe defaults before initialization."""
-        # Import without calling initialize_native_state()
-        from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
-        from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
-        from ddtrace.appsec._iast._taint_tracking._context import debug_num_tainted_objects
-        from ddtrace.appsec._iast._taint_tracking._context import finish_request_context
-        from ddtrace.appsec._iast._taint_tracking._context import start_request_context
+        """Test that context functions return safe defaults before initialization.
 
-        # These should all return safe defaults without crashing
-        size = debug_context_array_size()
-        assert size == 0, "Should return 0 before initialization"
+        This test runs in a subprocess to ensure complete isolation from other
+        tests that may have already initialized the native state.
+        """
+        # Run in subprocess for complete isolation
+        code = """
+import sys
+# Import without calling initialize_native_state()
+from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
+from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
+from ddtrace.appsec._iast._taint_tracking._context import debug_num_tainted_objects
+from ddtrace.appsec._iast._taint_tracking._context import finish_request_context
+from ddtrace.appsec._iast._taint_tracking._context import start_request_context
 
-        free_slots = debug_context_array_free_slots_number()
-        assert free_slots == 0, "Should return 0 before initialization"
+# These should all return safe defaults without crashing
+size = debug_context_array_size()
+assert size == 0, f"Should return 0 before initialization, got {size}"
 
-        ctx = start_request_context()
-        assert ctx is None, "Should return None before initialization"
+free_slots = debug_context_array_free_slots_number()
+assert free_slots == 0, f"Should return 0 before initialization, got {free_slots}"
 
-        # This should not crash
-        finish_request_context(0)
+ctx = start_request_context()
+assert ctx is None, f"Should return None before initialization, got {ctx}"
 
-        num = debug_num_tainted_objects(0)
-        assert num == 0, "Should return 0 before initialization"
+# This should not crash
+finish_request_context(0)
+
+num = debug_num_tainted_objects(0)
+assert num == 0, f"Should return 0 before initialization, got {num}"
+
+sys.exit(0)
+"""
+        result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+        if result.returncode != 0:
+            pytest.fail(f"Subprocess test failed:\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}")
 
     def test_taint_functions_before_init_do_not_crash(self):
         """Test that taint functions don't crash before initialization."""
@@ -79,28 +96,36 @@ class TestNativeStateInitialization:
 
     def test_taint_operations_work_after_initialization(self):
         """Test that taint operations work correctly after initialization."""
-        from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
+        from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
+        from ddtrace.appsec._iast._overhead_control_engine import oce
         from ddtrace.appsec._iast._taint_tracking import initialize_native_state
+        from ddtrace.appsec._iast._taint_tracking._context import start_request_context
         from ddtrace.appsec._iast._taint_tracking._native import reset_native_state
         from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
         from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
         from ddtrace.internal.settings.asm import config as asm_config
+        from tests.utils import override_env
 
-        # Reset and initialize
+        # Reset and initialize with proper configuration
         reset_native_state()
-        asm_config._iast_enabled = True
-        initialize_native_state()
 
-        # Create a request context
-        ctx_id = _iast_start_request()
-        assert ctx_id is not None
+        # Configure IAST and overhead control engine
+        with override_env({"DD_IAST_REQUEST_SAMPLING": "100", "DD_IAST_MAX_CONCURRENT_REQUEST": "100"}):
+            asm_config._iast_enabled = True
+            oce.reconfigure()
+            initialize_native_state()
 
-        # Test tainting
-        tainted_str = taint_pyobject("sensitive data", source_name="test_source", source_value="test_value")
-        assert tainted_str is not None
+            # Create a request context and set it in the ContextVar
+            ctx_id = start_request_context()
+            assert ctx_id is not None, "Should return valid context ID after initialization"
+            IAST_CONTEXT.set(ctx_id)
 
-        result = is_pyobject_tainted(tainted_str)
-        assert result is True, "String should be tainted after tainting operation"
+            # Test tainting
+            tainted_str = taint_pyobject("sensitive data", source_name="test_source", source_value="test_value")
+            assert tainted_str is not None
+
+            result = is_pyobject_tainted(tainted_str)
+            assert result is True, "String should be tainted after tainting operation"
 
 
 class TestResetNativeState:
