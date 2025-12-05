@@ -92,6 +92,7 @@ def iast_bytearray_extend_aspect(tainted_ba=b"test"):
     bytearray_extend_aspect(None, 0, ba, b" world")  # noqa: F821
     return ba
 
+
 def bytearray_extend_noaspect(tainted_ba=b"test"):
     ba = bytearray(tainted_ba)
     ba.extend(b" world")
