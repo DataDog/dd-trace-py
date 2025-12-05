@@ -38,7 +38,7 @@ def pydantic_ai(ddtrace_global_config, monkeypatch):
     global_config = default_global_config()
     global_config.update(ddtrace_global_config)
     with override_global_config(global_config):
-        # monkeypatch.setenv("OPENAI_API_KEY", "<not-a-real-key>")
+        monkeypatch.setenv("OPENAI_API_KEY", "<not-a-real-key>")
         patch()
         import pydantic_ai
 
