@@ -497,7 +497,7 @@ def test_enable_llmobs_after_litellm_was_imported(mock_llmobs_logs, clear_litell
     from ddtrace.llmobs import LLMObs
 
     LLMObs.disable()
-    import litellm
+    import litellm  # noqa: F401
 
     LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
     assert LLMObs.enabled
@@ -521,7 +521,7 @@ def test_import_litellm_after_llmobs_was_enabled(mock_llmobs_logs, clear_litellm
     LLMObs.disable()
     LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
     assert LLMObs.enabled
-    import litellm
+    import litellm  # noqa: F401
 
     mock_llmobs_logs.warning.assert_not_called()
 
