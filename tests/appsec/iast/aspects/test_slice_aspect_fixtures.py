@@ -1,6 +1,5 @@
 # -*- encoding: utf-8 -*-
 import logging
-import sys
 
 import pytest
 
@@ -15,7 +14,6 @@ from tests.utils import override_global_config
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "input_str, start_pos, end_pos, step, expected_result, tainted",
     [
@@ -79,7 +77,6 @@ def test_string_slice_2(input_str, start_pos, end_pos, step, expected_result, ta
         assert tainted_ranges[0].length == len(expected_result)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "input_str_not_tainted",
     [
@@ -127,7 +124,6 @@ def test_string_slice_2_and_two_strings(
     assert tainted_ranges[0].length == len(expected_result)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "input_str_tainted1",
     [
@@ -183,7 +179,6 @@ def test_string_slice_2_and_two_strings_two_tainted(
     assert tainted_ranges[0].length == len(expected_result)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "input_str_tainted1, input_str_tainted2, start_pos, end_pos, step, expected_result",
     [
@@ -220,7 +215,6 @@ def test_string_slice_2_and_two_strings_two_tainted_overlap_tained(
     assert tainted_ranges[1].length == 3
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "input_str, start_pos, end_pos, step, expected_result, tainted",
     [

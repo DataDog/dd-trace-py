@@ -26,6 +26,7 @@ namespace Datadog {
     X(runtime_version, "runtime_version")                                                                              \
     X(runtime, "runtime")                                                                                              \
     X(runtime_id, "runtime-id")                                                                                        \
+    X(process_id, "process_id")                                                                                        \
     X(profiler_version, "profiler_version")                                                                            \
     X(library_version, "library_version")                                                                              \
     X(profile_seq, "profile_seq")                                                                                      \

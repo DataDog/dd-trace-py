@@ -55,6 +55,7 @@ cdef extern from "ddup_interface.hpp":
 
     void ddup_start()
     void ddup_set_runtime_id(string_view _id)
+    void ddup_set_process_id()
     void ddup_profile_set_endpoints(unordered_map[int64_t, string_view] span_ids_to_endpoints)
     void ddup_profile_add_endpoint_counts(unordered_map[string_view, int64_t] trace_endpoints_to_counts)
     void ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
@@ -386,6 +387,7 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Op
     global _code_provenance_set
 
     call_func_with_str(ddup_set_runtime_id, get_runtime_id())
+    ddup_set_process_id()
 
     processor = tracer._endpoint_call_counter_span_processor
     endpoint_counts, endpoint_to_span_ids = processor.reset()

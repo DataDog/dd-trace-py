@@ -87,6 +87,7 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@profiling'
+      - '@vendor'
       - tests/profiling/suitespec.yml
       - tests/profiling/*
     pattern: profile

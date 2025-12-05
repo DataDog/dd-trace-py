@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    ray: This fix resolves an issue where Ray jobs that did not explicitly call ``ray.init()`` at the top of their scripts
+    were not properly instrumented, resulting in incomplete traces.
+    To ensure full tracing capabilities, use ``ddtrace-run`` when starting your Ray cluster:
+    ``DD_PATCH_MODULES="ray:true,aiohttp:false,grpc:false,requests:false" ddtrace-run ray start --head``.

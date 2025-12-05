@@ -11,6 +11,7 @@ from ddtrace.testing.internal.git import GitUserInfo
 from ddtrace.testing.internal.git import _GitSubprocessDetails
 from ddtrace.testing.internal.git import get_git_head_tags_from_git_command
 from ddtrace.testing.internal.git import get_git_tags_from_git_command
+from ddtrace.testing.internal.telemetry import GitTelemetry
 
 
 class TestGitTag:
@@ -53,11 +54,12 @@ class TestGitSubprocessDetails:
 
     def test_git_subprocess_details_creation(self) -> None:
         """Test that _GitSubprocessDetails can be created with required fields."""
-        details = _GitSubprocessDetails(stdout="output", stderr="error", return_code=0)
+        details = _GitSubprocessDetails(stdout="output", stderr="error", return_code=0, elapsed_seconds=0.0)
 
         assert details.stdout == "output"
         assert details.stderr == "error"
         assert details.return_code == 0
+        assert details.elapsed_seconds == 0.0
 
 
 class TestGit:
@@ -90,7 +92,7 @@ class TestGit:
             result = git.get_repository_url()
 
         assert result == "https://github.com/user/repo.git"
-        mock_git_output.assert_called_once_with(["ls-remote", "--get-url"])
+        mock_git_output.assert_called_once_with(["ls-remote", "--get-url"], GitTelemetry.GET_REPOSITORY)
 
     @patch("shutil.which")
     def test_get_commit_sha(self, mock_which: Mock) -> None:
@@ -114,7 +116,7 @@ class TestGit:
             result = git.get_branch()
 
         assert result == "main"
-        mock_git_output.assert_called_once_with(["rev-parse", "--abbrev-ref", "HEAD"])
+        mock_git_output.assert_called_once_with(["rev-parse", "--abbrev-ref", "HEAD"], GitTelemetry.GET_BRANCH)
 
     @patch("shutil.which")
     def test_get_commit_message(self, mock_which: Mock) -> None:
@@ -187,7 +189,9 @@ class TestGit:
             result = git.get_latest_commits()
 
         assert result == ["abc123", "def456", "ghi789"]
-        mock_git_output.assert_called_once_with(["log", "--format=%H", "-n", "1000", '--since="1 month ago"'])
+        mock_git_output.assert_called_once_with(
+            ["log", "--format=%H", "-n", "1000", '--since="1 month ago"'], GitTelemetry.GET_LOCAL_COMMITS
+        )
 
     @patch("shutil.which")
     def test_get_latest_commits_no_output(self, mock_which: Mock) -> None:
@@ -225,7 +229,8 @@ class TestGit:
                 "^exclude1",
                 "^exclude2",
                 "include1",
-            ]
+            ],
+            GitTelemetry.GET_OBJECTS,
         )
 
 
@@ -346,13 +351,13 @@ class TestGitUnshallow:
         with (
             patch(
                 "ddtrace.testing.internal.git.Git._call_git",
-                return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code),
+                return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code, elapsed_seconds=0.0),
             ) as call_git_mock,
             patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
         ):
             result = Git().unshallow_repository("some-sha")
 
-        assert result == (return_code == 0)
+        assert result.return_code == return_code
 
         [([git_command], _)] = call_git_mock.call_args_list
         assert git_command == [
@@ -371,13 +376,13 @@ class TestGitUnshallow:
         with (
             patch(
                 "ddtrace.testing.internal.git.Git._call_git",
-                return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code),
+                return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code, elapsed_seconds=0.0),
             ) as call_git_mock,
             patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
         ):
             result = Git().unshallow_repository(parent_only=True)
 
-        assert result == (return_code == 0)
+        assert result.return_code == return_code
 
         [([git_command], _)] = call_git_mock.call_args_list
         assert git_command == [
@@ -395,14 +400,14 @@ class TestGitUnshallow:
         with (
             patch(
                 "ddtrace.testing.internal.git.Git._call_git",
-                return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code),
+                return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code, elapsed_seconds=0.0),
             ) as call_git_mock,
             patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
             patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"),
         ):
             result = Git().unshallow_repository_to_local_head()
 
-        assert result == (return_code == 0)
+        assert result.return_code == return_code
 
         [([git_command], _)] = call_git_mock.call_args_list
         assert git_command == [
@@ -421,14 +426,19 @@ class TestGitUnshallow:
         with (
             patch(
                 "ddtrace.testing.internal.git.Git._call_git",
-                return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code),
+                return_value=_GitSubprocessDetails(stdout="", stderr="", return_code=return_code, elapsed_seconds=0.0),
             ) as call_git_mock,
             patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
-            patch("ddtrace.testing.internal.git.Git.get_upstream_sha", return_value="upstream-sha"),
+            patch(
+                "ddtrace.testing.internal.git.Git.get_upstream_sha",
+                return_value=_GitSubprocessDetails(
+                    stdout="upstream-sha", stderr="", return_code=0, elapsed_seconds=0.0
+                ),
+            ),
         ):
             result = Git().unshallow_repository_to_upstream()
 
-        assert result == (return_code == 0)
+        assert result.return_code == return_code
 
         [([git_command], _)] = call_git_mock.call_args_list
         assert git_command == [
@@ -444,14 +454,19 @@ class TestGitUnshallow:
 
     def test_git_try_all_unshallow_methods_1st_suceeds(self) -> None:
         call_git_results = [
-            _GitSubprocessDetails(stdout="", stderr="", return_code=0),
+            _GitSubprocessDetails(stdout="", stderr="", return_code=0, elapsed_seconds=0.0),
         ]
 
         with (
             patch("ddtrace.testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock,
             patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
             patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"),
-            patch("ddtrace.testing.internal.git.Git.get_upstream_sha", return_value="upstream-sha"),
+            patch(
+                "ddtrace.testing.internal.git.Git.get_upstream_sha",
+                return_value=_GitSubprocessDetails(
+                    stdout="upstream-sha", stderr="", return_code=0, elapsed_seconds=0.0
+                ),
+            ),
         ):
             result = Git().try_all_unshallow_repository_methods()
 
@@ -473,15 +488,20 @@ class TestGitUnshallow:
 
     def test_git_try_all_unshallow_methods_2nd_suceeds(self) -> None:
         call_git_results = [
-            _GitSubprocessDetails(stdout="", stderr="", return_code=1),
-            _GitSubprocessDetails(stdout="", stderr="", return_code=0),
+            _GitSubprocessDetails(stdout="", stderr="", return_code=1, elapsed_seconds=0.0),
+            _GitSubprocessDetails(stdout="", stderr="", return_code=0, elapsed_seconds=0.0),
         ]
 
         with (
             patch("ddtrace.testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock,
             patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
             patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"),
-            patch("ddtrace.testing.internal.git.Git.get_upstream_sha", return_value="upstream-sha"),
+            patch(
+                "ddtrace.testing.internal.git.Git.get_upstream_sha",
+                return_value=_GitSubprocessDetails(
+                    stdout="upstream-sha", stderr="", return_code=0, elapsed_seconds=0.0
+                ),
+            ),
         ):
             result = Git().try_all_unshallow_repository_methods()
 
@@ -513,16 +533,21 @@ class TestGitUnshallow:
 
     def test_git_try_all_unshallow_methods_3rd_suceeds(self) -> None:
         call_git_results = [
-            _GitSubprocessDetails(stdout="", stderr="", return_code=1),
-            _GitSubprocessDetails(stdout="", stderr="", return_code=1),
-            _GitSubprocessDetails(stdout="", stderr="", return_code=0),
+            _GitSubprocessDetails(stdout="", stderr="", return_code=1, elapsed_seconds=0.0),
+            _GitSubprocessDetails(stdout="", stderr="", return_code=1, elapsed_seconds=0.0),
+            _GitSubprocessDetails(stdout="", stderr="", return_code=0, elapsed_seconds=0.0),
         ]
 
         with (
             patch("ddtrace.testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock,
             patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
             patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"),
-            patch("ddtrace.testing.internal.git.Git.get_upstream_sha", return_value="upstream-sha"),
+            patch(
+                "ddtrace.testing.internal.git.Git.get_upstream_sha",
+                return_value=_GitSubprocessDetails(
+                    stdout="upstream-sha", stderr="", return_code=0, elapsed_seconds=0.0
+                ),
+            ),
         ):
             result = Git().try_all_unshallow_repository_methods()
 
@@ -563,16 +588,21 @@ class TestGitUnshallow:
 
     def test_git_try_all_unshallow_methods_all_fail(self) -> None:
         call_git_results = [
-            _GitSubprocessDetails(stdout="", stderr="", return_code=1),
-            _GitSubprocessDetails(stdout="", stderr="", return_code=1),
-            _GitSubprocessDetails(stdout="", stderr="", return_code=1),
+            _GitSubprocessDetails(stdout="", stderr="", return_code=1, elapsed_seconds=0.0),
+            _GitSubprocessDetails(stdout="", stderr="", return_code=1, elapsed_seconds=0.0),
+            _GitSubprocessDetails(stdout="", stderr="", return_code=1, elapsed_seconds=0.0),
         ]
 
         with (
             patch("ddtrace.testing.internal.git.Git._call_git", side_effect=call_git_results) as call_git_mock,
             patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="some-remote"),
             patch("ddtrace.testing.internal.git.Git.get_commit_sha", return_value="head-sha"),
-            patch("ddtrace.testing.internal.git.Git.get_upstream_sha", return_value="upstream-sha"),
+            patch(
+                "ddtrace.testing.internal.git.Git.get_upstream_sha",
+                return_value=_GitSubprocessDetails(
+                    stdout="upstream-sha", stderr="", return_code=0, elapsed_seconds=0.0
+                ),
+            ),
         ):
             result = Git().try_all_unshallow_repository_methods()
 

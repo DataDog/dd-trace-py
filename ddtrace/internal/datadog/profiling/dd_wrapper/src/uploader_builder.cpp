@@ -3,10 +3,10 @@
 #include "libdatadog_helpers.hpp"
 #include "sample.hpp"
 
-#include <mutex>
 #include <numeric>
 #include <string>
 #include <string_view>
+#include <unistd.h>
 #include <utility>
 #include <vector>
 
@@ -48,6 +48,13 @@ Datadog::UploaderBuilder::set_runtime_id(std::string_view _runtime_id)
     if (!_runtime_id.empty()) {
         runtime_id = _runtime_id;
     }
+}
+
+void
+Datadog::UploaderBuilder::set_process_id()
+{
+    auto pid = getpid();
+    process_id = std::to_string(pid);
 }
 
 void
@@ -134,6 +141,7 @@ Datadog::UploaderBuilder::build()
         { ExportTagKey::runtime_id, runtime_id },
         { ExportTagKey::runtime_version, runtime_version },
         { ExportTagKey::profiler_version, profiler_version },
+        { ExportTagKey::process_id, process_id },
     };
 
     for (const auto& [tag, data] : tag_data) {

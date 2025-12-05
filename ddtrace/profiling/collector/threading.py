@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import threading
+import typing
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack_v2

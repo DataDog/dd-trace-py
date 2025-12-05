@@ -4,6 +4,7 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 from ddtrace.testing.internal.http import BackendConnectorAgentlessSetup
+from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.test_data import TestModule
 from ddtrace.testing.internal.test_data import TestRun
 from ddtrace.testing.internal.test_data import TestSession
@@ -73,8 +74,9 @@ class TestTestOptWriter:
         """Test sending events to backend."""
         mock_connector = Mock()
         mock_backend_connector.return_value = mock_connector
-        # Make sure request returns a tuple like the real implementation
-        mock_connector.request.return_value = (Mock(), {})
+        mock_connector.request.return_value = BackendResult(
+            response=Mock(status=200), response_length=42, elapsed_seconds=1.2
+        )
         mock_packb.return_value = b"packed_data"
 
         writer = TestOptWriter(BackendConnectorAgentlessSetup(site="test", api_key="key"))
@@ -150,8 +152,9 @@ class TestTestCoverageWriter:
         """Test sending coverage events."""
         mock_connector = Mock()
         mock_backend_connector.return_value = mock_connector
-        # Make sure post_files returns a tuple like the real implementation
-        mock_connector.post_files.return_value = (Mock(), {})
+        mock_connector.post_files.return_value = BackendResult(
+            response=Mock(status=200), response_length=42, elapsed_seconds=1.2
+        )
         mock_packb.return_value = b"packed_coverage_data"
 
         writer = TestCoverageWriter(BackendConnectorAgentlessSetup(site="test", api_key="key"))
