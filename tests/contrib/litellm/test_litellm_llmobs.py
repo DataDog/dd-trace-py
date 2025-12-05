@@ -495,8 +495,10 @@ def test_enable_llmobs_after_litellm_was_imported(mock_llmobs_logs, clear_litell
     Test that LLMObs.enable() logs a warning if litellm is imported before LLMObs.enable() is called.
     """
     from ddtrace.llmobs import LLMObs
+
     LLMObs.disable()
     import litellm
+
     LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
     assert LLMObs.enabled
     mock_llmobs_logs.warning.assert_called_once_with(
@@ -515,11 +517,12 @@ def test_import_litellm_after_llmobs_was_enabled(mock_llmobs_logs, clear_litellm
     Test that LLMObs.enable() does not logs a warning if litellm is imported after LLMObs.enable() is called.
     """
     from ddtrace.llmobs import LLMObs
+
     LLMObs.disable()
     LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
     assert LLMObs.enabled
     import litellm
+
     mock_llmobs_logs.warning.assert_not_called()
 
     LLMObs.disable()
-

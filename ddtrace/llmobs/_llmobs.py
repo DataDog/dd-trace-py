@@ -711,6 +711,7 @@ class LLMObs(Service):
     def _warn_if_litellm_was_imported() -> None:
         if "litellm" in sys.modules:
             import litellm
+
             if not getattr(litellm, "_datadog_patch", False):
                 log.warning(
                     "LLMObs.enable() called after litellm was imported but before it was patched. "
