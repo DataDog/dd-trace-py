@@ -43,7 +43,7 @@ config._add(
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"httpx": ">=0.17"}
+    return {"httpx": ">=0.25"}
 
 
 def _url_to_str(url):
