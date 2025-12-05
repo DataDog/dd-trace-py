@@ -448,7 +448,7 @@ integrations:
   - httpx
   tested_versions_by_dependency:
     httpx:
-      min: 0.17.1
+      min: 0.25.0
       max: 0.28.1
 
 - integration_name: jinja2
