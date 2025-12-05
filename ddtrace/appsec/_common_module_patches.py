@@ -325,8 +325,9 @@ def wrapped_urllib3_make_request(original_request_callable, instance, args, kwar
                 "DOWN_RES_HEADERS": response.headers,
             }
             call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
-    finally:
-        return response
+    except Exception:
+        pass  # nosec
+    return response
 
 
 def wrapped_urllib3_urlopen(original_open_callable, instance, args, kwargs):
