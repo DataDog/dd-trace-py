@@ -30,7 +30,7 @@ class TestVisibilityCoverageData:
     def add_covered_files(self, covered_files: Union[Dict[Path, CoverageLines], Dict[str, CoverageLines]]):
         """
         Add coverage segments to the coverage data.
-        
+
         Args:
             covered_files: Dict mapping file paths (Path or str) to CoverageLines
         """

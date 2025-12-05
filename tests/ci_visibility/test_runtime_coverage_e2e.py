@@ -24,6 +24,7 @@ import pytest
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 
+
 PORT = 18765
 
 
@@ -118,7 +119,7 @@ def patched_send_runtime_coverage(span, files):
         if "bitmap" in file_copy and isinstance(file_copy["bitmap"], (bytes, bytearray)):
             file_copy["bitmap"] = base64.b64encode(file_copy["bitmap"]).decode("ascii")
         files_serializable.append(file_copy)
-    
+
     payload = {
         "trace_id": span.trace_id,
         "span_id": span.span_id,
@@ -205,9 +206,7 @@ except Exception:
 
         # Verify we got at least one payload
         assert len(payloads) > 0, (
-            f"Should have captured at least one coverage payload.\n"
-            f"stdout: {stdout[:1000]}\n"
-            f"stderr (full): {stderr}"
+            f"Should have captured at least one coverage payload.\nstdout: {stdout[:1000]}\nstderr (full): {stderr}"
         )
 
         # Verify payload structure and content

@@ -37,9 +37,7 @@ def auto_instrument_playwright(config, detected_plugins):
 
     # Check if user explicitly disabled auto-instrumentation
     if os.getenv("DD_TRACE_PLAYWRIGHT_ENABLED", "").lower() == "false":
-        log.debug(
-            "Playwright auto-instrumentation disabled via DD_TRACE_PLAYWRIGHT_ENABLED"
-        )
+        log.debug("Playwright auto-instrumentation disabled via DD_TRACE_PLAYWRIGHT_ENABLED")
         return
 
     # Patch Playwright

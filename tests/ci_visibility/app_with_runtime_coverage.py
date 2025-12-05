@@ -47,11 +47,12 @@ def application(environ, start_response):
 
 
 if __name__ == "__main__":
-    from wsgiref.simple_server import make_server, WSGIServer
-    import socket
+    from wsgiref.simple_server import WSGIServer
+    from wsgiref.simple_server import make_server
 
     # Wrap with DD WSGI middleware for runtime coverage collection
     from ddtrace.contrib.wsgi import DDWSGIMiddleware
+
     wrapped_application = DDWSGIMiddleware(application)
 
     # Custom server class that sets SO_REUSEADDR before binding
@@ -66,4 +67,3 @@ if __name__ == "__main__":
         server.serve_forever()
     except KeyboardInterrupt:
         print("Server stopped", flush=True)
-

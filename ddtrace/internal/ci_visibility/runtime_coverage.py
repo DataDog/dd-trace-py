@@ -9,9 +9,9 @@ This is based on, but separate from test coverage.
 """
 
 from pathlib import Path
+from typing import TYPE_CHECKING  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
-from typing import TYPE_CHECKING  # noqa:F401
 
 from ddtrace.internal.ci_visibility.api._coverage_data import CoverageFilePayload
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
@@ -149,9 +149,7 @@ def send_runtime_coverage(span: "Span", files: List[CoverageFilePayload]) -> boo
 
 
 # DEBUG: Delete-me
-def _print_runtime_coverage_debug(
-    span: "Span", files: List[CoverageFilePayload]
-) -> None:
+def _print_runtime_coverage_debug(span: "Span", files: List[CoverageFilePayload]) -> None:
     """
     Print runtime coverage payload to stdout for debugging when DD_TRACE_DEBUG is enabled.
 
@@ -169,15 +167,9 @@ def _print_runtime_coverage_debug(
 
         files_serializable: List[Dict[str, Any]] = []
         for file_data in files:
-            file_copy: Dict[str, Any] = dict(
-                file_data
-            )  # Convert TypedDict to regular dict
-            if "bitmap" in file_copy and isinstance(
-                file_copy["bitmap"], (bytes, bytearray)
-            ):
-                file_copy["bitmap"] = base64.b64encode(file_copy["bitmap"]).decode(
-                    "ascii"
-                )
+            file_copy: Dict[str, Any] = dict(file_data)  # Convert TypedDict to regular dict
+            if "bitmap" in file_copy and isinstance(file_copy["bitmap"], (bytes, bytearray)):
+                file_copy["bitmap"] = base64.b64encode(file_copy["bitmap"]).decode("ascii")
             files_serializable.append(file_copy)
 
         # Always use the 64-bit trace_id (lower 64 bits) to match APM trace correlation

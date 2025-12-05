@@ -125,19 +125,13 @@ def _should_auto_instrument(config):
              or empty set if none found
     """
     # Import plugin name constants
-    from ddtrace.contrib.internal.pytest._auto_instrumented_integrations import (
-        PLUGIN_PLAYWRIGHT,
-    )
+    from ddtrace.contrib.internal.pytest._auto_instrumented_integrations import PLUGIN_PLAYWRIGHT
 
     # List of plugins that we can auto-instrument
     AUTO_INSTRUMENTABLE_PLUGINS = (PLUGIN_PLAYWRIGHT,)
 
     # Collect plugins that are actually present
-    return {
-        plugin_name
-        for plugin_name in AUTO_INSTRUMENTABLE_PLUGINS
-        if config.pluginmanager.hasplugin(plugin_name)
-    }
+    return {plugin_name for plugin_name in AUTO_INSTRUMENTABLE_PLUGINS if config.pluginmanager.hasplugin(plugin_name)}
 
 
 def _handle_itr_should_skip(item, test_id) -> bool:
@@ -453,10 +447,7 @@ def pytest_configure(config: pytest_Config) -> None:
             # Auto-instrument supported integrations (e.g., Playwright)
             # Only if --ddtrace-patch-all is not used, since that already patches everything
             # Lazy-load to avoid overhead when no auto-instrumentable plugins are present
-            if not (
-                config.getoption("ddtrace-patch-all")
-                or config.getini("ddtrace-patch-all")
-            ):
+            if not (config.getoption("ddtrace-patch-all") or config.getini("ddtrace-patch-all")):
                 # Quick check: detect which plugins we can auto-instrument
                 detected_plugins = _should_auto_instrument(config)
                 if detected_plugins:

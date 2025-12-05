@@ -19,7 +19,9 @@ from tests.utils import override_global_config
 @pytest.fixture
 def writer():
     """Create a RuntimeCoverageWriter instance for testing."""
-    w = RuntimeCoverageWriter(coverage_enabled=True, itr_suite_skipping_mode=False, processing_interval=0.1, timeout=2.0)
+    w = RuntimeCoverageWriter(
+        coverage_enabled=True, itr_suite_skipping_mode=False, processing_interval=0.1, timeout=2.0
+    )
     w.start()
     yield w
     w.stop()
@@ -90,7 +92,9 @@ class TestRuntimeCoverageWriterWrite:
             mock_span._metrics = {}  # HTTPWriter needs this
             mock_span.get_tags.return_value = {}  # Coverage encoder needs this
             # Add coverage data so they get buffered
-            mock_span.get_struct_tag.return_value = {"files": [{"filename": f"/test{i}.py", "segments": [[1, 0, 5, 0, -1]]}]}
+            mock_span.get_struct_tag.return_value = {
+                "files": [{"filename": f"/test{i}.py", "segments": [[1, 0, 5, 0, -1]]}]
+            }
             spans.append(mock_span)
 
         writer.write(spans)
@@ -162,8 +166,9 @@ class TestRuntimeCoverageWriterSingleton:
         """Test successful writer initialization."""
         # Reset the global writer
         import ddtrace.internal.ci_visibility.runtime_coverage_writer as writer_module
+
         writer_module._RUNTIME_COVERAGE_WRITER = None
-        
+
         mock_writer_instance = mock.Mock()
         mock_writer_class.return_value = mock_writer_instance
 
@@ -268,17 +273,19 @@ class TestRuntimeCoverageWriterIntegration:
         mock_span.span_id = 67890
         mock_span._metrics = {}  # HTTPWriter needs this
         mock_span.get_tags.return_value = {}  # Coverage encoder needs this
-        mock_span.get_struct_tag.return_value = {"files": [{"filename": "/app/views.py", "segments": [[1, 0, 10, 0, -1]]}]}
+        mock_span.get_struct_tag.return_value = {
+            "files": [{"filename": "/app/views.py", "segments": [[1, 0, 10, 0, -1]]}]
+        }
         mock_span._struct_tags = {
             "test.code_coverage": {"files": [{"filename": "/app/views.py", "segments": [[1, 0, 10, 0, -1]]}]}
         }
 
         # Write and flush
         writer.write([mock_span])
-        
+
         # Verify span was buffered in encoder
         assert len(writer._clients[0].encoder) > 0
-        
+
         writer.flush_queue()
 
         # Verify connection was made (might not be called if encoder is empty or batch size not met)

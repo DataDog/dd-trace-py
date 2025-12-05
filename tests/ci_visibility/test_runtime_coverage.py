@@ -80,16 +80,16 @@ class TestBuildRuntimeCoveragePayload:
 
         # Create mock coverage context with get_covered_lines method
         mock_coverage_ctx = mock.Mock()
-        
+
         # Mock CoverageLines objects with coverage data
         coverage_lines_1 = CoverageLines()
         for line in range(1, 11):  # Add lines 1-10
             coverage_lines_1.add(line)
-        
+
         coverage_lines_2 = CoverageLines()
         for line in range(5, 16):  # Add lines 5-15
             coverage_lines_2.add(line)
-        
+
         # Return dict mapping paths to CoverageLines
         mock_coverage_ctx.get_covered_lines.return_value = {
             "/app/views.py": coverage_lines_1,
@@ -103,7 +103,7 @@ class TestBuildRuntimeCoveragePayload:
         assert files is not None
         assert isinstance(files, list)
         assert len(files) == 2
-        
+
         # Verify coverage context was called
         mock_coverage_ctx.get_covered_lines.assert_called_once()
 
