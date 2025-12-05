@@ -158,6 +158,7 @@ def _assert_expected_agent_run(
                     "input_tokens": mock.ANY,
                     "output_tokens": mock.ANY,
                     "total_tokens": mock.ANY,
+                    "reasoning_output_tokens": mock.ANY,
                 },
                 metadata=COMMON_RESPONSE_LLM_METADATA,
                 model_name="gpt-4o-2024-08-06",

@@ -1176,8 +1176,13 @@ class OaiSpanAdapter:
                 metrics["output_tokens"] = usage.output_tokens
             if hasattr(usage, "total_tokens"):
                 metrics["total_tokens"] = usage.total_tokens
-            if hasattr(usage, "reasoning_tokens"):
-                metrics["reasoning_tokens"] = usage.reasoning_tokens
+            # Chat completion returns `completion_tokens_details` while responses api returns `output_tokens_details`
+            reasoning_output_tokens_details = _get_attr(usage, "completion_tokens_details", {}) or _get_attr(
+                usage, "output_tokens_details", {}
+            )
+            reasoning_output_tokens = _get_attr(reasoning_output_tokens_details, "reasoning_tokens", None)
+            if reasoning_output_tokens is not None:
+                metrics["reasoning_output_tokens"] = reasoning_output_tokens
 
         return metrics if metrics else None
 
