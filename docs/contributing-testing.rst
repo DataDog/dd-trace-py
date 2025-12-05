@@ -81,9 +81,14 @@ The ``scripts/run-tests`` script handles this automatically:
 
 .. code-block:: bash
 
+    # Add riot arguments to avoid unnecessary compilation
+    $ scripts/run-tests tests/contrib/django/ -- -s
+
     # Add pytest arguments for test selection
-    $ scripts/run-tests tests/contrib/django/ -- -k test_specific_function
-    $ scripts/run-tests ddtrace/contrib/django/patch.py -- -vvv -s --tb=short
+    $ scripts/run-tests tests/contrib/django/ -- -- -k test_specific_function
+
+    # Add both riot (first) and pytest (second) arguments
+    $ scripts/run-tests ddtrace/contrib/django/patch.py -- -s -- -vvv -s --tb=short
 
     # Run specific test functions
     $ scripts/run-tests tests/contrib/flask/ -- -k "test_request or test_response"
