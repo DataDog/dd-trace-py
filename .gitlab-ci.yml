@@ -79,6 +79,7 @@ trigger-serverless-lambda-tests:
   trigger:
     project: DataDog/datadog-lambda-python
     strategy: depend
+    include: DataDog/datadog-lambda-python/.gitlab-ci.yml
   needs:
     - job: publish-wheels-to-s3
   variables:
