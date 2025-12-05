@@ -66,15 +66,6 @@ class BaseAsyncioLockCollectorTest:
     def lock_class(self) -> LockType:
         raise NotImplementedError("Child classes must implement lock_class")
 
-    @property
-    def lock_init_args(self) -> tuple:
-        """Arguments to pass to lock constructor. Override for Semaphore-like locks."""
-        return ()
-
-    def create_lock(self) -> Union[asyncio.Lock, asyncio.Semaphore]:
-        """Create a lock instance with the appropriate arguments."""
-        return self.lock_class(*self.lock_init_args)
-
     def setup_method(self, method):
         self.test_name = method.__qualname__ if PY_311_OR_ABOVE else method.__name__
         self.output_prefix = "/tmp" + os.sep + self.test_name
@@ -99,14 +90,14 @@ class BaseAsyncioLockCollectorTest:
     async def test_lock_events(self):
         """Test basic acquire/release event profiling."""
         with self.collector_class(capture_pct=100):
-            lock = self.create_lock()  # !CREATE! test_lock_events
-            await lock.acquire()  # !ACQUIRE! test_lock_events
+            lock = self.lock_class()  # !CREATE! asyncio_test_lock_events
+            await lock.acquire()  # !ACQUIRE! asyncio_test_lock_events
             assert lock.locked()
-            lock.release()  # !RELEASE! test_lock_events
+            lock.release()  # !RELEASE! asyncio_test_lock_events
 
         ddup.upload()
 
-        linenos = get_lock_linenos("test_lock_events")
+        linenos = get_lock_linenos("asyncio_test_lock_events")
         profile = pprof_utils.parse_newest_profile(self.output_filename)
         expected_thread_id = _thread.get_ident()
         pprof_utils.assert_lock_events(
@@ -138,23 +129,23 @@ class BaseAsyncioLockCollectorTest:
         span_type = ext.SpanTypes.WEB
 
         with self.collector_class(capture_pct=100, tracer=tracer):
-            lock = self.create_lock()  # !CREATE! test_lock_events_tracer_1
-            await lock.acquire()  # !ACQUIRE! test_lock_events_tracer_1
+            lock = self.lock_class()  # !CREATE! asyncio_test_lock_events_tracer_1
+            await lock.acquire()  # !ACQUIRE! asyncio_test_lock_events_tracer_1
             with tracer.trace("test", resource=resource, span_type=span_type) as t:
-                lock2 = self.create_lock()  # !CREATE! test_lock_events_tracer_2
-                await lock2.acquire()  # !ACQUIRE! test_lock_events_tracer_2
-                lock.release()  # !RELEASE! test_lock_events_tracer_1
+                lock2 = self.lock_class()  # !CREATE! asyncio_test_lock_events_tracer_2
+                await lock2.acquire()  # !ACQUIRE! asyncio_test_lock_events_tracer_2
+                lock.release()  # !RELEASE! asyncio_test_lock_events_tracer_1
                 span_id = t.span_id
-            lock2.release()  # !RELEASE! test_lock_events_tracer_2
+            lock2.release()  # !RELEASE! asyncio_test_lock_events_tracer_2
 
-            lock_ctx = self.create_lock()  # !CREATE! test_lock_events_tracer_3
-            async with lock_ctx:  # !ACQUIRE! !RELEASE! test_lock_events_tracer_3
+            lock_ctx = self.lock_class()  # !CREATE! asyncio_test_lock_events_tracer_3
+            async with lock_ctx:  # !ACQUIRE! !RELEASE! asyncio_test_lock_events_tracer_3
                 pass
         ddup.upload(tracer=tracer)
 
-        linenos_1 = get_lock_linenos("test_lock_events_tracer_1")
-        linenos_2 = get_lock_linenos("test_lock_events_tracer_2")
-        linenos_3 = get_lock_linenos("test_lock_events_tracer_3", with_stmt=True)
+        linenos_1 = get_lock_linenos("asyncio_test_lock_events_tracer_1")
+        linenos_2 = get_lock_linenos("asyncio_test_lock_events_tracer_2")
+        linenos_3 = get_lock_linenos("asyncio_test_lock_events_tracer_3", with_stmt=True)
 
         profile = pprof_utils.parse_newest_profile(self.output_filename)
         expected_thread_id = _thread.get_ident()
@@ -238,7 +229,3 @@ class TestAsyncioSemaphoreCollector(BaseAsyncioLockCollectorTest):
     @property
     def lock_class(self):
         return asyncio.Semaphore
-
-    @property
-    def lock_init_args(self):
-        return (2,)  # Initial semaphore value
