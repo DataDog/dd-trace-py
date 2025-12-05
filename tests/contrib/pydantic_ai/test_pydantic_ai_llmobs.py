@@ -139,7 +139,7 @@ class TestLLMObsPydanticAI:
             tools=expected_calculate_square_tool(),
         )
 
-    @pytest.mark.skipif(PYDANTIC_AI_VERSION >= (1, 0, 0), reason="Test specific for pydantic-ai >= 1.0.0")
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION > (1, 0, 0), reason="Test specific for pydantic-ai > 1.0.0")
     async def test_agent_run_stream_structured_with_tool_pydantic_ai_0(
         self, pydantic_ai, request_vcr, llmobs_events, mock_tracer
     ):
@@ -172,7 +172,7 @@ class TestLLMObsPydanticAI:
             tools=expected_calculate_square_tool(),
         )
 
-    @pytest.mark.skipif(PYDANTIC_AI_VERSION <= (1, 0, 0), reason="Test specific for pydantic-ai < 1.0.0")
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION <= (1, 0, 0), reason="Test specific for pydantic-ai <= 1.0.0")
     async def test_agent_run_stream_structured_with_tool_pydantic_ai_1(
         self, pydantic_ai, request_vcr, llmobs_events, mock_tracer
     ):
