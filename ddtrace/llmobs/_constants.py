@@ -49,7 +49,7 @@ TIME_IN_QUEUE_METRIC_KEY = "time_in_queue"
 TIME_IN_MODEL_PREFILL_METRIC_KEY = "time_in_model_prefill"
 TIME_IN_MODEL_DECODE_METRIC_KEY = "time_in_model_decode"
 TIME_IN_MODEL_INFERENCE_METRIC_KEY = "time_in_model_inference"
-#TIME_E2E_METRIC_KEY = "time_e2e"
+# TIME_E2E_METRIC_KEY = "time_e2e"
 
 EVAL_ENDPOINT = "/api/intake/llm-obs/v2/eval-metric"
 SPAN_ENDPOINT = "/api/v2/llmobs"
