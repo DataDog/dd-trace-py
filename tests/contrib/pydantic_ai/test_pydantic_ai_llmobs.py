@@ -139,7 +139,10 @@ class TestLLMObsPydanticAI:
             tools=expected_calculate_square_tool(),
         )
 
-    async def test_agent_run_stream_structured_with_tool(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION >= (1, 0, 0), reason="Test specific for pydantic-ai >= 1.0.0")
+    async def test_agent_run_stream_structured_with_tool_pydantic_ai_0(
+        self, pydantic_ai, request_vcr, llmobs_events, mock_tracer
+    ):
         class Output(TypedDict):
             original_number: int
             square: int
@@ -162,6 +165,46 @@ class TestLLMObsPydanticAI:
         assert len(llmobs_events) == 2
         assert llmobs_events[0] == expected_run_tool_span_event(tool_span)
         assert llmobs_events[1] == expected_run_agent_span_event(
+            agent_span,
+            safe_json(output[0].parts[0].args, ensure_ascii=False),
+            input_value="What is the square of 2?",
+            instructions=instructions,
+            tools=expected_calculate_square_tool(),
+        )
+
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION <= (1, 0, 0), reason="Test specific for pydantic-ai < 1.0.0")
+    async def test_agent_run_stream_structured_with_tool_pydantic_ai_1(
+        self, pydantic_ai, request_vcr, llmobs_events, mock_tracer
+    ):
+        class Output(TypedDict):
+            original_number: int
+            square: int
+
+        instructions = "Use the provided tool to calculate the square of 2."
+        with request_vcr.use_cassette("agent_run_stream_structured_with_tool.yaml"):
+            agent = pydantic_ai.Agent(
+                model="gpt-4o",
+                name="test_agent",
+                tools=[calculate_square_tool],
+                instructions=instructions,
+                output_type=Output,
+            )
+            async with agent.run_stream("What is the square of 2?") as result:
+                async for chunk in result.stream_structured(debounce_by=None):
+                    output = chunk
+        trace = mock_tracer.pop_traces()[0]
+        agent_span = trace[0]
+        tool_span = trace[1]
+        final_result_span = trace[2]
+        assert len(llmobs_events) == 3
+        assert llmobs_events[0] == expected_run_tool_span_event(tool_span)
+        assert llmobs_events[1] == expected_run_tool_span_event(
+            final_result_span,
+            input_value='{"original_number":2,"square":4}',
+            output='{"original_number": 2, "square": 4}',
+            metadata={"description": "The final response which ends this conversation"},
+        )
+        assert llmobs_events[2] == expected_run_agent_span_event(
             agent_span,
             safe_json(output[0].parts[0].args, ensure_ascii=False),
             input_value="What is the square of 2?",

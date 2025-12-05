@@ -3028,7 +3028,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(),
                     pkgs={
-                        "pydantic-ai": ["==0.3.0", "==0.4.4", "==1.0.0"],
+                        "pydantic-ai": ["==0.3.0", "==0.4.4", "==1.0.0", latest],
                         "pydantic": "==2.12.0a1",
                     },
                 ),
