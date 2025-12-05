@@ -89,6 +89,7 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     tags: List[str]
     assessment: str
     reasoning: str
+    metadata: Dict[str, object]
 
 
 class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
