@@ -9,6 +9,7 @@ import uuid
 
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogLineProbe
+from ddtrace.debugging._safety import safe_getattr
 from ddtrace.debugging._session import Session
 from ddtrace.debugging._signal.snapshot import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._signal.snapshot import Snapshot
@@ -123,14 +124,16 @@ def unwind_exception_chain(
     while exc is not None:
         chain.appendleft((exc, tb))
 
-        if exc.__cause__ is not None:
-            exc = exc.__cause__
-        elif exc.__context__ is not None and not exc.__suppress_context__:
-            exc = exc.__context__
+        if (cause := safe_getattr(exc, "__cause__")) is not None:
+            exc, tb = cause, safe_getattr(cause, "__traceback__")
         else:
-            exc = None
-
-        tb = getattr(exc, "__traceback__", None)
+            if (context := safe_getattr(exc, "__context__")) is not None:
+                if not safe_getattr(exc, "__suppress_context__", False):
+                    exc, tb = context, safe_getattr(context, "__traceback__")
+                else:
+                    exc = None
+            else:
+                exc = None
 
     exc_id = None
     if chain:
