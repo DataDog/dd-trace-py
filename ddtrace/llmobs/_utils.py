@@ -496,10 +496,12 @@ class LLMObsExportSpansClient:
         api_key: str,
         app_key: str,
         site: str,
+        base_url: Optional[str] = None,
     ) -> None:
         self._api_key: str = api_key
         self._app_key: str = app_key
         self._site: str = site
+        self._base_url: Optional[str] = base_url
 
     def export_spans(
         self,
@@ -561,7 +563,7 @@ class LLMObsExportSpansClient:
             "DD-APPLICATION-KEY": self._app_key,
         }
 
-        base_url = f"https://api.{self._site}"
+        base_url = self._base_url if self._base_url else f"https://api.{self._site}"
         conn = get_connection(url=base_url, timeout=timeout)
         try:
             url = base_url + path

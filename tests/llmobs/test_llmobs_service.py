@@ -2050,13 +2050,10 @@ def test_submit_evaluation_incorrect_categorical_value_type_raises_error(llmobs,
         )
 
 
-@mock.patch("ddtrace.llmobs._llmobs.LLMObs._instance._export_spans_client.export_spans")
-async def test_run_evaluations_enqueues_evaluation_metrics(mock_export_spans, llmobs, mock_llmobs_eval_metric_writer):
+async def test_run_evaluations_enqueues_evaluation_metrics(llmobs, mock_llmobs_eval_metric_writer):
     """
     Tests that enqueuing evaluation metrics works for multiple spans and evaluations.
     """
-    mock_export_spans.return_value = mock_exported_spans()
-
     await llmobs.run_evaluations(
         ml_app="test-ml-app",
         evaluations=[sample_score_evaluation, sample_categorical_evaluation, sample_boolean_evaluation],
@@ -2158,13 +2155,10 @@ async def test_run_evaluations_enqueues_evaluation_metrics(mock_export_spans, ll
     )
 
 
-@mock.patch("ddtrace.llmobs._llmobs.LLMObs._instance._export_spans_client.export_spans")
-async def test_run_evaluations_no_spans(mock_export_spans, llmobs, mock_llmobs_eval_metric_writer):
+async def test_run_evaluations_no_spans(llmobs, mock_llmobs_eval_metric_writer):
     """
     Tests that when there are no spans, no evaluation metrics are enqueued.
     """
-    mock_export_spans.return_value = []
-
     await llmobs.run_evaluations(
         ml_app="test-ml-app",
         evaluations=[sample_score_evaluation, sample_categorical_evaluation, sample_boolean_evaluation],
@@ -2173,13 +2167,10 @@ async def test_run_evaluations_no_spans(mock_export_spans, llmobs, mock_llmobs_e
     mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
 
 
-@mock.patch("ddtrace.llmobs._llmobs.LLMObs._instance._export_spans_client.export_spans")
-async def test_run_evaluations_no_evaluations(mock_export_spans, llmobs, mock_llmobs_eval_metric_writer):
+async def test_run_evaluations_no_evaluations(llmobs, mock_llmobs_eval_metric_writer):
     """
     Tests that when there are no evaluations, no evaluation metrics are enqueued.
     """
-    mock_export_spans.return_value = mock_exported_spans()
-
     await llmobs.run_evaluations(
         ml_app="test-ml-app",
     )
@@ -2188,16 +2179,13 @@ async def test_run_evaluations_no_evaluations(mock_export_spans, llmobs, mock_ll
 
 
 @mock.patch("ddtrace.llmobs._llmobs.LLMObs._build_evaluation_metric")
-@mock.patch("ddtrace.llmobs._llmobs.LLMObs._instance._export_spans_client.export_spans")
 async def test_run_evaluations_with_faulty_evaluation(
-    mock_export_spans, mock_build_evaluation_metric, llmobs, mock_llmobs_eval_metric_writer, mock_llmobs_logs
+    mock_build_evaluation_metric, llmobs, mock_llmobs_eval_metric_writer, mock_llmobs_logs
 ):
     """
     Tests that when there is an LLMObsSubmitEvaluationError, the faulty evaluation does not enqueue
     an evaluation metric and does not interfere with the execution of other evaluation functions.
     """
-    mock_export_spans.return_value = mock_exported_spans()
-
     error = LLMObsSubmitEvaluationError("Test error")
     error.error_type = "test_error"
     mock_build_evaluation_metric.side_effect = [
