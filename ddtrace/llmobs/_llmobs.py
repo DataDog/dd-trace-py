@@ -1762,6 +1762,11 @@ class LLMObs(Service):
                             "Failed to parse tags. Tags for evaluation metrics must be strings."
                         )
 
+            # Auto-add source:otel tag when OTel tracing is enabled
+            # This allows the backend to wait for OTel span conversion
+            if config._otel_trace_enabled:
+                evaluation_tags["source"] = "otel"
+
             evaluation_metric: LLMObsEvaluationMetricEvent = {
                 "join_on": join_on,
                 "label": str(label),
