@@ -5,6 +5,7 @@
 
 #include <Python.h>
 #if PY_VERSION_HEX >= 0x030c0000
+#define Py_BUILD_CORE
 #include <internal/pycore_long.h>
 // Note: Even if use the right PYLONG_BITS_IN_DIGIT that is specified in the
 // Python we use to build echion, it can be different from the Python that is
