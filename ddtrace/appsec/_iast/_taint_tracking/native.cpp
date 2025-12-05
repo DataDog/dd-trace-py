@@ -106,6 +106,52 @@ initialize_native_state()
  * - Using corrupted shared_ptr control blocks
  * - Accessing invalid memory in std::vector/map internals
  *
+ * CRITICAL IMPLEMENTATION DETAIL: unique_ptr.release() vs unique_ptr.reset()
+ * -------------------------------------------------------------------------
+ * This function uses unique_ptr::release() instead of unique_ptr::reset() for
+ * a specific technical reason:
+ *
+ * - unique_ptr::reset(): Deletes the managed object by calling its destructor,
+ *   then sets the pointer to nullptr. The destructor will try to clean up all
+ *   resources including PyObject pointers.
+ *
+ * - unique_ptr::release(): Returns the raw pointer and releases ownership
+ *   WITHOUT calling the destructor. The pointer becomes the caller's
+ *   responsibility, but we intentionally leak it.
+ *
+ * WHY WE USE release() (intentional memory leak):
+ * -----------------------------------------------
+ * After fork, the child process inherits copies of the parent's C++ objects
+ * via copy-on-write. These objects contain PyObject pointers that reference
+ * Python objects in the PARENT process's memory space. These pointers are
+ * now INVALID in the child process because:
+ * 1. Python's interpreter state is separate in the child
+ * 2. The PyObject addresses point to the parent's address space
+ * 3. Accessing them causes segmentation faults
+ *
+ * If we called .reset() (destructor path):
+ * - The TaintEngineContext destructor would iterate over all taint maps
+ * - It would try to decrement refcounts on PyObject pointers
+ * - This would access invalid memory → SEGFAULT
+ *
+ * By calling .release() (leak path):
+ * - We abandon the old objects without cleanup
+ * - No destructors run, so no invalid PyObject pointers are accessed
+ * - The memory remains allocated but unused (leaked)
+ *
+ * WHY THIS LEAK IS ACCEPTABLE:
+ * ---------------------------
+ * 1. Child process lifetime: These child processes are ephemeral (short-lived
+ *    workers or test processes) and will exit soon, releasing all memory
+ * 2. Memory was COW: The leaked memory was copy-on-write from the parent, so
+ *    it's a small cost compared to the parent's memory footprint
+ * 3. Alternative is crash: The only alternative is a guaranteed segfault,
+ *    making the leak the lesser evil
+ * 4. One-time cost: This leak happens exactly once per child process at fork
+ *    time, not repeatedly
+ *
+ * Trade-off: Small one-time memory leak vs guaranteed segmentation fault
+ *
  * Called automatically via pthread_atfork in child processes.
  */
 static void
@@ -116,20 +162,27 @@ reset_native_state_after_fork()
 
     // WARNING: The inherited context contains PyObject pointers from the PARENT process.
     // These pointers are now invalid in the child and must not be dereferenced.
+    //
+    // CRITICAL: We must NOT call destructors on the inherited objects because they will
+    // try to clean up PyObject pointers that are invalid in the child process.
+    // Instead, we intentionally "leak" the old objects by abandoning them without cleanup.
+    // This is safe because:
+    // 1. We're in a child process that will exit eventually
+    // 2. The memory was copy-on-write from the parent
+    // 3. Calling destructors would cause segfaults
 
-    // Step 1: Abandon (don't cleanup) the inherited request context slots
-    // This clears the vector without calling destructors that would access PyObjects
+    // Step 1: Abandon the old pointers WITHOUT calling destructors
+    // Using release() transfers ownership and returns the raw pointer without cleanup
+    // We intentionally leak these objects to avoid segfaults from destructor cleanup
     if (taint_engine_context) {
         taint_engine_context->clear_tainted_object_map();
-        taint_engine_context.reset();
+        (void)taint_engine_context.release(); // Leak the old object
     }
-
-    // Step 2: Reset the initializer memory pools
     if (initializer) {
-        initializer.reset();
+        (void)initializer.release(); // Leak the old object
     }
 
-    // Step 3: Recreate fresh instances
+    // Step 2: Recreate fresh instances
     initialize_native_state();
 }
 
