@@ -326,12 +326,13 @@ def test_early_fork_keeps_iast_enabled():
     remain enabled in the child and work normally.
     """
     from ddtrace.appsec._iast import _disable_iast_after_fork
+    from ddtrace.appsec._iast._taint_tracking import initialize_native_state
     from ddtrace.appsec._iast._taint_tracking import is_tainted
     from ddtrace.internal.settings.asm import config as asm_config
 
     # Ensure IAST is enabled but NO context is active (simulating early fork)
     # Don't call _start_iast_context_and_oce() - this simulates pre-fork state
-
+    initialize_native_state()
     original_state = asm_config._iast_enabled
     asm_config._iast_enabled = True
 
