@@ -71,8 +71,8 @@ class TestNativeStateInitialization:
 
     def test_initialize_native_state_creates_globals(self):
         """Test that initialize_native_state() properly initializes globals."""
-        from ddtrace.appsec._iast._taint_tracking._native import initialize_native_state
-        from ddtrace.appsec._iast._taint_tracking._native import reset_native_state
+        from ddtrace.appsec._iast._taint_tracking import initialize_native_state
+        from ddtrace.appsec._iast._taint_tracking import reset_native_state
 
         # Reset to clean state
         reset_native_state()
@@ -99,8 +99,8 @@ class TestNativeStateInitialization:
         from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
         from ddtrace.appsec._iast._overhead_control_engine import oce
         from ddtrace.appsec._iast._taint_tracking import initialize_native_state
+        from ddtrace.appsec._iast._taint_tracking import reset_native_state
         from ddtrace.appsec._iast._taint_tracking._context import start_request_context
-        from ddtrace.appsec._iast._taint_tracking._native import reset_native_state
         from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
         from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
         from ddtrace.internal.settings.asm import config as asm_config

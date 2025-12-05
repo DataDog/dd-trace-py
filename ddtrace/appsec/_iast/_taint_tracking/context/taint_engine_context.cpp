@@ -108,6 +108,12 @@ TaintEngineContext::clear_all_request_context_slots()
     }
 }
 
+void
+TaintEngineContext::clear_tainted_object_map()
+{
+    request_context_slots.clear();
+}
+
 TaintedObjectMapTypePtr
 TaintEngineContext::get_tainted_object_map(PyObject* obj)
 {

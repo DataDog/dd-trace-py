@@ -114,9 +114,13 @@ reset_native_state_after_fork()
     // Important: We're in the child process after fork.
     // The Python GIL is held by the forking thread in the child.
 
-    // Step 1: Clear all taint maps to remove stale PyObject pointers
+    // WARNING: The inherited context contains PyObject pointers from the PARENT process.
+    // These pointers are now invalid in the child and must not be dereferenced.
+
+    // Step 1: Abandon (don't cleanup) the inherited request context slots
+    // This clears the vector without calling destructors that would access PyObjects
     if (taint_engine_context) {
-        taint_engine_context->clear_all_request_context_slots();
+        taint_engine_context->clear_tainted_object_map();
         taint_engine_context.reset();
     }
 

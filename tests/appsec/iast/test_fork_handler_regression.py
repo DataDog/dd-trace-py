@@ -31,6 +31,7 @@ from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 def test_fork_handler_callable(iast_context_defaults):
     """Verify that _reset_iast_after_fork is callable and disables IAST."""
     from ddtrace.appsec._iast import _disable_iast_after_fork
+    from ddtrace.appsec._iast._taint_tracking import reset_native_state
     from ddtrace.internal.settings.asm import config as asm_config
 
     # Should not raise any exception
@@ -39,8 +40,9 @@ def test_fork_handler_callable(iast_context_defaults):
         _disable_iast_after_fork()
         # Fork handler should disable IAST
         assert asm_config._iast_enabled is False, "IAST should be disabled after fork"
-        # Restore for other tests
+        # Restore for other tests - reinitialize native state for clean slate
         asm_config._iast_enabled = original_state
+        reset_native_state()  # Reinitialize to clean state for next test
     except Exception as e:
         pytest.fail(f"Fork handler raised unexpected exception: {e}")
 
@@ -49,6 +51,7 @@ def test_fork_handler_with_active_context(iast_context_defaults):
     """Verify fork handler disables IAST and clears context when active."""
     from ddtrace.appsec._iast import _disable_iast_after_fork
     from ddtrace.appsec._iast._taint_tracking import is_tainted
+    from ddtrace.appsec._iast._taint_tracking import reset_native_state
     from ddtrace.internal.settings.asm import config as asm_config
 
     _start_iast_context_and_oce()
@@ -67,8 +70,9 @@ def test_fork_handler_with_active_context(iast_context_defaults):
     # After reset, we should be able to call these safely (they're no-ops now)
     _end_iast_context_and_oce()
 
-    # Restore for other tests
+    # Restore for other tests - reinitialize native state for clean slate
     asm_config._iast_enabled = original_state
+    reset_native_state()  # Reinitialize to clean state for next test
 
 
 def test_multiprocessing_with_iast_no_segfault(iast_context_defaults):
