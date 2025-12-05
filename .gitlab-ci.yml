@@ -74,7 +74,7 @@ run-tests-trigger:
        job: tests-gen
    strategy: depend
 
-trigger-serverless-lambda-tests:
+"trigger serverless lambda tests"::
   stage: tests
   trigger:
     project: DataDog/datadog-lambda-python/
