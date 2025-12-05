@@ -109,6 +109,22 @@ export VIRTUAL_ENV="${VENV_PATH}"
 export PATH="${VENV_PATH}/bin:${PATH}"
 cd "${TEST_WHEEL_DIR}"
 uv pip install "${FINAL_WHEEL_FILE}"
+
+# Diagnostics before running smoke test
+echo "=== Environment Diagnostics ==="
+echo "VIRTUAL_ENV: ${VIRTUAL_ENV}"
+echo "PATH: ${PATH}"
+echo "which python: $(which python)"
+"${VENV_PATH}/bin/python" --version
+echo "=== pip freeze ==="
+"${VENV_PATH}/bin/python" -m pip freeze
+echo "=== site-packages contents ==="
+"${VENV_PATH}/bin/python" -c "import site; print('site-packages:', site.getsitepackages())"
+ls -la "${VENV_PATH}/lib/"*/site-packages/ | head -30
+echo "=== Testing direct import ==="
+"${VENV_PATH}/bin/python" -c "import ddtrace; print('✓ ddtrace import successful')" || echo "✗ ddtrace import failed"
+
+# Run smoke test
 "${VENV_PATH}/bin/python" "${PROJECT_DIR}/tests/smoke_test.py"
 section_end "test_wheel"
 
