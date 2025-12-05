@@ -873,6 +873,7 @@ class TestLLMObsOpenaiV1:
                             "output_tokens": 36,
                             "total_tokens": 179,
                             "cache_read_input_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -947,6 +948,7 @@ class TestLLMObsOpenaiV1:
                     "output_tokens": 275,
                     "total_tokens": 434,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 256,
                 },
                 tool_definitions=[
                     {
@@ -965,7 +967,6 @@ class TestLLMObsOpenaiV1:
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}, "verbosity": "medium"},
-                    "reasoning_tokens": 256,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -1036,6 +1037,7 @@ MUL: "*"
                     "output_tokens": 214,
                     "total_tokens": 455,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 192,
                 },
                 tool_definitions=[
                     {
@@ -1181,6 +1183,7 @@ MUL: "*"
                             "output_tokens": 100,
                             "total_tokens": 1321,
                             "cache_read_input_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1199,6 +1202,7 @@ MUL: "*"
                             "output_tokens": 100,
                             "total_tokens": 1320,
                             "cache_read_input_tokens": 1152,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1427,6 +1431,7 @@ MUL: "*"
                             "output_tokens": 100,
                             "total_tokens": 1521,
                             "cache_read_input_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1450,6 +1455,7 @@ MUL: "*"
                             "output_tokens": 100,
                             "total_tokens": 1520,
                             "cache_read_input_tokens": 1280,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1521,13 +1527,13 @@ MUL: "*"
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
-                    "reasoning_tokens": 0,
                 },
                 token_metrics={
                     "input_tokens": 53,
                     "output_tokens": 40,
                     "total_tokens": 93,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -1564,13 +1570,13 @@ MUL: "*"
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
-                    "reasoning_tokens": 0,
                 },
                 token_metrics={
                     "input_tokens": 9,
                     "output_tokens": 12,
                     "total_tokens": 21,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -1619,9 +1625,14 @@ MUL: "*"
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
-                    "reasoning_tokens": 0,
                 },
-                token_metrics={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "cache_read_input_tokens": 0},
+                token_metrics={
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "total_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
+                },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
@@ -1653,13 +1664,13 @@ MUL: "*"
                     "top_p": 1.0,
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
-                    "reasoning_tokens": 0,
                 },
                 token_metrics={
                     "input_tokens": 75,
                     "output_tokens": 23,
                     "total_tokens": 98,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tool_definitions=[
                     {
@@ -1718,7 +1729,6 @@ MUL: "*"
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
-                    "reasoning_tokens": 0,
                 },
                 tool_definitions=[
                     {
@@ -1742,6 +1752,7 @@ MUL: "*"
                     "output_tokens": 23,
                     "total_tokens": 98,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -1804,13 +1815,13 @@ MUL: "*"
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
                     "user": "ddtrace-test",
-                    "reasoning_tokens": 0,
                 },
                 token_metrics={
                     "input_tokens": 53,
                     "output_tokens": 40,
                     "total_tokens": 93,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -1860,7 +1871,6 @@ MUL: "*"
                             "tool_choice": "auto",
                             "truncation": "disabled",
                             "text": {"format": {"type": "text"}},
-                            "reasoning_tokens": 0,
                             "user": "ddtrace-test",
                         },
                         token_metrics={
@@ -1868,6 +1878,7 @@ MUL: "*"
                             "output_tokens": 14,
                             "total_tokens": 1529,
                             "cache_read_input_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1886,7 +1897,6 @@ MUL: "*"
                             "tool_choice": "auto",
                             "truncation": "disabled",
                             "text": {"format": {"type": "text"}},
-                            "reasoning_tokens": 0,
                             "user": "ddtrace-test",
                         },
                         token_metrics={
@@ -1894,6 +1904,7 @@ MUL: "*"
                             "output_tokens": 8,
                             "total_tokens": 1523,
                             "cache_read_input_tokens": 1390,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1950,7 +1961,6 @@ MUL: "*"
                             "tool_choice": "auto",
                             "truncation": "disabled",
                             "text": {"format": {"type": "text"}},
-                            "reasoning_tokens": 0,
                             "stream": True,
                         },
                         token_metrics={
@@ -1958,6 +1968,7 @@ MUL: "*"
                             "output_tokens": 14,
                             "total_tokens": 1529,
                             "cache_read_input_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1976,7 +1987,6 @@ MUL: "*"
                             "tool_choice": "auto",
                             "truncation": "disabled",
                             "text": {"format": {"type": "text"}},
-                            "reasoning_tokens": 0,
                             "stream": True,
                         },
                         token_metrics={
@@ -1984,6 +1994,7 @@ MUL: "*"
                             "output_tokens": 8,
                             "total_tokens": 1523,
                             "cache_read_input_tokens": 1390,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -2090,6 +2101,7 @@ MUL: "*"
                     "output_tokens": 93,
                     "total_tokens": 220,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -2143,13 +2155,13 @@ MUL: "*"
                         },
                         "verbosity": "medium",
                     },
-                    "reasoning_tokens": 0,
                 },
                 token_metrics={
                     "input_tokens": 113,
                     "output_tokens": 99,
                     "total_tokens": 212,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -2241,13 +2253,13 @@ MUL: "*"
                 "tool_choice": "auto",
                 "truncation": "disabled",
                 "text": {"format": {"type": "text"}, "verbosity": "medium"},
-                "reasoning_tokens": 128,
             },
             token_metrics={
                 "input_tokens": 642,
                 "output_tokens": 206,
                 "total_tokens": 848,
                 "cache_read_input_tokens": 0,
+                "reasoning_output_tokens": 128,
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             tool_definitions=[
@@ -2333,6 +2345,62 @@ MUL: "*"
         assert (
             input_messages[1]["content"]
             == "You are a helpful assistant. Please answer this question: What is machine learning?"
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
+    def test_response_reasoning_tokens(self, openai, mock_llmobs_writer, mock_tracer):
+        """Test that reasoning tokens are captured in response endpoints."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_reasoning_tokens.yaml"):
+            model = "gpt-5-mini"
+            input_messages = multi_message_input
+            client = openai.OpenAI()
+            resp = client.responses.create(
+                model=model, input=input_messages, max_output_tokens=500, user="ddtrace-test"
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+
+        # Extract output messages including reasoning items
+        output_messages = []
+        for output in resp.output:
+            if output.type == "reasoning":
+                # Extract both reasoning and assistant messages
+                reasoning_content = {
+                    "summary": output.summary if hasattr(output, "summary") else [],
+                    "encrypted_content": output.encrypted_content if hasattr(output, "encrypted_content") else "",
+                    "id": output.id if hasattr(output, "id") else "",
+                }
+                output_messages.append({"role": "reasoning", "content": safe_json(reasoning_content)})
+            elif output.type == "message":
+                output_messages.append({"role": "assistant", "content": output.content[0].text})
+
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp.model,
+                model_provider="openai",
+                input_messages=input_messages,
+                output_messages=output_messages,
+                metadata={
+                    "max_output_tokens": 500,
+                    "user": "ddtrace-test",
+                    "temperature": 1.0,
+                    "top_p": 1.0,
+                    "tool_choice": "auto",
+                    "truncation": "disabled",
+                    "text": {"format": {"type": "text"}, "verbosity": "medium"},
+                },
+                token_metrics={
+                    "input_tokens": 54,
+                    "output_tokens": 164,
+                    "total_tokens": 218,
+                    "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 128,
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
         )
 
 

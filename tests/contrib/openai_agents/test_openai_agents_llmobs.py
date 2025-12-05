@@ -14,7 +14,6 @@ from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 COMMON_RESPONSE_LLM_METADATA = {
     "temperature": mock.ANY,
     "top_p": mock.ANY,
-    "reasoning_tokens": mock.ANY,
     "tool_choice": "auto",
     "tools": mock.ANY,
     "truncation": "disabled",
@@ -159,6 +158,7 @@ def _assert_expected_agent_run(
                     "input_tokens": mock.ANY,
                     "output_tokens": mock.ANY,
                     "total_tokens": mock.ANY,
+                    "reasoning_output_tokens": mock.ANY,
                 },
                 metadata=COMMON_RESPONSE_LLM_METADATA,
                 model_name="gpt-4o-2024-08-06",
