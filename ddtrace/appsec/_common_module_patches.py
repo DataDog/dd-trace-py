@@ -251,7 +251,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                 try:
                     response = original_open_callable(*args, **kwargs)
                     # api10 response handler for regular responses
-                    if response.__class__.__name__ == "HTTPResponse":
+                    if response.__class__.__name__ == "HTTPResponse" and not 300<=response.status<400:
                         addresses = {
                             "DOWN_RES_STATUS": str(response.status),
                             "DOWN_RES_HEADERS": _build_headers(response.getheaders()),
