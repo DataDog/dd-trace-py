@@ -82,4 +82,11 @@ def generate_process_tags() -> Tuple[Optional[str], Optional[List[str]]]:
     return process_tags, process_tags_list
 
 
+def update_container_tags_hash(new_hash):
+    global container_tags_hash
+    if process_tags:
+        container_tags_hash = new_hash
+
+
+container_tags_hash = ""
 process_tags, process_tags_list = generate_process_tags()
