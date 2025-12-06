@@ -86,6 +86,8 @@ class OpenAIIntegration(BaseLLMIntegration):
             client = "AzureOpenAI"
         elif self._is_provider(span, "deepseek"):
             client = "Deepseek"
+        elif self._is_provider(span, "anthropic"):
+            client = "Anthropic"
         span._set_tag_str("openai.request.provider", client)
 
     def _is_provider(self, span, provider):
@@ -123,6 +125,9 @@ class OpenAIIntegration(BaseLLMIntegration):
             model_provider = "azure_openai"
         elif self._is_provider(span, "deepseek"):
             model_provider = "deepseek"
+        # Anthropic model is compatible with OpenAI API
+        elif self._is_provider(span, "anthropic"):
+            model_provider = "anthropic"
         if operation == "completion":
             openai_set_meta_tags_from_completion(span, kwargs, response)
         elif operation == "chat":
