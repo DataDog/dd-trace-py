@@ -8,12 +8,18 @@ import typing as t
 
 import pytest
 
+import ddtrace
+from ddtrace.testing.internal.pytest.utils import nodeid_to_test_ref
 from ddtrace.testing.internal.test_data import TestTag
 
 
 if t.TYPE_CHECKING:
-    from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
+    from pytest import FixtureRequest
+    from pytest_bdd.parser import Feature
+    from pytest_bdd.parser import Scenario
+    from pytest_bdd.parser import Step
 
+    from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
 
 FRAMEWORK = "pytest_bdd"
 STEP_KIND = "pytest_bdd.step"
@@ -42,11 +48,13 @@ class BddTestOptPlugin:
         return feature_path
 
     @pytest.hookimpl(tryfirst=True)
-    def pytest_bdd_before_scenario(self, request, feature, scenario):
-        from .plugin import nodeid_to_test_ref
-
+    def pytest_bdd_before_scenario(self, request: FixtureRequest, feature: Feature, scenario: Scenario) -> None:
         test_ref = nodeid_to_test_ref(request.node.nodeid)
         test = self.main_plugin.manager.get_test(test_ref)
+        if not test:
+            log.debug("Could not find test %s", test_ref)
+            return
+
         feature_path = self._get_workspace_relative_path(scenario.feature.filename)
         codeowners = self._get_codeowners(feature_path)
 
@@ -56,9 +64,9 @@ class BddTestOptPlugin:
             test.set_codeowners(codeowners)
 
     @pytest.hookimpl(tryfirst=True)
-    def pytest_bdd_before_step(self, request, feature, scenario, step, step_func):
-        import ddtrace
-
+    def pytest_bdd_before_step(
+        self, request: FixtureRequest, feature: Feature, scenario: Scenario, step: Step, step_func: t.Callable
+    ) -> None:
         tracer = ddtrace.tracer
         if tracer is None:
             return
@@ -84,10 +92,18 @@ class BddTestOptPlugin:
         if codeowners:
             span.set_tag(TestTag.CODEOWNERS, json.dumps(codeowners))
 
-        step_func._datadog_span = span
+        setattr(step_func, "_datadog_span", span)
 
     @pytest.hookimpl(trylast=True)
-    def pytest_bdd_after_step(self, request, feature, scenario, step, step_func, step_func_args):
+    def pytest_bdd_after_step(
+        self,
+        request: FixtureRequest,
+        feature: Feature,
+        scenario: Scenario,
+        step: Step,
+        step_func: t.Callable,
+        step_func_args: t.Any,
+    ) -> None:
         span = getattr(step_func, "_datadog_span", None)
         if span is not None:
             step_func_args_json = _get_step_func_args_json(step, step_func, step_func_args)
@@ -96,7 +112,16 @@ class BddTestOptPlugin:
             span.finish()
 
     @pytest.hookimpl(trylast=True)
-    def pytest_bdd_step_error(self, request, feature, scenario, step, step_func, step_func_args, exception):
+    def pytest_bdd_step_error(
+        self,
+        request: FixtureRequest,
+        feature: Feature,
+        scenario: Scenario,
+        step: Step,
+        step_func: t.Callable,
+        step_func_args: t.Any,
+        exception: Exception,
+    ) -> None:
         span = getattr(step_func, "_datadog_span", None)
         if span is not None:
             if hasattr(exception, "__traceback__"):
@@ -104,8 +129,8 @@ class BddTestOptPlugin:
             else:
                 # PY2 compatibility workaround
                 _, _, tb = sys.exc_info()
-            step_func_args_json = _get_step_func_args_json(step, step_func, step_func_args)
             if step_func_args:
+                step_func_args_json = _get_step_func_args_json(step, step_func, step_func_args)
                 span.set_tag(TestTag.PARAMETERS, step_func_args_json)
             span.set_exc_info(type(exception), exception, tb)
             span.finish()
