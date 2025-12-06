@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    profiling: Add support for ``asyncio.Condition`` locking type profiling in Python.
+    The Lock profiler now provides visibility into ``asyncio.Condition`` usage, helping
+    identify contention in asynchronous applications using condition variables.
