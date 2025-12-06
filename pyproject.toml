@@ -12,7 +12,8 @@ name = "ddtrace"
 version = "4.1.0.dev0"
 description = "Datadog APM client library"
 readme = "README.md"
-license = { text = "LICENSE.BSD3" }
+license = "BSD-3-Clause"
+license-files = ["LICENSE.BSD3"]
 requires-python = ">=3.9"
 authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
