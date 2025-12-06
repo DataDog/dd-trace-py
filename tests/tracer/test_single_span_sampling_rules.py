@@ -121,35 +121,32 @@ def test_rule_init_via_env_json_not_valid():
         assert get_span_sampling_rules() == []
 
 
-def test_env_rules_cause_matching_span_to_be_sampled():
+def test_env_rules_cause_matching_span_to_be_sampled(tracer):
     """Test that single span sampling tags are applied to spans that should get sampled when envars set"""
     with override_global_config(dict(_sampling_rules='[{"service":"test_service","name":"test_name"}]')):
         sampling_rules = get_span_sampling_rules()
         assert sampling_rules[0]._service_matcher.pattern == "test_service"
         assert sampling_rules[0]._name_matcher.pattern == "test_name"
-        tracer = DummyTracer()
         span = traced_function(sampling_rules[0], tracer=tracer)
         assert_sampling_decision_tags(span)
 
 
-def test_env_rules_dont_cause_non_matching_span_to_be_sampled():
+def test_env_rules_dont_cause_non_matching_span_to_be_sampled(tracer):
     """Test that single span sampling tags are not applied to spans that do not match rules"""
     with override_global_config(dict(_sampling_rules='[{"service":"test_ser","name":"test_na"}]')):
         sampling_rules = get_span_sampling_rules()
         assert sampling_rules[0]._service_matcher.pattern == "test_ser"
         assert sampling_rules[0]._name_matcher.pattern == "test_na"
-        tracer = DummyTracer()
         span = traced_function(sampling_rules[0], tracer=tracer)
         assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
 
 
-def test_single_span_rules_not_applied_when_span_sampled_by_trace_sampling():
+def test_single_span_rules_not_applied_when_span_sampled_by_trace_sampling(tracer):
     """Test that single span sampling rules aren't applied if a span is already going to be sampled by trace sampler"""
     with override_global_config(dict(_sampling_rules='[{"service":"test_service","name":"test_name"}]')):
         sampling_rules = get_span_sampling_rules()
         assert sampling_rules[0]._service_matcher.pattern == "test_service"
         assert sampling_rules[0]._name_matcher.pattern == "test_name"
-        tracer = DummyTracer()
         span = traced_function(sampling_rules[0], tracer=tracer, trace_sampling=True)
         assert sampling_rules[0].match(span) is True
         assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None, trace_sampling=True)
@@ -304,17 +301,15 @@ def test_single_span_rule_unsupported_pattern_escape_character_literal_evaluatio
     assert_sampling_decision_tags(span)
 
 
-def test_multiple_span_rule_match():
+def test_multiple_span_rule_match(tracer):
     rule = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
-    tracer = DummyTracer()
     for _ in range(10):
         span = traced_function(rule, tracer)
         assert_sampling_decision_tags(span)
 
 
-def test_single_span_rules_not_applied_if_span_dropped_by_single_span_rate_limiter():
+def test_single_span_rules_not_applied_if_span_dropped_by_single_span_rate_limiter(tracer):
     rule = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=0)
-    tracer = DummyTracer()
     for _ in range(10):
         span = traced_function(rule, tracer)
         assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
@@ -334,9 +329,8 @@ def test_max_per_sec_with_is_allowed_check():
     assert_sampling_decision_tags(rate_limited_span, sample_rate=None, mechanism=None, limit=None)
 
 
-def test_max_per_sec_with_predetermined_number_of_spans():
+def test_max_per_sec_with_predetermined_number_of_spans(tracer):
     rule = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=2)
-    tracer = DummyTracer()
     for i in range(3):
         span = traced_function(rule, tracer)
         if i < 2:
