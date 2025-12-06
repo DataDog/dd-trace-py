@@ -18,6 +18,8 @@ from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
+from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
+from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.telemetry import TelemetryAPI
@@ -139,6 +141,7 @@ class TestOptPlugin:
         self.enable_ddtrace = False
         self.reports_by_nodeid: t.Dict[str, _ReportGroup] = defaultdict(lambda: {})
         self.excinfo_by_report: t.Dict[pytest.TestReport, t.Optional[pytest.ExceptionInfo[t.Any]]] = {}
+        self.benchmark_data_by_nodeid: t.Dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: t.Dict[str, Test] = {}
         self.is_xdist_worker = False
 
@@ -282,10 +285,7 @@ class TestOptPlugin:
             )
             test_run = test.make_test_run()
             test_run.start(start_ns=test.start_ns)
-            status, tags = self._get_test_outcome(item.nodeid)
-            test_run.set_status(status)
-            test_run.set_tags(tags)
-            test_run.set_context(context)
+            self._set_test_run_data(test_run, item, context)
             test_run.finish()
             test.set_status(test_run.get_status())  # TODO: this should be automatic?
             self.manager.writer.put_item(test_run)
@@ -323,10 +323,7 @@ class TestOptPlugin:
         TelemetryAPI.get().record_test_created(test_framework=TEST_FRAMEWORK, test_run=test_run)
 
         reports = _make_reports_dict(runtestprotocol(item, nextitem=nextitem, log=False))
-        status, tags = self._get_test_outcome(item.nodeid)
-        test_run.set_status(status)
-        test_run.set_tags(tags)
-        test_run.set_context(context)
+        self._set_test_run_data(test_run, item, context)
 
         TelemetryAPI.get().record_test_finished(
             test_framework=TEST_FRAMEWORK,
@@ -353,6 +350,17 @@ class TestOptPlugin:
             test_run.finish()
             test.set_status(test_run.get_status())  # TODO: this should be automatic?
             self.manager.writer.put_item(test_run)
+
+    def _set_test_run_data(self, test_run: TestRun, item: pytest.Item, context: TestContext) -> None:
+        status, tags = self._get_test_outcome(item.nodeid)
+        test_run.set_status(status)
+        test_run.set_tags(tags)
+        test_run.set_context(context)
+
+        if benchmark_data := self.benchmark_data_by_nodeid.pop(item.nodeid):
+            test_run.set_tags(benchmark_data.tags)
+            test_run.set_metrics(benchmark_data.metrics)
+            test_run.mark_benchmark()
 
     def _do_retries(
         self,
@@ -525,6 +533,11 @@ class TestOptPlugin:
         report: pytest.TestReport = outcome.get_result()
         self.reports_by_nodeid[item.nodeid][call.when] = report
         self.excinfo_by_report[report] = call.excinfo
+
+        if call.when == TestPhase.TEARDOWN:
+            # We need to extract pytest-benchmark data _before_ the fixture teardown.
+            if benchmark_data := get_benchmark_tags_and_metrics(item):
+                self.benchmark_data_by_nodeid[item.nodeid] = benchmark_data
 
     def pytest_report_teststatus(self, report: pytest.TestReport) -> t.Optional[_ReportTestStatus]:
         if retry_outcome := _get_user_property(report, "dd_retry_outcome"):

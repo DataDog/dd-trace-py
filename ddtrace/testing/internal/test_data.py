@@ -154,6 +154,8 @@ class TestRun(TestItem["Test", t.NoReturn]):
         self.module = self.suite.parent
         self.session = self.module.parent
 
+        self.tags[TestTag.TEST_TYPE] = "test"
+
     def __str__(self) -> str:
         return f"{self.test} #{self.attempt_number}"
 
@@ -169,8 +171,11 @@ class TestRun(TestItem["Test", t.NoReturn]):
     def has_failed_all_retries(self) -> bool:
         return self.tags.get(TestTag.HAS_FAILED_ALL_RETRIES) == TAG_TRUE
 
+    def mark_benchmark(self) -> None:
+        self.tags[TestTag.TEST_TYPE] = "benchmark"
+
     def is_benchmark(self) -> bool:
-        return False  # TODO: change when benchmark tests are implemented
+        return self.tags.get(TestTag.TEST_TYPE) == "benchmark"
 
     # Selenium / RUM functionality. These tags are only available after the test has finished and ddtrace span tags have
     # been copied over to the test run object.
@@ -348,6 +353,7 @@ class TestTag:
 
     SKIP_REASON = "test.skip_reason"
 
+    TEST_TYPE = "test.type"
     IS_NEW = "test.is_new"
     IS_QUARANTINED = "test.test_management.is_quarantined"
     IS_DISABLED = "test.test_management.is_test_disabled"
