@@ -380,6 +380,9 @@ class TestTag:
     ITR_TESTS_SKIPPING_TYPE = "test.itr.tests_skipping.type"
     ITR_TESTS_SKIPPING_COUNT = "test.itr.tests_skipping.count"
 
+    # Test File; used when test implementation file is different from test suite name (pytest-bdd).
+    TEST_FILE = "test.file"
+
     SOURCE_FILE = "test.source.file"
     SOURCE_START = "test.source.start"
 

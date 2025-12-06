@@ -74,13 +74,13 @@ class BddTestOptPlugin:
             activate=True,
         )
         span.set_tag(TestTag.COMPONENT, FRAMEWORK)
-        span.set_tag(TestTag.FRAMEWORK, FRAMEWORK)
-        span.set_tag(TestTag.FRAMEWORK_VERSION, self.framework_version)
+        span.set_tag(TestTag.TEST_FRAMEWORK, FRAMEWORK)
+        span.set_tag(TestTag.TEST_FRAMEWORK_VERSION, self.framework_version)
 
         feature_path = self._get_workspace_relative_path(scenario.feature.filename)
         codeowners = self._get_codeowners(feature_path)
 
-        span.set_tag(TestTag.FILE, str(feature_path))
+        span.set_tag(TestTag.TEST_FILE, str(feature_path))
         if codeowners:
             span.set_tag(TestTag.CODEOWNERS, json.dumps(codeowners))
 
