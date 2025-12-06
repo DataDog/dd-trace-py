@@ -45,6 +45,11 @@ class ITRSkippingLevel(Enum):
     TEST = "test"
 
 
+class TestType:
+    TEST = "test"
+    BENCHMARK = "benchmark"
+
+
 TParentClass = t.TypeVar("TParentClass", bound="TestItem[t.Any, t.Any]")
 TChildClass = t.TypeVar("TChildClass", bound="TestItem[t.Any, t.Any]")
 
@@ -154,7 +159,7 @@ class TestRun(TestItem["Test", t.NoReturn]):
         self.module = self.suite.parent
         self.session = self.module.parent
 
-        self.tags[TestTag.TEST_TYPE] = "test"
+        self.tags[TestTag.TEST_TYPE] = TestType.TEST
 
     def __str__(self) -> str:
         return f"{self.test} #{self.attempt_number}"
@@ -172,10 +177,10 @@ class TestRun(TestItem["Test", t.NoReturn]):
         return self.tags.get(TestTag.HAS_FAILED_ALL_RETRIES) == TAG_TRUE
 
     def mark_benchmark(self) -> None:
-        self.tags[TestTag.TEST_TYPE] = "benchmark"
+        self.tags[TestTag.TEST_TYPE] = TestType.BENCHMARK
 
     def is_benchmark(self) -> bool:
-        return self.tags.get(TestTag.TEST_TYPE) == "benchmark"
+        return self.tags.get(TestTag.TEST_TYPE) == TestType.BENCHMARK
 
     # Selenium / RUM functionality. These tags are only available after the test has finished and ddtrace span tags have
     # been copied over to the test run object.

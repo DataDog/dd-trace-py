@@ -357,7 +357,7 @@ class TestOptPlugin:
         test_run.set_tags(tags)
         test_run.set_context(context)
 
-        if benchmark_data := self.benchmark_data_by_nodeid.pop(item.nodeid):
+        if benchmark_data := self.benchmark_data_by_nodeid.pop(item.nodeid, None):
             test_run.set_tags(benchmark_data.tags)
             test_run.set_metrics(benchmark_data.metrics)
             test_run.mark_benchmark()
