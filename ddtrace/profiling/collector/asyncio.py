@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from types import ModuleType
-from typing import Type
 
 from . import _lock
 
@@ -19,12 +17,16 @@ class _ProfiledAsyncioBoundedSemaphore(_lock._ProfiledLock):
     pass
 
 
+class _ProfiledAsyncioCondition(_lock._ProfiledLock):
+    pass
+
+
 class AsyncioLockCollector(_lock.LockCollector):
     """Record asyncio.Lock usage."""
 
-    PROFILED_LOCK_CLASS: Type[_ProfiledAsyncioLock] = _ProfiledAsyncioLock
-    MODULE: ModuleType = asyncio
-    PATCHED_LOCK_NAME: str = "Lock"
+    PROFILED_LOCK_CLASS = _ProfiledAsyncioLock
+    MODULE = asyncio
+    PATCHED_LOCK_NAME = "Lock"
 
 
 class AsyncioSemaphoreCollector(_lock.LockCollector):
@@ -38,6 +40,6 @@ class AsyncioSemaphoreCollector(_lock.LockCollector):
 class AsyncioBoundedSemaphoreCollector(_lock.LockCollector):
     """Record asyncio.BoundedSemaphore usage."""
 
-    PROFILED_LOCK_CLASS: Type[_ProfiledAsyncioBoundedSemaphore] = _ProfiledAsyncioBoundedSemaphore
-    MODULE: ModuleType = asyncio
-    PATCHED_LOCK_NAME: str = "BoundedSemaphore"
+    PROFILED_LOCK_CLASS = _ProfiledAsyncioBoundedSemaphore
+    MODULE = asyncio
+    PATCHED_LOCK_NAME = "BoundedSemaphore"

@@ -16,6 +16,7 @@ import pytest
 from ddtrace import ext
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector.asyncio import AsyncioBoundedSemaphoreCollector
+from ddtrace.profiling.collector.asyncio import AsyncioConditionCollector
 from ddtrace.profiling.collector.asyncio import AsyncioLockCollector
 from ddtrace.profiling.collector.asyncio import AsyncioSemaphoreCollector
 from tests.profiling.collector import pprof_utils
@@ -50,6 +51,10 @@ CollectorTypeClass = Type[CollectorTypeInst]
         (
             AsyncioBoundedSemaphoreCollector,
             "AsyncioBoundedSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+        ),
+        (
+            AsyncioConditionCollector,
+            "AsyncioConditionCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
         ),
     ],
 )
@@ -263,3 +268,36 @@ class TestAsyncioBoundedSemaphoreCollector(BaseAsyncioLockCollectorTest):
             # BoundedSemaphore should raise ValueError when releasing more than initial value
             with pytest.raises(ValueError, match="BoundedSemaphore released too many times"):
                 bs.release()
+
+
+class TestAsyncioConditionCollector(BaseAsyncioLockCollectorTest):
+    """Test asyncio.Condition profiling."""
+
+    @property
+    def collector_class(self):
+        return AsyncioConditionCollector
+
+    @property
+    def lock_class(self):
+        return asyncio.Condition
+
+    async def test_condition_wait_notify(self):
+        """Test that profiling wrapper preserves Condition's wait/notify behavior."""
+        with self.collector_class(capture_pct=100):
+            cond = asyncio.Condition()
+
+            notified = False
+
+            async def waiter():
+                nonlocal notified
+                async with cond:
+                    await cond.wait()
+                    notified = True
+
+            async def notifier():
+                await asyncio.sleep(0.01)  # Give waiter time to start waiting
+                async with cond:
+                    cond.notify()
+
+            await asyncio.gather(waiter(), notifier())
+            assert notified, "Condition wait/notify did not work correctly"
