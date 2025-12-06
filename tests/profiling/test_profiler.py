@@ -140,6 +140,7 @@ def test_default_collectors():
         assert any(isinstance(c, asyncio.AsyncioLockCollector) for c in p._profiler._collectors)
         assert any(isinstance(c, asyncio.AsyncioSemaphoreCollector) for c in p._profiler._collectors)
         assert any(isinstance(c, asyncio.AsyncioBoundedSemaphoreCollector) for c in p._profiler._collectors)
+        assert any(isinstance(c, asyncio.AsyncioConditionCollector) for c in p._profiler._collectors)
     p.stop(flush=False)
 
 
