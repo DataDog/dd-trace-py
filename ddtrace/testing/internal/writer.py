@@ -215,8 +215,6 @@ def serialize_test_run(test_run: TestRun) -> Event:
             "start": test_run.start_ns,
             "duration": test_run.duration_ns,
             "meta": {
-                **test_run.test.tags,
-                **test_run.tags,
                 "span.kind": "test",
                 "test.module": test_run.module.name,
                 "test.module_path": test_run.module.module_path,
@@ -224,6 +222,8 @@ def serialize_test_run(test_run: TestRun) -> Event:
                 "test.status": test_run.get_status().value,
                 "test.suite": test_run.suite.name,
                 "type": "test",
+                **test_run.test.tags,
+                **test_run.tags,
             },
             "metrics": {
                 "_dd.py.partial_flush": 1,
@@ -252,11 +252,11 @@ def serialize_suite(suite: TestSuite) -> Event:
             "start": suite.start_ns,
             "duration": suite.duration_ns,
             "meta": {
-                **suite.tags,
                 "span.kind": "test",
                 "test.suite": suite.name,
                 "test.status": suite.get_status().value,
                 "type": "test_suite_end",
+                **suite.tags,
             },
             "metrics": {
                 "_dd.py.partial_flush": 1,
@@ -284,12 +284,12 @@ def serialize_module(module: TestModule) -> Event:
             "start": module.start_ns,
             "duration": module.duration_ns,
             "meta": {
-                **module.tags,
                 "span.kind": "test",
                 "test.module": module.name,
                 "test.module_path": module.module_path,
                 "test.status": module.get_status().value,
                 "type": "test_module_end",
+                **module.tags,
             },
             "metrics": {
                 "_dd.py.partial_flush": 1,
@@ -316,10 +316,10 @@ def serialize_session(session: TestSession) -> Event:
             "start": session.start_ns,
             "duration": session.duration_ns,
             "meta": {
-                **session.tags,
                 "span.kind": "test",
                 "test.status": session.get_status().value,
                 "type": "test_session_end",
+                **session.tags,
             },
             "metrics": {
                 "_dd.py.partial_flush": 1,

@@ -50,7 +50,12 @@ class BddTestOptPlugin:
         feature_path = self._get_workspace_relative_path(scenario.feature.filename)
         codeowners = self.main_plugin.manager.codeowners.of(str(feature_path)) if self.main_plugin.manager.codeowners else None
 
-        print(">>>> override scenario attributes", dict(test_ref=test_ref, name=scenario.name, suite_name=str(feature_path), codeowners=codeowners))
+        #print(">>>> override scenario attributes", dict(test_ref=test_ref, name=scenario.name, suite_name=str(feature_path), codeowners=codeowners))
+        test.tags["test.name"] = scenario.name
+        test.tags["test.suite"] = str(feature_path)
+        test.set_codeowners(codeowners)
+
+
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_bdd_before_step(self, request, feature, scenario, step, step_func):
