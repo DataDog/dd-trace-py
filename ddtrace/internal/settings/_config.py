@@ -173,6 +173,7 @@ INTEGRATION_CONFIGS = frozenset(
         "openai",
         "crewai",
         "pydantic_ai",
+        "vllm",
         "logging",
         "boto",
         "mariadb",

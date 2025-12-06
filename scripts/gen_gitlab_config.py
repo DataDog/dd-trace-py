@@ -42,10 +42,13 @@ class JobSpec:
     allow_failure: bool = False
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
+    gpu: bool = False
 
     def __str__(self) -> str:
         lines = []
         base = f".test_base_{self.runner}"
+        if self.gpu:
+            base += "_gpu"
         if self.snapshot:
             base += "_snapshot"
 
@@ -199,9 +202,21 @@ def gen_required_suites() -> None:
     """Generate the list of test suites that need to be run."""
     from needs_testrun import extract_git_commit_selections
     from needs_testrun import for_each_testrun_needed
+    from ruamel.yaml import YAML
     import suitespec
 
     suites = suitespec.get_suites()
+
+    # Load GPU-enabled integrations from registry
+    registry_path = ROOT / "ddtrace" / "contrib" / "integration_registry" / "registry.yaml"
+    with YAML() as yaml:
+        reg = yaml.load(registry_path) or {}
+        gpu_integrations: t.Set[str] = set()
+        for entry in reg.get("integrations", []) or []:
+            if entry.get("gpu") is True:
+                name = str(entry.get("integration_name", "")).strip()
+                if name:
+                    gpu_integrations.add(name)
 
     required_suites: t.List[str] = []
 
@@ -234,6 +249,9 @@ def gen_required_suites() -> None:
         # Store the stage in the suite config for later use
         suite_config["_stage"] = stage
         suite_config["_clean_name"] = clean_name
+        # Mark GPU requirement if the clean suite name matches a GPU integration
+        if clean_name in gpu_integrations:
+            suite_config["gpu"] = True
 
     # Sort stages: setup first, then alphabetically
     sorted_stages = ["setup"] + sorted(stages - {"setup"})
