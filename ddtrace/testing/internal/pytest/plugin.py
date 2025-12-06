@@ -726,7 +726,6 @@ def pytest_configure(config: pytest.Config) -> None:
         config.pluginmanager.register(BddTestOptPlugin(plugin))
 
 
-
 def _get_test_command(config: pytest.Config) -> str:
     """Extract and re-create pytest session command from pytest config."""
     command = "pytest"
