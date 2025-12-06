@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from unittest.mock import Mock
 from unittest.mock import patch
 
 from _pytest.pytester import Pytester
@@ -9,7 +10,9 @@ import pytest
 
 from ddtrace.constants import ERROR_MSG
 from ddtrace.ext import test
+from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.bdd import _get_step_func_args_json
+from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import setup_standard_mocks
@@ -25,11 +28,12 @@ Feature: Simple feature
 
 
 class TestPytestBdd:
-    # def test_and_emit_get_version(self, pytester: Pytester) -> None:
-    #     version = get_version()
-    #     assert isinstance(version, str)
-    #     assert version != ""
-    #     emit_integration_and_version_to_test_agent("pytest-bdd", version)
+    def test_and_emit_get_version(self) -> None:
+        plugin = BddTestOptPlugin(Mock())
+        version = plugin._get_framework_version()
+        assert isinstance(version, str)
+        assert version != ""
+        emit_integration_and_version_to_test_agent("pytest-bdd", version)
 
     def test_pytest_bdd_scenario_with_parameters(self, pytester: Pytester) -> None:
         """Test that pytest-bdd traces scenario with all steps."""
