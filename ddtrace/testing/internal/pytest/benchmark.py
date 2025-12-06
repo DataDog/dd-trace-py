@@ -6,26 +6,28 @@ import pytest
 
 BENCHMARK_INFO_TAG = "benchmark.duration.info"
 
-PYTEST_BENCHMARK_KEYS_TO_DATADOG_TAGS = {
-    "outliers": "benchmark.duration.statistics.outliers",
+TAGS_TO_PYTEST_BENCHMARK_ATTRS = {
+    "benchmark.duration.statistics.outliers": "outliers",
 }
 
-PYTEST_BENCHMARK_KEYS_TO_DATADOG_METRICS = {
-    "hd15iqr": "benchmark.duration.statistics.hd15iqr",
-    "iqr": "benchmark.duration.statistics.iqr",
-    "iqr_outliers": "benchmark.duration.statistics.iqr_outliers",
-    "ld15iqr": "benchmark.duration.statistics.ld15iqr",
-    "max": "benchmark.duration.statistics.max",
-    "mean": "benchmark.duration.statistics.mean",
-    "median": "benchmark.duration.statistics.median",
-    "min": "benchmark.duration.statistics.min",
-    "ops": "benchmark.duration.statistics.ops",
-    "q1": "benchmark.duration.statistics.q1",
-    "q3": "benchmark.duration.statistics.q3",
-    "rounds": "benchmark.duration.statistics.n",
-    "stddev": "benchmark.duration.statistics.std_dev",
-    "stddev_outliers": "benchmark.duration.statistics.std_dev_outliers",
-    "total": "benchmark.duration.statistics.total",
+METRICS_TO_PYTEST_BENCHMARK_ATTRS = {
+    "benchmark.duration.mean": "mean",
+    "benchmark.duration.runs": "rounds",
+    "benchmark.duration.statistics.hd15iqr": "hd15iqr",
+    "benchmark.duration.statistics.iqr": "iqr",
+    "benchmark.duration.statistics.iqr_outliers": "iqr_outliers",
+    "benchmark.duration.statistics.ld15iqr": "ld15iqr",
+    "benchmark.duration.statistics.max": "max",
+    "benchmark.duration.statistics.mean": "mean",
+    "benchmark.duration.statistics.median": "median",
+    "benchmark.duration.statistics.min": "min",
+    "benchmark.duration.statistics.ops": "ops",
+    "benchmark.duration.statistics.q1": "q1",
+    "benchmark.duration.statistics.q3": "q3",
+    "benchmark.duration.statistics.n": "rounds",
+    "benchmark.duration.statistics.std_dev": "stddev",
+    "benchmark.duration.statistics.std_dev_outliers": "stddev_outliers",
+    "benchmark.duration.statistics.total": "total",
 }
 
 
@@ -52,12 +54,12 @@ def get_benchmark_tags_and_metrics(item: pytest.Item) -> t.Optional[BenchmarkDat
     data = BenchmarkData(tags={}, metrics={})
     data.tags[BENCHMARK_INFO_TAG] = "Time"
 
-    for stats_attr, tag_name in PYTEST_BENCHMARK_KEYS_TO_DATADOG_TAGS.items():
+    for tag_name, stats_attr in TAGS_TO_PYTEST_BENCHMARK_ATTRS.items():
         value = getattr(stats, stats_attr, None)
         if value is not None:
             data.tags[tag_name] = value
 
-    for stats_attr, metric_name in PYTEST_BENCHMARK_KEYS_TO_DATADOG_METRICS.items():
+    for metric_name, stats_attr in METRICS_TO_PYTEST_BENCHMARK_ATTRS.items():
         value = getattr(stats, stats_attr, None)
         if value is not None:
             data.metrics[metric_name] = value
