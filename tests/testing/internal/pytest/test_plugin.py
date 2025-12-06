@@ -207,10 +207,10 @@ class TestSessionManagement:
     def test_xdist_plugin_initialization(self) -> None:
         """Test that XdistTestOptPlugin initializes correctly."""
         mock_manager = session_manager_mock().build_mock()
-        plugin = XdistTestOptPlugin(session_manager=mock_manager)
+        plugin = XdistTestOptPlugin(TestOptPlugin(session_manager=mock_manager))
 
         # Should inherit from TestOptPlugin
-        assert plugin.is_xdist_worker is False
+        assert plugin.main_plugin.is_xdist_worker is False
         assert hasattr(plugin, "pytest_configure_node")
 
     def test_session_start_with_xdist_worker_input(self) -> None:
@@ -813,11 +813,11 @@ class TestXdistPlugin:
     def test_pytest_configure_node(self) -> None:
         """Test pytest_configure_node method."""
         session_manager = session_manager_mock().build_mock()
-        plugin = XdistTestOptPlugin(session_manager=session_manager)
+        plugin = XdistTestOptPlugin(TestOptPlugin(session_manager=session_manager))
 
         # Mock session with session_id
-        plugin.session = Mock()
-        plugin.session.item_id = "test-session-123"
+        plugin.main_plugin.session = Mock()
+        plugin.main_plugin.session.item_id = "test-session-123"
 
         # Mock node
         mock_node = Mock()
