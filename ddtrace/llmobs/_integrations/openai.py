@@ -60,9 +60,13 @@ class OpenAIIntegration(BaseLLMIntegration):
         return self._user_api_key
 
     @user_api_key.setter
-    def user_api_key(self, value: str) -> None:
-        # Match the API key representation that OpenAI uses in their UI.
-        self._user_api_key = "sk-...%s" % value[-4:]
+    def user_api_key(self, value) -> None:
+        # `value` can be `str`, `Callable[[], str]`, or even `Callable[[], Awaitable[str]]`.
+        if isinstance(value, str):
+            # Match the API key representation that OpenAI uses in their UI.
+            self._user_api_key = "sk-...%s" % value[-4:]
+        else:
+            self._user_api_key = None
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
         traced_operations = (
