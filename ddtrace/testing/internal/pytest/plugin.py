@@ -18,6 +18,7 @@ from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
+from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
 from ddtrace.testing.internal.retry_handlers import RetryHandler
@@ -596,13 +597,16 @@ class TestOptPlugin:
         test.mark_skipped_by_itr()
 
 
-class XdistTestOptPlugin(TestOptPlugin):
+class XdistTestOptPlugin:
+    def __init__(self, main_plugin: TestOptPlugin) -> None:
+        self.main_plugin = main_plugin
+
     @pytest.hookimpl
     def pytest_configure_node(self, node: t.Any) -> None:
         """
         Pass test session id from the main process to xdist workers.
         """
-        node.workerinput["dd_session_id"] = self.session.item_id
+        node.workerinput["dd_session_id"] = self.main_plugin.session.item_id
 
     @pytest.hookimpl
     def pytest_testnodedown(self, node: t.Any, error: t.Any) -> None:
@@ -613,7 +617,7 @@ class XdistTestOptPlugin(TestOptPlugin):
             return
 
         if tests_skipped_by_itr := node.workeroutput.get("tests_skipped_by_itr"):
-            self.session.tests_skipped_by_itr += tests_skipped_by_itr
+            self.main_plugin.session.tests_skipped_by_itr += tests_skipped_by_itr
 
 
 def _make_reports_dict(reports: t.List[pytest.TestReport]) -> _ReportGroup:
@@ -707,15 +711,20 @@ def pytest_configure(config: pytest.Config) -> None:
         log.debug("Session manager not initialized (plugin was not enabled)")
         return
 
-    plugin_class = XdistTestOptPlugin if config.pluginmanager.hasplugin("xdist") else TestOptPlugin
-
     try:
-        plugin = plugin_class(session_manager=session_manager)
+        plugin = TestOptPlugin(session_manager=session_manager)
     except Exception:
         log.exception("Error setting up Test Optimization plugin")
         return
 
     config.pluginmanager.register(plugin)
+
+    if config.pluginmanager.hasplugin("xdist"):
+        config.pluginmanager.register(XdistTestOptPlugin(plugin))
+
+    if config.pluginmanager.hasplugin("pytest-bdd"):
+        config.pluginmanager.register(BddTestOptPlugin(plugin))
+
 
 
 def _get_test_command(config: pytest.Config) -> str:
