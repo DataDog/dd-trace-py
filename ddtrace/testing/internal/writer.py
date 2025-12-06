@@ -223,7 +223,6 @@ def serialize_test_run(test_run: TestRun) -> Event:
                 "test.name": test_run.name,
                 "test.status": test_run.get_status().value,
                 "test.suite": test_run.suite.name,
-                "test.type": "test",
                 "type": "test",
             },
             "metrics": {
