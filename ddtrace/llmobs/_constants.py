@@ -104,6 +104,7 @@ LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"
 
 PROXY_REQUEST = "llmobs.proxy_request"
 
+# experiment span baggage keys to be propagated across boundaries
 EXPERIMENT_ID_KEY = "_ml_obs.experiment_id"
 EXPERIMENT_RUN_ID_KEY = "_ml_obs.experiment_run_id"
 EXPERIMENT_RUN_ITERATION_KEY = "_ml_obs.experiment_run_iteration"
@@ -111,6 +112,9 @@ EXPERIMENT_PROJECT_NAME_KEY = "_ml_obs.experiment_project_name"
 EXPERIMENT_PROJECT_ID_KEY = "_ml_obs.experiment_project_id"
 EXPERIMENT_DATASET_NAME_KEY = "_ml_obs.experiment_dataset_name"
 EXPERIMENT_NAME_KEY = "_ml_obs.experiment_name"
+
+# experiment context keys
+EXPERIMENT_RECORD_METADATA = "_ml_obs.meta.metadata"
 EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
 EXPERIMENTS_INPUT = "_ml_obs.meta.input"
 EXPERIMENTS_OUTPUT = "_ml_obs.meta.output"
