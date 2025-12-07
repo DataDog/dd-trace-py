@@ -663,8 +663,15 @@ class CustomBuildExt(build_ext):
                 if src_file.exists():
                     newest_source_time = max(newest_source_time, src_file.stat().st_mtime)
 
-            # Only rebuild if source files are newer than the destination
-            should_build = newest_source_time > library_mtime
+            required_headers = ["common.h"]
+            if "profiling" in rust_features:
+                required_headers.append("profiling.h")
+
+            include_dir = CARGO_TARGET_DIR / "include" / "datadog"
+            headers_exist = include_dir.exists() and all((include_dir / header).exists() for header in required_headers)
+
+            # Only rebuild if source files are newer than the destination OR if any required header is missing
+            should_build = newest_source_time > library_mtime or not headers_exist
 
         if should_build:
             # Create and run the CustomBuildRust command
