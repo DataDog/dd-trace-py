@@ -271,27 +271,29 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate, uintptr_t tstate_addr)
     }
 #endif
 
-    // Only one Task can be on CPU at a time.
-    // Since determining if a task is on CPU is somewhat costly, we
-    // stop checking if Tasks are on CPU after seeing the first one.
-    bool on_cpu_task_seen = false;
-    for (auto& leaf_task : leaf_tasks) {
-        bool on_cpu = false;
-        if (!on_cpu_task_seen) {
-            on_cpu = leaf_task.get().is_on_cpu();
-            on_cpu_task_seen = on_cpu;
+#if PY_VERSION_HEX >= 0x030e0000
+    // Python 3.14+: If no leaf tasks found but we have tasks, unwind all tasks that aren't in parent_tasks
+    // This handles the case where all tasks are waiting on other Tasks (not Futures/Coroutines)
+    // In normal asyncio usage, tasks awaiting Futures/Coroutines should have waiter=NULL and be leaf tasks
+    // But if all tasks are waiting on other Tasks, we need this fallback
+    if (leaf_tasks.empty() && !all_tasks.empty()) {
+        for (auto& task : all_tasks) {
+            if (parent_tasks.find(task->origin) == parent_tasks.end()) {
+                leaf_tasks.push_back(std::ref(*task));
+            }
         }
+    }
+#endif
 
-        // Start with leaf task name, but we'll update it if we follow parent chain to a parent task
-        StringTable::Key sample_task_name = leaf_task.get().name;
-        auto stack_info = std::make_unique<StackInfo>(sample_task_name, on_cpu);
+    for (auto& leaf_task : leaf_tasks) {
+        auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu);
         auto& stack = stack_info->stack;
         for (auto current_task = leaf_task;;) {
             auto& task = current_task.get();
 
             size_t stack_size = task.unwind(stack);
 
-            if (on_cpu) {
+            if (task.is_on_cpu) {
                 // Undo the stack unwinding
                 // TODO[perf]: not super-efficient :(
                 for (size_t i = 0; i < stack_size; i++)

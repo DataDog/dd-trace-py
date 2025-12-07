@@ -55,6 +55,7 @@ CollectorTypeInst = Union[
     ThreadingLockCollector, ThreadingRLockCollector, ThreadingSemaphoreCollector, ThreadingBoundedSemaphoreCollector
 ]
 
+
 # Module-level globals for testing global lock profiling
 _test_global_lock: LockTypeInst
 
@@ -233,6 +234,7 @@ def test_user_threads_have_native_id():
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT"), reason="gevent is not available")
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_FILE_PATH=__file__),
+    err=None,
 )
 def test_lock_gevent_tasks() -> None:
     from gevent import monkey
@@ -326,6 +328,7 @@ def test_lock_gevent_tasks() -> None:
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT"), reason="gevent is not available")
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_FILE_PATH=__file__),
+    err=None,
 )
 def test_rlock_gevent_tasks() -> None:
     from gevent import monkey
@@ -414,7 +417,7 @@ def test_rlock_gevent_tasks() -> None:
     validate_and_cleanup()
 
 
-@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"))
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"), err=None)
 def test_assertion_error_raised_with_enable_asserts():
     """Ensure that AssertionError is propagated when config.enable_asserts=True."""
     import threading
@@ -422,18 +425,10 @@ def test_assertion_error_raised_with_enable_asserts():
     import mock
     import pytest
 
-    from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
 
-    # Initialize ddup (required before using collectors)
-    assert ddup.is_available, "ddup is not available"
-    ddup.config(
-        env="test",
-        service="test_asserts",
-        version="1.0",
-        output_filename="/tmp/test_asserts",
-    )
-    ddup.start()
+    init_ddup("test_asserts")
 
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
@@ -446,7 +441,7 @@ def test_assertion_error_raised_with_enable_asserts():
             lock.acquire()
 
 
-@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="false"))
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="false"), err=None)
 def test_all_exceptions_suppressed_by_default() -> None:
     """
     Ensure that exceptions are silently suppressed in the `_acquire` method
@@ -456,18 +451,10 @@ def test_all_exceptions_suppressed_by_default() -> None:
 
     import mock
 
-    from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
 
-    # Initialize ddup (required before using collectors)
-    assert ddup.is_available, "ddup is not available"
-    ddup.config(
-        env="test",
-        service="test_exceptions",
-        version="1.0",
-        output_filename="/tmp/test_exceptions",
-    )
-    ddup.start()
+    init_ddup("test_exceptions")
 
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
@@ -486,6 +473,41 @@ def test_all_exceptions_suppressed_by_default() -> None:
         lock._update_name = mock.Mock(side_effect=Exception("Wut happened?!?!"))
         lock.acquire()
         lock.release()
+
+
+def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
+    """Test that Semaphore and BoundedSemaphore collectors can run simultaneously.
+
+    Tests proper patching where inheritance is involved if both parent and child classes are patched,
+    e.g. when BoundedSemaphore's c-tor calls Semaphore c-tor.
+    We expect that the call to Semaphore c-tor goes to the unpatched version, and NOT our patched version.
+    """
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_semaphore_and_bounded_semaphore_collectors_coexist")
+
+    # Both collectors active at the same time - this triggers the inheritance case
+    with ThreadingSemaphoreCollector(capture_pct=100), ThreadingBoundedSemaphoreCollector(capture_pct=100):
+        sem = threading.Semaphore(2)
+        sem.acquire()
+        sem.release()
+
+        bsem = threading.BoundedSemaphore(3)
+        bsem.acquire()
+        bsem.release()
+
+        # If inheritance delegation failed, these attributes will be missing.
+        wrapped_bsem = bsem.__wrapped__
+        assert hasattr(wrapped_bsem, "_cond"), "BoundedSemaphore._cond not initialized (inheritance bug)"
+        assert hasattr(wrapped_bsem, "_value"), "BoundedSemaphore._value not initialized (inheritance bug)"
+        assert hasattr(wrapped_bsem, "_initial_value"), "BoundedSemaphore._initial_value not initialized"
+
+        # Verify BoundedSemaphore behavior is preserved (i.e. it raises on over-release)
+        bsem2 = threading.BoundedSemaphore(1)
+        bsem2.acquire()
+        bsem2.release()
+        with pytest.raises(ValueError, match="Semaphore released too many times"):
+            bsem2.release()
 
 
 class BaseThreadingLockCollectorTest:
@@ -1595,34 +1617,3 @@ class TestThreadingBoundedSemaphoreCollector(BaseSemaphoreTest):
             # This proves our profiling wrapper doesn't break BoundedSemaphore's behavior
             with pytest.raises(ValueError, match="Semaphore released too many times"):
                 sem.release()
-
-
-def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
-    """Test that Semaphore and BoundedSemaphore collectors can run simultaneously.
-
-    Tests proper patching where inheritance is involved if both parent and child classes are patched,
-    e.g. when BoundedSemaphore's c-tor calls Semaphore c-tor.
-    We expect that the call to Semaphore c-tor goes to the unpatched version, and NOT our patched version.
-    """
-    # Both collectors active at the same time - this triggers the inheritance case
-    with ThreadingSemaphoreCollector(capture_pct=100), ThreadingBoundedSemaphoreCollector(capture_pct=100):
-        sem = threading.Semaphore(2)
-        sem.acquire()
-        sem.release()
-
-        bsem = threading.BoundedSemaphore(3)
-        bsem.acquire()
-        bsem.release()
-
-        # If inheritance delegation failed, these attributes will be missing.
-        wrapped_bsem = bsem.__wrapped__
-        assert hasattr(wrapped_bsem, "_cond"), "BoundedSemaphore._cond not initialized (inheritance bug)"
-        assert hasattr(wrapped_bsem, "_value"), "BoundedSemaphore._value not initialized (inheritance bug)"
-        assert hasattr(wrapped_bsem, "_initial_value"), "BoundedSemaphore._initial_value not initialized"
-
-        # Verify BoundedSemaphore behavior is preserved (i.e. it raises on over-release)
-        bsem2 = threading.BoundedSemaphore(1)
-        bsem2.acquire()
-        bsem2.release()
-        with pytest.raises(ValueError, match="Semaphore released too many times"):
-            bsem2.release()

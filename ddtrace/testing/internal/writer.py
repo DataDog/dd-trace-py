@@ -7,12 +7,14 @@ import uuid
 
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
+from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import TestItem
 from ddtrace.testing.internal.test_data import TestModule
 from ddtrace.testing.internal.test_data import TestRun
 from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestSuite
+from ddtrace.testing.internal.tracer_api import StopWatch
 from ddtrace.testing.internal.tracer_api import msgpack_packb
 from ddtrace.version import __version__
 
@@ -126,9 +128,20 @@ class TestOptWriter(BaseWriter):
             "metadata": self.metadata,
             "events": events,
         }
-        pack = msgpack_packb(payload)
-        self.connector.request(
+        with StopWatch() as serialization_time:
+            pack = msgpack_packb(payload)
+
+        result = self.connector.request(
             "POST", "/api/v2/citestcycle", data=pack, headers={"Content-Type": "application/msgpack"}, send_gzip=True
+        )
+
+        TelemetryAPI.get().record_event_payload(
+            endpoint="test_cycle",
+            payload_size=len(pack),
+            request_seconds=result.elapsed_seconds,
+            events_count=len(events),
+            serialization_seconds=serialization_time.elapsed(),
+            error=result.error_type,
         )
 
 
@@ -142,7 +155,10 @@ class TestCoverageWriter(BaseWriter):
 
     def put_coverage(self, test_run: TestRun, coverage_bitmaps: t.Iterable[t.Tuple[str, bytes]]) -> None:
         files = [{"filename": pathname, "bitmap": bitmap} for pathname, bitmap in coverage_bitmaps]
+        TelemetryAPI.get().record_coverage_files(len(files))
+
         if not files:
+            TelemetryAPI.get().record_coverage_is_empty()
             return
 
         event = Event(
@@ -154,12 +170,15 @@ class TestCoverageWriter(BaseWriter):
         self.put_event(event)
 
     def _send_events(self, events: t.List[Event]) -> None:
+        with StopWatch() as serialization_time:
+            pack = msgpack_packb({"version": 2, "coverages": events})
+
         files = [
             FileAttachment(
                 name="coverage1",
                 filename="coverage1.msgpack",
                 content_type="application/msgpack",
-                data=msgpack_packb({"version": 2, "coverages": events}),
+                data=pack,
             ),
             FileAttachment(
                 name="event",
@@ -169,7 +188,16 @@ class TestCoverageWriter(BaseWriter):
             ),
         ]
 
-        self.connector.post_files("/api/v2/citestcov", files=files, send_gzip=True)
+        result = self.connector.post_files("/api/v2/citestcov", files=files, send_gzip=True)
+
+        TelemetryAPI.get().record_event_payload(
+            endpoint="code_coverage",
+            payload_size=len(pack),
+            request_seconds=result.elapsed_seconds,
+            events_count=len(events),
+            serialization_seconds=serialization_time.elapsed(),
+            error=result.error_type,
+        )
 
 
 def serialize_test_run(test_run: TestRun) -> Event:

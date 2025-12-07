@@ -52,7 +52,10 @@ def test_tracer_api(monkeypatch):
         pytest.fail("Unable to find stack collector")
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(
+    # err=None suppresses psutil warning when running in Docker (Linux) on macOS
+    err=None,
+)
 def test_default_memory():
     from ddtrace.profiling import profiler
     from ddtrace.profiling.collector import memalloc
@@ -60,7 +63,11 @@ def test_default_memory():
     assert any(isinstance(col, memalloc.MemoryCollector) for col in profiler.Profiler()._profiler._collectors)
 
 
-@pytest.mark.subprocess(env=dict(DD_PROFILING_MEMORY_ENABLED="true"))
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_MEMORY_ENABLED="true"),
+    # err=None suppresses psutil warning when running in Docker (Linux) on macOS
+    err=None,
+)
 def test_enable_memory():
     from ddtrace.profiling import profiler
     from ddtrace.profiling.collector import memalloc
@@ -68,7 +75,11 @@ def test_enable_memory():
     assert any(isinstance(col, memalloc.MemoryCollector) for col in profiler.Profiler()._profiler._collectors)
 
 
-@pytest.mark.subprocess(env=dict(DD_PROFILING_MEMORY_ENABLED="false"))
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_MEMORY_ENABLED="false"),
+    # err=None suppresses psutil warning when running in Docker (Linux) on macOS
+    err=None,
+)
 def test_disable_memory():
     from ddtrace.profiling import profiler
     from ddtrace.profiling.collector import memalloc
@@ -149,7 +160,7 @@ def test_profiler_serverless(monkeypatch):
 
 
 @pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=None)
 def test_profiler_ddtrace_deprecation():
     """
     ddtrace interfaces loaded by the profiler can be marked deprecated, and we should update
@@ -172,7 +183,7 @@ def test_profiler_ddtrace_deprecation():
 
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_ENABLED="true"),
-    err="Failed to load ddup module (mock failure message), disabling profiling\n",
+    err=lambda stderr: "Failed to load ddup module (mock failure message), disabling profiling" in stderr,
 )
 def test_libdd_failure_telemetry_logging():
     """Test that libdd initialization failures log to telemetry. This mimics
@@ -203,9 +214,7 @@ def test_libdd_failure_telemetry_logging():
 
 
 @pytest.mark.subprocess(
-    # We'd like to check the stderr, but it somehow leads to triggering the
-    # upload code path on macOS
-    err=None
+    err=lambda stderr: "Failed to load ddup module" in stderr and "mock failure message" in stderr,
 )
 def test_libdd_failure_telemetry_logging_with_auto():
     from unittest import mock
@@ -231,7 +240,8 @@ def test_libdd_failure_telemetry_logging_with_auto():
 
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_ENABLED="true"),
-    err="Failed to load stack_v2 module (mock failure message), falling back to v1 stack sampler\n",
+    err=lambda stderr: "Failed to load stack_v2 module (mock failure message), falling back to v1 stack sampler"
+    in stderr,
 )
 def test_stack_v2_failure_telemetry_logging():
     # Test that stack_v2 initialization failures log to telemetry. This is

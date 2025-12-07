@@ -60,7 +60,9 @@ def assert_almost_equal(value, target, tolerance=TOLERANCE):
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_accuracy_stack_v2.pprof",
         _DD_PROFILING_STACK_V2_ADAPTIVE_SAMPLING_ENABLED="0",
-    )
+    ),
+    # err=None suppresses psutil warning when running in Docker (Linux) on macOS
+    err=None,
 )
 def test_accuracy_stack_v2():
     import collections
