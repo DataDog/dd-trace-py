@@ -110,6 +110,7 @@ class _SpanLink(TypedDict):
     trace_id: str
     attributes: Dict[str, str]
 
+
 class LLMObsEvaluationResult(TypedDict, total=False):
     metric_type: str
     label: str
