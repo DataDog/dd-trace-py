@@ -5,7 +5,6 @@ import opentelemetry
 from opentelemetry.baggage import get_baggage
 from opentelemetry.baggage import remove_baggage
 from opentelemetry.baggage import set_baggage
-import opentelemetry.context
 from opentelemetry.context import Context
 from opentelemetry.context import attach
 from opentelemetry.trace import INVALID_SPAN
