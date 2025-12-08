@@ -43,7 +43,6 @@ include:
     DD_FAST_BUILD = "1"
 
 
-
 .test_base_hatch_snapshot:
   extends: .test_base_hatch
   services:
@@ -52,6 +51,49 @@ include:
     - !reference [.test_base_hatch, before_script]
     # DEV: All job variables get shared with services, setting `DD_TRACE_AGENT_URL` on the testagent will tell it to forward all requests to the
     # agent at that host. Therefore setting this as a variable will cause recursive requests to the testagent
+    - export DD_TRACE_AGENT_URL="http://testagent:9126"
+
+# GPU variants of base templates
+.test_base_hatch_gpu:
+  extends: .testrunner_gpu
+  stage: hatch
+  needs: [ prechecks ]
+  parallel: 2
+  variables:
+    # Request==Limit to achieve Guaranteed QoS; requires Kubernetes executor support
+    KUBERNETES_MEMORY_REQUEST: "12Gi"
+    KUBERNETES_MEMORY_LIMIT: "12Gi"
+    KUBERNETES_CPU_REQUEST: "2"
+    KUBERNETES_CPU_LIMIT: "2"
+  before_script:
+    - !reference [.testrunner_gpu, before_script]
+  script:
+    - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
+    - export _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=true
+    - export DD_FAST_BUILD="1"
+    - |
+      envs=( $(hatch env show --json | jq -r --arg suite_name "$SUITE_NAME" 'keys[] | select(. | contains($suite_name))' | sort | ./.gitlab/ci-split-input.sh) )
+      if [[ ${#envs[@]} -eq 0 ]]; then
+        echo "No hatch envs found for ${SUITE_NAME}"
+        exit 1
+      fi
+      for env in "${envs[@]}"
+      do
+        echo "Running hatch env (GPU): ${env}:test"
+        hatch run ${env}:test
+      done
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL = "12"
+    CARGO_BUILD_JOBS = "12"
+    DD_FAST_BUILD = "1"
+    PIP_EXTRA_INDEX_URL = "https://download.pytorch.org/whl/cu124"
+
+.test_base_hatch_gpu_snapshot:
+  extends: .test_base_hatch_gpu
+  services:
+    - !reference [.services, testagent]
+  before_script:
+    - !reference [.test_base_hatch_gpu, before_script]
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
 
 # Do not define a `needs:` in order to depend on the whole `precheck` stage
@@ -98,6 +140,53 @@ include:
     - !reference [.test_base_riot, before_script]
     # DEV: All job variables get shared with services, setting `DD_TRACE_AGENT_URL` on the testagent will tell it to forward all requests to the
     # agent at that host. Therefore setting this as a variable will cause recursive requests to the testagent
+    - export DD_TRACE_AGENT_URL="http://testagent:9126"
+    - ln -s "${CI_PROJECT_DIR}" "/home/bits/project"
+
+.test_base_riot_gpu:
+  extends: .testrunner_gpu
+  stage: riot
+  needs: [ build_base_venvs, prechecks ]
+  parallel: 2
+  variables:
+    KUBERNETES_MEMORY_REQUEST: "12Gi"
+    KUBERNETES_MEMORY_LIMIT: "12Gi"
+    KUBERNETES_CPU_REQUEST: "2"
+    KUBERNETES_CPU_LIMIT: "2"
+  services:
+    - !reference [.services, ddagent]
+  before_script:
+    - !reference [.testrunner_gpu, before_script]
+    - unset DD_SERVICE
+    - unset DD_ENV
+    - unset DD_TAGS
+    - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
+  script:
+    - |
+      hashes=( $(.gitlab/scripts/get-riot-hashes.sh "${SUITE_NAME}") )
+      if [[ ${#hashes[@]} -eq 0 ]]; then
+        echo "No riot hashes found for ${SUITE_NAME}"
+        exit 1
+      fi
+      for hash in "${hashes[@]}"
+      do
+        echo "Running riot hash (GPU): ${hash}"
+        riot list "${hash}"
+        export _CI_DD_TAGS="test.configuration.riot_hash:${hash}"
+        ${RIOT_RUN_CMD} "${hash}" -- --ddtrace
+      done
+      ./scripts/check-diff ".riot/requirements/" \
+        "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
+      ./scripts/check-diff "ddtrace/contrib/integration_registry/registry.yaml" \
+        "Registry YAML file (ddtrace/contrib/integration_registry/registry.yaml) was modified. Please run: scripts/integration_registry/update_and_format_registry.py and commit the changes."
+
+.test_base_riot_gpu_snapshot:
+  extends: .test_base_riot_gpu
+  services:
+    - !reference [.test_base_riot_gpu, services]
+    - !reference [.services, testagent]
+  before_script:
+    - !reference [.test_base_riot_gpu, before_script]
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
     - ln -s "${CI_PROJECT_DIR}" "/home/bits/project"
 

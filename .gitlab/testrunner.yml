@@ -1,5 +1,6 @@
 variables:
   TESTRUNNER_IMAGE: registry.ddbuild.io/dd-trace-py:v81799905-0f9bd8b-testrunner@sha256:f29e49e817cb3fdcc188414b9e94bd9244df7db00b72205738a752ab23953cc5
+  TESTRUNNER_GPU_IMAGE: ${TESTRUNNER_IMAGE}
 
 .testrunner:
   image:
@@ -18,3 +19,14 @@ variables:
   artifacts:
     reports:
       junit: test-results/junit*.xml
+
+.testrunner_gpu:
+  extends: .testrunner
+  image:
+    name: ${TESTRUNNER_GPU_IMAGE}
+  tags: [ "gpu:a10-amd64" ]
+  timeout: 40m
+  before_script:
+    - !reference [.testrunner, before_script]
+    - export NVIDIA_VISIBLE_DEVICES=all
+    - export NVIDIA_DRIVER_CAPABILITIES=compute,utility

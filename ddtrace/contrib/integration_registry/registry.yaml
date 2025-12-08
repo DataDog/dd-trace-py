@@ -929,13 +929,15 @@ integrations:
       min: 0.6.14
       max: 0.7.4
 
-- integration_name: webbrowser
-  is_external_package: false
+- integration_name: vllm
+  is_external_package: true
   is_tested: true
-
-- integration_name: wsgi
-  is_external_package: false
-  is_tested: true
+  dependency_names:
+  - vllm
+  tested_versions_by_dependency:
+    vllm:
+      min: 0.10.1
+      max: 0.10.1
 
 - integration_name: yaaredis
   is_external_package: true
