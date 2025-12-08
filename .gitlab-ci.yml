@@ -131,10 +131,9 @@ microbenchmarks:
     - job: "build linux"
       parallel:
         matrix:
-          - IMAGE_ARCH: "x86_64"
-            ARCH_TAG: "amd64"
+          - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp39-cp39"
-            LINUX_OS_IMAGE: "manylinux2014"
+            IMAGE: "registry.ddbuild.io/dd-trace-py:v85280965-e932d4a-manylinux2014_x86_64@sha256:dfca83eb7235add3ea0450fc15a6016e1164d39c7847a5611fcfd1757c3a474e"
   rules:
     # Allow failures if explicitly asked
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
@@ -158,10 +157,9 @@ macrobenchmarks:
     - job: "build linux"
       parallel:
         matrix:
-          - IMAGE_ARCH: "x86_64"
-            ARCH_TAG: "amd64"
+          - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp39-cp39"
-            LINUX_OS_IMAGE: "manylinux2014"
+            IMAGE: "registry.ddbuild.io/dd-trace-py:v85280965-e932d4a-manylinux2014_x86_64@sha256:dfca83eb7235add3ea0450fc15a6016e1164d39c7847a5611fcfd1757c3a474e"
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml
   variables:

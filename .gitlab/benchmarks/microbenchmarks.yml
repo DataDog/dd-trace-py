@@ -145,7 +145,7 @@ candidate:
   tags: [ "arch:amd64" ]
   needs:
     - pipeline: $PARENT_PIPELINE_ID
-      job: "build linux: [x86_64, amd64, cp39-cp39, manylinux2014]"
+      job: "build linux: [amd64, cp39-cp39, registry.ddbuild.io/dd-trace-py:v85280965-e932d4a-manylinux2014_x86_64@sha256:dfca83eb7235add3ea0450fc15a6016e1164d39c7847a5611fcfd1757c3a474e]"
       artifacts: true
   script: |
     cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl ./
@@ -212,8 +212,8 @@ benchmarks-pr-comment:
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
 
 # Unlike pre-release SLO checks that run unconditionally (which have
-# "when: always"), this PR-level check runs only if benchmarks succeed. 
-# Since benchmark failures block the PR directly, this job blocks the PR if 
+# "when: always"), this PR-level check runs only if benchmarks succeed.
+# Since benchmark failures block the PR directly, this job blocks the PR if
 # benchmarks succeed but there are SLO breaches.
 check-slo-breaches:
   extends: .check-slo-breaches
