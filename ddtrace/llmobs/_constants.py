@@ -45,6 +45,13 @@ CACHE_READ_INPUT_TOKENS_METRIC_KEY = "cache_read_input_tokens"
 BILLABLE_CHARACTER_COUNT_METRIC_KEY = "billable_character_count"
 REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
 
+TIME_TO_FIRST_TOKEN_METRIC_KEY = "time_to_first_token"
+TIME_IN_QUEUE_METRIC_KEY = "time_in_queue"
+TIME_IN_MODEL_PREFILL_METRIC_KEY = "time_in_model_prefill"
+TIME_IN_MODEL_DECODE_METRIC_KEY = "time_in_model_decode"
+TIME_IN_MODEL_INFERENCE_METRIC_KEY = "time_in_model_inference"
+
+EVP_PROXY_AGENT_BASE_PATH = "/evp_proxy/v2"
 EVAL_ENDPOINT = "/api/intake/llm-obs/v2/eval-metric"
 SPAN_ENDPOINT = "/api/v2/llmobs"
 SPAN_SUBDOMAIN_NAME = "llmobs-intake"
