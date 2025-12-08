@@ -420,7 +420,8 @@ class DataStreamsCtx:
         def get_bytes(s):
             return bytes(s, encoding="utf-8")
 
-        b = get_bytes(self.service) + get_bytes(self.env) + get_bytes(process_tags.base_hash)
+        b = get_bytes(self.service) + get_bytes(self.env) + process_tags.base_hash_bytes
+
         for t in tags:
             b += get_bytes(t)
         node_hash = fnv1_64(b)

@@ -478,7 +478,7 @@ def test_process_info_headers_updates_container_tags_hash():
     conn.getresponse.return_value = resp
 
     with mock.patch("ddtrace.internal.agent.get_connection", return_value=conn):
-        with mock.patch("ddtrace.internal.agent.update_container_tags_hash") as mock_update_container_hash:
+        with mock.patch("ddtrace.internal.agent.compute_base_hash") as mock_update_container_hash:
             agent.info()
 
     resp.getheader.assert_called_once_with(agent.CONTAINER_TAGS_HASH)
@@ -495,7 +495,7 @@ def test_process_info_headers_missing_header():
     conn.getresponse.return_value = resp
 
     with mock.patch("ddtrace.internal.agent.get_connection", return_value=conn):
-        with mock.patch("ddtrace.internal.agent.update_container_tags_hash") as mock_update_container_hash:
+        with mock.patch("ddtrace.internal.agent.compute_base_hash") as mock_update_container_hash:
             agent.info()
 
     resp.getheader.assert_called_once_with(agent.CONTAINER_TAGS_HASH)
@@ -513,7 +513,7 @@ def test_process_info_headers_handles_errors():
     conn.getresponse.return_value = resp
 
     with mock.patch("ddtrace.internal.agent.get_connection", return_value=conn):
-        with mock.patch("ddtrace.internal.agent.update_container_tags_hash") as mock_update_container_hash:
+        with mock.patch("ddtrace.internal.agent.compute_base_hash") as mock_update_container_hash:
             agent.info()
 
     resp.getheader.assert_called_once_with(agent.CONTAINER_TAGS_HASH)

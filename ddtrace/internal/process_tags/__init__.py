@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import re
+import struct
 import sys
 from typing import Callable
 from typing import List
@@ -84,7 +85,7 @@ def generate_process_tags() -> Tuple[Optional[str], Optional[List[str]]]:
 
 
 def compute_base_hash(container_tags_hash):
-    global base_hash
+    global base_hash, base_hash_bytes
     if not process_tags:
         return
 
@@ -93,7 +94,8 @@ def compute_base_hash(container_tags_hash):
 
     b = get_bytes(process_tags) + get_bytes(container_tags_hash)
     base_hash = fnv1_64(b)
+    base_hash_bytes = struct.pack("<Q", base_hash)
 
 
-base_hash = None
+base_hash, base_hash_bytes = None, b""
 process_tags, process_tags_list = generate_process_tags()
