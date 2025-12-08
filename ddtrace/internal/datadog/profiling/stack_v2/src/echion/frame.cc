@@ -290,33 +290,7 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
         frame.is_entry = frame_addr->is_entry;
 #endif                                                                 // PY_VERSION_HEX >= 0x030c0000
     }
-
-#if PY_VERSION_HEX >= 0x030e0000
-    // Python 3.14+: Generator frames have previous = NULL (intentionally broken frame chain)
-    // See docs/python-3.14-generator-frame-limitation.md for details
-    // In _PyFrame_Copy(), CPython explicitly sets dest->previous = NULL to prevent
-    // dangling pointers when creating generator/coroutine frames.
-    if (frame_addr->previous == NULL && frame_addr->owner == FRAME_OWNED_BY_GENERATOR) {
-        // Best-effort fallback: try frame_obj->f_back->f_frame if available
-        // This is unreliable because frame_obj is lazily created and often NULL,
-        // and even when it exists, f_back is often NULL for generator frames.
-        // However, it might occasionally help in edge cases.
-        *prev_addr = NULL;
-        if (frame_addr->frame_obj != NULL) {
-            PyFrameObject frame_obj;
-            if (copy_type(frame_addr->frame_obj, frame_obj) == 0 && frame_obj.f_back != NULL) {
-                PyFrameObject prev_frame_obj;
-                if (copy_type(frame_obj.f_back, prev_frame_obj) == 0 && prev_frame_obj.f_frame != NULL) {
-                    *prev_addr = prev_frame_obj.f_frame;
-                }
-            }
-        }
-    } else {
-        *prev_addr = &frame == &INVALID_FRAME ? NULL : frame_addr->previous;
-    }
-#else
     *prev_addr = &frame == &INVALID_FRAME ? NULL : frame_addr->previous;
-#endif
 
 #else  // PY_VERSION_HEX < 0x030b0000
     // Unwind the stack from leaf to root and store it in a stack. This way we
