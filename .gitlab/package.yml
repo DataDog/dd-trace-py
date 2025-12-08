@@ -18,12 +18,12 @@ variables:
   - "cp314-cp314"
 
 .AARCH64_IMAGES: &AARCH64_IMAGES
-  - "v85272489-d36e1c8-manylinux2014_aarch64"
-  - "v85281342-e932d4a-musllinux_1_2_aarch64"
+  - "v85383414-751efc0-manylinux2014_aarch64"
+  - "v85383359-751efc0-musllinux_1_2_aarch64"
 
 .X86_64_IMAGES: &X86_64_IMAGES
-  - "v85280965-e932d4a-manylinux2014_x86_64"
-  - "v85281369-e932d4a-musllinux_1_2_x86_64"
+  - "v85383392-751efc0-manylinux2014_x86_64"
+  - "v85383325-751efc0-musllinux_1_2_x86_64"
 
 .build_base:
   stage: package
