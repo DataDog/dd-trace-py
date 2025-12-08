@@ -27,7 +27,7 @@ candidate:
     - interruptible: true
   needs:
     - pipeline: $PARENT_PIPELINE_ID
-      job: "build linux: [amd64, cp39-cp39, registry.ddbuild.io/dd-trace-py:v85280965-e932d4a-manylinux2014_x86_64@sha256:dfca83eb7235add3ea0450fc15a6016e1164d39c7847a5611fcfd1757c3a474e]"
+      job: "build linux: [amd64, cp39-cp39, v85280965-e932d4a-manylinux2014_x86_64]"
       artifacts: true
   script: |
     cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl ./

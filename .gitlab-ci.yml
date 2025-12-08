@@ -133,7 +133,7 @@ microbenchmarks:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp39-cp39"
-            IMAGE: "registry.ddbuild.io/dd-trace-py:v85280965-e932d4a-manylinux2014_x86_64@sha256:dfca83eb7235add3ea0450fc15a6016e1164d39c7847a5611fcfd1757c3a474e"
+            IMAGE_TAG: "v85280965-e932d4a-manylinux2014_x86_64"
   rules:
     # Allow failures if explicitly asked
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
@@ -159,7 +159,7 @@ macrobenchmarks:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp39-cp39"
-            IMAGE: "registry.ddbuild.io/dd-trace-py:v85280965-e932d4a-manylinux2014_x86_64@sha256:dfca83eb7235add3ea0450fc15a6016e1164d39c7847a5611fcfd1757c3a474e"
+            IMAGE_TAG: "v85280965-e932d4a-manylinux2014_x86_64"
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml
   variables:

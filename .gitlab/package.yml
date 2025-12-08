@@ -1,9 +1,5 @@
 variables:
   REGISTRY_BASE_URL: "registry.ddbuild.io/dd-trace-py"
-  MANYLINUX2014_AARCH64: "${REGISTRY_BASE_URL}:v85272489-d36e1c8-manylinux2014_aarch64@sha256:7325b77aa61538bd0cfca8902cd1f6758f2297a59375b7cc6c478c7177779648"
-  MANYLINUX2014_X86_64: "${REGISTRY_BASE_URL}:v85280965-e932d4a-manylinux2014_x86_64@sha256:dfca83eb7235add3ea0450fc15a6016e1164d39c7847a5611fcfd1757c3a474e"
-  MUSLLINUX_1_2_AARCH64: "${REGISTRY_BASE_URL}:v85281342-e932d4a-musllinux_1_2_aarch64@sha256:771fb5f14156341ff3acd4fd2b8e5b2d02f29e462255ce3671825080c0e4939b"
-  MUSLLINUX_1_2_X86_64: "${REGISTRY_BASE_URL}:v85281369-e932d4a-musllinux_1_2_x86_64@sha256:258486430b2c422d9cf00a48d9dd01dda308404b8f947155b35b7d3ea697cee9"
 
 .PYTHON_VERSIONS: &PYTHON_VERSIONS
   - "3.9"
@@ -20,6 +16,14 @@ variables:
   - "cp312-cp312"
   - "cp313-cp313"
   - "cp314-cp314"
+
+.AARCH64_IMAGES: &AARCH64_IMAGES
+  - "v85272489-d36e1c8-manylinux2014_aarch64"
+  - "v85281342-e932d4a-musllinux_1_2_aarch64"
+
+.X86_64_IMAGES: &X86_64_IMAGES
+  - "v85280965-e932d4a-manylinux2014_x86_64"
+  - "v85281369-e932d4a-musllinux_1_2_x86_64"
 
 .build_base:
   stage: package
@@ -49,7 +53,7 @@ variables:
 
 "build sdist":
   extends: .build_base
-  image: "${MANYLINUX2014_AARCH64}"
+  image: "${IMAGE_BASE_URL}:${MANYLINUX2014_AARCH64}"
   tags: [ "arch:amd64" ]
   variables:
     DD_CYTHONIZE: "0"
@@ -59,20 +63,16 @@ variables:
 
 "build linux":
   extends: .build_base
-  image: ${IMAGE}
+  image: ${IMAGE_BASE_URL}:${IMAGE_TAG}
   tags: [ "arch:$ARCH_TAG" ]
   parallel:
     matrix:
       - ARCH_TAG: "amd64"
         PYTHON_TAG: *PYTHON_TAGS
-        IMAGE:
-          - "${MANYLINUX2014_AARCH64}"
-          - "${MUSLLINUX_1_2_AARCH64}"
+        IMAGE_TAG: *X86_64_IMAGES
       - ARCH_TAG: "arm64"
         PYTHON_TAG: *PYTHON_TAGS
-        IMAGE:
-          - "${MANYLINUX2014_AARCH64}"
-          - "${MUSLLINUX_1_2_AARCH64}"
+        IMAGE_TAG: *AARCH64_IMAGES
   script:
     - manylinux-interpreters ensure "${PYTHON_TAG}"
     - export UV_PYTHON="/opt/python/${PYTHON_TAG}/bin/python"
