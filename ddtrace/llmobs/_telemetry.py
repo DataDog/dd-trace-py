@@ -196,11 +196,11 @@ def record_llmobs_user_processor_called(error: bool) -> None:
     )
 
 
-def record_llmobs_submit_evaluation(join_on: Dict[str, Any], metric_type: str, error: Optional[str]):
+def record_llmobs_submit_evaluation(join_on: Dict[str, Any], metric_type: str, source: str, error: Optional[str]):
     _metric_type = metric_type if metric_type in ("categorical", "score", "boolean") else "other"
     custom_joining_key = str(int(join_on.get("tag") is not None))
     tags = _base_tags(error)
-    tags.extend([("metric_type", _metric_type), ("custom_joining_key", custom_joining_key)])
+    tags.extend([("metric_type", _metric_type), ("custom_joining_key", custom_joining_key), ("source", source)])
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.EVALS_SUBMITTED, value=1, tags=tuple(tags)
     )

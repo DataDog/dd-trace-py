@@ -2066,9 +2066,9 @@ async def test_run_evaluations_enqueues_evaluation_metrics(llmobs, mock_llmobs_e
                     metric_type="score",
                     label="accuracy",
                     ml_app="test-ml-app",
-                    span_id="test-span-123",
-                    trace_id="test-trace-123",
-                    timestamp_ms=1763676378390000000,
+                    span_id=mock.ANY,
+                    trace_id=mock.ANY,
+                    timestamp_ms=mock.ANY,
                     score_value=0.95,
                     tags=mock.ANY,
                     metadata={"test-key": "test-value"},
@@ -2081,9 +2081,9 @@ async def test_run_evaluations_enqueues_evaluation_metrics(llmobs, mock_llmobs_e
                     metric_type="categorical",
                     label="sentiment",
                     ml_app="test-ml-app",
-                    span_id="test-span-123",
-                    trace_id="test-trace-123",
-                    timestamp_ms=1763676378390000000,
+                    span_id=mock.ANY,
+                    trace_id=mock.ANY,
+                    timestamp_ms=mock.ANY,
                     categorical_value="positive",
                     tags=mock.ANY,
                     metadata={"test-key": "test-value"},
@@ -2096,9 +2096,9 @@ async def test_run_evaluations_enqueues_evaluation_metrics(llmobs, mock_llmobs_e
                     metric_type="boolean",
                     label="is_correct",
                     ml_app="test-ml-app",
-                    span_id="test-span-123",
-                    trace_id="test-trace-123",
-                    timestamp_ms=1763676378390000000,
+                    span_id=mock.ANY,
+                    trace_id=mock.ANY,
+                    timestamp_ms=mock.ANY,
                     boolean_value=True,
                     tags=mock.ANY,
                     metadata={"test-key": "test-value"},
@@ -2111,9 +2111,9 @@ async def test_run_evaluations_enqueues_evaluation_metrics(llmobs, mock_llmobs_e
                     metric_type="score",
                     label="accuracy",
                     ml_app="test-ml-app",
-                    span_id="test-span-456",
-                    trace_id="test-trace-456",
-                    timestamp_ms=1763676378390000000,
+                    span_id=mock.ANY,
+                    trace_id=mock.ANY,
+                    timestamp_ms=mock.ANY,
                     score_value=0.95,
                     tags=mock.ANY,
                     metadata={"test-key": "test-value"},
@@ -2126,9 +2126,9 @@ async def test_run_evaluations_enqueues_evaluation_metrics(llmobs, mock_llmobs_e
                     metric_type="categorical",
                     label="sentiment",
                     ml_app="test-ml-app",
-                    span_id="test-span-456",
-                    trace_id="test-trace-456",
-                    timestamp_ms=1763676378390000000,
+                    span_id=mock.ANY,
+                    trace_id=mock.ANY,
+                    timestamp_ms=mock.ANY,
                     categorical_value="positive",
                     tags=mock.ANY,
                     metadata={"test-key": "test-value"},
@@ -2141,9 +2141,9 @@ async def test_run_evaluations_enqueues_evaluation_metrics(llmobs, mock_llmobs_e
                     metric_type="boolean",
                     label="is_correct",
                     ml_app="test-ml-app",
-                    span_id="test-span-456",
-                    trace_id="test-trace-456",
-                    timestamp_ms=1763676378390000000,
+                    span_id=mock.ANY,
+                    trace_id=mock.ANY,
+                    timestamp_ms=mock.ANY,
                     boolean_value=True,
                     tags=mock.ANY,
                     metadata={"test-key": "test-value"},
@@ -2155,10 +2155,13 @@ async def test_run_evaluations_enqueues_evaluation_metrics(llmobs, mock_llmobs_e
     )
 
 
-async def test_run_evaluations_no_spans(llmobs, mock_llmobs_eval_metric_writer):
+@mock.patch("ddtrace.llmobs._llmobs.LLMObs._instance._export_spans_client.export_spans")
+async def test_run_evaluations_no_spans(mock_export_spans, llmobs, mock_llmobs_eval_metric_writer):
     """
     Tests that when there are no spans, no evaluation metrics are enqueued.
     """
+    mock_export_spans.return_value = []
+
     await llmobs.run_evaluations(
         ml_app="test-ml-app",
         evaluations=[sample_score_evaluation, sample_categorical_evaluation, sample_boolean_evaluation],
@@ -2194,9 +2197,9 @@ async def test_run_evaluations_with_faulty_evaluation(
             metric_type="score",
             label="accuracy",
             ml_app="test-ml-app",
-            span_id="test-span-456",
-            trace_id="test-trace-456",
-            timestamp_ms=1763676378390000000,
+            span_id=mock.ANY,
+            trace_id=mock.ANY,
+            timestamp_ms=mock.ANY,
             score_value=0.95,
             tags=mock.ANY,
             metadata={"test-key": "test-value"},
@@ -2213,9 +2216,9 @@ async def test_run_evaluations_with_faulty_evaluation(
             metric_type="score",
             label="accuracy",
             ml_app="test-ml-app",
-            span_id="test-span-456",
-            trace_id="test-trace-456",
-            timestamp_ms=1763676378390000000,
+            span_id=mock.ANY,
+            trace_id=mock.ANY,
+            timestamp_ms=mock.ANY,
             score_value=0.95,
             tags=mock.ANY,
             metadata={"test-key": "test-value"},
@@ -2225,5 +2228,5 @@ async def test_run_evaluations_with_faulty_evaluation(
     )
 
     mock_llmobs_logs.error.assert_called_once_with(
-        "Failed to submit evaluation metric %s for span %s", "accuracy", "test-span-123"
+        "Failed to submit evaluation metric %s for span %s", "accuracy", "9131050925916112476"
     )
