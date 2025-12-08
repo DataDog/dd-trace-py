@@ -7,9 +7,9 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
-from ddtrace.internal.datastreams.fnv import fnv1_64
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.process_tags import process_tags_config as config
+from ddtrace.internal.utils.fnv import fnv1_64
 
 
 log = get_logger(__name__)
