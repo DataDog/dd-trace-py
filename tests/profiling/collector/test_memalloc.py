@@ -13,6 +13,7 @@ from tests.profiling.collector import pprof_utils
 
 
 PY_313_OR_ABOVE = sys.version_info[:2] >= (3, 13)
+PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
 
 
 def _allocate_1k():
@@ -221,13 +222,28 @@ def get_heap_info(heap, funcs):
     return got
 
 
-def has_function_in_profile_sample(profile, sample, function_name: str) -> bool:
-    """Check if a pprof profile sample contains a function in its stack trace."""
+def has_function_in_profile_sample(profile, sample, function_or_name) -> bool:
+    """Check if a pprof profile sample contains a function in its stack trace.
+
+    Args:
+        profile: The pprof profile
+        sample: The sample to check
+        function_or_name: Either a function object (callable) or a string function name.
+                         If a function object is provided, its qualified name will be used
+                         for Python 3.11+, otherwise its __name__ will be used.
+    """
+    # Get the expected function name
+    if callable(function_or_name):
+        expected_function_name = function_or_name.__qualname__ if PY_311_OR_ABOVE else function_or_name.__name__
+    else:
+        expected_function_name = function_or_name
+
     for location_id in sample.location_id:
         location = pprof_utils.get_location_with_id(profile, location_id)
         if location.line:
             function = pprof_utils.get_function_with_id(profile, location.line[0].function_id)
-            if profile.string_table[function.name] == function_name:
+            actual_function_name = profile.string_table[function.name]
+            if actual_function_name == expected_function_name:
                 return True
     return False
 
@@ -506,9 +522,7 @@ def test_memory_collector_allocation_tracking_across_snapshots(tmp_path):
                 f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
             )
 
-        one_freed_samples = [
-            sample for sample in freed_samples if has_function_in_profile_sample(profile, sample, "one")
-        ]
+        one_freed_samples = [sample for sample in freed_samples if has_function_in_profile_sample(profile, sample, one)]
 
         assert len(one_freed_samples) > 0, "Should have freed samples from function 'one'"
         one_freed_samples_valid = all(
@@ -518,7 +532,7 @@ def test_memory_collector_allocation_tracking_across_snapshots(tmp_path):
             "Freed samples from function 'one' should have heap-space == 0 and alloc-space > 0"
         )
 
-        two_live_samples = [sample for sample in live_samples if has_function_in_profile_sample(profile, sample, "two")]
+        two_live_samples = [sample for sample in live_samples if has_function_in_profile_sample(profile, sample, two)]
 
         assert len(two_live_samples) > 0, "Should have live samples from function 'two'"
         two_live_samples_valid = all(
@@ -579,7 +593,7 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path):
 
         # Check that we have no live samples with 'one' in traceback (they were freed)
         one_samples_in_final = [
-            sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, "one")
+            sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, one)
         ]
 
         assert len(one_samples_in_final) == 0, (
@@ -588,7 +602,7 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path):
 
         # Check that we have live samples from function 'two'
         batch_two_live_samples = [
-            sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, "two")
+            sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, two)
         ]
 
         assert len(batch_two_live_samples) > 0, (
@@ -668,11 +682,11 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
         live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
 
         batch_one_live_samples = [
-            sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, "one")
+            sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, one)
         ]
 
         batch_two_live_samples = [
-            sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, "two")
+            sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, two)
         ]
 
         assert len(batch_one_live_samples) > 0, (
@@ -758,6 +772,9 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path):
 
     mc = memalloc.MemoryCollector(heap_sample_size=64)
 
+    # Store reference to nested function for later qualname access
+    deep_alloc_func = None
+
     with mc:
         threads = []
         barrier = threading.Barrier(10)
@@ -770,6 +787,9 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path):
                     return _create_allocation(100)
                 return deep_alloc(depth - 1)
 
+            # Capture reference to deep_alloc for later use
+            nonlocal deep_alloc_func
+            deep_alloc_func = deep_alloc
             data = deep_alloc(50)
             del data
 
@@ -796,7 +816,7 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path):
             stack_depth = len(sample.location_id)
             max_stack_depth = max(max_stack_depth, stack_depth)
 
-            if has_function_in_profile_sample(profile, sample, "deep_alloc"):
+            if deep_alloc_func and has_function_in_profile_sample(profile, sample, deep_alloc_func):
                 # Samples with identical stack traces are merged in pprof profiles,
                 # so we need to sum the alloc-samples count value
                 deep_alloc_total_count += sample.value[alloc_count_idx]
@@ -819,6 +839,9 @@ def test_memory_collector_thread_lifecycle(tmp_path):
 
     mc = memalloc.MemoryCollector(heap_sample_size=8)
 
+    # Store reference to nested function for later qualname access
+    worker_func = None
+
     with mc:
         threads = []
 
@@ -826,6 +849,9 @@ def test_memory_collector_thread_lifecycle(tmp_path):
             for i in range(10):
                 data = [i] * 100
                 del data
+
+        # Capture reference before context manager exits
+        worker_func = worker
 
         for i in range(20):
             t = threading.Thread(target=worker)
@@ -843,7 +869,7 @@ def test_memory_collector_thread_lifecycle(tmp_path):
 
         worker_samples = 0
         for sample in profile.sample:
-            if has_function_in_profile_sample(profile, sample, "worker"):
+            if worker_func and has_function_in_profile_sample(profile, sample, worker_func):
                 worker_samples += 1
 
         assert worker_samples > 0, (

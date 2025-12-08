@@ -1826,6 +1826,47 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="testing",
+            command="pytest --no-ddtrace --no-cov {cmdargs} tests/testing/",
+            pkgs={
+                "pytest-randomly": latest,
+                "pytest-xdist": latest,
+            },
+            env={
+                "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "true",
+            },
+            venvs=[
+                Venv(
+                    pys="3.9",
+                    pkgs={
+                        "pytest": [
+                            "~=7.2",
+                            "~=8.0",
+                        ],
+                        "msgpack": latest,
+                        "more_itertools": "<8.11.0",
+                        # "pytest-mock": "==2.0.0",
+                        "httpx": "<0.28.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "pytest": [
+                            "~=7.2",
+                            "~=8.0",
+                            latest,  # pytest 9.x does not support Python 3.9.
+                        ],
+                        "msgpack": latest,
+                        "asynctest": "==0.13.0",
+                        "more_itertools": "<8.11.0",
+                        "httpx": "<0.28.0",
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="unittest",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/unittest/",
             pkgs={
@@ -3387,7 +3428,7 @@ venv = Venv(
             },
             command="pytest --no-cov {cmdargs} -c /dev/null --no-ddtrace tests/contrib/selenium",
             env={
-                "DD_AGENT_TRACER_URL": "9126",
+                "DD_AGENT_PORT": "9126",
             },
             venvs=[
                 Venv(

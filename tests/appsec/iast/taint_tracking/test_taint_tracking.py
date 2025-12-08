@@ -1,5 +1,4 @@
 import logging
-import sys
 
 from hypothesis import given
 from hypothesis import seed
@@ -21,7 +20,6 @@ from tests.appsec.iast.iast_utils import non_empty_text
 from tests.utils import override_global_config
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
 @seed(42)
 @settings(max_examples=1000)
 @given(non_empty_text)
