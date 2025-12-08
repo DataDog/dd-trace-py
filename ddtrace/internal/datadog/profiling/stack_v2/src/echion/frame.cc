@@ -246,7 +246,15 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
     }
 
 #if PY_VERSION_HEX >= 0x030c0000
+#if PY_VERSION_HEX >= 0x030e0000
+    // Python 3.14 introduced FRAME_OWNED_BY_INTERPRETER, and frames of this
+    // type are also ignored by the upstream profiler.
+    // See
+    // https://github.com/python/cpython/blob/ebf955df7a89ed0c7968f79faec1de49f61ed7cb/Modules/_remote_debugging_module.c#L2134
+    if (frame_addr->owner == FRAME_OWNED_BY_CSTACK || frame_addr->owner == FRAME_OWNED_BY_INTERPRETER) {
+#else
     if (frame_addr->owner == FRAME_OWNED_BY_CSTACK) {
+#endif // PY_VERSION_HEX >= 0x030e0000
         *prev_addr = frame_addr->previous;
         // This is a C frame, we just need to ignore it
         return std::ref(C_FRAME);
