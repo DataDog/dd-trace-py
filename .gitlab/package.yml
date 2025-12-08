@@ -119,7 +119,7 @@ variables:
     KUBERNETES_MEMORY_LIMIT: "8Gi"
   needs:
     - job: "build sdist"
--      artifacts: true
+      artifacts: true
   script:
     - TMP_DIR=$(mktemp -d) && cd $TMP_DIR
     - apk add git gcc g++ musl-dev libffi-dev openssl-dev bash rust cargo make cmake patchelf
