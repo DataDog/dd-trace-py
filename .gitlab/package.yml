@@ -109,7 +109,7 @@ variables:
 
 "test sdist":
   image: registry.ddbuild.io/images/mirror/python:3.9.6-alpine3.14
-  tags: [ "arch:aarch64" ]
+  tags: [ "arch:arm64" ]
   stage: package
   variables:
     CARGO_BUILD_JOBS: "12"
