@@ -1089,6 +1089,7 @@ assert LLMObs._instance._llmobs_span_writer._url == "https://llmobs-intake.datad
     assert status == 0, err
 
 
+@pytest.mark.skip("Skipping this test until it is converted properly to a subprocess test")
 def test_llmobs_fork_recreates_and_restarts_span_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
     with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload"):
@@ -1110,6 +1111,7 @@ def test_llmobs_fork_recreates_and_restarts_span_writer():
         llmobs_service.disable()
 
 
+@pytest.mark.skip("Skipping this test until it is converted properly to a subprocess test")
 def test_llmobs_fork_recreates_and_restarts_agentless_span_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
     with override_global_config(dict(_dd_api_key="<not-a-real-key>")):
@@ -1132,6 +1134,7 @@ def test_llmobs_fork_recreates_and_restarts_agentless_span_writer():
             llmobs_service.disable()
 
 
+@pytest.mark.skip("Skipping this test until it is converted properly to a subprocess test")
 def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsEvalMetricWriter."""
     with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter.periodic"):
@@ -1153,6 +1156,7 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
         llmobs_service.disable()
 
 
+@pytest.mark.skip("Skipping this test until it is converted properly to a subprocess test")
 def test_llmobs_fork_recreates_and_restarts_evaluator_runner(mock_ragas_evaluator):
     """Test that forking a process correctly recreates and restarts the EvaluatorRunner."""
     pytest.importorskip("ragas")
@@ -1176,6 +1180,7 @@ def test_llmobs_fork_recreates_and_restarts_evaluator_runner(mock_ragas_evaluato
             llmobs_service.disable()
 
 
+@pytest.mark.skip("Skipping this test until it is converted properly to a subprocess test")
 def test_llmobs_fork_create_span(monkeypatch):
     """Test that forking a process correctly encodes new spans created in each process."""
     monkeypatch.setenv("_DD_LLMOBS_WRITER_INTERVAL", "5.0")
@@ -1200,6 +1205,7 @@ def test_llmobs_fork_create_span(monkeypatch):
         llmobs_service.disable()
 
 
+@pytest.mark.skip("Skipping this test until it is converted properly to a subprocess test")
 def test_llmobs_fork_evaluator_runner_run(monkeypatch):
     """Test that forking a process correctly encodes new spans created in each process."""
     monkeypatch.setenv("DD_LLMOBS_EVALUATOR_INTERVAL", 5.0)
@@ -1223,6 +1229,7 @@ def test_llmobs_fork_evaluator_runner_run(monkeypatch):
         llmobs_service.disable()
 
 
+@pytest.mark.skip("Skipping this test until it is converted properly to a subprocess test")
 def test_llmobs_fork_disabled(monkeypatch):
     """Test that after being disabled the service remains disabled when forking"""
     monkeypatch.setenv("DD_LLMOBS_ENABLED", "0")
@@ -1241,6 +1248,7 @@ def test_llmobs_fork_disabled(monkeypatch):
     svc.disable()
 
 
+@pytest.mark.skip("Skipping this test until it is converted properly to a subprocess test")
 def test_llmobs_fork_disabled_then_enabled(monkeypatch):
     """Test that after being initially disabled, the service can be enabled in a fork"""
     monkeypatch.setenv("DD_LLMOBS_ENABLED", "0")
