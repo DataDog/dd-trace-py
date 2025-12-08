@@ -1,6 +1,9 @@
 variables:
-  REGISTRY_BASE_URL: "registry.ddbuild.io/images/mirror/pypa"
-  IMAGE_TAG: "2025.11.24-1"
+  REGISTRY_BASE_URL: "registry.ddbuild.io/dd-trace-py"
+  MANYLINUX2014_AARCH64: "${REGISTRY_BASE_URL}:v85272489-d36e1c8-manylinux2014_aarch64@sha256:7325b77aa61538bd0cfca8902cd1f6758f2297a59375b7cc6c478c7177779648"
+  MANYLINUX2014_X86_64: "${REGISTRY_BASE_URL}:v85280965-e932d4a-manylinux2014_x86_64@sha256:dfca83eb7235add3ea0450fc15a6016e1164d39c7847a5611fcfd1757c3a474e"
+  MUSLLINUX_1_2_AARCH64: "${REGISTRY_BASE_URL}:v85281342-e932d4a-musllinux_1_2_aarch64@sha256:771fb5f14156341ff3acd4fd2b8e5b2d02f29e462255ce3671825080c0e4939b"
+  MUSLLINUX_1_2_X86_64: "${REGISTRY_BASE_URL}:v85281369-e932d4a-musllinux_1_2_x86_64@sha256:258486430b2c422d9cf00a48d9dd01dda308404b8f947155b35b7d3ea697cee9"
 
 .PYTHON_VERSIONS: &PYTHON_VERSIONS
   - "3.9"
@@ -17,10 +20,6 @@ variables:
   - "cp312-cp312"
   - "cp313-cp313"
   - "cp314-cp314"
-
-.LINUX_OS_IMAGES: &LINUX_OS_IMAGES
-  - "manylinux2014"
-  - "musllinux_1_2"
 
 .build_base:
   stage: package
@@ -48,26 +47,38 @@ variables:
       - "pywheels/*.whl"
       - "pywheels/*.tar.gz"
 
+"build sdist":
+  extends: .build_base
+  image: "${MANYLINUX2014_AARCH64}"
+  tags: [ "arch:amd64" ]
+  variables:
+    DD_CYTHONIZE: "0"
+    UV_PYTHON: "/opt/python/cp314-cp314/bin/python"
+  script:
+    - uv build --sdist --out-dir pywheels/
+
 "build linux":
   extends: .build_base
-  image: ${REGISTRY_BASE_URL}/${LINUX_OS_IMAGE}_${IMAGE_ARCH}:${IMAGE_TAG}
+  image: ${IMAGE}
   tags: [ "arch:$ARCH_TAG" ]
   parallel:
     matrix:
-      - IMAGE_ARCH: "x86_64"
-        ARCH_TAG: "amd64"
+      - ARCH_TAG: "amd64"
         PYTHON_TAG: *PYTHON_TAGS
-        LINUX_OS_IMAGE: *LINUX_OS_IMAGES
-      - IMAGE_ARCH: "aarch64"
-        ARCH_TAG: "arm64"
+        IMAGE:
+          - "${MANYLINUX2014_AARCH64}"
+          - "${MUSLLINUX_1_2_AARCH64}"
+      - ARCH_TAG: "arm64"
         PYTHON_TAG: *PYTHON_TAGS
-        LINUX_OS_IMAGE: *LINUX_OS_IMAGES
+        IMAGE:
+          - "${MANYLINUX2014_AARCH64}"
+          - "${MUSLLINUX_1_2_AARCH64}"
   script:
     - manylinux-interpreters ensure "${PYTHON_TAG}"
     - export UV_PYTHON="/opt/python/${PYTHON_TAG}/bin/python"
     - .gitlab/scripts/build-wheel.sh
   cache:
-    - key: v0-build-linux-cache-${ARCH_TAG}-${PYTHON_TAG}-${LINUX_OS_IMAGE}
+    - key: v0-build-linux-cache-${ARCH_TAG}-${PYTHON_TAG}-${IMAGE}
       paths:
         - .cache
         - .uv
@@ -88,7 +99,8 @@ variables:
   rules:
     # Skip non-3.14 versions on PRs/feature branches
     - if: '($IS_MAIN_BRANCH == "false") && ($IS_RELEASE_BRANCH == "false") && ($IS_RELEASE == "false") && ($UV_PYTHON != "3.14")'
-      when: never
+      when: manual
+    - when: always
   script:
     - .gitlab/scripts/build-wheel.sh
   cache:
@@ -128,16 +140,6 @@ download_dependency_wheels:
   needs:
     - job: "build linux"
       artifacts: true
-      parallel:
-        matrix:
-          - IMAGE_ARCH: "x86_64"
-            ARCH_TAG: "amd64"
-            PYTHON_TAG: *PYTHON_TAGS
-            LINUX_OS_IMAGE: *LINUX_OS_IMAGES
-          - IMAGE_ARCH: "aarch64"
-            ARCH_TAG: "arm64"
-            PYTHON_TAG: *PYTHON_TAGS
-            LINUX_OS_IMAGE: *LINUX_OS_IMAGES
   variables:
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
   parallel:
@@ -170,8 +172,6 @@ publish-wheels-to-s3:
   stage: package
   needs:
     - job: "build linux"
-      artifacts: true
-    - job: "build macos"
       artifacts: true
   variables:
     BUCKET: dd-trace-py-builds
