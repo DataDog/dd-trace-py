@@ -227,7 +227,7 @@ extern "C"
 
 #if PY_VERSION_HEX >= 0x030e0000
     // Python 3.14+: Use stackpointer and _PyStackRef
-    // We can't use CPython API helpers as we're copying partial structs
+
     inline PyObject* PyGen_yf(PyGenObject* gen, PyObject* frame_addr)
     {
         if (gen->gi_frame_state != FRAME_SUSPENDED_YIELD_FROM) {
@@ -239,26 +239,34 @@ extern "C"
             return nullptr;
         }
 
-        // Get the code object from f_executable.bits to know co_nlocalsplus
-        // Per Python 3.14 release notes (gh-123923): clear LSB to recover PyObject* pointer
+        // CPython asserts the following:
+        // assert(f->stackpointer >  f->localsplus + _PyFrame_GetCode(f)->co_nlocalsplus);
+        // assert(!PyStackRef_IsNull(f->stackpointer[-1]));
+
+        // Though we have to pay the price of copying the code object, we need
+        // to do this to catch the case where the stack is empty, as accessing
+        // frame.stackpointer[-1] would be an undefined behavior.
+        // This is necessary as frame.stacktop is removed in 3.14.
         PyCodeObject code;
         auto code_addr = reinterpret_cast<PyCodeObject*>(BITS_TO_PTR_MASKED(frame.f_executable));
         if (copy_type(code_addr, code)) {
             return nullptr;
         }
 
-        // Calculate addresses in remote process
         uintptr_t frame_addr_uint = reinterpret_cast<uintptr_t>(frame_addr);
         uintptr_t localsplus_addr = frame_addr_uint + offsetof(_PyInterpreterFrame, localsplus);
+        // This computes f->localsplus + code.co_nlocalsplus.
         uintptr_t stackbase_addr = localsplus_addr + code.co_nlocalsplus * sizeof(_PyStackRef);
 
-        // stackpointer is a pointer field - when copied, it contains the remote address
-        // Calculate stacktop from pointer difference
         uintptr_t stackpointer_addr = reinterpret_cast<uintptr_t>(frame.stackpointer);
-        if (stackpointer_addr < stackbase_addr) {
+        // We want stackpointer_addr to be greater than the stackbase_addr,
+        // that is, the stack is not empty.
+        if (stackpointer_addr <= stackbase_addr) {
             return nullptr;
         }
 
+        // We can also calculate stacktop and check that it is within a reasonable range.
+        // Similar to 3.13's stacktop check below.
         int stacktop = (int)((stackpointer_addr - stackbase_addr) / sizeof(_PyStackRef));
 
         if (stacktop < 1 || stacktop > MAX_STACK_SIZE) {
@@ -266,6 +274,7 @@ extern "C"
         }
 
         // Read the top of stack directly from remote memory
+        // This is equivalent to CPython's frame.stackpointer[-1].
         _PyStackRef top_ref;
         if (copy_type(reinterpret_cast<void*>(stackpointer_addr - sizeof(_PyStackRef)), top_ref)) {
             return nullptr;
