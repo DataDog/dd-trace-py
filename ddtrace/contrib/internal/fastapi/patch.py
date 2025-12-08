@@ -34,7 +34,7 @@ def _identity(x):
 
 def _reduce_wrapt_proxy(proxy):
     """Pickle reducer for wrapt proxies.
-    
+
     Returns (callable, args) tuple for pickle reconstruction.
     Using _identity(proxy.__wrapped__) strips the wrapper.
     """
@@ -43,7 +43,7 @@ def _reduce_wrapt_proxy(proxy):
 
 def _register_wrapt_pickle_reducers():
     """Register pickle reducers for wrapt proxy types.
-    
+
     Must be called before FastAPI app is pickled (e.g., by Ray/vLLM).
     """
     global _WRAPT_REDUCERS_REGISTERED
