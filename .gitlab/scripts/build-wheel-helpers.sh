@@ -16,7 +16,7 @@ setup_rust() {
   section_start "install_rust" "Rust toolchain"
   export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:${PATH}"
   if ! command -v rustc &> /dev/null; then
-      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
   fi
   rustup default stable
   which rustc && rustc --version
