@@ -824,11 +824,11 @@ class _TraceContext:
 
     @staticmethod
     def _get_context(trace_id, span_id, trace_flag, ts, meta=None):
-        # type: (int, int, Literal[0,1], Optional[str], Optional[Dict[str, str]]) -> Context
+        # type: (int, int, Optional[Literal[0,1]], Optional[str], Optional[Dict[str, str]]) -> Context
         if meta is None:
             meta = {}
         origin = None
-        sampling_priority = trace_flag  # type: int
+        sampling_priority = trace_flag
         if ts:
             # whitespace is allowed, but whitespace to start or end values should be trimmed
             # e.g. "foo=1 \t , \t bar=2, \t baz=3" -> "foo=1,bar=2,baz=3"
@@ -853,7 +853,10 @@ class _TraceContext:
                     if lpid:
                         meta[LAST_DD_PARENT_ID_KEY] = lpid
 
-                    sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts, origin)
+                    if trace_flag is not None:
+                        sampling_priority = _TraceContext._get_sampling_priority(
+                            trace_flag, sampling_priority_ts, origin
+                        )
                 else:
                     log.debug("no dd list member in tracestate from incoming request: %r", ts)
 
