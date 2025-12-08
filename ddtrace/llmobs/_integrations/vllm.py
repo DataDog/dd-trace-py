@@ -20,7 +20,6 @@ from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
-
 from ddtrace.llmobs._constants import TIME_IN_MODEL_DECODE_METRIC_KEY
 from ddtrace.llmobs._constants import TIME_IN_MODEL_INFERENCE_METRIC_KEY
 from ddtrace.llmobs._constants import TIME_IN_MODEL_PREFILL_METRIC_KEY
