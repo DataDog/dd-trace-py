@@ -1,7 +1,6 @@
 import itertools
 import math
 import os
-import sys
 import typing as t
 
 from ddtrace.ext.git import COMMIT_SHA
@@ -65,12 +64,6 @@ def _check_for_stack_v2_available():
 
 
 def _parse_profiling_enabled(raw: str) -> bool:
-    # We keep the default value to be gated by Python version, as the Profiler
-    # relies on CPython internal structs and APIs that could change between
-    # different Python versions. We disable it by default for Python 3.15+
-    if sys.version_info >= (3, 15):
-        return False
-
     # Try to derive whether we're enabled via DD_INJECTION_ENABLED
     # - Are we injected (DD_INJECTION_ENABLED set)
     # - Is profiling enabled ("profiler" in the list)
