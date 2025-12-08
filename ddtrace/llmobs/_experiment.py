@@ -489,9 +489,11 @@ class Experiment:
             except Exception:
                 span.set_exc_info(*sys.exc_info())
             self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
-            span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, safe_json(record["expected_output"]))
+
+            span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
             if "metadata" in record:
                 span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
+
             return {
                 "idx": idx,
                 "span_id": span_id,

@@ -1634,9 +1634,9 @@ def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test
     for key in ("span_id", "trace_id", "parent_id", "start_ns", "duration", "metrics"):
         assert event[key] == mock.ANY
     assert event["status"] == "ok"
-    assert event["meta"]["input"] == '{"prompt": "What is the capital of France?"}'
-    assert event["meta"]["output"] == '{"prompt": "What is the capital of France?"}'
-    assert event["meta"]["expected_output"] == '{"answer": "Paris"}'
+    assert event["meta"]["input"] == {"prompt": "What is the capital of France?"}
+    assert event["meta"]["output"] == {"prompt": "What is the capital of France?"}
+    assert event["meta"]["expected_output"] == {"answer": "Paris"}
     assert "dataset_name:{}".format(test_dataset_one_record.name) in event["tags"]
     assert "project_name:test-project" in event["tags"]
     assert "experiment_name:test_experiment" in event["tags"]
@@ -1660,9 +1660,9 @@ def test_experiment_span_multi_run_tags(llmobs, llmobs_events, test_dataset_one_
         for key in ("span_id", "trace_id", "parent_id", "start_ns", "duration", "metrics"):
             assert event[key] == mock.ANY
         assert event["status"] == "ok"
-        assert event["meta"]["input"] == '{"prompt": "What is the capital of France?"}'
-        assert event["meta"]["output"] == '{"prompt": "What is the capital of France?"}'
-        assert event["meta"]["expected_output"] == '{"answer": "Paris"}'
+        assert event["meta"]["input"] == {"prompt": "What is the capital of France?"}
+        assert event["meta"]["output"] == {"prompt": "What is the capital of France?"}
+        assert event["meta"]["expected_output"] == {"answer": "Paris"}
         assert "dataset_name:{}".format(test_dataset_one_record.name) in event["tags"]
         assert "project_name:test-project" in event["tags"]
         assert "experiment_name:test_experiment" in event["tags"]
