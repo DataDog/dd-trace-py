@@ -249,11 +249,11 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
 #if PY_VERSION_HEX >= 0x030e0000
     // Python 3.14+: f_executable is _PyStackRef, access bits directly
     // We can't use CPython API helpers as we're copying partial structs
-    const int lasti =
-      (static_cast<int>(
-        (frame_addr->instr_ptr - 1 -
-         reinterpret_cast<_Py_CODEUNIT*>((reinterpret_cast<PyCodeObject*>(frame_addr->f_executable.bits)))))) -
-      offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
+    PyCodeObject* code_obj = reinterpret_cast<PyCodeObject*>(frame_addr->f_executable.bits);
+    _Py_CODEUNIT* code_units = reinterpret_cast<_Py_CODEUNIT*>(code_obj);
+    int instr_offset = static_cast<int>(frame_addr->instr_ptr - 1 - code_units);
+    int code_offset = offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
+    const int lasti = instr_offset - code_offset;
     auto maybe_frame = Frame::get(reinterpret_cast<PyCodeObject*>(frame_addr->f_executable.bits), lasti);
     if (!maybe_frame) {
         return ErrorKind::FrameError;
