@@ -271,20 +271,6 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate, uintptr_t tstate_addr)
     }
 #endif
 
-#if PY_VERSION_HEX >= 0x030e0000
-    // Python 3.14+: If no leaf tasks found but we have tasks, unwind all tasks that aren't in parent_tasks
-    // This handles the case where all tasks are waiting on other Tasks (not Futures/Coroutines)
-    // In normal asyncio usage, tasks awaiting Futures/Coroutines should have waiter=NULL and be leaf tasks
-    // But if all tasks are waiting on other Tasks, we need this fallback
-    if (leaf_tasks.empty() && !all_tasks.empty()) {
-        for (auto& task : all_tasks) {
-            if (parent_tasks.find(task->origin) == parent_tasks.end()) {
-                leaf_tasks.push_back(std::ref(*task));
-            }
-        }
-    }
-#endif
-
     for (auto& leaf_task : leaf_tasks) {
         auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu);
         auto& stack = stack_info->stack;
