@@ -126,6 +126,7 @@ finalize() {
 # Test wheel
 test_wheel() {
   section_start "test_wheel" "Testing wheel"
+  export UV_LINK_MODE=copy
   export TEST_WHEEL_DIR="${WORK_DIR}/test_wheel"
   mkdir -p "${TEST_WHEEL_DIR}"
   export VENV_PATH="${TEST_WHEEL_DIR}/venv"
@@ -142,7 +143,7 @@ test_wheel() {
   echo "which python: $(which python)"
   "${VENV_PATH}/bin/python" --version
   echo "=== pip freeze ==="
-  "${VENV_PATH}/bin/python" -m pip freeze
+  uv pip freeze
   echo "=== site-packages contents ==="
   "${VENV_PATH}/bin/python" -c "import site; print('site-packages:', site.getsitepackages())"
   ls -la "${VENV_PATH}/lib/"*/site-packages/ | head -30

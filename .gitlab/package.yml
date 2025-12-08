@@ -94,7 +94,7 @@ variables:
   variables:
     SYSTEM_VERSION_COMPAT: "0"
   rules:
-    - if: ($IS_MAIN_BRANCH == "false") && ($IS_RELEASE_BRANCH == "false") && ($IS_RELEASE == "false")
+    - if: $IS_MAIN_BRANCH == "false" && $IS_RELEASE_BRANCH == "false" && $IS_RELEASE == "false"
       when: manual
     - when: always
   script:
