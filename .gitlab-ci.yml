@@ -51,6 +51,7 @@ pipeline variables:
       aud: dd-octo-sts
   variables:
     GIT_STRATEGY: none
+    GH_REPO: DataDog/dd-trace-py
   script:
     - |
       if [ -z ${GH_TOKEN} ]
