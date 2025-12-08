@@ -92,6 +92,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "antithesis_sdk"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dafc0460f582169b1414074fd82bedbda60456fb4df0a78dc7fef1306e732ea3"
+dependencies = [
+ "libc",
+ "libloading",
+ "linkme",
+ "once_cell",
+ "rand",
+ "rustc_version_runtime",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "anyhow"
 version = "1.0.100"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -216,8 +232,8 @@ dependencies = [
 
 [[package]]
 name = "build_common"
-version = "24.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+version = "24.0.1"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#8a63fd85f89ea274f0a51a8930ee21a94698384a"
 dependencies = [
  "cbindgen",
  "serde",
@@ -512,7 +528,7 @@ dependencies = [
 [[package]]
 name = "datadog-ffe"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#8a63fd85f89ea274f0a51a8930ee21a94698384a"
 dependencies = [
  "chrono",
  "derive_more",
@@ -1225,7 +1241,7 @@ checksum = "2874a2af47a2325c2001a6e6fad9b16a53b802102b528163885171cf92b15976"
 [[package]]
 name = "libdd-alloc"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#8a63fd85f89ea274f0a51a8930ee21a94698384a"
 dependencies = [
  "allocator-api2",
  "libc",
@@ -1235,7 +1251,7 @@ dependencies = [
 [[package]]
 name = "libdd-common"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#8a63fd85f89ea274f0a51a8930ee21a94698384a"
 dependencies = [
  "anyhow",
  "cc",
@@ -1267,8 +1283,8 @@ dependencies = [
 
 [[package]]
 name = "libdd-common-ffi"
-version = "24.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+version = "24.0.1"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#8a63fd85f89ea274f0a51a8930ee21a94698384a"
 dependencies = [
  "anyhow",
  "build_common",
@@ -1282,7 +1298,7 @@ dependencies = [
 [[package]]
 name = "libdd-crashtracker"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#8a63fd85f89ea274f0a51a8930ee21a94698384a"
 dependencies = [
  "anyhow",
  "backtrace",
@@ -1314,8 +1330,9 @@ dependencies = [
 [[package]]
 name = "libdd-data-pipeline"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#8a63fd85f89ea274f0a51a8930ee21a94698384a"
 dependencies = [
+ "antithesis_sdk",
  "anyhow",
  "arc-swap",
  "bytes",
@@ -1345,7 +1362,7 @@ dependencies = [
 [[package]]
 name = "libdd-ddsketch"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#8a63fd85f89ea274f0a51a8930ee21a94698384a"
 dependencies = [
  "prost",
 ]
@@ -1353,7 +1370,7 @@ dependencies = [
 [[package]]
 name = "libdd-dogstatsd-client"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#8a63fd85f89ea274f0a51a8930ee21a94698384a"
 dependencies = [
  "anyhow",
  "cadence",
@@ -1366,7 +1383,7 @@ dependencies = [
 [[package]]
 name = "libdd-library-config"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#8a63fd85f89ea274f0a51a8930ee21a94698384a"
 dependencies = [
  "anyhow",
  "memfd",
@@ -1380,7 +1397,7 @@ dependencies = [
 [[package]]
 name = "libdd-log"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#8a63fd85f89ea274f0a51a8930ee21a94698384a"
 dependencies = [
  "chrono",
  "tracing",
@@ -1391,14 +1408,17 @@ dependencies = [
 [[package]]
 name = "libdd-profiling"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#8a63fd85f89ea274f0a51a8930ee21a94698384a"
 dependencies = [
+ "allocator-api2",
  "anyhow",
  "bitmaps",
  "byteorder",
  "bytes",
  "chrono",
+ "crossbeam-utils",
  "futures",
+ "hashbrown 0.16.0",
  "http",
  "http-body-util",
  "hyper",
@@ -1409,11 +1429,13 @@ dependencies = [
  "libdd-profiling-protobuf",
  "lz4_flex",
  "mime",
+ "parking_lot",
  "prost",
  "rustc-hash 1.1.0",
  "serde",
  "serde_json",
  "target-triple",
+ "thiserror 2.0.17",
  "tokio",
  "tokio-util",
  "zstd",
@@ -1422,7 +1444,7 @@ dependencies = [
 [[package]]
 name = "libdd-profiling-ffi"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#8a63fd85f89ea274f0a51a8930ee21a94698384a"
 dependencies = [
  "anyhow",
  "build_common",
@@ -1441,7 +1463,7 @@ dependencies = [
 [[package]]
 name = "libdd-profiling-protobuf"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#8a63fd85f89ea274f0a51a8930ee21a94698384a"
 dependencies = [
  "prost",
 ]
@@ -1449,7 +1471,7 @@ dependencies = [
 [[package]]
 name = "libdd-telemetry"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#8a63fd85f89ea274f0a51a8930ee21a94698384a"
 dependencies = [
  "anyhow",
  "base64",
@@ -1475,7 +1497,7 @@ dependencies = [
 [[package]]
 name = "libdd-tinybytes"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#8a63fd85f89ea274f0a51a8930ee21a94698384a"
 dependencies = [
  "serde",
 ]
@@ -1483,7 +1505,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-normalization"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#8a63fd85f89ea274f0a51a8930ee21a94698384a"
 dependencies = [
  "anyhow",
  "libdd-trace-protobuf",
@@ -1492,7 +1514,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-protobuf"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#8a63fd85f89ea274f0a51a8930ee21a94698384a"
 dependencies = [
  "prost",
  "serde",
@@ -1502,7 +1524,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-stats"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#8a63fd85f89ea274f0a51a8930ee21a94698384a"
 dependencies = [
  "hashbrown 0.15.5",
  "libdd-ddsketch",
@@ -1513,7 +1535,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-utils"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v24.0.0#3445414c9ba4fefc76be46cf7e2f998986592892"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#8a63fd85f89ea274f0a51a8930ee21a94698384a"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1547,6 +1569,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "linkme"
+version = "0.3.35"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e3283ed2d0e50c06dd8602e0ab319bb048b6325d0bba739db64ed8205179898"
+dependencies = [
+ "linkme-impl",
+]
+
+[[package]]
+name = "linkme-impl"
+version = "0.3.35"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5cec0ec4228b4853bb129c84dbf093a27e6c7a20526da046defc334a1b017f7"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1557,6 +1599,15 @@ name = "litemap"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6373607a59f0be73a39b6fe456b8192fcc3585f602af20751600e974dd455e77"
+
+[[package]]
+name = "lock_api"
+version = "0.4.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "224399e74b87b5f3557511d98dff8b14089b3dadafcab6bb93eab67d3aace965"
+dependencies = [
+ "scopeguard",
+]
 
 [[package]]
 name = "log"
@@ -1773,6 +1824,29 @@ checksum = "30d5b2194ed13191c1999ae0704b7839fb18384fa22e49b57eeaa97d79ce40da"
 dependencies = [
  "libc",
  "winapi",
+]
+
+[[package]]
+name = "parking_lot"
+version = "0.12.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93857453250e3077bd71ff98b6a65ea6621a19bb0f559a85248955ac12c45a1a"
+dependencies = [
+ "lock_api",
+ "parking_lot_core",
+]
+
+[[package]]
+name = "parking_lot_core"
+version = "0.9.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "redox_syscall",
+ "smallvec",
+ "windows-link 0.2.1",
 ]
 
 [[package]]
@@ -2031,6 +2105,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "redox_syscall"
+version = "0.5.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d"
+dependencies = [
+ "bitflags",
+]
+
+[[package]]
 name = "regex"
 version = "1.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2122,6 +2205,25 @@ name = "rustc-hash"
 version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "357703d41365b4b27c590e3ed91eabb1b663f07c4c084095e60cbed4362dff0d"
+
+[[package]]
+name = "rustc_version"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92"
+dependencies = [
+ "semver",
+]
+
+[[package]]
+name = "rustc_version_runtime"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2dd18cd2bae1820af0b6ad5e54f4a51d0f3fcc53b05f845675074efcc7af071d"
+dependencies = [
+ "rustc_version",
+ "semver",
+]
 
 [[package]]
 name = "rustix"
@@ -2230,6 +2332,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "scopeguard"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
+
+[[package]]
 name = "security-framework"
 version = "3.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2251,6 +2359,12 @@ dependencies = [
  "core-foundation-sys",
  "libc",
 ]
+
+[[package]]
+name = "semver"
+version = "1.0.27"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d767eb0aabc880b29956c35734170f26ed551a859dbd361d140cdbeca61ab1e2"
 
 [[package]]
 name = "serde"
