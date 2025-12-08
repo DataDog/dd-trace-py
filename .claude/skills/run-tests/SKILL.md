@@ -26,6 +26,14 @@ Use this skill when you have:
 - Modified test infrastructure or configuration
 - Want to verify changes don't break existing functionality
 
+## Key Principles
+
+1. **Always use the run-tests skill** when testing code changes - it's optimized for intelligent suite discovery
+2. **Never run pytest directly** - bypasses the project's test infrastructure (use `scripts/run-tests` or `riot` via `scripts/ddtest`)
+3. **Minimal venvs for iteration** - run 1-2 venvs initially, expand only if needed
+4. **Use `--dry-run` first** - see what would run before executing
+5. **Follow official docs** - `docs/contributing-testing.rst` is the source of truth for testing procedures
+
 ## How This Skill Works
 
 ### Step 1: Identify Changed Files
@@ -76,7 +84,7 @@ When you modify files like:
 #### For Test-Only Changes
 When you modify `tests/` files (but not test infrastructure):
 - Run only the specific test files/functions modified
-- Use pytest args: `-- -k test_name` or direct test file paths
+- Use pytest args: `-- -- -k test_name` or direct test file paths
 
 #### For Test Infrastructure Changes
 When you modify:
@@ -113,8 +121,18 @@ This will:
 
 For re-running specific tests:
 ```bash
-scripts/run-tests --venv <hash> -- -vv -k test_name
+scripts/run-tests --venv <hash> -- -- -vv -k test_name
 ```
+
+## When Tests Fail
+
+When you encounter test failures, follow this systematic approach:
+
+1. **Review the failure details carefully** - Don't just skim the error, understand what's actually failing
+2. **Understand what's failing** - Don't blindly re-run; analyze the root cause
+3. **Make code changes** - Fix the underlying issue
+4. **Re-run with more verbosity if needed** - Use `-vv` or `-vvv` for detailed output
+5. **Iterate until tests pass** - Repeat the process with each fix
 
 ## Venv Selection Strategy in Detail
 
@@ -225,7 +243,7 @@ scripts/run-tests --list tests/contrib/flask/test_views.py
 # Output shows: contrib::flask suite
 
 # Run just the specific test:
-scripts/run-tests --venv flask_py311 -- -vv tests/contrib/flask/test_views.py
+scripts/run-tests --venv flask_py311 -- -- -vv tests/contrib/flask/test_views.py
 ```
 
 ### Example 4: Iterating on a Failing Test
@@ -233,7 +251,7 @@ scripts/run-tests --venv flask_py311 -- -vv tests/contrib/flask/test_views.py
 First run shows one test failing:
 
 ```bash
-scripts/run-tests --venv flask_py311 -- -vv -k test_view_called_twice
+scripts/run-tests --venv flask_py311 -- -- -vv -k test_view_called_twice
 # Focused on the specific failing test with verbose output
 ```
 
@@ -255,13 +273,42 @@ scripts/run-tests --venv flask_py311 -- -vv -k test_view_called_twice
 - **Run tests without changes saved**: Make sure edits are saved first
 - **Iterate blindly**: Understand what's failing before re-running
 
+## Additional Testing Resources
+
+**For comprehensive testing guidance, refer to the contributing documentation:**
+
+- **[docs/contributing-testing.rst](../../docs/contributing-testing.rst)** - Detailed testing guidelines
+  - What kind of tests to write (unit tests, integration tests, e2e tests)
+  - When to write tests (feature development, bug fixes)
+  - Where to put tests in the repository
+  - Prerequisites (Docker, uv)
+  - Complete `scripts/run-tests` usage examples
+  - Riot environment management details
+  - Running specific test files and functions
+  - Test debugging strategies
+
+- **[docs/contributing.rst](../../docs/contributing.rst)** - PR and testing requirements
+  - All changes need tests or documented testing strategy
+  - How tests fit into the PR review process
+  - Testing expectations for different types of changes
+
+- **[docs/contributing-design.rst](../../docs/contributing-design.rst)** - Test architecture context
+  - How products, integrations, and core interact
+  - Where different types of tests should live
+  - Testing patterns for each library component
+
+**When to reference these docs:**
+- First time writing tests for this project → Read `contributing-testing.rst`
+- Understanding test requirements for PRs → Read `contributing.rst`
+- Need context on test architecture → Read `contributing-design.rst`
+
 ## Troubleshooting
 
 ### Docker services won't start
 ```bash
 # Manually check/stop services:
-docker-compose ps
-docker-compose down
+docker compose ps
+docker compose down
 ```
 
 ### Can't find matching suites
@@ -283,7 +330,7 @@ The `scripts/run-tests` system:
 - Uses `riot` to manage multiple Python/package combinations as venvs
 - Each venv is a self-contained environment
 - Docker services are managed per suite lifecycle
-- Tests can pass optional pytest arguments with `--`
+- Tests can pass optional pytest arguments with `-- --`
 
 ### Supported Suite Types
 

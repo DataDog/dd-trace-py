@@ -9,6 +9,7 @@ from ddtrace import config
 from ddtrace import version
 from ddtrace.internal import forksafe
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.process_tags import process_tags
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.crashtracker import config as crashtracker_config
@@ -53,9 +54,11 @@ def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
     runtime_version = platform.python_version()
     if runtime_version:
         tags["runtime_version"] = runtime_version
-    library_version = version.get_version()
+    library_version = version.__version__
     if library_version:
         tags["library_version"] = library_version
+    if process_tags:
+        tags["process_tags"] = process_tags
 
     for k, v in crashtracker_config.tags.items():
         if k and v:
@@ -117,9 +120,11 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
     )
 
     # Create crashtracker receiver configuration
+    # Pass all environment variables to the receiver process so it can access
+    # all env vars since it's spawned using execve() and not fork()
     receiver_config = CrashtrackerReceiverConfig(
         [],  # args
-        {},  # env
+        dict(os.environ),  # env - pass all environment variables
         dd_crashtracker_receiver,  # path_to_receiver_binary
         crashtracker_config.stderr_filename,
         crashtracker_config.stdout_filename,
@@ -127,7 +132,7 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
 
     tags = _get_tags(additional_tags)
 
-    metadata = CrashtrackerMetadata("dd-trace-py", version.get_version(), "python", tags)
+    metadata = CrashtrackerMetadata("dd-trace-py", version.__version__, "python", tags)
 
     return config, receiver_config, metadata
 
@@ -149,6 +154,11 @@ def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
         if config is None or receiver_config is None or metadata is None:
             print("Failed to start crashtracker: failed to construct crashtracker configuration", file=sys.stderr)
             return False
+
+        # TODO: Add this back in post Code Freeze (need to update config registry)
+        # crashtracker_init(
+        #     config, receiver_config, metadata, emit_runtime_stacks=crashtracker_config.emit_runtime_stacks
+        # )
 
         crashtracker_init(config, receiver_config, metadata)
 

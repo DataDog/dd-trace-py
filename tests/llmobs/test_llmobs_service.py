@@ -1532,6 +1532,11 @@ def test_service_enable_does_not_start_evaluator_runner():
         llmobs_service.disable()
 
 
+def test_export_span_when_llmobs_is_disabled_returns_none(llmobs):
+    llmobs.disable()
+    assert llmobs.export_span() is None
+
+
 def test_submit_evaluation_no_ml_app_raises(llmobs):
     with override_global_config(dict(_llmobs_ml_app="")):
         with pytest.raises(Exception) as excinfo:
@@ -1627,6 +1632,13 @@ def test_submit_evaluation_empty_label_raises_error(llmobs, mock_llmobs_logs):
     with pytest.raises(ValueError, match="label must be the specified name of the evaluation metric."):
         llmobs.submit_evaluation(
             span={"span_id": "123", "trace_id": "456"}, label="", metric_type="categorical", value="high"
+        )
+
+
+def test_submit_evaluation_label_value_with_a_period_raises_error(llmobs, mock_llmobs_logs):
+    with pytest.raises(ValueError, match="label value must not contain a '.'."):
+        llmobs.submit_evaluation(
+            span={"span_id": "123", "trace_id": "456"}, label="toxicity.0", metric_type="categorical", value="high"
         )
 
 

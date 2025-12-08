@@ -453,6 +453,33 @@ def test_crashtracker_tags_required():
             assert k.encode() in report["body"], k
             assert v.encode() in report["body"], v
 
+        assert "process_tags".encode() not in report["body"]
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess):
+    with utils.with_test_agent() as client:
+        env = os.environ.copy()
+        env["DD_CRASHTRACKING_EMIT_RUNTIME_STACKS"] = "true"
+        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
+
+        # Check for expected exit condition
+        assert not stdout
+        assert not stderr
+        assert exitcode == -11
+
+        # Check for crash ping
+        _ping = utils.get_crash_ping(client)
+
+        # Check for crash report
+        report = utils.get_crash_report(client)
+        assert b"stacktrace_string" in report["body"]
+
+        version = sys.version_info[:2]
+        # Runtime stacktrace is available only on Python 3.11 and 3.12
+        expected = b"in string_at" if (3, 11) <= version <= (3, 12) else b"<python_runtime_stacktrace_unavailable>"
+        assert expected in report["body"], report["body"]
+
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
@@ -594,6 +621,39 @@ def test_crashtracker_user_tags_core():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(env={"DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": "True"})
+def test_crashtracker_process_tags():
+    # Tests process_tag ingestion in the core API
+    import ctypes
+    import os
+    import sys
+
+    import tests.internal.crashtracker.utils as utils
+
+    with utils.with_test_agent() as client:
+        pid = os.fork()
+        if pid == 0:
+            ct = utils.CrashtrackerWrapper(base_name="tags_required")
+            assert ct.start()
+            stdout_msg, stderr_msg = ct.logs()
+            assert not stdout_msg
+            assert not stderr_msg
+
+            ctypes.string_at(0)
+            sys.exit(-1)
+
+        # Check for crash ping
+        _ping = utils.get_crash_ping(client)
+
+        # Check for crash report
+        report = utils.get_crash_report(client)
+        assert b"string_at" in report["body"]
+
+        # Verify process_tags are present in crash report
+        assert "process_tags".encode() in report["body"]
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.subprocess()
 def test_crashtracker_echild_hang():
     """
@@ -730,3 +790,44 @@ def test_crashtracker_no_zombies():
                 break
             except Exception as e:
                 pytest.fail("Unexpected exception: %s" % e)
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess()
+def test_crashtracker_receiver_env_inheritance():
+    """
+    The receiver is spawned using execve() and doesn't automatically inherit the
+    env, so we need to ensure all env variables are explicitly passed
+    when building the receiver config.
+    """
+    import ctypes
+    import os
+
+    import tests.internal.crashtracker.utils as utils
+
+    test_env_key = "MY_TEST_ENV_VAR"
+    test_env_value = "my_test_value"
+    os.environ[test_env_key] = test_env_value
+
+    with utils.with_test_agent() as client:
+        pid = os.fork()
+        if pid == 0:
+            assert os.environ.get(test_env_key) == test_env_value
+
+            ct = utils.CrashtrackerWrapper(base_name="env_inheritance")
+            assert ct.start()
+            stdout_msg, stderr_msg = ct.logs()
+            assert not stdout_msg, stdout_msg
+            assert not stderr_msg, stderr_msg
+
+            ctypes.string_at(0)
+            sys.exit(-1)
+
+        # Check for crash ping
+        _ping = utils.get_crash_ping(client)
+        # Check for crash report
+        report = utils.get_crash_report(client)
+        assert b"string_at" in report["body"]
+
+    # Clean up
+    os.environ.pop(test_env_key, None)

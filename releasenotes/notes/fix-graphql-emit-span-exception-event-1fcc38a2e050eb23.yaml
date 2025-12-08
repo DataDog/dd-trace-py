@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    exception replay: ensure exception information is captured when exceptions
+    are raised by the GraphQL client library.

@@ -104,10 +104,17 @@ class V2LogWriter(PeriodicService):
                     self._url,
                     resp.status,
                     resp.read(),
+                    extra={"send_to_telemetry": False},
                 )
             else:
                 logger.debug("sent %d logs to %r", num_logs, self._url)
         except Exception:
-            logger.error("failed to send %d logs to %r", num_logs, self._intake, exc_info=True)
+            logger.error(
+                "failed to send %d logs to %r",
+                num_logs,
+                self._intake,
+                exc_info=True,
+                extra={"send_to_telemetry": False},
+            )
         finally:
             conn.close()

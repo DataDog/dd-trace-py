@@ -3,12 +3,13 @@ from enum import Enum
 import glob
 import os
 import re
-from typing import Any
-from typing import Dict
+from typing import TYPE_CHECKING
 from typing import List
 from typing import Optional
+from typing import Sequence
 from typing import Tuple
 from typing import Union
+from typing import cast
 
 import zstandard as zstd
 
@@ -28,18 +29,21 @@ def _protobuf_version() -> Tuple[int, int, int]:
     return parse_version(google.protobuf.__version__)
 
 
-# Load the appropriate pprof_pb2 module
-_pb_version = _protobuf_version()
-for v in [(4, 21), (3, 19), (3, 12)]:
-    if _pb_version >= v:
-        import sys
-
-        pprof_module = "tests.profiling.collector.pprof_%s%s_pb2" % v
-        __import__(pprof_module)
-        pprof_pb2 = sys.modules[pprof_module]
-        break
+if TYPE_CHECKING:
+    from tests.profiling.collector import pprof_pb2  # pyright: ignore[reportMissingModuleSource]
 else:
-    from tests.profiling.collector import pprof_3_pb2 as pprof_pb2  # type: ignore[no-redef]
+    # Load the appropriate pprof_pb2 module
+    _pb_version = _protobuf_version()
+    for v in [(4, 21), (3, 19), (3, 12)]:
+        if _pb_version >= v:
+            import sys
+
+            pprof_module = "tests.profiling.collector.pprof_%s%s_pb2" % v
+            __import__(pprof_module)
+            pprof_pb2 = sys.modules[pprof_module]
+            break
+    else:
+        from tests.profiling.collector import pprof_3_pb2 as pprof_pb2  # type: ignore[no-redef]
 
 
 # Clamp the value to the range [0, UINT64_MAX] as done in clamp_to_uint64_unsigned
@@ -58,13 +62,15 @@ def reinterpret_int_as_int64(value: int) -> int:
 
 
 class StackLocation:
-    def __init__(self, function_name: str, filename: str, line_no: int):
+    def __init__(self, function_name: str, filename: str, line_no: int) -> None:
         self.function_name = function_name
         self.filename = filename
         self.line_no = line_no
 
-    def __repr__(self):
-        return f"{self.filename}:{self.function_name}:{self.line_no}"
+    def __repr__(self) -> str:
+        filename = self.filename or "<any file>"
+        line_no = str(self.line_no) if self.line_no != -1 else "<any line>"
+        return f"{filename}:{self.function_name}:{line_no}"
 
 
 class LockEventType(Enum):
@@ -79,11 +85,11 @@ class EventBaseClass:
         local_root_span_id: Optional[int] = None,
         trace_type: Optional[str] = None,
         trace_endpoint: Optional[str] = None,
-        thread_id: Union[int, None] = None,
-        thread_name: Union[str, None] = None,
-        class_name: Union[str, None] = None,
-        task_id: Union[int, None] = None,
-        task_name: Union[str, None] = None,
+        thread_id: Optional[int] = None,
+        thread_name: Optional[str] = None,
+        class_name: Optional[str] = None,
+        task_id: Optional[int] = None,
+        task_name: Optional[str] = None,
     ):
         self.span_id = reinterpret_int_as_int64(clamp_to_uint64(span_id)) if span_id else None
         self.local_root_span_id = (
@@ -99,7 +105,9 @@ class EventBaseClass:
 
 
 class StackEvent(EventBaseClass):
-    def __init__(self, locations: Optional[Any] = None, exception_type=None, *args, **kwargs):
+    def __init__(
+        self, locations: Optional[Sequence[StackLocation]] = None, exception_type: Optional[str] = None, *args, **kwargs
+    ) -> None:
         self.locations = locations
         self.exception_type = exception_type
         super().__init__(*args, **kwargs)
@@ -135,7 +143,7 @@ class LockReleaseEvent(LockEvent):
         super().__init__(event_type=LockEventType.RELEASE, *args, **kwargs)
 
 
-def parse_newest_profile(filename_prefix: str) -> pprof_pb2.Profile:
+def parse_newest_profile(filename_prefix: str, assert_samples: bool = True) -> pprof_pb2.Profile:
     """Parse the newest profile that has given filename prefix. The profiler
     outputs profile file with following naming convention:
     <filename_prefix>.<pid>.<counter>.pprof, and in tests, we'd want to parse
@@ -151,7 +159,10 @@ def parse_newest_profile(filename_prefix: str) -> pprof_pb2.Profile:
         serialized_data = dctx.stream_reader(fp).read()
     profile = pprof_pb2.Profile()
     profile.ParseFromString(serialized_data)
-    assert len(profile.sample) > 0, "No samples found in profile"
+
+    if assert_samples:
+        assert len(profile.sample) > 0, "No samples found in profile"
+
     return profile
 
 
@@ -170,7 +181,7 @@ def get_samples_with_label_key(profile: pprof_pb2.Profile, key: str) -> List[ppr
     return [sample for sample in profile.sample if get_label_with_key(profile.string_table, sample, key)]
 
 
-def get_label_with_key(string_table: Dict[int, str], sample: pprof_pb2.Sample, key: str) -> pprof_pb2.Label:
+def get_label_with_key(string_table: Sequence[str], sample: pprof_pb2.Sample, key: str) -> Optional[pprof_pb2.Label]:
     return next((label for label in sample.label if string_table[label.key] == key), None)
 
 
@@ -196,11 +207,13 @@ def assert_lock_events_of_type(
 
     # sort the samples and expected events by lock name, which is <filename>:<line>:<lock_name>
     # when the lock_name exists, otherwise <filename>:<line>
-    assert all(
-        get_label_with_key(profile.string_table, sample, "lock name") for sample in samples
-    ), "All samples should have the label 'lock name'"
-    samples = {
-        profile.string_table[get_label_with_key(profile.string_table, sample, "lock name").str]: sample
+    assert all(get_label_with_key(profile.string_table, sample, "lock name") for sample in samples), (
+        "All samples should have the label 'lock name'"
+    )
+    samples_dict = {
+        profile.string_table[
+            cast(pprof_pb2.Label, get_label_with_key(profile.string_table, sample, "lock name")).str
+        ]: sample
         for sample in samples
     }
     for expected_event in expected_events:
@@ -208,8 +221,8 @@ def assert_lock_events_of_type(
             key = "{}:{}".format(expected_event.filename, expected_event.linenos.create)
         else:
             key = "{}:{}:{}".format(expected_event.filename, expected_event.linenos.create, expected_event.lock_name)
-        assert key in samples, "Expected lock event {} not found".format(key)
-        assert_lock_event(profile, samples[key], expected_event)
+        assert key in samples_dict, "Expected lock event {} not found".format(key)
+        assert_lock_event(profile, samples_dict[key], expected_event)
 
 
 def assert_lock_events(
@@ -223,7 +236,7 @@ def assert_lock_events(
         assert_lock_events_of_type(profile, expected_release_events, LockEventType.RELEASE)
 
 
-def assert_str_label(string_table: Dict[int, str], sample, key: str, expected_value: Optional[str]):
+def assert_str_label(string_table: Sequence[str], sample, key: str, expected_value: Optional[str]):
     if expected_value:
         label = get_label_with_key(string_table, sample, key)
         # We use fullmatch to ensure that the whole string matches the expected value
@@ -234,13 +247,14 @@ def assert_str_label(string_table: Dict[int, str], sample, key: str, expected_va
         )
 
 
-def assert_num_label(string_table: Dict[int, str], sample, key: str, expected_value: Optional[int]):
+def assert_num_label(string_table: Sequence[str], sample, key: str, expected_value: Optional[int]):
     if expected_value:
         label = get_label_with_key(string_table, sample, key)
+        assert label is not None, "Label {} not found in sample".format(key)
         assert label.num == expected_value, "Expected {} got {} for label {}".format(expected_value, label.num, key)
 
 
-def assert_base_event(string_table: Dict[int, str], sample: pprof_pb2.Sample, expected_event: EventBaseClass):
+def assert_base_event(string_table: Sequence[str], sample: pprof_pb2.Sample, expected_event: EventBaseClass):
     assert_num_label(string_table, sample, "span id", expected_event.span_id)
     assert_num_label(string_table, sample, "local root span id", expected_event.local_root_span_id)
     assert_str_label(string_table, sample, "trace type", expected_event.trace_type)
@@ -256,6 +270,7 @@ def assert_lock_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expe
     # Check that the sample has label "lock name" with value
     # filename:self.lock_linenos.create:lock_name
     lock_name_label = get_label_with_key(profile.string_table, sample, "lock name")
+    assert lock_name_label is not None, "Lock name label not found in sample"
     if expected_event.lock_name is None:
         expected_lock_name = "{}:{}".format(expected_event.filename, expected_event.linenos.create)
     else:
@@ -288,7 +303,9 @@ def assert_lock_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expe
     assert_base_event(profile.string_table, sample, expected_event)
 
 
-def assert_sample_has_locations(profile, sample, expected_locations: Optional[List[StackLocation]]):
+def assert_sample_has_locations(
+    profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expected_locations: Optional[Sequence[StackLocation]]
+) -> None:
     if not expected_locations:
         return
 
@@ -310,11 +327,16 @@ def assert_sample_has_locations(profile, sample, expected_locations: Optional[Li
         sample_loc_strs.append(f"{filename}:{function_name}:{line_no}")
 
         if expected_locations_idx < len(expected_locations):
-            if (
-                function_name.endswith(expected_locations[expected_locations_idx].function_name)
-                and re.fullmatch(expected_locations[expected_locations_idx].filename, filename)
-                and line_no == expected_locations[expected_locations_idx].line_no
-            ):
+            function_name_matches = function_name.endswith(expected_locations[expected_locations_idx].function_name)
+            filename_matches = expected_locations[expected_locations_idx].filename == "" or re.fullmatch(
+                expected_locations[expected_locations_idx].filename, filename
+            )
+            line_no_matches = (
+                expected_locations[expected_locations_idx].line_no == -1
+                or line_no == expected_locations[expected_locations_idx].line_no
+            )
+
+            if function_name_matches and filename_matches and line_no_matches:
                 expected_locations_idx += 1
                 if expected_locations_idx == len(expected_locations):
                     checked = True
@@ -328,7 +350,7 @@ def assert_sample_has_locations(profile, sample, expected_locations: Optional[Li
     )
 
 
-def assert_stack_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expected_event: StackEvent):
+def assert_stack_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expected_event: StackEvent) -> None:
     # Check that the sample has label "exception type" with value
     assert_str_label(profile.string_table, sample, "exception type", expected_event.exception_type)
     assert_sample_has_locations(profile, sample, expected_event.locations)
@@ -339,7 +361,8 @@ def assert_profile_has_sample(
     profile: pprof_pb2.Profile,
     samples: List[pprof_pb2.Sample],
     expected_sample: StackEvent,
-):
+    print_samples_on_failure: bool = False,
+) -> None:
     found = False
     for sample in samples:
         try:
@@ -351,4 +374,26 @@ def assert_profile_has_sample(
             if DEBUG_TEST:
                 print(e)
 
-    assert found, "Expected samples not found in profile"
+    if not found and print_samples_on_failure:
+        print_all_samples(profile)
+
+    assert found, "Expected samples not found in profile " + str(expected_sample.locations)
+
+
+def print_all_samples(profile: pprof_pb2.Profile) -> None:
+    """Print all samples in the profile with function name, filename, and line number."""
+    for sample_idx, sample in enumerate(profile.sample):
+        print(f"Sample {sample_idx}:")
+        print("Labels:")
+        for label in sample.label:
+            print(f"  {profile.string_table[label.key]}: {profile.string_table[label.str]}")
+        print("Locations:")
+        for location_id in sample.location_id:
+            location = get_location_with_id(profile, location_id)
+            for line in location.line:
+                function = get_function_with_id(profile, line.function_id)
+                function_name = profile.string_table[function.name]
+                filename = profile.string_table[function.filename]
+                line_no = line.line
+                print(f"  {filename}:{function_name}:{line_no}")
+        print()

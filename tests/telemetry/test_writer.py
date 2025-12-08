@@ -244,6 +244,7 @@ import opentelemetry
         {"name": "DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE", "origin": "default", "value": ""},
         {"name": "DD_EXCEPTION_REPLAY_CAPTURE_MAX_FRAMES", "origin": "default", "value": 8},
         {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "env_var", "value": True},
+        {"name": "DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED", "origin": "default", "value": False},
         {"name": "DD_FASTAPI_ASYNC_BODY_TIMEOUT_SECONDS", "origin": "default", "value": 0.1},
         {"name": "DD_IAST_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_IAST_ENABLED", "origin": "default", "value": False},
@@ -1100,6 +1101,35 @@ def test_add_integration_error_log_with_log_collection_disabled(mock_time, telem
             assert len(log_events) == 0
     finally:
         telemetry_config.LOG_COLLECTION_ENABLED = original_value
+
+
+def test_error_log_handler_strips_skipped_suffix(mock_time, telemetry_writer, test_agent_session):
+    """Test that DDTelemetryErrorHandler strips [x skipped] suffix from error messages"""
+    import logging
+
+    ddtrace_logger = logging.getLogger("ddtrace")
+
+    ddtrace_logger.error("Error message [123 skipped]")
+    telemetry_writer.periodic(force_flush=True)
+
+    log_events = test_agent_session.get_events("logs")
+    assert len(log_events) == 1
+
+    logs = log_events[0]["payload"]["logs"]
+    assert len(logs) == 1
+    assert logs[0]["message"] == "Error message"
+
+    test_agent_session.clear()
+
+    ddtrace_logger.error("Normal error message [something]")
+    telemetry_writer.periodic(force_flush=True)
+
+    log_events = test_agent_session.get_events("logs")
+    assert len(log_events) == 1
+
+    logs = log_events[0]["payload"]["logs"]
+    assert len(logs) == 1
+    assert logs[0]["message"] == "Normal error message [something]"
 
 
 @pytest.mark.parametrize(

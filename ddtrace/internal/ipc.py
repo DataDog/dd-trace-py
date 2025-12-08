@@ -1,11 +1,11 @@
 from contextlib import contextmanager
 import os
+from pathlib import Path
 import secrets
 import tempfile
 import typing
 
 from ddtrace.internal._unpatched import unpatched_open
-from ddtrace.internal.compat import Path
 from ddtrace.internal.logger import get_logger
 
 
@@ -19,11 +19,9 @@ class BaseLock:
     def __init__(self, file: typing.IO[typing.Any]):
         self.file = file
 
-    def acquire(self):
-        ...
+    def acquire(self): ...
 
-    def release(self):
-        ...
+    def release(self): ...
 
     def __enter__(self):
         self.acquire()
@@ -181,3 +179,7 @@ class SharedStringFile:
             return
         with open_file(self.filename, "r+b") as f, WriteLock(f):
             yield f
+            # Flush before releasing the lock. Here we first release the lock,
+            # then close the file. If a read happens in between these two
+            # operations, the reader might see outdated data.
+            f.flush()

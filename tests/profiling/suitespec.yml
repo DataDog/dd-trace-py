@@ -78,17 +78,18 @@ components:
     - ddtrace/commands/*
     - ddtrace/auto.py
 suites:
-  profile_v2:
+  profile:
     env:
       DD_TRACE_AGENT_URL: ''
-    # `riot list --hash-only profile-v2$ | wc -1` = 19
-    parallelism: 16
+    # `riot list --hash-only profile-v2$ | wc -1` = 26
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
       - '@profiling'
+      - '@vendor'
       - tests/profiling/suitespec.yml
-      - tests/profiling_v2/*
-    pattern: profile-v2
+      - tests/profiling/*
+    pattern: profile
     retry: 2
     runner: riot

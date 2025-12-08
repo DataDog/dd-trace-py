@@ -21,8 +21,9 @@ def test_ddtrace_iast_flask_patch():
 \s*\d+ LOAD_FAST                0 \(a\)
 \s*\d+ LOAD_FAST                1 \(b\)"""
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(
-        dict(DD_IAST_ENABLED="true", DD_IAST_REQUEST_SAMPLING="100")
+    with (
+        override_global_config(dict(_iast_enabled=True)),
+        override_env(dict(DD_IAST_ENABLED="true", DD_IAST_REQUEST_SAMPLING="100")),
     ):
         import tests.appsec.iast.fixtures.entrypoint.app_main_patched as flask_entrypoint
 
@@ -49,8 +50,9 @@ def test_ddtrace_iast_flask_patch_py313():
 
     PATTERN = r"""LOAD_GLOBAL              0 \(_ddtrace_aspects\)"""
 
-    with override_global_config(dict(_iast_enabled=True)), override_env(
-        dict(DD_IAST_ENABLED="true", DD_IAST_REQUEST_SAMPLING="100")
+    with (
+        override_global_config(dict(_iast_enabled=True)),
+        override_env(dict(DD_IAST_ENABLED="true", DD_IAST_REQUEST_SAMPLING="100")),
     ):
         import tests.appsec.iast.fixtures.entrypoint.app_main_patched as flask_entrypoint
 
@@ -91,7 +93,6 @@ def test_ddtrace_iast_flask_patch_iast_disabled():
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.app_main_patched"]
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="APPSEC-59493: Test not compatible with Python 3.8")
 @pytest.mark.subprocess(err=None)
 def test_ddtrace_iast_flask_no_patch():
     import dis
@@ -108,8 +109,9 @@ def test_ddtrace_iast_flask_no_patch():
         assert ModuleWatchdog._instance._pre_exec_module_hooks == set()
 
     _uninstall_watchdog_and_reload()
-    with override_global_config(dict(_iast_enabled=True)), override_env(
-        dict(DD_IAST_ENABLED="true", DD_IAST_REQUEST_SAMPLING="100")
+    with (
+        override_global_config(dict(_iast_enabled=True)),
+        override_env(dict(DD_IAST_ENABLED="true", DD_IAST_REQUEST_SAMPLING="100")),
     ):
         import tests.appsec.iast.fixtures.entrypoint.app as flask_entrypoint
 

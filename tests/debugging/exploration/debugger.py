@@ -198,7 +198,6 @@ class ExplorationDebugger(Debugger):
 
     @classmethod
     def enable(cls) -> None:
-        di_config.max_probes = float("inf")
         di_config.global_rate_limit = float("inf")
         di_config.metrics = False
 

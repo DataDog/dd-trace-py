@@ -3,6 +3,7 @@ requests==2.31.0
 
 https://pypi.org/project/requests/
 """
+
 from flask import Blueprint
 from flask import request
 

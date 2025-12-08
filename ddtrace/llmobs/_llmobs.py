@@ -122,6 +122,7 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.version import __version__
 
 
 log = get_logger(__name__)
@@ -466,7 +467,7 @@ class LLMObs(Service):
             "service": span.service or "",
             "source": "integration",
             "ml_app": ml_app,
-            "ddtrace.version": ddtrace.__version__,
+            "ddtrace.version": __version__,
             "language": "python",
             "error": span.error,
         }
@@ -1057,6 +1058,9 @@ class LLMObs(Service):
         """Returns a simple representation of a span to export its span and trace IDs.
         If no span is provided, the current active LLMObs-type span will be used.
         """
+        if not cls.enabled:
+            log.warning("LLMObs.export_span() called when LLMObs is disabled. No span will be exported.")
+            return None
         if span is None:
             span = cls._instance._current_span()
             if span is None:
@@ -1713,6 +1717,10 @@ class LLMObs(Service):
                 error = "invalid_metric_label"
                 raise ValueError("label must be the specified name of the evaluation metric.")
 
+            if "." in label:
+                error = "invalid_label_value"
+                raise ValueError("label value must not contain a '.'.")
+
             metric_type = metric_type.lower()
             if metric_type not in ("categorical", "score", "boolean"):
                 error = "invalid_metric_type"
@@ -1740,7 +1748,7 @@ class LLMObs(Service):
                 )
 
             evaluation_tags = {
-                "ddtrace.version": ddtrace.__version__,
+                "ddtrace.version": __version__,
                 "ml_app": ml_app,
             }
 
