@@ -56,10 +56,6 @@ class Frame
         int column_end = 0;
     } location;
 
-#if PY_VERSION_HEX >= 0x030b0000
-    bool is_entry = false;
-#endif
-
     // ------------------------------------------------------------------------
     Frame(StringTable::Key filename, StringTable::Key name)
       : filename(filename)

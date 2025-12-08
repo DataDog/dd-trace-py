@@ -211,12 +211,7 @@ Frame::key(PyCodeObject* code, int lasti)
 #if PY_VERSION_HEX >= 0x030b0000
 Result<std::reference_wrapper<Frame>>
 Frame::read(_PyInterpreterFrame* frame_addr, _PyInterpreterFrame** prev_addr)
-#else
-Result<std::reference_wrapper<Frame>>
-Frame::read(PyObject* frame_addr, PyObject** prev_addr)
-#endif
 {
-#if PY_VERSION_HEX >= 0x030b0000
     _PyInterpreterFrame iframe;
     auto resolved_addr =
       stack_chunk ? reinterpret_cast<_PyInterpreterFrame*>(stack_chunk->resolve(frame_addr)) : frame_addr;
@@ -233,7 +228,12 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
     }
 
 #if PY_VERSION_HEX >= 0x030c0000
+
+#if PY_VERSION_HEX >= 0x030c0000
     if (frame_addr->owner == FRAME_OWNED_BY_CSTACK) {
+#else
+    if (frame_addr->is_entry) {
+#endif // PY_VERSION_HEX >= 0x030c0000
         *prev_addr = frame_addr->previous;
         // This is a C frame, we just need to ignore it
         return std::ref(C_FRAME);
@@ -269,17 +269,17 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
 
     auto& frame = maybe_frame->get();
 #endif // PY_VERSION_HEX >= 0x030d0000
-    if (&frame != &INVALID_FRAME) {
-#if PY_VERSION_HEX >= 0x030c0000
-        frame.is_entry = (frame_addr->owner == FRAME_OWNED_BY_CSTACK); // Shim frame
-#else                                                                  // PY_VERSION_HEX < 0x030c0000
-        frame.is_entry = frame_addr->is_entry;
-#endif                                                                 // PY_VERSION_HEX >= 0x030c0000
-    }
 
     *prev_addr = &frame == &INVALID_FRAME ? NULL : frame_addr->previous;
 
-#else  // PY_VERSION_HEX < 0x030b0000
+    return std::ref(frame);
+}
+
+#else // PY_VERSION_HEX < 0x030b0000
+
+Result<std::reference_wrapper<Frame>>
+Frame::read(PyObject* frame_addr, PyObject** prev_addr)
+{
     // Unwind the stack from leaf to root and store it in a stack. This way we
     // can print it from root to leaf.
     PyFrameObject py_frame;
@@ -295,10 +295,11 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
 
     auto& frame = maybe_frame->get();
     *prev_addr = (&frame == &INVALID_FRAME) ? NULL : reinterpret_cast<PyObject*>(py_frame.f_back);
-#endif // PY_VERSION_HEX >= 0x030b0000
 
     return std::ref(frame);
 }
+
+#endif // PY_VERSION_HEX >= 0x030b0000
 
 // ----------------------------------------------------------------------------
 Result<std::reference_wrapper<Frame>>

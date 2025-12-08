@@ -28,11 +28,6 @@ class FrameStack : public std::deque<Frame::Ref>
     void render()
     {
         for (auto it = this->rbegin(); it != this->rend(); ++it) {
-#if PY_VERSION_HEX >= 0x030c0000
-            if ((*it).get().is_entry)
-                // This is a shim frame so we skip it.
-                continue;
-#endif
             Renderer::get().render_frame((*it).get());
         }
     }
