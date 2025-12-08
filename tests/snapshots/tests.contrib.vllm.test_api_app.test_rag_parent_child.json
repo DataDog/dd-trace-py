@@ -12,19 +12,19 @@
       "_dd.p.dm": "-0",
       "_dd.p.llmobs_ml_app": "<ml-app-name>",
       "_dd.p.llmobs_parent_id": "undefined",
-      "_dd.p.llmobs_trace_id": "139381214526907130911381832346100193527",
-      "_dd.p.tid": "68dbd87100000000",
+      "_dd.p.llmobs_trace_id": "139394845019214247463221322873009520251",
+      "_dd.p.tid": "68de787a00000000",
       "language": "python",
-      "runtime-id": "114ba3f1a79949e683ab3a663c3c63ae"
+      "runtime-id": "2d7546550d75477f926a4b9a8a91b35c"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 54573
+      "process_id": 5676
     },
-    "duration": 27958382914,
-    "start": 1759238257205799818
+    "duration": 34973862870,
+    "start": 1759410298980691304
   },
      {
        "name": "vllm.request",
@@ -38,20 +38,23 @@
        "meta": {
          "_dd.p.llmobs_ml_app": "<ml-app-name>",
          "_dd.p.llmobs_parent_id": "undefined",
-         "_dd.p.llmobs_trace_id": "139381215477645081080663145712651946184",
-         "_dd.p.tid": "68dbd87100000000",
-         "runtime-id": "114ba3f1a79949e683ab3a663c3c63ae",
+         "_dd.p.llmobs_trace_id": "139394846366093010199711342595480305293",
+         "_dd.p.tid": "68de787a00000000",
+         "runtime-id": "2d7546550d75477f926a4b9a8a91b35c",
          "vllm.request.model": "intfloat/e5-small-v2",
          "vllm.request.provider": "vllm"
        },
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "process_id": 54573,
-         "vllm.latency.queue": 0.00390625
+         "process_id": 5676,
+         "vllm.latency.inference": 0.15978306904435158,
+         "vllm.latency.prefill": 0.15978306904435158,
+         "vllm.latency.queue": 1.8851947970688343e-05,
+         "vllm.latency.ttft": 0.3274271488189697
        },
-       "duration": 470427961,
-       "start": 1759238269652868608
+       "duration": 328518565,
+       "start": 1759410315481061632
      },
      {
        "name": "vllm.request",
@@ -65,20 +68,23 @@
        "meta": {
          "_dd.p.llmobs_ml_app": "<ml-app-name>",
          "_dd.p.llmobs_parent_id": "undefined",
-         "_dd.p.llmobs_trace_id": "139381215556873243601900048577324243901",
-         "_dd.p.tid": "68dbd87100000000",
-         "runtime-id": "114ba3f1a79949e683ab3a663c3c63ae",
+         "_dd.p.llmobs_trace_id": "139394846366093010206748569929833385056",
+         "_dd.p.tid": "68de787a00000000",
+         "runtime-id": "2d7546550d75477f926a4b9a8a91b35c",
          "vllm.request.model": "intfloat/e5-small-v2",
          "vllm.request.provider": "vllm"
        },
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "process_id": 54573,
-         "vllm.latency.queue": 0.0017333030700683594
+         "process_id": 5676,
+         "vllm.latency.inference": 0.007373907952569425,
+         "vllm.latency.prefill": 0.007373907952569425,
+         "vllm.latency.queue": 0.00016414199490100145,
+         "vllm.latency.ttft": 0.009606599807739258
        },
-       "duration": 11344132,
-       "start": 1759238270124330496
+       "duration": 10421016,
+       "start": 1759410315810782464
      },
      {
        "name": "vllm.request",
@@ -92,20 +98,23 @@
        "meta": {
          "_dd.p.llmobs_ml_app": "<ml-app-name>",
          "_dd.p.llmobs_parent_id": "undefined",
-         "_dd.p.llmobs_trace_id": "139381215556873243594025014831505908865",
-         "_dd.p.tid": "68dbd87100000000",
-         "runtime-id": "114ba3f1a79949e683ab3a663c3c63ae",
+         "_dd.p.llmobs_trace_id": "139394846366093010208733316920024243816",
+         "_dd.p.tid": "68de787a00000000",
+         "runtime-id": "2d7546550d75477f926a4b9a8a91b35c",
          "vllm.request.model": "intfloat/e5-small-v2",
          "vllm.request.provider": "vllm"
        },
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "process_id": 54573,
-         "vllm.latency.queue": 0.0012390613555908203
+         "process_id": 5676,
+         "vllm.latency.inference": 0.007004529004916549,
+         "vllm.latency.prefill": 0.007004529004916549,
+         "vllm.latency.queue": 0.0001580320531502366,
+         "vllm.latency.ttft": 0.009066581726074219
        },
-       "duration": 9692941,
-       "start": 1759238270136483840
+       "duration": 9502380,
+       "start": 1759410315821967872
      },
      {
        "name": "vllm.request",
@@ -119,22 +128,22 @@
        "meta": {
          "_dd.p.llmobs_ml_app": "<ml-app-name>",
          "_dd.p.llmobs_parent_id": "undefined",
-         "_dd.p.llmobs_trace_id": "139381216666067518808685229450030709032",
-         "_dd.p.tid": "68dbd87100000000",
-         "runtime-id": "114ba3f1a79949e683ab3a663c3c63ae",
+         "_dd.p.llmobs_trace_id": "139394847792199935459077289571935634966",
+         "_dd.p.tid": "68de787a00000000",
+         "runtime-id": "2d7546550d75477f926a4b9a8a91b35c",
          "vllm.request.model": "facebook/opt-125m",
          "vllm.request.provider": "vllm"
        },
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "process_id": 54573,
-         "vllm.latency.decode": 0.18387150764465332,
-         "vllm.latency.inference": 0.23784446716308594,
-         "vllm.latency.prefill": 0.05384016036987305,
-         "vllm.latency.queue": 0.0018763542175292969,
-         "vllm.latency.ttft": 0.055716514587402344
+         "process_id": 5676,
+         "vllm.latency.decode": 0.13968857692088932,
+         "vllm.latency.inference": 0.20357014192268252,
+         "vllm.latency.prefill": 0.0638815650017932,
+         "vllm.latency.queue": 1.562107354402542e-05,
+         "vllm.latency.ttft": 0.17212820053100586
        },
-       "duration": 240996936,
-       "start": 1759238284916243712
+       "duration": 312517816,
+       "start": 1759410333296862208
      }]]

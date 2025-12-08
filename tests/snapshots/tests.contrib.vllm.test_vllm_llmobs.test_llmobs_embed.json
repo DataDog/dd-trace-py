@@ -10,9 +10,9 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68dbd89c00000000",
+      "_dd.p.tid": "68de78c800000000",
       "language": "python",
-      "runtime-id": "114ba3f1a79949e683ab3a663c3c63ae",
+      "runtime-id": "2d7546550d75477f926a4b9a8a91b35c",
       "vllm.request.model": "intfloat/e5-small",
       "vllm.request.provider": "vllm"
     },
@@ -21,11 +21,14 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 54573,
-      "vllm.latency.queue": 0.0014481544494628906
+      "process_id": 5676,
+      "vllm.latency.inference": 0.20752445596735924,
+      "vllm.latency.prefill": 0.20752445596735924,
+      "vllm.latency.queue": 0.00011670903768390417,
+      "vllm.latency.ttft": 0.21068906784057617
     },
-    "duration": 32922302,
-    "start": 1759238299992494336
+    "duration": 211406023,
+    "start": 1759410375903713024
   }],
 [
   {
@@ -39,9 +42,9 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68dbd89c00000000",
+      "_dd.p.tid": "68de78c800000000",
       "language": "python",
-      "runtime-id": "114ba3f1a79949e683ab3a663c3c63ae",
+      "runtime-id": "2d7546550d75477f926a4b9a8a91b35c",
       "vllm.request.model": "intfloat/e5-small",
       "vllm.request.provider": "vllm"
     },
@@ -50,9 +53,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 54573,
-      "vllm.latency.queue": 0.0009737014770507812
+      "process_id": 5676,
+      "vllm.latency.inference": 0.008915047976188362,
+      "vllm.latency.prefill": 0.008915047976188362,
+      "vllm.latency.queue": 8.911010809242725e-06,
+      "vllm.latency.ttft": 0.2182300090789795
     },
-    "duration": 34069523,
-    "start": 1759238299992968704
+    "duration": 218747341,
+    "start": 1759410375904525568
   }]]

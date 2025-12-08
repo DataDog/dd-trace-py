@@ -51,12 +51,18 @@ class BaseLLMIntegration:
         Eventually those should also be internal service spans once peer.service is implemented.
         """
         span_name = kwargs.get("span_name", None) or "{}.request".format(self._integration_name)
-        span = pin.tracer.trace(
+        span_type = SpanTypes.LLM if (submit_to_llmobs and self.llmobs_enabled) else None
+        parent_context = kwargs.get("parent_context") or pin.tracer.context_provider.active()
+
+        span = pin.tracer.start_span(
             span_name,
-            resource=operation_id,
+            child_of=parent_context,
             service=int_service(pin, self.integration_config),
-            span_type=SpanTypes.LLM if (submit_to_llmobs and self.llmobs_enabled) else None,
+            resource=operation_id,
+            span_type=span_type,
+            activate=True,
         )
+
         log.debug("Creating LLM span with type %s", span.span_type)
         # determine if the span represents a proxy request
         base_url = self._get_base_url(**kwargs)

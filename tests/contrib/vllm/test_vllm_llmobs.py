@@ -18,7 +18,7 @@ IGNORE_FIELDS = [
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_basic(llmobs_events, mock_tracer, vllm_engine_mode, opt_125m_llm):
+def test_llmobs_basic(llmobs_events, mock_tracer, opt_125m_llm):
     from vllm import SamplingParams
 
     llm = opt_125m_llm
@@ -32,20 +32,15 @@ def test_llmobs_basic(llmobs_events, mock_tracer, vllm_engine_mode, opt_125m_llm
         model_name="facebook/opt-125m",
         model_provider="vllm",
         input_messages=[{"content": "The future of AI is", "role": ""}],
-        output_messages=[{"content": " in the hands of the people.\n", "role": ""}],
+        output_messages=[{"content": " in the hands of the people.", "role": ""}],
         metadata={
             "max_tokens": 8,
-            "presence_penalty": 0.0,
             "n": 1,
-            "repetition_penalty": 1.0,
             "temperature": 0.1,
-            "top_k": 0,
-            "frequency_penalty": 0.0,
             "top_p": 0.9,
             "finish_reason": "length",
-            "seed": 42,
-        }
-        | ({"num_cached_tokens": 0} if vllm_engine_mode == "1" else {}),
+            "num_cached_tokens": 0,
+        },
         token_metrics={"input_tokens": 6, "output_tokens": 8, "total_tokens": 14},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
     )
@@ -53,7 +48,7 @@ def test_llmobs_basic(llmobs_events, mock_tracer, vllm_engine_mode, opt_125m_llm
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_chat(llmobs_events, mock_tracer, vllm_engine_mode, opt_125m_llm):
+def test_llmobs_chat(llmobs_events, mock_tracer, opt_125m_llm):
     from vllm import SamplingParams
 
     llm = opt_125m_llm
@@ -87,24 +82,19 @@ def test_llmobs_chat(llmobs_events, mock_tracer, vllm_engine_mode, opt_125m_llm)
             {
                 "content": (
                     " Provide lecture information about INTERESTED universities by translating people's "
-                    "ideas into their letters"
+                    "ideas into their"
                 ),
                 "role": "",
             }
         ],
         metadata={
-            "seed": 42,
-            "repetition_penalty": 1.0,
             "max_tokens": 16,
-            "top_k": 0,
             "temperature": 1.0,
-            "presence_penalty": 0.0,
             "top_p": 1.0,
             "n": 1,
-            "frequency_penalty": 0.0,
             "finish_reason": "length",
-        }
-        | ({"num_cached_tokens": mock.ANY} if vllm_engine_mode == "1" else {}),
+            "num_cached_tokens": mock.ANY,
+        },
         token_metrics={"input_tokens": 37, "output_tokens": 16, "total_tokens": 53},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
     )
@@ -112,7 +102,7 @@ def test_llmobs_chat(llmobs_events, mock_tracer, vllm_engine_mode, opt_125m_llm)
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_classify(llmobs_events, mock_tracer, vllm_engine_mode, bge_reranker_llm):
+def test_llmobs_classify(llmobs_events, mock_tracer, bge_reranker_llm):
     llm = bge_reranker_llm
 
     prompts = [
@@ -128,30 +118,24 @@ def test_llmobs_classify(llmobs_events, mock_tracer, vllm_engine_mode, bge_reran
     assert len(llmobs_events) == len(prompts) == len(spans)
     span_by_id = {s.span_id: s for s in spans}
 
-    expected_token_metrics_by_text = {
-        "[0, 35378, 4, 759, 9351, 83, 2]": {"input_tokens": 7, "output_tokens": 0, "total_tokens": 7},
-        "[0, 581, 10323, 111, 9942, 83, 2]": {"input_tokens": 7, "output_tokens": 0, "total_tokens": 7},
-    }
-
-    for event in llmobs_events:
+    for prompt, event in zip(prompts, llmobs_events):
         span = span_by_id[int(event["span_id"])]
-        token_text = event["meta"]["input"]["documents"][0]["text"]
         expected = _expected_llmobs_llm_span_event(
             span,
             span_kind="embedding",
             model_name="BAAI/bge-reranker-v2-m3",
             model_provider="vllm",
-            input_documents=[{"text": token_text}],
+            input_documents=[{"text": prompt}],
             output_value="[1 embedding(s) returned with size 1]",
-            metadata={"embedding_dim": 1},
-            token_metrics=expected_token_metrics_by_text[token_text],
+            metadata={"embedding_dim": 1, "num_cached_tokens": 0},
+            token_metrics={"input_tokens": 7, "output_tokens": 0, "total_tokens": 7},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
         )
         assert event == expected
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_embed(llmobs_events, mock_tracer, vllm_engine_mode, e5_small_llm):
+def test_llmobs_embed(llmobs_events, mock_tracer, e5_small_llm):
     llm = e5_small_llm
 
     prompts = [
@@ -167,30 +151,24 @@ def test_llmobs_embed(llmobs_events, mock_tracer, vllm_engine_mode, e5_small_llm
     assert len(llmobs_events) == len(prompts) == len(spans)
     span_by_id = {s.span_id: s for s in spans}
 
-    expected_token_metrics_by_text = {
-        "[101, 7592, 1010, 2026, 2171, 2003, 102]": {"input_tokens": 7, "output_tokens": 0, "total_tokens": 7},
-        "[101, 1996, 3007, 1997, 2605, 2003, 102]": {"input_tokens": 7, "output_tokens": 0, "total_tokens": 7},
-    }
-
-    for event in llmobs_events:
+    for prompt, event in zip(prompts, llmobs_events):
         span = span_by_id[int(event["span_id"])]
-        token_text = event["meta"]["input"]["documents"][0]["text"]
         expected = _expected_llmobs_llm_span_event(
             span,
             span_kind="embedding",
             model_name="intfloat/e5-small",
             model_provider="vllm",
-            input_documents=[{"text": token_text}],
+            input_documents=[{"text": prompt}],
             output_value="[1 embedding(s) returned with size 384]",
-            metadata={"embedding_dim": 384},
-            token_metrics=expected_token_metrics_by_text[token_text],
+            metadata={"embedding_dim": 384, "num_cached_tokens": 0},
+            token_metrics={"input_tokens": 7, "output_tokens": 0, "total_tokens": 7},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
         )
         assert event == expected
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_reward(llmobs_events, mock_tracer, vllm_engine_mode, bge_reranker_llm):
+def test_llmobs_reward(llmobs_events, mock_tracer, bge_reranker_llm):
     llm = bge_reranker_llm
 
     prompts = [
@@ -206,30 +184,24 @@ def test_llmobs_reward(llmobs_events, mock_tracer, vllm_engine_mode, bge_reranke
     assert len(llmobs_events) == len(prompts) == len(spans)
     span_by_id = {s.span_id: s for s in spans}
 
-    expected_token_metrics_by_text = {
-        "[0, 35378, 4, 759, 9351, 83, 2]": {"input_tokens": 7, "output_tokens": 0, "total_tokens": 7},
-        "[0, 581, 10323, 111, 9942, 83, 2]": {"input_tokens": 7, "output_tokens": 0, "total_tokens": 7},
-    }
-
-    for event in llmobs_events:
+    for prompt, event in zip(prompts, llmobs_events):
         span = span_by_id[int(event["span_id"])]
-        token_text = event["meta"]["input"]["documents"][0]["text"]
         expected = _expected_llmobs_llm_span_event(
             span,
             span_kind="embedding",
             model_name="BAAI/bge-reranker-v2-m3",
             model_provider="vllm",
-            input_documents=[{"text": token_text}],
+            input_documents=[{"text": prompt}],
             output_value="[7 embedding(s) returned with size 1024]",
-            metadata={"embedding_dim": 1024},
-            token_metrics=expected_token_metrics_by_text[token_text],
+            metadata={"embedding_dim": 1024, "num_cached_tokens": 0},
+            token_metrics={"input_tokens": 7, "output_tokens": 0, "total_tokens": 7},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
         )
         assert event == expected
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_score(llmobs_events, mock_tracer, vllm_engine_mode, bge_reranker_llm):
+def test_llmobs_score(llmobs_events, mock_tracer, bge_reranker_llm):
     llm = bge_reranker_llm
 
     text_1 = "What is the capital of France?"
@@ -269,7 +241,7 @@ def test_llmobs_score(llmobs_events, mock_tracer, vllm_engine_mode, bge_reranker
             model_provider="vllm",
             input_documents=[{"text": token_text}],
             output_value="[1 embedding(s) returned with size 1]",
-            metadata={"embedding_dim": 1},
+            metadata={"embedding_dim": 1, "num_cached_tokens": 0},
             token_metrics=expected_token_metrics_by_text[token_text],
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
         )

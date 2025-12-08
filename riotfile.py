@@ -3265,7 +3265,7 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
                 "torch": latest,
-                "vllm": "==0.10.1",
+                "vllm": latest,
             },
             pys=select_pys(min_version="3.10", max_version="3.12"),
         ),

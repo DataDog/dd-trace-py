@@ -1,63 +1,19 @@
 """
-The vLLM integration instruments the vLLM Python library to trace requests made to models for completions,
-embeddings, and cross-encoding operations.
+The vLLM integration traces requests through the vLLM V1 engine.
 
-The integration supports both vLLM V0 (engine-side tracing) and V1 (client-side tracing) engine modes,
-automatically detecting and adapting to the active engine version.
-
-All traces submitted from the vLLM integration are tagged by:
-
-- ``service``, ``env``, ``version``: see the `Unified Service Tagging docs <https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging>`_.
-- ``vllm.request.model``: vLLM model used in the request.
-- ``vllm.request.provider``: Provider name (always "vllm").
-
-Request latency metrics (V0 engine only):
-
-- ``vllm.latency.ttft``: Time to first token (TTFT) in seconds - total time from request arrival
-  to first token generation.
-- ``vllm.latency.queue``: Time spent in queue (waiting phase) in seconds.
-- ``vllm.latency.prefill``: Time spent in prefill phase in seconds - from scheduling to first
-  token.
-- ``vllm.latency.decode``: Time spent in decode phase in seconds - from first token to last token.
-- ``vllm.latency.inference``: Total time spent in inference (running phase) in seconds - from
-  scheduling to completion.
-- ``vllm.latency.model_forward``: Time spent in model forward pass in seconds (when available).
-- ``vllm.latency.model_execute``: Time spent in model execution in seconds - includes forward,
-  sync, and sampling (when available).
-
-
-Supported Operations
-~~~~~~~~~~~~~~~~~~~~
-
-The integration traces the following vLLM operations:
-
-- **Completion**: Text generation using ``LLM.generate()`` (offline) or ``AsyncLLM.generate()`` (async).
-- **Embedding**: Vector embeddings using ``LLM.encode()`` (offline) or ``AsyncLLM.encode()`` (async).
-- **Cross-encoding**: Similarity scoring using ``LLM._cross_encoding_score()``.
-
-
-Engine Version Support
-~~~~~~~~~~~~~~~~~~~~~~
-
-The integration automatically detects the active vLLM engine version (V0 or V1) via the ``VLLM_USE_V1``
-environment variable and adapts its tracing strategy:
-
-- **V0 Engine**: Traces at the engine level (``LLMEngine._process_model_outputs``), with trace context
-  propagation via injected headers.
-- **V1 Engine**: Traces at the client level (``AsyncLLM.generate``, ``AsyncLLM.encode``, etc.), with
-  direct parent-child span relationships.
+**Note**: This integration **only supports vLLM V1** (VLLM_USE_V1=1). V0 engine support has been
+removed as V0 is deprecated and will be removed in a future vLLM release.
 
 
 Enabling
 ~~~~~~~~
 
-The vLLM integration is enabled automatically when you use
-:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
+The vLLM integration is enabled automatically when using
+:ref:`ddtrace-run<ddtracerun>` or :func:`patch_all()<ddtrace.patch_all>`.
 
-Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the vLLM integration::
+Alternatively, use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 
-    from ddtrace import config, patch
-
+    from ddtrace import patch
     patch(vllm=True)
 
 
@@ -68,21 +24,101 @@ Global Configuration
 
    The service name reported by default for vLLM requests.
 
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_VLLM_SERVICE`` environment
-   variables.
+   This option can also be set with the ``DD_VLLM_SERVICE`` environment variable.
 
-   Default: ``DD_SERVICE``
+   Default: ``"vllm"``
 
 
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
 
-To configure the vLLM integration on a per-instance basis use the
-``Pin`` API::
+To configure particular vLLM instances, use the ``Pin`` API::
 
     import vllm
-    from ddtrace import config
-    from ddtrace.trace import Pin
+    from ddtrace import Pin
 
     Pin.override(vllm, service="my-vllm-service")
+
+
+Architecture
+~~~~~~~~~~~~
+
+The integration uses **engine-side tracing** to capture all requests regardless of API entry point:
+
+1. **Model Name Injection** (``LLMEngine.__init__`` / ``AsyncLLM.__init__``):
+   - Extracts and stores model name for span tagging
+   - Forces ``log_stats=True`` to enable latency and token metrics collection
+
+2. **Context Injection** (``Processor.process_inputs``):
+   - Injects Datadog trace context into ``trace_headers``
+   - Context propagates through the engine automatically
+
+3. **Span Creation** (``OutputProcessor.process_outputs``):
+   - Creates spans when requests finish
+   - Extracts data from ``RequestState`` and ``EngineCoreOutput``
+   - Decodes prompt from token IDs for chat requests when text is unavailable
+   - Works for all operations: completion, chat, embedding, cross-encoding
+
+This design ensures:
+- All requests are traced (AsyncLLM, LLM, API server, chat)
+- Complete timing and token metrics from engine stats
+- Full prompt text capture (including chat conversations)
+- Minimal performance overhead
+
+
+Span Tags
+~~~~~~~~~
+
+All spans are tagged with:
+
+**Request Information**:
+- ``vllm.request.model``: Model name
+- ``vllm.request.provider``: ``"vllm"``
+
+**Latency Metrics**:
+- ``vllm.latency.ttft``: Time to first token (seconds)
+- ``vllm.latency.queue``: Queue wait time (seconds)
+- ``vllm.latency.prefill``: Prefill phase time (seconds)
+- ``vllm.latency.decode``: Decode phase time (seconds)
+- ``vllm.latency.inference``: Total inference time (seconds)
+
+**LLMObs Tags** (when LLMObs is enabled):
+
+For completion/chat operations:
+- ``input_messages``: Prompt text (auto-decoded for chat requests)
+- ``output_messages``: Generated text
+- ``input_tokens``: Number of input tokens
+- ``output_tokens``: Number of generated tokens
+- ``temperature``, ``max_tokens``, ``top_p``, ``n``: Sampling parameters
+- ``num_cached_tokens``: Number of KV cache hits
+
+For embedding operations:
+- ``input_documents``: Input text or token IDs
+- ``output_value``: Embedding shape description
+- ``embedding_dim``: Embedding dimension
+- ``num_embeddings``: Number of embeddings returned
+
+
+Supported Operations
+~~~~~~~~~~~~~~~~~~~~
+
+**Async Streaming** (``AsyncLLM``):
+- ``generate()``: Text completion
+- ``encode()``: Text embedding
+
+**Offline Batch** (``LLM``):
+- ``generate()``: Text completion
+- ``chat()``: Multi-turn conversations
+- ``encode()``: Text embedding
+- ``_cross_encoding_score()``: Cross-encoding scores
+
+**API Server**:
+- All OpenAI-compatible endpoints (automatically traced through engine)
+
+
+Requirements
+~~~~~~~~~~~~
+
+- vLLM V1 (``VLLM_USE_V1=1``)
+- vLLM >= 0.10.2 (for V1 trace header propagation support)
 """
