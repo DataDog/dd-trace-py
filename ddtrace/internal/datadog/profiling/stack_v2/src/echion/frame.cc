@@ -228,12 +228,7 @@ Frame::read(_PyInterpreterFrame* frame_addr, _PyInterpreterFrame** prev_addr)
     }
 
 #if PY_VERSION_HEX >= 0x030c0000
-
-#if PY_VERSION_HEX >= 0x030c0000
     if (frame_addr->owner == FRAME_OWNED_BY_CSTACK) {
-#else
-    if (frame_addr->is_entry) {
-#endif // PY_VERSION_HEX >= 0x030c0000
         *prev_addr = frame_addr->previous;
         // This is a C frame, we just need to ignore it
         return std::ref(C_FRAME);
@@ -241,6 +236,12 @@ Frame::read(_PyInterpreterFrame* frame_addr, _PyInterpreterFrame** prev_addr)
 
     if (frame_addr->owner != FRAME_OWNED_BY_THREAD && frame_addr->owner != FRAME_OWNED_BY_GENERATOR) {
         return ErrorKind::FrameError;
+    }
+#else  // PY_VERSION_HEX >= 0x030b0000 && PY_VERSION_HEX < 0x030c0000
+    if (frame_addr->is_entry) {
+        *prev_addr = frame_addr->previous;
+        // This is a C frame, we just need to ignore it
+        return std::ref(C_FRAME);
     }
 #endif // PY_VERSION_HEX >= 0x030c0000
 
