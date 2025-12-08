@@ -7,6 +7,7 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace.internal.datastreams.fnv import fnv1_64
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.process_tags import process_tags_config as config
 
@@ -82,11 +83,17 @@ def generate_process_tags() -> Tuple[Optional[str], Optional[List[str]]]:
     return process_tags, process_tags_list
 
 
-def update_container_tags_hash(new_hash):
-    global container_tags_hash
-    if process_tags:
-        container_tags_hash = new_hash
+def compute_base_hash(container_tags_hash):
+    global base_hash
+    if not process_tags:
+        return
+
+    def get_bytes(s):
+        return bytes(s, encoding="utf-8")
+
+    b = get_bytes(process_tags) + get_bytes(container_tags_hash)
+    base_hash = fnv1_64(b)
 
 
-container_tags_hash = ""
+base_hash = None
 process_tags, process_tags_list = generate_process_tags()

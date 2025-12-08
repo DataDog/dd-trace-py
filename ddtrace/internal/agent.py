@@ -5,7 +5,7 @@ import typing as t
 from ddtrace.internal.constants import CONTAINER_TAGS_HASH
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
-from ddtrace.internal.process_tags import update_container_tags_hash
+from ddtrace.internal.process_tags import compute_base_hash
 from ddtrace.internal.settings._agent import config
 
 from .utils.http import get_connection
@@ -18,7 +18,7 @@ def process_info_headers(resp):
     try:
         container_tags_hash = resp.getheader(CONTAINER_TAGS_HASH)
         if container_tags_hash:
-            update_container_tags_hash(container_tags_hash)
+            compute_base_hash(container_tags_hash)
     except Exception as e:
         log.debug("Could not retrieve info response headers: %s", e)
 

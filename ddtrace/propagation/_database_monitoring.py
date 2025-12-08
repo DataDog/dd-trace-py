@@ -6,6 +6,7 @@ import ddtrace
 from ddtrace import config as dd_config
 from ddtrace.internal import core
 from ddtrace.internal import process_tags
+from ddtrace.internal.constants import PROPAGATED_HASH
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.peer_service import PeerServiceConfig
 from ddtrace.vendor.sqlcommenter import generate_sql_comment as _generate_sql_comment
@@ -84,6 +85,10 @@ class _DBM_Propagator(object):
             # injection_mode is disabled
             return args, kwargs
 
+        # the base hash is injected in the comment and on the span tags for correlation purpose
+        if dbm_config.inject_sql_basehash and (base_hash := process_tags.base_hash):
+            dbspan.set_metric(PROPAGATED_HASH, base_hash)
+
         original_sql_statement = get_argument_value(args, kwargs, self.sql_pos, self.sql_kw)
         # add dbm comment to original_sql_statement
         sql_with_dbm_tags = self.comment_injector(dbm_comment, original_sql_statement)
@@ -130,8 +135,8 @@ class _DBM_Propagator(object):
             db_span._set_tag_str(DBM_TRACE_INJECTED_TAG, "true")
             dbm_tags[DBM_TRACE_PARENT_KEY] = db_span.context._traceparent
 
-        if dbm_config.inject_sql_basehash and (c_tags_hash := process_tags.container_tags_hash):
-            dbm_tags[DBM_SERVICE_HASH] = c_tags_hash
+        if dbm_config.inject_sql_basehash and (base_hash := process_tags.base_hash):
+            dbm_tags[DBM_SERVICE_HASH] = base_hash
 
         sql_comment = self.comment_generator(**dbm_tags)
         if sql_comment:

@@ -4,7 +4,6 @@ import pytest
 
 from ddtrace.internal import process_tags
 from ddtrace.internal.constants import PROCESS_TAGS
-from ddtrace.internal.constants import PROPAGATED_HASH
 from ddtrace.internal.process_tags import ENTRYPOINT_BASEDIR_TAG
 from ddtrace.internal.process_tags import ENTRYPOINT_NAME_TAG
 from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_TAG
@@ -180,34 +179,3 @@ class TestProcessTags(TracerTestCase):
         assert ENTRYPOINT_NAME_TAG in process_tags
         assert ENTRYPOINT_TYPE_TAG in process_tags
         assert ENTRYPOINT_WORKDIR_TAG in process_tags
-
-    @run_in_subprocess()
-    def test_propagated_hash_without_process_tags(self):
-        from ddtrace.internal.process_tags import update_container_tags_hash
-
-        update_container_tags_hash("foo")
-
-        with self.tracer.trace("test"):
-            pass
-
-        span = self.get_spans()[0]
-
-        assert span is not None
-        assert PROCESS_TAGS not in span._meta
-        assert PROPAGATED_HASH not in span._meta
-
-    @run_in_subprocess(env_overrides=dict(DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="True"))
-    def test_propagated_hash_with_process_tags(self):
-        from ddtrace.internal.process_tags import update_container_tags_hash
-
-        update_container_tags_hash("foo")
-
-        with self.tracer.trace("test"):
-            pass
-
-        span = self.get_spans()[0]
-
-        assert span is not None
-        assert PROCESS_TAGS in span._meta
-        assert PROPAGATED_HASH in span._meta
-        assert span._meta[PROPAGATED_HASH] == "foo"
