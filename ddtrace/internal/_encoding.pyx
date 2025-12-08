@@ -1290,8 +1290,8 @@ cdef class Packer(object):
                 d = <dict>o
                 L = len(d)
                 if L > ITEM_LIMIT:
-                        o = f"Dictionnary is too large {L}"
-                        continue
+                    o = f"Dictionnary is too large {L}"
+                    continue
                 ret = msgpack_pack_map(&self.pk, L)
                 if ret == 0:
                     for k, v in d.items():
