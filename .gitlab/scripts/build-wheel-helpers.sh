@@ -134,7 +134,11 @@ test_wheel() {
   export VIRTUAL_ENV="${VENV_PATH}"
   export PATH="${VENV_PATH}/bin:${PATH}"
   cd "${TEST_WHEEL_DIR}"
-  uv pip install "${FINAL_WHEEL_FILE}"
+  # Activate venv and install wheel in a subshell
+  (
+    source "${VENV_PATH}/bin/activate"
+    uv pip install "${FINAL_WHEEL_FILE}"
+  )
 
   # Diagnostics before running smoke test
   echo "=== Environment Diagnostics ==="
