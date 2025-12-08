@@ -9,7 +9,6 @@ from typing import Optional
 
 from ddtrace.contrib.internal.vllm.extractors import RequestData
 from ddtrace.contrib.internal.vllm.extractors import parse_prompt_to_messages
-from ddtrace.llmobs.types import Message
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -21,7 +20,8 @@ from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
-#from ddtrace.llmobs._constants import TIME_E2E_METRIC_KEY
+
+# from ddtrace.llmobs._constants import TIME_E2E_METRIC_KEY
 from ddtrace.llmobs._constants import TIME_IN_MODEL_DECODE_METRIC_KEY
 from ddtrace.llmobs._constants import TIME_IN_MODEL_INFERENCE_METRIC_KEY
 from ddtrace.llmobs._constants import TIME_IN_MODEL_PREFILL_METRIC_KEY
@@ -29,6 +29,7 @@ from ddtrace.llmobs._constants import TIME_IN_QUEUE_METRIC_KEY
 from ddtrace.llmobs._constants import TIME_TO_FIRST_TOKEN_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Span
 
@@ -101,7 +102,7 @@ class VLLMIntegration(BaseLLMIntegration):
 
             # Calculate e2e latency using iteration_stats.iteration_timestamp if available
             # This matches how vLLM computes e2e time in do_tracing()
-            #if iteration_stats is not None and hasattr(iteration_stats, "iteration_timestamp"):
+            # if iteration_stats is not None and hasattr(iteration_stats, "iteration_timestamp"):
             #    arrival_time = stats.arrival_time
             #    if arrival_time:
             #        e2e_time = iteration_stats.iteration_timestamp - arrival_time

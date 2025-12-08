@@ -29,7 +29,10 @@ class TestParsePromptToMessages:
         )
         result = parse_prompt_to_messages(prompt)
         assert len(result) == 4
-        assert result[0] == {"role": "system", "content": "You are a helpful AI assistant for travel tips and recommendations"}
+        assert result[0] == {
+            "role": "system",
+            "content": "You are a helpful AI assistant for travel tips and recommendations",
+        }
         assert result[1] == {"role": "user", "content": "What is France's capital?"}
         assert result[2] == {"role": "assistant", "content": "Bonjour! The capital of France is Paris!"}
         assert result[3] == {"role": "user", "content": "What can I do there?"}
