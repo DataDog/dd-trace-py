@@ -13,6 +13,7 @@
 #define Py_BUILD_CORE
 #if PY_VERSION_HEX >= 0x030e0000
 // Python 3.14+: _PyInterpreterFrame moved to new header
+#include <cstddef> // For offsetof macro
 #include <internal/pycore_frame.h>
 #include <internal/pycore_interpframe.h>
 #include <internal/pycore_interpframe_structs.h>
@@ -22,6 +23,7 @@
 #elif PY_VERSION_HEX >= 0x030d0000
 #include <opcode.h>
 #else
+#include <cstddef> // For offsetof macro
 #include <internal/pycore_frame.h>
 #include <internal/pycore_opcode.h>
 #endif // PY_VERSION_HEX >= 0x030d0000

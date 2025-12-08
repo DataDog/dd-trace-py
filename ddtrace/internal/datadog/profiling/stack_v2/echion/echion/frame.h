@@ -17,17 +17,11 @@
 #if PY_VERSION_HEX >= 0x030e0000
 // Python 3.14+: _PyInterpreterFrame moved to new header
 #define Py_BUILD_CORE
-#include <internal/pycore_code.h>
-#include <internal/pycore_frame.h> // Needed for complete PyFrameObject definition
-#include <internal/pycore_interpframe.h>
-#include <internal/pycore_interpframe_structs.h>
-#elif PY_VERSION_HEX >= 0x030d0000
+#include <internal/pycore_interpframe_structs.h> // For _PyInterpreterFrame type definition
+#elif PY_VERSION_HEX >= 0x030b0000
+// Python 3.11-3.13: _PyInterpreterFrame is in pycore_frame.h
 #define Py_BUILD_CORE
-#include <internal/pycore_code.h>
-#endif // PY_VERSION_HEX >= 0x030d0000
-#if PY_VERSION_HEX >= 0x030b0000 && PY_VERSION_HEX < 0x030e0000
-#define Py_BUILD_CORE
-#include <internal/pycore_frame.h>
+#include <internal/pycore_frame.h> // For _PyInterpreterFrame type definition
 #endif
 
 #include <cstdint>

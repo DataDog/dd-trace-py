@@ -3,6 +3,19 @@
 #include <echion/errors.h>
 #include <echion/render.h>
 
+#if PY_VERSION_HEX >= 0x030b0000
+// Common headers needed for Python 3.11+ implementation
+#include <cstddef>                 // For offsetof macro
+#include <internal/pycore_code.h>  // For _Py_CODEUNIT
+#include <internal/pycore_frame.h> // For _PyInterpreterFrame and FRAME_OWNED_BY_* constants
+
+#if PY_VERSION_HEX >= 0x030e0000
+// Python 3.14+: Additional headers for new structure definitions
+#include <internal/pycore_interpframe_structs.h> // For _PyInterpreterFrame complete definition
+#include <internal/pycore_stackref.h>            // For _PyStackRef
+#endif                                           // PY_VERSION_HEX >= 0x030e0000
+#endif                                           // PY_VERSION_HEX >= 0x030b0000
+
 // ----------------------------------------------------------------------------
 #if PY_VERSION_HEX >= 0x030b0000
 static inline int
