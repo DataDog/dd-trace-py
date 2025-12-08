@@ -304,21 +304,20 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate, uintptr_t tstate_addr)
 
             // Get the next task in the chain
             PyObject* task_origin = task.origin;
+            if (waitee_map.find(task_origin) != waitee_map.end()) {
+                current_task = waitee_map.find(task_origin)->second;
+                continue;
+            }
 
-            // Check for parent (gather) links first
             {
+                // Check for, e.g., gather links
                 std::lock_guard<std::mutex> lock(task_link_map_lock);
+
                 if (task_link_map.find(task_origin) != task_link_map.end() &&
                     origin_map.find(task_link_map[task_origin]) != origin_map.end()) {
                     current_task = origin_map.find(task_link_map[task_origin])->second;
                     continue;
                 }
-            }
-
-            // Then check for waiter links
-            if (waitee_map.find(task_origin) != waitee_map.end()) {
-                current_task = waitee_map.find(task_origin)->second;
-                continue;
             }
 
             break;
