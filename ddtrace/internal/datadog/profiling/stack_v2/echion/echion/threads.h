@@ -249,8 +249,8 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate, uintptr_t tstate_addr)
         origin_map.emplace(task->origin, std::ref(*task));
 
         // task->waiter is only set if task_fut_waiter points to another Task
-        // If task_fut_waiter points to a Future/Coroutine, waiter will be NULL
-        if (task->waiter != NULL) {
+        // If task_fut_waiter points to a Future/Coroutine, waiter will be nullptr
+        if (task->waiter != nullptr) {
             waitee_map.emplace(task->waiter->origin, std::ref(*task));
         } else if (parent_tasks.find(task->origin) == parent_tasks.end()) {
             leaf_tasks.push_back(std::ref(*task));
@@ -260,7 +260,7 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate, uintptr_t tstate_addr)
 #if PY_VERSION_HEX >= 0x030e0000
     // Python 3.14+: If no leaf tasks found but we have tasks, unwind all tasks that aren't in parent_tasks
     // This handles the case where all tasks are waiting on other Tasks (not Futures/Coroutines)
-    // In normal asyncio usage, tasks awaiting Futures/Coroutines should have waiter=NULL and be leaf tasks
+    // In normal asyncio usage, tasks awaiting Futures/Coroutines should have waiter=nullptr and be leaf tasks
     // But if all tasks are waiting on other Tasks, we need this fallback
     if (leaf_tasks.empty() && !all_tasks.empty()) {
         for (auto& task : all_tasks) {

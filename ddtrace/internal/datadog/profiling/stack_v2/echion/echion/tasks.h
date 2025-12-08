@@ -295,7 +295,7 @@ TaskInfo::current(PyObject* loop)
 inline void
 get_tasks_from_linked_list(uintptr_t head_addr, PyObject* loop, std::vector<TaskInfo::Ptr>& tasks)
 {
-    if (head_addr == 0 || loop == NULL) {
+    if (head_addr == 0 || loop == nullptr) {
         return;
     }
 
@@ -328,8 +328,8 @@ get_tasks_from_linked_list(uintptr_t head_addr, PyObject* loop, std::vector<Task
             return;
         }
 
-        if (current_node.next == NULL) {
-            return; // NULL pointer - invalid list
+        if (current_node.next == nullptr) {
+            return; // nullptr pointer - invalid list
         }
 
         uintptr_t next_node_addr = reinterpret_cast<uintptr_t>(current_node.next);
@@ -357,7 +357,7 @@ get_tasks_from_linked_list(uintptr_t head_addr, PyObject* loop, std::vector<Task
 inline void
 get_tasks_from_thread_linked_list(uintptr_t tstate_addr, PyObject* loop, std::vector<TaskInfo::Ptr>& tasks)
 {
-    if (tstate_addr == 0 || loop == NULL) {
+    if (tstate_addr == 0 || loop == nullptr) {
         return;
     }
 
@@ -388,7 +388,7 @@ get_tasks_from_thread_linked_list(uintptr_t tstate_addr, PyObject* loop, std::ve
 inline void
 get_tasks_from_interpreter_linked_list(PyThreadState* tstate, PyObject* loop, std::vector<TaskInfo::Ptr>& tasks)
 {
-    if (tstate == NULL || loop == NULL) {
+    if (tstate == nullptr || loop == nullptr) {
         return;
     }
 
@@ -412,7 +412,7 @@ get_tasks_from_interpreter_linked_list(PyThreadState* tstate, PyObject* loop, st
 // ----------------------------------------------------------------------------
 // TODO: Make this a "for_each_task" function?
 [[nodiscard]] inline Result<std::vector<TaskInfo::Ptr>>
-get_all_tasks(PyObject* loop, PyThreadState* tstate = NULL, uintptr_t tstate_addr = 0)
+get_all_tasks(PyObject* loop, PyThreadState* tstate = nullptr, uintptr_t tstate_addr = 0)
 {
     std::vector<TaskInfo::Ptr> tasks;
     if (loop == NULL)
@@ -430,7 +430,7 @@ get_all_tasks(PyObject* loop, PyThreadState* tstate = NULL, uintptr_t tstate_add
 
     // Second, get tasks from interpreter's linked-list (lingering tasks)
     // This needs tstate to dereference tstate->interp
-    if (tstate != NULL) {
+    if (tstate != nullptr) {
         get_tasks_from_interpreter_linked_list(tstate, loop, tasks);
     }
 
@@ -438,7 +438,7 @@ get_all_tasks(PyObject* loop, PyThreadState* tstate = NULL, uintptr_t tstate_add
     // (asyncio_scheduled_tasks is now WeakSet.data, which is a Python set)
     // These are global, not per-thread, so we collect them once
     // If MirrorSet::create() fails, the set might be empty or invalid - skip it
-    if (asyncio_scheduled_tasks == NULL) {
+    if (asyncio_scheduled_tasks == nullptr) {
         // Skip if not initialized
     } else if (auto maybe_scheduled_tasks_set = MirrorSet::create(asyncio_scheduled_tasks)) {
         auto scheduled_tasks_set = std::move(*maybe_scheduled_tasks_set);
