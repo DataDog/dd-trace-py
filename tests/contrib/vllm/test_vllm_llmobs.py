@@ -7,7 +7,13 @@ from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from ._utils import get_simple_chat_template
 
 
-IGNORE_FIELDS = []
+IGNORE_FIELDS = [
+    "metrics.vllm.latency.ttft",
+    "metrics.vllm.latency.queue",
+    "metrics.vllm.latency.prefill",
+    "metrics.vllm.latency.decode",
+    "metrics.vllm.latency.inference",
+]
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
