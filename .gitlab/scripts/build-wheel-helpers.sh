@@ -20,7 +20,7 @@ setup_rust() {
   fi
   rustup default stable
   which rustc && rustc --version
-  section_end "install_rust"    
+  section_end "install_rust"
 }
 
 # Setup sccache (verify/install if needed)
@@ -58,13 +58,13 @@ setup_python() {
 # Setup directories
 setup_env() {
   section_start "setup_env" "Setup environment"
-  PROJECT_DIR="${CI_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
-  WORK_DIR=$(mktemp -d)
+  export PROJECT_DIR="${CI_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+  export WORK_DIR=$(mktemp -d)
   trap "rm -rf '${WORK_DIR}'" EXIT
-  BUILT_WHEEL_DIR="${WORK_DIR}/built_wheel"
-  TMP_WHEEL_DIR="${WORK_DIR}/tmp_wheel"
-  FINAL_WHEEL_DIR="${PROJECT_DIR}/pywheels"
-  DEBUG_WHEEL_DIR="${PROJECT_DIR}/debugwheelhouse"
+  export BUILT_WHEEL_DIR="${WORK_DIR}/built_wheel"
+  export TMP_WHEEL_DIR="${WORK_DIR}/tmp_wheel"
+  export FINAL_WHEEL_DIR="${PROJECT_DIR}/pywheels"
+  export DEBUG_WHEEL_DIR="${PROJECT_DIR}/debugwheelhouse"
   mkdir -p "${BUILT_WHEEL_DIR}" "${TMP_WHEEL_DIR}" "${FINAL_WHEEL_DIR}" "${DEBUG_WHEEL_DIR}"
   section_end "setup_env"
 }
@@ -73,6 +73,7 @@ setup_env() {
 build_wheel() {
   section_start "build_wheel_function" "Building wheel function"
   uv build --wheel --out-dir "${BUILT_WHEEL_DIR}" .
+  export BUILT_WHEEL_FILE=$(ls ${BUILT_WHEEL_DIR}/*.whl | head -n 1)
   section_end "build_wheel_function"
 }
 
@@ -101,7 +102,7 @@ repair_wheel() {
     MACOSX_DEPLOYMENT_TARGET=14.7 uvx --from="delocate" delocate-wheel \
         --require-archs "${ARCH_TAG}" -w "${TMP_WHEEL_DIR}" -v "${BUILT_WHEEL_FILE}"
   fi
-  section_end "repair_wheel"    
+  section_end "repair_wheel"
 }
 
 setup() {
@@ -114,10 +115,10 @@ setup() {
 # Finalize
 finalize() {
   section_start "finalize_wheel" "Finalizing wheel"
-  TMP_WHEEL_FILE=$(ls ${TMP_WHEEL_DIR}/*.whl | head -n 1)
+  export TMP_WHEEL_FILE=$(ls ${TMP_WHEEL_DIR}/*.whl | head -n 1)
   mv "${TMP_WHEEL_FILE}" "${FINAL_WHEEL_DIR}/"
-  FINAL_WHEEL_FILE=$(ls ${FINAL_WHEEL_DIR}/*.whl | head -n 1)
-  sccache --show-stats  
+  export FINAL_WHEEL_FILE=$(ls ${FINAL_WHEEL_DIR}/*.whl | head -n 1)
+  sccache --show-stats
   section_end "finalize_wheel"
 }
 
@@ -125,9 +126,9 @@ finalize() {
 # Test wheel
 test_wheel() {
   section_start "test_wheel" "Testing wheel"
-  TEST_WHEEL_DIR="${WORK_DIR}/test_wheel"
+  export TEST_WHEEL_DIR="${WORK_DIR}/test_wheel"
   mkdir -p "${TEST_WHEEL_DIR}"
-  VENV_PATH="${TEST_WHEEL_DIR}/venv"
+  export VENV_PATH="${TEST_WHEEL_DIR}/venv"
   uv venv --python="${UV_PYTHON}" "${VENV_PATH}"
   export VIRTUAL_ENV="${VENV_PATH}"
   export PATH="${VENV_PATH}/bin:${PATH}"
@@ -150,5 +151,5 @@ test_wheel() {
 
   # Run smoke test
   "${VENV_PATH}/bin/python" "${PROJECT_DIR}/tests/smoke_test.py"
-  section_end "test_wheel"  
+  section_end "test_wheel"
 }

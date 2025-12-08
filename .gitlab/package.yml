@@ -35,7 +35,6 @@ variables:
     CIBW_BUILD: "1"
     # Caching
     DD_SETUP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/download_cache"
-    CARGO_HOME: "${CI_PROJECT_DIR}/.cache/cargo"
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
     UV_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/uv"
     UV_INSTALL_DIR: "${CI_PROJECT_DIR}/.uv/"
@@ -53,7 +52,7 @@ variables:
 
 "build sdist":
   extends: .build_base
-  image: "${IMAGE_BASE_URL}:${MANYLINUX2014_AARCH64}"
+  image: "${IMAGE_BASE_URL}:v85280965-e932d4a-manylinux2014_x86_64"
   tags: [ "arch:amd64" ]
   variables:
     DD_CYTHONIZE: "0"
@@ -95,8 +94,7 @@ variables:
   variables:
     SYSTEM_VERSION_COMPAT: "0"
   rules:
-    # Skip non-3.14 versions on PRs/feature branches
-    - if: '($IS_MAIN_BRANCH == "false") && ($IS_RELEASE_BRANCH == "false") && ($IS_RELEASE == "false")'
+    - if: ($IS_MAIN_BRANCH == "false") && ($IS_RELEASE_BRANCH == "false") && ($IS_RELEASE == "false")
       when: manual
     - when: always
   script:
