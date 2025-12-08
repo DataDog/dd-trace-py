@@ -202,7 +202,6 @@ def gen_required_suites() -> None:
     """Generate the list of test suites that need to be run."""
     from needs_testrun import extract_git_commit_selections
     from needs_testrun import for_each_testrun_needed
-    from ruamel.yaml import YAML
     import suitespec
 
     suites = suitespec.get_suites()
