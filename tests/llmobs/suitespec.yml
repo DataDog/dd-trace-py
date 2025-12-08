@@ -26,6 +26,8 @@ components:
     - ddtrace/contrib/internal/openai_agents/*
   pydantic_ai:
     - ddtrace/contrib/internal/pydantic_ai/*
+  vllm:
+    - ddtrace/contrib/internal/vllm/*
 suites:
   anthropic:
     parallelism: 2
@@ -197,3 +199,38 @@ suites:
     runner: riot
     snapshot: true
     venvs_per_job: 2
+  vllm:v0:
+    parallelism: 1
+    pattern: ^vllm$
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@vllm'
+      - '@llmobs'
+      - tests/contrib/vllm/*
+      - tests/snapshots/tests.contrib.vllm.*
+    env:
+      VLLM_USE_V1: '0'
+    runner: riot
+    gpu: true
+    snapshot: true
+  vllm:v1:
+    parallelism: 1
+    pattern: ^vllm$
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@vllm'
+      - '@llmobs'
+      - tests/contrib/vllm/*
+      - tests/snapshots/tests.contrib.vllm.*
+    env:
+      VLLM_USE_V1: '1'
+    runner: riot
+    gpu: true
+    snapshot: true
+
