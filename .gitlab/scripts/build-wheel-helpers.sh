@@ -104,7 +104,7 @@ repair_wheel() {
   section_end "repair_wheel"    
 }
 
-setup() {}
+setup() {
   setup_env
   setup_python
   setup_rust
