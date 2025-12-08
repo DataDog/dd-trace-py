@@ -36,8 +36,7 @@ def test_ddup_start():
     env=dict(
         DD_TAGS="hello:world",
         DD_PROFILING_TAGS="foo:bar,hello:python",
-    ),
-    err=None,
+    )
 )
 def test_tags_propagated():
     import sys

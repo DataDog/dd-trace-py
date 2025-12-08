@@ -234,7 +234,6 @@ def test_user_threads_have_native_id():
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT"), reason="gevent is not available")
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_FILE_PATH=__file__),
-    err=None,
 )
 def test_lock_gevent_tasks() -> None:
     from gevent import monkey
@@ -328,7 +327,6 @@ def test_lock_gevent_tasks() -> None:
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT"), reason="gevent is not available")
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_FILE_PATH=__file__),
-    err=None,
 )
 def test_rlock_gevent_tasks() -> None:
     from gevent import monkey
@@ -417,7 +415,7 @@ def test_rlock_gevent_tasks() -> None:
     validate_and_cleanup()
 
 
-@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"), err=None)
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"))
 def test_assertion_error_raised_with_enable_asserts():
     """Ensure that AssertionError is propagated when config.enable_asserts=True."""
     import threading
@@ -441,7 +439,7 @@ def test_assertion_error_raised_with_enable_asserts():
             lock.acquire()
 
 
-@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="false"), err=None)
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="false"))
 def test_all_exceptions_suppressed_by_default() -> None:
     """
     Ensure that exceptions are silently suppressed in the `_acquire` method

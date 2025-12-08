@@ -50,8 +50,7 @@ def func5():
     env=dict(
         DD_PROFILING_MAX_FRAMES="5",
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_collect_truncate",
-    ),
-    err=None,
+    )
 )
 def test_collect_truncate():
     import os
@@ -507,7 +506,7 @@ def _fib(n):
 
 
 @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
-@pytest.mark.subprocess(ddtrace_run=True, err=None)
+@pytest.mark.subprocess(ddtrace_run=True)
 def test_collect_gevent_thread_task():
     # TODO(taegyunkim): update echion to support gevent and test with stack v2
 
