@@ -107,6 +107,27 @@ variables:
         - .cache
         - .uv
 
+"test sdist":
+  image: registry.ddbuild.io/images/mirror/python:3.9.6-alpine3.14
+  tags: [ "arch:aarch64" ]
+  stage: package
+  variables:
+    CARGO_BUILD_JOBS: "12"
+    CMAKE_BUILD_PARALLEL_LEVEL: "12"
+    KUBERNETES_CPU_REQUEST: "6"
+    KUBERNETES_MEMORY_REQUEST: "8Gi"
+    KUBERNETES_MEMORY_LIMIT: "8Gi"
+  needs:
+    - job: "build sdist"
+-      artifacts: true
+  script:
+    - TMP_DIR=$(mktemp -d) && cd $TMP_DIR
+    - apk add git gcc g++ musl-dev libffi-dev openssl-dev bash rust cargo make cmake patchelf
+    - pip install twine readme_renderer[md] "cmarkgfm<2025.10.20"
+    - twine check ${CI_PROJECT_DIR}/pywheels/*.tar.gz
+    - pip install ${CI_PROJECT_DIR}/*.tar.gz
+    - python ${CI_PROJECT_DIR}/tests/smoke_test.py
+
 download_ddtrace_artifacts:
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   tags: [ "arch:amd64" ]
