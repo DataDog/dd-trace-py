@@ -479,22 +479,26 @@ get_all_tasks(PyObject* loop, PyThreadState* tstate = nullptr, uintptr_t tstate_
 
     if (asyncio_eager_tasks != NULL) {
         auto maybe_eager_tasks_set = MirrorSet::create(asyncio_eager_tasks);
-        if (maybe_eager_tasks_set) {
-            auto eager_tasks_set = std::move(*maybe_eager_tasks_set);
-            auto maybe_eager_tasks = eager_tasks_set.as_unordered_set();
-            if (maybe_eager_tasks) {
-                auto eager_tasks = std::move(*maybe_eager_tasks);
-                for (auto task_addr : eager_tasks) {
-                    auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_addr));
-                    if (maybe_task_info) {
-                        if ((*maybe_task_info)->loop == loop) {
-                            tasks.push_back(std::move(*maybe_task_info));
-                        }
-                    }
+        if (!maybe_eager_tasks_set) {
+            return ErrorKind::TaskInfoError;
+        }
+
+        auto eager_tasks_set = std::move(*maybe_eager_tasks_set);
+
+        auto maybe_eager_tasks = eager_tasks_set.as_unordered_set();
+        if (!maybe_eager_tasks) {
+            return ErrorKind::TaskInfoError;
+        }
+
+        auto eager_tasks = std::move(*maybe_eager_tasks);
+        for (auto task_addr : eager_tasks) {
+            auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_addr));
+            if (maybe_task_info) {
+                if ((*maybe_task_info)->loop == loop) {
+                    tasks.push_back(std::move(*maybe_task_info));
                 }
             }
         }
-        // If MirrorSet::create() fails, the set might be empty or invalid - skip it
     }
 
     return tasks;
