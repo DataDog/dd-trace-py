@@ -121,11 +121,12 @@ variables:
     - job: "build sdist"
       artifacts: true
   script:
+    - SDIST_FILE=$(ls ${CI_PROJECT_DIR}/pywheels/*.tar.gz | head -n 1)
     - TMP_DIR=$(mktemp -d) && cd $TMP_DIR
     - apk add git gcc g++ musl-dev libffi-dev openssl-dev bash rust cargo make cmake patchelf
     - pip install twine readme_renderer[md] "cmarkgfm<2025.10.20"
-    - twine check ${CI_PROJECT_DIR}/pywheels/*.tar.gz
-    - pip install ${CI_PROJECT_DIR}/*.tar.gz
+    - twine check ${SDIST_FILE}
+    - pip install ${SDIST_FILE}
     - python ${CI_PROJECT_DIR}/tests/smoke_test.py
 
 download_ddtrace_artifacts:
