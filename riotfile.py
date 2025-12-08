@@ -3363,14 +3363,47 @@ venv = Venv(
                         ),
                     ],
                 ),
-                # Python >= 3.11
+                # Python >= 3.11 (excluding 3.14)
                 Venv(
-                    pys=select_pys("3.11", "3.14"),
+                    pys=select_pys("3.11", "3.13"),
                     pkgs={"uwsgi": latest},
                     venvs=[
                         Venv(
                             pkgs={
                                 "protobuf": ["==4.22.0", latest],
+                            },
+                        ),
+                        # Gevent
+                        Venv(
+                            env={
+                                "DD_PROFILE_TEST_GEVENT": "1",
+                            },
+                            pkgs={
+                                "gunicorn[gevent]": latest,
+                                "gevent": latest,
+                                "protobuf": latest,
+                            },
+                        ),
+                        # memcpy-based sampler
+                        Venv(
+                            env={
+                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                            },
+                            pkgs={
+                                "protobuf": latest,
+                            },
+                        ),
+                    ],
+                ),
+                # Python 3.14 - protobuf 4.22.0 is not compatible (TypeError: Metaclasses with custom tp_new)
+                Venv(
+                    pys="3.14",
+                    pkgs={"uwsgi": latest},
+                    venvs=[
+                        Venv(
+                            pkgs={
+                                # Use latest only - protobuf 4.22.0 fails with Python 3.14
+                                "protobuf": latest,
                             },
                         ),
                         # Gevent
