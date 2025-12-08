@@ -59,48 +59,60 @@ def traced_processor_process_inputs(vllm, pin, func, instance, args, kwargs):
 
 @with_traced_module
 def traced_output_processor_process_outputs(vllm, pin, func, instance, args, kwargs):
-    """Create Datadog spans for finished requests."""
+    """Create Datadog spans for finished requests.
+
+    IMPORTANT: We capture req_state data for ALL requests with a req_state, not just
+    those with engine_core_output.finished=True. This is because vLLM's detokenizer
+    can detect stop strings and set a local finish_reason variable without updating
+    engine_core_output.finish_reason. After calling the original function, we check
+    which requests were removed from request_states to determine which actually finished.
+    """
     integration = vllm._datadog_integration
 
     engine_core_outputs = args[0] if args else kwargs.get("engine_core_outputs")
+    iteration_stats = kwargs.get("iteration_stats") if kwargs else (args[2] if len(args) > 2 else None)
 
     if not engine_core_outputs:
         return func(*args, **kwargs)
 
     model_name = get_model_name(instance)
 
-    # Capture req_states BEFORE calling func, as func will remove them
-    spans_data = []
+    # Capture req_states BEFORE calling func, as func will remove finished requests.
+    # We capture ALL requests with req_state (not just engine_core_output.finished)
+    # because stop string detection happens inside func() and sets a local variable,
+    # not engine_core_output.finish_reason.
+    spans_data = {}
     for engine_core_output in engine_core_outputs:
         req_id = engine_core_output.request_id
-
-        if not engine_core_output.finished:
-            continue
 
         req_state = instance.request_states.get(req_id)
         if not req_state:
             continue
 
-        # Extract all data we need before func() removes req_state
+        # Extract all data we need before func() potentially removes req_state
         arrival_time = req_state.stats.arrival_time if req_state.stats else None
         stats = req_state.stats
         data = extract_request_data(req_state, engine_core_output)
 
-        spans_data.append(
-            {
-                "req_id": req_id,
-                "trace_headers": engine_core_output.trace_headers,
-                "arrival_time": arrival_time,
-                "data": data,
-                "stats": stats,
-            }
-        )
+        spans_data[req_id] = {
+            "req_id": req_id,
+            "trace_headers": engine_core_output.trace_headers,
+            "arrival_time": arrival_time,
+            "data": data,
+            "stats": stats,
+            "iteration_stats": iteration_stats,
+        }
 
     # Now call the original function
     result = func(*args, **kwargs)
 
-    # Create spans after original function completes
-    for span_info in spans_data:
+    # Create spans only for requests that were actually removed (i.e., finished).
+    # This handles both engine_core_output.finished=True and stop string detection cases.
+    for req_id, span_info in spans_data.items():
+        # If req_id is still in request_states, it didn't finish - skip it
+        if req_id in instance.request_states:
+            continue
+
         span = create_span(
             pin=pin,
             integration=integration,
@@ -119,7 +131,11 @@ def traced_output_processor_process_outputs(vllm, pin, func, instance, args, kwa
         integration.llmobs_set_tags(
             span,
             args=[],
-            kwargs={"request_data": data, "stats": span_info["stats"]},
+            kwargs={
+                "request_data": data,
+                "stats": span_info["stats"],
+                "iteration_stats": span_info["iteration_stats"],
+            },
             response=None,
             operation=operation,
         )
