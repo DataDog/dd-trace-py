@@ -7,6 +7,10 @@
 #include <Python.h>
 #define Py_BUILD_CORE
 
+#if PY_VERSION_HEX >= 0x030e0000
+#include <internal/pycore_tstate.h> // For _PyThreadStateImpl
+#endif
+
 #include <algorithm>
 #include <cstdint>
 #include <functional>
@@ -27,6 +31,16 @@
 #include <echion/stacks.h>
 #include <echion/tasks.h>
 #include <echion/timing.h>
+
+#if PY_VERSION_HEX >= 0x030e0000
+// Note: _PythreadStateImpl was introduced in Python 3.13. Every PyThreadState
+// is actually allocated as a _PyThreadStateImpl.
+// Python 3.14+: Use _PyThreadStateImpl to access asyncio_tasks_head directly
+using ThreadStateType = _PyThreadStateImpl;
+#else
+// Pre-Python 3.14: Use PyThreadState (no asyncio_tasks_head field)
+using ThreadStateType = PyThreadState;
+#endif
 
 class ThreadInfo
 {
@@ -50,8 +64,8 @@ class ThreadInfo
     [[nodiscard]] Result<void> update_cpu_time();
     bool is_running();
 
-    [[nodiscard]] Result<void> sample(int64_t, PyThreadState*, microsecond_t, uintptr_t tstate_addr = 0);
-    void unwind(PyThreadState*, uintptr_t tstate_addr = 0);
+    [[nodiscard]] Result<void> sample(int64_t, ThreadStateType*, microsecond_t);
+    void unwind(ThreadStateType*);
 
     // ------------------------------------------------------------------------
 #if defined PL_LINUX
@@ -101,7 +115,7 @@ class ThreadInfo
     };
 
   private:
-    [[nodiscard]] Result<void> unwind_tasks(PyThreadState* tstate, uintptr_t tstate_addr = 0);
+    [[nodiscard]] Result<void> unwind_tasks(ThreadStateType*);
     void unwind_greenlets(PyThreadState*, unsigned long);
 };
 
@@ -186,14 +200,15 @@ inline std::mutex thread_info_map_lock;
 
 // ----------------------------------------------------------------------------
 inline void
-ThreadInfo::unwind(PyThreadState* tstate, uintptr_t tstate_addr)
+ThreadInfo::unwind(ThreadStateType* tstate_ptr)
 {
+    PyThreadState* tstate = reinterpret_cast<PyThreadState*>(tstate_ptr);
+
     unwind_python_stack(tstate);
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
         // We cast it to void to ignore failures.
-        // Pass tstate and tstate_addr to unwind_tasks() so it can access this thread's linked-list
-        (void)unwind_tasks(tstate, tstate_addr);
+        (void)unwind_tasks(tstate_ptr);
     }
 
     // We make the assumption that gevent and asyncio are not mixed
@@ -204,16 +219,14 @@ ThreadInfo::unwind(PyThreadState* tstate, uintptr_t tstate_addr)
 
 // ----------------------------------------------------------------------------
 inline Result<void>
-ThreadInfo::unwind_tasks(PyThreadState* tstate, uintptr_t tstate_addr)
+ThreadInfo::unwind_tasks(ThreadStateType* tstate_ptr)
 {
     std::vector<TaskInfo::Ref> leaf_tasks;
     std::unordered_set<PyObject*> parent_tasks;
     std::unordered_map<PyObject*, TaskInfo::Ref> waitee_map; // Indexed by task origin
     std::unordered_map<PyObject*, TaskInfo::Ref> origin_map; // Indexed by task origin
 
-    // Pass tstate and tstate_addr to get_all_tasks() to get tasks from this thread's linked-list (Python 3.14+)
-    // tstate is used for dereferencing (e.g., tstate->interp), tstate_addr is used for offset calculations
-    auto maybe_all_tasks = get_all_tasks(reinterpret_cast<PyObject*>(asyncio_loop), tstate, tstate_addr);
+    auto maybe_all_tasks = get_all_tasks(reinterpret_cast<PyObject*>(asyncio_loop), tstate_ptr);
     if (!maybe_all_tasks) {
         return ErrorKind::TaskInfoError;
     }
@@ -385,8 +398,10 @@ ThreadInfo::unwind_greenlets(PyThreadState* tstate, unsigned long cur_native_id)
 
 // ----------------------------------------------------------------------------
 inline Result<void>
-ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta, uintptr_t tstate_addr)
+ThreadInfo::sample(int64_t iid, ThreadStateType* tstate_ptr, microsecond_t delta)
 {
+    PyThreadState* tstate = reinterpret_cast<PyThreadState*>(tstate_ptr);
+
     Renderer::get().render_thread_begin(tstate, name, delta, thread_id, native_id);
 
     microsecond_t previous_cpu_time = cpu_time;
@@ -399,7 +414,7 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta, uint
 
     Renderer::get().render_cpu_time(thread_is_running ? cpu_time - previous_cpu_time : 0);
 
-    this->unwind(tstate, tstate_addr);
+    this->unwind(tstate_ptr);
 
     // Render in this order of priority
     // 1. asyncio Tasks stacks (if any)
@@ -459,8 +474,14 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta, uint
 }
 
 // ----------------------------------------------------------------------------
+#if PY_VERSION_HEX >= 0x030e0000
+using ThreadStateCallback = std::function<void(_PyThreadStateImpl*, microsecond_t, ThreadInfo&)>;
+#else
+using ThreadStateCallback = std::function<void(PyThreadState*, microsecond_t, ThreadInfo&)>;
+#endif
+
 static void
-for_each_thread(InterpreterInfo& interp, std::function<void(PyThreadState*, uintptr_t, ThreadInfo&)> callback)
+for_each_thread(InterpreterInfo& interp, microsecond_t delta, ThreadStateCallback callback)
 {
     std::unordered_set<PyThreadState*> threads;
     std::unordered_set<PyThreadState*> seen_threads;
@@ -481,21 +502,32 @@ for_each_thread(InterpreterInfo& interp, std::function<void(PyThreadState*, uint
 
         // Since threads can be created and destroyed at any time, we make
         // a copy of the structure before trying to read its fields.
-        PyThreadState tstate;
-        if (copy_type(tstate_addr, tstate))
-            // We failed to copy the thread so we skip it.
+#if PY_VERSION_HEX >= 0x030e0000
+        // For Python 3.14+, copy _PyThreadStateImpl (which contains PyThreadState as first field)
+        // so we can access asyncio_tasks_head directly without offset calculations.
+        ThreadStateType tstate_copy;
+        if (copy_type(reinterpret_cast<ThreadStateType*>(tstate_addr), tstate_copy))
             continue;
+        // Access PyThreadState fields via the first field of _PyThreadStateImpl
+        PyThreadState* tstate = reinterpret_cast<PyThreadState*>(&tstate_copy);
+#else
+        // Pre-Python 3.14: copy PyThreadState directly
+        ThreadStateType tstate_copy;
+        if (copy_type(tstate_addr, tstate_copy))
+            continue;
+        PyThreadState* tstate = &tstate_copy;
+#endif
 
         // Enqueue the unseen threads that we can reach from this thread.
-        if (tstate.next != NULL && seen_threads.find(tstate.next) == seen_threads.end())
-            threads.insert(tstate.next);
-        if (tstate.prev != NULL && seen_threads.find(tstate.prev) == seen_threads.end())
-            threads.insert(tstate.prev);
+        if (tstate->next != NULL && seen_threads.find(tstate->next) == seen_threads.end())
+            threads.insert(tstate->next);
+        if (tstate->prev != NULL && seen_threads.find(tstate->prev) == seen_threads.end())
+            threads.insert(tstate->prev);
 
         {
             const std::lock_guard<std::mutex> guard(thread_info_map_lock);
 
-            if (thread_info_map.find(tstate.thread_id) == thread_info_map.end()) {
+            if (thread_info_map.find(tstate->thread_id) == thread_info_map.end()) {
                 // If the threading module was not imported in the target then
                 // we mistakenly take the hypno thread as the main thread. We
                 // assume that any missing thread is the actual main thread,
@@ -503,7 +535,7 @@ for_each_thread(InterpreterInfo& interp, std::function<void(PyThreadState*, uint
                 // "MainThread". Note that this can also happen on shutdown, so
                 // we need to avoid doing anything in that case.
 #if PY_VERSION_HEX >= 0x030b0000
-                auto native_id = tstate.native_thread_id;
+                auto native_id = tstate->native_thread_id;
 #else
                 auto native_id = getpid();
 #endif
@@ -517,7 +549,7 @@ for_each_thread(InterpreterInfo& interp, std::function<void(PyThreadState*, uint
                 if (main_thread_tracked)
                     continue;
 
-                auto maybe_thread_info = ThreadInfo::create(tstate.thread_id, native_id, "MainThread");
+                auto maybe_thread_info = ThreadInfo::create(tstate->thread_id, native_id, "MainThread");
                 if (!maybe_thread_info) {
                     // We failed to create the thread info object so we skip it.
                     // We'll likely try again later with the valid thread
@@ -525,14 +557,11 @@ for_each_thread(InterpreterInfo& interp, std::function<void(PyThreadState*, uint
                     continue;
                 }
 
-                thread_info_map.emplace(tstate.thread_id, std::move(*maybe_thread_info));
+                thread_info_map.emplace(tstate->thread_id, std::move(*maybe_thread_info));
             }
 
-            // Call back with the thread state, actual address, and thread info.
-            // CRITICAL: Pass both &tstate (local copy for dereferencing) and tstate_addr (actual address for offset
-            // calculations)
-            callback(
-              &tstate, reinterpret_cast<uintptr_t>(tstate_addr), *thread_info_map.find(tstate.thread_id)->second);
+            // Call back with the copied thread state
+            callback(&tstate_copy, delta, *thread_info_map.find(tstate->thread_id)->second);
         }
     }
 }

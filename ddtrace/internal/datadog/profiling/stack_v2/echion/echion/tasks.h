@@ -351,16 +351,15 @@ get_tasks_from_linked_list(uintptr_t head_addr, PyObject* loop, std::vector<Task
 }
 
 inline void
-get_tasks_from_thread_linked_list(uintptr_t tstate_addr, PyObject* loop, std::vector<TaskInfo::Ptr>& tasks)
+get_tasks_from_thread_linked_list(_PyThreadStateImpl* tstate_impl, PyObject* loop, std::vector<TaskInfo::Ptr>& tasks)
 {
-    if (tstate_addr == 0 || loop == nullptr) {
+    if (tstate_impl == nullptr || loop == nullptr) {
         return;
     }
 
-    // Calculate offset to asyncio_tasks_head field
-    // NOTE: tstate_addr points to PyThreadState base, which is the first field of _PyThreadStateImpl
-    size_t asyncio_tasks_head_offset = offsetof(_PyThreadStateImpl, asyncio_tasks_head);
-    uintptr_t head_addr = tstate_addr + asyncio_tasks_head_offset;
+    // Access asyncio_tasks_head directly from _PyThreadStateImpl
+    // No need for offset calculations since we have the full struct
+    uintptr_t head_addr = reinterpret_cast<uintptr_t>(&tstate_impl->asyncio_tasks_head);
 
     // Copy the llist_node struct from remote memory to local memory
     struct llist_node head_node_local;
@@ -407,26 +406,25 @@ get_tasks_from_interpreter_linked_list(PyThreadState* tstate, PyObject* loop, st
 
 // ----------------------------------------------------------------------------
 // TODO: Make this a "for_each_task" function?
+#if PY_VERSION_HEX >= 0x030e0000
 [[nodiscard]] inline Result<std::vector<TaskInfo::Ptr>>
-get_all_tasks(PyObject* loop, PyThreadState* tstate = nullptr, uintptr_t tstate_addr = 0)
+get_all_tasks(PyObject* loop, _PyThreadStateImpl* tstate_impl = nullptr)
 {
     std::vector<TaskInfo::Ptr> tasks;
     if (loop == NULL)
         return tasks;
 
-#if PY_VERSION_HEX >= 0x030e0000
     // Python 3.14+: Native tasks are in linked-list per thread AND per interpreter
     // CPython iterates over both:
-    // 1. Per-thread list: tstate->asyncio_tasks_head (active tasks)
+    // 1. Per-thread list: tstate_impl->asyncio_tasks_head (active tasks)
     // 2. Per-interpreter list: interp->asyncio_tasks_head (lingering tasks)
-    // First, get tasks from this thread's linked-list (if tstate_addr is provided)
-    if (tstate_addr != 0) {
-        get_tasks_from_thread_linked_list(tstate_addr, loop, tasks);
-    }
+    // First, get tasks from this thread's linked-list (if tstate_impl is provided)
+    if (tstate_impl != nullptr) {
+        get_tasks_from_thread_linked_list(tstate_impl, loop, tasks);
 
-    // Second, get tasks from interpreter's linked-list (lingering tasks)
-    // This needs tstate to dereference tstate->interp
-    if (tstate != nullptr) {
+        // Second, get tasks from interpreter's linked-list (lingering tasks)
+        // Access PyThreadState via the first field of _PyThreadStateImpl
+        PyThreadState* tstate = reinterpret_cast<PyThreadState*>(tstate_impl);
         get_tasks_from_interpreter_linked_list(tstate, loop, tasks);
     }
 
@@ -450,6 +448,13 @@ get_all_tasks(PyObject* loop, PyThreadState* tstate = nullptr, uintptr_t tstate_
         }
     }
 #else
+[[nodiscard]] inline Result<std::vector<TaskInfo::Ptr>>
+get_all_tasks(PyObject* loop, PyThreadState* tstate = nullptr)
+{
+    std::vector<TaskInfo::Ptr> tasks;
+    if (loop == NULL)
+        return tasks;
+
     auto maybe_scheduled_tasks_set = MirrorSet::create(asyncio_scheduled_tasks);
     if (!maybe_scheduled_tasks_set) {
         return ErrorKind::TaskInfoError;
