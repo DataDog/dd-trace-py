@@ -13,13 +13,6 @@ from .api_app import app
 
 
 IGNORE_FIELDS = [
-    "metrics.vllm.latency.ttft",
-    "metrics.vllm.latency.queue",
-    "metrics.vllm.latency.prefill",
-    "metrics.vllm.latency.decode",
-    "metrics.vllm.latency.inference",
-    "metrics.vllm.latency.model_forward",
-    "metrics.vllm.latency.model_execute",
     "meta._dd.p.llmobs_trace_id",
 ]
 
@@ -88,6 +81,10 @@ def test_rag_parent_child(vllm, llmobs_span_writer):
         assert event["meta"]["metadata"]["num_cached_tokens"] == 0
         assert event["metrics"]["input_tokens"] > 0
         assert event["metrics"]["output_tokens"] == 0
+        assert "time_to_first_token" in event["metrics"]
+        assert "time_in_queue" in event["metrics"]
+        assert "time_in_model_prefill" in event["metrics"]
+        assert "time_in_model_inference" in event["metrics"]
         assert "ml_app:<ml-app-name>" in event["tags"]
         assert "service:tests.contrib.vllm" in event["tags"]
 
@@ -103,5 +100,10 @@ def test_rag_parent_child(vllm, llmobs_span_writer):
     assert gen_event["meta"]["metadata"]["num_cached_tokens"] == 0
     assert gen_event["metrics"]["input_tokens"] == 27
     assert gen_event["metrics"]["output_tokens"] > 0
+    assert "time_to_first_token" in gen_event["metrics"]
+    assert "time_in_queue" in gen_event["metrics"]
+    assert "time_in_model_prefill" in gen_event["metrics"]
+    assert "time_in_model_decode" in gen_event["metrics"]
+    assert "time_in_model_inference" in gen_event["metrics"]
     assert "ml_app:<ml-app-name>" in gen_event["tags"]
     assert "service:tests.contrib.vllm" in gen_event["tags"]

@@ -6,15 +6,7 @@ from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from ._utils import get_simple_chat_template
 
 
-IGNORE_FIELDS = [
-    "metrics.vllm.latency.ttft",
-    "metrics.vllm.latency.queue",
-    "metrics.vllm.latency.prefill",
-    "metrics.vllm.latency.decode",
-    "metrics.vllm.latency.inference",
-    "metrics.vllm.latency.model_forward",
-    "metrics.vllm.latency.model_execute",
-]
+IGNORE_FIELDS = []
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
@@ -41,7 +33,16 @@ def test_llmobs_basic(llmobs_events, mock_tracer, opt_125m_llm):
             "finish_reason": "length",
             "num_cached_tokens": 0,
         },
-        token_metrics={"input_tokens": 6, "output_tokens": 8, "total_tokens": 14},
+        token_metrics={
+            "input_tokens": 6,
+            "output_tokens": 8,
+            "total_tokens": 14,
+            "time_to_first_token": mock.ANY,
+            "time_in_queue": mock.ANY,
+            "time_in_model_prefill": mock.ANY,
+            "time_in_model_decode": mock.ANY,
+            "time_in_model_inference": mock.ANY,
+        },
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
     )
     assert llmobs_events[0] == expected
@@ -95,7 +96,16 @@ def test_llmobs_chat(llmobs_events, mock_tracer, opt_125m_llm):
             "finish_reason": "length",
             "num_cached_tokens": mock.ANY,
         },
-        token_metrics={"input_tokens": 37, "output_tokens": 16, "total_tokens": 53},
+        token_metrics={
+            "input_tokens": 37,
+            "output_tokens": 16,
+            "total_tokens": 53,
+            "time_to_first_token": mock.ANY,
+            "time_in_queue": mock.ANY,
+            "time_in_model_prefill": mock.ANY,
+            "time_in_model_decode": mock.ANY,
+            "time_in_model_inference": mock.ANY,
+        },
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
     )
     assert llmobs_events[0] == expected
@@ -128,7 +138,15 @@ def test_llmobs_classify(llmobs_events, mock_tracer, bge_reranker_llm):
             input_documents=[{"text": prompt}],
             output_value="[1 embedding(s) returned with size 1]",
             metadata={"embedding_dim": 1, "num_cached_tokens": 0},
-            token_metrics={"input_tokens": 7, "output_tokens": 0, "total_tokens": 7},
+            token_metrics={
+                "input_tokens": 7,
+                "output_tokens": 0,
+                "total_tokens": 7,
+                "time_to_first_token": mock.ANY,
+                "time_in_queue": mock.ANY,
+                "time_in_model_prefill": mock.ANY,
+                "time_in_model_inference": mock.ANY,
+            },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
         )
         assert event == expected
@@ -161,7 +179,15 @@ def test_llmobs_embed(llmobs_events, mock_tracer, e5_small_llm):
             input_documents=[{"text": prompt}],
             output_value="[1 embedding(s) returned with size 384]",
             metadata={"embedding_dim": 384, "num_cached_tokens": 0},
-            token_metrics={"input_tokens": 7, "output_tokens": 0, "total_tokens": 7},
+            token_metrics={
+                "input_tokens": 7,
+                "output_tokens": 0,
+                "total_tokens": 7,
+                "time_to_first_token": mock.ANY,
+                "time_in_queue": mock.ANY,
+                "time_in_model_prefill": mock.ANY,
+                "time_in_model_inference": mock.ANY,
+            },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
         )
         assert event == expected
@@ -194,7 +220,15 @@ def test_llmobs_reward(llmobs_events, mock_tracer, bge_reranker_llm):
             input_documents=[{"text": prompt}],
             output_value="[7 embedding(s) returned with size 1024]",
             metadata={"embedding_dim": 1024, "num_cached_tokens": 0},
-            token_metrics={"input_tokens": 7, "output_tokens": 0, "total_tokens": 7},
+            token_metrics={
+                "input_tokens": 7,
+                "output_tokens": 0,
+                "total_tokens": 7,
+                "time_to_first_token": mock.ANY,
+                "time_in_queue": mock.ANY,
+                "time_in_model_prefill": mock.ANY,
+                "time_in_model_inference": mock.ANY,
+            },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
         )
         assert event == expected
@@ -223,11 +257,19 @@ def test_llmobs_score(llmobs_events, mock_tracer, bge_reranker_llm):
             "input_tokens": 19,
             "output_tokens": 0,
             "total_tokens": 19,
+            "time_to_first_token": mock.ANY,
+            "time_in_queue": mock.ANY,
+            "time_in_model_prefill": mock.ANY,
+            "time_in_model_inference": mock.ANY,
         },
         "[0, 4865, 83, 70, 10323, 111, 9942, 32, 2, 2, 581, 10323, 111, 9942, 83, 7270, 5, 2]": {
             "input_tokens": 18,
             "output_tokens": 0,
             "total_tokens": 18,
+            "time_to_first_token": mock.ANY,
+            "time_in_queue": mock.ANY,
+            "time_in_model_prefill": mock.ANY,
+            "time_in_model_inference": mock.ANY,
         },
     }
 
