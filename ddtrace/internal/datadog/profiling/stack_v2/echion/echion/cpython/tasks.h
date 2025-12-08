@@ -242,8 +242,8 @@ extern "C"
         // Get the code object from f_executable.bits to know co_nlocalsplus
         // Per Python 3.14 release notes (gh-123923): clear LSB to recover PyObject* pointer
         PyCodeObject code;
-        PyCodeObject* code_ptr = reinterpret_cast<PyCodeObject*>(BITS_TO_PTR_MASKED(frame.f_executable));
-        if (copy_type(code_ptr, code)) {
+        auto code_addr = reinterpret_cast<PyCodeObject*>(BITS_TO_PTR_MASKED(frame.f_executable));
+        if (copy_type(code_addr, code)) {
             return nullptr;
         }
 
