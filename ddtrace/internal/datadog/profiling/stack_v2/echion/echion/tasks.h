@@ -20,9 +20,8 @@
 #include <internal/pycore_frame.h>          // for FRAME_CLEARED, FRAME_EXECUTING
 #include <internal/pycore_interp_structs.h> // For PyInterpreterState
 #include <internal/pycore_llist.h>          // For llist_node structure
+#include <internal/pycore_tstate.h>         // For _PyThreadStateImpl
 #include <opcode.h>
-// Note: _PyThreadStateImpl is already available via echion/state.h which includes
-// <internal/pycore_pystate.h> with Py_BUILD_CORE defined.
 #elif PY_VERSION_HEX >= 0x030d0000
 #include <opcode.h>
 #else
