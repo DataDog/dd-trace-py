@@ -43,4 +43,3 @@ def test_submit_evaluation_no_source_otel_when_otel_disabled(llmobs, mock_llmobs
 
     assert "tags" in call_args
     assert "source:otel" not in call_args["tags"]
-
