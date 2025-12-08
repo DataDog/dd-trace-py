@@ -7,6 +7,10 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+from ddtrace.contrib.internal.vllm._constants import PROVIDER_NAME
+from ddtrace.contrib.internal.vllm._constants import TAG_MODEL
+from ddtrace.contrib.internal.vllm._constants import TAG_PROVIDER
+from ddtrace.contrib.internal.vllm.extractors import LatencyMetrics
 from ddtrace.contrib.internal.vllm.extractors import RequestData
 from ddtrace.contrib.internal.vllm.extractors import parse_prompt_to_messages
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
@@ -52,8 +56,8 @@ class VLLMIntegration(BaseLLMIntegration):
         """Set base tags on vLLM spans."""
         model_name = kwargs.get("model_name")
         if model_name:
-            span._set_tag_str("vllm.request.model", model_name)
-            span._set_tag_str("vllm.request.provider", "vllm")
+            span._set_tag_str(TAG_MODEL, model_name)
+            span._set_tag_str(TAG_PROVIDER, PROVIDER_NAME)
 
     def _build_metadata(self, data: RequestData) -> Dict[str, Any]:
         """Extract metadata from request data."""
@@ -66,7 +70,7 @@ class VLLMIntegration(BaseLLMIntegration):
 
         return md
 
-    def _build_metrics(self, data: RequestData, stats=None, iteration_stats=None) -> Dict[str, Any]:
+    def _build_metrics(self, data: RequestData, latency_metrics: Optional[LatencyMetrics] = None) -> Dict[str, Any]:
         """Build token and latency metrics from request data."""
         it = int(data.input_tokens or 0)
         ot = int(data.output_tokens or 0)
@@ -76,36 +80,28 @@ class VLLMIntegration(BaseLLMIntegration):
             TOTAL_TOKENS_METRIC_KEY: it + ot,
         }
 
-        # Add latency metrics if stats are available
-        if stats:
-            if stats.first_token_latency:
-                metrics[TIME_TO_FIRST_TOKEN_METRIC_KEY] = float(stats.first_token_latency)
-
-            queued = stats.queued_ts
-            scheduled = stats.scheduled_ts
-            first_token = stats.first_token_ts
-            last_token = stats.last_token_ts
-
-            if queued and scheduled:
-                metrics[TIME_IN_QUEUE_METRIC_KEY] = float(scheduled - queued)
-
-            if scheduled and first_token:
-                metrics[TIME_IN_MODEL_PREFILL_METRIC_KEY] = float(first_token - scheduled)
-
-            if first_token and last_token and last_token > first_token:
-                metrics[TIME_IN_MODEL_DECODE_METRIC_KEY] = float(last_token - first_token)
-
-            if scheduled and last_token:
-                metrics[TIME_IN_MODEL_INFERENCE_METRIC_KEY] = float(last_token - scheduled)
+        if latency_metrics:
+            metric_map = {
+                "time_to_first_token": TIME_TO_FIRST_TOKEN_METRIC_KEY,
+                "time_in_queue": TIME_IN_QUEUE_METRIC_KEY,
+                "time_in_model_prefill": TIME_IN_MODEL_PREFILL_METRIC_KEY,
+                "time_in_model_decode": TIME_IN_MODEL_DECODE_METRIC_KEY,
+                "time_in_model_inference": TIME_IN_MODEL_INFERENCE_METRIC_KEY,
+            }
+            
+            for attr, constant_key in metric_map.items():
+                value = getattr(latency_metrics, attr, None)
+                if value is not None:
+                    metrics[constant_key] = value
 
         return metrics
 
-    def _build_embedding_context(self, data: RequestData, stats=None, iteration_stats=None) -> Dict[str, Any]:
+    def _build_embedding_context(self, data: RequestData, latency_metrics: Optional[LatencyMetrics] = None) -> Dict[str, Any]:
         """Build LLMObs context for embedding operations."""
         ctx: Dict[str, Any] = {
             SPAN_KIND: "embedding",
             METADATA: self._build_metadata(data),
-            METRICS: self._build_metrics(data, stats, iteration_stats),
+            METRICS: self._build_metrics(data, latency_metrics),
         }
 
         docs: List[Document] = []
@@ -125,12 +121,12 @@ class VLLMIntegration(BaseLLMIntegration):
 
         return ctx
 
-    def _build_completion_context(self, data: RequestData, stats=None, iteration_stats=None) -> Dict[str, Any]:
+    def _build_completion_context(self, data: RequestData, latency_metrics: Optional[LatencyMetrics] = None) -> Dict[str, Any]:
         """Build LLMObs context for completion operations."""
         ctx: Dict[str, Any] = {
             SPAN_KIND: "llm",
             METADATA: self._build_metadata(data),
-            METRICS: self._build_metrics(data, stats, iteration_stats),
+            METRICS: self._build_metrics(data, latency_metrics),
         }
 
         if data.prompt:
@@ -154,13 +150,12 @@ class VLLMIntegration(BaseLLMIntegration):
         if data is None:
             return
 
-        stats = kwargs.get("stats")
-        iteration_stats = kwargs.get("iteration_stats")
+        latency_metrics = kwargs.get("latency_metrics")
         ctx = (
-            self._build_embedding_context(data, stats, iteration_stats)
+            self._build_embedding_context(data, latency_metrics)
             if operation == "embedding"
-            else self._build_completion_context(data, stats, iteration_stats)
+            else self._build_completion_context(data, latency_metrics)
         )
-        ctx[MODEL_NAME] = span.get_tag("vllm.request.model") or ""
-        ctx[MODEL_PROVIDER] = span.get_tag("vllm.request.provider") or ""
+        ctx[MODEL_NAME] = span.get_tag(TAG_MODEL) or ""
+        ctx[MODEL_PROVIDER] = span.get_tag(TAG_PROVIDER) or ""
         span._set_ctx_items(ctx)
