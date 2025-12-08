@@ -58,7 +58,7 @@ variables:
     DD_CYTHONIZE: "0"
     UV_PYTHON: "/opt/python/cp314-cp314/bin/python"
   script:
-    - uv build --sdist --out-dir pywheels/
+    - .gitlab/scripts/build-sdist.sh
 
 "build linux":
   extends: .build_base
