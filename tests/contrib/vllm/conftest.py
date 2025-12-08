@@ -1,5 +1,4 @@
 import gc
-import os
 import weakref
 
 import pytest
@@ -77,18 +76,13 @@ def llmobs_events(vllm_llmobs, llmobs_span_writer):
 
 
 @pytest.fixture(scope="module")
-def vllm_engine_mode():
-    """Derive engine mode from environment for CI job split (default v1)."""
-    mode = os.environ.get("VLLM_USE_V1", "1").strip()
-    if mode not in {"0", "1"}:
-        mode = "1"
-    os.environ["VLLM_USE_V1"] = mode
-    return mode
-
-
-@pytest.fixture(scope="module")
-def opt_125m_llm(vllm_engine_mode):
+def opt_125m_llm():
     """Cached facebook/opt-125m LLM for text generation tests."""
+    # Ensure patching happens before LLM creation
+    from ddtrace.contrib.internal.vllm.patch import patch
+
+    patch()
+
     import vllm
     from vllm.distributed import cleanup_dist_env_and_memory
 
@@ -105,8 +99,13 @@ def opt_125m_llm(vllm_engine_mode):
 
 
 @pytest.fixture(scope="module")
-def e5_small_llm(vllm_engine_mode):
+def e5_small_llm():
     """Cached intfloat/e5-small LLM for embedding tests."""
+    # Ensure patching happens before LLM creation
+    from ddtrace.contrib.internal.vllm.patch import patch
+
+    patch()
+
     import vllm
     from vllm.distributed import cleanup_dist_env_and_memory
 
@@ -125,8 +124,13 @@ def e5_small_llm(vllm_engine_mode):
 
 
 @pytest.fixture(scope="module")
-def bge_reranker_llm(vllm_engine_mode):
+def bge_reranker_llm():
     """Cached BAAI/bge-reranker-v2-m3 LLM for classification/ranking tests."""
+    # Ensure patching happens before LLM creation
+    from ddtrace.contrib.internal.vllm.patch import patch
+
+    patch()
+
     import vllm
     from vllm.distributed import cleanup_dist_env_and_memory
 
