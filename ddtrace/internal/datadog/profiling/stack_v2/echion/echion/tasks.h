@@ -357,28 +357,11 @@ get_tasks_from_thread_linked_list(_PyThreadStateImpl* tstate_impl, PyObject* loo
         return;
     }
 
-    // Access asyncio_tasks_head directly from _PyThreadStateImpl
-    // No need for offset calculations since we have the full struct
     uintptr_t head_addr = reinterpret_cast<uintptr_t>(&tstate_impl->asyncio_tasks_head);
 
-    // Copy the llist_node struct from remote memory to local memory
-    struct llist_node head_node_local;
-    if (copy_type(reinterpret_cast<void*>(head_addr), head_node_local)) {
-        return; // Failed to read head from remote memory
-    }
-
-    // Check if list is empty (head points to itself in circular list)
-    uintptr_t next_as_uint = reinterpret_cast<uintptr_t>(head_node_local.next);
-    uintptr_t prev_as_uint = reinterpret_cast<uintptr_t>(head_node_local.prev);
-    if (next_as_uint == head_addr && prev_as_uint == head_addr) {
-        return; // Empty list
-    }
-
-    // Iterate over the linked-list
     get_tasks_from_linked_list(head_addr, loop, tasks);
 }
 
-// CRITICAL: All memory access must copy structs to local memory first!
 // Get tasks from interpreter's linked-list (for lingering tasks)
 inline void
 get_tasks_from_interpreter_linked_list(PyThreadState* tstate, PyObject* loop, std::vector<TaskInfo::Ptr>& tasks)
@@ -428,21 +411,22 @@ get_all_tasks(PyObject* loop, _PyThreadStateImpl* tstate_impl = nullptr)
         get_tasks_from_interpreter_linked_list(tstate, loop, tasks);
     }
 
-    // Handle third-party tasks from Python _scheduled_tasks.data (set)
-    // (asyncio_scheduled_tasks is now WeakSet.data, which is a Python set)
-    // These are global, not per-thread, so we collect them once
-    // If MirrorSet::create() fails, the set might be empty or invalid - skip it
-    if (asyncio_scheduled_tasks == nullptr) {
-        // Skip if not initialized
-    } else if (auto maybe_scheduled_tasks_set = MirrorSet::create(asyncio_scheduled_tasks)) {
-        auto scheduled_tasks_set = std::move(*maybe_scheduled_tasks_set);
-        if (auto maybe_scheduled_tasks = scheduled_tasks_set.as_unordered_set()) {
-            auto scheduled_tasks = std::move(*maybe_scheduled_tasks);
-            for (auto task_addr : scheduled_tasks) {
-                // In WeakSet.data (set), elements are the Task objects themselves
-                auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_addr));
-                if (maybe_task_info && (*maybe_task_info)->loop == loop) {
-                    tasks.push_back(std::move(*maybe_task_info));
+    // Handle third-party tasks from Python _scheduled_tasks WeakSet
+    // In Python 3.14+, _scheduled_tasks is a Python-level weakref.WeakSet() that only contains
+    // tasks that don't inherit from asyncio.Task. Native asyncio.Task instances are stored
+    // in linked-lists (handled above) and are NOT added to _scheduled_tasks.
+    // This is typically empty in practice, but we handle it for completeness.
+    if (asyncio_scheduled_tasks != nullptr) {
+        if (auto maybe_scheduled_tasks_set = MirrorSet::create(asyncio_scheduled_tasks)) {
+            auto scheduled_tasks_set = std::move(*maybe_scheduled_tasks_set);
+            if (auto maybe_scheduled_tasks = scheduled_tasks_set.as_unordered_set()) {
+                auto scheduled_tasks = std::move(*maybe_scheduled_tasks);
+                for (auto task_addr : scheduled_tasks) {
+                    // In WeakSet.data (set), elements are the Task objects themselves
+                    auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_addr));
+                    if (maybe_task_info && (*maybe_task_info)->loop == loop) {
+                        tasks.push_back(std::move(*maybe_task_info));
+                    }
                 }
             }
         }

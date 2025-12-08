@@ -268,9 +268,6 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
     // We cannot use _PyInterpreterFrame_LASTI because _PyCode_CODE reads
     // from the code object.
 #if PY_VERSION_HEX >= 0x030e0000
-    // Python 3.14+: f_executable is _PyStackRef, access bits directly
-    // We can't use CPython API helpers as we're copying partial structs
-    //
     // Per Python 3.14 release notes (gh-123923): f_executable uses a tagged pointer.
     // Profilers must clear the least significant bit to recover the PyObject* pointer.
     PyCodeObject* code_obj = reinterpret_cast<PyCodeObject*>(BITS_TO_PTR_MASKED(frame_addr->f_executable));
