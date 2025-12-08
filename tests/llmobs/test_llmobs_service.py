@@ -1537,6 +1537,11 @@ def test_service_enable_does_not_start_evaluator_runner():
         llmobs_service.disable()
 
 
+def test_export_span_when_llmobs_is_disabled_returns_none(llmobs):
+    llmobs.disable()
+    assert llmobs.export_span() is None
+
+
 def test_submit_evaluation_no_ml_app_raises(llmobs):
     with override_global_config(dict(_llmobs_ml_app="")):
         with pytest.raises(Exception) as excinfo:
