@@ -523,7 +523,7 @@ class TestRunner:
 
                 # Add riot args if provided
                 if riot_args:
-                    cmd.extend(["--"] + riot_args)
+                    cmd.extend(riot_args)
 
                 if dry_run:
                     print(f"[DRY RUN] Would execute: {' '.join(cmd)}")
@@ -655,8 +655,14 @@ Examples:
   # Show what would be run without executing
   scripts/run-tests --dry-run
 
+  # Pass additional arguments to riot
+  scripts/run-tests ddtrace/contrib/django/patch.py -- -s
+
   # Pass additional arguments to pytest
-  scripts/run-tests ddtrace/contrib/django/patch.py -- -vvv -s --tb=short
+  scripts/run-tests ddtrace/contrib/django/patch.py -- -- -vvv -s --tb=short
+
+  # Pass additional arguments to riot (first) and pytest (second)
+  scripts/run-tests ddtrace/contrib/django/patch.py -- -s -- -vvv -k api --tb=short
         """,
     )
 
