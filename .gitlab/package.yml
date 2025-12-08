@@ -43,8 +43,8 @@ variables:
     SCCACHE_CACHE_SIZE: "2G"
     # job resource requests
     KUBERNETES_CPU_REQUEST: "6"
-    KUBERNETES_MEMORY_REQUEST: "8Gi"
-    KUBERNETES_MEMORY_LIMIT: "8Gi"
+    KUBERNETES_MEMORY_REQUEST: "10Gi"
+    KUBERNETES_MEMORY_LIMIT: "10Gi"
   artifacts:
     paths:
       - "pywheels/*.whl"
@@ -115,8 +115,8 @@ variables:
     CARGO_BUILD_JOBS: "12"
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
     KUBERNETES_CPU_REQUEST: "6"
-    KUBERNETES_MEMORY_REQUEST: "8Gi"
-    KUBERNETES_MEMORY_LIMIT: "8Gi"
+    KUBERNETES_MEMORY_REQUEST: "10Gi"
+    KUBERNETES_MEMORY_LIMIT: "10Gi"
   needs:
     - job: "build sdist"
       artifacts: true
