@@ -43,15 +43,7 @@ def _task_get_name(task: "asyncio.Task[typing.Any]") -> str:
 def _call_init_asyncio(asyncio: ModuleType) -> None:
     from asyncio import tasks as asyncio_tasks
 
-    if sys.hexversion >= 0x030E0000:
-        # Python 3.14+:
-        # - Native tasks are in linked-list (handled in C++)
-        # - Third-party tasks are in Python _scheduled_tasks WeakSet
-        # - Pass _scheduled_tasks.data (set) so C++ can iterate it with MirrorSet
-        scheduled_tasks = asyncio_tasks._scheduled_tasks.data  # type: ignore[attr-defined]
-        eager_tasks = asyncio_tasks._eager_tasks  # type: ignore[attr-defined]
-    elif sys.hexversion >= 0x030C0000:
-        # Python 3.12-3.13: _scheduled_tasks has .data attribute from C extension
+    if sys.hexversion >= 0x030C0000:
         scheduled_tasks = asyncio_tasks._scheduled_tasks.data  # type: ignore[attr-defined]
         eager_tasks = asyncio_tasks._eager_tasks  # type: ignore[attr-defined]
     else:
