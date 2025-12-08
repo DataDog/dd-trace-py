@@ -88,7 +88,7 @@ class VLLMIntegration(BaseLLMIntegration):
                 "time_in_model_decode": TIME_IN_MODEL_DECODE_METRIC_KEY,
                 "time_in_model_inference": TIME_IN_MODEL_INFERENCE_METRIC_KEY,
             }
-            
+
             for attr, constant_key in metric_map.items():
                 value = getattr(latency_metrics, attr, None)
                 if value is not None:
@@ -96,7 +96,9 @@ class VLLMIntegration(BaseLLMIntegration):
 
         return metrics
 
-    def _build_embedding_context(self, data: RequestData, latency_metrics: Optional[LatencyMetrics] = None) -> Dict[str, Any]:
+    def _build_embedding_context(
+        self, data: RequestData, latency_metrics: Optional[LatencyMetrics] = None
+    ) -> Dict[str, Any]:
         """Build LLMObs context for embedding operations."""
         ctx: Dict[str, Any] = {
             SPAN_KIND: "embedding",
@@ -121,7 +123,9 @@ class VLLMIntegration(BaseLLMIntegration):
 
         return ctx
 
-    def _build_completion_context(self, data: RequestData, latency_metrics: Optional[LatencyMetrics] = None) -> Dict[str, Any]:
+    def _build_completion_context(
+        self, data: RequestData, latency_metrics: Optional[LatencyMetrics] = None
+    ) -> Dict[str, Any]:
         """Build LLMObs context for completion operations."""
         ctx: Dict[str, Any] = {
             SPAN_KIND: "llm",

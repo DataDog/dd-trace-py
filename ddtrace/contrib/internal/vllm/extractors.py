@@ -10,6 +10,7 @@ from ddtrace.llmobs.types import Message
 
 from ._constants import ATTR_MODEL_NAME
 
+
 if TYPE_CHECKING:
     from vllm.v1.engine.core import EngineCoreOutput
     from vllm.v1.engine.output_processor import RequestState
@@ -63,11 +64,11 @@ def get_embedding_shape(tensor) -> tuple[int, Optional[int]]:
 
 def extract_request_data(req_state: "RequestState", engine_core_output: "EngineCoreOutput") -> RequestData:
     """Extract request data from engine-side structures.
-    
+
     Args:
         req_state: RequestState from OutputProcessor.request_states
         engine_core_output: EngineCoreOutput from engine_core
-    
+
     Returns:
         RequestData for LLMObs tagging
     """
@@ -117,34 +118,34 @@ def get_model_name(instance) -> Optional[str]:
 
 def extract_latency_metrics(stats: Optional["RequestStateStats"]) -> Optional[LatencyMetrics]:
     """Extract latency metrics from vLLM RequestStateStats.
-    
+
     Single source of truth for latency calculation logic.
     """
     if not stats:
         return None
-    
+
     metrics = LatencyMetrics()
-    
+
     if stats.first_token_latency:
         metrics.time_to_first_token = float(stats.first_token_latency)
-    
+
     queued = stats.queued_ts
     scheduled = stats.scheduled_ts
     first_token = stats.first_token_ts
     last_token = stats.last_token_ts
-    
+
     if queued and scheduled:
         metrics.time_in_queue = float(scheduled - queued)
-    
+
     if scheduled and first_token:
         metrics.time_in_model_prefill = float(first_token - scheduled)
-    
+
     if first_token and last_token and last_token > first_token:
         metrics.time_in_model_decode = float(last_token - first_token)
-    
+
     if scheduled and last_token:
         metrics.time_in_model_inference = float(last_token - scheduled)
-    
+
     return metrics
 
 

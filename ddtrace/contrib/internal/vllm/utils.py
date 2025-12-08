@@ -46,7 +46,7 @@ def set_latency_metrics(span: Span, latency_metrics: Optional[LatencyMetrics]) -
     """Set latency span tags from pre-computed metrics."""
     if not latency_metrics:
         return
-    
+
     metric_map = {
         "time_to_first_token": METRIC_LATENCY_TTFT,
         "time_in_queue": METRIC_LATENCY_QUEUE,
@@ -54,7 +54,7 @@ def set_latency_metrics(span: Span, latency_metrics: Optional[LatencyMetrics]) -
         "time_in_model_decode": METRIC_LATENCY_DECODE,
         "time_in_model_inference": METRIC_LATENCY_INFERENCE,
     }
-    
+
     for attr, tag_name in metric_map.items():
         value = getattr(latency_metrics, attr, None)
         if value is not None:
