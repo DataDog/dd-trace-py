@@ -156,7 +156,7 @@ test_wheel() {
   echo "=== Testing direct import ==="
   "${VENV_PATH}/bin/python" -c "import ddtrace; print('✓ ddtrace import successful')" || echo "✗ ddtrace import failed"
 
-  # Run smoke test
+  echo "=== Running smoke test ==="
   "${VENV_PATH}/bin/python" "${PROJECT_DIR}/tests/smoke_test.py"
   section_end "test_wheel"
 }
