@@ -1,0 +1,5 @@
+fixes:
+  - |
+    profiling: This fix improves the detection of on-CPU asyncio Tasks. Previously, the Profiler would only
+    consider a Task as running if its coroutine was running. The Profiler now recursively checks if any coroutine in the
+    await chain of the Task's coroutine is running.

@@ -120,9 +120,11 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
     )
 
     # Create crashtracker receiver configuration
+    # Pass all environment variables to the receiver process so it can access
+    # all env vars since it's spawned using execve() and not fork()
     receiver_config = CrashtrackerReceiverConfig(
         [],  # args
-        {},  # env
+        dict(os.environ),  # env - pass all environment variables
         dd_crashtracker_receiver,  # path_to_receiver_binary
         crashtracker_config.stderr_filename,
         crashtracker_config.stdout_filename,
@@ -152,6 +154,11 @@ def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
         if config is None or receiver_config is None or metadata is None:
             print("Failed to start crashtracker: failed to construct crashtracker configuration", file=sys.stderr)
             return False
+
+        # TODO: Add this back in post Code Freeze (need to update config registry)
+        # crashtracker_init(
+        #     config, receiver_config, metadata, emit_runtime_stacks=crashtracker_config.emit_runtime_stacks
+        # )
 
         crashtracker_init(config, receiver_config, metadata)
 
