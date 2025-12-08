@@ -146,14 +146,11 @@ GenInfo::create(PyObject* gen_addr)
     auto frame = (PyObject*)gen.gi_frame;
 #endif
 
-#if PY_VERSION_HEX >= 0x030a0000 && PY_VERSION_HEX < 0x030b0000
-    // Python 3.10: Need PyFrameObject for _PyFrame_IsExecuting
     PyFrameObject f;
     if (copy_type(frame, f)) {
         recursion_depth--;
         return ErrorKind::GenInfoError;
     }
-#endif
 
     PyObject* yf = (frame != NULL ? PyGen_yf(&gen, frame) : NULL);
     GenInfo::Ptr await = nullptr;
