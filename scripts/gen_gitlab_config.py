@@ -207,17 +207,6 @@ def gen_required_suites() -> None:
 
     suites = suitespec.get_suites()
 
-    # Load GPU-enabled integrations from registry
-    registry_path = ROOT / "ddtrace" / "contrib" / "integration_registry" / "registry.yaml"
-    with YAML() as yaml:
-        reg = yaml.load(registry_path) or {}
-        gpu_integrations: t.Set[str] = set()
-        for entry in reg.get("integrations", []) or []:
-            if entry.get("gpu") is True:
-                name = str(entry.get("integration_name", "")).strip()
-                if name:
-                    gpu_integrations.add(name)
-
     required_suites: t.List[str] = []
 
     for_each_testrun_needed(
@@ -249,9 +238,6 @@ def gen_required_suites() -> None:
         # Store the stage in the suite config for later use
         suite_config["_stage"] = stage
         suite_config["_clean_name"] = clean_name
-        # Mark GPU requirement if the clean suite name matches a GPU integration
-        if clean_name in gpu_integrations:
-            suite_config["gpu"] = True
 
     # Sort stages: setup first, then alphabetically
     sorted_stages = ["setup"] + sorted(stages - {"setup"})

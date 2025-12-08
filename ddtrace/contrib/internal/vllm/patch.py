@@ -14,6 +14,7 @@ from .extractors import extract_request_data
 from .extractors import get_model_name
 from .utils import create_span
 from .utils import inject_trace_context
+from .utils import set_latency_metrics
 
 
 logger = get_logger(__name__)
@@ -95,13 +96,13 @@ def traced_output_processor_process_outputs(vllm, pin, func, instance, args, kwa
         data = extract_request_data(req_state, engine_core_output)
 
         spans_data[req_id] = {
-            "req_id": req_id,
-            "trace_headers": engine_core_output.trace_headers,
-            "arrival_time": arrival_time,
-            "data": data,
-            "stats": stats,
+                "req_id": req_id,
+                "trace_headers": engine_core_output.trace_headers,
+                "arrival_time": arrival_time,
+                "data": data,
+                "stats": stats,
             "iteration_stats": iteration_stats,
-        }
+            }
 
     # Now call the original function
     result = func(*args, **kwargs)
@@ -140,6 +141,7 @@ def traced_output_processor_process_outputs(vllm, pin, func, instance, args, kwa
             operation=operation,
         )
 
+        set_latency_metrics(span, span_info["stats"])
         span.finish()
 
     return result

@@ -21,7 +21,6 @@ from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 
-# from ddtrace.llmobs._constants import TIME_E2E_METRIC_KEY
 from ddtrace.llmobs._constants import TIME_IN_MODEL_DECODE_METRIC_KEY
 from ddtrace.llmobs._constants import TIME_IN_MODEL_INFERENCE_METRIC_KEY
 from ddtrace.llmobs._constants import TIME_IN_MODEL_PREFILL_METRIC_KEY
@@ -99,14 +98,6 @@ class VLLMIntegration(BaseLLMIntegration):
 
             if scheduled and last_token:
                 metrics[TIME_IN_MODEL_INFERENCE_METRIC_KEY] = float(last_token - scheduled)
-
-            # Calculate e2e latency using iteration_stats.iteration_timestamp if available
-            # This matches how vLLM computes e2e time in do_tracing()
-            # if iteration_stats is not None and hasattr(iteration_stats, "iteration_timestamp"):
-            #    arrival_time = stats.arrival_time
-            #    if arrival_time:
-            #        e2e_time = iteration_stats.iteration_timestamp - arrival_time
-            #        metrics[TIME_E2E_METRIC_KEY] = float(e2e_time)
 
         return metrics
 
