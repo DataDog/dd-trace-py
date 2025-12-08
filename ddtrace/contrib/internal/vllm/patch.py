@@ -15,6 +15,7 @@ from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.vllm import VLLMIntegration
 
+
 if TYPE_CHECKING:
     from vllm.v1.engine.output_processor import OutputProcessor
 
@@ -41,7 +42,7 @@ config._add("vllm", {})
 def traced_engine_init(vllm, pin, func, instance, args, kwargs):
     """Inject model name into OutputProcessor and force-enable stats for tracing."""
     if len(args) > ARG_POSITION_LOG_STATS:
-        args = args[:ARG_POSITION_LOG_STATS] + (True,) + args[ARG_POSITION_LOG_STATS + 1:]
+        args = args[:ARG_POSITION_LOG_STATS] + (True,) + args[ARG_POSITION_LOG_STATS + 1 :]
     else:
         kwargs["log_stats"] = True
 
@@ -63,7 +64,7 @@ def traced_processor_process_inputs(vllm, pin, func, instance, args, kwargs):
     if len(args) > ARG_POSITION_TRACE_HEADERS:
         trace_headers = args[ARG_POSITION_TRACE_HEADERS]
         injected_headers = inject_trace_context(tracer, trace_headers)
-        args = args[:ARG_POSITION_TRACE_HEADERS] + (injected_headers,) + args[ARG_POSITION_TRACE_HEADERS + 1:]
+        args = args[:ARG_POSITION_TRACE_HEADERS] + (injected_headers,) + args[ARG_POSITION_TRACE_HEADERS + 1 :]
     else:
         trace_headers = kwargs.get("trace_headers")
         kwargs["trace_headers"] = inject_trace_context(tracer, trace_headers)
@@ -77,17 +78,17 @@ def _capture_request_states(
     iteration_stats: Optional[Any],
 ) -> Dict[str, Dict[str, Any]]:
     """Capture request state data before original function removes them.
-    
+
     Returns dict mapping request_id -> captured_data.
     """
     spans_data = {}
     for engine_core_output in engine_core_outputs:
         req_id = engine_core_output.request_id
         req_state = instance.request_states.get(req_id)
-        
+
         if not req_state:
             continue
-        
+
         spans_data[req_id] = {
             "trace_headers": engine_core_output.trace_headers,
             "arrival_time": req_state.stats.arrival_time if req_state.stats else None,
@@ -95,7 +96,7 @@ def _capture_request_states(
             "stats": req_state.stats,
             "iteration_stats": iteration_stats,
         }
-    
+
     return spans_data
 
 
@@ -110,7 +111,7 @@ def _create_finished_spans(
     for req_id, span_info in spans_data.items():
         if req_id in instance.request_states:
             continue
-        
+
         span = create_span(
             pin=pin,
             integration=integration,
@@ -118,15 +119,15 @@ def _create_finished_spans(
             trace_headers=span_info["trace_headers"],
             arrival_time=span_info["arrival_time"],
         )
-        
+
         data = span_info["data"]
         operation = "embedding" if data.embedding_dim is not None else "completion"
-        
+
         if operation == "completion" and span_info["stats"]:
             data.output_tokens = span_info["stats"].num_generation_tokens
-        
+
         latency_metrics = extract_latency_metrics(span_info["stats"])
-        
+
         integration.llmobs_set_tags(
             span,
             args=[],
@@ -137,7 +138,7 @@ def _create_finished_spans(
             response=None,
             operation=operation,
         )
-        
+
         set_latency_metrics(span, latency_metrics)
         span.finish()
 
@@ -146,20 +147,20 @@ def _create_finished_spans(
 def traced_output_processor_process_outputs(vllm, pin, func, instance, args, kwargs):
     """Create Datadog spans for finished requests."""
     integration = getattr(vllm, ATTR_DATADOG_INTEGRATION)
-    
+
     engine_core_outputs = args[0] if args else kwargs.get("engine_core_outputs")
     iteration_stats = kwargs.get("iteration_stats") if kwargs else (args[2] if len(args) > 2 else None)
-    
+
     if not engine_core_outputs:
         return func(*args, **kwargs)
-    
+
     model_name = get_model_name(instance)
     spans_data = _capture_request_states(instance, engine_core_outputs, iteration_stats)
-    
+
     result = func(*args, **kwargs)
-    
+
     _create_finished_spans(pin, integration, model_name, instance, spans_data)
-    
+
     return result
 
 
