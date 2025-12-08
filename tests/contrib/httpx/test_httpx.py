@@ -52,7 +52,7 @@ def test_patching():
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])
-def test_httpx_service_name(tracer, test_spans):
+def test_httpx_service_name():
     """
     When using split_by_domain
         We set the span service name as a text type and not binary

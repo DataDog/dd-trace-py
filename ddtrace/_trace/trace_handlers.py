@@ -1,6 +1,7 @@
 import functools
 import sys
 from types import TracebackType
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -65,6 +66,9 @@ from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
 
+
+if TYPE_CHECKING:
+    import httpx
 
 log = get_logger(__name__)
 
@@ -1341,15 +1345,19 @@ def _on_aiokafka_getmany_message(
                     span.link_span(context)
 
 
-def _on_httpx_send(ctx, request):
-    span = ctx.span
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+def _on_httpx_request_start(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
+    span = _start_span(ctx, call_trace, **kwargs)
+    span._metrics[_SPAN_MEASURED_KEY] = 1
+
+    request = ctx.get_item("request")
 
     if trace_utils.distributed_tracing_enabled(config.httpx):
         HTTPPropagator.inject(span.context, request.headers)
 
 
-def _on_httpx_send_completed(ctx, request, response, url):
+def _on_httpx_send_completed(
+    ctx: core.ExecutionContext, request: "httpx.Request", response: "httpx.Response", url: str
+) -> None:
     span = ctx.span
 
     trace_utils.set_http_meta(
@@ -1448,7 +1456,6 @@ def listen():
     core.on("rq.queue.enqueue_job", _propagate_context)
     core.on("molten.router.match", _on_router_match)
 
-    core.on("httpx.send", _on_httpx_send)
     core.on("httpx.send.completed", _on_httpx_send_completed)
 
     for context_name in (
@@ -1511,9 +1518,9 @@ def listen():
         "aiokafka.send",
         "aiokafka.getone",
         "aiokafka.getmany",
-        "httpx.request",
     ):
         core.on(f"context.started.{context_name}", _start_span)
+    core.on("context.started.httpx.request", _on_httpx_request_start)
 
     for name in (
         "asgi.request",
