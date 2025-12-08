@@ -94,9 +94,11 @@ variables:
   variables:
     SYSTEM_VERSION_COMPAT: "0"
   rules:
-    - if: $IS_MAIN_BRANCH == "false" && $IS_RELEASE_BRANCH == "false" && $IS_RELEASE == "false"
-      when: manual
-    - when: always
+    - if: $IS_MAIN_BRANCH == "true" || $IS_RELEASE_BRANCH == "true" || $IS_RELEASE == "true"
+      when: always
+    - if: UV_PYTHON == "3.14"
+      when: always
+    - when: manual
   script:
     - .gitlab/scripts/build-wheel.sh
   cache:
