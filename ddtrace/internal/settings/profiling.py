@@ -65,6 +65,9 @@ def _check_for_stack_v2_available():
 
 
 def _parse_profiling_enabled(raw: str) -> bool:
+    # We keep the default value to be gated by Python version, as the Profiler
+    # relies on CPython internal structs and APIs that could change between
+    # different Python versions. We disable it by default for Python 3.15+
     if sys.version_info >= (3, 15):
         return False
 
@@ -253,7 +256,7 @@ class ProfilingConfigStack(DDConfig):
     enabled = DDConfig.v(
         bool,
         "enabled",
-        default=sys.version_info < (3, 15),
+        default=True,
         help_type="Boolean",
         help="Whether to enable the stack profiler",
     )
@@ -363,14 +366,12 @@ ddup_failure_msg, ddup_is_available = _check_for_ddup_available()
 
 # We need to check if ddup is available, and turn off profiling if it is not.
 if not ddup_is_available:
-    # We know it is not supported on 3.14, so don't report the error, but still disable
-    if sys.version_info < (3, 15):
-        msg = ddup_failure_msg or "libdd not available"
-        logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
-        telemetry_writer.add_log(
-            TELEMETRY_LOG_LEVEL.ERROR,
-            "Failed to load ddup module (%s), disabling profiling" % ddup_failure_msg,
-        )
+    msg = ddup_failure_msg or "libdd not available"
+    logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
+    telemetry_writer.add_log(
+        TELEMETRY_LOG_LEVEL.ERROR,
+        "Failed to load ddup module (%s), disabling profiling" % ddup_failure_msg,
+    )
     config.enabled = False
 
 # We also need to check if stack_v2 module is available, and turn if off
