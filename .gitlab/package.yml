@@ -96,7 +96,7 @@ variables:
   rules:
     - if: $IS_MAIN_BRANCH == "true" || $IS_RELEASE_BRANCH == "true" || $IS_RELEASE == "true"
       when: always
-    - if: UV_PYTHON == "3.14"
+    - if: $UV_PYTHON == "3.14"
       when: always
     - when: manual
   script:
