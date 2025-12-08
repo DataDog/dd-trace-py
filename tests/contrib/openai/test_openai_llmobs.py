@@ -7,6 +7,7 @@ import pytest
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.utils import _est_tokens
 from ddtrace.llmobs._utils import safe_json
+from tests.contrib.openai.utils import assert_prompt_tracking
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
 from tests.contrib.openai.utils import get_openai_vcr
@@ -2155,19 +2156,6 @@ MUL: "*"
             )
         )
 
-    def _assert_prompt_tracking(
-        self, span_event, prompt_id, prompt_version, variables, expected_chat_template, expected_messages
-    ):
-        """Helper to assert prompt tracking metadata and template extraction."""
-        assert "prompt" in span_event["meta"]["input"]
-        actual_prompt = span_event["meta"]["input"]["prompt"]
-        assert actual_prompt["id"] == prompt_id
-        assert actual_prompt["version"] == prompt_version
-        assert actual_prompt["variables"] == variables
-        assert "chat_template" in actual_prompt
-        assert actual_prompt["chat_template"] == expected_chat_template
-        assert span_event["meta"]["input"]["messages"] == expected_messages
-
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 80),
         reason="Full OpenAI MCP support only available with openai >= 1.80",
@@ -2315,7 +2303,7 @@ MUL: "*"
         mock_tracer.pop_traces()
         assert mock_llmobs_writer.enqueue.call_count == 1
 
-        self._assert_prompt_tracking(
+        assert_prompt_tracking(
             span_event=mock_llmobs_writer.enqueue.call_args[0][0],
             prompt_id="pmpt_690b24669d8c81948acc0e98da10e6490190feb3a62eee0b",
             prompt_version="4",
@@ -2371,7 +2359,7 @@ MUL: "*"
         mock_tracer.pop_traces()
         assert mock_llmobs_writer.enqueue.call_count == 1
 
-        self._assert_prompt_tracking(
+        assert_prompt_tracking(
             span_event=mock_llmobs_writer.enqueue.call_args[0][0],
             prompt_id="pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
             prompt_version="2",
@@ -2448,7 +2436,7 @@ MUL: "*"
         mock_tracer.pop_traces()
         assert mock_llmobs_writer.enqueue.call_count == 1
 
-        self._assert_prompt_tracking(
+        assert_prompt_tracking(
             span_event=mock_llmobs_writer.enqueue.call_args[0][0],
             prompt_id="pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
             prompt_version="2",
@@ -2477,7 +2465,8 @@ MUL: "*"
                     "content": (
                         "Analyze the following content from the user:\n\n"
                         "Text message: Analyze these images and document\n"
-                        "Image reference 1: https://raw.githubusercontent.com/github/explore/main/topics/python/python.png\n"
+                        "Image reference 1: "
+                        "https://raw.githubusercontent.com/github/explore/main/topics/python/python.png\n"
                         "Document reference: https://www.berkshirehathaway.com/letters/2024ltr.pdf\n"
                         "Image reference 2: file-BCuhT1HQ24kmtsuuzF1mh2\n\n"
                         "Please provide a comprehensive analysis."

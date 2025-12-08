@@ -15,9 +15,14 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.llmobs._constants import FILE_FALLBACK_MARKER
+from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import INPUT_TYPE_FILE
+from ddtrace.llmobs._constants import INPUT_TYPE_IMAGE
+from ddtrace.llmobs._constants import INPUT_TYPE_TEXT
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
@@ -583,12 +588,10 @@ def _openai_parse_input_response_messages(
                     processed_item_content += str(content.get("refusal", "") or "")
 
                     item_type = content.get("type", None)
-                    if item_type == "input_image":
-                        processed_item_content += content.get("image_url") or content.get("file_id") or "[image]"
-                    elif item_type == "input_file":
-                        processed_item_content += (
-                            content.get("file_id") or content.get("file_url") or content.get("filename") or "[file]"
-                        )
+                    if item_type == INPUT_TYPE_IMAGE:
+                        processed_item_content += _extract_image_reference(content)
+                    elif item_type == INPUT_TYPE_FILE:
+                        processed_item_content += _extract_file_reference(content)
             else:
                 processed_item_content = item["content"]
             if processed_item_content:
@@ -784,33 +787,46 @@ def openai_get_metadata_from_response(
     return metadata
 
 
+def _extract_image_reference(obj: Any) -> str:
+    """Extract image reference with fallback priority: image_url → file_id → [image]."""
+    return _get_attr(obj, "image_url", None) or _get_attr(obj, "file_id", None) or IMAGE_FALLBACK_MARKER
+
+
+def _extract_file_reference(obj: Any) -> str:
+    """Extract file reference with fallback priority: file_url → file_id → filename → [file]."""
+    return (
+        _get_attr(obj, "file_url", None)
+        or _get_attr(obj, "file_id", None)
+        or _get_attr(obj, "filename", None)
+        or FILE_FALLBACK_MARKER
+    )
+
+
+def _extract_content_item_text(content_item: Any) -> str:
+    """Extract text representation from a content item (text/image/file)."""
+    item_type = _get_attr(content_item, "type", None)
+    if item_type == INPUT_TYPE_IMAGE:
+        return _extract_image_reference(content_item)
+    elif item_type == INPUT_TYPE_FILE:
+        return _extract_file_reference(content_item)
+    elif item_type == INPUT_TYPE_TEXT or item_type is None:
+        text = _get_attr(content_item, "text", "")
+        return str(text) if text else ""
+
+    return ""
+
+
 def _normalize_prompt_variables(variables: Dict[str, Any]) -> Dict[str, Any]:
     """Converts OpenAI SDK response objects or dicts into simple key-value pairs.
 
     Example:
         Input:  {"msg": ResponseInputText(text="Hello"), "doc": ResponseInputFile(file_id="file-123")}
         Output: {"msg": "Hello", "doc": "file-123"}
-
-        Note: image_url is often stripped by OpenAI for security, resulting in "[image]" fallback.
     """
     if not variables or not isinstance(variables, dict):
         return {}
 
-    def _get(obj, key, default=None):
-        """Get value from either SDK object or dict."""
-        return obj.get(key, default) if isinstance(obj, dict) else getattr(obj, key, default)
-
-    normalized = {}
-    for key, value in variables.items():
-        if _get(value, "text") is not None:  # ResponseInputText
-            normalized[key] = _get(value, "text")
-        elif _get(value, "type") == "input_image":  # ResponseInputImage
-            normalized[key] = _get(value, "image_url") or _get(value, "file_id") or "[image]"
-        elif _get(value, "type") == "input_file":  # ResponseInputFile
-            normalized[key] = _get(value, "file_url") or _get(value, "file_id") or _get(value, "filename") or "[file]"
-        else:  # str or other value
-            normalized[key] = value
-    return normalized
+    return {key: _extract_content_item_text(value) or value for key, value in variables.items()}
 
 
 def _extract_chat_template_from_instructions(
@@ -835,7 +851,7 @@ def _extract_chat_template_from_instructions(
     value_to_placeholder = {}
     for var_name, var_value in variables.items():
         value_str = str(var_value) if var_value else ""
-        if value_str and value_str not in ("[image]", "[file]"):
+        if value_str and value_str not in (IMAGE_FALLBACK_MARKER, FILE_FALLBACK_MARKER):
             value_to_placeholder[value_str] = f"{{{{{var_name}}}}}"
 
     # Sort by length (longest first) to handle overlapping values correctly
@@ -850,27 +866,8 @@ def _extract_chat_template_from_instructions(
         if not content_items:
             continue
 
-        text_parts = []
-        for content_item in content_items:
-            text = _get_attr(content_item, "text", "")
-            if text:
-                text_parts.append(str(text))
-                continue
-
-            item_type = _get_attr(content_item, "type", None)
-            if item_type == "input_image":
-                image_ref = (
-                    _get_attr(content_item, "image_url", None) or _get_attr(content_item, "file_id", None) or "[image]"
-                )
-                text_parts.append(str(image_ref))
-            elif item_type == "input_file":
-                file_ref = (
-                    _get_attr(content_item, "file_id", None)
-                    or _get_attr(content_item, "file_url", None)
-                    or _get_attr(content_item, "filename", None)
-                    or "[file]"
-                )
-                text_parts.append(str(file_ref))
+        text_parts = [_extract_content_item_text(item) for item in content_items]
+        text_parts = [part for part in text_parts if part]
 
         if not text_parts:
             continue
