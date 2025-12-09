@@ -9,6 +9,8 @@ from typing import Set
 from typing import Type
 from typing import cast
 
+from typing_extensions import Self
+
 
 try:
     from ddtrace.profiling.collector import _memalloc
@@ -55,8 +57,9 @@ class MemoryCollector:
             _memalloc.stop()
             _memalloc.start(self.max_nframe, self.heap_sample_size)
 
-    def __enter__(self) -> None:
+    def __enter__(self) -> Self:
         self.start()
+        return self
 
     def __exit__(
         self,
@@ -66,7 +69,7 @@ class MemoryCollector:
     ) -> None:
         self.stop()
 
-    def join(self) -> None:
+    def join(self, timeout: Optional[float] = None) -> None:
         pass
 
     def stop(self) -> None:
@@ -76,7 +79,8 @@ class MemoryCollector:
             except RuntimeError:
                 LOG.debug("Failed to stop memalloc profiling on shutdown", exc_info=True)
 
-    def _get_thread_id_ignore_set(self) -> Set[int]:
+    @staticmethod
+    def _get_thread_id_ignore_set() -> Set[int]:
         # This method is not perfect and prone to race condition in theory, but very little in practice.
         # Anyhow it's not a big deal — it's a best effort feature.
         return {
@@ -86,7 +90,8 @@ class MemoryCollector:
         }
 
     def snapshot(self) -> None:
-        thread_id_ignore_set = self._get_thread_id_ignore_set()
+        """Take a snapshot of collected data, to be exported."""
+        thread_id_ignore_set = MemoryCollector._get_thread_id_ignore_set()
 
         try:
             if _memalloc is None:

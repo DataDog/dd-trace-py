@@ -645,6 +645,9 @@ def get_extensions():
             define_macros=macros,
             libraries=[],
         )
+        # Copy py_limited_api from the main extension for consistency
+        if hasattr(ext, "py_limited_api"):
+            posix_ext.py_limited_api = ext.py_limited_api
 
         # Add platform-specific libraries for posix extension
         if SUNOS:
