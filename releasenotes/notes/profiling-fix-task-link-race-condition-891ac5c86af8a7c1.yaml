@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: This fix resolves a race condition leading to incorrect stacks being reported
+    for asyncio parent/child Tasks (e.g. when using ``asyncio.gather``).

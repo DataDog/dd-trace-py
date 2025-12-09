@@ -1,5 +1,6 @@
 """AI Guard client for security evaluation of agentic AI workflows."""
 
+from copy import deepcopy
 import json
 from typing import Any
 from typing import List
@@ -49,6 +50,7 @@ class Message(TypedDict, total=False):
 class Evaluation(TypedDict):
     action: Literal["ALLOW", "DENY", "ABORT"]
     reason: str
+    tags: List[str]
 
 
 class Options(TypedDict, total=False):
@@ -125,13 +127,13 @@ class AIGuardClient:
 
         def truncate_message(message: Message) -> Message:
             nonlocal content_truncated
-            content = message.get("content", "")
+            # ensure the message cannot be modified before serialization
+            new_message = deepcopy(message)
+            content = new_message.get("content", "")
             if len(content) > max_content_size:
-                truncated = message.copy()
-                truncated["content"] = content[:max_content_size]
+                new_message["content"] = content[:max_content_size]
                 content_truncated = True
-                return truncated
-            return message
+            return new_message
 
         result = [truncate_message(message) for message in messages]
         if content_truncated:
@@ -268,7 +270,7 @@ class AIGuardClient:
                     span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
                     raise AIGuardAbortError(action=action, reason=reason, tags=tags)
 
-                return Evaluation(action=action, reason=reason)
+                return Evaluation(action=action, reason=reason, tags=tags)
 
             except AIGuardAbortError:
                 raise

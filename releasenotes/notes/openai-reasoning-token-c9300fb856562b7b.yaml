@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Reasoning token counts are now captured from OpenAI and OpenAI Agents responses.
