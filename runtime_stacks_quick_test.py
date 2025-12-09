@@ -7,11 +7,11 @@ This script:
 3. Triggers a crash to test stack capture
 """
 
+import ctypes
 import os
 import sys
-import signal
 import time
-import ctypes
+
 
 def nested_function_3():
     """Deepest function that will trigger a crash"""
@@ -19,26 +19,28 @@ def nested_function_3():
     # Trigger a segmentation fault
     ctypes.string_at(0)
 
+
 def nested_function_2():
     """Middle function"""
     print("In nested_function_2")
     nested_function_3()
+
 
 def nested_function_1():
     """Top-level function"""
     print("In nested_function_1")
     nested_function_2()
 
+
 def main():
     print("Setting up crashtracker test...")
 
     # Enable crashtracking with runtime stacks
-    os.environ['DD_CRASHTRACKING_ENABLED'] = 'true'
-    os.environ['DD_CRASHTRACKING_EMIT_RUNTIME_STACKS'] = 'true'
+    os.environ["DD_CRASHTRACKING_ENABLED"] = "true"
+    os.environ["DD_CRASHTRACKING_EMIT_RUNTIME_STACKS"] = "true"
 
     # Import and initialize crashtracker
     try:
-        import ddtrace
         from ddtrace.internal.core import crashtracking
 
         # Start crashtracking
@@ -70,6 +72,7 @@ def main():
     # Should not reach here
     print("ERROR: Should have crashed by now!")
     return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

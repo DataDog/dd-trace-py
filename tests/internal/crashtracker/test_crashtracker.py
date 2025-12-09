@@ -457,8 +457,10 @@ def test_crashtracker_tags_required():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Runtime stacks are only supported on CPython >= 3.10")
 def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess):
     import json
+
     with utils.with_test_agent() as client:
         env = os.environ.copy()
         env["DD_CRASHTRACKING_EMIT_RUNTIME_STACKS"] = "true"
@@ -480,7 +482,6 @@ def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess)
         body = json.loads(report["body"])
         message = json.loads(body["payload"][0]["message"])
         assert "string_at" in json.dumps(message["experimental"])
-
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
