@@ -221,6 +221,21 @@ class SessionManager:
 
         return test_module, test_suite, test
 
+    def get_test(self, test_ref: TestRef) -> t.Optional[Test]:
+        module = self.session.children.get(test_ref.suite.module.name)
+        if not module:
+            return None
+
+        suite = module.children.get(test_ref.suite.name)
+        if not suite:
+            return None
+
+        test = suite.children.get(test_ref.name)
+        if not test:
+            return None
+
+        return test
+
     def _set_codeowners(self, test: Test) -> None:
         if not self.codeowners:
             return
