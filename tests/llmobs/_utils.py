@@ -952,25 +952,6 @@ def sample_boolean_evaluation(exported_span) -> LLMObsEvaluationResult:
     )
 
 
-def mock_exported_spans():
-    return [
-        {
-            "span_id": "test-span-123",
-            "trace_id": "test-trace-123",
-            "ml_app": "test-ml-app",
-            "input": {"messages": [{"content": "What is the capital of France?"}]},
-            "output": {"messages": [{"content": "The capital of France is Paris."}]},
-        },
-        {
-            "span_id": "test-span-456",
-            "trace_id": "test-trace-456",
-            "ml_app": "test-ml-app",
-            "input": {"messages": [{"content": "What is the capital of Germany?"}]},
-            "output": {"messages": [{"content": "The capital of Germany is Berlin."}]},
-        },
-    ]
-
-
 def iterate_stream(stream):
     for _ in stream:
         pass

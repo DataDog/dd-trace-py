@@ -38,7 +38,6 @@ from ddtrace.trace import Context
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
-from tests.llmobs._utils import mock_exported_spans
 from tests.llmobs._utils import sample_boolean_evaluation
 from tests.llmobs._utils import sample_categorical_evaluation
 from tests.llmobs._utils import sample_score_evaluation
