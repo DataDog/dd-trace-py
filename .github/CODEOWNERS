@@ -256,8 +256,8 @@ tests/snapshots/tests.contrib.azure_functions_servicebus.*  @DataDog/serverless 
 tests/snapshots/tests.contrib.azure_servicebus.*            @DataDog/serverless @DataDog/apm-serverless
 
 # Data Streams Monitoring
-ddtrace/data_streams.py                                   @DataDog/apm-core-python @DataDog/apm-idm-python @DataDog/data-streams-monitoring
-ddtrace/internal/datastreams                              @DataDog/apm-core-python @DataDog/apm-idm-python @DataDog/data-streams-monitoring
+ddtrace/data_streams.py                                   @DataDog/data-streams-monitoring
+ddtrace/internal/datastreams                              @DataDog/data-streams-monitoring
 tests/datastreams                                         @DataDog/data-streams-monitoring
 tests/contrib/aiokafka/test_aiokafka_dsm.py               @DataDog/data-streams-monitoring
 tests/contrib/kafka/test_kafka_dsm.py                     @DataDog/data-streams-monitoring
