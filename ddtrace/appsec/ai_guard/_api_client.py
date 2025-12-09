@@ -1,6 +1,7 @@
 """AI Guard client for security evaluation of agentic AI workflows."""
 
 import json
+from copy import deepcopy
 from typing import Any
 from typing import List
 from typing import Literal
@@ -126,14 +127,13 @@ class AIGuardClient:
 
         def truncate_message(message: Message) -> Message:
             nonlocal content_truncated
-            result = message.copy()
-            content = result.get("content", "")
+            # ensure the message cannot be modified before serialization
+            new_message = deepcopy(message)
+            content = new_message.get("content", "")
             if len(content) > max_content_size:
-                result["content"] = content[:max_content_size]
+                new_message["content"] = content[:max_content_size]
                 content_truncated = True
-            if "tool_calls" in result:
-                result["tool_calls"] = result["tool_calls"].copy()
-            return result
+            return new_message
 
         result = [truncate_message(message) for message in messages]
         if content_truncated:
