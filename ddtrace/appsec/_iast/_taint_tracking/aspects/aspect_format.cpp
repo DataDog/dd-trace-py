@@ -18,16 +18,17 @@ api_format_aspect(StrType& candidate_text,
                   const py::args& args,
                   const py::kwargs& kwargs)
 {
-    auto tx_map = taint_engine_context->get_tainted_object_map_from_list_of_pyobjects(
-      { candidate_text.ptr(), parameter_list.ptr() });
+    auto return_candidate_result = [&]() -> StrType { return py::getattr(candidate_text, "format")(*args, **kwargs); };
+
+    auto tx_map = safe_get_tainted_object_map_from_list_of_pyobjects({ candidate_text.ptr(), parameter_list.ptr() });
 
     if (not tx_map or tx_map->empty()) {
-        return py::getattr(candidate_text, "format")(*args, **kwargs);
+        return return_candidate_result();
     }
 
     auto [ranges_orig, candidate_text_ranges] = are_all_text_all_ranges(candidate_text.ptr(), parameter_list, tx_map);
     if (ranges_orig.empty() and candidate_text_ranges.empty()) {
-        return py::getattr(candidate_text, "format")(*args, **kwargs);
+        return return_candidate_result();
     }
 
     auto new_template =
