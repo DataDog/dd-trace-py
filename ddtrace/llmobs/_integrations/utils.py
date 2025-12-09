@@ -911,17 +911,24 @@ def openai_set_meta_tags_from_response(
 
     prompt_data = kwargs.get("prompt")
     if prompt_data:
-        prompt_data = dict(prompt_data)  # Make a copy to avoid modifying the original
+        try:
+            prompt_data = dict(prompt_data)  # Make a copy to avoid modifying the original
 
-        instructions = _get_attr(response, "instructions", None)
-        if instructions:
-            variables = prompt_data.get("variables", {})
-            normalized_variables = _normalize_prompt_variables(variables)
-            prompt_data["chat_template"] = _extract_chat_template_from_instructions(instructions, normalized_variables)
-            prompt_data["variables"] = normalized_variables
+            # Extract chat_template from response instructions if not already provided
+            if response and not prompt_data.get("chat_template") and not prompt_data.get("template"):
+                instructions = _get_attr(response, "instructions", None)
+                if instructions:
+                    variables = prompt_data.get("variables", {})
+                    normalized_variables = _normalize_prompt_variables(variables)
+                    chat_template = _extract_chat_template_from_instructions(instructions, normalized_variables)
+                    if chat_template:
+                        prompt_data["chat_template"] = chat_template
+                        prompt_data["variables"] = normalized_variables
 
-        validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
-        span._set_ctx_item(INPUT_PROMPT, validated_prompt)
+            validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
+            span._set_ctx_item(INPUT_PROMPT, validated_prompt)
+        except (TypeError, ValueError, AttributeError) as e:
+            logger.debug("Failed to validate prompt for OpenAI response: %s", e)
 
     if span.error or not response:
         span._set_ctx_item(OUTPUT_MESSAGES, [Message(content="")])
