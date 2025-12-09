@@ -241,7 +241,7 @@ def test_message_immutability(mock_execute_request, telemetry_mock, ai_guard_cli
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     messages = [Message(role="assistant", tool_calls=[ToolCall(id="call_1", function=Function(name="test", arguments="{}"))])]
-    with tracer.trace(AI_GUARD.RESOURCE_TYPE):
+    with tracer.trace('test'):
         ai_guard_client.evaluate(messages)
         # Update messages before being flushed
         messages[0].get("tool_calls").append(ToolCall(id="call_2", function=Function(name="test", arguments="{}")))
