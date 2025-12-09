@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: This adds support for capturing the reasoning token counts metric for OpenAI.
