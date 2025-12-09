@@ -52,7 +52,7 @@ class BotocoreDSMTest(TracerTestCase):
 
     def tearDown(self):
         from ddtrace.contrib.internal.botocore.patch import unpatch
-        
+
         unpatch()
         super(BotocoreDSMTest, self).tearDown()
 
