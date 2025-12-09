@@ -723,6 +723,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     """Writer using a native trace exporter to send traces to an agent."""
 
     STATSD_NAMESPACE = "tracer"
+    is_forking = False
 
     def __init__(
         self,
@@ -872,6 +873,14 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             builder.enable_health_metrics()
 
         return builder.build()
+
+    @forksafe.register
+    def _after_fork():
+        NativeWriter.is_forking = False
+
+    @forksafe.register_after_parent
+    def _after_fork_in_parent():
+        NativeWriter.is_forking = False
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         """
@@ -1046,6 +1055,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._metrics_dist("buffer.accepted.spans", len(spans))
 
     def flush_queue(self, raise_exc: bool = False):
+        if NativeWriter.is_forking:
+            # We skip flush while forking as this would restart the native threads
+            return 
         try:
             for client in self._clients:
                 self._flush_queue_with_client(client, raise_exc=raise_exc)
@@ -1110,6 +1122,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 self._fork_hook = None
 
     def before_fork(self) -> None:
+        # Mark the writer as forking to avoid restarting threads before the fork
+        NativeWriter.is_forking = True
         self._exporter.stop_worker()
 
     def on_shutdown(self):
