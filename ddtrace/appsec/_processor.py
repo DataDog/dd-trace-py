@@ -36,6 +36,7 @@ from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.appsec._utils import Binding_error
 from ddtrace.appsec._utils import Block_config
 from ddtrace.appsec._utils import DDWaf_result
+from ddtrace.appsec._utils import is_inferred_span
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _RUNTIME_FAMILY
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
@@ -206,6 +207,10 @@ class AppSecSpanProcessor(SpanProcessor):
                 )
                 span.set_metric(APPSEC.UNSUPPORTED_EVENT_TYPE, 1.0)
                 return
+
+        if is_inferred_span(span):
+            span.set_metric(APPSEC.ENABLED, 1.0)
+            return
 
         ctx = self._ddwaf._at_request_start()
         _asm_request_context.start_context(span, ctx.rc_products if ctx is not None else "")

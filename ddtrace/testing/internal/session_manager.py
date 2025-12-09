@@ -6,7 +6,6 @@ import re
 import typing as t
 
 from ddtrace.testing.internal.api_client import APIClient
-from ddtrace.testing.internal.api_client import TestProperties
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import DEFAULT_ENV_NAME
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
@@ -19,6 +18,7 @@ from ddtrace.testing.internal.retry_handlers import AttemptToFixHandler
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import EarlyFlakeDetectionHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
+from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import ITRSkippingLevel
 from ddtrace.testing.internal.test_data import SuiteRef
@@ -39,6 +39,9 @@ log = logging.getLogger(__name__)
 
 class SessionManager:
     def __init__(self, session: TestSession) -> None:
+        self.connector_setup = BackendConnectorSetup.detect_setup()
+        self.telemetry_api = TelemetryAPI(connector_setup=self.connector_setup)
+
         self.env_tags = get_env_tags()
         if workspace_path := self.env_tags.get(CITag.WORKSPACE_PATH):
             self.workspace_path = Path(workspace_path)
@@ -61,11 +64,9 @@ class SessionManager:
             self.is_user_provided_service = False
             self.service = _get_service_name_from_git_repo(self.env_tags) or DEFAULT_SERVICE_NAME
 
+        self.is_auto_injected = bool(os.getenv("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
+
         self.env = os.environ.get("DD_ENV") or DEFAULT_ENV_NAME
-
-        self.connector_setup = BackendConnectorSetup.detect_setup()
-
-        self.telemetry_api = TelemetryAPI(connector_setup=self.connector_setup)
 
         self.api_client = APIClient(
             service=self.service,
@@ -220,6 +221,21 @@ class SessionManager:
 
         return test_module, test_suite, test
 
+    def get_test(self, test_ref: TestRef) -> t.Optional[Test]:
+        module = self.session.children.get(test_ref.suite.module.name)
+        if not module:
+            return None
+
+        suite = module.children.get(test_ref.suite.name)
+        if not suite:
+            return None
+
+        test = suite.children.get(test_ref.name)
+        if not test:
+            return None
+
+        return test
+
     def _set_codeowners(self, test: Test) -> None:
         if not self.codeowners:
             return
@@ -282,6 +298,9 @@ class SessionManager:
             return False
 
         return test_ref in self.skippable_items or test_ref.suite in self.skippable_items
+
+    def has_codeowners(self) -> bool:
+        return self.codeowners is not None
 
 
 def _get_service_name_from_git_repo(env_tags: t.Dict[str, str]) -> t.Optional[str]:
