@@ -236,7 +236,9 @@ class APIClient:
             return []
 
         try:
-            result = self.connector.post_json("/api/v2/git/repository/search_commits", request_data)
+            result = self.connector.post_json(
+                "/api/v2/git/repository/search_commits", request_data, telemetry=telemetry
+            )
             result.on_error_raise_exception()
 
         except Exception as e:

@@ -664,3 +664,163 @@ class TestAPIClientGetTestManagementTests:
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.BAD_JSON)
         ]
+
+
+class TestAPIClientGetKnownCommits:
+    def test_get_known_commits(self, mock_telemetry: Mock) -> None:
+        mock_connector = (
+            mock_backend_connector().with_post_json_response(
+                endpoint="/api/v2/git/repository/search_commits",
+                response_data={"data": [{"id": "abcd0123", "type": "commit"}, {"id": "dcba4321", "type": "commit"}]},
+            )
+        ).build()
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+                GitTag.BRANCH: "some-branch",
+                GitTag.COMMIT_MESSAGE: "I am a commit",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={
+                "os.platform": "Linux",
+            },
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            commits = api_client.get_known_commits(latest_commits=["0000abcd", "1111abcd"])
+
+        assert mock_connector.post_json.call_args_list == [
+            call(
+                "/api/v2/git/repository/search_commits",
+                {
+                    "meta": {"repository_url": "http://github.com/DataDog/some-repo.git"},
+                    "data": [{"id": "0000abcd", "type": "commit"}, {"id": "1111abcd", "type": "commit"}],
+                },
+                telemetry=mock_telemetry.with_request_metric_names.return_value,
+            )
+        ]
+
+        assert commits == ["abcd0123", "dcba4321"]
+
+    def test_get_known_commits_missing_git_data(
+        self,
+        mock_telemetry: Mock,
+        caplog,
+    ) -> None:
+        mock_connector = mock_backend_connector().build()
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={},
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={
+                "os.platform": "Linux",
+            },
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            with caplog.at_level(level=logging.INFO, logger="ddtrace.testing"):
+                commits = api_client.get_known_commits(latest_commits=["0000abcd", "1111abcd"])
+
+        assert "Git info not available" in caplog.text
+        assert mock_connector.post_json.call_args_list == []
+
+        assert commits == []
+
+        assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
+            call(ErrorType.UNKNOWN)
+        ]
+
+    def test_get_known_commits_fail_http_request(
+        self,
+        mock_telemetry: Mock,
+        caplog,
+    ) -> None:
+        mock_connector = Mock()
+        mock_connector.post_json.return_value = BackendResult(
+            error_type=ErrorType.UNKNOWN, error_description="No can do"
+        )
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+                GitTag.BRANCH: "some-branch",
+                GitTag.COMMIT_MESSAGE: "I am a commit",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={
+                "os.platform": "Linux",
+            },
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            with caplog.at_level(level=logging.INFO, logger="ddtrace.testing"):
+                commits = api_client.get_known_commits(latest_commits=["0000abcd", "1111abcd"])
+
+        assert "Error getting known commits from API" in caplog.text
+
+        assert commits == []
+        assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == []
+
+    def test_get_known_commits_errors_in_response(
+        self,
+        mock_telemetry: Mock,
+        caplog,
+    ) -> None:
+        mock_connector = (
+            mock_backend_connector().with_post_json_response(
+                endpoint="/api/v2/git/repository/search_commits", response_data={"errors": "Weird stuff"}
+            )
+        ).build()
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+                GitTag.BRANCH: "some-branch",
+                GitTag.COMMIT_MESSAGE: "I am a commit",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={
+                "os.platform": "Linux",
+            },
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            with caplog.at_level(level=logging.INFO, logger="ddtrace.testing"):
+                commits = api_client.get_known_commits(latest_commits=["0000abcd", "1111abcd"])
+
+        assert "Failed to parse search_commits data" in caplog.text
+        assert "KeyError" in caplog.text
+
+        assert commits == []
+
+        assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
+            call(ErrorType.BAD_JSON)
+        ]
