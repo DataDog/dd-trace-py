@@ -258,18 +258,11 @@ tests/snapshots/tests.contrib.azure_servicebus.*            @DataDog/serverless 
 # Data Streams Monitoring
 ddtrace/data_streams.py                                   @DataDog/apm-core-python @DataDog/apm-idm-python @DataDog/data-streams-monitoring
 ddtrace/internal/datastreams                              @DataDog/apm-core-python @DataDog/apm-idm-python @DataDog/data-streams-monitoring
-ddtrace/contrib/internal/aiokafka                         @DataDog/apm-core-python @DataDog/apm-idm-python @DataDog/data-streams-monitoring
-ddtrace/contrib/internal/kafka                            @DataDog/apm-core-python @DataDog/apm-idm-python @DataDog/data-streams-monitoring
-ddtrace/contrib/internal/kombu                            @DataDog/apm-core-python @DataDog/apm-idm-python @DataDog/data-streams-monitoring
-ddtrace/contrib/internal/avro                             @DataDog/apm-core-python @DataDog/apm-idm-python @DataDog/data-streams-monitoring
-ddtrace/contrib/internal/protobuf                         @DataDog/apm-core-python @DataDog/apm-idm-python @DataDog/data-streams-monitoring
-tests/datastreams                                         @DataDog/apm-core-python @DataDog/apm-idm-python @DataDog/data-streams-monitoring
-tests/contrib/aiokafka                                    @DataDog/apm-core-python @DataDog/apm-idm-python @DataDog/data-streams-monitoring
-tests/contrib/kafka/test_kafka.py                         @DataDog/apm-core-python @DataDog/apm-idm-python @DataDog/data-streams-monitoring
-tests/contrib/kombu                                       @DataDog/apm-core-python @DataDog/apm-idm-python @DataDog/data-streams-monitoring
+tests/datastreams                                         @DataDog/data-streams-monitoring
+tests/contrib/aiokafka/test_aiokafka_dsm.py               @DataDog/data-streams-monitoring
+tests/contrib/kafka/test_kafka_dsm.py                     @DataDog/data-streams-monitoring
+tests/contrib/kombu/test_kombu_dsm.py                     @DataDog/data-streams-monitoring
 tests/contrib/botocore/test_dsm.py                        @DataDog/data-streams-monitoring
-tests/contrib/avro                                        @DataDog/apm-core-python @DataDog/apm-idm-python @DataDog/data-streams-monitoring
-tests/contrib/protobuf                                    @DataDog/apm-core-python @DataDog/apm-idm-python @DataDog/data-streams-monitoring
 
 # ASM (order matters)
 tests/**/*appsec*               @DataDog/asm-python
