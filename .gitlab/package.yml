@@ -33,14 +33,6 @@ variables:
     CMAKE_ARGS: "-DNATIVE_TESTING=OFF"
     # DEV: Hack to make ASM CMake able to find the Python3 library
     CIBW_BUILD: "1"
-    # Caching
-    DD_SETUP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/download_cache"
-    PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
-    UV_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/uv"
-    UV_INSTALL_DIR: "${CI_PROJECT_DIR}/.uv/"
-    DD_USE_SCCACHE: "1"
-    SCCACHE_DIR: "${CI_PROJECT_DIR}/.cache/sccache"
-    SCCACHE_CACHE_SIZE: "2G"
     # job resource requests
     KUBERNETES_CPU_REQUEST: "6"
     KUBERNETES_MEMORY_REQUEST: "10Gi"
@@ -82,16 +74,6 @@ variables:
       find ddtrace/ -type f -name "*.cpp" -exec touch -t 202401010000 {} \;
       find ddtrace/ -type f -name "*.h" -exec touch -t 202401010000 {} \;
     - .gitlab/scripts/build-wheel.sh
-  cache:
-    - key: v0-build-linux-download-cache-${PYTHON_TAG}-${IMAGE_TAG}
-      paths:
-        - .cache/download_cache
-    - key: v0-build-linux-sccache-${PYTHON_TAG}-${IMAGE_TAG}
-      paths:
-        - .cache/sccache
-    - key: v0-build-linux-native-target-${PYTHON_TAG}-${IMAGE_TAG}
-      paths:
-        - src/native/target*
 
 "build macos":
   extends: .build_base
@@ -112,16 +94,6 @@ variables:
     - when: manual
   script:
     - .gitlab/scripts/build-wheel.sh
-  cache:
-    - key: v0-build-macos-download-cache-${UV_PYTHON}-${ARCH_TAG}
-      paths:
-        - .cache/download_cache
-    - key: v0-build-macos-sccache-${UV_PYTHON}-${ARCH_TAG}
-      paths:
-        - .cache/sccache
-    - key: v0-build-macos-native-target-${UV_PYTHON}-${ARCH_TAG}
-      paths:
-        - src/native/target*
 
 "test sdist":
   image: registry.ddbuild.io/images/mirror/python:3.9.6-alpine3.14
