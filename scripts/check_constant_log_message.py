@@ -16,7 +16,7 @@ from typing import Tuple
 # Format: "filepath:line" to exclude a specific line in a file
 EXCEPTIONS = {
     # only constant message can be log.error()
-    "ddtrace/internal/telemetry/logging.py:18",
+    "ddtrace/internal/telemetry/logging.py:21",
     # log.exception calls use constant messages
     "ddtrace/contrib/internal/aws_lambda/patch.py:36",
     # log.error in _probe/registry.py ends up with a log.debug()
@@ -108,7 +108,7 @@ def main() -> int:
     for filepath in python_files:
         errors = check_file(filepath)
         for line_no, col_no in errors:
-            print(f"{filepath}:{line_no}:{col_no}: " "LOG001 first argument to logging call must be a constant string")
+            print(f"{filepath}:{line_no}:{col_no}: LOG001 first argument to logging call must be a constant string")
             total_errors += 1
 
     if total_errors > 0:

@@ -5,76 +5,140 @@ import sys
 
 import pytest
 
+from tests.profiling.collector import lock_utils
+from tests.profiling.collector import pprof_utils
 from tests.utils import call_program
 
-from . import utils
 
-
-def test_call_script(monkeypatch):
-    # Set a very short timeout to exit fast
-    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT_MS", "100")
-    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
+def test_call_script():
+    env = os.environ.copy()
+    env["DD_PROFILING_ENABLED"] = "1"
     stdout, stderr, exitcode, _ = call_program(
-        "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program.py")
+        "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program.py"), env=env
     )
     if sys.platform == "win32":
         assert exitcode == 0, (stdout, stderr)
     else:
         assert exitcode == 42, (stdout, stderr)
-    hello, interval, _ = list(s.strip() for s in stdout.decode().strip().split("\n"))
+    hello, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
     assert hello == "hello world", stdout.decode().strip()
-    assert float(interval) >= 0.01, stdout.decode().strip()
 
 
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
-def test_call_script_gevent(monkeypatch):
-    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT_MS", "100")
+def test_call_script_gevent():
+    env = os.environ.copy()
+    env["DD_PROFILING_ENABLED"] = "1"
     stdout, stderr, exitcode, pid = call_program(
-        sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_gevent.py")
+        sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_gevent.py"), env=env
     )
     assert exitcode == 0, (stdout, stderr)
 
 
-def test_call_script_pprof_output(tmp_path, monkeypatch):
+def test_call_script_pprof_output(tmp_path):
     """This checks if the pprof output and atexit register work correctly.
 
     The script does not run for one minute, so if the `stop_on_exit` flag is broken, this test will fail.
     """
     filename = str(tmp_path / "pprof")
-    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
-    monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "1")
-    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
+    env = os.environ.copy()
+    env["DD_PROFILING_OUTPUT_PPROF"] = filename
+    env["DD_PROFILING_CAPTURE_PCT"] = "1"
+    env["DD_PROFILING_ENABLED"] = "1"
     stdout, stderr, exitcode, _ = call_program(
-        "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program.py")
+        "ddtrace-run",
+        sys.executable,
+        os.path.join(os.path.dirname(__file__), "simple_program.py"),
+        env=env,
     )
     if sys.platform == "win32":
         assert exitcode == 0, (stdout, stderr)
     else:
         assert exitcode == 42, (stdout, stderr)
-    hello, interval, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
-    utils.check_pprof_file(filename + "." + str(pid))
+    _, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
+    profile = pprof_utils.parse_newest_profile(filename + "." + str(pid))
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
-def test_fork(tmp_path, monkeypatch):
+def test_fork(tmp_path):
     filename = str(tmp_path / "pprof")
-    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT_MS", "100")
-    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
-    monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "100")
+    env = os.environ.copy()
+    env["DD_PROFILING_OUTPUT_PPROF"] = filename
+    env["DD_PROFILING_CAPTURE_PCT"] = "100"
     stdout, stderr, exitcode, pid = call_program(
-        "python", os.path.join(os.path.dirname(__file__), "simple_program_fork.py")
+        "python", os.path.join(os.path.dirname(__file__), "simple_program_fork.py"), env=env
     )
     assert exitcode == 0
     child_pid = stdout.decode().strip()
-    utils.check_pprof_file(filename + "." + str(pid))
-    utils.check_pprof_file(filename + "." + str(child_pid), sample_type="lock-release")
+    profile = pprof_utils.parse_newest_profile(filename + "." + str(pid))
+    parent_expected_acquire_events = [
+        pprof_utils.LockAcquireEvent(
+            caller_name="<module>",
+            filename="simple_program_fork.py",
+            linenos=lock_utils.LineNo(create=11, acquire=12, release=28),
+            lock_name="lock",
+        ),
+    ]
+    parent_expected_release_events = [
+        pprof_utils.LockReleaseEvent(
+            caller_name="<module>",
+            filename="simple_program_fork.py",
+            linenos=lock_utils.LineNo(create=11, acquire=12, release=28),
+            lock_name="lock",
+        ),
+    ]
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=parent_expected_acquire_events,
+        expected_release_events=parent_expected_release_events,
+    )
+    child_profile = pprof_utils.parse_newest_profile(filename + "." + str(child_pid))
+    # We expect the child profile to not have lock events from the parent process
+    # Note that assert_lock_events function only checks that the given events
+    # exists, and doesn't assert that other events don't exist.
+    with pytest.raises(AssertionError):
+        pprof_utils.assert_lock_events(
+            child_profile,
+            expected_acquire_events=parent_expected_acquire_events,
+            expected_release_events=parent_expected_release_events,
+        )
+    pprof_utils.assert_lock_events(
+        child_profile,
+        expected_acquire_events=[
+            # After fork(), we clear the samples in child, so we only have one
+            # lock acquire event
+            pprof_utils.LockAcquireEvent(
+                caller_name="<module>",
+                filename="simple_program_fork.py",
+                linenos=lock_utils.LineNo(create=24, acquire=25, release=26),
+                lock_name="lock",
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name="<module>",
+                filename="simple_program_fork.py",
+                linenos=lock_utils.LineNo(create=11, acquire=12, release=21),
+                lock_name="lock",
+            ),
+            pprof_utils.LockReleaseEvent(
+                caller_name="<module>",
+                filename="simple_program_fork.py",
+                linenos=lock_utils.LineNo(create=24, acquire=25, release=26),
+                lock_name="lock",
+            ),
+        ],
+    )
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
-def test_fork_gevent(monkeypatch):
-    monkeypatch.setenv("DD_PROFILING_API_TIMEOUT_MS", "100")
-    stdout, stderr, exitcode, pid = call_program("python", os.path.join(os.path.dirname(__file__), "gevent_fork.py"))
+def test_fork_gevent():
+    env = os.environ.copy()
+    stdout, stderr, exitcode, pid = call_program(
+        "python", os.path.join(os.path.dirname(__file__), "gevent_fork.py"), env=env
+    )
     assert exitcode == 0
 
 
@@ -85,21 +149,27 @@ methods = multiprocessing.get_all_start_methods()
     "method",
     set(methods) - {"forkserver", "fork"},
 )
-def test_multiprocessing(method, tmp_path, monkeypatch):
+def test_multiprocessing(method, tmp_path):
     filename = str(tmp_path / "pprof")
-    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
-    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
-    monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "1")
+    env = os.environ.copy()
+    env["DD_PROFILING_OUTPUT_PPROF"] = filename
+    env["DD_PROFILING_ENABLED"] = "1"
+    env["DD_PROFILING_CAPTURE_PCT"] = "1"
     stdout, stderr, exitcode, _ = call_program(
         "ddtrace-run",
         sys.executable,
         os.path.join(os.path.dirname(__file__), "_test_multiprocessing.py"),
         method,
+        env=env,
     )
     assert exitcode == 0, (stdout, stderr)
     pid, child_pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
-    utils.check_pprof_file(filename + "." + str(pid))
-    utils.check_pprof_file(filename + "." + str(child_pid), sample_type="wall-time")
+    profile = pprof_utils.parse_newest_profile(filename + "." + str(pid))
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
+    child_profile = pprof_utils.parse_newest_profile(filename + "." + str(child_pid))
+    child_samples = pprof_utils.get_samples_with_value_type(child_profile, "cpu-time")
+    assert len(child_samples) > 0
 
 
 @pytest.mark.subprocess(
@@ -116,7 +186,6 @@ def test_memalloc_no_init_error_on_fork():
     os.waitpid(pid, 0)
 
 
-@pytest.mark.skipif(sys.version_info[:2] == (3, 9), reason="This test is flaky on Python 3.9")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(

@@ -33,7 +33,6 @@ class UploaderProduct(str, Enum):
     DEBUGGER = "dynamic_instrumentation"
     EXCEPTION_REPLAY = "exception_replay"
     CODE_ORIGIN_SPAN_ENTRY = "code_origin.span.entry"
-    CODE_ORIGIN_SPAN_EXIT = "code_origin.span.exit"
 
 
 @dataclass
@@ -154,7 +153,7 @@ class SignalUploader(agent.AgentCheckPeriodicService):
                 if not (200 <= resp.status < 300):
                     log.error("Failed to upload payload to endpoint %s: [%d] %r", endpoint, resp.status, resp.read())
                     meter.increment("upload.error", tags={"status": str(resp.status)})
-                    if 400 <= resp.status < 500:
+                    if 400 <= resp.status:
                         msg = "Failed to upload payload"
                         raise SignalUploaderError(msg)
                 else:

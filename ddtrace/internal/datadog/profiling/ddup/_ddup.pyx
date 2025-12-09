@@ -2,7 +2,7 @@
 # cython: language_level=3
 
 import platform
-from typing import Dict
+from typing import Mapping
 from typing import Optional
 from typing import Union
 
@@ -18,7 +18,7 @@ from ddtrace.internal.datadog.profiling._types import StringType
 from ddtrace.internal.datadog.profiling.code_provenance import json_str_to_export
 from ddtrace.internal.datadog.profiling.util import sanitize_string
 from ddtrace.internal.runtime import get_runtime_id
-from ddtrace.settings._agent import config as agent_config
+from ddtrace.internal.settings._agent import config as agent_config
 
 
 ctypedef void (*func_ptr_t)(string_view)
@@ -55,6 +55,7 @@ cdef extern from "ddup_interface.hpp":
 
     void ddup_start()
     void ddup_set_runtime_id(string_view _id)
+    void ddup_set_process_id()
     void ddup_profile_set_endpoints(unordered_map[int64_t, string_view] span_ids_to_endpoints)
     void ddup_profile_add_endpoint_counts(unordered_map[string_view, int64_t] trace_endpoints_to_counts)
     void ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
@@ -327,7 +328,7 @@ def config(
         service: StringType = None,
         env: StringType = None,
         version: StringType = None,
-        tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
+        tags: Optional[Mapping[Union[str, bytes], Union[str, bytes]]] = None,
         max_nframes: Optional[int] = None,
         timeline_enabled: Optional[bool] = None,
         output_filename: StringType = None,
@@ -386,6 +387,7 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Op
     global _code_provenance_set
 
     call_func_with_str(ddup_set_runtime_id, get_runtime_id())
+    ddup_set_process_id()
 
     processor = tracer._endpoint_call_counter_span_processor
     endpoint_counts, endpoint_to_span_ids = processor.reset()
@@ -501,7 +503,7 @@ cdef class SampleHandle:
         if self.ptr is not NULL:
             call_ddup_push_gpu_device_name(self.ptr, device_name)
 
-    def push_span(self, span: Optional[Span]) -> None:
+    def push_span(self, span: Optional[Span] = None) -> None:
         if self.ptr is NULL:
             return
         if not span:

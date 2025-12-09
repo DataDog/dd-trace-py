@@ -1,4 +1,3 @@
-import os
 import sys
 from typing import Dict
 
@@ -19,17 +18,10 @@ from ddtrace.llmobs._integrations import OpenAIIntegration
 log = get_logger(__name__)
 
 
-config._add(
-    "openai",
-    {
-        "span_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        "span_char_limit": int(os.getenv("DD_OPENAI_SPAN_CHAR_LIMIT", 128)),
-    },
-)
+config._add("openai", {})
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return version.VERSION
 
 
@@ -350,7 +342,7 @@ class _TracedAsyncPaginator:
                     g.send((resp, err))
                 except StopIteration as e:
                     if err is None:
-                        return e.value
+                        resp = e.value
             return resp
 
         return _trace_and_await().__await__()

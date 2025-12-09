@@ -591,8 +591,9 @@ def test_ddwaf_run_contained_typeerror(tracer, caplog):
     config = rules.Config()
     config.http_tag_query_string = True
 
-    with caplog.at_level(logging.DEBUG), mock.patch(
-        "ddtrace.appsec._ddwaf.waf.ddwaf_run", side_effect=TypeError("expected c_long instead of int")
+    with (
+        caplog.at_level(logging.DEBUG),
+        mock.patch("ddtrace.appsec._ddwaf.waf.ddwaf_run", side_effect=TypeError("expected c_long instead of int")),
     ):
         with asm_context(tracer=tracer, config=config_asm) as span:
             set_http_meta(
@@ -627,8 +628,9 @@ def test_ddwaf_run_contained_oserror(tracer, caplog):
     config = rules.Config()
     config.http_tag_query_string = True
 
-    with caplog.at_level(logging.DEBUG), mock.patch(
-        "ddtrace.appsec._ddwaf.waf.ddwaf_run", side_effect=OSError("ddwaf run failed")
+    with (
+        caplog.at_level(logging.DEBUG),
+        mock.patch("ddtrace.appsec._ddwaf.waf.ddwaf_run", side_effect=OSError("ddwaf run failed")),
     ):
         with asm_context(tracer=tracer, config=config_asm) as span:
             set_http_meta(
@@ -805,16 +807,25 @@ def test_lambda_unsupported_event(tracer, skip_event):
         assert span.get_metric(APPSEC.UNSUPPORTED_EVENT_TYPE) is None
 
 
-def test_lambda_inferred_span(tracer):
+@pytest.mark.parametrize("inferred_span_name", ["aws.apigateway", "aws.httpapi"])
+def test_lambda_inferred_span(tracer, inferred_span_name):
     """
-    Ensure that when the service entry span is not the root span, the service entry span is tagged
-    and not the root span
+    Ensure that when the service entry span is below an inferred span, both spans have
+    AppSec enabled and contain the waf triggers.
     """
-    config = {"_asm_enabled": True, "_asm_processed_span_types": {SpanTypes.SERVERLESS}}
+    config = {
+        "_asm_enabled": True,
+        "_asm_processed_span_types": {SpanTypes.WEB, SpanTypes.SERVERLESS},
+        "_asm_http_span_types": {SpanTypes.WEB, SpanTypes.SERVERLESS},
+    }
 
-    with asm_context(tracer=tracer, config=config, span_type=SpanTypes.HTTP, span_name="aws-apigateway") as root_span:
-        with tracer.trace("aws.lambda", service="test_function", span_type=SpanTypes.SERVERLESS) as entry_span:
-            pass
+    with override_global_config(config):
+        tracer._recreate()
+        with tracer.trace(inferred_span_name, span_type=SpanTypes.WEB, service="api_gateway") as gateway_span:
+            with tracer.trace("aws.lambda", span_type=SpanTypes.SERVERLESS, service="test_function") as lambda_span:
+                set_http_meta(lambda_span, {}, raw_uri="http://example.com/.git", status_code="404")
 
-    assert root_span.get_metric(APPSEC.ENABLED) is None
-    assert entry_span.get_metric(APPSEC.ENABLED) == 1.0
+    assert lambda_span.get_metric(APPSEC.ENABLED) == 1.0
+    assert gateway_span.get_metric(APPSEC.ENABLED) == 1.0
+    assert get_triggers(lambda_span)
+    assert get_triggers(gateway_span)

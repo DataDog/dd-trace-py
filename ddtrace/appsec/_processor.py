@@ -2,7 +2,6 @@ import dataclasses
 import errno
 from json.decoder import JSONDecodeError
 import os
-import os.path
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import ClassVar
@@ -37,13 +36,14 @@ from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.appsec._utils import Binding_error
 from ddtrace.appsec._utils import Block_config
 from ddtrace.appsec._utils import DDWaf_result
+from ddtrace.appsec._utils import is_inferred_span
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _RUNTIME_FAMILY
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.remoteconfig import PayloadType
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -207,6 +207,10 @@ class AppSecSpanProcessor(SpanProcessor):
                 )
                 span.set_metric(APPSEC.UNSUPPORTED_EVENT_TYPE, 1.0)
                 return
+
+        if is_inferred_span(span):
+            span.set_metric(APPSEC.ENABLED, 1.0)
+            return
 
         ctx = self._ddwaf._at_request_start()
         _asm_request_context.start_context(span, ctx.rc_products if ctx is not None else "")

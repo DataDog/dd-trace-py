@@ -18,9 +18,9 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_gemini_vertexai
-from ddtrace.llmobs._integrations.google_utils import get_system_instructions_gemini_vertexai
-from ddtrace.llmobs._integrations.google_utils import llmobs_get_metadata_gemini_vertexai
+from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_vertexai
+from ddtrace.llmobs._integrations.google_utils import get_system_instructions_vertexai
+from ddtrace.llmobs._integrations.google_utils import llmobs_get_metadata_vertexai
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.types import Message
 from ddtrace.trace import Span
@@ -48,9 +48,9 @@ class VertexAIIntegration(BaseLLMIntegration):
         instance = kwargs.get("instance", None)
         history = kwargs.get("history", [])
         metrics = kwargs.get("metrics", {})
-        metadata = llmobs_get_metadata_gemini_vertexai(kwargs, instance)
+        metadata = llmobs_get_metadata_vertexai(kwargs, instance)
 
-        system_instruction = get_system_instructions_gemini_vertexai(instance)
+        system_instruction = get_system_instructions_vertexai(instance)
         input_contents = None
         try:
             input_contents = get_argument_value(args, kwargs, 0, "content")
@@ -123,7 +123,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             messages.append(Message(content=contents))
             return messages
         if isinstance(contents, Part):
-            message = extract_message_from_part_gemini_vertexai(contents)
+            message = extract_message_from_part_vertexai(contents)
             messages.append(message)
             return messages
         if not isinstance(contents, list):
@@ -134,7 +134,7 @@ class VertexAIIntegration(BaseLLMIntegration):
                 messages.append(Message(content=content))
                 continue
             if isinstance(content, Part):
-                message = extract_message_from_part_gemini_vertexai(content)
+                message = extract_message_from_part_vertexai(content)
                 messages.append(message)
                 continue
             messages.extend(self._extract_messages_from_content(content))
@@ -176,7 +176,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             messages.append(message)
             return messages
         for part in parts:
-            message = extract_message_from_part_gemini_vertexai(part, role)
+            message = extract_message_from_part_vertexai(part, role)
             messages.append(message)
         return messages
 

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    AAP: This introduces proper support for API10 for redirected requests on urllib3

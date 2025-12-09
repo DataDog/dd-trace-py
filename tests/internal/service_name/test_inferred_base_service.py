@@ -8,9 +8,9 @@ from unittest.mock import patch
 
 import pytest
 
-from ddtrace.settings._inferred_base_service import PythonDetector
-from ddtrace.settings._inferred_base_service import _module_exists
-from ddtrace.settings._inferred_base_service import detect_service
+from ddtrace.internal.settings._inferred_base_service import PythonDetector
+from ddtrace.internal.settings._inferred_base_service import _module_exists
+from ddtrace.internal.settings._inferred_base_service import detect_service
 
 
 @pytest.fixture
@@ -235,9 +235,7 @@ def test_get_service(cmd, default, expected, testdir):
     result = subprocess.run(command, cwd=testdir.tmpdir, capture_output=True, text=True, env=env)
 
     assert result.returncode == 0, (
-        f"Command failed with return code {result.returncode}\n"
-        f"STDOUT:\n{result.stdout}\n"
-        f"STDERR:\n{result.stderr}"
+        f"Command failed with return code {result.returncode}\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
     )
 
     assert "AssertionError" not in result.stderr, "AssertionError found in stderr"
@@ -271,8 +269,8 @@ def test_python_detector_pattern_matching(command, should_match, expected_captur
     if should_match:
         assert match is not None, f"Expected '{command}' to match but it didn't"
         # The full match should contain the expected capture
-        assert expected_capture in match.group(
-            0
-        ), f"Expected capture '{expected_capture}' not found in match '{match.group(0)}'"
+        assert expected_capture in match.group(0), (
+            f"Expected capture '{expected_capture}' not found in match '{match.group(0)}'"
+        )
     else:
         assert match is None, f"Expected '{command}' not to match but it did: {match.group(0) if match else None}"

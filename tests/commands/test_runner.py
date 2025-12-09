@@ -197,19 +197,6 @@ class DdtraceRunTest(BaseTestCase):
         out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_argv.py", "foo", "bar"])
         assert out.startswith(b"Test success")
 
-    def test_got_app_name(self):
-        """
-        apps run with ddtrace-run have a proper app name
-        """
-        out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_app_name.py"])
-        assert out.startswith(b"ddtrace_run_app_name.py")
-
-    def test_global_trace_tags(self):
-        """Ensure global tags are passed in from environment"""
-        with self.override_env(dict(DD_TRACE_GLOBAL_TAGS="a:True,b:0,c:C")):
-            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_global_tags.py"])
-            assert out.startswith(b"Test success")
-
     def test_logs_injection(self):
         """Ensure logs injection works"""
         with self.override_env(dict(DD_TAGS="service:my-service,env:my-env,version:my-version")):
@@ -522,23 +509,6 @@ def test_ddtrace_run_and_auto_sitecustomize():
     assert final_modules - starting_modules == set(["ddtrace.auto"])
 
 
-@pytest.mark.subprocess(env=dict(DD_TRACE_GLOBAL_TAGS="a:True"), err=None)
-def test_global_trace_tags_deprecation_warning():
-    """Ensure DD_TRACE_GLOBAL_TAGS deprecation warning shows"""
-    import warnings
-
-    with warnings.catch_warnings(record=True) as warns:
-        warnings.simplefilter("always")
-        import ddtrace.auto  # noqa: F401
-
-        assert len(warns) >= 1
-        warning_messages = [str(warn.message) for warn in warns]
-        assert (
-            "DD_TRACE_GLOBAL_TAGS is deprecated and will be removed in version '4.0.0': Please migrate to using "
-            "DD_TAGS instead" in warning_messages
-        ), warning_messages
-
-
 @pytest.mark.subprocess(ddtrace_run=False, err="")
 def test_ddtrace_auto_atexit():
     """When ddtrace-run is used, ensure atexit hooks are registered exactly once"""
@@ -559,12 +529,12 @@ def test_ddtrace_auto_atexit():
             raise AssertionError("Duplicate unregistered function: %s" % func)
         unregistered_funcs.add(func)
 
-    with patch("ddtrace.internal.atexit.register", side_effect=mock_register), patch(
-        "ddtrace.internal.atexit.unregister", side_effect=mock_unregister
-    ), patch("ddtrace.internal.atexit.register_on_exit_signal", side_effect=mock_register), patch(
-        "atexit.register", side_effect=mock_register
-    ), patch(
-        "atexit.unregister", side_effect=mock_unregister
+    with (
+        patch("ddtrace.internal.atexit.register", side_effect=mock_register),
+        patch("ddtrace.internal.atexit.unregister", side_effect=mock_unregister),
+        patch("ddtrace.internal.atexit.register_on_exit_signal", side_effect=mock_register),
+        patch("atexit.register", side_effect=mock_register),
+        patch("atexit.unregister", side_effect=mock_unregister),
     ):
         # Create and shutdown a tracer
         import ddtrace.auto  # noqa: F401

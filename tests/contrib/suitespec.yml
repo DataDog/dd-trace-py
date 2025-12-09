@@ -6,6 +6,9 @@ components:
     - ddtrace/contrib/internal/aiohttp_jinja2/*
   aiopg:
     - ddtrace/contrib/internal/aiopg/*
+  aiokafka:
+    - ddtrace/contrib/internal/aiokafka/*
+    - ddtrace/ext/kafka.py
   algoliasearch:
     - ddtrace/contrib/internal/algoliasearch/*
   asgi:
@@ -20,10 +23,12 @@ components:
     - ddtrace/ext/aws.py
   azure_eventhubs:
     - ddtrace/contrib/internal/azure_eventhubs/*
+    - ddtrace/ext/azure_eventhubs.py
   azure_functions:
     - ddtrace/contrib/internal/azure_functions/*
   azure_servicebus:
     - ddtrace/contrib/internal/azure_servicebus/*
+    - ddtrace/ext/azure_servicebus.py
   botocore:
     - ddtrace/contrib/internal/botocore/*
     - ddtrace/contrib/internal/boto/*
@@ -31,9 +36,6 @@ components:
   bottle:
     - ddtrace/contrib/bottle.py
     - ddtrace/contrib/internal/bottle/*
-  cassandra:
-    - ddtrace/contrib/internal/cassandra/*
-    - ddtrace/ext/cassandra.py
   celery:
     - ddtrace/contrib/celery.py
     - ddtrace/contrib/internal/celery/*
@@ -44,20 +46,10 @@ components:
     - ddtrace/contrib/internal/consul/*
     - ddtrace/ext/consul.py
   contrib:
-    - ddtrace/contrib/__init__.py
-    - ddtrace/contrib/trace_utils.py
-    - ddtrace/contrib/internal/trace_utils_async.py
-    - ddtrace/contrib/internal/trace_utils.py
-    - ddtrace/contrib/internal/redis_utils.py
-    - ddtrace/ext/__init__.py
-    - ddtrace/ext/http.py
-    - ddtrace/ext/net.py
-    - ddtrace/ext/schema.py
-    - ddtrace/ext/sql.py
-    - ddtrace/ext/test.py
-    - ddtrace/ext/user.py
+    - ddtrace/contrib/*
+    - ddtrace/ext/*
     - ddtrace/propagation/*
-    - ddtrace/settings/_database_monitoring.py
+    - ddtrace/internal/settings/_database_monitoring.py
     - tests/contrib/patch.py
     - tests/contrib/config.py
     - tests/contrib/__init__.py
@@ -89,8 +81,6 @@ components:
     - ddtrace/contrib/internal/flask/*
     - ddtrace/contrib/flask_cache.py
     - ddtrace/contrib/internal/flask_cache/*
-  freezegun:
-    - ddtrace/contrib/internal/freezegun/*
   futures:
     - ddtrace/contrib/internal/futures/*
   gevent:
@@ -129,7 +119,6 @@ components:
     - ddtrace/contrib/internal/molten/*
   mongo:
     - ddtrace/contrib/internal/pymongo/*
-    - ddtrace/contrib/internal/mongoengine/*
     - ddtrace/ext/mongo.py
   mysql:
     - ddtrace/contrib/internal/mysql/*
@@ -157,6 +146,7 @@ components:
     - ddtrace/contrib/internal/pyramid/*
   ray:
     - ddtrace/contrib/internal/ray/*
+    - ddtrace/contrib/ray.py
   redis:
     - ddtrace/contrib/internal/rediscluster/*
     - ddtrace/contrib/internal/redis/*
@@ -185,13 +175,13 @@ components:
   subprocess:
     - ddtrace/contrib/internal/subprocess/*
   tornado:
-    - ddtrace/contrib/tornado.py
     - ddtrace/contrib/internal/tornado/*
   urllib3:
     - ddtrace/contrib/internal/urllib3/*
   valkey:
     - ddtrace/contrib/internal/valkey/*
     - ddtrace/contrib/internal/valkey_utils.py
+    - ddtrace/contrib/valkey.py
     - ddtrace/_trace/utils_valkey.py
     - ddtrace/ext/valkey.py
   vertica:
@@ -214,6 +204,7 @@ suites:
     env:
       TEST_MOTO_PORT: '3000'
     snapshot: true
+    venvs_per_job: 2
   aiohttp:
     parallelism: 3
     paths:
@@ -246,6 +237,24 @@ suites:
     services:
       - mysql
     snapshot: true
+  aiokafka:
+    env:
+      TEST_KAFKA_HOST: kafka
+      TEST_KAFKA_PORT: '29092'
+    parallelism: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@aiokafka'
+      - '@datastreams'
+      - tests/contrib/aiokafka/*
+      - tests/snapshots/tests.contrib.aiokafka.*
+    runner: riot
+    services:
+      - kafka
+    snapshot: true
   aiopg:
     paths:
       - '@bootstrap'
@@ -261,6 +270,7 @@ suites:
     snapshot: true
     services:
       - postgres
+    venvs_per_job: 2
   algoliasearch:
     parallelism: 2
     paths:
@@ -288,7 +298,7 @@ suites:
       - redis
     snapshot: true
   asgi:
-    parallelism: 6
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -459,19 +469,6 @@ suites:
       - tests/contrib/bottle/*
     runner: riot
     snapshot: true
-  cassandra:
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
-      - '@cassandra'
-      - tests/contrib/cassandra/*
-    runner: riot
-    snapshot: true
-    parallelism: 2
-    services:
-      - cassandra
   celery:
     env:
       DD_DISABLE_ERROR_RESPONSES: true
@@ -491,6 +488,7 @@ suites:
       - rabbitmq
       - redis
     snapshot: true
+    venvs_per_job: 1
   cherrypy:
     paths:
       - '@bootstrap'
@@ -502,6 +500,7 @@ suites:
       - tests/snapshots/tests.{suite}.*
     runner: riot
     snapshot: true
+    venvs_per_job: 2
   consul:
     parallelism: 1
     paths:
@@ -609,6 +608,7 @@ suites:
       - tests/contrib/dogpile_cache/*
     runner: riot
     snapshot: true
+    venvs_per_job: 3
   dramatiq:
     env:
       TEST_REDIS_HOST: redis
@@ -630,7 +630,7 @@ suites:
     env:
       TEST_ELASTICSEARCH_HOST: elasticsearch
       TEST_OPENSEARCH_HOST: opensearch
-    parallelism: 17
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -654,6 +654,7 @@ suites:
       - tests/contrib/falcon/*
     runner: riot
     snapshot: true
+    venvs_per_job: 2
   fastapi:
     paths:
       - '@bootstrap'
@@ -669,11 +670,12 @@ suites:
       - tests/snapshots/tests.{suite}.*
     runner: riot
     snapshot: true
+    venvs_per_job: 2
   flask:
     env:
       TEST_MEMCACHED_HOST: memcached
       TEST_REDIS_HOST: redis
-    parallelism: 11
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -694,16 +696,6 @@ suites:
       - memcached
       - redis
     snapshot: true
-  freezegun:
-    paths:
-        - '@bootstrap'
-        - '@core'
-        - '@contrib'
-        - '@tracing'
-        - '@freezegun'
-        - tests/contrib/freezegun/*
-    runner: riot
-    snapshot: true
   gevent:
     paths:
       - '@bootstrap'
@@ -714,6 +706,7 @@ suites:
       - tests/contrib/gevent/*
     runner: riot
     snapshot: false
+    venvs_per_job: 2
   graphql:graphene:
     parallelism: 1
     paths:
@@ -750,6 +743,7 @@ suites:
       - tests/snapshots/tests.contrib.grpc.*
     runner: riot
     snapshot: true
+    venvs_per_job: 3
   gunicorn:
     parallelism: 6
     paths:
@@ -774,6 +768,7 @@ suites:
     services:
       - httpbin
     snapshot: true
+    venvs_per_job: 1
   httpx:
     parallelism: 3
     paths:
@@ -887,6 +882,7 @@ suites:
     services:
       - mariadb
     snapshot: true
+    venvs_per_job: 2
   molten:
     parallelism: 1
     paths:
@@ -898,18 +894,6 @@ suites:
       - tests/contrib/molten/*
     runner: riot
     snapshot: true
-  mongoengine:
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
-      - '@mongo'
-      - tests/contrib/mongoengine/*
-    runner: riot
-    snapshot: true
-    services:
-      - mongo
   mysqlpython:
     paths:
       - '@bootstrap'
@@ -937,15 +921,6 @@ suites:
       - tests/snapshots/tests.opentelemetry.*
     runner: riot
     snapshot: true
-  opentracer:
-    parallelism: 1
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@opentracer'
-      - tests/opentracer/*
-    runner: riot
   protobuf:
     parallelism: 1
     paths:
@@ -974,6 +949,7 @@ suites:
     services:
       - postgres
     snapshot: true
+    venvs_per_job: 2
   pylibmc:
     parallelism: 1
     paths:
@@ -1012,6 +988,7 @@ suites:
     services:
       - mongo
     snapshot: true
+    venvs_per_job: 2
   pymysql:
     parallelism: 1
     paths:
@@ -1145,6 +1122,7 @@ suites:
       - tests/snapshots/tests.contrib.sanic.*
     runner: riot
     snapshot: true
+    venvs_per_job: 2
   snowflake:
     paths:
       - '@bootstrap'
@@ -1157,6 +1135,7 @@ suites:
       - tests/snapshots/tests.contrib.snowflake.*
     runner: riot
     snapshot: true
+    venvs_per_job: 2
   sourcecode:
     parallelism: 1
     paths:
@@ -1193,6 +1172,7 @@ suites:
       - tests/contrib/starlette/*
     runner: riot
     snapshot: true
+    venvs_per_job: 2
   stdlib:
     parallelism: 2
     paths:
@@ -1225,7 +1205,7 @@ suites:
     runner: riot
     snapshot: true
   subprocess:
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'

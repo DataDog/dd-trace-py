@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    opentracer: This change removes the deprecated ``opentracer`` package

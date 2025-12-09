@@ -178,7 +178,7 @@ def test_aggregator_reset_apm_opt_out_preserves_sampling():
 def test_aggregator_reset_with_args(writer_class):
     """
     Validates that the span aggregator can reset trace buffers, sampling processor,
-    user processors/filters and trace api version (when ASM is enabled)
+    user processors/filters.
     """
 
     dd_proc = DummyProcessor()
@@ -204,12 +204,12 @@ def test_aggregator_reset_with_args(writer_class):
     assert aggr.sampling_processor.apm_opt_out is False
     assert aggr.sampling_processor._compute_stats_enabled is False
     # Reset the aggregator with new args and new user processors and expect the new values to be set
-    aggr.reset(user_processors=[], compute_stats=True, apm_opt_out=True, appsec_enabled=True, reset_buffer=False)
+    aggr.reset(user_processors=[], compute_stats=True, reset_buffer=False)
     assert aggr.user_processors == []
     assert dd_proc in aggr.dd_processors
-    assert aggr.sampling_processor.apm_opt_out is True
+    assert aggr.sampling_processor.apm_opt_out is False
     assert aggr.sampling_processor._compute_stats_enabled is True
-    assert aggr.writer._api_version == "v0.4"
+    assert aggr.writer._api_version == "v0.5"
     assert span.trace_id in aggr._traces
     assert len(aggr._span_metrics["spans_created"]) == 1
 
@@ -280,6 +280,17 @@ def test_aggregator_multi_span():
     assert writer.pop() == []
     child.finish()
     assert writer.pop() == [parent, child]
+
+
+@pytest.mark.subprocess(
+    parametrize={"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": ["0", "-1", "-20"]},
+    err=b"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS must be >= 1, defaulting to 1\n",
+)
+def test_config_partial_flush_min_spans_validation():
+    """Test that DD_TRACE_PARTIAL_FLUSH_MIN_SPANS < 1 defaults to 1 with warning."""
+    from ddtrace import config
+
+    assert config._partial_flush_min_spans == 1
 
 
 def test_aggregator_partial_flush_0_spans():

@@ -1,14 +1,13 @@
 #pragma once
 
-#include <stddef.h>
-#include <stdint.h>
+#include <cstdint>
 #include <string_view>
 #include <unordered_map>
 
 // Forward decl of the return pointer
 namespace Datadog {
 class Sample;
-}
+} // namespace Datadog
 
 #ifdef __cplusplus
 extern "C"
@@ -33,6 +32,7 @@ extern "C"
     bool ddup_is_initialized();
     void ddup_start();
     void ddup_set_runtime_id(std::string_view runtime_id);
+    void ddup_set_process_id();
     void ddup_profile_set_endpoints(std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints);
     void ddup_profile_add_endpoint_counts(std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts);
     bool ddup_upload();
@@ -68,6 +68,10 @@ extern "C"
                          int64_t line);
     void ddup_push_absolute_ns(Datadog::Sample* sample, int64_t timestamp_ns);
     void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
+
+    void ddup_increment_sampling_event_count();
+    void ddup_increment_sample_count();
+
     void ddup_flush_sample(Datadog::Sample* sample);
     // Stack v2 specific flush, which reverses the locations
     void ddup_flush_sample_v2(Datadog::Sample* sample);
