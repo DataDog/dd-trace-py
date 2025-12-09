@@ -850,7 +850,9 @@ def _extract_chat_template_from_instructions(
     # Build value:placeholder map - exclude fallback markers so they remain as-is in the template
     value_to_placeholder = {}
     for var_name, var_value in variables.items():
-        value_str = str(var_value) if var_value else ""
+        if var_value is None:
+            continue
+        value_str = str(var_value)
         if value_str and value_str not in (IMAGE_FALLBACK_MARKER, FILE_FALLBACK_MARKER):
             value_to_placeholder[value_str] = f"{{{{{var_name}}}}}"
 

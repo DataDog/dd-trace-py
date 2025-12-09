@@ -161,3 +161,23 @@ def test_normalize_prompt_variables():
     assert result["file_name"] == "report.pdf"
     assert result["file_data"] == "[file]"
     assert result["file_fallback"] == "[file]"
+
+
+def test_extract_chat_template_with_falsy_values():
+    """Test that falsy but valid values (0, False) are preserved in template extraction."""
+
+    instructions = [
+        {
+            "role": "user",
+            "content": [
+                {"text": "Count: 0, Flag: False, Empty: "},
+            ],
+        }
+    ]
+    variables = {"count": 0, "flag": False, "empty": ""}
+
+    result = _extract_chat_template_from_instructions(instructions, variables)
+
+    # 0 and False should be replaced with placeholders
+    # Empty string should remain as-is (not replaceable through reverse-templating)
+    assert result[0]["content"] == "Count: {{count}}, Flag: {{flag}}, Empty: "
