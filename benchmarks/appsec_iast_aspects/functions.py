@@ -84,7 +84,7 @@ def iast_bytearray_aspect(tainted_ba=b"test"):
 
 
 def bytearray_noaspect(tainted_ba=b"test"):
-    return bytearray(tainted_ba=b"test")
+    return bytearray(tainted_ba)
 
 
 def iast_bytearray_extend_aspect(tainted_ba=b"test"):
