@@ -93,7 +93,7 @@ def test_asyncio_as_completed() -> None:
         pprof_utils.StackLocation(
             function_name="main",
             filename="test_asyncio_as_completed.py",
-            line_no=main.__code__.co_firstlineno + 17,
+            line_no=main.__code__.co_firstlineno + 20,
         ),
     ]
 
