@@ -208,6 +208,7 @@ class ASMConfig(DDConfig):
         "_asm_obfuscation_parameter_key_regexp",
         "_asm_obfuscation_parameter_value_regexp",
         "_asm_processed_span_types",
+        "_asm_http_span_types",
         "_apm_tracing_enabled",
         "_bypass_instrumentation_for_waf",
         "_iast_enabled",

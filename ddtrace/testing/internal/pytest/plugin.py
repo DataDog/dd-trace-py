@@ -12,13 +12,17 @@ from _pytest.runner import runtestprotocol
 import pluggy
 import pytest
 
+from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
+from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
+from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
+from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
@@ -43,6 +47,7 @@ ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 
 SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
 
+TEST_FRAMEWORK = "pytest"
 
 log = logging.getLogger(__name__)
 
@@ -136,6 +141,7 @@ class TestOptPlugin:
         self.enable_ddtrace = False
         self.reports_by_nodeid: t.Dict[str, _ReportGroup] = defaultdict(lambda: {})
         self.excinfo_by_report: t.Dict[pytest.TestReport, t.Optional[pytest.ExceptionInfo[t.Any]]] = {}
+        self.benchmark_data_by_nodeid: t.Dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: t.Dict[str, Test] = {}
         self.is_xdist_worker = False
 
@@ -154,6 +160,12 @@ class TestOptPlugin:
         self.session.start()
         self.manager.start()
 
+        TelemetryAPI.get().record_session_created(
+            test_framework=TEST_FRAMEWORK,
+            has_codeowners=self.manager.has_codeowners(),
+            is_unsupported_ci=(self.manager.env_tags.get(CITag.PROVIDER_NAME) is None),
+        )
+
         if self.enable_ddtrace:
             install_global_trace_filter(self.manager.writer)
 
@@ -170,6 +182,13 @@ class TestOptPlugin:
             session.config.workeroutput["tests_skipped_by_itr"] = self.session.tests_skipped_by_itr
 
         self.session.finish()
+
+        TelemetryAPI.get().record_session_finished(
+            test_framework=TEST_FRAMEWORK,
+            has_codeowners=self.manager.has_codeowners(),
+            is_unsupported_ci=(self.manager.env_tags.get(CITag.PROVIDER_NAME) is None),
+            efd_abort_reason=None,  # TODO: keep track of EFD faulty session status.
+        )
 
         if not self.is_xdist_worker:
             # When running with xdist, only the main process writes the session event.
@@ -225,9 +244,17 @@ class TestOptPlugin:
         test_ref = nodeid_to_test_ref(item.nodeid)
         next_test_ref = nodeid_to_test_ref(nextitem.nodeid) if nextitem else None
 
-        test_module, test_suite, test = test_items = self._discover_test(item, test_ref)
-        for test_item in test_items:
-            test_item.ensure_started()
+        test_module, test_suite, test = self._discover_test(item, test_ref)
+
+        if not test_module.is_started():
+            test_module.start()
+            TelemetryAPI.get().record_module_created(test_framework=TEST_FRAMEWORK)
+
+        if not test_suite.is_started():
+            test_suite.start()
+            TelemetryAPI.get().record_suite_created(test_framework=TEST_FRAMEWORK)
+
+        test.start()
 
         self.tests_by_nodeid[item.nodeid] = test
 
@@ -241,8 +268,10 @@ class TestOptPlugin:
             item.user_properties += [("dd_quarantined", True)]
 
         with trace_context(self.enable_ddtrace) as context:
+            TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
             with coverage_collection() as coverage_data:
                 yield
+            TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
 
         if not test.test_runs:
             # No test runs: our pytest_runtest_protocol did not run. This can happen if some other plugin (such as
@@ -256,10 +285,7 @@ class TestOptPlugin:
             )
             test_run = test.make_test_run()
             test_run.start(start_ns=test.start_ns)
-            status, tags = self._get_test_outcome(item.nodeid)
-            test_run.set_status(status)
-            test_run.set_tags(tags)
-            test_run.set_context(context)
+            self._set_test_run_data(test_run, item, context)
             test_run.finish()
             test.set_status(test_run.get_status())  # TODO: this should be automatic?
             self.manager.writer.put_item(test_run)
@@ -273,10 +299,12 @@ class TestOptPlugin:
         if not next_test_ref or test_ref.suite != next_test_ref.suite:
             test_suite.finish()
             self.manager.writer.put_item(test_suite)
+            TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
 
         if not next_test_ref or test_ref.suite.module != next_test_ref.suite.module:
             test_module.finish()
             self.manager.writer.put_item(test_module)
+            TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
     @catch_and_log_exceptions()
     def pytest_runtest_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> bool:
@@ -291,11 +319,18 @@ class TestOptPlugin:
         test = self.tests_by_nodeid[item.nodeid]
         test_run = test.make_test_run()
         test_run.start()
+
+        TelemetryAPI.get().record_test_created(test_framework=TEST_FRAMEWORK, test_run=test_run)
+
         reports = _make_reports_dict(runtestprotocol(item, nextitem=nextitem, log=False))
-        status, tags = self._get_test_outcome(item.nodeid)
-        test_run.set_status(status)
-        test_run.set_tags(tags)
-        test_run.set_context(context)
+        self._set_test_run_data(test_run, item, context)
+
+        TelemetryAPI.get().record_test_finished(
+            test_framework=TEST_FRAMEWORK,
+            test_run=test_run,
+            ci_provider_name=self.manager.env_tags.get(CITag.PROVIDER_NAME),
+            is_auto_injected=self.manager.is_auto_injected,
+        )
 
         return test_run, reports
 
@@ -315,6 +350,17 @@ class TestOptPlugin:
             test_run.finish()
             test.set_status(test_run.get_status())  # TODO: this should be automatic?
             self.manager.writer.put_item(test_run)
+
+    def _set_test_run_data(self, test_run: TestRun, item: pytest.Item, context: TestContext) -> None:
+        status, tags = self._get_test_outcome(item.nodeid)
+        test_run.set_status(status)
+        test_run.set_tags(tags)
+        test_run.set_context(context)
+
+        if benchmark_data := self.benchmark_data_by_nodeid.pop(item.nodeid, None):
+            test_run.set_tags(benchmark_data.tags)
+            test_run.set_metrics(benchmark_data.metrics)
+            test_run.mark_benchmark()
 
     def _do_retries(
         self,
@@ -488,6 +534,11 @@ class TestOptPlugin:
         self.reports_by_nodeid[item.nodeid][call.when] = report
         self.excinfo_by_report[report] = call.excinfo
 
+        if call.when == TestPhase.TEARDOWN:
+            # We need to extract pytest-benchmark data _before_ the fixture teardown.
+            if benchmark_data := get_benchmark_tags_and_metrics(item):
+                self.benchmark_data_by_nodeid[item.nodeid] = benchmark_data
+
     def pytest_report_teststatus(self, report: pytest.TestReport) -> t.Optional[_ReportTestStatus]:
         if retry_outcome := _get_user_property(report, "dd_retry_outcome"):
             retry_reason = _get_user_property(report, "dd_retry_reason")
@@ -623,10 +674,10 @@ def pytest_load_initial_conftests(
 
     setup_logging()
 
-    session = TestSession(name="pytest")
+    session = TestSession(name=TEST_FRAMEWORK)
     session.set_attributes(
         test_command=_get_test_command(early_config),
-        test_framework="pytest",
+        test_framework=TEST_FRAMEWORK,
         test_framework_version=pytest.__version__,
     )
 
