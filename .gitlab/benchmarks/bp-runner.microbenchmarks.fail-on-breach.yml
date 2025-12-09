@@ -591,8 +591,8 @@ experiments:
               - max_rss_usage < 41.50 MB
           - name: iastaspects-slice_aspect
             thresholds:
-              - execution_time < 0.02 ms
-              - max_rss_usage < 110.50 MB
+              - execution_time < 0.01 ms
+              - max_rss_usage < 41.50 MB
           - name: iastaspects-slice_noaspect
             thresholds:
               - execution_time < 0.01 ms
