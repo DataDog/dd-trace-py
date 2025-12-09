@@ -36,11 +36,8 @@ static DUMP_TRACEBACK_INIT: std::sync::Once = std::sync::Once::new();
 extern "C" {
     fn pipe(pipefd: *mut [c_int; 2]) -> c_int;
     fn read(fd: c_int, buf: *mut c_void, count: usize) -> isize;
-    fn write(fd: c_int, buf: *const c_void, count: usize) -> isize;
     fn close(fd: c_int) -> c_int;
     fn fcntl(fd: c_int, cmd: c_int, arg: c_int) -> c_int;
-    #[cfg(unix)]
-    fn PyThreadState_Next(prev: *mut pyo3_ffi::PyThreadState) -> *mut pyo3_ffi::PyThreadState;
 }
 
 pub trait RustWrapper {
@@ -358,18 +355,13 @@ const MAX_TRACEBACK_SIZE: usize = 8 * 1024; // 8KB
 const FRAME_FUNCTION_CAP: usize = 256;
 #[cfg(unix)]
 const FRAME_FILE_CAP: usize = 512;
-#[cfg(unix)]
-const FRAME_TYPE_CAP: usize = 256;
 
 #[cfg(unix)]
 static FRAME_COLLECTION_GUARD: AtomicBool = AtomicBool::new(false);
 
 #[cfg(unix)]
 unsafe fn capture_frames_via_python(emit_frame: unsafe extern "C" fn(&RuntimeStackFrame)) {
-    let mut emitted = false;
-
     let current = pyo3_ffi::PyThreadState_Get();
-
     if !current.is_null() {
         let _ = collect_and_emit_frames_for_thread(current, emit_frame);
     }
@@ -430,16 +422,18 @@ unsafe fn emit_python_frame(
         return false;
     }
 
-    let mut file = get_code_attr_utf8(frame, b"co_filename\0");
-    if file.len() > FRAME_FILE_CAP {
-        file.truncate(FRAME_FILE_CAP);
-    }
-
-    let mut function = get_code_attr_utf8(frame, b"co_name\0");
-    if function.len() > FRAME_FUNCTION_CAP {
-        function.truncate(FRAME_FUNCTION_CAP);
-    }
+    let file_view = get_code_attr_utf8_view(frame, b"co_filename\0");
+    let function_view = get_code_attr_utf8_view(frame, b"co_name\0");
     let line_number = pyo3_ffi::PyFrame_GetLineNumber(frame);
+
+    let file_slice = file_view
+        .as_ref()
+        .map(|view| view.truncated(FRAME_FILE_CAP))
+        .unwrap_or(&[]);
+    let function_slice = function_view
+        .as_ref()
+        .map(|view| view.truncated(FRAME_FUNCTION_CAP))
+        .unwrap_or(&[]);
 
     let runtime_frame = RuntimeStackFrame {
         line: if line_number < 0 {
@@ -448,42 +442,66 @@ unsafe fn emit_python_frame(
             line_number as u32
         },
         column: 0,
-        function: function.as_slice(),
-        file: file.as_slice(),
+        function: function_slice,
+        file: file_slice,
         type_name: &[],
     };
 
     emit_frame(&runtime_frame);
+
+    if let Some(view) = file_view {
+        pyo3_ffi::Py_DecRef(view.obj);
+    }
+    if let Some(view) = function_view {
+        pyo3_ffi::Py_DecRef(view.obj);
+    }
     true
 }
 
+struct Utf8View {
+    ptr: *const u8,
+    len: usize,
+    obj: *mut pyo3_ffi::PyObject,
+}
+
+impl Utf8View {
+    /// Safety: caller must ensure the underlying PyObject outlives the returned slice.
+    /// This should be safe since no garbage collection should be happening while suspended in
+    /// crash context
+    fn truncated(&self, cap: usize) -> &[u8] {
+        let len = cmp::min(self.len, cap);
+        unsafe { slice::from_raw_parts(self.ptr, len) }
+    }
+}
+
+/// Returns a view into a PyUnicode attribute without allocating; caller must Py_DecRef `obj`.
 #[cfg(unix)]
-unsafe fn get_code_attr_utf8(frame: *mut pyo3_ffi::PyFrameObject, attr: &[u8]) -> Vec<u8> {
+unsafe fn get_code_attr_utf8_view(
+    frame: *mut pyo3_ffi::PyFrameObject,
+    attr: &[u8],
+) -> Option<Utf8View> {
     let code_obj = pyo3_ffi::PyFrame_GetCode(frame) as *mut pyo3_ffi::PyObject;
     if code_obj.is_null() {
-        return Vec::new();
+        return None;
     }
     let attr_obj = pyo3_ffi::PyObject_GetAttrString(code_obj, attr.as_ptr() as *const c_char);
     pyo3_ffi::Py_DecRef(code_obj);
     if attr_obj.is_null() {
-        return Vec::new();
+        return None;
     }
-    let data = py_unicode_to_vec(attr_obj);
-    pyo3_ffi::Py_DecRef(attr_obj);
-    data
-}
 
-#[cfg(unix)]
-unsafe fn py_unicode_to_vec(obj: *mut pyo3_ffi::PyObject) -> Vec<u8> {
-    if obj.is_null() {
-        return Vec::new();
-    }
     let mut size: pyo3_ffi::Py_ssize_t = 0;
-    let data = pyo3_ffi::PyUnicode_AsUTF8AndSize(obj, &mut size);
+    let data = pyo3_ffi::PyUnicode_AsUTF8AndSize(attr_obj, &mut size);
     if data.is_null() || size <= 0 {
-        return Vec::new();
+        pyo3_ffi::Py_DecRef(attr_obj);
+        return None;
     }
-    slice::from_raw_parts(data as *const u8, size as usize).to_vec()
+
+    Some(Utf8View {
+        ptr: data as *const u8,
+        len: size as usize,
+        obj: attr_obj,
+    })
 }
 
 // Attempt to resolve _Py_DumpTracebackThreads at runtime
