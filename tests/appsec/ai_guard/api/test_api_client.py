@@ -240,14 +240,20 @@ def test_span_meta_content_truncation(mock_execute_request, telemetry_mock, ai_g
 def test_message_immutability(mock_execute_request, telemetry_mock, ai_guard_client, tracer):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
-    messages = [Message(role="assistant", tool_calls=[ToolCall(id="call_1", function=Function(name="test", arguments="{}"))])]
-    with tracer.trace('test'):
+    messages = [
+        Message(role="assistant", tool_calls=[ToolCall(id="call_1", function=Function(name="test", arguments="{}"))])
+    ]
+    with tracer.trace("test"):
         ai_guard_client.evaluate(messages)
         # Update messages before being flushed
         messages[0].get("tool_calls").append(ToolCall(id="call_2", function=Function(name="test", arguments="{}")))
-        messages.append(Message(role="assistant", tool_calls=[ToolCall(id="call_2", function=Function(name="test", arguments="{}"))]))
+        messages.append(
+            Message(
+                role="assistant", tool_calls=[ToolCall(id="call_2", function=Function(name="test", arguments="{}"))]
+            )
+        )
 
-    span = tracer.get_spans()[1] # AI Guard span
+    span = tracer.get_spans()[1]  # AI Guard span
     meta = span._get_struct_tag(AI_GUARD.TAG)
     messages = meta["messages"]
     assert len(messages) == 1
