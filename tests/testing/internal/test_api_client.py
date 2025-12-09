@@ -1,4 +1,7 @@
+import json
 import logging
+from pathlib import Path
+import typing as t
 from unittest.mock import Mock
 from unittest.mock import call
 from unittest.mock import patch
@@ -9,6 +12,7 @@ import pytest
 from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendResult
+from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.telemetry import ErrorType
 from ddtrace.testing.internal.test_data import ITRSkippingLevel
@@ -129,11 +133,7 @@ class TestAPIClientGetSettings:
         assert settings.require_git == require_git
         assert settings.itr_enabled == itr_enabled
 
-    def test_get_settings_missing_git_data(
-        self,
-        mock_telemetry: Mock,
-        caplog,
-    ) -> None:
+    def test_get_settings_missing_git_data(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         mock_connector = mock_backend_connector().build()
         mock_connector_setup = Mock()
         mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
@@ -171,11 +171,7 @@ class TestAPIClientGetSettings:
             call(ErrorType.UNKNOWN)
         ]
 
-    def test_get_settings_fail_http_request(
-        self,
-        mock_telemetry: Mock,
-        caplog,
-    ) -> None:
+    def test_get_settings_fail_http_request(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         mock_connector = Mock()
         mock_connector.post_json.return_value = BackendResult(
             error_type=ErrorType.UNKNOWN, error_description="No can do"
@@ -218,11 +214,7 @@ class TestAPIClientGetSettings:
 
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == []
 
-    def test_get_settings_errors_in_response(
-        self,
-        mock_telemetry: Mock,
-        caplog,
-    ) -> None:
+    def test_get_settings_errors_in_response(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         mock_connector = (
             mock_backend_connector().with_post_json_response(
                 endpoint="/api/v2/libraries/tests/services/setting", response_data={"errors": "Weird stuff"}
@@ -341,11 +333,7 @@ class TestAPIClientGetKnownTests:
             TestRef(SuiteRef(ModuleRef("some-module"), "test_second.py"), "test_03"),
         }
 
-    def test_get_known_tests_missing_git_data(
-        self,
-        mock_telemetry: Mock,
-        caplog,
-    ) -> None:
+    def test_get_known_tests_missing_git_data(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         mock_connector = mock_backend_connector().build()
         mock_connector_setup = Mock()
         mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
@@ -375,11 +363,7 @@ class TestAPIClientGetKnownTests:
             call(ErrorType.UNKNOWN)
         ]
 
-    def test_get_known_tests_fail_http_request(
-        self,
-        mock_telemetry: Mock,
-        caplog,
-    ) -> None:
+    def test_get_known_tests_fail_http_request(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         mock_connector = Mock()
         mock_connector.post_json.return_value = BackendResult(
             error_type=ErrorType.UNKNOWN, error_description="No can do"
@@ -413,11 +397,7 @@ class TestAPIClientGetKnownTests:
         assert known_tests == set()
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == []
 
-    def test_get_known_tests_errors_in_response(
-        self,
-        mock_telemetry: Mock,
-        caplog,
-    ) -> None:
+    def test_get_known_tests_errors_in_response(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         mock_connector = (
             mock_backend_connector().with_post_json_response(
                 endpoint="/api/v2/ci/libraries/tests", response_data={"errors": "Weird stuff"}
@@ -551,9 +531,7 @@ class TestAPIClientGetTestManagementTests:
         }
 
     def test_get_test_management_properties_missing_git_data(
-        self,
-        mock_telemetry: Mock,
-        caplog,
+        self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture
     ) -> None:
         mock_connector = mock_backend_connector().build()
         mock_connector_setup = Mock()
@@ -585,9 +563,7 @@ class TestAPIClientGetTestManagementTests:
         ]
 
     def test_get_test_management_properties_fail_http_request(
-        self,
-        mock_telemetry: Mock,
-        caplog,
+        self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture
     ) -> None:
         mock_connector = Mock()
         mock_connector.post_json.return_value = BackendResult(
@@ -623,9 +599,7 @@ class TestAPIClientGetTestManagementTests:
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == []
 
     def test_get_test_management_tests_errors_in_response(
-        self,
-        mock_telemetry: Mock,
-        caplog,
+        self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture
     ) -> None:
         mock_connector = (
             mock_backend_connector().with_post_json_response(
@@ -710,11 +684,7 @@ class TestAPIClientGetKnownCommits:
 
         assert commits == ["abcd0123", "dcba4321"]
 
-    def test_get_known_commits_missing_git_data(
-        self,
-        mock_telemetry: Mock,
-        caplog,
-    ) -> None:
+    def test_get_known_commits_missing_git_data(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         mock_connector = mock_backend_connector().build()
         mock_connector_setup = Mock()
         mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
@@ -744,11 +714,7 @@ class TestAPIClientGetKnownCommits:
             call(ErrorType.UNKNOWN)
         ]
 
-    def test_get_known_commits_fail_http_request(
-        self,
-        mock_telemetry: Mock,
-        caplog,
-    ) -> None:
+    def test_get_known_commits_fail_http_request(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         mock_connector = Mock()
         mock_connector.post_json.return_value = BackendResult(
             error_type=ErrorType.UNKNOWN, error_description="No can do"
@@ -782,11 +748,7 @@ class TestAPIClientGetKnownCommits:
         assert commits == []
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == []
 
-    def test_get_known_commits_errors_in_response(
-        self,
-        mock_telemetry: Mock,
-        caplog,
-    ) -> None:
+    def test_get_known_commits_errors_in_response(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         mock_connector = (
             mock_backend_connector().with_post_json_response(
                 endpoint="/api/v2/git/repository/search_commits", response_data={"errors": "Weird stuff"}
@@ -912,11 +874,7 @@ class TestAPIClientGetSkippableTests:
         }
         assert correlation_id == "8ac307ca693b2ffd365ab2c3b47cb555"
 
-    def test_get_skippable_tests_missing_git_data(
-        self,
-        mock_telemetry: Mock,
-        caplog,
-    ) -> None:
+    def test_get_skippable_tests_missing_git_data(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         mock_connector = mock_backend_connector().build()
         mock_connector_setup = Mock()
         mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
@@ -948,9 +906,7 @@ class TestAPIClientGetSkippableTests:
         ]
 
     def test_get_skippable_tests_fail_http_request(
-        self,
-        mock_telemetry: Mock,
-        caplog,
+        self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture
     ) -> None:
         mock_connector = Mock()
         mock_connector.post_json.return_value = BackendResult(
@@ -988,9 +944,7 @@ class TestAPIClientGetSkippableTests:
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == []
 
     def test_get_skippable_tests_errors_in_response(
-        self,
-        mock_telemetry: Mock,
-        caplog,
+        self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture
     ) -> None:
         mock_connector = (
             mock_backend_connector().with_post_json_response(
@@ -1029,4 +983,178 @@ class TestAPIClientGetSkippableTests:
 
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.BAD_JSON)
+        ]
+
+
+@pytest.fixture
+def packfile(tmpdir: t.Any) -> Path:
+    path = Path(str(tmpdir)) / "file.pack"
+    path.write_text("twelve bytes")
+    yield path
+
+
+class TestAPIClientSendGitPackfile:
+    def test_send_git_pack_file(self, mock_telemetry: Mock, packfile: Path) -> None:
+        mock_connector = Mock()
+        mock_connector.post_files.return_value = BackendResult(response=Mock(status=200))
+
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+                GitTag.BRANCH: "some-branch",
+                GitTag.COMMIT_MESSAGE: "I am a commit",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={
+                "os.platform": "Linux",
+            },
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            api_client.send_git_pack_file(packfile)
+
+        assert mock_connector.post_files.call_args_list == [
+            call(
+                "/api/v2/git/repository/packfile",
+                files=[
+                    FileAttachment(
+                        name="pushedSha",
+                        filename=None,
+                        content_type="application/json",
+                        data=json.dumps(
+                            {
+                                "data": {"id": "abcd1234", "type": "commit"},
+                                "meta": {"repository_url": "http://github.com/DataDog/some-repo.git"},
+                            }
+                        ).encode("utf-8"),
+                    ),
+                    FileAttachment(
+                        name="packfile",
+                        filename="file.pack",
+                        content_type="application/octet-stream",
+                        data=b"twelve bytes",
+                    ),
+                ],
+                send_gzip=False,
+                telemetry=mock_telemetry.with_request_metric_names.return_value,
+            )
+        ]
+
+    def test_send_git_pack_file_missing_git_data(
+        self,
+        mock_telemetry: Mock,
+        caplog: pytest.LogCaptureFixture,
+        packfile: Path,
+    ) -> None:
+        mock_connector = mock_backend_connector().build()
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={},
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={
+                "os.platform": "Linux",
+            },
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            with caplog.at_level(level=logging.INFO, logger="ddtrace.testing"):
+                api_client.send_git_pack_file(packfile)
+
+        assert "Git info not available" in caplog.text
+
+        assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
+            call(ErrorType.UNKNOWN)
+        ]
+
+    def test_send_git_pack_file_fail_http_request(
+        self,
+        mock_telemetry: Mock,
+        caplog: pytest.LogCaptureFixture,
+        packfile: Path,
+    ) -> None:
+        mock_connector = Mock()
+        mock_connector.post_files.return_value = BackendResult(
+            error_type=ErrorType.UNKNOWN, error_description="No can do"
+        )
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+                GitTag.BRANCH: "some-branch",
+                GitTag.COMMIT_MESSAGE: "I am a commit",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={
+                "os.platform": "Linux",
+            },
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            with caplog.at_level(level=logging.INFO, logger="ddtrace.testing"):
+                api_client.send_git_pack_file(packfile)
+
+        assert "Failed to upload Git pack data" in caplog.text
+
+        assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == []
+
+    def test_send_git_pack_file_errors_in_reading(
+        self,
+        mock_telemetry: Mock,
+        caplog: pytest.LogCaptureFixture,
+        tmpdir: t.Any,
+    ) -> None:
+        mock_connector = (
+            mock_backend_connector().with_post_json_response(
+                endpoint="/api/v2/ci/tests/skippable", response_data={"errors": "Weird stuff"}
+            )
+        ).build()
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+                GitTag.BRANCH: "some-branch",
+                GitTag.COMMIT_MESSAGE: "I am a commit",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={
+                "os.platform": "Linux",
+            },
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            with caplog.at_level(level=logging.INFO, logger="ddtrace.testing"):
+                api_client.send_git_pack_file(Path(tmpdir) / "non_existent_file.pack")
+
+        assert "Error sending Git pack data" in caplog.text
+
+        assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
+            call(ErrorType.UNKNOWN)
         ]
