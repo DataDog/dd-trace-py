@@ -1832,6 +1832,7 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
                 "pytest-benchmark": latest,
+                "pytest-bdd": latest,
             },
             env={
                 "DD_AGENT_PORT": "9126",

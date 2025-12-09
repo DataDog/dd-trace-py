@@ -349,6 +349,8 @@ class TestTag:
     TEST_FRAMEWORK = "test.framework"
     TEST_FRAMEWORK_VERSION = "test.framework_version"
     TEST_SESSION_NAME = "test_session.name"
+    TEST_NAME = "test.name"
+    TEST_SUITE = "test.suite"
 
     ENV = "env"
 
@@ -377,6 +379,9 @@ class TestTag:
     ITR_TESTS_SKIPPED = "test.itr.tests_skipping.tests_skipped"
     ITR_TESTS_SKIPPING_TYPE = "test.itr.tests_skipping.type"
     ITR_TESTS_SKIPPING_COUNT = "test.itr.tests_skipping.count"
+
+    # Test File; used when test implementation file is different from test suite name (pytest-bdd).
+    TEST_FILE = "test.file"
 
     SOURCE_FILE = "test.source.file"
     SOURCE_START = "test.source.start"
