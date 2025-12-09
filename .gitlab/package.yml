@@ -25,14 +25,6 @@ variables:
   - "v85383392-751efc0-manylinux2014_x86_64"
   - "v85383325-751efc0-musllinux_1_2_x86_64"
 
-.CACHE_TARGETS: &CACHE_TARGETS
-  - .cache/download_cache
-  - .cache/sccache
-  - .cache/pip
-  - .cache/uv
-  - .cache/cargo
-  - src/native/target*
-
 .build_base:
   stage: package
   variables:
@@ -53,17 +45,6 @@ variables:
     KUBERNETES_CPU_REQUEST: "6"
     KUBERNETES_MEMORY_REQUEST: "10Gi"
     KUBERNETES_MEMORY_LIMIT: "10Gi"
-  before_script:
-    # Copy the cargo cache from the project cache to the cargo home
-    - |
-      mkdir -p "${CI_PROJECT_DIR}/.cache/cargo"
-      cp -R "${CI_PROJECT_DIR}/.cache/cargo/git" "${CARGO_HOME:-$HOME/.cargo}/" || true
-      cp -R "${CI_PROJECT_DIR}/.cache/cargo/registry" "${CARGO_HOME:-$HOME/.cargo}/" || true
-  after_script:
-    # Copy the cargo cache back to the project cache
-    - |
-      cp -R "${CARGO_HOME:-$HOME/.cargo}/git" "${CI_PROJECT_DIR}/.cache/cargo" || true
-      cp -R "${CARGO_HOME:-$HOME/.cargo}/registry" "${CI_PROJECT_DIR}/.cache/cargo" || true
   artifacts:
     paths:
       - "pywheels/*.whl"
@@ -102,8 +83,15 @@ variables:
       find ddtrace/ -type f -name "*.h" -exec touch -t 202401010000 {} \;
     - .gitlab/scripts/build-wheel.sh
   cache:
-    - key: v2-build-linux-cache-${ARCH_TAG}-${PYTHON_TAG}-${IMAGE}
-      paths: *CACHE_TARGETS
+    - key: v0-build-linux-download-cache-${PYTHON_TAG}-${IMAGE_TAG}
+      paths:
+        - .cache/download_cache
+    - key: v0-build-linux-sccache-${PYTHON_TAG}-${IMAGE_TAG}
+      paths:
+        - .cache/sccache
+    - key: v0-build-linux-native-target-${PYTHON_TAG}-${IMAGE_TAG}
+      paths:
+        - src/native/target*
 
 "build macos":
   extends: .build_base
@@ -125,8 +113,15 @@ variables:
   script:
     - .gitlab/scripts/build-wheel.sh
   cache:
-    - key: v2-build-macos-cache-${ARCH_TAG}-${UV_PYTHON}
-      paths: *CACHE_TARGETS
+    - key: v0-build-macos-download-cache-${UV_PYTHON}-${ARCH_TAG}
+      paths:
+        - .cache/download_cache
+    - key: v0-build-macos-sccache-${UV_PYTHON}-${ARCH_TAG}
+      paths:
+        - .cache/sccache
+    - key: v0-build-macos-native-target-${UV_PYTHON}-${ARCH_TAG}
+      paths:
+        - src/native/target*
 
 "test sdist":
   image: registry.ddbuild.io/images/mirror/python:3.9.6-alpine3.14
