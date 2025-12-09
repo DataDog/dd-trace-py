@@ -49,6 +49,7 @@ class Message(TypedDict, total=False):
 class Evaluation(TypedDict):
     action: Literal["ALLOW", "DENY", "ABORT"]
     reason: str
+    tags: List[str]
 
 
 class Options(TypedDict, total=False):
@@ -125,13 +126,14 @@ class AIGuardClient:
 
         def truncate_message(message: Message) -> Message:
             nonlocal content_truncated
-            content = message.get("content", "")
+            result = message.copy()
+            content = result.get("content", "")
             if len(content) > max_content_size:
-                truncated = message.copy()
-                truncated["content"] = content[:max_content_size]
+                result["content"] = content[:max_content_size]
                 content_truncated = True
-                return truncated
-            return message
+            if "tool_calls" in result:
+                result["tool_calls"] = result["tool_calls"].copy()
+            return result
 
         result = [truncate_message(message) for message in messages]
         if content_truncated:
@@ -268,7 +270,7 @@ class AIGuardClient:
                     span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
                     raise AIGuardAbortError(action=action, reason=reason, tags=tags)
 
-                return Evaluation(action=action, reason=reason)
+                return Evaluation(action=action, reason=reason, tags=tags)
 
             except AIGuardAbortError:
                 raise
