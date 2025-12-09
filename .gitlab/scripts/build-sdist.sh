@@ -5,12 +5,6 @@ set -euo pipefail
 source "$(dirname "$0")/build-wheel-helpers.sh"
 
 # Skipped sccache setup for sdist build
-setup() {
-  setup_rust
-  setup_python
-  setup_env
-}
-
 setup
 
 section_start "build_sdist" "Building source distribution"

@@ -23,22 +23,6 @@ setup_rust() {
   section_end "install_rust"
 }
 
-# Setup sccache (verify/install if needed)
-setup_sccache() {
-  section_start "install_sccache" "sccache"
-  if ! command -v sccache &> /dev/null; then
-    # Install openssl-devel for building sccache
-    if command -v yum &> /dev/null; then
-      yum install -y openssl-devel
-    elif command -v apk &> /dev/null; then
-      apk --no-cache add openssl-dev openssl-libs-static
-    fi
-    cargo install sccache
-  fi
-  which sccache && sccache --version && sccache --show-stats
-  section_end "install_sccache"
-}
-
 # Setup Python (verify/install uv if needed)
 setup_python() {
   section_start "setup_python" "Setting up Python ${UV_PYTHON}"
@@ -109,7 +93,6 @@ setup() {
   setup_env
   setup_python
   setup_rust
-  setup_sccache
 }
 
 # Finalize
