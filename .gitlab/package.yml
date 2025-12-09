@@ -127,6 +127,12 @@ download_ddtrace_artifacts:
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
+  rules:
+    - if: $IS_MAIN_BRANCH == "true" || $IS_RELEASE_BRANCH == "true" || $IS_RELEASE == "true"
+      when: always
+    - if: $HAS_OPEN_PR == "true"
+      when: always
+    - when: manual
   script: |
     if [ -z ${GH_TOKEN} ]
     then
