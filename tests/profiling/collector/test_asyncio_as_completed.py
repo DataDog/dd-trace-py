@@ -34,11 +34,11 @@ def test_asyncio_as_completed() -> None:
         # Create a mix of Tasks and Coroutines
         # TODO(taegyunkim): For Python 3.14+, investigate why we need to increase
         # the sleep time to get all the samples as expected. The divisor was 10
-        # and changed to 5.
+        # and changed to 3.
         futures = [
-            asyncio.create_task(wait_and_return_delay(float(i) / 5))
+            asyncio.create_task(wait_and_return_delay(float(i) / 3))
             if i % 2 == 0
-            else wait_and_return_delay(float(i) / 5)
+            else wait_and_return_delay(float(i) / 3)
             for i in range(2, 12)
         ]
         assert len(futures) == 10
