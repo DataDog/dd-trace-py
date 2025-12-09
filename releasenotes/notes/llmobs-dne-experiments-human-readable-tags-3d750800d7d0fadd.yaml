@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    LLM Observability: Experiments spans and children spans are now tagged with human readable names to allow better
+    analysis of experiments data. New tags added are: dataset_name, project_name, project_id, experiment_name.

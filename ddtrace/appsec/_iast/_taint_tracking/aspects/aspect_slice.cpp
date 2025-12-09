@@ -105,7 +105,7 @@ build_index_range_map(PyObject* text, TaintRangeRefs& ranges, PyObject* start, P
 PyObject*
 slice_aspect(PyObject* result_o, PyObject* candidate_text, PyObject* start, PyObject* stop, PyObject* step)
 {
-    const auto ctx_map = taint_engine_context->get_tainted_object_map(candidate_text);
+    const auto ctx_map = safe_get_tainted_object_map(candidate_text);
 
     if (not ctx_map or ctx_map->empty()) {
         return result_o;

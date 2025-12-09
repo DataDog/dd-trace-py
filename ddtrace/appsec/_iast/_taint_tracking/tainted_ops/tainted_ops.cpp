@@ -24,6 +24,10 @@ is_tainted(PyObject* tainted_object, const TaintedObjectMapTypePtr& tx_taint_map
 bool
 api_is_tainted(py::object tainted_object)
 {
+    if (!taint_engine_context) {
+        return false;
+    }
+
     if (tainted_object) {
         const auto& to_initial =
           taint_engine_context->get_tainted_object_from_request_context_slot(tainted_object.ptr());

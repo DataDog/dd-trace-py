@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    AAP: attach Application and API Protection findings on API Gateway inferred spans to enable AppSec API Catalog coverage of lambda functions

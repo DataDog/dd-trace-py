@@ -208,6 +208,7 @@ class ASMConfig(DDConfig):
         "_asm_obfuscation_parameter_key_regexp",
         "_asm_obfuscation_parameter_value_regexp",
         "_asm_processed_span_types",
+        "_asm_http_span_types",
         "_apm_tracing_enabled",
         "_bypass_instrumentation_for_waf",
         "_iast_enabled",
@@ -261,7 +262,7 @@ class ASMConfig(DDConfig):
     _bypass_instrumentation_for_waf = False
 
     # IAST supported on python 3.6 to 3.13 and never on windows
-    _iast_supported: bool = ((3, 6, 0) <= sys.version_info < (3, 14, 0)) and not (
+    _iast_supported: bool = ((3, 6, 0) <= sys.version_info < (3, 15, 0)) and not (
         sys.platform.startswith("win") or sys.platform.startswith("cygwin")
     )
 
