@@ -824,3 +824,209 @@ class TestAPIClientGetKnownCommits:
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.BAD_JSON)
         ]
+
+
+class TestAPIClientGetSkippableTests:
+    def test_get_skippable_tests(self, mock_telemetry: Mock) -> None:
+        mock_connector = (
+            mock_backend_connector().with_post_json_response(
+                endpoint="/api/v2/ci/tests/skippable",
+                response_data={
+                    "data": [
+                        {
+                            "attributes": {
+                                "configurations": {"test.bundle": "tests"},
+                                "name": "test_01",
+                                "suite": "test_simple.py",
+                            },
+                            "id": "b64c9cec67b328f2",
+                            "type": "test",
+                        },
+                        {
+                            "attributes": {
+                                "configurations": {"test.bundle": "tests"},
+                                "name": "test_02",
+                                "suite": "test_second.py",
+                            },
+                            "id": "87197af576c002b3",
+                            "type": "test",
+                        },
+                    ],
+                    "meta": {
+                        "correlation_id": "8ac307ca693b2ffd365ab2c3b47cb555",
+                        "coverage": {
+                            "tests/test_second.py": "AAABpAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+                            "tests/test_simple.py": "XYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+                        },
+                    },
+                },
+            )
+        ).build()
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+                GitTag.BRANCH: "some-branch",
+                GitTag.COMMIT_MESSAGE: "I am a commit",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={
+                "os.platform": "Linux",
+            },
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            skippable_tests, correlation_id = api_client.get_skippable_tests()
+
+        assert mock_connector.post_json.call_args_list == [
+            call(
+                "/api/v2/ci/tests/skippable",
+                {
+                    "data": {
+                        "id": "00000000-0000-0000-0000-000000000000",
+                        "type": "test_params",
+                        "attributes": {
+                            "service": "some-service",
+                            "env": "some-env",
+                            "repository_url": "http://github.com/DataDog/some-repo.git",
+                            "sha": "abcd1234",
+                            "configurations": {"os.platform": "Linux"},
+                            "test_level": "test",
+                        },
+                    }
+                },
+                telemetry=mock_telemetry.with_request_metric_names.return_value,
+            )
+        ]
+
+        assert skippable_tests == {
+            TestRef(SuiteRef(ModuleRef("tests"), "test_simple.py"), "test_01"),
+            TestRef(SuiteRef(ModuleRef("tests"), "test_second.py"), "test_02"),
+        }
+        assert correlation_id == "8ac307ca693b2ffd365ab2c3b47cb555"
+
+    def test_get_skippable_tests_missing_git_data(
+        self,
+        mock_telemetry: Mock,
+        caplog,
+    ) -> None:
+        mock_connector = mock_backend_connector().build()
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={},
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={
+                "os.platform": "Linux",
+            },
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            with caplog.at_level(level=logging.INFO, logger="ddtrace.testing"):
+                skippable_tests, correlation_id = api_client.get_skippable_tests()
+
+        assert "Git info not available" in caplog.text
+        assert mock_connector.post_json.call_args_list == []
+
+        assert skippable_tests == set()
+        assert correlation_id is None
+
+        assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
+            call(ErrorType.UNKNOWN)
+        ]
+
+    def test_get_skippable_tests_fail_http_request(
+        self,
+        mock_telemetry: Mock,
+        caplog,
+    ) -> None:
+        mock_connector = Mock()
+        mock_connector.post_json.return_value = BackendResult(
+            error_type=ErrorType.UNKNOWN, error_description="No can do"
+        )
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+                GitTag.BRANCH: "some-branch",
+                GitTag.COMMIT_MESSAGE: "I am a commit",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={
+                "os.platform": "Linux",
+            },
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            with caplog.at_level(level=logging.INFO, logger="ddtrace.testing"):
+                skippable_tests, correlation_id = api_client.get_skippable_tests()
+
+        assert "Error getting skippable tests from API" in caplog.text
+
+        assert skippable_tests == set()
+        assert correlation_id is None
+
+        assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == []
+
+    def test_get_skippable_tests_errors_in_response(
+        self,
+        mock_telemetry: Mock,
+        caplog,
+    ) -> None:
+        mock_connector = (
+            mock_backend_connector().with_post_json_response(
+                endpoint="/api/v2/ci/tests/skippable", response_data={"errors": "Weird stuff"}
+            )
+        ).build()
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+                GitTag.BRANCH: "some-branch",
+                GitTag.COMMIT_MESSAGE: "I am a commit",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={
+                "os.platform": "Linux",
+            },
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            with caplog.at_level(level=logging.INFO, logger="ddtrace.testing"):
+                skippable_tests, correlation_id = api_client.get_skippable_tests()
+
+        assert "Failed to parse skippable tests data" in caplog.text
+        assert "KeyError" in caplog.text
+
+        assert skippable_tests == set()
+        assert correlation_id is None
+
+        assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
+            call(ErrorType.BAD_JSON)
+        ]

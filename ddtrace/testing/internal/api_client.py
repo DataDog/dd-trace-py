@@ -340,7 +340,7 @@ class APIClient:
             result.on_error_raise_exception()
 
         except Exception as e:
-            log.error("Error getting known commits from API: %s", e)
+            log.error("Error getting skippable tests from API: %s", e)
             return set(), None
 
         try:
@@ -359,7 +359,7 @@ class APIClient:
             correlation_id = result.parsed_response["meta"]["correlation_id"]
 
         except Exception:
-            log.exception("Error getting skippable tests from API")
+            log.exception("Failed to parse skippable tests data from API")
             telemetry.record_error(ErrorType.BAD_JSON)
             return set(), None
 
