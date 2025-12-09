@@ -10,8 +10,13 @@ from ddtrace.appsec._iast._taint_tracking import is_tainted
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-from ddtrace.internal.settings.asm import config as asm_config
 
+
+try:
+    from ddtrace.internal.settings.asm import config as asm_config
+except ImportError:
+    # legacy import
+    from ddtrace.settings.asm import config as asm_config
 
 try:
     # >= 3.15
