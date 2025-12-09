@@ -57,11 +57,13 @@ variables:
     # Copy the cargo cache from the project cache to the cargo home
     - |
       mkdir -p "${CI_PROJECT_DIR}/.cache/cargo"
-      cp -R "${CI_PROJECT_DIR}/.cache/cargo/{git,registry}" "${CARGO_HOME:-$HOME/.cargo}/" || true
+      cp -R "${CI_PROJECT_DIR}/.cache/cargo/git" "${CARGO_HOME:-$HOME/.cargo}/" || true
+      cp -R "${CI_PROJECT_DIR}/.cache/cargo/registry" "${CARGO_HOME:-$HOME/.cargo}/" || true
   after_script:
     # Copy the cargo cache back to the project cache
     - |
-      cp -R "${CARGO_HOME:-$HOME/.cargo}/{git,registry}" "${CI_PROJECT_DIR}/.cache/cargo"
+      cp -R "${CARGO_HOME:-$HOME/.cargo}/git" "${CI_PROJECT_DIR}/.cache/cargo" || true
+      cp -R "${CARGO_HOME:-$HOME/.cargo}/registry" "${CI_PROJECT_DIR}/.cache/cargo" || true
   artifacts:
     paths:
       - "pywheels/*.whl"
