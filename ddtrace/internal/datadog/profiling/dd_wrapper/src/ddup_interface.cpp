@@ -324,6 +324,20 @@ ddup_increment_sample_count() // cppcheck-suppress unusedFunction
 }
 
 void
+ddup_set_profile_start_if_unset() // cppcheck-suppress unusedFunction
+{
+    auto borrowed = Datadog::Sample::profile_borrow();
+    borrowed.stats().set_profile_start_if_unset();
+}
+
+void
+ddup_set_profile_end() // cppcheck-suppress unusedFunction
+{
+    auto borrowed = Datadog::Sample::profile_borrow();
+    borrowed.stats().set_profile_end();
+}
+
+void
 ddup_flush_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
 {
     sample->flush_sample();
@@ -352,6 +366,8 @@ ddup_upload() // cppcheck-suppress unusedFunction
         }
         return false;
     }
+
+    ddup_set_profile_end();
 
     // Build the Uploader, which takes care of serializing the Profile and capturing ProfilerStats.
     // This takes a reference in a way that locks the areas where the profile might

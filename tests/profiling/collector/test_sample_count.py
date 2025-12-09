@@ -4,7 +4,10 @@ import pytest
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_sample_count",
-        DD_PROFILING_UPLOAD_INTERVAL="1",  # Upload every second
+        # Upload every second
+        DD_PROFILING_UPLOAD_INTERVAL="1",
+        # Disable adaptive sampling as it messes with Profile duration when using small upload intervals
+        _DD_PROFILING_STACK_V2_ADAPTIVE_SAMPLING_ENABLED="0",
     ),
     err=None,
 )
@@ -21,7 +24,7 @@ def test_sample_count():
     from ddtrace.trace import tracer
 
     sleep_time = 0.2
-    loop_run_time = 2
+    loop_run_time = 4
 
     async def stuff() -> None:
         start_time = time.time()
@@ -49,10 +52,12 @@ def test_sample_count():
     p.stop()
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    files = glob.glob(output_filename + ".*.internal_metadata.json")
+    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
 
+    # We expect to find at least one Profile with more Samples than Sampling Events (i.e. one Profile with more
+    # than one Thread) because the Thread is short-lived, so we cannot guarantee we will see it more than once.
     found_at_least_one_with_more_samples_than_sampling_events = False
-    for f in files:
+    for i, f in enumerate(files):
         with open(f, "r") as fp:
             internal_metadata = json.load(fp)
 
@@ -62,6 +67,14 @@ def test_sample_count():
 
             assert "sampling_event_count" in internal_metadata
             assert internal_metadata["sampling_event_count"] <= internal_metadata["sample_count"]
+
+            assert "profile_duration_ns" in internal_metadata
+
+            # Ignore the last file, as it may be incomplete and flushed because the process is exiting.
+            if i < len(files) - 1:
+                assert internal_metadata["profile_duration_ns"] >= int(1e9) * 0.9, (
+                    f"Profile duration is too short: {internal_metadata['profile_duration_ns']}ns"
+                )
 
             if internal_metadata["sample_count"] > internal_metadata["sampling_event_count"]:
                 found_at_least_one_with_more_samples_than_sampling_events = True
