@@ -234,12 +234,17 @@ def test_encode_meta_struct():
     # Add error case with recovery
     encoder = MSGPACK_ENCODERS["v0.4"](1 << 11, 1 << 11)
     super_span = Span(name="client.testing", trace_id=1)
+
+    class T:
+        pass
+
     payload = {
         "tttt": {"iuopç": [{"abcd": 1, "bcde": True}, {}]},
         "zzzz": b"\x93\x01\x02\x03",
         "ZZZZ": [1, 2, 3],
         "error_object": object(),
         "error_integer": 1 << 129,
+        "list": [{}, {"x": "a"}, {"error_custom": T()}],
     }
     payload_expected = {
         "tttt": {"iuopç": [{"abcd": 1, "bcde": True}, {}]},
@@ -247,6 +252,7 @@ def test_encode_meta_struct():
         "ZZZZ": [1, 2, 3],
         "error_object": "Can not serialize [object] object",
         "error_integer": "Integer value out of range",
+        "list": [{}, {"x": "a"}, {"error_custom": "Can not serialize [T] object"}],
     }
 
     super_span._set_struct_tag("payload", payload)
