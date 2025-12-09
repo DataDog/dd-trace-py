@@ -282,6 +282,7 @@ def llmobs(
         llmobs_service._instance._llmobs_span_writer.start()
         llmobs_service._instance._dne_client._intake = llmobs_api_proxy_url
         llmobs_service._instance._export_spans_client._base_url = llmobs_api_proxy_url
+        llmobs_service._instance._export_spans_client._app_key = "<default-not-a-real-key>"
         yield llmobs_service
     tracer.shutdown()
     llmobs_service.disable()
