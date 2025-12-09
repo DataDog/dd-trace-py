@@ -77,10 +77,8 @@ variables:
     - export UV_PYTHON="/opt/python/${PYTHON_TAG}/bin/python"
     - .gitlab/scripts/build-wheel.sh
   cache:
-    - key: v1-build-linux-cache-${ARCH_TAG}-${PYTHON_TAG}-${IMAGE}
+    - key: v2-build-linux-cache-${ARCH_TAG}-${PYTHON_TAG}-${IMAGE}
       paths:
-        - .cache
-        - .uv
         - src/native/target*
 
 "build macos":
@@ -103,10 +101,8 @@ variables:
   script:
     - .gitlab/scripts/build-wheel.sh
   cache:
-    - key: v1-build-macos-cache-${ARCH_TAG}-${UV_PYTHON}
+    - key: v2-build-macos-cache-${ARCH_TAG}-${UV_PYTHON}
       paths:
-        - .cache
-        - .uv
         - src/native/target*
 
 "test sdist":
