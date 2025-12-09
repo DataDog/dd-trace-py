@@ -1637,6 +1637,9 @@ def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test
     assert event["meta"]["input"] == '{"prompt": "What is the capital of France?"}'
     assert event["meta"]["output"] == '{"prompt": "What is the capital of France?"}'
     assert event["meta"]["expected_output"] == '{"answer": "Paris"}'
+    assert "dataset_name:{}".format(test_dataset_one_record.name) in event["tags"]
+    assert "project_name:test-project" in event["tags"]
+    assert "experiment_name:test_experiment" in event["tags"]
     assert "dataset_id:{}".format(test_dataset_one_record._id) in event["tags"]
     assert "dataset_record_id:{}".format(test_dataset_one_record._records[0]["record_id"]) in event["tags"]
     assert "experiment_id:1234567890" in event["tags"]
@@ -1660,6 +1663,9 @@ def test_experiment_span_multi_run_tags(llmobs, llmobs_events, test_dataset_one_
         assert event["meta"]["input"] == '{"prompt": "What is the capital of France?"}'
         assert event["meta"]["output"] == '{"prompt": "What is the capital of France?"}'
         assert event["meta"]["expected_output"] == '{"answer": "Paris"}'
+        assert "dataset_name:{}".format(test_dataset_one_record.name) in event["tags"]
+        assert "project_name:test-project" in event["tags"]
+        assert "experiment_name:test_experiment" in event["tags"]
         assert "dataset_id:{}".format(test_dataset_one_record._id) in event["tags"]
         assert "dataset_record_id:{}".format(test_dataset_one_record._records[0]["record_id"]) in event["tags"]
         assert "experiment_id:1234567890" in event["tags"]

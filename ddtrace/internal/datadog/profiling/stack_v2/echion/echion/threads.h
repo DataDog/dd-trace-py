@@ -209,6 +209,7 @@ ThreadInfo::unwind_tasks()
     std::unordered_set<PyObject*> parent_tasks;
     std::unordered_map<PyObject*, TaskInfo::Ref> waitee_map; // Indexed by task origin
     std::unordered_map<PyObject*, TaskInfo::Ref> origin_map; // Indexed by task origin
+    static std::unordered_set<PyObject*> previous_task_objects;
 
     auto maybe_all_tasks = get_all_tasks(reinterpret_cast<PyObject*>(asyncio_loop));
     if (!maybe_all_tasks) {
@@ -232,14 +233,25 @@ ThreadInfo::unwind_tasks()
             if (all_task_origins.find(kv.first) == all_task_origins.end())
                 to_remove.push_back(kv.first);
         }
-        for (auto key : to_remove)
-            task_link_map.erase(key);
+        for (auto key : to_remove) {
+            // Only remove the link if the Child Task previously existed; otherwise it's a Task that
+            // has just been created and that wasn't in all_tasks when we took the snapshot.
+            if (previous_task_objects.find(key) != previous_task_objects.end()) {
+                task_link_map.erase(key);
+            }
+        }
 
         // Determine the parent tasks from the gather links.
         std::transform(task_link_map.cbegin(),
                        task_link_map.cend(),
                        std::inserter(parent_tasks, parent_tasks.begin()),
                        [](const std::pair<PyObject*, PyObject*>& kv) { return kv.second; });
+
+        // Copy all Task object pointers into previous_task_objects
+        previous_task_objects.clear();
+        for (const auto& task : all_tasks) {
+            previous_task_objects.insert(task->origin);
+        }
     }
 
     for (auto& task : all_tasks) {
@@ -252,25 +264,15 @@ ThreadInfo::unwind_tasks()
         }
     }
 
-    // Only one Task can be on CPU at a time.
-    // Since determining if a task is on CPU is somewhat costly, we
-    // stop checking if Tasks are on CPU after seeing the first one.
-    bool on_cpu_task_seen = false;
     for (auto& leaf_task : leaf_tasks) {
-        bool on_cpu = false;
-        if (!on_cpu_task_seen) {
-            on_cpu = leaf_task.get().is_on_cpu();
-            on_cpu_task_seen = on_cpu;
-        }
-
-        auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, on_cpu);
+        auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu);
         auto& stack = stack_info->stack;
         for (auto current_task = leaf_task;;) {
             auto& task = current_task.get();
 
             size_t stack_size = task.unwind(stack);
 
-            if (on_cpu) {
+            if (task.is_on_cpu) {
                 // Undo the stack unwinding
                 // TODO[perf]: not super-efficient :(
                 for (size_t i = 0; i < stack_size; i++)
