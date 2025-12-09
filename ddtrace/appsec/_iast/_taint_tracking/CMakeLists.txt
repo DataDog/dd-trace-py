@@ -59,6 +59,7 @@ file(
     GLOB
     SOURCE_FILES
     "*.cpp"
+    "api/*.cpp"
     "context/*.cpp"
     "aspects/*.cpp"
     "initializer/*.cpp"
@@ -69,6 +70,7 @@ file(
     GLOB
     HEADER_FILES
     "*.h"
+    "api/*.h"
     "context/*.h"
     "aspects/*.h"
     "initializer/*.h"
