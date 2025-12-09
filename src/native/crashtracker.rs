@@ -1,15 +1,22 @@
 use anyhow;
+#[cfg(unix)]
+use std::cmp;
 use std::collections::HashMap;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
+#[cfg(unix)]
+use std::slice;
+#[cfg(unix)]
+use std::sync::atomic::AtomicBool;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Once;
 use std::time::Duration;
 
 use libdd_common::Endpoint;
 use libdd_crashtracker::{
-    register_runtime_stacktrace_string_callback, CrashtrackerConfiguration,
-    CrashtrackerReceiverConfig, Metadata, StacktraceCollection,
+    register_runtime_frame_callback, register_runtime_stacktrace_string_callback,
+    CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, RuntimeStackFrame,
+    StacktraceCollection,
 };
 use pyo3::prelude::*;
 
@@ -29,8 +36,11 @@ static DUMP_TRACEBACK_INIT: std::sync::Once = std::sync::Once::new();
 extern "C" {
     fn pipe(pipefd: *mut [c_int; 2]) -> c_int;
     fn read(fd: c_int, buf: *mut c_void, count: usize) -> isize;
+    fn write(fd: c_int, buf: *const c_void, count: usize) -> isize;
     fn close(fd: c_int) -> c_int;
     fn fcntl(fd: c_int, cmd: c_int, arg: c_int) -> c_int;
+    #[cfg(unix)]
+    fn PyThreadState_Next(prev: *mut pyo3_ffi::PyThreadState) -> *mut pyo3_ffi::PyThreadState;
 }
 
 pub trait RustWrapper {
@@ -273,8 +283,19 @@ pub fn crashtracker_init<'py>(
                 unsafe {
                     init_dump_traceback_fn();
                 }
-                if let Err(e) = register_runtime_stacktrace_string_callback(native_runtime_stack_callback) {
-                    eprintln!("Failed to register runtime callback: {}", e);
+                let dump_fn_available = unsafe { get_cached_dump_traceback_fn().is_some() };
+                if dump_fn_available {
+                    if let Err(e) =
+                        register_runtime_stacktrace_string_callback(
+                            native_runtime_stack_string_callback,
+                        )
+                    {
+                        eprintln!("Failed to register runtime stacktrace callback: {}", e);
+                    }
+                } else if let Err(e) =
+                    register_runtime_frame_callback(native_runtime_stack_frame_callback)
+                {
+                    eprintln!("Failed to register runtime frame callback: {}", e);
                 }
             }
             match libdd_crashtracker::init(config, receiver_config, metadata) {
@@ -332,6 +353,138 @@ pub fn crashtracker_receiver() -> anyhow::Result<()> {
 }
 
 const MAX_TRACEBACK_SIZE: usize = 8 * 1024; // 8KB
+
+#[cfg(unix)]
+const FRAME_FUNCTION_CAP: usize = 256;
+#[cfg(unix)]
+const FRAME_FILE_CAP: usize = 512;
+#[cfg(unix)]
+const FRAME_TYPE_CAP: usize = 256;
+
+#[cfg(unix)]
+static FRAME_COLLECTION_GUARD: AtomicBool = AtomicBool::new(false);
+
+#[cfg(unix)]
+unsafe fn capture_frames_via_python(emit_frame: unsafe extern "C" fn(&RuntimeStackFrame)) {
+    let mut emitted = false;
+
+    let current = pyo3_ffi::PyThreadState_Get();
+
+    if !current.is_null() {
+        let _ = collect_and_emit_frames_for_thread(current, emit_frame);
+    }
+}
+
+#[cfg(unix)]
+unsafe fn collect_and_emit_frames_for_thread(
+    tstate: *mut pyo3_ffi::PyThreadState,
+    emit_frame: unsafe extern "C" fn(&RuntimeStackFrame),
+) -> bool {
+    if tstate.is_null() {
+        return false;
+    }
+
+    let mut emitted = false;
+    let mut frame = thread_top_frame(tstate);
+
+    while !frame.is_null() {
+        if emit_python_frame(frame, emit_frame) {
+            emitted = true;
+        }
+        frame = advance_frame(frame);
+    }
+
+    emitted
+}
+
+unsafe fn thread_top_frame(tstate: *mut pyo3_ffi::PyThreadState) -> *mut pyo3_ffi::PyFrameObject {
+    if tstate.is_null() {
+        ptr::null_mut()
+    } else {
+        let frame = pyo3_ffi::PyThreadState_GetFrame(tstate);
+        #[cfg(not(Py_3_11))]
+        {
+            if !frame.is_null() {
+                pyo3_ffi::Py_XINCREF(frame as *mut pyo3_ffi::PyObject);
+            }
+        }
+        frame
+    }
+}
+
+unsafe fn advance_frame(frame: *mut pyo3_ffi::PyFrameObject) -> *mut pyo3_ffi::PyFrameObject {
+    if frame.is_null() {
+        return ptr::null_mut();
+    }
+    let back = pyo3_ffi::PyFrame_GetBack(frame);
+    pyo3_ffi::Py_DecRef(frame as *mut pyo3_ffi::PyObject);
+    back
+}
+
+#[cfg(unix)]
+unsafe fn emit_python_frame(
+    frame: *mut pyo3_ffi::PyFrameObject,
+    emit_frame: unsafe extern "C" fn(&RuntimeStackFrame),
+) -> bool {
+    if frame.is_null() {
+        return false;
+    }
+
+    let mut file = get_code_attr_utf8(frame, b"co_filename\0");
+    if file.len() > FRAME_FILE_CAP {
+        file.truncate(FRAME_FILE_CAP);
+    }
+
+    let mut function = get_code_attr_utf8(frame, b"co_name\0");
+    if function.len() > FRAME_FUNCTION_CAP {
+        function.truncate(FRAME_FUNCTION_CAP);
+    }
+    let line_number = pyo3_ffi::PyFrame_GetLineNumber(frame);
+
+    let runtime_frame = RuntimeStackFrame {
+        line: if line_number < 0 {
+            0
+        } else {
+            line_number as u32
+        },
+        column: 0,
+        function: function.as_slice(),
+        file: file.as_slice(),
+        type_name: &[],
+    };
+
+    emit_frame(&runtime_frame);
+    true
+}
+
+#[cfg(unix)]
+unsafe fn get_code_attr_utf8(frame: *mut pyo3_ffi::PyFrameObject, attr: &[u8]) -> Vec<u8> {
+    let code_obj = pyo3_ffi::PyFrame_GetCode(frame) as *mut pyo3_ffi::PyObject;
+    if code_obj.is_null() {
+        return Vec::new();
+    }
+    let attr_obj = pyo3_ffi::PyObject_GetAttrString(code_obj, attr.as_ptr() as *const c_char);
+    pyo3_ffi::Py_DecRef(code_obj);
+    if attr_obj.is_null() {
+        return Vec::new();
+    }
+    let data = py_unicode_to_vec(attr_obj);
+    pyo3_ffi::Py_DecRef(attr_obj);
+    data
+}
+
+#[cfg(unix)]
+unsafe fn py_unicode_to_vec(obj: *mut pyo3_ffi::PyObject) -> Vec<u8> {
+    if obj.is_null() {
+        return Vec::new();
+    }
+    let mut size: pyo3_ffi::Py_ssize_t = 0;
+    let data = pyo3_ffi::PyUnicode_AsUTF8AndSize(obj, &mut size);
+    if data.is_null() || size <= 0 {
+        return Vec::new();
+    }
+    slice::from_raw_parts(data as *const u8, size as usize).to_vec()
+}
 
 // Attempt to resolve _Py_DumpTracebackThreads at runtime
 // Try to link once during registration
@@ -438,8 +591,39 @@ unsafe fn dump_python_traceback_as_string(
     emit_stacktrace_string("<traceback_read_failed>\0".as_ptr() as *const c_char);
 }
 
-unsafe extern "C" fn native_runtime_stack_callback(
+unsafe fn dump_python_traceback_as_frames(emit_frame: unsafe extern "C" fn(&RuntimeStackFrame)) {
+    #[cfg(unix)]
+    {
+        if emit_frame as usize == 0 {
+            return;
+        }
+
+        if FRAME_COLLECTION_GUARD
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
+            return;
+        }
+
+        capture_frames_via_python(emit_frame);
+
+        FRAME_COLLECTION_GUARD.store(false, Ordering::SeqCst);
+    }
+
+    #[cfg(not(unix))]
+    {
+        let _ = emit_frame;
+    }
+}
+
+unsafe extern "C" fn native_runtime_stack_string_callback(
     emit_stacktrace_string: unsafe extern "C" fn(*const c_char),
 ) {
     dump_python_traceback_as_string(emit_stacktrace_string);
+}
+
+unsafe extern "C" fn native_runtime_stack_frame_callback(
+    emit_frame: unsafe extern "C" fn(&RuntimeStackFrame),
+) {
+    dump_python_traceback_as_frames(emit_frame);
 }
