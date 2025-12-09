@@ -405,12 +405,6 @@ def retry_until_not_none(factory):
     return None
 
 
-
-
-
-
-
-
 def _generate_in_subprocess(random_topic):
     import ddtrace
     from ddtrace.contrib.internal.kafka.patch import patch
@@ -497,9 +491,6 @@ if __name__ == "__main__":
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode()
     assert err == b"", err.decode()
-
-
-
 
 
 # It is not currently expected for kafka produce and consume spans to connect in a trace
