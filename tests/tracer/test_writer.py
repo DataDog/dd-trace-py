@@ -751,10 +751,32 @@ class _ResetAPIEndpointRequestHandlerTest(_BaseHTTPRequestHandler):
         return
 
 
+class _IncompleteReadRequestHandlerTest(_BaseHTTPRequestHandler):
+    """Handler that sends an incomplete chunked response to simulate IncompleteRead"""
+
+    def do_PUT(self):
+        # Send headers indicating chunked transfer encoding
+        self.send_response(200)
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
+
+        # Send a partial chunk and then close the connection abruptly
+        # This simulates the agent starting to send a response but failing midway
+        self.wfile.write(b"5\r\n")  # Chunk size indicator (5 bytes)
+        self.wfile.write(b"Hello")  # Partial chunk data
+        # Missing: \r\n after chunk, next chunk size, and final 0\r\n\r\n
+        # Close connection abruptly without completing the chunked response
+        self.wfile.flush()
+
+    def do_POST(self):
+        self.do_PUT()
+
+
 _HOST = "0.0.0.0"
 _PORT = 8743
 _TIMEOUT_PORT = _PORT + 1
 _RESET_PORT = _TIMEOUT_PORT + 1
+_INCOMPLETE_READ_PORT = _RESET_PORT + 1
 
 
 class UDSHTTPServer(socketserver.UnixStreamServer, http.server.HTTPServer):
@@ -820,6 +842,16 @@ def endpoint_test_timeout_server():
 @pytest.fixture(scope="module")
 def endpoint_test_reset_server():
     server, thread = _make_server(_RESET_PORT, _ResetAPIEndpointRequestHandlerTest)
+    try:
+        yield thread
+    finally:
+        server.shutdown()
+        thread.join()
+
+
+@pytest.fixture(scope="module")
+def endpoint_test_incomplete_read_server():
+    server, thread = _make_server(_INCOMPLETE_READ_PORT, _IncompleteReadRequestHandlerTest)
     try:
         yield thread
     finally:
@@ -893,6 +925,19 @@ def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         writer = writer_class("http://%s:%s" % (_HOST, _RESET_PORT))
         exc_types = (httplib.BadStatusLine, ConnectionResetError, NetworkError)
+        with pytest.raises(exc_types):
+            writer.HTTP_METHOD = "PUT"  # the test server only accepts PUT
+            writer._encoder.put([Span("foobar")])
+            writer.flush_queue(raise_exc=True)
+
+
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
+def test_flush_connection_incomplete_read(endpoint_test_incomplete_read_server, writer_class):
+    """Test that IncompleteRead errors are handled properly by resetting the connection"""
+    with override_env(dict(DD_API_KEY="foobar.baz")):
+        writer = writer_class("http://%s:%s" % (_HOST, _INCOMPLETE_READ_PORT))
+        # IncompleteRead should be raised when the server sends an incomplete chunked response
+        exc_types = (httplib.IncompleteRead, NetworkError)
         with pytest.raises(exc_types):
             writer.HTTP_METHOD = "PUT"  # the test server only accepts PUT
             writer._encoder.put([Span("foobar")])
