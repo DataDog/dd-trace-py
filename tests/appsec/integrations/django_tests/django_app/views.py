@@ -504,7 +504,7 @@ def vulnerable_request_downstream(request):
     port = request.GET.get("port", "8050")
     http_poolmanager = urllib3.PoolManager(num_pools=1)
     # Sending a GET request and getting back response as HTTPResponse object.
-    response = http_poolmanager.request("GET", f"http://localhost:{port}/appsec/returnheaders")
+    response = http_poolmanager.request("GET", f"http://localhost:{port}/appsec/returnheaders/")
     http_poolmanager.clear()
 
     return HttpResponse(response.data, status=200, content_type="application/json")

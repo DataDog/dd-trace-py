@@ -29,7 +29,7 @@ api_extend_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         return nullptr;
     }
 
-    auto ctx_map = taint_engine_context->get_tainted_object_map_from_list_of_pyobjects({ candidate_text, to_add });
+    auto ctx_map = safe_get_tainted_object_map_from_list_of_pyobjects({ candidate_text, to_add });
     if (not ctx_map or ctx_map->empty()) {
         auto method_name = PyUnicode_FromString("extend");
         PyObject_CallMethodObjArgs(candidate_text, method_name, to_add, nullptr);
@@ -40,7 +40,7 @@ api_extend_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         Py_DecRef(method_name);
     } else {
         const auto& to_candidate = get_tainted_object(candidate_text, ctx_map);
-        auto to_result = initializer->allocate_tainted_object_copy(to_candidate);
+        auto to_result = safe_allocate_tainted_object_copy(to_candidate);
         const auto& to_toadd = get_tainted_object(to_add, ctx_map);
 
         // Ensure no returns are done before this method call

@@ -221,6 +221,21 @@ class SessionManager:
 
         return test_module, test_suite, test
 
+    def get_test(self, test_ref: TestRef) -> t.Optional[Test]:
+        module = self.session.children.get(test_ref.suite.module.name)
+        if not module:
+            return None
+
+        suite = module.children.get(test_ref.suite.name)
+        if not suite:
+            return None
+
+        test = suite.children.get(test_ref.name)
+        if not test:
+            return None
+
+        return test
+
     def _set_codeowners(self, test: Test) -> None:
         if not self.codeowners:
             return
@@ -275,8 +290,16 @@ class SessionManager:
             excluded_commits=backend_commits, included_commits=commits_not_in_backend
         )
 
+        uploaded_files = 0
+        uploaded_bytes = 0
+
         for packfile in git.pack_objects(revisions_to_send):
-            self.api_client.send_git_pack_file(packfile)
+            nbytes = self.api_client.send_git_pack_file(packfile)
+            if nbytes is not None:
+                uploaded_bytes += nbytes
+                uploaded_files += 1
+
+        TelemetryAPI.get().record_git_pack_data(uploaded_files, uploaded_bytes)
 
     def is_skippable_test(self, test_ref: TestRef) -> bool:
         if not self.settings.skipping_enabled:

@@ -108,6 +108,12 @@ TaintEngineContext::clear_all_request_context_slots()
     }
 }
 
+void
+TaintEngineContext::clear_tainted_object_map()
+{
+    request_context_slots.clear();
+}
+
 TaintedObjectMapTypePtr
 TaintEngineContext::get_tainted_object_map(PyObject* obj)
 {
@@ -305,23 +311,60 @@ TaintEngineContext::get_tainted_object_map_by_ctx_id(size_t ctx_id)
 void
 pyexport_taint_engine_context(py::module& m)
 {
-    m.def("finish_request_context", [](size_t ctx_id) { taint_engine_context->finish_request_context(ctx_id); });
-    m.def("start_request_context", [] { return taint_engine_context->start_request_context(); });
-    m.def("clear_all_request_context_slots", [] { return taint_engine_context->clear_all_request_context_slots(); });
-    m.def("get_tainted_object_map_by_ctx_id",
-          [](size_t ctx_id) { return taint_engine_context->get_tainted_object_map_by_ctx_id(ctx_id) != nullptr; });
+    m.def("finish_request_context", [](size_t ctx_id) {
+        if (!taint_engine_context)
+            return;
+        taint_engine_context->finish_request_context(ctx_id);
+    });
+
+    m.def("start_request_context", []() -> std::optional<size_t> {
+        if (!taint_engine_context)
+            return std::nullopt;
+        return taint_engine_context->start_request_context();
+    });
+
+    m.def("clear_all_request_context_slots", [] {
+        if (!taint_engine_context)
+            return;
+        taint_engine_context->clear_all_request_context_slots();
+    });
+
+    m.def("get_tainted_object_map_by_ctx_id", [](size_t ctx_id) {
+        if (!taint_engine_context)
+            return false;
+        return taint_engine_context->get_tainted_object_map_by_ctx_id(ctx_id) != nullptr;
+    });
+
     m.def("is_in_taint_map", [](py::object tainted_obj) {
+        if (!taint_engine_context)
+            return false;
         auto map_ptr = taint_engine_context->get_tainted_object_map(tainted_obj.ptr());
         return map_ptr != nullptr;
     });
-    m.def("debug_context_array_size", [] { return taint_engine_context->debug_context_array_size(); });
-    m.def("debug_context_array_free_slots_number",
-          [] { return taint_engine_context->debug_context_array_free_slots_number(); });
 
-    m.def("debug_taint_map", [](size_t ctx_id) { return taint_engine_context->debug_taint_map(ctx_id); });
+    m.def("debug_context_array_size", [] {
+        if (!taint_engine_context)
+            return static_cast<size_t>(0);
+        return taint_engine_context->debug_context_array_size();
+    });
 
-    m.def("debug_num_tainted_objects",
-          [](size_t ctx_id) { return taint_engine_context->debug_num_tainted_objects(ctx_id); });
+    m.def("debug_context_array_free_slots_number", [] {
+        if (!taint_engine_context)
+            return static_cast<size_t>(0);
+        return taint_engine_context->debug_context_array_free_slots_number();
+    });
+
+    m.def("debug_taint_map", [](size_t ctx_id) {
+        if (!taint_engine_context)
+            return std::string("");
+        return taint_engine_context->debug_taint_map(ctx_id);
+    });
+
+    m.def("debug_num_tainted_objects", [](size_t ctx_id) -> int {
+        if (!taint_engine_context)
+            return 0;
+        return taint_engine_context->debug_num_tainted_objects(ctx_id);
+    });
 }
 
 std::unique_ptr<TaintEngineContext> taint_engine_context;

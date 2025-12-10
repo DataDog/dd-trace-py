@@ -13,7 +13,10 @@ version = "4.1.0.dev0"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
-requires-python = ">=3.9"
+# ddtrace has many sub-components which can break when CPython internals
+# change over versions, .e.g. profiling. So we explicitly mark incompatibility
+# with versions we don't support yet.
+requires-python = ">=3.9,<3.15"
 authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
 ]
