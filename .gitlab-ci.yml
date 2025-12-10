@@ -75,7 +75,7 @@ pipeline variables:
       git config --global --add safe.directory "${CI_PROJECT_DIR}"
     - |
       # Determine if we have an open GitHub PR for this commit
-      GH_PR_NUMBER=$(gh pr list --search "${CI_COMMIT_SHA}" --json number --jq '.[0].number' || echo "")
+      GH_PR_NUMBER=$(gh pr list --state open --search "${CI_COMMIT_SHA}" --json number --jq '.[0].number' || echo "")
       echo "GH_PR_NUMBER=${GH_PR_NUMBER}" | tee -a workflow.env
       echo "HAS_OPEN_PR=$(if [ -z "${GH_PR_NUMBER}" ]; then echo "false"; else echo "true"; fi)" | tee -a workflow.env
       echo "IS_MAIN_BRANCH=$(if [ "${CI_COMMIT_BRANCH}" == "main" ]; then echo "true"; else echo "false"; fi)" | tee -a workflow.env
