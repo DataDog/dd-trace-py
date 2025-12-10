@@ -525,7 +525,6 @@ class LLMObsExportSpansClient:
 
         while has_next_page:
             path = f"{self.ENDPOINT}?{urllib.parse.urlencode(url_options)}"
-            log.debug("Making request to path=%s for page %d", path, page_num)
 
             resp = self._request(path, self.TIMEOUT)
 

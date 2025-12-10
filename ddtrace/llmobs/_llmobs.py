@@ -1893,6 +1893,13 @@ class LLMObs(Service):
             See https://docs.datadoghq.com/llm_observability/evaluations/export_api/?tab=model#searchedspan for
             details on the exported span format.
         """
+        if cls.enabled is False:
+            log.warning(
+                "LLMObs.run_evaluations() called when LLMObs is not enabled. "
+                "Evaluation metrics will not be submitted."
+            )
+            return
+
         if not evaluations:
             return
 
