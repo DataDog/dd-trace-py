@@ -810,7 +810,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         except TypeError:
             log.warning("Failed to register NativeWriter fork hook")
 
-
         self._clients = [client]
         self.dogstatsd = dogstatsd
         self._metrics: Dict[str, int] = defaultdict(int)
