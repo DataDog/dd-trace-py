@@ -273,11 +273,9 @@ ThreadInfo::unwind_tasks(ThreadStateType* tstate_ptr)
     for (auto& task : all_tasks) {
         origin_map.emplace(task->origin, std::ref(*task));
 
-        // task->waiter is only set if task_fut_waiter points to another Task
-        // If task_fut_waiter points to a Future/Coroutine, waiter will be nullptr
-        if (task->waiter != nullptr) {
+        if (task->waiter != nullptr)
             waitee_map.emplace(task->waiter->origin, std::ref(*task));
-        } else if (parent_tasks.find(task->origin) == parent_tasks.end()) {
+        else if (parent_tasks.find(task->origin) == parent_tasks.end()) {
             leaf_tasks.push_back(std::ref(*task));
         }
     }
