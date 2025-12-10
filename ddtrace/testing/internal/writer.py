@@ -81,6 +81,22 @@ class BaseWriter(ABC):
     def _send_events(self, events: t.List[Event]) -> None:
         pass
 
+    @abstractmethod
+    def _encode_events(self, events: t.List[Event]) -> bytes:
+        pass
+
+    def _split_pack_events(self, events: t.List[Event]) -> t.List[bytes]:
+        pack = self._encode_events(events)
+
+        if len(pack) > self.max_payload_size and len(events) > 1:
+            del pack
+            midpoint = len(events) // 2
+            packs = self._split_pack_events(events[0:midpoint])
+            packs += self._split_pack_events(events[midpoint:])
+            return packs
+        else:
+            return [pack]
+
 
 class TestOptWriter(BaseWriter):
     __test__ = False
@@ -123,26 +139,17 @@ class TestOptWriter(BaseWriter):
         event = self.serializers[type(item)](item)
         self.put_event(event)
 
-    def _pack_events(self, events: t.List[Event]) -> t.List[bytes]:
+    def _encode_events(self, events: t.List[Event]) -> bytes:
         payload = {
             "version": 1,
             "metadata": self.metadata,
             "events": events,
         }
-        pack = msgpack_packb(payload)
-
-        if len(pack) > self.max_payload_size and len(events) > 1:
-            del pack
-            midpoint = len(events) // 2
-            packs = self._pack_events(events[0:midpoint])
-            packs += self._pack_events(events[midpoint:])
-            return packs
-        else:
-            return [pack]
+        return msgpack_packb(payload)
 
     def _send_events(self, events: t.List[Event]) -> None:
         with StopWatch() as serialization_time:
-            packs = self._pack_events(events)
+            packs = self._split_pack_events(events)
 
         TelemetryAPI.get().record_event_payload_serialization_seconds("test_cycle", serialization_time.elapsed())
 
@@ -188,21 +195,12 @@ class TestCoverageWriter(BaseWriter):
         )
         self.put_event(event)
 
-    def _pack_events(self, events: t.List[Event]) -> t.List[bytes]:
-        pack = msgpack_packb({"version": 2, "coverages": events})
-
-        if len(pack) > self.max_payload_size and len(events) > 1:
-            del pack
-            midpoint = len(events) // 2
-            packs = self._pack_events(events[0:midpoint])
-            packs += self._pack_events(events[midpoint:])
-            return packs
-        else:
-            return [pack]
+    def _encode_events(self, events: t.List[Event]) -> bytes:
+        return msgpack_packb({"version": 2, "coverages": events})
 
     def _send_events(self, events: t.List[Event]) -> None:
         with StopWatch() as serialization_time:
-            packs = self._pack_events(events)
+            packs = self._split_pack_events(events)
 
         TelemetryAPI.get().record_event_payload_serialization_seconds("code_coverage", serialization_time.elapsed())
 
