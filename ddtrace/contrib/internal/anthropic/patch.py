@@ -1,4 +1,3 @@
-import os
 import sys
 from typing import Dict
 
@@ -13,6 +12,7 @@ from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations import AnthropicIntegration
+from ddtrace.settings import _env
 
 
 log = get_logger(__name__)
@@ -30,8 +30,10 @@ def _supported_versions() -> Dict[str, str]:
 config._add(
     "anthropic",
     {
-        "span_prompt_completion_sample_rate": float(os.getenv("DD_ANTHROPIC_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        "span_char_limit": int(os.getenv("DD_ANTHROPIC_SPAN_CHAR_LIMIT", 128)),
+        "span_prompt_completion_sample_rate": float(
+            _env.getenv("DD_ANTHROPIC_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)
+        ),
+        "span_char_limit": int(_env.getenv("DD_ANTHROPIC_SPAN_CHAR_LIMIT", 128)),
     },
 )
 
