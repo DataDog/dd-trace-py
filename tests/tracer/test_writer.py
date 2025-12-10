@@ -934,14 +934,12 @@ def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
 @pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
 def test_flush_connection_incomplete_read(endpoint_test_incomplete_read_server, writer_class):
     """Test that IncompleteRead errors are handled properly by resetting the connection"""
-    with override_env(dict(DD_API_KEY="foobar.baz")):
-        writer = writer_class("http://%s:%s" % (_HOST, _INCOMPLETE_READ_PORT))
-        # IncompleteRead should be raised when the server sends an incomplete chunked response
-        exc_types = (httplib.IncompleteRead, NetworkError)
-        with pytest.raises(exc_types):
-            writer.HTTP_METHOD = "PUT"  # the test server only accepts PUT
-            writer._encoder.put([Span("foobar")])
-            writer.flush_queue(raise_exc=True)
+    writer = writer_class(f"http://{_HOST}:{_INCOMPLETE_READ_PORT}")
+    # IncompleteRead should be raised when the server sends an incomplete chunked response
+    exc_types = (httplib.IncompleteRead, NetworkError)
+    with pytest.raises(exc_types):
+        writer._encoder.put([Span("foobar")])
+        writer.flush_queue(raise_exc=True)
 
 
 @pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
