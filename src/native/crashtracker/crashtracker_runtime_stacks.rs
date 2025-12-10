@@ -191,12 +191,13 @@ unsafe fn thread_top_frame(tstate: *mut pyo3_ffi::PyThreadState) -> *mut pyo3_ff
         ptr::null_mut()
     } else {
         // We won't support Python 3.9
-        #[cfg(Py_3_9)]
+        #[cfg(not(Py_3_10))]
         let frame: *mut pyo3_ffi::PyFrameObject = ptr::null_mut();
-        #[cfg(not(Py_3_9))]
+
+        #[cfg(Py_3_10)]
         let frame = pyo3_ffi::PyThreadState_GetFrame(tstate);
 
-        #[cfg(not(any(Py_3_11, Py_3_12, Py_3_13, Py_3_14)))]
+        #[cfg(not(Py_3_11))]
         {
             if !frame.is_null() {
                 // On CPython <= 3.10 it returns/holds a borrowed frame, so we need to
