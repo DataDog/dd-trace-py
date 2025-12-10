@@ -72,7 +72,7 @@ def _parse_profiling_enabled(raw: str) -> bool:
     # - Are we injected (DD_INJECTION_ENABLED set)
     # - Is profiling enabled ("profiler" in the list)
     if _env.getenv("DD_INJECTION_ENABLED") is not None:
-        for tok in _env.getenv("DD_INJECTION_ENABLED").split(","):
+        for tok in _env.getenv("DD_INJECTION_ENABLED", "").split(","):
             if tok.strip().lower() == "profiler":
                 return True
 

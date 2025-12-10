@@ -44,7 +44,7 @@ def _current_thread() -> Tuple[int, str]:
 # We need to know if wrapt is compiled in C or not. If it's not using the C module, then the wrappers function will
 # appear in the stack trace and we need to hide it.
 WRAPT_C_EXT: bool
-if _env.environ.get("WRAPT_DISABLE_EXTENSIONS"):
+if _env.getenv("WRAPT_DISABLE_EXTENSIONS"):
     WRAPT_C_EXT = False
 else:
     try:
