@@ -101,7 +101,6 @@ finalize() {
   export TMP_WHEEL_FILE=$(ls ${TMP_WHEEL_DIR}/*.whl | head -n 1)
   mv "${TMP_WHEEL_FILE}" "${FINAL_WHEEL_DIR}/"
   export FINAL_WHEEL_FILE=$(ls ${FINAL_WHEEL_DIR}/*.whl | head -n 1)
-  sccache --show-stats
   section_end "finalize_wheel"
 }
 
