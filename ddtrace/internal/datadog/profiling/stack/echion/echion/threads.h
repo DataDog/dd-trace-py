@@ -217,6 +217,52 @@ ThreadInfo::unwind(PyThreadState* tstate)
 inline Result<void>
 ThreadInfo::unwind_tasks(PyThreadState* tstate)
 {
+    // Check if the Python stack contains "_run".
+    // To avoid having to do string comparisons every time we unwind Tasks, we keep track
+    // of the cache key of the "_run" Frame.
+    static std::optional<Frame::Key> frame_cache_key;
+    bool expect_at_least_one_running_task = false;
+    if (!frame_cache_key) {
+        for (size_t i = 0; i < python_stack.size(); i++) {
+            const auto& frame = python_stack[i].get();
+            const auto& frame_name = string_table.lookup(frame.name)->get();
+
+#if PY_VERSION_HEX >= 0x030b0000
+            // After Python 3.11, function names in Frames are qualified with e.g. the class name, so we
+            // can use the qualified name to identify the "_run" Frame.
+            constexpr std::string_view _run = "Handle._run";
+            auto is_run_frame = name.size() >= _run.size() && name == _run;
+#else
+            // Before Python 3.11, function names in Frames are not qualified, so we
+            // can use the filename to identify the "_run" Frame.
+            constexpr std::string_view asyncio_runners_py = "asyncio/events.py";
+            constexpr std::string_view _run = "_run";
+            auto filename = string_table.lookup(frame.filename)->get();
+            auto is_asyncio = filename.size() >= asyncio_runners_py.size() &&
+                              filename.rfind(asyncio_runners_py) == filename.size() - asyncio_runners_py.size();
+            auto is_run_frame =
+              is_asyncio && (name.size() >= _run.size() && name.rfind(_run) == name.size() - _run.size());
+#endif
+            if (is_run_frame) {
+                // Although Frames are stored in an LRUCache, the cache key is ALWAYS the same
+                // even if the Frame gets evicted from the cache.
+                // This means we can keep the cache key and re-use it to determine
+                // whether we see the "_run" Frame in the Python stack.
+                frame_cache_key = frame.cache_key;
+                expect_at_least_one_running_task = true;
+                break;
+            }
+        }
+    } else {
+        for (size_t i = 0; i < python_stack.size(); i++) {
+            const auto& frame = python_stack[i].get();
+            if (frame.cache_key == *frame_cache_key) {
+                expect_at_least_one_running_task = true;
+                break;
+            }
+        }
+    }
+
     std::vector<TaskInfo::Ref> leaf_tasks;
     std::unordered_set<PyObject*> parent_tasks;
     std::unordered_map<PyObject*, TaskInfo::Ref> waitee_map; // Indexed by task origin
@@ -229,6 +275,22 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
     }
 
     auto all_tasks = std::move(*maybe_all_tasks);
+
+    bool saw_at_least_one_running_task = false;
+    std::string running_task_name;
+    for (const auto& task_ref : all_tasks) {
+        const auto& task = task_ref.get();
+        if (task->is_on_cpu) {
+            running_task_name = string_table.lookup(task->name)->get();
+            saw_at_least_one_running_task = true;
+            break;
+        }
+    }
+
+    if (saw_at_least_one_running_task != expect_at_least_one_running_task) {
+        return ErrorKind::TaskInfoError;
+    }
+
     {
         std::lock_guard<std::mutex> lock(task_link_map_lock);
 
@@ -306,8 +368,13 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
             auto task_name = string_table.lookup(task.name)->get();
             std::cerr << "pushing " << task_name << std::endl;
 
+            auto maybe_task_stack_size = task.unwind(stack, task.is_on_cpu ? upper_python_stack_size : unused);
+            if (!maybe_task_stack_size) {
+                return ErrorKind::TaskInfoError;
+            }
+
             // The task_stack_size includes both the coroutines frames and the "upper" Python synchronous frames
-            size_t task_stack_size = task.unwind(stack, task.is_on_cpu ? upper_python_stack_size : unused);
+            size_t task_stack_size = std::move(*maybe_task_stack_size);
             if (task.is_on_cpu) {
                 // Get the "bottom" part of the Python synchronous Stack, that is to say the
                 // synchronous functions and coroutines called by the Task's outermost coroutine
