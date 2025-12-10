@@ -12,7 +12,6 @@ from moto import mock_sqs
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import patch_submodules
-from ddtrace.contrib.internal.botocore.patch import unpatch
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.utils.version import parse_version
 from tests.utils import TracerTestCase
