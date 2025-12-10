@@ -145,5 +145,6 @@ install(TARGETS ${FULL_EXTENSION_NAME} LIBRARY DESTINATION ${LIB_INSTALL_DIR})
 option(BUILD_TESTING "Build tests" OFF)
 if(BUILD_TESTING)
     enable_testing()
-    add_subdirectory(test)
+    # Test directory removed during merge
+    # add_subdirectory(test)
 endif()

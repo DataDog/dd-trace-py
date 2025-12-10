@@ -252,7 +252,7 @@ push_pyframe_to_sample(Datadog::Sample& sample, PyFrameObject* frame)
     if (lineno_val < 0)
         lineno_val = 0;
 
-        // Get code object
+    // Get code object
 #ifdef _PY39_AND_LATER
     PyCodeObject* code = PyFrame_GetCode(frame);
 #else
@@ -372,12 +372,6 @@ traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe)
     }
 
     init_sample(size, weighted_size);
-}
-
-traceback_t::~traceback_t()
-{
-    // Sample object is a member variable and will be automatically destroyed
-    // No explicit cleanup needed - its destructor will handle internal cleanup
 }
 
 void

@@ -19,7 +19,7 @@ class traceback_t
     /* Constructor - also collects frames from the current Python frame chain */
     traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe);
 
-    ~traceback_t();
+    ~traceback_t() = default;
 
     /* Reset/clear this traceback for reuse with a new allocation
      * Clears all sample data and re-collects frames from the current Python frame chain */
