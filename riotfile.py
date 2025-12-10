@@ -646,6 +646,8 @@ venv = Venv(
                 "httpretty": latest,
                 "typing-extensions": latest,
                 "pytest-asyncio": latest,
+                "pytest-benchmark": latest,
+                "pytest-memray": latest,
             },
             pys=select_pys(),
         ),

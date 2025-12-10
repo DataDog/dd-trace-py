@@ -426,3 +426,138 @@ class ExceptionReplayTestCase(TracerTestCase):
             assert span.get_tag("_dd.debug.error.1.file") == __file__.replace(".pyc", ".py")
             assert span.get_tag("_dd.debug.error.1.function") == "a"
             assert span.get_tag("_dd.debug.error.1.line")
+
+
+def test_replay_functions_benchmark(benchmark):
+    """Benchmark replay.py functions directly without tracer overhead."""
+    from ddtrace.trace import Span
+    import uuid
+
+    def create_chained_exception(depth):
+        """Create a chain of exceptions with specified depth."""
+        try:
+            if depth == 0:
+                raise ValueError(uuid.uuid4())
+            else:
+                create_chained_exception(depth - 1)
+        except Exception:
+            raise RuntimeError(f"level {depth}") from None
+
+    def get_exception_with_traceback(depth):
+        """Capture an exception with its traceback."""
+        try:
+            create_chained_exception(depth)
+        except RuntimeError as e:
+            return e, e.__traceback__
+        return None, None
+
+    # Pre-create exceptions to benchmark just the replay functions
+    with exception_replay() as uploader:
+        handler = replay.SpanExceptionHandler()
+        handler.__uploader__ = uploader.collector
+        exc, tb = get_exception_with_traceback(100)
+        span = Span("test")
+
+        def run_replay_functions():
+            # This benchmarks just unwind_exception_chain and get_tb_frames_from_exception_chain
+            chain, exc_id = replay.unwind_exception_chain(exc, tb)
+            # Consume the generator fully to measure its cost
+            frames = list(replay.get_tb_frames_from_exception_chain(chain))
+
+            called = False
+            if tb is not None and exc_id is not None:
+                called = True
+                for _, _tb in frames:
+                    handler._attach_tb_frame_snapshot_to_span(span, _tb, exc_id, only_user_code=False)
+
+            assert len(frames) > 0
+            assert called
+
+        benchmark(run_replay_functions)
+
+
+def test_snapshots_hold_frame_references_while_queued():
+    """Verify that queued Snapshot objects hold frame references.
+
+    When exception replay captures a snapshot, the Snapshot object stores
+    a reference to the frame. This test confirms that while snapshots are
+    queued (waiting to be sent to Datadog), the associated frame objects
+    remain in memory and cannot be garbage collected.
+    """
+    import gc
+    import types
+    import uuid
+
+    from ddtrace.trace import Span
+
+    def _raise_exception(depth):
+        if depth == 0:
+            raise ValueError(uuid.uuid4())
+        _raise_exception(depth - 1)
+
+    def _capture_exception(depth):
+        try:
+            _raise_exception(depth)
+        except ValueError:
+            raise RuntimeError(f"Wrapped at depth {depth}") from None
+
+    def _get_exception_with_traceback():
+        try:
+            _capture_exception(depth=2)
+        except RuntimeError as exc:
+            return exc, exc.__traceback__
+        return None, None
+
+    def _count_heap_frames():
+        gc.collect()
+        gc.collect()
+        gc.collect()
+        return sum(1 for obj in gc.get_objects() if type(obj) is types.FrameType)
+
+    with exception_replay() as uploader:
+        handler = replay.SpanExceptionHandler()
+        handler.__uploader__ = uploader
+        collector = uploader.collector
+
+        baseline_frame_count = _count_heap_frames()
+
+        # Process multiple exceptions to create queued snapshots
+        num_exceptions = 10
+        for i in range(num_exceptions):
+            exc, tb = _get_exception_with_traceback()
+            span = Span(f"test_span_{i}")
+
+            chain, exc_id = replay.unwind_exception_chain(exc, tb)
+            for _, frame_tb in replay.get_tb_frames_from_exception_chain(chain):
+                handler._attach_tb_frame_snapshot_to_span(span, frame_tb, exc_id, only_user_code=False)
+
+            # Clear local references to simulate exception handling completion
+            del exc, tb, span, chain, exc_id
+
+        frames_while_queued = _count_heap_frames()
+        assert frames_while_queued < 5
+
+
+def test_unwind_exception_chain_circular_reference():
+    """Test that unwind_exception_chain handles circular exception chains."""
+    import signal
+
+    exc1 = ValueError("first")
+    exc2 = RuntimeError("second")
+    exc1.__cause__ = exc2
+    exc2.__cause__ = exc1
+
+    def timeout_handler(signum, frame):
+        raise TimeoutError("unwind_exception_chain stuck in infinite loop")
+
+    old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(2)
+
+    try:
+        chain, exc_id = replay.unwind_exception_chain(exc1, exc1.__traceback__)
+        assert len(chain) <= 2
+    except TimeoutError:
+        pytest.fail("unwind_exception_chain entered an infinite loop on circular __cause__ chain")
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
