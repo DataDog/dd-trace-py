@@ -30,8 +30,8 @@ from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 def test_fork_handler_callable(iast_context_defaults):
     """Verify that _reset_iast_after_fork is callable and disables IAST."""
     from ddtrace.appsec._iast import _disable_iast_after_fork
-    from ddtrace.settings.asm import config as asm_config
     from ddtrace.appsec._iast._taint_tracking import reset_native_state
+    from ddtrace.settings.asm import config as asm_config
 
     # Should not raise any exception
     try:
@@ -50,8 +50,8 @@ def test_fork_handler_with_active_context(iast_context_defaults):
     """Verify fork handler disables IAST and clears context when active."""
     from ddtrace.appsec._iast import _disable_iast_after_fork
     from ddtrace.appsec._iast._taint_tracking import is_tainted
-    from ddtrace.settings.asm import config as asm_config
     from ddtrace.appsec._iast._taint_tracking import reset_native_state
+    from ddtrace.settings.asm import config as asm_config
 
     _start_iast_context_and_oce()
 
