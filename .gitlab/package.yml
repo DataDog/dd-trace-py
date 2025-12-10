@@ -5,6 +5,18 @@ download_ddtrace_artifacts:
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
+  rules:
+    - if: $HAS_OPEN_PR == "true"
+      when: on_success
+    - if: $IS_MAIN_BRANCH == "true"
+      when: on_success
+    - if: $IS_RELEASE_BRANCH == "true"
+      when: on_success
+    - if: $IS_RELEASE == "true"
+      when: on_success
+    - if: $IS_MERGE_QUEUE == "true"
+      when: on_success
+    - when: never
   script: |
     if [ -z ${GH_TOKEN} ]
     then
@@ -116,11 +128,9 @@ verify_package_version:
   tags: [ "arch:amd64" ]
   stage: package
   needs: [ download_ddtrace_artifacts ]
-  only:
-    # v2.10.0
-    # v2.10.1
-    # v2.10.0rc0
-    # v2.10.0rc5
-    - /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+  rules:
+    - if: $IS_RELEASE == "true"
+      when: on_success
+    - when: never
   script:
     - .gitlab/verify-package-versions.sh
