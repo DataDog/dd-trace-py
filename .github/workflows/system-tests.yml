@@ -40,7 +40,7 @@ jobs:
         run: sudo apt-get install -y patchelf
 
       - name: Checkout system tests
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
@@ -48,7 +48,7 @@ jobs:
           ref: '30e17ba7009b84998c0ada3b3a17f39c0037faba'
 
       - name: Download wheels to binaries directory
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           pattern: wheels-*
           path: binaries/
@@ -62,7 +62,7 @@ jobs:
         run: |
           docker image save system_tests/weblog:latest | gzip > ${{ matrix.weblog-variant}}_weblog_${{ github.sha }}.tar.gz
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: ${{ matrix.weblog-variant }}_${{ github.sha }}
           path: |
@@ -85,7 +85,7 @@ jobs:
     steps:
 
       - name: Checkout system tests
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
@@ -95,7 +95,7 @@ jobs:
       - name: Build runner
         uses: ./.github/actions/install_runner
 
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: ${{ matrix.weblog-variant }}_${{ github.sha }}
           path: images_artifacts/
@@ -264,7 +264,7 @@ jobs:
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: always() && steps.docker_load.outcome == 'success'
         with:
           name: logs_${{ matrix.weblog-variant }}_${{ matrix.scenario }}
@@ -282,14 +282,14 @@ jobs:
         run: sudo apt-get install -y patchelf
 
       - name: Checkout system tests
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
           ref: '30e17ba7009b84998c0ada3b3a17f39c0037faba'
       - name: Download wheels to binaries directory
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           pattern: wheels-*
           path: binaries/
@@ -308,7 +308,7 @@ jobs:
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: always() && steps.build_runner.outcome == 'success'
         with:
           name: logs_parametric
@@ -319,13 +319,13 @@ jobs:
     needs: [build-wheels]
     steps:
       - name: Checkout datadog-lambda-python
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           persist-credentials: false
           repository: "DataDog/datadog-lambda-python"
 
       - name: Download wheel to binaries directory
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: wheels-cp313-manylinux_x86_64
           path: artifacts/
@@ -337,7 +337,7 @@ jobs:
           ARCH=amd64 PYTHON_VERSION=3.13 ./scripts/build_layers.sh
 
       - name: Upload layer artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           path: .layers/datadog_lambda_py-amd64-3.13.zip
           name: serverless_system_tests_binaries
@@ -345,7 +345,7 @@ jobs:
   serverless-system-tests:
     needs: [serverless-system-tests-build-layer]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@2eb26336ed43c2db1b7f90fff17ce4f5fc36a12b
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@30e17ba7009b84998c0ada3b3a17f39c0037faba
     secrets: inherit
     permissions:
       contents: read
