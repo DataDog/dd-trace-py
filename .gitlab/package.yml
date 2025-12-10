@@ -5,18 +5,6 @@ download_ddtrace_artifacts:
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
-  rules:
-    - if: $HAS_OPEN_PR == "true"
-      when: on_success
-    - if: $IS_MAIN_BRANCH == "true"
-      when: on_success
-    - if: $IS_RELEASE_BRANCH == "true"
-      when: on_success
-    - if: $IS_RELEASE == "true"
-      when: on_success
-    - if: $IS_MERGE_QUEUE == "true"
-      when: on_success
-    - when: never
   script: |
     if [ -z ${GH_TOKEN} ]
     then
