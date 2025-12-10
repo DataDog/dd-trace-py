@@ -16,7 +16,12 @@ from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace.contrib.internal.kafka.patch import unpatch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.utils import override_config
-from .conftest import GROUP_ID, BOOTSTRAP_SERVERS, KEY, KafkaConsumerPollFilter
+
+from .conftest import BOOTSTRAP_SERVERS
+from .conftest import GROUP_ID
+from .conftest import KEY
+from .conftest import KafkaConsumerPollFilter
+
 
 PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
 SNAPSHOT_IGNORES = [
@@ -250,7 +255,6 @@ def _generate_in_subprocess(random_topic):
     import ddtrace
     from ddtrace.contrib.internal.kafka.patch import patch
     from ddtrace.contrib.internal.kafka.patch import unpatch
-    from tests.contrib.kafka.conftest import KafkaConsumerPollFilter
 
     PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
 
