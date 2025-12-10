@@ -142,7 +142,9 @@ class _ProfilerInstance(service.Service):
         self.endpoint_collection_enabled: bool = endpoint_collection_enabled
 
         # Non-user-supplied values
-        self._collectors: List[collector.Collector] = []
+        # Note: memalloc.MemoryCollector is not a subclass of collector.Collector, so we need to use a union type.
+        #       This is because its snapshot method cannot be static.
+        self._collectors: List[collector.Collector | memalloc.MemoryCollector] = []
         self._collectors_on_import: Optional[List[tuple[str, Callable[[Any], None]]]] = None
         self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
         self._lambda_function_name: Optional[str] = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
@@ -251,7 +253,7 @@ class _ProfilerInstance(service.Service):
                 ModuleWatchdog.register_module_hook(module, hook)
 
         if self._memory_collector_enabled:
-            self._collectors.append(memalloc.MemoryCollector())  # type: ignore[arg-type]
+            self._collectors.append(memalloc.MemoryCollector())
 
         self._build_default_exporters()
 
