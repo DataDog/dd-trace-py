@@ -487,3 +487,11 @@ class TestTelemetry:
                 ),
             )
         ]
+
+    def test_record_git_pack_data(self, telemetry_api: TelemetryAPI) -> None:
+        telemetry_api.record_git_pack_data(uploaded_files=5, uploaded_bytes=200)
+
+        assert telemetry_api.writer.add_distribution_metric.call_args_list == [
+            call(CIVISIBILITY, "git_requests.objects_pack_files", 5, ()),
+            call(CIVISIBILITY, "git_requests.objects_pack_bytes", 200, ()),
+        ]

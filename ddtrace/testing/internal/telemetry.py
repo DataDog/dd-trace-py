@@ -274,6 +274,10 @@ class TelemetryAPI:
 
         self.add_count_metric("event_finished", 1, tags)
 
+    def record_git_pack_data(self, uploaded_files: int, uploaded_bytes: int) -> None:
+        self.add_distribution_metric("git_requests.objects_pack_files", uploaded_files)
+        self.add_distribution_metric("git_requests.objects_pack_bytes", uploaded_bytes)
+
 
 @dataclasses.dataclass
 class TelemetryAPIRequestMetrics:
