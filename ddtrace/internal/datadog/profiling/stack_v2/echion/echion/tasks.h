@@ -337,8 +337,9 @@ get_tasks_from_linked_list(uintptr_t head_addr, PyObject* loop, std::vector<Task
         // Create TaskInfo for the task
         auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_addr_uint));
         if (maybe_task_info) {
-            if ((*maybe_task_info)->loop == loop) {
-                tasks.push_back(std::move(*maybe_task_info));
+            auto& task_info = *maybe_task_info;
+            if (task_info->loop == loop) {
+                tasks.push_back(std::move(task_info));
             }
         }
 
