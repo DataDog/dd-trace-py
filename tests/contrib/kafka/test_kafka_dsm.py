@@ -1,8 +1,7 @@
-import logging
-import os
 import time
 
 import confluent_kafka
+from confluent_kafka import KafkaException
 from confluent_kafka import TopicPartition
 from confluent_kafka import admin as kafka_admin
 import mock
@@ -24,7 +23,6 @@ from tests.conftest import get_original_test_name
 from tests.contrib.config import KAFKA_CONFIG
 from tests.datastreams.test_public_api import MockedTracer
 from tests.utils import DummyTracer
-from tests.utils import override_config
 
 
 GROUP_ID = "test_group"
@@ -67,32 +65,26 @@ def create_topic(name):
     admin.create_topics(topics)
 
 
+@pytest.fixture
+def should_filter_empty_polls():
+    yield True
+
+
 # Create fixture to share tracer and setup/teardown
 @pytest.fixture
-def tracer():
-    config.kafka._reset()
-    # default tracer is not traced
-    tracer = DummyTracer()
-    if "DD_LOG_LEVEL" in os.environ:
-        logging.basicConfig(level=os.environ["DD_LOG_LEVEL"])
+def tracer(should_filter_empty_polls):
     patch()
-    pin = Pin.override(confluent_kafka.Consumer, tracer=tracer)
-    pin.override(confluent_kafka.Producer, tracer=tracer)
-    pin.override(confluent_kafka.SerializingProducer, tracer=tracer)
-    pin.override(confluent_kafka.DeserializingConsumer, tracer=tracer)
-    try:
-        # Mock the writer to avoid throttling issues when sending traces
-        # (also test runs ~30% faster)
-        previous_writer = ddtracer.writer
+    if should_filter_empty_polls:
+        ddtracer.configure(trace_processors=[KafkaConsumerPollFilter()])
+    # disable backoff because it makes these tests less reliable
+    if not config._trace_writer_native:
         previous_backoff = ddtracer._span_aggregator.writer._send_payload_with_backoff
-        ddtracer.writer._write_payload_with_backoff = mock.MagicMock()
-        ddtracer._span_aggregator.writer._send_payload_with_backoff = mock.MagicMock()
-        with override_config("kafka", {"service": "tracer-tests"}):
-            yield tracer
+        ddtracer._span_aggregator.writer._send_payload_with_backoff = ddtracer._span_aggregator.writer._send_payload
+    try:
+        yield ddtracer
     finally:
-        # restore original writer
-        ddtracer.writer = previous_writer
-        if ddtracer._span_aggregator:
+        ddtracer.flush()
+        if not config._trace_writer_native:
             ddtracer._span_aggregator.writer._send_payload_with_backoff = previous_backoff
         unpatch()
 
@@ -153,17 +145,8 @@ def non_auto_commit_consumer(tracer, kafka_topic):
 
 @pytest.fixture
 def serializing_producer(tracer):
-    # Create a Serializing Producer instance using string avro serialization
-    def string_serializer(string, ctx):
-        if string is None:
-            return None
-        return string.encode("utf-8")
-
     _producer = confluent_kafka.SerializingProducer(
-        {
-            "bootstrap.servers": BOOTSTRAP_SERVERS,
-            "value.serializer": string_serializer,
-        }
+        {"bootstrap.servers": BOOTSTRAP_SERVERS, "value.serializer": lambda x, y: x}
     )
     Pin._override(_producer, tracer=tracer)
     return _producer
@@ -171,24 +154,14 @@ def serializing_producer(tracer):
 
 @pytest.fixture
 def deserializing_consumer(tracer, kafka_topic):
-    # Create a Deserializing Consumer instance using string avro deserialization
-    def string_deserializer(value, ctx):
-        if value is None:
-            return None
-        return value.decode("utf-8")
-
     _consumer = confluent_kafka.DeserializingConsumer(
         {
             "bootstrap.servers": BOOTSTRAP_SERVERS,
             "group.id": GROUP_ID,
             "auto.offset.reset": "earliest",
-            "value.deserializer": string_deserializer,
+            "value.deserializer": lambda x, y: x,
         }
     )
-
-    tp = TopicPartition(kafka_topic, 0)
-    tp.offset = 0  # we want to read the first message
-    _consumer.commit(offsets=[tp])
     Pin._override(_consumer, tracer=tracer)
     _consumer.subscribe([kafka_topic])
     yield _consumer
@@ -197,26 +170,49 @@ def deserializing_consumer(tracer, kafka_topic):
 
 @pytest.fixture
 def dummy_tracer():
-    tracer = DummyTracer()
     patch()
-    pin = Pin.override(confluent_kafka.Consumer, tracer=tracer)
-    pin.override(confluent_kafka.Producer, tracer=tracer)
-    yield tracer
+    t = DummyTracer()
+    # disable backoff because it makes these tests less reliable
+    if not config._trace_writer_native:
+        t._span_aggregator.writer._send_payload_with_backoff = t._span_aggregator.writer._send_payload
+    yield t
     unpatch()
 
 
-@pytest.fixture
-def kafka_topic():
-    topic_name = get_topic_name("ddtrace_kafka_test_topic")
-    create_topic(topic_name)
-    return topic_name
+@pytest.fixture()
+def kafka_topic(request):
+    # todo: add a UUID, but it makes snapshot tests fail.
+    topic_name = get_original_test_name(request).replace("[", "_").replace("]", "")
+
+    client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
+    for _, future in client.create_topics([kafka_admin.NewTopic(topic_name, 1, 1)]).items():
+        try:
+            future.result()
+        except KafkaException:
+            pass  # The topic likely already exists
+    yield topic_name
 
 
-@pytest.fixture
-def empty_kafka_topic():
-    topic_name = get_topic_name("ddtrace_kafka_empty_topic")
-    create_topic(topic_name)
-    return topic_name
+@pytest.fixture()
+def empty_kafka_topic(request):
+    """
+    Deletes a kafka topic to clear message if it exists.
+    """
+    topic_name = get_original_test_name(request).replace("[", "_").replace("]", "")
+    client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
+    for _, future in client.delete_topics([topic_name]).items():
+        try:
+            future.result()
+        except KafkaException:
+            pass  # The topic likely already doesn't exist
+
+    client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
+    for _, future in client.create_topics([kafka_admin.NewTopic(topic_name, 1, 1)]).items():
+        try:
+            future.result()
+        except KafkaException:
+            pass  # The topic likely already exists
+    yield topic_name
 
 
 # DSM Tests
