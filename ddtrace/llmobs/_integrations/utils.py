@@ -768,11 +768,6 @@ def openai_get_metadata_from_response(
         if value is not None:
             metadata[field] = load_data_value(value)
 
-    usage = getattr(response, "usage", None)
-    output_tokens_details = getattr(usage, "output_tokens_details", None)
-    reasoning_tokens = getattr(output_tokens_details, "reasoning_tokens", 0)
-    metadata["reasoning_tokens"] = reasoning_tokens
-
     return metadata
 
 
@@ -1181,6 +1176,13 @@ class OaiSpanAdapter:
                 metrics["output_tokens"] = usage.output_tokens
             if hasattr(usage, "total_tokens"):
                 metrics["total_tokens"] = usage.total_tokens
+            # Chat completion returns `completion_tokens_details` while responses api returns `output_tokens_details`
+            reasoning_output_tokens_details = _get_attr(usage, "completion_tokens_details", {}) or _get_attr(
+                usage, "output_tokens_details", {}
+            )
+            reasoning_output_tokens = _get_attr(reasoning_output_tokens_details, "reasoning_tokens", None)
+            if reasoning_output_tokens is not None:
+                metrics["reasoning_output_tokens"] = reasoning_output_tokens
 
         return metrics if metrics else None
 
@@ -1201,9 +1203,6 @@ class OaiSpanAdapter:
 
             if hasattr(self.response, "text") and self.response.text:
                 metadata["text"] = load_data_value(self.response.text)
-
-            if hasattr(self.response, "usage") and hasattr(self.response.usage, "output_tokens_details"):
-                metadata["reasoning_tokens"] = self.response.usage.output_tokens_details.reasoning_tokens
 
         if self.span_type == "custom" and hasattr(self._raw_oai_span.span_data, "data"):
             custom_data = getattr(self._raw_oai_span.span_data, "data", None)
