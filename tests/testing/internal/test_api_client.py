@@ -13,6 +13,7 @@ from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.http import FileAttachment
+from ddtrace.testing.internal.logging import testing_logger
 from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.telemetry import ErrorType
 from ddtrace.testing.internal.test_data import ITRSkippingLevel
@@ -20,6 +21,13 @@ from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
 from tests.testing.mocks import mock_backend_connector
+
+
+@pytest.fixture(scope="module", autouse=True)
+def override_testing_logger():
+    # This is needed for the caplog fixture to work correctly, if previous tests have caused
+    # `ddtrace.testing.internal.logging.setup_logging()` to be called.
+    testing_logger.propagate = True
 
 
 class TestAPIClientGetSettings:
