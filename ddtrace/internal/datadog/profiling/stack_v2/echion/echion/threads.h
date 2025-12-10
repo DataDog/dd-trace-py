@@ -32,16 +32,6 @@
 #include <echion/tasks.h>
 #include <echion/timing.h>
 
-#if PY_VERSION_HEX >= 0x030e0000
-// Note: _PythreadStateImpl was introduced in Python 3.13. Every PyThreadState
-// is actually allocated as a _PyThreadStateImpl.
-// Python 3.14+: Use _PyThreadStateImpl to access asyncio_tasks_head directly
-using ThreadStateType = _PyThreadStateImpl;
-#else
-// Pre-Python 3.14: Use PyThreadState (no asyncio_tasks_head field)
-using ThreadStateType = PyThreadState;
-#endif
-
 class ThreadInfo
 {
   public:
@@ -60,12 +50,13 @@ class ThreadInfo
     microsecond_t cpu_time;
 
     uintptr_t asyncio_loop = 0;
+    uintptr_t tstate_addr = 0; // Remote address of PyThreadState for accessing asyncio_tasks_head
 
     [[nodiscard]] Result<void> update_cpu_time();
     bool is_running();
 
-    [[nodiscard]] Result<void> sample(int64_t, ThreadStateType*, microsecond_t);
-    void unwind(ThreadStateType*);
+    [[nodiscard]] Result<void> sample(int64_t, PyThreadState*, microsecond_t);
+    void unwind(PyThreadState*);
 
     // ------------------------------------------------------------------------
 #if defined PL_LINUX
@@ -115,8 +106,15 @@ class ThreadInfo
     };
 
   private:
-    [[nodiscard]] Result<void> unwind_tasks(ThreadStateType*);
+    [[nodiscard]] Result<void> unwind_tasks(PyThreadState*);
     void unwind_greenlets(PyThreadState*, unsigned long);
+    [[nodiscard]] Result<std::vector<TaskInfo::Ptr>> get_all_tasks(PyThreadState* tstate);
+#if PY_VERSION_HEX >= 0x030e0000
+    [[nodiscard]] Result<void> get_tasks_from_thread_linked_list(std::vector<TaskInfo::Ptr>& tasks);
+    [[nodiscard]] Result<void> get_tasks_from_interpreter_linked_list(PyThreadState* tstate,
+                                                                      std::vector<TaskInfo::Ptr>& tasks);
+    [[nodiscard]] Result<void> get_tasks_from_linked_list(uintptr_t head_addr, std::vector<TaskInfo::Ptr>& tasks);
+#endif
 };
 
 inline Result<void>
@@ -200,15 +198,13 @@ inline std::mutex thread_info_map_lock;
 
 // ----------------------------------------------------------------------------
 inline void
-ThreadInfo::unwind(ThreadStateType* tstate_ptr)
+ThreadInfo::unwind(PyThreadState* tstate)
 {
-    PyThreadState* tstate = reinterpret_cast<PyThreadState*>(tstate_ptr);
-
     unwind_python_stack(tstate);
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
         // We cast it to void to ignore failures.
-        (void)unwind_tasks(tstate_ptr);
+        (void)unwind_tasks(tstate);
     }
 
     // We make the assumption that gevent and asyncio are not mixed
@@ -219,7 +215,7 @@ ThreadInfo::unwind(ThreadStateType* tstate_ptr)
 
 // ----------------------------------------------------------------------------
 inline Result<void>
-ThreadInfo::unwind_tasks(ThreadStateType* tstate_ptr)
+ThreadInfo::unwind_tasks(PyThreadState* tstate)
 {
     std::vector<TaskInfo::Ref> leaf_tasks;
     std::unordered_set<PyObject*> parent_tasks;
@@ -227,7 +223,7 @@ ThreadInfo::unwind_tasks(ThreadStateType* tstate_ptr)
     std::unordered_map<PyObject*, TaskInfo::Ref> origin_map; // Indexed by task origin
     static std::unordered_set<PyObject*> previous_task_objects;
 
-    auto maybe_all_tasks = get_all_tasks(reinterpret_cast<PyObject*>(asyncio_loop), tstate_ptr);
+    auto maybe_all_tasks = get_all_tasks(tstate);
     if (!maybe_all_tasks) {
         return ErrorKind::TaskInfoError;
     }
@@ -343,6 +339,235 @@ ThreadInfo::unwind_tasks(ThreadStateType* tstate_ptr)
 }
 
 // ----------------------------------------------------------------------------
+#if PY_VERSION_HEX >= 0x030e0000
+inline Result<void>
+ThreadInfo::get_tasks_from_thread_linked_list(std::vector<TaskInfo::Ptr>& tasks)
+{
+    if (this->tstate_addr == 0 || this->asyncio_loop == 0) {
+        return ErrorKind::TaskInfoError;
+    }
+
+    // Calculate thread state's asyncio_tasks_head remote address
+    // Note: Since 3.13+, every PyThreadState is actually allocated as a _PyThreadStateImpl.
+    // We use PyThreadState* everywhere and cast to _PyThreadStateImpl* only when we need
+    // to access asyncio_tasks_head (which is only available in Python 3.14+).
+    // Since tstate_addr is a remote address, we calculate the offset and add it to the address.
+    // get_tasks_from_linked_list will handle copying the head node from remote memory internally.
+    constexpr size_t asyncio_tasks_head_offset = offsetof(_PyThreadStateImpl, asyncio_tasks_head);
+    uintptr_t head_addr = this->tstate_addr + asyncio_tasks_head_offset;
+
+    return get_tasks_from_linked_list(head_addr, tasks);
+}
+
+inline Result<void>
+ThreadInfo::get_tasks_from_interpreter_linked_list(PyThreadState* tstate, std::vector<TaskInfo::Ptr>& tasks)
+{
+    if (tstate == nullptr || tstate->interp == nullptr || this->asyncio_loop == 0) {
+        return ErrorKind::TaskInfoError;
+    }
+
+    constexpr size_t asyncio_tasks_head_offset = offsetof(PyInterpreterState, asyncio_tasks_head);
+    uintptr_t head_addr = reinterpret_cast<uintptr_t>(tstate->interp) + asyncio_tasks_head_offset;
+
+    return get_tasks_from_linked_list(head_addr, tasks);
+}
+
+inline Result<void>
+ThreadInfo::get_tasks_from_linked_list(uintptr_t head_addr, std::vector<TaskInfo::Ptr>& tasks)
+{
+    if (head_addr == 0 || this->asyncio_loop == 0) {
+        return ErrorKind::TaskInfoError;
+    }
+
+    // Copy head node struct from remote memory to local memory
+    struct llist_node head_node_local;
+    if (copy_type(reinterpret_cast<void*>(head_addr), head_node_local)) {
+        return ErrorKind::TaskInfoError;
+    }
+
+    // Check if list is empty (head points to itself in circular list)
+    uintptr_t head_addr_uint = head_addr;
+    uintptr_t next_as_uint = reinterpret_cast<uintptr_t>(head_node_local.next);
+    uintptr_t prev_as_uint = reinterpret_cast<uintptr_t>(head_node_local.prev);
+    if (next_as_uint == head_addr_uint && prev_as_uint == head_addr_uint) {
+        return Result<void>::ok();
+    }
+
+    struct llist_node current_node = head_node_local; // Start with head node
+    uintptr_t current_node_addr = head_addr;          // Address of current node
+
+    // Copied from CPython's _remote_debugging_module.c: MAX_ITERATIONS
+    const size_t MAX_ITERATIONS = 1 << 16;
+    size_t iteration_count = 0;
+
+    // Iterate over linked-list. The linked list is circular, so we stop
+    // when we're back at head.
+    while (reinterpret_cast<uintptr_t>(current_node.next) != head_addr_uint) {
+        // Safety: prevent infinite loops
+        if (++iteration_count > MAX_ITERATIONS) {
+            return ErrorKind::TaskInfoError;
+        }
+
+        if (current_node.next == nullptr) {
+            return ErrorKind::TaskInfoError; // nullptr pointer - invalid list
+        }
+
+        uintptr_t next_node_addr = reinterpret_cast<uintptr_t>(current_node.next);
+
+        // Calculate task_addr from current_node.next
+        size_t task_node_offset_val = offsetof(TaskObj, task_node);
+        uintptr_t task_addr_uint = next_node_addr - task_node_offset_val;
+
+        // Create TaskInfo for the task
+        auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_addr_uint));
+        if (maybe_task_info) {
+            auto& task_info = *maybe_task_info;
+            if (task_info->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
+                tasks.push_back(std::move(task_info));
+            }
+        }
+
+        // Read next node from current_node.next into current_node
+        if (copy_type(reinterpret_cast<void*>(next_node_addr), current_node)) {
+            return ErrorKind::TaskInfoError; // Failed to read next node
+        }
+        current_node_addr = next_node_addr; // Update address for next iteration
+    }
+
+    return Result<void>::ok();
+}
+
+inline Result<std::vector<TaskInfo::Ptr>>
+ThreadInfo::get_all_tasks(PyThreadState* tstate)
+{
+    std::vector<TaskInfo::Ptr> tasks;
+    if (this->asyncio_loop == 0)
+        return tasks;
+
+    // Python 3.14+: Native tasks are in linked-list per thread AND per interpreter
+    // CPython iterates over both:
+    // 1. Per-thread list: tstate->asyncio_tasks_head (active tasks)
+    // 2. Per-interpreter list: interp->asyncio_tasks_head (lingering tasks)
+    // First, get tasks from this thread's linked-list (if tstate_addr is set)
+    // Note: We continue processing even if one source fails to maximize partial results
+    if (tstate != nullptr && this->tstate_addr != 0) {
+        (void)get_tasks_from_thread_linked_list(tasks);
+
+        // Second, get tasks from interpreter's linked-list (lingering tasks)
+        (void)get_tasks_from_interpreter_linked_list(tstate, tasks);
+    }
+
+    // Handle third-party tasks from Python _scheduled_tasks WeakSet
+    // In Python 3.14+, _scheduled_tasks is a Python-level weakref.WeakSet() that only contains
+    // tasks that don't inherit from asyncio.Task. Native asyncio.Task instances are stored
+    // in linked-lists (handled above) and are NOT added to _scheduled_tasks.
+    // This is typically empty in practice, but we handle it for completeness.
+    if (asyncio_scheduled_tasks != nullptr) {
+        if (auto maybe_scheduled_tasks_set = MirrorSet::create(asyncio_scheduled_tasks)) {
+            auto scheduled_tasks_set = std::move(*maybe_scheduled_tasks_set);
+            if (auto maybe_scheduled_tasks = scheduled_tasks_set.as_unordered_set()) {
+                auto scheduled_tasks = std::move(*maybe_scheduled_tasks);
+                for (auto task_addr : scheduled_tasks) {
+                    // In WeakSet.data (set), elements are the Task objects themselves
+                    auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_addr));
+                    if (maybe_task_info &&
+                        (*maybe_task_info)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
+                        tasks.push_back(std::move(*maybe_task_info));
+                    }
+                }
+            }
+        }
+    }
+
+    if (asyncio_eager_tasks != NULL) {
+        auto maybe_eager_tasks_set = MirrorSet::create(asyncio_eager_tasks);
+        if (!maybe_eager_tasks_set) {
+            return ErrorKind::TaskInfoError;
+        }
+
+        auto eager_tasks_set = std::move(*maybe_eager_tasks_set);
+
+        auto maybe_eager_tasks = eager_tasks_set.as_unordered_set();
+        if (!maybe_eager_tasks) {
+            return ErrorKind::TaskInfoError;
+        }
+
+        auto eager_tasks = std::move(*maybe_eager_tasks);
+        for (auto task_addr : eager_tasks) {
+            auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_addr));
+            if (maybe_task_info) {
+                if ((*maybe_task_info)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
+                    tasks.push_back(std::move(*maybe_task_info));
+                }
+            }
+        }
+    }
+
+    return tasks;
+}
+#else
+// Pre-Python 3.14: get_all_tasks uses WeakSet approach
+inline Result<std::vector<TaskInfo::Ptr>>
+ThreadInfo::get_all_tasks(PyThreadState*)
+{
+    std::vector<TaskInfo::Ptr> tasks;
+    if (this->asyncio_loop == 0)
+        return tasks;
+
+    auto maybe_scheduled_tasks_set = MirrorSet::create(asyncio_scheduled_tasks);
+    if (!maybe_scheduled_tasks_set) {
+        return ErrorKind::TaskInfoError;
+    }
+
+    auto scheduled_tasks_set = std::move(*maybe_scheduled_tasks_set);
+    auto maybe_scheduled_tasks = scheduled_tasks_set.as_unordered_set();
+    if (!maybe_scheduled_tasks) {
+        return ErrorKind::TaskInfoError;
+    }
+
+    auto scheduled_tasks = std::move(*maybe_scheduled_tasks);
+    for (auto task_wr_addr : scheduled_tasks) {
+        PyWeakReference task_wr;
+        if (copy_type(task_wr_addr, task_wr))
+            continue;
+
+        auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_wr.wr_object));
+        if (maybe_task_info) {
+            if ((*maybe_task_info)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
+                tasks.push_back(std::move(*maybe_task_info));
+            }
+        }
+    }
+
+    if (asyncio_eager_tasks != NULL) {
+        auto maybe_eager_tasks_set = MirrorSet::create(asyncio_eager_tasks);
+        if (!maybe_eager_tasks_set) {
+            return ErrorKind::TaskInfoError;
+        }
+
+        auto eager_tasks_set = std::move(*maybe_eager_tasks_set);
+
+        auto maybe_eager_tasks = eager_tasks_set.as_unordered_set();
+        if (!maybe_eager_tasks) {
+            return ErrorKind::TaskInfoError;
+        }
+
+        auto eager_tasks = std::move(*maybe_eager_tasks);
+        for (auto task_addr : eager_tasks) {
+            auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_addr));
+            if (maybe_task_info) {
+                if ((*maybe_task_info)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
+                    tasks.push_back(std::move(*maybe_task_info));
+                }
+            }
+        }
+    }
+
+    return tasks;
+}
+#endif // PY_VERSION_HEX >= 0x030e0000
+
+// ----------------------------------------------------------------------------
 inline void
 ThreadInfo::unwind_greenlets(PyThreadState* tstate, unsigned long cur_native_id)
 {
@@ -408,10 +633,8 @@ ThreadInfo::unwind_greenlets(PyThreadState* tstate, unsigned long cur_native_id)
 
 // ----------------------------------------------------------------------------
 inline Result<void>
-ThreadInfo::sample(int64_t iid, ThreadStateType* tstate_ptr, microsecond_t delta)
+ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
 {
-    PyThreadState* tstate = reinterpret_cast<PyThreadState*>(tstate_ptr);
-
     Renderer::get().render_thread_begin(tstate, name, delta, thread_id, native_id);
 
     microsecond_t previous_cpu_time = cpu_time;
@@ -424,7 +647,7 @@ ThreadInfo::sample(int64_t iid, ThreadStateType* tstate_ptr, microsecond_t delta
 
     Renderer::get().render_cpu_time(thread_is_running ? cpu_time - previous_cpu_time : 0);
 
-    this->unwind(tstate_ptr);
+    this->unwind(tstate);
 
     // Render in this order of priority
     // 1. asyncio Tasks stacks (if any)
@@ -484,14 +707,10 @@ ThreadInfo::sample(int64_t iid, ThreadStateType* tstate_ptr, microsecond_t delta
 }
 
 // ----------------------------------------------------------------------------
-#if PY_VERSION_HEX >= 0x030e0000
-using ThreadStateCallback = std::function<void(_PyThreadStateImpl*, microsecond_t, ThreadInfo&)>;
-#else
-using ThreadStateCallback = std::function<void(PyThreadState*, microsecond_t, ThreadInfo&)>;
-#endif
+using PyThreadStateCallback = std::function<void(PyThreadState*, microsecond_t, ThreadInfo&)>;
 
 static void
-for_each_thread(InterpreterInfo& interp, microsecond_t delta, ThreadStateCallback callback)
+for_each_thread(InterpreterInfo& interp, microsecond_t delta, PyThreadStateCallback callback)
 {
     std::unordered_set<PyThreadState*> threads;
     std::unordered_set<PyThreadState*> seen_threads;
@@ -512,32 +731,20 @@ for_each_thread(InterpreterInfo& interp, microsecond_t delta, ThreadStateCallbac
 
         // Since threads can be created and destroyed at any time, we make
         // a copy of the structure before trying to read its fields.
-#if PY_VERSION_HEX >= 0x030e0000
-        // For Python 3.14+, copy _PyThreadStateImpl (which contains PyThreadState as first field)
-        // so we can access asyncio_tasks_head directly without offset calculations.
-        ThreadStateType tstate_copy;
-        if (copy_type(reinterpret_cast<ThreadStateType*>(tstate_addr), tstate_copy))
+        PyThreadState tstate;
+        if (copy_type(tstate_addr, tstate))
             continue;
-        // Access PyThreadState fields via the first field of _PyThreadStateImpl
-        PyThreadState* tstate = reinterpret_cast<PyThreadState*>(&tstate_copy);
-#else
-        // Pre-Python 3.14: copy PyThreadState directly
-        ThreadStateType tstate_copy;
-        if (copy_type(tstate_addr, tstate_copy))
-            continue;
-        PyThreadState* tstate = &tstate_copy;
-#endif
 
         // Enqueue the unseen threads that we can reach from this thread.
-        if (tstate->next != NULL && seen_threads.find(tstate->next) == seen_threads.end())
-            threads.insert(tstate->next);
-        if (tstate->prev != NULL && seen_threads.find(tstate->prev) == seen_threads.end())
-            threads.insert(tstate->prev);
+        if (tstate.next != NULL && seen_threads.find(tstate.next) == seen_threads.end())
+            threads.insert(tstate.next);
+        if (tstate.prev != NULL && seen_threads.find(tstate.prev) == seen_threads.end())
+            threads.insert(tstate.prev);
 
         {
             const std::lock_guard<std::mutex> guard(thread_info_map_lock);
 
-            if (thread_info_map.find(tstate->thread_id) == thread_info_map.end()) {
+            if (thread_info_map.find(tstate.thread_id) == thread_info_map.end()) {
                 // If the threading module was not imported in the target then
                 // we mistakenly take the hypno thread as the main thread. We
                 // assume that any missing thread is the actual main thread,
@@ -545,7 +752,7 @@ for_each_thread(InterpreterInfo& interp, microsecond_t delta, ThreadStateCallbac
                 // "MainThread". Note that this can also happen on shutdown, so
                 // we need to avoid doing anything in that case.
 #if PY_VERSION_HEX >= 0x030b0000
-                auto native_id = tstate->native_thread_id;
+                auto native_id = tstate.native_thread_id;
 #else
                 auto native_id = getpid();
 #endif
@@ -559,7 +766,7 @@ for_each_thread(InterpreterInfo& interp, microsecond_t delta, ThreadStateCallbac
                 if (main_thread_tracked)
                     continue;
 
-                auto maybe_thread_info = ThreadInfo::create(tstate->thread_id, native_id, "MainThread");
+                auto maybe_thread_info = ThreadInfo::create(tstate.thread_id, native_id, "MainThread");
                 if (!maybe_thread_info) {
                     // We failed to create the thread info object so we skip it.
                     // We'll likely try again later with the valid thread
@@ -567,11 +774,17 @@ for_each_thread(InterpreterInfo& interp, microsecond_t delta, ThreadStateCallbac
                     continue;
                 }
 
-                thread_info_map.emplace(tstate->thread_id, std::move(*maybe_thread_info));
+                thread_info_map.emplace(tstate.thread_id, std::move(*maybe_thread_info));
             }
 
+            // Update the tstate_addr for thread info, so we can access
+            // asyncio_tasks_head field from `_PyThreadStateImpl` struct
+            // later when we unwind tasks.
+            auto thread_info = thread_info_map.find(tstate.thread_id)->second.get();
+            thread_info->tstate_addr = reinterpret_cast<uintptr_t>(tstate_addr);
+
             // Call back with the copied thread state
-            callback(&tstate_copy, delta, *thread_info_map.find(tstate->thread_id)->second);
+            callback(&tstate, delta, *thread_info);
         }
     }
 }

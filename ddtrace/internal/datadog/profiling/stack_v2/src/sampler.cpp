@@ -167,14 +167,12 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
         // Perform the sample
         for_each_interp([&](InterpreterInfo& interp) -> void {
-            // Use ThreadStateType typedef which is _PyThreadStateImpl* for 3.14+ and PyThreadState* for pre-3.14
-            for_each_thread(
-              interp, wall_time_us, [&](ThreadStateType* tstate, microsecond_t delta, ThreadInfo& thread) {
-                  auto success = thread.sample(interp.id, tstate, delta);
-                  if (success) {
-                      ddup_increment_sample_count();
-                  }
-              });
+            for_each_thread(interp, wall_time_us, [&](PyThreadState* tstate, microsecond_t delta, ThreadInfo& thread) {
+                auto success = thread.sample(interp.id, tstate, delta);
+                if (success) {
+                    ddup_increment_sample_count();
+                }
+            });
         });
 
         ddup_increment_sampling_event_count();
