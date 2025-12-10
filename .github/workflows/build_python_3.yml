@@ -65,7 +65,7 @@ jobs:
           MATRIX_INCLUDE=$(
             {
               cibuildwheel --print-build-identifiers --platform windows --archs AMD64,x86 | jq -cR '{only: ., os: "windows-latest"}' \
-              && cibuildwheel --print-build-identifiers --platform windows --archs ARM64    | jq -cR '{only: ., os: "windows-11-arm"}' \
+              && cibuildwheel --print-build-identifiers --platform windows --archs ARM64    | jq -cR '{only: ., os: "windows-11-arm"}'
             } | jq -sc
           )
           echo $MATRIX_INCLUDE
