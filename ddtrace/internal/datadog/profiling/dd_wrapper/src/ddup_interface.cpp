@@ -338,6 +338,13 @@ ddup_set_profile_end() // cppcheck-suppress unusedFunction
 }
 
 void
+ddup_set_sampling_interval_us(size_t interval_us) // cppcheck-suppress unusedFunction
+{
+    auto borrowed = Datadog::Sample::profile_borrow();
+    borrowed.stats().set_sampling_interval_us(interval_us);
+}
+
+void
 ddup_flush_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
 {
     sample->flush_sample();

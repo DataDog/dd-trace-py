@@ -73,6 +73,7 @@ extern "C"
     void ddup_increment_sample_count();
     void ddup_set_profile_start_if_unset();
     void ddup_set_profile_end();
+    void ddup_set_sampling_interval_us(size_t interval_us);
 
     void ddup_flush_sample(Datadog::Sample* sample);
     // Stack v2 specific flush, which reverses the locations

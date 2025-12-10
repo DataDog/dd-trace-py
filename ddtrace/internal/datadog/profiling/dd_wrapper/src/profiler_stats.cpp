@@ -45,6 +45,7 @@ Datadog::ProfilerStats::reset_state()
     sampling_event_count = 0;
     profile_start = std::nullopt;
     profile_end = std::nullopt;
+    sampling_interval_us = std::nullopt;
 }
 
 void
@@ -71,6 +72,18 @@ Datadog::ProfilerStats::get_profile_duration()
     return std::nullopt;
 }
 
+void
+Datadog::ProfilerStats::set_sampling_interval_us(size_t interval_us)
+{
+    sampling_interval_us = interval_us;
+}
+
+std::optional<size_t>
+Datadog::ProfilerStats::get_sampling_interval_us()
+{
+    return sampling_interval_us;
+}
+
 std::string
 Datadog::ProfilerStats::get_internal_metadata_json()
 {
@@ -83,6 +96,13 @@ Datadog::ProfilerStats::get_internal_metadata_json()
     if (maybe_profile_duration) {
         internal_metadata_json += R"("profile_duration_ns": )";
         append_to_string(internal_metadata_json, maybe_profile_duration->count());
+        internal_metadata_json += ",";
+    }
+
+    auto maybe_sampling_interval = get_sampling_interval_us();
+    if (maybe_sampling_interval) {
+        internal_metadata_json += R"("sampling_interval_us": )";
+        append_to_string(internal_metadata_json, *maybe_sampling_interval);
         internal_metadata_json += ",";
     }
 

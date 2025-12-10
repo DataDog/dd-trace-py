@@ -137,6 +137,7 @@ Sampler::adapt_sampling_interval()
     }
 
     sample_interval_us.store(new_interval);
+    ddup_set_sampling_interval_us(new_interval);
 
     // Update the counters for the next iteration
     process_count = new_process_count;
@@ -205,6 +206,7 @@ Sampler::set_interval(double new_interval_s)
 {
     microsecond_t new_interval_us = static_cast<microsecond_t>(new_interval_s * 1e6);
     sample_interval_us.store(new_interval_us);
+    ddup_set_sampling_interval_us(new_interval_us);
 }
 
 Sampler::Sampler()
