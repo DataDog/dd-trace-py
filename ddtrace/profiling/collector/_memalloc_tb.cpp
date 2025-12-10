@@ -252,7 +252,7 @@ push_pyframe_to_sample(Datadog::Sample& sample, PyFrameObject* frame)
     if (lineno_val < 0)
         lineno_val = 0;
 
-    // Get code object
+        // Get code object
 #ifdef _PY39_AND_LATER
     PyCodeObject* code = PyFrame_GetCode(frame);
 #else
