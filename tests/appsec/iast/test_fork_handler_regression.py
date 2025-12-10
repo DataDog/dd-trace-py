@@ -254,6 +254,7 @@ def test_fork_with_os_fork_no_segfault(iast_context_defaults):
         _end_iast_context_and_oce()
 
 
+@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="APPSEC-59493: Test not compatible with Python 3.8")
 def test_fork_handler_clears_state(iast_context_defaults):
     """
     Verify that the fork handler disables IAST and clears state.
@@ -351,6 +352,7 @@ def test_eval_in_forked_process(iast_context_defaults):
         multiprocessing.set_start_method(original_start_method, force=True)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="APPSEC-59493: Test not compatible with Python 3.8")
 def test_early_fork_keeps_iast_enabled():
     """
     Test that early forks (web workers) keep IAST enabled.
