@@ -803,10 +803,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._max_payload_size = max_payload_size
         self._test_session_token = test_session_token
 
-        fork_hook = make_weak_method_hook(self.before_fork)
+        try:
+            fork_hook = make_weak_method_hook(self.before_fork)
+            forksafe.register_before_fork(fork_hook)
+            self._fork_hook = fork_hook
+        except TypeError:
+            log.warning("Failed to register NativeWriter fork hook")
 
-        forksafe.register_before_fork(fork_hook)
-        self._fork_hook = fork_hook
 
         self._clients = [client]
         self.dogstatsd = dogstatsd
