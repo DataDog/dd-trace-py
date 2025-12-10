@@ -456,7 +456,7 @@ class BackendConnectorMockBuilder:
         mock_connector = Mock()
 
         # Mock methods to prevent real HTTP calls
-        def mock_post_json(endpoint: str, data: t.Any) -> t.Tuple[Mock, t.Any]:
+        def mock_post_json(endpoint: str, data: t.Any, telemetry: t.Any = None) -> t.Tuple[Mock, t.Any]:
             if endpoint in self._post_json_responses:
                 return BackendResult(response=Mock(status=200), parsed_response=self._post_json_responses[endpoint])
             return self._make_404_response()
