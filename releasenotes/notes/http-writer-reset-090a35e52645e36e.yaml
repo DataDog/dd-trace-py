@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Tracing, CI Visibility: Ensure the http connection is correctly reset when ``Response.from_http_response`` raises an exception.
+    Tracing, CI Visibility: Ensure the http connection is correctly reset in all error scenarios.
