@@ -209,6 +209,7 @@ ThreadInfo::unwind_tasks()
     std::unordered_set<PyObject*> parent_tasks;
     std::unordered_map<PyObject*, TaskInfo::Ref> waitee_map; // Indexed by task origin
     std::unordered_map<PyObject*, TaskInfo::Ref> origin_map; // Indexed by task origin
+    static std::unordered_set<PyObject*> previous_task_objects;
 
     auto maybe_all_tasks = get_all_tasks(reinterpret_cast<PyObject*>(asyncio_loop));
     if (!maybe_all_tasks) {
@@ -232,14 +233,25 @@ ThreadInfo::unwind_tasks()
             if (all_task_origins.find(kv.first) == all_task_origins.end())
                 to_remove.push_back(kv.first);
         }
-        for (auto key : to_remove)
-            task_link_map.erase(key);
+        for (auto key : to_remove) {
+            // Only remove the link if the Child Task previously existed; otherwise it's a Task that
+            // has just been created and that wasn't in all_tasks when we took the snapshot.
+            if (previous_task_objects.find(key) != previous_task_objects.end()) {
+                task_link_map.erase(key);
+            }
+        }
 
         // Determine the parent tasks from the gather links.
         std::transform(task_link_map.cbegin(),
                        task_link_map.cend(),
                        std::inserter(parent_tasks, parent_tasks.begin()),
                        [](const std::pair<PyObject*, PyObject*>& kv) { return kv.second; });
+
+        // Copy all Task object pointers into previous_task_objects
+        previous_task_objects.clear();
+        for (const auto& task : all_tasks) {
+            previous_task_objects.insert(task->origin);
+        }
     }
 
     for (auto& task : all_tasks) {
@@ -253,15 +265,14 @@ ThreadInfo::unwind_tasks()
     }
 
     for (auto& leaf_task : leaf_tasks) {
-        bool on_cpu = leaf_task.get().coro->is_running;
-        auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, on_cpu);
+        auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu);
         auto& stack = stack_info->stack;
         for (auto current_task = leaf_task;;) {
             auto& task = current_task.get();
 
             size_t stack_size = task.unwind(stack);
 
-            if (on_cpu) {
+            if (task.is_on_cpu) {
                 // Undo the stack unwinding
                 // TODO[perf]: not super-efficient :(
                 for (size_t i = 0; i < stack_size; i++)
@@ -395,23 +406,13 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
 
     Renderer::get().render_cpu_time(thread_is_running ? cpu_time - previous_cpu_time : 0);
 
-    unwind(tstate);
+    this->unwind(tstate);
 
-    // Asyncio tasks
-    if (current_tasks.empty()) {
-        // If we don't have any asyncio tasks, we check that we don't have any
-        // greenlets either. In this case, we print the ordinary thread stack.
-        // With greenlets, we recover the thread stack from the active greenlet,
-        // so if we don't skip here we would have a double print.
-        if (current_greenlets.empty()) {
-            // Print the PID and thread name
-            Renderer::get().render_stack_begin(pid, iid, name);
-            // Print the stack
-            python_stack.render();
-
-            Renderer::get().render_stack_end(MetricType::Time, delta);
-        }
-    } else {
+    // Render in this order of priority
+    // 1. asyncio Tasks stacks (if any)
+    // 2. Greenlets stacks (if any)
+    // 3. The normal thread stack (if no asyncio tasks or greenlets)
+    if (!current_tasks.empty()) {
         for (auto& task_stack_info : current_tasks) {
             auto maybe_task_name = string_table.lookup(task_stack_info->task_name);
             if (!maybe_task_name) {
@@ -428,10 +429,7 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
         }
 
         current_tasks.clear();
-    }
-
-    // Greenlet stacks
-    if (!current_greenlets.empty()) {
+    } else if (!current_greenlets.empty()) {
         for (auto& greenlet_stack : current_greenlets) {
             auto maybe_task_name = string_table.lookup(greenlet_stack->task_name);
             if (!maybe_task_name) {
@@ -449,6 +447,19 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
         }
 
         current_greenlets.clear();
+    } else {
+        // If we don't have any asyncio tasks, we check that we don't have any
+        // greenlets either. In this case, we print the ordinary thread stack.
+        // With greenlets, we recover the thread stack from the active greenlet,
+        // so if we don't skip here we would have a double print.
+        if (current_greenlets.empty()) {
+            // Print the PID and thread name
+            Renderer::get().render_stack_begin(pid, iid, name);
+            // Print the stack
+            python_stack.render();
+
+            Renderer::get().render_stack_end(MetricType::Time, delta);
+        }
     }
 
     return Result<void>::ok();

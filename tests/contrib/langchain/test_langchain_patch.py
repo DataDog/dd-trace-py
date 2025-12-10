@@ -17,6 +17,7 @@ class TestLangchainPatch(PatchTestCase.Base):
         from langchain_core.language_models.chat_models import BaseChatModel  # noqa: F401
         from langchain_core.language_models.llms import BaseLLM  # noqa: F401
         from langchain_core.prompts.base import BasePromptTemplate  # noqa: F401
+        from langchain_core.runnables.base import RunnableLambda  # noqa: F401
         from langchain_core.runnables.base import RunnableSequence  # noqa: F401
         from langchain_core.tools import BaseTool  # noqa: F401
         from langchain_core.vectorstores import VectorStore  # noqa: F401
@@ -29,6 +30,10 @@ class TestLangchainPatch(PatchTestCase.Base):
         self.assert_wrapped(langchain_core.runnables.base.RunnableSequence.ainvoke)
         self.assert_wrapped(langchain_core.runnables.base.RunnableSequence.batch)
         self.assert_wrapped(langchain_core.runnables.base.RunnableSequence.abatch)
+        self.assert_wrapped(langchain_core.runnables.base.RunnableLambda.invoke)
+        self.assert_wrapped(langchain_core.runnables.base.RunnableLambda.ainvoke)
+        self.assert_wrapped(langchain_core.runnables.base.RunnableLambda.batch)
+        self.assert_wrapped(langchain_core.runnables.base.RunnableLambda.abatch)
         self.assert_wrapped(langchain_core.embeddings.Embeddings.__init_subclass__)
         self.assert_wrapped(langchain_core.vectorstores.VectorStore.__init_subclass__)
 
@@ -38,6 +43,7 @@ class TestLangchainPatch(PatchTestCase.Base):
         from langchain_core.language_models.chat_models import BaseChatModel  # noqa: F401
         from langchain_core.language_models.llms import BaseLLM  # noqa: F401
         from langchain_core.prompts.base import BasePromptTemplate  # noqa: F401
+        from langchain_core.runnables.base import RunnableLambda  # noqa: F401
         from langchain_core.runnables.base import RunnableSequence  # noqa: F401
         from langchain_core.tools import BaseTool  # noqa: F401
         from langchain_core.vectorstores import VectorStore  # noqa: F401
@@ -50,6 +56,10 @@ class TestLangchainPatch(PatchTestCase.Base):
         self.assert_not_wrapped(langchain_core.runnables.base.RunnableSequence.ainvoke)
         self.assert_not_wrapped(langchain_core.runnables.base.RunnableSequence.batch)
         self.assert_not_wrapped(langchain_core.runnables.base.RunnableSequence.abatch)
+        self.assert_not_wrapped(langchain_core.runnables.base.RunnableLambda.invoke)
+        self.assert_not_wrapped(langchain_core.runnables.base.RunnableLambda.ainvoke)
+        self.assert_not_wrapped(langchain_core.runnables.base.RunnableLambda.batch)
+        self.assert_not_wrapped(langchain_core.runnables.base.RunnableLambda.abatch)
         self.assert_not_wrapped(langchain_core.embeddings.Embeddings.__init_subclass__)
         self.assert_not_wrapped(langchain_core.vectorstores.VectorStore.__init_subclass__)
 
@@ -59,6 +69,7 @@ class TestLangchainPatch(PatchTestCase.Base):
         from langchain_core.language_models.chat_models import BaseChatModel  # noqa: F401
         from langchain_core.language_models.llms import BaseLLM  # noqa: F401
         from langchain_core.prompts.base import BasePromptTemplate  # noqa: F401
+        from langchain_core.runnables.base import RunnableLambda  # noqa: F401
         from langchain_core.runnables.base import RunnableSequence  # noqa: F401
         from langchain_core.tools import BaseTool  # noqa: F401
         from langchain_core.vectorstores import VectorStore  # noqa: F401
@@ -71,5 +82,9 @@ class TestLangchainPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(langchain_core.runnables.base.RunnableSequence.ainvoke)
         self.assert_not_double_wrapped(langchain_core.runnables.base.RunnableSequence.batch)
         self.assert_not_double_wrapped(langchain_core.runnables.base.RunnableSequence.abatch)
+        self.assert_not_double_wrapped(langchain_core.runnables.base.RunnableLambda.invoke)
+        self.assert_not_double_wrapped(langchain_core.runnables.base.RunnableLambda.ainvoke)
+        self.assert_not_double_wrapped(langchain_core.runnables.base.RunnableLambda.batch)
+        self.assert_not_double_wrapped(langchain_core.runnables.base.RunnableLambda.abatch)
         self.assert_not_double_wrapped(langchain_core.embeddings.Embeddings.__init_subclass__)
         self.assert_not_double_wrapped(langchain_core.vectorstores.VectorStore.__init_subclass__)

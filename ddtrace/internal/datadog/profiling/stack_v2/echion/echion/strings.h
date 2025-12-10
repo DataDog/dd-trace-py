@@ -16,6 +16,8 @@
 #include <echion/render.h>
 #include <echion/vm.h>
 
+constexpr ssize_t MAX_STRING_SIZE = 1 << 20; // 1 MiB
+
 // ----------------------------------------------------------------------------
 static std::unique_ptr<unsigned char[]>
 pybytes_to_bytes_and_size(PyObject* bytes_addr, Py_ssize_t* size)
@@ -26,7 +28,7 @@ pybytes_to_bytes_and_size(PyObject* bytes_addr, Py_ssize_t* size)
         return nullptr;
 
     *size = bytes.ob_base.ob_size;
-    if (*size < 0 || *size > (1 << 20))
+    if (*size < 0 || *size > MAX_STRING_SIZE)
         return nullptr;
 
     auto data = std::make_unique<unsigned char[]>(*size);
@@ -137,12 +139,12 @@ class StringTable : public std::unordered_map<uintptr_t, std::string>
         return k;
     };
 
-    [[nodiscard]] inline Result<std::reference_wrapper<std::string>> lookup(Key key)
+    [[nodiscard]] inline Result<std::reference_wrapper<const std::string>> lookup(Key key) const
     {
         const std::lock_guard<std::mutex> lock(table_lock);
 
-        auto it = this->find(key);
-        if (it == this->end())
+        const auto it = this->find(key);
+        if (it == this->cend())
             return ErrorKind::LookupError;
 
         return std::ref(it->second);
@@ -157,7 +159,7 @@ class StringTable : public std::unordered_map<uintptr_t, std::string>
     };
 
   private:
-    std::mutex table_lock;
+    mutable std::mutex table_lock;
 };
 
 // We make this a reference to a heap-allocated object so that we can avoid

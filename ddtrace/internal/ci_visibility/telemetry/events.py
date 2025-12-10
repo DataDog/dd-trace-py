@@ -144,7 +144,7 @@ def record_event_created_test(
     if is_benchmark:
         tags.append(("is_benchmark", "true"))
 
-    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, EVENTS_TELEMETRY.FINISHED, 1, tuple(tags))
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, EVENTS_TELEMETRY.CREATED, 1, tuple(tags))
 
 
 def record_event_finished_test(

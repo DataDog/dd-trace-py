@@ -1,5 +1,4 @@
 import logging
-import sys
 
 import pytest
 
@@ -32,7 +31,6 @@ def test_string_error_key_error():
     assert "3" in str(excinfo.value)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 @pytest.mark.parametrize(
     "input_str, index_pos, expected_result, tainted",
     [
@@ -82,7 +80,6 @@ def test_dictionary_index():
     assert len(tainted_ranges) == 1
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 def test_index_error_with_tainted_gives_one_log_metric(telemetry_writer):
     string_input = taint_pyobject(
         pyobject="abcde",
@@ -98,7 +95,6 @@ def test_index_error_with_tainted_gives_one_log_metric(telemetry_writer):
 
 
 @pytest.mark.skip_iast_check_logs
-@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 def test_propagate_ranges_with_no_context(caplog):
     """Test taint_pyobject without context. This test is to ensure that the function does not raise an exception."""
     input_str = "abcde"
@@ -118,7 +114,6 @@ def test_propagate_ranges_with_no_context(caplog):
     assert not any("iast::" in message for message in log_messages), log_messages
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 def test_re_match_index_indexerror():
     regexp = r"(?P<username>\w+)@(?P<domain>\w+)\.(?P<tld>\w+)"
     input_str = "user@example.com"
@@ -154,7 +149,6 @@ def test_re_match_index_indexerror():
         ("cleanuser@example.com", "tld", False, "com"),
     ],
 )
-@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 def test_re_match_index(input_str, index, tainted, expected_result):
     regexp = r"(?P<username>\w+)@(?P<domain>\w+)\.(?P<tld>\w+)"
     if tainted:
@@ -171,7 +165,6 @@ def test_re_match_index(input_str, index, tainted, expected_result):
     assert len(get_tainted_ranges(result)) == int(tainted)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 def test_re_match_index_indexerror_bytes():
     regexp = rb"(?P<username>\w+)@(?P<domain>\w+)\.(?P<tld>\w+)"
     input_str = b"user@example.com"
@@ -207,7 +200,6 @@ def test_re_match_index_indexerror_bytes():
         (b"cleanuser@example.com", "tld", False, b"com"),
     ],
 )
-@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")
 def test_re_match_index_bytes(input_str, index, tainted, expected_result):
     regexp = rb"(?P<username>\w+)@(?P<domain>\w+)\.(?P<tld>\w+)"
     if tainted:

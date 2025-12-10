@@ -131,8 +131,7 @@ graph LR
 ## Code Origin for Spans
 
 Code Origin for Spans is a product that allows retrieving code origin
-information for exit and entry spans. The implementation for the two types of
-span is different.
+information for entry spans.
 
 For **entry** spans, we listen for the `service_entrypoint.patch` core event,
 which is emitted every time an integration is about to patch a service
@@ -141,20 +140,14 @@ the entrypoint is then instrumented with a wrapping context to allow the
 extraction of code origin information (pre-computed and cached for performance),
 as well as a snapshot, if required.
 
-For **exit** spans, we register a span processor that performs the required work
-when a span is created, provided the span kind is one that can be considered an
-exit span (e.g. HTTP, DB etc...).
-
 ```mermaid
 graph TD
     subgraph "Code Origin for Spans"
-        SP[SpanCodeOriginProcessor]
         WC[EntrySpanWrappingContext]
     end
 
     subgraph Tracer
         EN[Entry span]
-        EX[Exit span]
         I[Integration]
     end
 
@@ -168,9 +161,5 @@ graph TD
     WC -->|instrument code| IC
     IC -->|attach/capture entry information| EN
 
-    EX -->|on span creation| SP
-    SP -->|attach/capture exit information| EX
-
     WC -->|enqueue snapshots| U
-    SP -->|enqueue snapshots| U
 ```

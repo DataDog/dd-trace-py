@@ -26,8 +26,6 @@ def test_call_script():
 
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
 def test_call_script_gevent():
-    if sys.version_info[:2] == (3, 8):
-        pytest.skip("this test is flaky on 3.8 with stack v2")
     env = os.environ.copy()
     env["DD_PROFILING_ENABLED"] = "1"
     stdout, stderr, exitcode, pid = call_program(
