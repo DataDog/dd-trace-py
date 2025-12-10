@@ -8,7 +8,7 @@
 #define Py_BUILD_CORE
 
 #if PY_VERSION_HEX >= 0x030e0000
-#include <internal/pycore_tstate.h> // For _PyThreadStateImpl
+#include <internal/pycore_tstate.h>
 #endif
 
 #include <algorithm>

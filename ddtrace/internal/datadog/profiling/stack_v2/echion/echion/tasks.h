@@ -15,17 +15,17 @@
 #include <cpython/genobject.h>
 
 #define Py_BUILD_CORE
-#include <cstddef> // For offsetof macro
+#include <cstddef>
 #if PY_VERSION_HEX >= 0x030e0000
-#include <internal/pycore_frame.h>          // for FRAME_CLEARED, FRAME_EXECUTING
-#include <internal/pycore_interp_structs.h> // For PyInterpreterState
-#include <internal/pycore_llist.h>          // For llist_node structure
-#include <internal/pycore_tstate.h>         // For _PyThreadStateImpl
+#include <internal/pycore_frame.h>
+#include <internal/pycore_interp_structs.h>
+#include <internal/pycore_llist.h>
+#include <internal/pycore_tstate.h>
 #include <opcode.h>
 #elif PY_VERSION_HEX >= 0x030d0000
 #include <opcode.h>
 #else
-#include <internal/pycore_frame.h> // for FRAME_CLEARED, FRAME_EXECUTING
+#include <internal/pycore_frame.h>
 #include <internal/pycore_opcode.h>
 #endif // PY_VERSION_HEX >= 0x030d0000
 #else
