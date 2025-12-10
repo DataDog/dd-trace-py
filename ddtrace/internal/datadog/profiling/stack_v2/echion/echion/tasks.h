@@ -288,17 +288,17 @@ TaskInfo::current(PyObject* loop)
 // ----------------------------------------------------------------------------
 #if PY_VERSION_HEX >= 0x030e0000
 // Python 3.14+: Get tasks from a single thread's linked-list
-inline void
+[[nodiscard]] inline Result<void>
 get_tasks_from_linked_list(uintptr_t head_addr, PyObject* loop, std::vector<TaskInfo::Ptr>& tasks)
 {
     if (head_addr == 0 || loop == nullptr) {
-        return;
+        return ErrorKind::TaskInfoError;
     }
 
     // Copy head node struct from remote memory to local memory
     struct llist_node head_node_local;
     if (copy_type(reinterpret_cast<void*>(head_addr), head_node_local)) {
-        return;
+        return ErrorKind::TaskInfoError;
     }
 
     // Check if list is empty (head points to itself in circular list)
@@ -306,7 +306,7 @@ get_tasks_from_linked_list(uintptr_t head_addr, PyObject* loop, std::vector<Task
     uintptr_t next_as_uint = reinterpret_cast<uintptr_t>(head_node_local.next);
     uintptr_t prev_as_uint = reinterpret_cast<uintptr_t>(head_node_local.prev);
     if (next_as_uint == head_addr_uint && prev_as_uint == head_addr_uint) {
-        return;
+        return Result<void>::ok();
     }
 
     struct llist_node current_node = head_node_local; // Start with head node
@@ -321,11 +321,11 @@ get_tasks_from_linked_list(uintptr_t head_addr, PyObject* loop, std::vector<Task
     while (reinterpret_cast<uintptr_t>(current_node.next) != head_addr_uint) {
         // Safety: prevent infinite loops
         if (++iteration_count > MAX_ITERATIONS) {
-            return;
+            return ErrorKind::TaskInfoError;
         }
 
         if (current_node.next == nullptr) {
-            return; // nullptr pointer - invalid list
+            return ErrorKind::TaskInfoError; // nullptr pointer - invalid list
         }
 
         uintptr_t next_node_addr = reinterpret_cast<uintptr_t>(current_node.next);
@@ -345,46 +345,57 @@ get_tasks_from_linked_list(uintptr_t head_addr, PyObject* loop, std::vector<Task
 
         // Read next node from current_node.next into current_node
         if (copy_type(reinterpret_cast<void*>(next_node_addr), current_node)) {
-            return; // Failed to read next node
+            return ErrorKind::TaskInfoError; // Failed to read next node
         }
         current_node_addr = next_node_addr; // Update address for next iteration
     }
+
+    return Result<void>::ok();
 }
 
-inline void
+// Get tasks from thread's linked-list (for active tasks)
+// NOTE: This function uses an output parameter instead of returning Result<std::vector<TaskInfo::Ptr>>
+// for performance reasons. When accumulating tasks from multiple sources (thread list, interpreter list,
+// scheduled tasks), using output parameters allows direct appending to a single vector, avoiding the
+// overhead of moving/copying elements between intermediate vectors.
+[[nodiscard]] inline Result<void>
 get_tasks_from_thread_linked_list(_PyThreadStateImpl* tstate_impl, PyObject* loop, std::vector<TaskInfo::Ptr>& tasks)
 {
     if (tstate_impl == nullptr || loop == nullptr) {
-        return;
+        return ErrorKind::TaskInfoError;
     }
 
     uintptr_t head_addr = reinterpret_cast<uintptr_t>(&tstate_impl->asyncio_tasks_head);
 
-    get_tasks_from_linked_list(head_addr, loop, tasks);
+    return get_tasks_from_linked_list(head_addr, loop, tasks);
 }
 
 // Get tasks from interpreter's linked-list (for lingering tasks)
-inline void
+// NOTE: This function uses an output parameter instead of returning Result<std::vector<TaskInfo::Ptr>>
+// for performance reasons. When accumulating tasks from multiple sources (thread list, interpreter list,
+// scheduled tasks), using output parameters allows direct appending to a single vector, avoiding the
+// overhead of moving/copying elements between intermediate vectors.
+[[nodiscard]] inline Result<void>
 get_tasks_from_interpreter_linked_list(PyThreadState* tstate, PyObject* loop, std::vector<TaskInfo::Ptr>& tasks)
 {
     if (tstate == nullptr || loop == nullptr) {
-        return;
+        return ErrorKind::TaskInfoError;
     }
 
     // Step 1: Get interpreter state from thread state
     // tstate->interp points to PyInterpreterState
     PyInterpreterState interp;
     if (copy_type(tstate->interp, interp)) {
-        return;
+        return ErrorKind::TaskInfoError;
     }
 
     // Step 2: Calculate interpreter's asyncio_tasks_head address
     uintptr_t interp_addr = reinterpret_cast<uintptr_t>(tstate->interp);
-    size_t asyncio_tasks_head_offset = offsetof(PyInterpreterState, asyncio_tasks_head);
+    constexpr size_t asyncio_tasks_head_offset = offsetof(PyInterpreterState, asyncio_tasks_head);
     uintptr_t head_addr = interp_addr + asyncio_tasks_head_offset;
 
     // Step 3: Call the shared linked-list iteration function
-    get_tasks_from_linked_list(head_addr, loop, tasks);
+    return get_tasks_from_linked_list(head_addr, loop, tasks);
 }
 #endif
 
@@ -403,13 +414,14 @@ get_all_tasks(PyObject* loop, _PyThreadStateImpl* tstate_impl = nullptr)
     // 1. Per-thread list: tstate_impl->asyncio_tasks_head (active tasks)
     // 2. Per-interpreter list: interp->asyncio_tasks_head (lingering tasks)
     // First, get tasks from this thread's linked-list (if tstate_impl is provided)
+    // Note: We continue processing even if one source fails to maximize partial results
     if (tstate_impl != nullptr) {
-        get_tasks_from_thread_linked_list(tstate_impl, loop, tasks);
+        (void)get_tasks_from_thread_linked_list(tstate_impl, loop, tasks);
 
         // Second, get tasks from interpreter's linked-list (lingering tasks)
         // Access PyThreadState via the first field of _PyThreadStateImpl
         PyThreadState* tstate = reinterpret_cast<PyThreadState*>(tstate_impl);
-        get_tasks_from_interpreter_linked_list(tstate, loop, tasks);
+        (void)get_tasks_from_interpreter_linked_list(tstate, loop, tasks);
     }
 
     // Handle third-party tasks from Python _scheduled_tasks WeakSet
