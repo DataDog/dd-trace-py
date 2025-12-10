@@ -32,15 +32,10 @@ def test_asyncio_as_completed() -> None:
 
     async def main() -> None:
         # Create a mix of Tasks and Coroutines
-        divisor = 10 if PYVERSION < (3, 14) else 3
-        # For Python 3.14+, we increase the sleep time to get all the samples
-        # as expected. It's likely because the CPython 3.14+ keeps track of
-        # the tasks in a linked list, and each node needs to be copied using
-        # a system call.
         futures = [
-            asyncio.create_task(wait_and_return_delay(float(i) / divisor))
+            asyncio.create_task(wait_and_return_delay(float(i) / 10))
             if i % 2 == 0
-            else wait_and_return_delay(float(i) / divisor)
+            else wait_and_return_delay(float(i) / 10)
             for i in range(2, 12)
         ]
         assert len(futures) == 10
@@ -95,7 +90,7 @@ def test_asyncio_as_completed() -> None:
         pprof_utils.StackLocation(
             function_name="main",
             filename="test_asyncio_as_completed.py",
-            line_no=main.__code__.co_firstlineno + 22,
+            line_no=main.__code__.co_firstlineno + 17,
         ),
     ]
 
