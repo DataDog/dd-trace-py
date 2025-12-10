@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: This fix works around a race condition leading to incorrect stacks sometimes being reported when
+    profiling on-CPU asyncio Tasks.
