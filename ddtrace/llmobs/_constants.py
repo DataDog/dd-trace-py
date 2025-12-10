@@ -116,3 +116,12 @@ EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
 EXPERIMENTS_INPUT = "_ml_obs.meta.input"
 EXPERIMENTS_OUTPUT = "_ml_obs.meta.output"
 DEFAULT_PROJECT_NAME = "default-project"
+
+# Fallback markers for prompt tracking when OpenAI strips values
+IMAGE_FALLBACK_MARKER = "[image]"
+FILE_FALLBACK_MARKER = "[file]"
+
+# OpenAI input types
+INPUT_TYPE_IMAGE = "input_image"
+INPUT_TYPE_FILE = "input_file"
+INPUT_TYPE_TEXT = "input_text"
