@@ -356,6 +356,18 @@ jobs:
       scenarios_groups: lambda_end_to_end
       skip_empty_scenarios: true
 
+  integration-frameworks-system-tests:
+    needs: [serverless-system-tests-build-layer]
+    # Automatically managed, use scripts/update-system-tests-version to update
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@2eb26336ed43c2db1b7f90fff17ce4f5fc36a12b
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+    with:
+      library: python
+      scenarios: INTEGRATION_FRAMEWORKS
+
   finished:
     name: system-tests finished
     runs-on: ubuntu-latest
