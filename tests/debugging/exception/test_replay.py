@@ -430,8 +430,9 @@ class ExceptionReplayTestCase(TracerTestCase):
 
 def test_replay_functions_benchmark(benchmark):
     """Benchmark replay.py functions directly without tracer overhead."""
-    from ddtrace.trace import Span
     import uuid
+
+    from ddtrace.trace import Span
 
     def create_chained_exception(depth):
         """Create a chain of exceptions with specified depth."""
@@ -517,9 +518,6 @@ def test_snapshots_hold_frame_references_while_queued():
     with exception_replay() as uploader:
         handler = replay.SpanExceptionHandler()
         handler.__uploader__ = uploader
-        collector = uploader.collector
-
-        baseline_frame_count = _count_heap_frames()
 
         # Process multiple exceptions to create queued snapshots
         num_exceptions = 10
