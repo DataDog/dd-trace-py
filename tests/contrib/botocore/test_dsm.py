@@ -37,7 +37,7 @@ class BotocoreDSMTest(TracerTestCase):
         self.session = botocore.session.get_session()
         self.session.set_credentials(access_key="access-key", secret_key="secret-key")
 
-        self.queue_name = "TestDSM"
+        self.queue_name = "Test"
         self.sqs_client = self.session.create_client(
             "sqs", region_name="us-east-1", endpoint_url="http://localhost:4566"
         )
@@ -176,19 +176,19 @@ class BotocoreDSMTest(TracerTestCase):
             )
             assert (
                 first[
-                    ("direction:in,topic:TestDSM,type:sqs", 13854213076663332654, 3337976778666780987)
+                    ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
                 ].full_pathway_latency.count
                 >= 1
             )
             assert (
                 first[
-                    ("direction:in,topic:TestDSM,type:sqs", 13854213076663332654, 3337976778666780987)
+                    ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
                 ].edge_latency.count
                 >= 1
             )
             assert (
                 first[
-                    ("direction:in,topic:TestDSM,type:sqs", 13854213076663332654, 3337976778666780987)
+                    ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
                 ].payload_size.count
                 == 1
             )
