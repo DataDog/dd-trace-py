@@ -12,6 +12,21 @@ from ..utils import DummyTracer
 from ..utils import override_env
 
 
+def with_config_raise_value(raise_value: bool):
+    def _outer(func):
+        def _inner(*args, **kwargs):
+            original_value = global_config._raise
+            global_config._raise = raise_value
+            try:
+                return func(*args, **kwargs)
+            finally:
+                global_config._raise = original_value
+
+        return _inner
+
+    return _outer
+
+
 class GlobalConfigTestCase(TestCase):
     """Test the `Configuration` class that stores integration settings"""
 
@@ -166,6 +181,7 @@ class GlobalConfigTestCase(TestCase):
             assert span.get_tag("web.request") == "request"
             assert span.get_tag("web.response") == "response"
 
+    @with_config_raise_value(raise_value=False)
     def test_settings_hook_args_failure(self):
         """
         When calling `core.dispatch()` with arguments
@@ -226,6 +242,7 @@ class GlobalConfigTestCase(TestCase):
             assert span.get_metric("web.status") == 200
             assert span.get_tag("web.method") == "GET"
 
+    @with_config_raise_value(raise_value=False)
     def test_settings_hook_failure(self):
         """
         When calling `core.dispatch()`
