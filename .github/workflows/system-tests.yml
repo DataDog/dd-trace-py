@@ -368,10 +368,11 @@ jobs:
       library: python
       scenarios: INTEGRATION_FRAMEWORKS
       binaries_artifact: wheels-*
+
   finished:
     name: system-tests finished
     runs-on: ubuntu-latest
-    needs: [parametric, system-tests, serverless-system-tests]
+    needs: [parametric, system-tests, serverless-system-tests, integration-frameworks-system-tests]
     if: success() || failure()
     steps:
       - name: True when everything else succeeded
