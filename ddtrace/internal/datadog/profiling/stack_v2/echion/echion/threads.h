@@ -760,6 +760,7 @@ for_each_thread(InterpreterInfo& interp, PyThreadStateCallback callback)
         // a copy of the structure before trying to read its fields.
         PyThreadState tstate;
         if (copy_type(tstate_addr, tstate))
+            // We failed to copy the thread so we skip it.
             continue;
 
         // Enqueue the unseen threads that we can reach from this thread.
