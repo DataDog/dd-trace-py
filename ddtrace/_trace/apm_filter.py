@@ -5,7 +5,6 @@ from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.span import Span
 from ddtrace.internal.settings import _env
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.internal.settings import _env
 
 
 class APMTracingEnabledFilter(TraceProcessor):

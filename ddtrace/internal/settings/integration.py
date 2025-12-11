@@ -1,7 +1,7 @@
-import os
 from typing import Optional  # noqa:F401
 
 from ddtrace._hooks import Hooks
+from ddtrace.internal.settings import _env
 from ddtrace.internal.utils.attrdict import AttrDict
 
 from .http import HttpConfig
@@ -44,9 +44,9 @@ class IntegrationConfig(AttrDict):
         self.setdefault("analytics_enabled", False)
         self.setdefault("analytics_sample_rate", 1.0)
 
-        service = os.getenv(
+        service = _env.getenv(
             "DD_%s_SERVICE" % name.upper(),
-            default=os.getenv(
+            default=_env.getenv(
                 "DD_%s_SERVICE_NAME" % name.upper(),
                 default=None,
             ),
@@ -67,7 +67,7 @@ class IntegrationConfig(AttrDict):
 
     def get_http_tag_query_string(self, value):
         if self.global_config._http_tag_query_string:
-            dd_http_server_tag_query_string = value if value else os.getenv("DD_HTTP_SERVER_TAG_QUERY_STRING", "true")
+            dd_http_server_tag_query_string = value if value else _env.getenv("DD_HTTP_SERVER_TAG_QUERY_STRING", "true")
             # If invalid value, will default to True
             return dd_http_server_tag_query_string.lower() not in ("false", "0")
         return False

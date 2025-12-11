@@ -1,6 +1,5 @@
 # coding: utf-8
 from collections import defaultdict
-import os
 from typing import DefaultDict
 from typing import Dict
 from typing import List
@@ -12,6 +11,7 @@ from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
 from ddtrace.internal import compat
 from ddtrace.internal.native import DDSketch
+from ddtrace.internal.settings import _env
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
@@ -92,7 +92,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         retry_attempts: int = 3,
     ):
         if interval is None:
-            interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+            interval = float(_env.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         super(SpanStatsProcessorV06, self).__init__(interval=interval)
         self._agent_url = agent_url or agent.config.trace_agent_url
         self._endpoint = "/v0.6/stats"
