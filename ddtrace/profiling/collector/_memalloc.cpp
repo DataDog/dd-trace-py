@@ -30,9 +30,6 @@ typedef struct
 */
 static memalloc_context_t global_memalloc_ctx;
 
-/* A string containing "object" */
-static PyObject* object_string = NULL;
-
 static bool memalloc_enabled = false;
 
 static void
@@ -146,13 +143,6 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 
     if (!traceback_t::init_invokes_cpython())
         return NULL;
-
-    if (object_string == NULL) {
-        object_string = PyUnicode_FromString("object");
-        if (object_string == NULL)
-            return NULL;
-        PyUnicode_InternInPlace(&object_string);
-    }
 
     if (!memalloc_heap_tracker_init_no_cpython((uint32_t)heap_sample_size))
         return NULL;

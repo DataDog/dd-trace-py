@@ -143,16 +143,6 @@ class heap_tracker_t
     std::vector<std::unique_ptr<traceback_t>> pool;
 };
 
-// Free function wrapper for pool_put_no_cpython - allows other compilation units to use the pool
-void
-heap_pool_put_traceback(std::unique_ptr<traceback_t> tb)
-{
-    if (heap_tracker_t::instance) {
-        heap_tracker_t::instance->pool_put_no_cpython(std::move(tb));
-    }
-    // If instance is null, tb automatically deletes when it goes out of scope
-}
-
 // Pool implementation
 // _invokes_cpython suffix: calls traceback_t::reset() and constructor which invoke CPython APIs
 std::unique_ptr<traceback_t>
