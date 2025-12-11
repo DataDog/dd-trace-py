@@ -2,7 +2,6 @@ use std::cmp;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 use std::slice;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Once;
 
 use libdd_crashtracker::RuntimeStackFrame;
@@ -154,9 +153,6 @@ const FRAME_FUNCTION_CAP: usize = 256;
 const FRAME_FILE_CAP: usize = 512;
 
 #[cfg(unix)]
-static FRAME_COLLECTION_GUARD: AtomicBool = AtomicBool::new(false);
-
-#[cfg(unix)]
 unsafe fn capture_frames_via_python(emit_frame: unsafe extern "C" fn(&RuntimeStackFrame)) {
     let current = pyo3_ffi::PyThreadState_Get();
     if !current.is_null() {
@@ -228,7 +224,15 @@ unsafe fn emit_python_frame(
     }
 
     let file_view = get_code_attr_utf8_view(frame, b"co_filename\0");
+
+    // For versions < 3.11, we should use `co_name`
+    #[cfg(not(Py_3_11))]
     let function_view = get_code_attr_utf8_view(frame, b"co_name\0");
+
+    // For verions 3.11+, we should use qualified name
+    #[cfg(Py_3_11)]
+    let function_view = get_code_attr_utf8_view(frame, b"co_qualname\0");
+
     let line_number = pyo3_ffi::PyFrame_GetLineNumber(frame);
 
     let file_slice = file_view
@@ -316,16 +320,7 @@ unsafe fn dump_python_traceback_as_frames(emit_frame: unsafe extern "C" fn(&Runt
             return;
         }
 
-        if FRAME_COLLECTION_GUARD
-            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-            .is_err()
-        {
-            return;
-        }
-
         capture_frames_via_python(emit_frame);
-
-        FRAME_COLLECTION_GUARD.store(false, Ordering::SeqCst);
     }
 
     #[cfg(not(unix))]
