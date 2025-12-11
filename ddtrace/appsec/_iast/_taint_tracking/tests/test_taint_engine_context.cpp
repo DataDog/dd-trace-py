@@ -2,6 +2,7 @@
 #include <pybind11/embed.h>
 #include <pybind11/pybind11.h>
 
+#include "api/safe_context.h"
 #include "context/taint_engine_context.h"
 #include "taint_tracking/taint_range.h"
 #include "taint_tracking/tainted_object.h"
@@ -51,7 +52,7 @@ TEST_F(ApplicationContextTest, GetCurrentContextMap_ListScan_NoRefcountLeak_With
     auto idx_opt = taint_engine_context->start_request_context();
     ASSERT_TRUE(idx_opt.has_value());
     const auto ctx_id = *idx_opt;
-    auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(ctx_id);
+    auto tx_map = safe_get_tainted_object_map_by_ctx_id(ctx_id);
     ASSERT_NE(tx_map, nullptr);
 
     py::str a("a");
@@ -71,7 +72,7 @@ TEST_F(ApplicationContextTest, GetCurrentContextMap_ListScan_NoRefcountLeak_With
     const long b_before = refcnt(b.ptr());
     const long t_before = refcnt(tainted_str.ptr());
 
-    auto m = taint_engine_context->get_tainted_object_map(lst.ptr());
+    auto m = safe_get_tainted_object_map(lst.ptr());
     ASSERT_NE(m, nullptr);
 
     ASSERT_EQ(refcnt(lst.ptr()), lst_before);
@@ -98,7 +99,7 @@ TEST_F(ApplicationContextTest, GetCurrentContextMap_ListScan_NoRefcountLeak_NoMa
     const long b_before = refcnt(b.ptr());
     const long c_before = refcnt(c.ptr());
 
-    auto m = taint_engine_context->get_tainted_object_map(lst.ptr());
+    auto m = safe_get_tainted_object_map(lst.ptr());
     ASSERT_EQ(m, nullptr);
 
     ASSERT_EQ(refcnt(lst.ptr()), lst_before);
@@ -112,7 +113,7 @@ TEST_F(ApplicationContextTest, GetCurrentContextMap_TupleScan_NoRefcountLeak_Wit
     auto idx_opt = taint_engine_context->start_request_context();
     ASSERT_TRUE(idx_opt.has_value());
     const auto ctx_id = *idx_opt;
-    auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(ctx_id);
+    auto tx_map = safe_get_tainted_object_map_by_ctx_id(ctx_id);
     ASSERT_NE(tx_map, nullptr);
 
     py::str x("x");
@@ -131,7 +132,7 @@ TEST_F(ApplicationContextTest, GetCurrentContextMap_TupleScan_NoRefcountLeak_Wit
     const long y_before = refcnt(y.ptr());
     const long t_before = refcnt(tainted_str.ptr());
 
-    auto m = taint_engine_context->get_tainted_object_map(tup.ptr());
+    auto m = safe_get_tainted_object_map(tup.ptr());
     ASSERT_NE(m, nullptr);
 
     ASSERT_EQ(refcnt(tup.ptr()), tup_before);
@@ -145,7 +146,7 @@ TEST_F(ApplicationContextTest, GetCurrentContextMap_DictScan_NoRefcountLeak_With
     auto idx_opt = taint_engine_context->start_request_context();
     ASSERT_TRUE(idx_opt.has_value());
     const auto ctx_id = *idx_opt;
-    auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(ctx_id);
+    auto tx_map = safe_get_tainted_object_map_by_ctx_id(ctx_id);
     ASSERT_NE(tx_map, nullptr);
 
     py::str key1("k1");
@@ -165,7 +166,7 @@ TEST_F(ApplicationContextTest, GetCurrentContextMap_DictScan_NoRefcountLeak_With
     const long v1_before = refcnt(val1.ptr());
     const long tv_before = refcnt(tainted_val.ptr());
 
-    auto m = taint_engine_context->get_tainted_object_map(d.ptr());
+    auto m = safe_get_tainted_object_map(d.ptr());
     ASSERT_NE(m, nullptr);
 
     ASSERT_EQ(refcnt(d.ptr()), d_before);
@@ -195,7 +196,7 @@ TEST_F(ApplicationContextTest, GetCurrentContextMap_DictScan_NoRefcountLeak_NoMa
     const long v1_before = refcnt(val1.ptr());
     const long v2_before = refcnt(val2.ptr());
 
-    auto m = taint_engine_context->get_tainted_object_map(d.ptr());
+    auto m = safe_get_tainted_object_map(d.ptr());
     ASSERT_EQ(m, nullptr);
 
     ASSERT_EQ(refcnt(d.ptr()), d_before);
@@ -210,14 +211,14 @@ TEST_F(ApplicationContextTest, CreateTwoContextsAndRetrieveByIndex)
     // Create first context
     auto idx1 = taint_engine_context->start_request_context();
     ASSERT_TRUE(idx1.has_value());
-    auto m1 = taint_engine_context->get_tainted_object_map_by_ctx_id(*idx1);
+    auto m1 = safe_get_tainted_object_map_by_ctx_id(*idx1);
     ASSERT_NE(m1, nullptr);
 
     // Create second context, should be a different slot/map
     auto idx2 = taint_engine_context->start_request_context();
     ASSERT_TRUE(idx2.has_value());
     ASSERT_NE(*idx1, *idx2);
-    auto m2 = taint_engine_context->get_tainted_object_map_by_ctx_id(*idx2);
+    auto m2 = safe_get_tainted_object_map_by_ctx_id(*idx2);
     ASSERT_NE(m2, nullptr);
     ASSERT_NE(m1, m2);
 }
@@ -226,11 +227,11 @@ TEST_F(ApplicationContextTest, ClearSpecificMap)
 {
     auto idx = taint_engine_context->start_request_context();
     ASSERT_TRUE(idx.has_value());
-    auto m = taint_engine_context->get_tainted_object_map_by_ctx_id(*idx);
+    auto m = safe_get_tainted_object_map_by_ctx_id(*idx);
     ASSERT_NE(m, nullptr);
 
     taint_engine_context->finish_request_context(*idx);
-    auto after = taint_engine_context->get_tainted_object_map_by_ctx_id(*idx);
+    auto after = safe_get_tainted_object_map_by_ctx_id(*idx);
     ASSERT_EQ(after, nullptr);
 }
 
@@ -244,13 +245,13 @@ TEST_F(ApplicationContextTest, ReuseFreedSlotOnCreate)
 
     // Free the first slot
     taint_engine_context->finish_request_context(*idx1);
-    ASSERT_EQ(taint_engine_context->get_tainted_object_map_by_ctx_id(*idx1), nullptr);
+    ASSERT_EQ(safe_get_tainted_object_map_by_ctx_id(*idx1), nullptr);
 
     // Next create should reuse the first free slot (lowest index first)
     auto idx3 = taint_engine_context->start_request_context();
     ASSERT_TRUE(idx3.has_value());
     ASSERT_EQ(*idx3, *idx1);
-    auto m3 = taint_engine_context->get_tainted_object_map_by_ctx_id(*idx3);
+    auto m3 = safe_get_tainted_object_map_by_ctx_id(*idx3);
     ASSERT_NE(m3, nullptr);
 }
 
@@ -269,7 +270,7 @@ TEST_F(ApplicationContextTest, ClearAllContexts)
     taint_engine_context->clear_all_request_context_slots();
     for (size_t i = 0; i < cap; ++i) {
         // All slots should be cleared
-        auto m = taint_engine_context->get_tainted_object_map_by_ctx_id(i);
+        auto m = safe_get_tainted_object_map_by_ctx_id(i);
         ASSERT_EQ(m, nullptr);
     }
 }
@@ -280,7 +281,7 @@ TEST_F(ApplicationContextTest, ClearTaintMapFreesContainedTaintedObjects)
     auto idx_opt = taint_engine_context->start_request_context();
     ASSERT_TRUE(idx_opt.has_value());
     const auto ctx_id = *idx_opt;
-    auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(ctx_id);
+    auto tx_map = safe_get_tainted_object_map_by_ctx_id(ctx_id);
     ASSERT_NE(tx_map, nullptr);
 
     // Insert a TaintedObjectPtr directly into the map with a dummy key/hash
@@ -309,7 +310,7 @@ TEST_F(ApplicationContextTest, ClearContextsArrayFreesTaintRangeMap)
     auto idx_opt = taint_engine_context->start_request_context();
     ASSERT_TRUE(idx_opt.has_value());
     const auto ctx_id = *idx_opt;
-    auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(ctx_id);
+    auto tx_map = safe_get_tainted_object_map_by_ctx_id(ctx_id);
     ASSERT_NE(tx_map, nullptr);
 
     // Take a weak reference to the map itself
@@ -332,7 +333,7 @@ TEST_F(ApplicationContextTest, FinishRequestContextWithInvalidIndexIsNoop)
     // Act: finish an out-of-range index; should not crash
     taint_engine_context->finish_request_context(cap + 10);
     // Assert: out-of-range map lookup returns nullptr
-    auto m = taint_engine_context->get_tainted_object_map_by_ctx_id(cap + 10);
+    auto m = safe_get_tainted_object_map_by_ctx_id(cap + 10);
     ASSERT_EQ(m, nullptr);
 }
 
@@ -341,22 +342,22 @@ TEST_F(ApplicationContextTest, FinishRequestContextTwiceIsNoop)
     auto idx_opt = taint_engine_context->start_request_context();
     ASSERT_TRUE(idx_opt.has_value());
     const auto id = *idx_opt;
-    ASSERT_NE(taint_engine_context->get_tainted_object_map_by_ctx_id(id), nullptr);
+    ASSERT_NE(safe_get_tainted_object_map_by_ctx_id(id), nullptr);
 
     // First finish clears the slot
     taint_engine_context->finish_request_context(id);
-    ASSERT_EQ(taint_engine_context->get_tainted_object_map_by_ctx_id(id), nullptr);
+    ASSERT_EQ(safe_get_tainted_object_map_by_ctx_id(id), nullptr);
 
     // Second finish is a no-op
     taint_engine_context->finish_request_context(id);
-    ASSERT_EQ(taint_engine_context->get_tainted_object_map_by_ctx_id(id), nullptr);
+    ASSERT_EQ(safe_get_tainted_object_map_by_ctx_id(id), nullptr);
 }
 
 TEST_F(ApplicationContextTest, GetTaintedObjectMapByInvalidIndexReturnsNull)
 {
     const auto cap = taint_engine_context->debug_context_array_size();
-    auto m1 = taint_engine_context->get_tainted_object_map_by_ctx_id(cap);
-    auto m2 = taint_engine_context->get_tainted_object_map_by_ctx_id(cap + 123);
+    auto m1 = safe_get_tainted_object_map_by_ctx_id(cap);
+    auto m2 = safe_get_tainted_object_map_by_ctx_id(cap + 123);
     ASSERT_EQ(m1, nullptr);
     ASSERT_EQ(m2, nullptr);
 }
@@ -389,11 +390,11 @@ TEST_F(ApplicationContextTest, ClearAllIsIdempotent)
     auto idx_opt = taint_engine_context->start_request_context();
     ASSERT_TRUE(idx_opt.has_value());
     const auto id = *idx_opt;
-    ASSERT_NE(taint_engine_context->get_tainted_object_map_by_ctx_id(id), nullptr);
+    ASSERT_NE(safe_get_tainted_object_map_by_ctx_id(id), nullptr);
 
     taint_engine_context->clear_all_request_context_slots();
-    ASSERT_EQ(taint_engine_context->get_tainted_object_map_by_ctx_id(id), nullptr);
+    ASSERT_EQ(safe_get_tainted_object_map_by_ctx_id(id), nullptr);
     // Second call should be harmless
     taint_engine_context->clear_all_request_context_slots();
-    ASSERT_EQ(taint_engine_context->get_tainted_object_map_by_ctx_id(id), nullptr);
+    ASSERT_EQ(safe_get_tainted_object_map_by_ctx_id(id), nullptr);
 }
