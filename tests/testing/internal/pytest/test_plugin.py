@@ -27,6 +27,7 @@ from tests.testing.mocks import TestDataFactory
 from tests.testing.mocks import mock_test
 from tests.testing.mocks import pytest_item_mock
 from tests.testing.mocks import session_manager_mock
+from tests.testing.mocks import test_report
 
 
 # =============================================================================
@@ -269,7 +270,7 @@ class TestReportGeneration:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Mock report with retry properties
-        mock_report = Mock()
+        mock_report = test_report()
         mock_report.user_properties = [("dd_retry_outcome", "failed"), ("dd_retry_reason", "Auto Test Retries")]
 
         result = plugin.pytest_report_teststatus(mock_report)
@@ -282,7 +283,7 @@ class TestReportGeneration:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Mock report with quarantined property (call phase)
-        mock_report = Mock()
+        mock_report = test_report()
         mock_report.user_properties = [("dd_quarantined", True)]
         mock_report.when = "call"
 
@@ -297,7 +298,7 @@ class TestReportGeneration:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Mock report with quarantined property (teardown phase)
-        mock_report = Mock()
+        mock_report = test_report()
         mock_report.user_properties = [("dd_quarantined", True)]
         mock_report.when = "teardown"
 
@@ -312,7 +313,7 @@ class TestReportGeneration:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Mock normal report
-        mock_report = Mock()
+        mock_report = test_report()
         mock_report.user_properties = []
 
         result = plugin.pytest_report_teststatus(mock_report)
@@ -418,7 +419,7 @@ class TestHelperFunctions:
 
     def test_get_user_property_found(self) -> None:
         """Test _get_user_property when property exists."""
-        mock_report = Mock()
+        mock_report = test_report()
         mock_report.user_properties = [("key1", "value1"), ("key2", "value2")]
 
         result = _get_user_property(mock_report, "key1")
@@ -426,7 +427,7 @@ class TestHelperFunctions:
 
     def test_get_user_property_not_found(self) -> None:
         """Test _get_user_property when property doesn't exist."""
-        mock_report = Mock()
+        mock_report = test_report()
         mock_report.user_properties = [("key1", "value1")]
 
         result = _get_user_property(mock_report, "missing_key")
@@ -434,7 +435,7 @@ class TestHelperFunctions:
 
     def test_get_user_property_no_properties(self) -> None:
         """Test _get_user_property when report has no user_properties."""
-        mock_report = Mock()
+        mock_report = test_report()
         del mock_report.user_properties
 
         result = _get_user_property(mock_report, "any_key")
@@ -493,9 +494,9 @@ class TestPrivateMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         reports = {
-            "setup": Mock(spec=object, longrepr="setup error"),
-            "call": Mock(spec=object, longrepr="call error"),
-            "teardown": Mock(spec=object, longrepr="teardown error"),
+            "setup": test_report(longrepr="setup error"),
+            "call": test_report(longrepr="call error"),
+            "teardown": test_report(longrepr="teardown error"),
         }
 
         result = plugin._extract_longrepr(t.cast(t.Dict[str, TestReport], reports))
@@ -507,8 +508,8 @@ class TestPrivateMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         reports = {
-            "setup": Mock(spec=object, longrepr="setup error"),
-            "teardown": Mock(spec=object, longrepr="teardown error"),
+            "setup": test_report(longrepr="setup error"),
+            "teardown": test_report(longrepr="teardown error"),
         }
 
         result = plugin._extract_longrepr(t.cast(t.Dict[str, TestReport], reports))
@@ -520,9 +521,9 @@ class TestPrivateMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         reports = {
-            "setup": Mock(spec=object, longrepr=None),
-            "call": Mock(spec=object, longrepr=None),
-            "teardown": Mock(spec=object, longrepr=None),
+            "setup": test_report(longrepr=None),
+            "call": test_report(longrepr=None),
+            "teardown": test_report(longrepr=None),
         }
 
         result = plugin._extract_longrepr(t.cast(t.Dict[str, TestReport], reports))
@@ -534,9 +535,9 @@ class TestPrivateMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         reports = {
-            "setup": Mock(spec=object, longrepr="setup error"),
-            "call": Mock(spec=object, longrepr="call error", wasxfail="call xfail"),
-            "teardown": Mock(spec=object, longrepr="teardown error"),
+            "setup": test_report(longrepr="setup error"),
+            "call": test_report(longrepr="call error", wasxfail="call xfail"),
+            "teardown": test_report(longrepr="teardown error"),
         }
 
         result = plugin._extract_longrepr(t.cast(t.Dict[str, TestReport], reports))
@@ -590,7 +591,7 @@ class TestPrivateMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         mock_item = pytest_item_mock("test_file.py::test_name").build()
-        mock_report = Mock()
+        mock_report = test_report()
         mock_report.when = "call"
 
         plugin._mark_quarantined_test_report_as_skipped(mock_item, mock_report)
@@ -604,7 +605,7 @@ class TestPrivateMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         mock_item = pytest_item_mock("test_file.py::test_name").build()
-        mock_report = Mock()
+        mock_report = test_report()
         mock_report.when = "teardown"
 
         plugin._mark_quarantined_test_report_as_skipped(mock_item, mock_report)
@@ -709,7 +710,7 @@ class TestReportAndLoggingMethods:
         mock_handler = Mock()
         mock_handler.get_pretty_name.return_value = "Test Handler"
 
-        mock_report = Mock()
+        mock_report = test_report()
         mock_report.outcome = "failed"
         mock_report.user_properties = []
         reports = {"call": mock_report}
@@ -739,8 +740,7 @@ class TestReportAndLoggingMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         mock_handler = Mock()
-        mock_call_report = Mock()
-        mock_call_report.outcome = "failed"
+        mock_call_report = test_report(outcome="failed")
         mock_call_report.user_properties = []
 
         reports = {
@@ -759,8 +759,7 @@ class TestReportAndLoggingMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         mock_handler = Mock()
-        mock_setup_report = Mock()
-        mock_setup_report.outcome = "failed"
+        mock_setup_report = test_report(outcome="failed")
         mock_setup_report.user_properties = []
 
         reports = {
@@ -852,17 +851,11 @@ class TestOutcomeProcessing:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Set up reports for a passing test
-        setup_report = Mock()
-        setup_report.failed = False
-        setup_report.skipped = False
+        setup_report = test_report(outcome="passed")
 
-        call_report = Mock()
-        call_report.failed = False
-        call_report.skipped = False
+        call_report = test_report(outcome="passed")
 
-        teardown_report = Mock()
-        teardown_report.failed = False
-        teardown_report.skipped = False
+        teardown_report = test_report(outcome="passed")
 
         plugin.reports_by_nodeid["test_id"] = {
             "setup": setup_report,
@@ -889,13 +882,9 @@ class TestOutcomeProcessing:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Set up reports for a failing test
-        setup_report = Mock()
-        setup_report.failed = False
-        setup_report.skipped = False
+        setup_report = test_report(outcome="passed")
 
-        call_report = Mock()
-        call_report.failed = True
-        call_report.skipped = False
+        call_report = test_report(outcome="failed")
 
         plugin.reports_by_nodeid["test_id"] = {
             "setup": setup_report,
@@ -927,9 +916,7 @@ class TestOutcomeProcessing:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Set up reports for a skipped test
-        setup_report = Mock()
-        setup_report.failed = False
-        setup_report.skipped = True
+        setup_report = test_report(outcome="skipped")
 
         plugin.reports_by_nodeid["test_id"] = {
             "setup": setup_report,
@@ -957,9 +944,7 @@ class TestOutcomeProcessing:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Set up reports for a skipped test
-        setup_report = Mock()
-        setup_report.failed = False
-        setup_report.skipped = True
+        setup_report = test_report(outcome="skipped")
 
         plugin.reports_by_nodeid["test_id"] = {
             "setup": setup_report,
