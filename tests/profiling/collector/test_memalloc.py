@@ -12,6 +12,7 @@ from ddtrace.profiling.collector import memalloc
 from tests.profiling.collector import pprof_utils
 
 
+PY_314_OR_ABOVE = sys.version_info[:2] >= (3, 14)
 PY_313_OR_ABOVE = sys.version_info[:2] >= (3, 13)
 PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
 
@@ -847,7 +848,14 @@ def test_memory_collector_thread_lifecycle(tmp_path):
 
         def worker():
             for i in range(10):
-                data = [i] * 100
+                # On Python 3.14+, increase the allocation size to more reliably
+                # trigger sampling. The CPython internal could have optimized
+                # small allocations, and/or allocations that are deallocated too
+                # quickly.
+                if PY_314_OR_ABOVE:
+                    data = [i] * 10000000
+                else:
+                    data = [i] * 100
                 del data
 
         # Capture reference before context manager exits
