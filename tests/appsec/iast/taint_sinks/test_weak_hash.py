@@ -323,6 +323,7 @@ def test_weak_check_hmac_secure(iast_context_defaults):
     assert span_report is None
 
 
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="skip for 3.8")
 @pytest.mark.parametrize("deduplication_enabled", (False, True))
 def test_weak_hash_deduplication_expired_cache(
     iast_context_contextmanager_deduplication_enabled, deduplication_enabled
@@ -347,6 +348,7 @@ def test_weak_hash_deduplication_expired_cache(
             assert len(span_report.vulnerabilities) == 1, f"Failed at iteration {i}"
 
 
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="skip for 3.8")
 @pytest.mark.parametrize("deduplication_enabled", (False, True))
 def test_weak_hash_deduplication_cache(iast_context_contextmanager_deduplication_enabled, deduplication_enabled):
     """
