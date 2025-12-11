@@ -367,7 +367,7 @@ jobs:
     with:
       library: python
       scenarios: INTEGRATION_FRAMEWORKS
-
+      binaries_artifact: wheels-*
   finished:
     name: system-tests finished
     runs-on: ubuntu-latest
