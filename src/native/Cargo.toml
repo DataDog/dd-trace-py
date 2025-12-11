@@ -30,6 +30,7 @@ pyo3 = { version = "0.25", features = ["extension-module", "anyhow"] }
 tracing = { version = "0.1", default-features = false }
 serde = { version = "1" }
 rand = "0.9"
+rmp = "0.8.14"
 
 [build-dependencies]
 pyo3-build-config = "0.25"

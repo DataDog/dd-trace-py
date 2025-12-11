@@ -10,6 +10,7 @@ mod ffande;
 mod library_config;
 mod log;
 mod span;
+mod span_serializer;
 mod rand;
 
 use pyo3::prelude::*;

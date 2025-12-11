@@ -24,14 +24,14 @@ use pyo3::{
 use crate::rand::{rand128bits, rand64bits};
 
 /// A Py bytes backed utf-8 string we can read without needing access to the GIL
-struct PyBackedString {
+pub struct PyBackedString {
     data: NonNull<str>,
     #[allow(unused)]
     storage: Option<Py<PyAny>>,
 }
 
 impl PyBackedString {
-    fn clone_ref<'py>(&self, py: Python<'py>) -> Self {
+    pub fn clone_ref<'py>(&self, py: Python<'py>) -> Self {
         Self {
             data: self.data,
             storage: self.storage.as_ref().map(|s| s.clone_ref(py)),
@@ -176,12 +176,13 @@ impl SpanText for PyBackedString {
 
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
-struct SpanData {
-    data: NativeSpan<PyBackedString>,
+pub struct SpanData {
+    pub data: NativeSpan<PyBackedString>,
     // Store duration here until the span is finished
-    duration_ns: Option<i64>,
+    pub duration_ns: Option<i64>,
     #[pyo3(get, set)]
     _span_api: PyBackedString,
+    pub _meta_struct: HashMap<PyBackedString, Py<PyDict>>,
 }
 
 fn time_ns() -> i64 {
@@ -300,6 +301,7 @@ impl SpanData {
             },
             duration_ns: None,
             _span_api: span_api,
+            _meta_struct: HashMap::new(),
         };
         if let Some(links) = links {
             for e in links.iter() {
@@ -655,6 +657,14 @@ impl SpanData {
                 _kind: SpanLinkKind::default(),
             })
             .collect()
+    }
+
+    fn _get_struct_tag_inner(&self, key: PyBackedString) -> Option<&Py<PyDict>> {
+        self._meta_struct.get(&key)
+    }
+
+    fn _set_struct_tag_inner<'p>(&mut self, key: PyBackedString, value: Bound<'p, PyDict>) {
+        self._meta_struct.insert(key, value.unbind());
     }
 }
 

@@ -104,7 +104,6 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
 class Span(SpanData):
     __slots__ = [
         # Public span attributes
-        "_meta_struct",
         "context",
         "_store",
         # Internal attributes
@@ -154,8 +153,6 @@ class Span(SpanData):
         :param on_finish: list of functions called when the span finishes.
         """
         super().__init__(name, service, resource, span_type, trace_id, span_id, parent_id, start, span_api, links)
-
-        self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
