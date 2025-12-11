@@ -1895,8 +1895,7 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(
-                "LLMObs.run_evaluations() called when LLMObs is not enabled. "
-                "Evaluation metrics will not be submitted."
+                "LLMObs.run_evaluations() called when LLMObs is not enabled. Evaluation metrics will not be submitted."
             )
             return
 
