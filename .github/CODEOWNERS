@@ -144,6 +144,13 @@ ddtrace/internal/datadog/profiling  @DataDog/profiling-python
 tests/profiling                     @DataDog/profiling-python
 .gitlab/tests/profiling.yml         @DataDog/profiling-python
 
+# Crashtracker
+ddtrace/internal/core/crashtracking.py       @DataDog/profiling-python @DataDog/apm-core-python
+ddtrace/internal/settings/crashtracker.py   @DataDog/profiling-python @DataDog/apm-core-python
+ddtrace/commands/_dd_crashtracker_receiver.py @DataDog/profiling-python @DataDog/apm-core-python
+tests/internal/crashtracker/                 @DataDog/profiling-python @DataDog/apm-core-python
+src/native/crashtracker*                     @DataDog/profiling-python @DataDog/apm-core-python
+
 # MLObs
 ddtrace/llmobs/                                               @DataDog/ml-observability
 ddtrace/contrib/internal/openai                               @DataDog/ml-observability
