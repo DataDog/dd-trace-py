@@ -398,8 +398,8 @@ class IastSpanReporter(NotNoneDictable):
             value_parts.append(
                 {
                     "value": _truncate_evidence_value(evidence_value[range_["start"] : range_["end"]]),
-                    "source": source_index,
-                }  # type: ignore[dict-item]
+                    "source": source_index,  # type: ignore[dict-item]
+                }
             )
 
             from_index = range_["end"]
