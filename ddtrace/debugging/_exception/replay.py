@@ -119,8 +119,10 @@ def unwind_exception_chain(
     exception is put first.
     """
     chain: ExceptionChain = deque()
+    seen: t.Set[int] = set()  # Track visited exceptions by id to detect cycles
 
-    while exc is not None:
+    while exc is not None and id(exc) not in seen:
+        seen.add(id(exc))
         chain.appendleft((exc, tb))
 
         if exc.__cause__ is not None:
