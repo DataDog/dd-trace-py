@@ -8,6 +8,7 @@
 #include <Python.h>
 
 #include "_memalloc_debug.h"
+#include "_memalloc_gc_guard.hpp"
 #include "_memalloc_heap.h"
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
@@ -336,7 +337,6 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
         return;
     }
 
-#if defined(_PY310_AND_LATER) && !defined(_PY312_AND_LATER)
     /* Prior to Python 3.12, and particularly in Python 3.11, collecting
        tracebacks while intercepting allocations is prone to crashes. We
        currently use the C Python API to collect tracebacks, which can
@@ -355,8 +355,10 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
        versions, we disable GC temporarily. This will allow a small, temporary
        increase in memory usage during sampling. But it is overall cheap (mostly
        just toggling a boolean) and the alternative is hard-to-diagnose crashes.
-     */
-    int gc_enabled = PyGC_Disable();
+
+       RAII guard automatically re-enables GC when it goes out of scope. */
+#if defined(_PY310_AND_LATER) && !defined(_PY312_AND_LATER)
+    pygc_temp_disable_guard_t gc_guard;
 #endif
 
     /* The weight of the allocation is described above, but briefly: it's the
@@ -371,12 +373,6 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
     }
 
     auto tb = heap_tracker_t::instance->pool_get_invokes_cpython(size, allocated_memory_val, max_nframe);
-
-#if defined(_PY310_AND_LATER) && !defined(_PY312_AND_LATER)
-    if (gc_enabled) {
-        PyGC_Enable();
-    }
-#endif
 
     // Check that instance is still valid after GIL release in constructor
     if (heap_tracker_t::instance) {

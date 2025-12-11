@@ -1,4 +1,3 @@
-#include "api/safe_initializer.h"
 #include "initializer/initializer.h"
 
 namespace py = pybind11;
@@ -23,7 +22,8 @@ allocate_limited_taint_range_with_offset(const TaintRangePtr& source_taint_range
     else
         length = source_taint_range->length;
 
-    auto tptr = safe_allocate_taint_range(offset, length, source_taint_range->source, source_taint_range->secure_marks);
+    auto tptr =
+      initializer->allocate_taint_range(offset, length, source_taint_range->source, source_taint_range->secure_marks);
     return tptr;
 }
 
@@ -35,10 +35,10 @@ allocate_limited_taint_range_with_offset(const TaintRangePtr& source_taint_range
 TaintRangePtr
 shift_taint_range(const TaintRangePtr& source_taint_range, const RANGE_START offset)
 {
-    auto tptr = safe_allocate_taint_range(source_taint_range->start + offset,
-                                          source_taint_range->length,
-                                          source_taint_range->source,
-                                          source_taint_range->secure_marks);
+    auto tptr = initializer->allocate_taint_range(source_taint_range->start + offset,
+                                                  source_taint_range->length,
+                                                  source_taint_range->source,
+                                                  source_taint_range->secure_marks);
     return tptr;
 }
 
