@@ -51,6 +51,48 @@ class TestAsyncioLockCollector:
             except Exception as e:
                 print("Error while deleting file: ", e)
 
+    def test_subclassing_wrapped_lock(self):
+        """Test that subclassing asyncio.Lock works when profiling is active.
+
+        Regression test for a bug reported by neo4j users where their library defines:
+            class AsyncRLock(asyncio.Lock): ...
+
+        With profiling enabled, this would fail with:
+            TypeError: _LockAllocatorWrapper.__init__() takes 2 positional arguments but 4 were given
+
+        The fix implements __mro_entries__ on _LockAllocatorWrapper (PEP 560).
+        """
+        from ddtrace.profiling.collector._lock import _LockAllocatorWrapper
+
+        with collector_asyncio.AsyncioLockCollector(capture_pct=100):
+            # Verify the wrapper is in place
+            assert isinstance(asyncio.Lock, _LockAllocatorWrapper)
+
+            # This should NOT raise TypeError
+            class AsyncRLock(asyncio.Lock):
+                """A custom lock that extends asyncio.Lock (like neo4j does)."""
+
+                def __init__(self) -> None:
+                    super().__init__()
+                    self._owner = None
+                    self._count = 0
+
+            # Verify the subclass can be instantiated
+            custom_lock = AsyncRLock()
+            assert hasattr(custom_lock, "_owner")
+            assert hasattr(custom_lock, "_count")
+            assert custom_lock._owner is None
+            assert custom_lock._count == 0
+
+            # Verify async lock functionality still works
+            async def test_async_lock():
+                await custom_lock.acquire()
+                assert custom_lock.locked()
+                custom_lock.release()
+                assert not custom_lock.locked()
+
+            asyncio.get_event_loop().run_until_complete(test_async_lock())
+
     async def test_asyncio_lock_events(self):
         with collector_asyncio.AsyncioLockCollector(capture_pct=100):
             lock = asyncio.Lock()  # !CREATE! test_asyncio_lock_events
