@@ -1184,9 +1184,9 @@ class BaseThreadingLockCollectorTest:
         release_samples: List[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
 
         # release samples should NOT be generated when acquire wasn't sampled
-        assert len(release_samples) == 0, (
-            f"Expected no release samples when acquire wasn't sampled, got {len(release_samples)}"
-        )
+        assert (
+            len(release_samples) == 0
+        ), f"Expected no release samples when acquire wasn't sampled, got {len(release_samples)}"
 
 
 class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
