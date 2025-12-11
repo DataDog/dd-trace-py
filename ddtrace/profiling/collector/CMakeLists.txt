@@ -140,10 +140,3 @@ endif()
 
 # Install the extension
 install(TARGETS ${FULL_EXTENSION_NAME} LIBRARY DESTINATION ${LIB_INSTALL_DIR})
-
-# Optional: Build tests if BUILD_TESTING is ON
-option(BUILD_TESTING "Build tests" OFF)
-if(BUILD_TESTING)
-    enable_testing()
-    # Test directory removed during merge add_subdirectory(test)
-endif()

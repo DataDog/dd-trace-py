@@ -12,7 +12,7 @@
 #include "_pymacro.h"
 
 // Ensure profile_state is initialized before creating Sample objects
-#include "../../internal/datadog/profiling/dd_wrapper/include/ddup_interface.hpp"
+#include "dd_wrapper/include/ddup_interface.hpp"
 
 typedef struct
 {
@@ -83,7 +83,9 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
 {
     memalloc_context_t* memalloc_ctx = (memalloc_context_t*)ctx;
     void* ptr2 = memalloc_ctx->pymem_allocator_obj.realloc(memalloc_ctx->pymem_allocator_obj.ctx, ptr, new_size);
-    // TODO(dsn) is the GIL held here? Can there be a race between the realloc and the untrack of the old value?
+    // The GIL is held here since we're using PYMEM_DOMAIN_OBJ.
+    // TODO(dsn): With Python free-threading, allocators must be thread-safe even for non-RAW domains.
+    // We may need to add synchronization here in the future to avoid races between realloc and untrack.
     if (ptr2) {
         memalloc_heap_untrack_no_cpython(ptr);
         memalloc_heap_track(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
