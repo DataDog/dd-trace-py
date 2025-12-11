@@ -892,10 +892,10 @@ def test_start_wrong_arg():
     with pytest.raises(TypeError, match="function takes exactly 2 arguments \\(1 given\\)"):
         _memalloc.start(2)
 
-    with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 65535\\]"):
+    with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 600\\]"):
         _memalloc.start(429496, 1)
 
-    with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 65535\\]"):
+    with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 600\\]"):
         _memalloc.start(-1, 1)
 
     with pytest.raises(
