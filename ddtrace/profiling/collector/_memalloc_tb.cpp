@@ -252,7 +252,7 @@ push_pyframe_to_sample(Datadog::Sample& sample, PyFrameObject* frame)
     if (lineno_val < 0)
         lineno_val = 0;
 
-        // Get code object
+    // Get code object
 #ifdef _PY39_AND_LATER
     PyCodeObject* code = PyFrame_GetCode(frame);
 #else
@@ -284,7 +284,7 @@ push_pyframe_to_sample(Datadog::Sample& sample, PyFrameObject* frame)
 
 /* Helper function to collect frames from PyFrameObject chain and push to sample */
 static void
-push_stacktrace_to_sample(Datadog::Sample& sample)
+push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
 {
     PyThreadState* tstate = PyThreadState_Get();
     if (tstate == NULL) {
@@ -329,7 +329,7 @@ push_stacktrace_to_sample(Datadog::Sample& sample)
 }
 
 void
-traceback_t::init_sample(size_t size, size_t weighted_size)
+traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
 {
     // Save any existing error state to avoid masking errors during traceback construction/reset
     PythonErrorRestorer error_restorer;
@@ -358,9 +358,10 @@ traceback_t::init_sample(size_t size, size_t weighted_size)
     // but we push root-to-leaf. Set reverse_locations so the sample will be reversed when exported.
     // Note: Sample.push_frame() automatically enforces the max_nframe limit and tracks dropped frames.
     sample.set_reverse_locations(true);
-    push_stacktrace_to_sample(sample);
+    push_stacktrace_to_sample_invokes_cpython(sample);
 }
 
+// AIDEV-NOTE: Constructor invokes CPython APIs via init_sample_invokes_cpython()
 traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe)
   : reported(false)
   , sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
@@ -371,13 +372,13 @@ traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe)
         return;
     }
 
-    init_sample(size, weighted_size);
+    init_sample_invokes_cpython(size, weighted_size);
 }
 
 void
-traceback_t::reset(size_t size, size_t weighted_size)
+traceback_t::reset_invokes_cpython(size_t size, size_t weighted_size)
 {
     sample.clear_buffers();
     reported = false;
-    init_sample(size, weighted_size);
+    init_sample_invokes_cpython(size, weighted_size);
 }

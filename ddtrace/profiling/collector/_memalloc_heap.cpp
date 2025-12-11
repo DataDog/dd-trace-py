@@ -118,11 +118,11 @@ class heap_tracker_t
     static heap_tracker_t* instance;
 
     /* Traceback pool operations */
-    std::unique_ptr<traceback_t> pool_get(size_t size, size_t weighted_size, uint16_t max_nframe);
-    void pool_put(std::unique_ptr<traceback_t> tb);
+    std::unique_ptr<traceback_t> pool_get_invokes_cpython(size_t size, size_t weighted_size, uint16_t max_nframe);
+    void pool_put_no_cpython(std::unique_ptr<traceback_t> tb);
 
   private:
-    static uint32_t next_sample_size(uint32_t sample_size);
+    static uint32_t next_sample_size_no_cpython(uint32_t sample_size);
 
     /* Heap profiler sampling interval */
     uint64_t sample_size;
@@ -142,26 +142,27 @@ class heap_tracker_t
     std::vector<std::unique_ptr<traceback_t>> pool;
 };
 
-// Free function wrapper for pool_put - allows other compilation units to use the pool
+// Free function wrapper for pool_put_no_cpython - allows other compilation units to use the pool
 void
 heap_pool_put_traceback(std::unique_ptr<traceback_t> tb)
 {
     if (heap_tracker_t::instance) {
-        heap_tracker_t::instance->pool_put(std::move(tb));
+        heap_tracker_t::instance->pool_put_no_cpython(std::move(tb));
     }
     // If instance is null, tb automatically deletes when it goes out of scope
 }
 
 // Pool implementation
+// _invokes_cpython suffix: calls traceback_t::reset() and constructor which invoke CPython APIs
 std::unique_ptr<traceback_t>
-heap_tracker_t::pool_get(size_t size, size_t weighted_size, uint16_t max_nframe)
+heap_tracker_t::pool_get_invokes_cpython(size_t size, size_t weighted_size, uint16_t max_nframe)
 {
     /* Try to get a traceback from the pool */
     if (!pool.empty()) {
         auto tb = std::move(pool.back());
         pool.pop_back();
         /* Reset it with the new allocation data */
-        tb->reset(size, weighted_size);
+        tb->reset_invokes_cpython(size, weighted_size);
         return tb;
     }
 
@@ -170,7 +171,7 @@ heap_tracker_t::pool_get(size_t size, size_t weighted_size, uint16_t max_nframe)
 }
 
 void
-heap_tracker_t::pool_put(std::unique_ptr<traceback_t> tb)
+heap_tracker_t::pool_put_no_cpython(std::unique_ptr<traceback_t> tb)
 {
     if (!tb) {
         return;
@@ -185,7 +186,7 @@ heap_tracker_t::pool_put(std::unique_ptr<traceback_t> tb)
 
 // Static helper function
 uint32_t
-heap_tracker_t::next_sample_size(uint32_t sample_size)
+heap_tracker_t::next_sample_size_no_cpython(uint32_t sample_size)
 {
     /* We want to draw a sampling target from an exponential distribution with
        average sample_size. We use the standard technique of inverse transform
@@ -203,7 +204,7 @@ heap_tracker_t::next_sample_size(uint32_t sample_size)
 // Method implementations
 heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
   : sample_size(sample_size_val)
-  , current_sample_size(next_sample_size(sample_size_val))
+  , current_sample_size(next_sample_size_no_cpython(sample_size_val))
   , allocated_memory(0)
 {
     pool.reserve(POOL_CAPACITY); // Pre-allocate pool capacity to avoid reallocations
@@ -265,7 +266,7 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
 
     // Get ready for the next sample
     allocated_memory = 0;
-    current_sample_size = next_sample_size(sample_size);
+    current_sample_size = next_sample_size_no_cpython(sample_size);
 }
 
 void
@@ -319,7 +320,7 @@ memalloc_heap_untrack_no_cpython(void* ptr)
 
 /* Track a memory allocation in the heap profiler. */
 void
-memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
+memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
 {
     if (!heap_tracker_t::instance) {
         return;
@@ -369,7 +370,7 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
         return;
     }
 
-    auto tb = heap_tracker_t::instance->pool_get(size, allocated_memory_val, max_nframe);
+    auto tb = heap_tracker_t::instance->pool_get_invokes_cpython(size, allocated_memory_val, max_nframe);
 
 #if defined(_PY310_AND_LATER) && !defined(_PY312_AND_LATER)
     if (gc_enabled) {

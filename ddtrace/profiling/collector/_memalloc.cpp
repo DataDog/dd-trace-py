@@ -60,7 +60,7 @@ memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
         ptr = memalloc_ctx->pymem_allocator_obj.malloc(memalloc_ctx->pymem_allocator_obj.ctx, nelem * elsize);
 
     if (ptr) {
-        memalloc_heap_track(memalloc_ctx->max_nframe, ptr, nelem * elsize, memalloc_ctx->domain);
+        memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr, nelem * elsize, memalloc_ctx->domain);
     }
 
     return ptr;
@@ -88,7 +88,7 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
     // We may need to add synchronization here in the future to avoid races between realloc and untrack.
     if (ptr2) {
         memalloc_heap_untrack_no_cpython(ptr);
-        memalloc_heap_track(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
+        memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
     }
 
     return ptr2;
