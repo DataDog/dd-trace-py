@@ -10,8 +10,10 @@ from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
+from ddtrace.testing.internal.http import Subdomain
 from ddtrace.testing.internal.settings_data import Settings
 from ddtrace.testing.internal.settings_data import TestProperties
+from ddtrace.testing.internal.telemetry import ErrorType
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import ITRSkippingLevel
 from ddtrace.testing.internal.test_data import ModuleRef
@@ -38,7 +40,7 @@ class APIClient:
         self.env_tags = env_tags
         self.itr_skipping_level = itr_skipping_level
         self.configurations = configurations
-        self.connector = connector_setup.get_connector_for_subdomain("api")
+        self.connector = connector_setup.get_connector_for_subdomain(Subdomain.API)
         self.telemetry_api = telemetry_api
 
     def close(self) -> None:
@@ -52,35 +54,49 @@ class APIClient:
             error="git_requests.settings_errors",
         )
 
-        request_data = {
-            "data": {
-                "id": str(uuid.uuid4()),
-                "type": "ci_app_test_service_libraries_settings",
-                "attributes": {
-                    "test_level": self.itr_skipping_level.value,
-                    "service": self.service,
-                    "env": self.env,
-                    "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
-                    "sha": self.env_tags[GitTag.COMMIT_SHA],
-                    "branch": self.env_tags[GitTag.BRANCH],
-                    "configurations": self.configurations,
-                },
+        try:
+            request_data = {
+                "data": {
+                    "id": str(uuid.uuid4()),
+                    "type": "ci_app_test_service_libraries_settings",
+                    "attributes": {
+                        "test_level": self.itr_skipping_level.value,
+                        "service": self.service,
+                        "env": self.env,
+                        "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
+                        "sha": self.env_tags[GitTag.COMMIT_SHA],
+                        "branch": self.env_tags[GitTag.BRANCH],
+                        "configurations": self.configurations,
+                    },
+                }
             }
-        }
+
+        except KeyError as e:
+            log.error("Git info not available, cannot fetch settings (missing key: %s)", e)
+            telemetry.record_error(ErrorType.UNKNOWN)
+            return Settings()
 
         try:
             result = self.connector.post_json(
                 "/api/v2/libraries/tests/services/setting", request_data, telemetry=telemetry
             )
             result.on_error_raise_exception()
+
+        except Exception as e:
+            log.error("Error getting settings from API: %s", e)
+            return Settings()
+
+        try:
             attributes = result.parsed_response["data"]["attributes"]
             settings = Settings.from_attributes(attributes)
-            self.telemetry_api.record_settings(settings)
-            return settings
 
-        except Exception:
-            log.exception("Error getting settings from API")
+        except Exception as e:
+            log.exception("Error getting settings from API: %s", e)
+            telemetry.record_error(ErrorType.BAD_JSON)
             return Settings()
+
+        self.telemetry_api.record_settings(settings)
+        return settings
 
     def get_known_tests(self) -> t.Set[TestRef]:
         telemetry = self.telemetry_api.with_request_metric_names(
@@ -90,22 +106,34 @@ class APIClient:
             error="known_tests.request_errors",
         )
 
-        request_data = {
-            "data": {
-                "id": str(uuid.uuid4()),
-                "type": "ci_app_libraries_tests_request",
-                "attributes": {
-                    "service": self.service,
-                    "env": self.env,
-                    "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
-                    "configurations": self.configurations,
-                },
+        try:
+            request_data = {
+                "data": {
+                    "id": str(uuid.uuid4()),
+                    "type": "ci_app_libraries_tests_request",
+                    "attributes": {
+                        "service": self.service,
+                        "env": self.env,
+                        "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
+                        "configurations": self.configurations,
+                    },
+                }
             }
-        }
+
+        except KeyError as e:
+            log.error("Git info not available, cannot fetch known tests (missing key: %s)", e)
+            telemetry.record_error(ErrorType.UNKNOWN)
+            return set()
 
         try:
             result = self.connector.post_json("/api/v2/ci/libraries/tests", request_data, telemetry=telemetry)
             result.on_error_raise_exception()
+
+        except Exception as e:
+            log.exception("Error getting known tests from API: %s", e)
+            return set()
+
+        try:
             tests_data = result.parsed_response["data"]["attributes"]["tests"]
             known_test_ids = set()
 
@@ -116,12 +144,13 @@ class APIClient:
                     for test in tests:
                         known_test_ids.add(TestRef(suite_ref, test))
 
-            self.telemetry_api.record_known_tests_count(len(known_test_ids))
-            return known_test_ids
-
         except Exception:
             log.exception("Error getting known tests from API")
+            telemetry.record_error(ErrorType.BAD_JSON)
             return set()
+
+        self.telemetry_api.record_known_tests_count(len(known_test_ids))
+        return known_test_ids
 
     def get_test_management_properties(self) -> t.Dict[TestRef, TestProperties]:
         telemetry = self.telemetry_api.with_request_metric_names(
@@ -131,23 +160,35 @@ class APIClient:
             error="test_management_tests.request_errors",
         )
 
-        request_data = {
-            "data": {
-                "id": str(uuid.uuid4()),
-                "type": "ci_app_libraries_tests_request",
-                "attributes": {
-                    "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
-                    "commit_message": self.env_tags[GitTag.COMMIT_MESSAGE],
-                    "sha": self.env_tags[GitTag.COMMIT_SHA],
-                },
+        try:
+            request_data = {
+                "data": {
+                    "id": str(uuid.uuid4()),
+                    "type": "ci_app_libraries_tests_request",
+                    "attributes": {
+                        "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
+                        "commit_message": self.env_tags[GitTag.COMMIT_MESSAGE],
+                        "sha": self.env_tags[GitTag.COMMIT_SHA],
+                    },
+                }
             }
-        }
+
+        except KeyError as e:
+            log.error("Git info not available, cannot fetch Test Management properties (missing key: %s)", e)
+            telemetry.record_error(ErrorType.UNKNOWN)
+            return {}
 
         try:
             result = self.connector.post_json(
                 "/api/v2/test/libraries/test-management/tests", request_data, telemetry=telemetry
             )
             result.on_error_raise_exception()
+
+        except Exception as e:
+            log.error("Error getting Test Management properties from API: %s", e)
+            return {}
+
+        try:
             test_properties: t.Dict[TestRef, TestProperties] = {}
             modules = result.parsed_response["data"]["attributes"]["modules"]
 
@@ -166,54 +207,105 @@ class APIClient:
                             attempt_to_fix=properties.get("attempt_to_fix", False),
                         )
 
-            self.telemetry_api.record_test_management_tests_count(len(test_properties))
-
-            return test_properties
-
         except Exception:
-            log.exception("Failed to parse Test Management tests data")
+            log.exception("Failed to parse Test Management tests data from API")
+            telemetry.record_error(ErrorType.BAD_JSON)
             return {}
 
+        self.telemetry_api.record_test_management_tests_count(len(test_properties))
+        return test_properties
+
     def get_known_commits(self, latest_commits: t.List[str]) -> t.List[str]:
-        request_data = {
-            "meta": {
-                "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
-            },
-            "data": [{"id": sha, "type": "commit"} for sha in latest_commits],
-        }
+        telemetry = self.telemetry_api.with_request_metric_names(
+            count="git_requests.search_commits",
+            duration="git_requests.search_commits_ms",
+            response_bytes=None,
+            error="git_requests.search_commits_errors",
+        )
 
         try:
-            result = self.connector.post_json("/api/v2/git/repository/search_commits", request_data)
+            request_data = {
+                "meta": {
+                    "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
+                },
+                "data": [{"id": sha, "type": "commit"} for sha in latest_commits],
+            }
+
+        except KeyError as e:
+            log.error("Git info not available, cannot fetch known commits (missing key: %s)", e)
+            telemetry.record_error(ErrorType.UNKNOWN)
+            return []
+
+        try:
+            result = self.connector.post_json(
+                "/api/v2/git/repository/search_commits", request_data, telemetry=telemetry
+            )
             result.on_error_raise_exception()
-            return [item["id"] for item in result.parsed_response["data"] if item["type"] == "commit"]
+
+        except Exception as e:
+            log.error("Error getting known commits from API: %s", e)
+            return []
+
+        try:
+            known_commits = [item["id"] for item in result.parsed_response["data"] if item["type"] == "commit"]
 
         except Exception:
             log.exception("Failed to parse search_commits data")
+            telemetry.record_error(ErrorType.BAD_JSON)
             return []
 
-    def send_git_pack_file(self, packfile: Path) -> None:
-        metadata = {
-            "data": {"id": self.env_tags[GitTag.COMMIT_SHA], "type": "commit"},
-            "meta": {"repository_url": self.env_tags[GitTag.REPOSITORY_URL]},
-        }
-        content = packfile.read_bytes()
-        files = [
-            FileAttachment(
-                name="pushedSha",
-                filename=None,
-                content_type="application/json",
-                data=json.dumps(metadata).encode("utf-8"),
-            ),
-            FileAttachment(
-                name="packfile", filename=packfile.name, content_type="application/octet-stream", data=content
-            ),
-        ]
+        return known_commits
+
+    def send_git_pack_file(self, packfile: Path) -> t.Optional[int]:
+        telemetry = self.telemetry_api.with_request_metric_names(
+            count="git_requests.objects_pack",
+            duration="git_requests.objects_pack_ms",
+            response_bytes=None,
+            error="git_requests.objects_pack_errors",
+        )
+
         try:
-            result = self.connector.post_files("/api/v2/git/repository/packfile", files=files, send_gzip=False)
+            metadata = {
+                "data": {"id": self.env_tags[GitTag.COMMIT_SHA], "type": "commit"},
+                "meta": {"repository_url": self.env_tags[GitTag.REPOSITORY_URL]},
+            }
+
+        except KeyError as e:
+            log.error("Git info not available, cannot send git packfile (missing key: %s)", e)
+            telemetry.record_error(ErrorType.UNKNOWN)
+            return None
+
+        try:
+            content = packfile.read_bytes()
+
+            files = [
+                FileAttachment(
+                    name="pushedSha",
+                    filename=None,
+                    content_type="application/json",
+                    data=json.dumps(metadata).encode("utf-8"),
+                ),
+                FileAttachment(
+                    name="packfile", filename=packfile.name, content_type="application/octet-stream", data=content
+                ),
+            ]
+
+        except Exception:
+            log.exception("Error sending Git pack data")
+            telemetry.record_error(ErrorType.UNKNOWN)
+            return None
+
+        try:
+            result = self.connector.post_files(
+                "/api/v2/git/repository/packfile", files=files, send_gzip=False, telemetry=telemetry
+            )
             result.on_error_raise_exception()
 
         except Exception:
-            log.warning("Failed to upload git pack data")
+            log.warning("Failed to upload Git pack data")
+            return None
+
+        return len(content)
 
     def get_skippable_tests(self) -> t.Tuple[t.Set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
         telemetry = self.telemetry_api.with_request_metric_names(
@@ -223,24 +315,36 @@ class APIClient:
             error="itr_skippable_tests.request_errors",
         )
 
-        request_data = {
-            "data": {
-                "id": str(uuid.uuid4()),
-                "type": "test_params",
-                "attributes": {
-                    "service": self.service,
-                    "env": self.env,
-                    "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
-                    "sha": self.env_tags[GitTag.COMMIT_SHA],
-                    "configurations": self.configurations,
-                    "test_level": self.itr_skipping_level.value,
-                },
+        try:
+            request_data = {
+                "data": {
+                    "id": str(uuid.uuid4()),
+                    "type": "test_params",
+                    "attributes": {
+                        "service": self.service,
+                        "env": self.env,
+                        "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
+                        "sha": self.env_tags[GitTag.COMMIT_SHA],
+                        "configurations": self.configurations,
+                        "test_level": self.itr_skipping_level.value,
+                    },
+                }
             }
-        }
+
+        except KeyError as e:
+            log.error("Git info not available, cannot get skippable items (missing key: %s)", e)
+            telemetry.record_error(ErrorType.UNKNOWN)
+            return set(), None
+
         try:
             result = self.connector.post_json("/api/v2/ci/tests/skippable", request_data, telemetry=telemetry)
             result.on_error_raise_exception()
 
+        except Exception as e:
+            log.error("Error getting skippable tests from API: %s", e)
+            return set(), None
+
+        try:
             skippable_items: t.Set[t.Union[SuiteRef, TestRef]] = set()
 
             for item in result.parsed_response["data"]:
@@ -255,10 +359,11 @@ class APIClient:
 
             correlation_id = result.parsed_response["meta"]["correlation_id"]
 
-            self.telemetry_api.record_skippable_count(count=len(skippable_items), level=self.itr_skipping_level)
-
-            return skippable_items, correlation_id
-
         except Exception:
-            log.exception("Error getting skippable tests from API")
+            log.exception("Failed to parse skippable tests data from API")
+            telemetry.record_error(ErrorType.BAD_JSON)
             return set(), None
+
+        self.telemetry_api.record_skippable_count(count=len(skippable_items), level=self.itr_skipping_level)
+
+        return skippable_items, correlation_id

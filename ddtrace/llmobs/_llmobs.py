@@ -4,6 +4,7 @@ from dataclasses import field
 import inspect
 import json
 import os
+import sys
 import time
 from typing import Any
 from typing import Callable
@@ -645,6 +646,8 @@ class LLMObs(Service):
             log.debug("%s already enabled", cls.__name__)
             return
 
+        cls._warn_if_litellm_was_imported()
+
         if os.getenv("DD_LLMOBS_ENABLED") and not asbool(os.getenv("DD_LLMOBS_ENABLED")):
             log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false or 0, not starting LLMObs service")
             return
@@ -766,6 +769,20 @@ class LLMObs(Service):
                 config._llmobs_instrumented_proxy_urls,
                 config._llmobs_ml_app,
             )
+
+    @staticmethod
+    def _warn_if_litellm_was_imported() -> None:
+        if "litellm" in sys.modules:
+            import litellm
+
+            if not getattr(litellm, "_datadog_patch", False):
+                log.warning(
+                    "LLMObs.enable() called after litellm was imported but before it was patched. "
+                    "This may cause tracing issues if you are importing patched methods like 'litellm.completion' "
+                    "directly. To ensure proper tracing, either run your application with ddtrace-run, "
+                    "call ddtrace.patch_all() before importing litellm, or "
+                    "enable LLMObs before importing other modules."
+                )
 
     def _on_asyncio_create_task(self, task_data: Dict[str, Any]) -> None:
         """Propagates llmobs active trace context across asyncio tasks."""
@@ -1738,9 +1755,9 @@ class LLMObs(Service):
         arbitrary structured or non structured IO values in its spans
         """
         if input_value is not None:
-            span._set_ctx_item(EXPERIMENTS_INPUT, safe_json(input_value))
+            span._set_ctx_item(EXPERIMENTS_INPUT, input_value)
         if output_value is not None:
-            span._set_ctx_item(EXPERIMENTS_OUTPUT, safe_json(output_value))
+            span._set_ctx_item(EXPERIMENTS_OUTPUT, output_value)
 
     @staticmethod
     def _set_dict_attribute(span: Span, key, value: Dict[str, Any]) -> None:

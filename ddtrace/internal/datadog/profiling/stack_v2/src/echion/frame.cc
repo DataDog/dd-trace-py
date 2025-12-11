@@ -3,6 +3,17 @@
 #include <echion/errors.h>
 #include <echion/render.h>
 
+#if PY_VERSION_HEX >= 0x030b0000
+#include <cstddef>
+#include <internal/pycore_code.h>
+#include <internal/pycore_frame.h>
+
+#if PY_VERSION_HEX >= 0x030e0000
+#include <internal/pycore_interpframe_structs.h>
+#include <internal/pycore_stackref.h>
+#endif // PY_VERSION_HEX >= 0x030e0000
+#endif // PY_VERSION_HEX >= 0x030b0000
+
 // ----------------------------------------------------------------------------
 #if PY_VERSION_HEX >= 0x030b0000
 static inline int
@@ -233,7 +244,15 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
     }
 
 #if PY_VERSION_HEX >= 0x030c0000
+#if PY_VERSION_HEX >= 0x030e0000
+    // Python 3.14 introduced FRAME_OWNED_BY_INTERPRETER, and frames of this
+    // type are also ignored by the upstream profiler.
+    // See
+    // https://github.com/python/cpython/blob/ebf955df7a89ed0c7968f79faec1de49f61ed7cb/Modules/_remote_debugging_module.c#L2134
+    if (frame_addr->owner == FRAME_OWNED_BY_CSTACK || frame_addr->owner == FRAME_OWNED_BY_INTERPRETER) {
+#else
     if (frame_addr->owner == FRAME_OWNED_BY_CSTACK) {
+#endif // PY_VERSION_HEX >= 0x030e0000
         *prev_addr = frame_addr->previous;
         // This is a C frame, we just need to ignore it
         return std::ref(C_FRAME);
@@ -246,7 +265,21 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
 
     // We cannot use _PyInterpreterFrame_LASTI because _PyCode_CODE reads
     // from the code object.
-#if PY_VERSION_HEX >= 0x030d0000
+#if PY_VERSION_HEX >= 0x030e0000
+    // Per Python 3.14 release notes (gh-123923): f_executable uses a tagged pointer.
+    // Profilers must clear the least significant bit to recover the PyObject* pointer.
+    PyCodeObject* code_obj = reinterpret_cast<PyCodeObject*>(BITS_TO_PTR_MASKED(frame_addr->f_executable));
+    _Py_CODEUNIT* code_units = reinterpret_cast<_Py_CODEUNIT*>(code_obj);
+    int instr_offset = static_cast<int>(frame_addr->instr_ptr - 1 - code_units);
+    int code_offset = offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
+    const int lasti = instr_offset - code_offset;
+    auto maybe_frame = Frame::get(code_obj, lasti);
+    if (!maybe_frame) {
+        return ErrorKind::FrameError;
+    }
+
+    auto& frame = maybe_frame->get();
+#elif PY_VERSION_HEX >= 0x030d0000
     const int lasti =
       (static_cast<int>(
         (frame_addr->instr_ptr - 1 -
@@ -268,7 +301,7 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
     }
 
     auto& frame = maybe_frame->get();
-#endif // PY_VERSION_HEX >= 0x030d0000
+#endif // PY_VERSION_HEX >= 0x030e0000
     if (&frame != &INVALID_FRAME) {
 #if PY_VERSION_HEX >= 0x030c0000
         frame.is_entry = (frame_addr->owner == FRAME_OWNED_BY_CSTACK); // Shim frame
@@ -276,7 +309,6 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
         frame.is_entry = frame_addr->is_entry;
 #endif                                                                 // PY_VERSION_HEX >= 0x030c0000
     }
-
     *prev_addr = &frame == &INVALID_FRAME ? NULL : frame_addr->previous;
 
 #else  // PY_VERSION_HEX < 0x030b0000

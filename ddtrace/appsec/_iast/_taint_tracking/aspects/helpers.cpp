@@ -1,5 +1,4 @@
 #include "helpers.h"
-#include "utils/python_error_guard.h"
 #include <algorithm>
 #include <cstdio>
 
@@ -23,7 +22,7 @@ api_common_replace(const py::str& string_method,
 {
     const StrType res = py::getattr(candidate_text, string_method)(*args, **kwargs);
 
-    const auto tx_map = taint_engine_context->get_tainted_object_map(candidate_text.ptr());
+    const auto tx_map = safe_get_tainted_object_map(candidate_text.ptr());
 
     if (not tx_map or tx_map->empty()) {
         return res;
@@ -102,7 +101,9 @@ api_as_formatted_evidence(const StrType& text,
                           const optional<TagMappingMode>& tag_mapping_mode,
                           const optional<const py::dict>& new_ranges)
 {
-    const auto tx_map = taint_engine_context->get_tainted_object_map(text.ptr());
+    CHECK_IAST_INITIALIZED_OR_RETURN(text);
+
+    const auto tx_map = safe_get_tainted_object_map(text.ptr());
     if (!tx_map or tx_map->empty()) {
         return text;
     }
@@ -124,8 +125,9 @@ api_as_formatted_evidence(const StrType& text,
 py::bytearray
 api_convert_escaped_text_to_taint_text(const py::bytearray& taint_escaped_text, const TaintRangeRefs& ranges_orig)
 {
+    CHECK_IAST_INITIALIZED_OR_RETURN(taint_escaped_text);
 
-    const auto tx_map = taint_engine_context->get_tainted_object_map(taint_escaped_text.ptr());
+    const auto tx_map = safe_get_tainted_object_map(taint_escaped_text.ptr());
     if (!tx_map) {
         return taint_escaped_text;
     }
@@ -143,6 +145,8 @@ template<class StrType>
 StrType
 api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const TaintRangeRefs& ranges_orig)
 {
+    CHECK_IAST_INITIALIZED_OR_RETURN(taint_escaped_text);
+
     const auto tx_map = taint_engine_context->get_tainted_object_map_from_ranges(ranges_orig);
     if (!tx_map) {
         return taint_escaped_text;
@@ -159,6 +163,8 @@ api_convert_escaped_text_to_taint_text(PyObject* taint_escaped_text,
                                        const TaintRangeRefs& ranges_orig,
                                        const PyTextType py_str_type)
 {
+    CHECK_IAST_INITIALIZED_OR_RETURN(taint_escaped_text);
+
     if (taint_escaped_text == nullptr or ranges_orig.empty()) {
         return taint_escaped_text;
     }
@@ -250,8 +256,8 @@ convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const Tain
                     id_evidence = get<0>(previous_context);
                     const shared_ptr<TaintRange>& original_range =
                       get_range_by_hash(getNum(id_evidence), optional_ranges_orig);
-                    ranges.emplace_back(initializer->allocate_taint_range(
-                      start, length, original_range->source, original_range->secure_marks));
+                    ranges.emplace_back(
+                      safe_allocate_taint_range(start, length, original_range->source, original_range->secure_marks));
                 }
                 latest_end = end;
             }
@@ -282,8 +288,8 @@ convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const Tain
                 id_evidence = get<0>(context);
                 const shared_ptr<TaintRange>& original_range =
                   get_range_by_hash(getNum(id_evidence), optional_ranges_orig);
-                ranges.emplace_back(initializer->allocate_taint_range(
-                  start, end - start, original_range->source, original_range->secure_marks));
+                ranges.emplace_back(
+                  safe_allocate_taint_range(start, end - start, original_range->source, original_range->secure_marks));
             }
             latest_end = end;
         }
@@ -339,7 +345,7 @@ set_ranges_on_splitted(const py::object& source_str,
 
                 if (new_length > 0) {
                     item_ranges.emplace_back(
-                      initializer->allocate_taint_range(new_start, new_length, range->source, range->secure_marks));
+                      safe_allocate_taint_range(new_start, new_length, range->source, range->secure_marks));
                 }
             }
         }
@@ -367,7 +373,9 @@ api_set_ranges_on_splitted(const StrType& source_str,
                            bool include_separator,
                            size_t context_id)
 {
-    const auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(context_id);
+    CHECK_IAST_INITIALIZED_OR_RETURN(false);
+
+    const auto tx_map = safe_get_tainted_object_map_by_ctx_id(context_id);
     if (not tx_map or tx_map->empty()) {
         return false;
     }
@@ -423,8 +431,8 @@ are_all_text_all_ranges(PyObject* candidate_text,
 tuple<TaintRangeRefs, TaintRangeRefs>
 api_are_all_text_all_ranges(py::handle& candidate_text, const py::list& parameter_list)
 {
-    const auto tx_map = taint_engine_context->get_tainted_object_map_from_list_of_pyobjects(
-      { candidate_text.ptr(), parameter_list.ptr() });
+    const auto tx_map =
+      safe_get_tainted_object_map_from_list_of_pyobjects({ candidate_text.ptr(), parameter_list.ptr() });
     if (not tx_map or tx_map->empty()) {
         return { {}, {} };
     }
@@ -435,8 +443,8 @@ api_are_all_text_all_ranges(py::handle& candidate_text, const py::list& paramete
 tuple<TaintRangeRefs, TaintRangeRefs>
 api_are_all_text_all_ranges(py::handle& candidate_text, const py::tuple& parameter_list)
 {
-    const auto tx_map = taint_engine_context->get_tainted_object_map_from_list_of_pyobjects(
-      { candidate_text.ptr(), parameter_list.ptr() });
+    const auto tx_map =
+      safe_get_tainted_object_map_from_list_of_pyobjects({ candidate_text.ptr(), parameter_list.ptr() });
     if (not tx_map or tx_map->empty()) {
         return { {}, {} };
     }
