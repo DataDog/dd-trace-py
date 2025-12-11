@@ -17,12 +17,12 @@ class EarlyFlakeDetectionSettings:
     @classmethod
     def from_attributes(cls, efd_attributes: t.Dict[str, t.Any]) -> EarlyFlakeDetectionSettings:
         efd_settings = cls(
-            enabled=efd_attributes["enabled"],
-            slow_test_retries_5s=efd_attributes["slow_test_retries"]["5s"],
-            slow_test_retries_10s=efd_attributes["slow_test_retries"]["10s"],
-            slow_test_retries_30s=efd_attributes["slow_test_retries"]["30s"],
-            slow_test_retries_5m=efd_attributes["slow_test_retries"]["5m"],
-            faulty_session_threshold=efd_attributes["faulty_session_threshold"],
+            enabled=efd_attributes.get("enabled", cls.enabled),
+            slow_test_retries_5s=efd_attributes.get("slow_test_retries", {}).get("5s", cls.slow_test_retries_5s),
+            slow_test_retries_10s=efd_attributes.get("slow_test_retries", {}).get("10s", cls.slow_test_retries_10s),
+            slow_test_retries_30s=efd_attributes.get("slow_test_retries", {}).get("30s", cls.slow_test_retries_30s),
+            slow_test_retries_5m=efd_attributes.get("slow_test_retries", {}).get("5m", cls.slow_test_retries_5m),
+            faulty_session_threshold=efd_attributes.get("faulty_session_threshold", cls.faulty_session_threshold),
         )
         return efd_settings
 
@@ -41,8 +41,8 @@ class TestManagementSettings:
     @classmethod
     def from_attributes(cls, test_management_attributes: t.Dict[str, t.Any]) -> TestManagementSettings:
         test_management_settings = cls(
-            enabled=test_management_attributes["enabled"],
-            attempt_to_fix_retries=test_management_attributes["attempt_to_fix_retries"],
+            enabled=test_management_attributes.get("enabled", cls.enabled),
+            attempt_to_fix_retries=test_management_attributes.get("attempt_to_fix_retries", cls.attempt_to_fix_retries),
         )
         return test_management_settings
 
