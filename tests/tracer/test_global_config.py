@@ -272,6 +272,7 @@ class GlobalConfigTestCase(TestCase):
             # DEV: This is the test, to ensure no exceptions are raised
             core.dispatch("web.request", (span,))
 
+    @with_config_raise_value(raise_value=False)
     def test_settings_no_span(self):
         """
         When calling `core.dispatch()`
