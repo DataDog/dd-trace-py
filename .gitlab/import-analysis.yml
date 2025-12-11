@@ -1,9 +1,8 @@
 import_analysis:
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
-  tags: ["arch:amd64"]
+  tags: [ "arch:amd64" ]
   stage: tests
   needs:
-    - "pipeline variables"
     - job: download_ddtrace_artifacts
       artifacts: true
   id_tokens:
