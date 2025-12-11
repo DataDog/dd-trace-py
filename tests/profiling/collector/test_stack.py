@@ -173,7 +173,7 @@ def test_push_span(tmp_path, tracer):
 
 
 def test_push_span_unregister_thread(tmp_path, monkeypatch, tracer):
-    with patch("ddtrace.internal.datadog.profiling.stack_v2.unregister_thread") as unregister_thread:
+    with patch("ddtrace.internal.datadog.profiling.stack.unregister_thread") as unregister_thread:
         tracer._endpoint_call_counter_span_processor.enable()
 
         test_name = "test_push_span_unregister_thread"

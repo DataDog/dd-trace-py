@@ -8,9 +8,9 @@ if(NOT DEFINED BUILD_TESTING)
 endif()
 
 # The exact name of this extension determines aspects of the installation and build paths, which need to be kept in sync
-# with setup.py. Accordingly, take the name passed in by the caller, defaulting to "stack_v2" if needed.
+# with setup.py. Accordingly, take the name passed in by the caller, defaulting to "stack" if needed.
 set(EXTENSION_NAME
-    "_stack_v2"
+    "_stack"
     CACHE STRING "Name of the extension")
 project(${EXTENSION_NAME})
 message(STATUS "Building extension: ${EXTENSION_NAME}")
@@ -55,8 +55,8 @@ if(NOT Threads_FOUND OR NOT CMAKE_USE_PTHREADS_INIT)
 endif()
 
 # Specify the target C-extension that we want to build
-add_library(${EXTENSION_NAME} SHARED src/echion/danger.cc src/echion/frame.cc src/sampler.cpp src/stack_renderer.cpp
-                                     src/stack_v2.cpp src/thread_span_links.cpp)
+add_library(${EXTENSION_NAME} SHARED src/echion/danger.cc src/echion/frame.cc src/sampler.cpp src/stack.cpp
+                                     src/stack_renderer.cpp src/thread_span_links.cpp)
 
 # Add common config
 add_ddup_config(${EXTENSION_NAME})
