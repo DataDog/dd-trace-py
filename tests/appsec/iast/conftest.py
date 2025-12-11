@@ -11,6 +11,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
+from ddtrace.appsec._iast._taint_tracking import initialize_native_state
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
@@ -59,6 +60,7 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
             _iast_request_sampling=request_sampling,
         )
     ), override_env(env):
+        initialize_native_state()
         assert debug_context_array_size() == 2
         assert debug_context_array_free_slots_number() > 0
         span = MockSpan()
