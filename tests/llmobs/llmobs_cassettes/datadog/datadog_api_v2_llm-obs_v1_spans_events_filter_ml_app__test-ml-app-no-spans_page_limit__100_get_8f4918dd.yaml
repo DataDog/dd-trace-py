@@ -1,0 +1,45 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Length
+      : - '0'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/vnd.api+json
+      User-Agent:
+      - python-requests/2.32.5
+    method: GET
+    uri: https://api.datadoghq.com/api/v2/llm-obs/v1/spans/events?filter%5Bml_app%5D=test-ml-app-no-spans&page%5Blimit%5D=100
+  response:
+    body:
+      string: '{"data":[],"meta":{"elapsed":24,"request_id":"pddv1ChY0S2tWR2RvOVNwMmlaMmxxRnpxS0tRIisKG7m0v5xpvm9JRRXhN35S7BhEfZnvkVbQtKidRBIM-J5syDoC6NaBrXq0","status":"done","page":null}}'
+    headers:
+      content-length:
+      - '174'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 11 Dec 2025 16:39:44 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -2159,15 +2159,12 @@ async def test_run_evaluations_enqueues_evaluation_metrics(llmobs, mock_llmobs_e
     )
 
 
-@mock.patch("ddtrace.llmobs._llmobs.LLMObs._instance._export_spans_client.export_spans")
-async def test_run_evaluations_no_spans(mock_export_spans, llmobs, mock_llmobs_eval_metric_writer):
+async def test_run_evaluations_no_spans(llmobs, mock_llmobs_eval_metric_writer):
     """
     Tests that when there are no spans, no evaluation metrics are enqueued.
     """
-    mock_export_spans.return_value = []
-
     await llmobs.run_evaluations(
-        ml_app="test-ml-app",
+        ml_app="test-ml-app-no-spans",
         evaluations=[sample_score_evaluation, sample_categorical_evaluation, sample_boolean_evaluation],
     )
 
