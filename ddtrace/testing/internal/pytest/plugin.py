@@ -376,6 +376,10 @@ class TestOptPlugin:
             test_run.set_tags(retry_handler.get_tags_for_test_run(test_run))
             self._mark_test_reports_as_retry(reports, retry_handler)
 
+            # Even though we run setup, call, teardown for each retry, we only log _one_ report per retry, as various
+            # pytest plugins generally expect only one teardown to be logged for a test (as they run test finish actions
+            # on teardown). If the call report is available, we log that, otherwise we log the setup report. (Logging
+            # multiple setups for a test does not seem to cause an issue with junitxml, at least.)
             if not self._log_test_report(item, reports, TestPhase.CALL):
                 self._log_test_report(item, reports, TestPhase.SETUP)
 
@@ -412,7 +416,7 @@ class TestOptPlugin:
         """
         Extract the most relevant report `longrepr` for a report group.
 
-        The `call` longrepr has more useful information, so we try to use that if available.
+        Errors that happened during the call phase have more useful information, so we try to use that if available.
 
         Also return the corresponding `wasxfail` attribute if present, for correct indication of xfail/xpass tests.
         """
@@ -550,7 +554,9 @@ class TestOptPlugin:
         This methods consumes the test reports and exception information for the specified test, and removes them from
         the dictionaries.
         """
-        # TODO: handle xfail/xpass.
+        status = TestStatus.PASS
+        tags = {}
+
         reports_dict = self.reports_by_nodeid.pop(nodeid, {})
 
         for phase in (TestPhase.SETUP, TestPhase.CALL, TestPhase.TEARDOWN):
@@ -558,18 +564,23 @@ class TestOptPlugin:
             if not report:
                 continue
 
+            if wasxfail := getattr(report, "wasxfail", None):
+                tags[TestTag.XFAIL_REASON] = str(wasxfail)
+                tags[TestTag.TEST_RESULT] = "xpass" if report.passed else "xfail"
+
             excinfo = self.excinfo_by_report.pop(report, None)
             if report.failed:
-                return TestStatus.FAIL, _get_exception_tags(excinfo)
-            if report.skipped:
-                if excinfo is None:
-                    reason = "Unknown skip reason"
-                else:
-                    reason = str(excinfo.value)
+                status = TestStatus.FAIL
+                tags.update(_get_exception_tags(excinfo))
+                break
 
-                return TestStatus.SKIP, {TestTag.SKIP_REASON: reason}
+            elif report.skipped:
+                status = TestStatus.SKIP
+                reason = str(excinfo.value) if excinfo else "Unknown skip reason"
+                tags[TestTag.SKIP_REASON] = reason
+                break
 
-        return TestStatus.PASS, {}
+        return status, tags
 
     def _handle_itr(self, item: pytest.Item, test_ref: TestRef, test: Test) -> None:
         if not self.manager.is_skippable_test(test_ref):
