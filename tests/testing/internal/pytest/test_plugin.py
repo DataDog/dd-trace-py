@@ -9,7 +9,6 @@ import typing as t
 from unittest.mock import Mock
 from unittest.mock import patch
 
-from _pytest.reports import TestReport
 import pytest
 
 from ddtrace.testing.internal.pytest.plugin import DISABLED_BY_TEST_MANAGEMENT_REASON
@@ -499,7 +498,7 @@ class TestPrivateMethods:
             "teardown": test_report(longrepr="teardown error"),
         }
 
-        result = plugin._extract_longrepr(t.cast(t.Dict[str, TestReport], reports))
+        result = plugin._extract_longrepr(reports)
         assert result == ("call error", None)
 
     def test_extract_longrepr_setup_fallback(self) -> None:
@@ -512,7 +511,7 @@ class TestPrivateMethods:
             "teardown": test_report(longrepr="teardown error"),
         }
 
-        result = plugin._extract_longrepr(t.cast(t.Dict[str, TestReport], reports))
+        result = plugin._extract_longrepr(reports)
         assert result == ("setup error", None)
 
     def test_extract_longrepr_no_errors(self) -> None:
@@ -526,7 +525,7 @@ class TestPrivateMethods:
             "teardown": test_report(longrepr=None),
         }
 
-        result = plugin._extract_longrepr(t.cast(t.Dict[str, TestReport], reports))
+        result = plugin._extract_longrepr(reports)
         assert result == (None, None)
 
     def test_extract_longrepr_xfail(self) -> None:
@@ -540,7 +539,7 @@ class TestPrivateMethods:
             "teardown": test_report(longrepr="teardown error"),
         }
 
-        result = plugin._extract_longrepr(t.cast(t.Dict[str, TestReport], reports))
+        result = plugin._extract_longrepr(reports)
         assert result == ("call error", "call xfail")
 
     def test_check_applicable_retry_handlers_found(self) -> None:
@@ -710,12 +709,11 @@ class TestReportAndLoggingMethods:
         mock_handler = Mock()
         mock_handler.get_pretty_name.return_value = "Test Handler"
 
-        mock_report = test_report()
-        mock_report.outcome = "failed"
+        mock_report = test_report(outcome="failed")
         mock_report.user_properties = []
         reports = {"call": mock_report}
 
-        result = plugin._mark_test_report_as_retry(t.cast(t.Dict[str, TestReport], reports), mock_handler, "call")
+        result = plugin._mark_test_report_as_retry(reports, mock_handler, "call")
 
         assert result is True
         assert mock_report.outcome == "dd_retry"
@@ -730,7 +728,7 @@ class TestReportAndLoggingMethods:
         mock_handler = Mock()
         reports: t.Dict[str, Mock] = {}
 
-        result = plugin._mark_test_report_as_retry(t.cast(t.Dict[str, TestReport], reports), mock_handler, "call")
+        result = plugin._mark_test_report_as_retry(reports, mock_handler, "call")
 
         assert result is False
 
@@ -748,7 +746,7 @@ class TestReportAndLoggingMethods:
             "call": mock_call_report,
         }
 
-        plugin._mark_test_reports_as_retry(t.cast(t.Dict[str, TestReport], reports), mock_handler)
+        plugin._mark_test_reports_as_retry(reports, mock_handler)
 
         # Should only mark call report
         assert mock_call_report.outcome == "dd_retry"
@@ -767,7 +765,7 @@ class TestReportAndLoggingMethods:
             "teardown": Mock(),
         }
 
-        plugin._mark_test_reports_as_retry(t.cast(t.Dict[str, TestReport], reports), mock_handler)
+        plugin._mark_test_reports_as_retry(reports, mock_handler)
 
         # Should mark setup report
         assert mock_setup_report.outcome == "dd_retry"
@@ -792,7 +790,7 @@ class TestQuarantineHandling:
             "teardown": mock_teardown,
         }
 
-        plugin._mark_quarantined_test_report_group_as_skipped(mock_item, t.cast(t.Dict[str, TestReport], reports))
+        plugin._mark_quarantined_test_report_group_as_skipped(mock_item, reports)
 
         # Call should be marked as skipped, others as passed
         assert mock_call.outcome == "skipped"
@@ -813,7 +811,7 @@ class TestQuarantineHandling:
             "teardown": mock_teardown,
         }
 
-        plugin._mark_quarantined_test_report_group_as_skipped(mock_item, t.cast(t.Dict[str, TestReport], reports))
+        plugin._mark_quarantined_test_report_group_as_skipped(mock_item, reports)
 
         # Setup should be marked as skipped, teardown as passed
         assert mock_setup.outcome == "skipped"
