@@ -22,6 +22,8 @@ from ddtrace.testing.internal.pytest.plugin import _get_test_command
 from ddtrace.testing.internal.pytest.plugin import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.plugin import _get_user_property
 from ddtrace.testing.internal.pytest.plugin import nodeid_to_test_ref
+from ddtrace.testing.internal.test_data import TestStatus
+from ddtrace.testing.internal.test_data import TestTag
 from tests.testing.mocks import TestDataFactory
 from tests.testing.mocks import mock_test
 from tests.testing.mocks import pytest_item_mock
@@ -647,7 +649,6 @@ class TestSessionLifecycleMethods:
         plugin.pytest_sessionfinish(mock_session)
 
         # Verify session was finished with PASS status
-        from ddtrace.testing.internal.test_data import TestStatus
 
         plugin.session.set_status.assert_called_once_with(TestStatus.PASS)
         plugin.session.finish.assert_called_once()
@@ -671,7 +672,6 @@ class TestSessionLifecycleMethods:
         plugin.pytest_sessionfinish(mock_session)
 
         # Verify session was finished with FAIL status
-        from ddtrace.testing.internal.test_data import TestStatus
 
         plugin.session.set_status.assert_called_once_with(TestStatus.FAIL)
 
@@ -867,8 +867,6 @@ class TestOutcomeProcessing:
             teardown_report: None,
         }
 
-        from ddtrace.testing.internal.test_data import TestStatus
-
         status, tags = plugin._get_test_outcome("test_id")
 
         assert status == TestStatus.PASS
@@ -900,8 +898,6 @@ class TestOutcomeProcessing:
             call_report: mock_excinfo,
         }
 
-        from ddtrace.testing.internal.test_data import TestStatus
-
         status, tags = plugin._get_test_outcome("test_id")
 
         assert status == TestStatus.FAIL
@@ -928,9 +924,6 @@ class TestOutcomeProcessing:
             setup_report: mock_excinfo,
         }
 
-        from ddtrace.testing.internal.test_data import TestStatus
-        from ddtrace.testing.internal.test_data import TestTag
-
         status, tags = plugin._get_test_outcome("test_id")
 
         assert status == TestStatus.SKIP
@@ -952,10 +945,95 @@ class TestOutcomeProcessing:
             setup_report: None,
         }
 
-        from ddtrace.testing.internal.test_data import TestStatus
-        from ddtrace.testing.internal.test_data import TestTag
-
         status, tags = plugin._get_test_outcome("test_id")
 
         assert status == TestStatus.SKIP
         assert tags[TestTag.SKIP_REASON] == "Unknown skip reason"
+
+    def test_get_test_outcome_xfail_call(self) -> None:
+        """Test _get_test_outcome for xfail test."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        # Set up reports for a failing test
+        setup_report = test_report(outcome="passed")
+        call_report = test_report(outcome="skipped", wasxfail="reason: no fun")
+        teardown_report = test_report(outcome="passed")
+
+        plugin.reports_by_nodeid["test_id"] = {
+            "setup": setup_report,
+            "call": call_report,
+            "teardown": teardown_report,
+        }
+
+        # Mock exception info
+        mock_excinfo = Mock()
+        mock_excinfo.type = ValueError
+        mock_excinfo.value = ValueError("test failed")
+        mock_excinfo.tb = None
+
+        plugin.excinfo_by_report = {
+            setup_report: None,
+            call_report: mock_excinfo,
+        }
+
+        status, tags = plugin._get_test_outcome("test_id")
+
+        assert status == TestStatus.SKIP
+        assert tags[TestTag.XFAIL_REASON] == "reason: no fun"
+        assert tags[TestTag.TEST_RESULT] == "xfail"
+
+    def test_get_test_outcome_xpass_call(self) -> None:
+        """Test _get_test_outcome for xpass test."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        # Set up reports for a failing test
+        setup_report = test_report(outcome="passed")
+        call_report = test_report(outcome="passed", wasxfail="reason: no fun")
+        teardown_report = test_report(outcome="passed")
+
+        plugin.reports_by_nodeid["test_id"] = {
+            "setup": setup_report,
+            "call": call_report,
+            "teardown": teardown_report,
+        }
+
+        # Mock exception info
+        mock_excinfo = Mock()
+        mock_excinfo.type = ValueError
+        mock_excinfo.value = ValueError("test failed")
+        mock_excinfo.tb = None
+
+        plugin.excinfo_by_report = {
+            setup_report: None,
+            call_report: mock_excinfo,
+        }
+
+        status, tags = plugin._get_test_outcome("test_id")
+
+        assert status == TestStatus.PASS
+        assert tags[TestTag.XFAIL_REASON] == "reason: no fun"
+        assert tags[TestTag.TEST_RESULT] == "xpass"
+
+    def test_get_test_outcome_xfail_setup(self) -> None:
+        """Test _get_test_outcome for xfail test."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        # Set up reports for a failing test
+        setup_report = test_report(outcome="skipped", wasxfail="reason: no fun")
+        teardown_report = test_report(outcome="passed")
+
+        plugin.reports_by_nodeid["test_id"] = {
+            "setup": setup_report,
+            "teardown": teardown_report,
+        }
+
+        plugin.excinfo_by_report = {}
+
+        status, tags = plugin._get_test_outcome("test_id")
+
+        assert status == TestStatus.SKIP
+        assert tags[TestTag.XFAIL_REASON] == "reason: no fun"
+        assert tags[TestTag.TEST_RESULT] == "xfail"
