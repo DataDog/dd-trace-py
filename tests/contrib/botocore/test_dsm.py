@@ -3,6 +3,7 @@ import json
 import sys
 import unittest
 
+import botocore
 import botocore.session
 import mock
 from moto import mock_kinesis
@@ -117,7 +118,7 @@ class BotocoreDSMTest(TracerTestCase):
 
             sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
 
-            topic = sns.create_topic(Name="testTopicDSM")
+            topic = sns.create_topic(Name="testTopic")
 
             topic_arn = topic["TopicArn"]
             sqs_url = self.sqs_test_queue["QueueUrl"]
@@ -153,7 +154,7 @@ class BotocoreDSMTest(TracerTestCase):
             assert (
                 first[
                     (
-                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopicDSM,type:sns",
+                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
                         3337976778666780987,
                         0,
                     )
@@ -163,7 +164,7 @@ class BotocoreDSMTest(TracerTestCase):
             assert (
                 first[
                     (
-                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopicDSM,type:sns",
+                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
                         3337976778666780987,
                         0,
                     )
@@ -173,7 +174,7 @@ class BotocoreDSMTest(TracerTestCase):
             assert (
                 first[
                     (
-                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopicDSM,type:sns",
+                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
                         3337976778666780987,
                         0,
                     )
