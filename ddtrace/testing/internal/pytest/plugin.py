@@ -353,7 +353,7 @@ class TestOptPlugin:
     ) -> None:
         # Save failure/skip representation to put into the final report.
         # TODO: for flaky tests, we currently don't show the longrepr (because the final report has `passed` status).
-        longrepr = self._extract_longrepr(reports)
+        longrepr, wasxfail = self._extract_longrepr(reports)
 
         # Log initial attempt.
         self._mark_test_reports_as_retry(reports, retry_handler)
@@ -389,7 +389,7 @@ class TestOptPlugin:
             self.manager.writer.put_item(test_run)
 
         # Log final status.
-        final_report = self._make_final_report(item, final_status, longrepr)
+        final_report = self._make_final_report(item, final_status, longrepr, wasxfail)
         if test.is_quarantined() or test.is_disabled():
             self._mark_quarantined_test_report_as_skipped(item, final_report)
         item.ihook.pytest_runtest_logreport(report=final_report)
@@ -408,14 +408,20 @@ class TestOptPlugin:
 
         return None
 
-    def _extract_longrepr(self, reports: _ReportGroup) -> t.Any:
-        # The call longrepr is more interesting for us, if available.
+    def _extract_longrepr(self, reports: _ReportGroup) -> t.Tuple[t.Any, t.Any]:
+        """
+        Extract the most relevant report `longrepr` for a report group.
+
+        The `call` longrepr has more useful information, so we try to use that if available.
+
+        Also return the corresponding `wasxfail` attribute if present, for correct indication of xfail/xpass tests.
+        """
         for when in (TestPhase.CALL, TestPhase.SETUP, TestPhase.TEARDOWN):
             if report := reports.get(when):
                 if report.longrepr:
-                    return report.longrepr
+                    return report.longrepr, getattr(report, "wasxfail", None)
 
-        return None
+        return None, None
 
     def _mark_test_reports_as_retry(self, reports: _ReportGroup, retry_handler: RetryHandler) -> None:
         if not self._mark_test_report_as_retry(reports, retry_handler, TestPhase.CALL):
@@ -484,7 +490,9 @@ class TestOptPlugin:
             if report := reports.get(when):
                 item.ihook.pytest_runtest_logreport(report=report)
 
-    def _make_final_report(self, item: pytest.Item, final_status: TestStatus, longrepr: t.Any) -> pytest.TestReport:
+    def _make_final_report(
+        self, item: pytest.Item, final_status: TestStatus, longrepr: t.Any, wasxfail: t.Any
+    ) -> pytest.TestReport:
         outcomes = {
             TestStatus.PASS: "passed",
             TestStatus.FAIL: "failed",
@@ -500,6 +508,8 @@ class TestOptPlugin:
             outcome=outcomes.get(final_status, str(final_status)),
             user_properties=item.user_properties,
         )
+        if wasxfail is not None:
+            setattr(final_report, "wasxfail", wasxfail)
 
         return final_report
 

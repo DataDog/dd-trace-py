@@ -493,13 +493,13 @@ class TestPrivateMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         reports = {
-            "setup": Mock(longrepr="setup error"),
-            "call": Mock(longrepr="call error"),
-            "teardown": Mock(longrepr="teardown error"),
+            "setup": Mock(spec=object, longrepr="setup error"),
+            "call": Mock(spec=object, longrepr="call error"),
+            "teardown": Mock(spec=object, longrepr="teardown error"),
         }
 
         result = plugin._extract_longrepr(t.cast(t.Dict[str, TestReport], reports))
-        assert result == "call error"
+        assert result == ("call error", None)
 
     def test_extract_longrepr_setup_fallback(self) -> None:
         """Test _extract_longrepr falls back to setup when call is missing."""
@@ -507,12 +507,12 @@ class TestPrivateMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         reports = {
-            "setup": Mock(longrepr="setup error"),
-            "teardown": Mock(longrepr="teardown error"),
+            "setup": Mock(spec=object, longrepr="setup error"),
+            "teardown": Mock(spec=object, longrepr="teardown error"),
         }
 
         result = plugin._extract_longrepr(t.cast(t.Dict[str, TestReport], reports))
-        assert result == "setup error"
+        assert result == ("setup error", None)
 
     def test_extract_longrepr_no_errors(self) -> None:
         """Test _extract_longrepr returns None when no errors."""
@@ -520,13 +520,27 @@ class TestPrivateMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         reports = {
-            "setup": Mock(longrepr=None),
-            "call": Mock(longrepr=None),
-            "teardown": Mock(longrepr=None),
+            "setup": Mock(spec=object, longrepr=None),
+            "call": Mock(spec=object, longrepr=None),
+            "teardown": Mock(spec=object, longrepr=None),
         }
 
         result = plugin._extract_longrepr(t.cast(t.Dict[str, TestReport], reports))
-        assert result is None
+        assert result == (None, None)
+
+    def test_extract_longrepr_xfail(self) -> None:
+        """Test _extract_longrepr extracts the wasxfail attribute if present."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        reports = {
+            "setup": Mock(spec=object, longrepr="setup error"),
+            "call": Mock(spec=object, longrepr="call error", wasxfail="call xfail"),
+            "teardown": Mock(spec=object, longrepr="teardown error"),
+        }
+
+        result = plugin._extract_longrepr(t.cast(t.Dict[str, TestReport], reports))
+        assert result == ("call error", "call xfail")
 
     def test_check_applicable_retry_handlers_found(self) -> None:
         """Test _check_applicable_retry_handlers when handler applies."""
