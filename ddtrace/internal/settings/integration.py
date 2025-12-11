@@ -1,7 +1,6 @@
 import os
 from typing import Optional  # noqa:F401
 
-from ddtrace._hooks import Hooks
 from ddtrace.internal.utils.attrdict import AttrDict
 
 from .http import HttpConfig
@@ -36,7 +35,6 @@ class IntegrationConfig(AttrDict):
         # DEV: By-pass the `__setattr__` overrides from `AttrDict` to set real properties
         object.__setattr__(self, "global_config", global_config)
         object.__setattr__(self, "integration_name", name)
-        object.__setattr__(self, "hooks", Hooks())
         object.__setattr__(self, "http", HttpConfig())
 
         # Trace Analytics was removed in v3.0.0

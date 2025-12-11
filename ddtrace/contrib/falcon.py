@@ -25,7 +25,7 @@ To disable distributed tracing when using autopatching, set the
 The following is a list of available tracer hooks that can be used to intercept
 and modify spans created by this integration.
 
-- ``request``
+- ``falcon.request``
     - Called before the response has been finished
     - ``def on_falcon_request(span, request, response)``
 
@@ -34,13 +34,14 @@ Example::
 
     import ddtrace.auto
     import falcon
-    from ddtrace import config
+    from ddtrace.internal import core
 
     app = falcon.API()
 
-    @config.falcon.hooks.on('request')
     def on_falcon_request(span, request, response):
         span.set_tag('my.custom', 'tag')
+
+    core.on('falcon.request', on_falcon_request)
 
 :ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 """
