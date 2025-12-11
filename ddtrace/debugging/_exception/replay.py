@@ -156,7 +156,9 @@ def get_tb_frames_from_exception_chain(chain: ExceptionChain) -> t.Generator[t.T
     frame_count = 0
 
     for _, tb in chain:
-        local_frames = []
+        # Retain only the last N frames from the traceback, where N is the
+        # configured max size for span tracebacks.
+        local_frames: t.Deque[TracebackType] = deque(maxlen=global_config._span_traceback_max_size)
         if tb is None or tb.tb_frame is None:
             continue
 
@@ -164,11 +166,6 @@ def get_tb_frames_from_exception_chain(chain: ExceptionChain) -> t.Generator[t.T
         while _tb is not None:
             local_frames.append(_tb)
             _tb = _tb.tb_next
-
-        # Get only the last N frames from the traceback, where N is the
-        # configured max size for span tracebacks.
-        # local_frames = local_frames[-global_config._span_traceback_max_size :]
-        local_frames[: -global_config._span_traceback_max_size] = []
 
         # Update the frame count to allow computing the sequence number
         frame_count += len(local_frames)
