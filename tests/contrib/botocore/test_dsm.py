@@ -11,6 +11,7 @@ from moto import mock_sqs
 import pytest
 
 from ddtrace._trace.pin import Pin
+from ddtrace._trace.utils_botocore import span_tags
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import patch_submodules
 from ddtrace.contrib.internal.botocore.patch import unpatch
@@ -50,7 +51,13 @@ class BotocoreDSMTest(TracerTestCase):
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
-        pin.onto(self.sqs_client)
+        pin.onto(botocore.parsers.ResponseParser)
+        # Setting the validated flag to False ensures the redaction paths configurations are re-validated
+        # FIXME: Ensure AWSPayloadTagging._REQUEST_REDACTION_PATHS_DEFAULTS is always in sync with
+        # config.botocore.payload_tagging_request
+        # FIXME: Ensure AWSPayloadTagging._RESPONSE_REDACTION_PATHS_DEFAULTS is always in sync with
+        # config.botocore.payload_tagging_response
+        span_tags._PAYLOAD_TAGGER.validated = False
 
     def tearDown(self):
         super(BotocoreDSMTest, self).tearDown()
@@ -76,7 +83,6 @@ class BotocoreDSMTest(TracerTestCase):
     def _kinesis_generate_records(self, data, count):
         return [{"Data": data, "PartitionKey": str(i)} for i in range(count)]
 
-    # DSM Tests
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sns_to_sqs(self):
         self._test_data_streams_sns_to_sqs(False)
