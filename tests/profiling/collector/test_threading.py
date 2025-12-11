@@ -564,6 +564,38 @@ class BaseThreadingLockCollectorTest:
             # Try this way too
             Foobar(self.lock_class)
 
+    def test_subclassing_wrapped_lock(self) -> None:
+        """Test that subclassing a wrapped lock type works correctly.
+
+        Regression test for a bug where third-party libraries (e.g. neo4j) that subclass
+        asyncio.Lock would fail with:
+            TypeError: _LockAllocatorWrapper.__init__() takes 2 positional arguments but 4 were given
+
+        The fix implements __mro_entries__ on _LockAllocatorWrapper (PEP 560).
+        """
+        from ddtrace.profiling.collector._lock import _LockAllocatorWrapper
+
+        with self.collector_class():
+            # Verify the wrapper is in place
+            assert isinstance(self.lock_class, _LockAllocatorWrapper)
+
+            # This should NOT raise TypeError
+            class CustomLock(self.lock_class):  # type: ignore[misc]
+                """A custom lock that extends the wrapped lock type."""
+
+                def __init__(self) -> None:
+                    super().__init__()
+                    self.custom_attr = "test"
+
+            # Verify the subclass works correctly
+            custom_lock = CustomLock()
+            assert hasattr(custom_lock, "custom_attr")
+            assert custom_lock.custom_attr == "test"
+
+            # Verify lock functionality still works
+            assert custom_lock.acquire()
+            custom_lock.release()
+
     def test_lock_events(self) -> None:
         # The first argument is the recorder.Recorder which is used for the
         # v1 exporter. We don't need it for the v2 exporter.
