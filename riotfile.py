@@ -3433,7 +3433,7 @@ venv = Venv(
                 Venv(
                     name="profile-memalloc",
                     command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py",  # noqa: E501
-                    pys=select_pys(max_version="3.14"),
+                    pys=select_pys(),
                     pkgs={
                         "protobuf": latest,
                     },
