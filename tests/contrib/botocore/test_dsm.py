@@ -8,10 +8,12 @@ import mock
 from moto import mock_kinesis
 from moto import mock_sns
 from moto import mock_sqs
+import pytest
 
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import patch_submodules
+from ddtrace.contrib.internal.botocore.patch import unpatch
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.utils.version import parse_version
 from tests.utils import TracerTestCase
@@ -21,6 +23,7 @@ from tests.utils import TracerTestCase
 BOTOCORE_VERSION = parse_version(botocore.__version__)
 
 
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
 class BotocoreDSMTest(TracerTestCase):
     """Botocore DSM (Data Streams Monitoring) integration tests"""
 
@@ -34,7 +37,7 @@ class BotocoreDSMTest(TracerTestCase):
         self.session = botocore.session.get_session()
         self.session.set_credentials(access_key="access-key", secret_key="secret-key")
 
-        self.queue_name = "Test"
+        self.queue_name = "TestDSM"
         self.sqs_client = self.session.create_client(
             "sqs", region_name="us-east-1", endpoint_url="http://localhost:4566"
         )
@@ -50,10 +53,10 @@ class BotocoreDSMTest(TracerTestCase):
         pin.onto(self.sqs_client)
 
     def tearDown(self):
-        from ddtrace.contrib.internal.botocore.patch import unpatch
+        super(BotocoreDSMTest, self).tearDown()
 
         unpatch()
-        super(BotocoreDSMTest, self).tearDown()
+        self.sqs_client.delete_queue(QueueUrl=self.queue_name)
 
     def _kinesis_create_stream(self, client, stream_name):
         client.create_stream(StreamName=stream_name, ShardCount=1)
@@ -108,7 +111,7 @@ class BotocoreDSMTest(TracerTestCase):
 
             sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
 
-            topic = sns.create_topic(Name="testTopic")
+            topic = sns.create_topic(Name="testTopicDSM")
 
             topic_arn = topic["TopicArn"]
             sqs_url = self.sqs_test_queue["QueueUrl"]
@@ -144,7 +147,7 @@ class BotocoreDSMTest(TracerTestCase):
             assert (
                 first[
                     (
-                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
+                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopicDSM,type:sns",
                         3337976778666780987,
                         0,
                     )
@@ -154,7 +157,7 @@ class BotocoreDSMTest(TracerTestCase):
             assert (
                 first[
                     (
-                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
+                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopicDSM,type:sns",
                         3337976778666780987,
                         0,
                     )
@@ -164,7 +167,7 @@ class BotocoreDSMTest(TracerTestCase):
             assert (
                 first[
                     (
-                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
+                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopicDSM,type:sns",
                         3337976778666780987,
                         0,
                     )
@@ -173,19 +176,19 @@ class BotocoreDSMTest(TracerTestCase):
             )
             assert (
                 first[
-                    ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
+                    ("direction:in,topic:TestDSM,type:sqs", 13854213076663332654, 3337976778666780987)
                 ].full_pathway_latency.count
                 >= 1
             )
             assert (
                 first[
-                    ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
+                    ("direction:in,topic:TestDSM,type:sqs", 13854213076663332654, 3337976778666780987)
                 ].edge_latency.count
                 >= 1
             )
             assert (
                 first[
-                    ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
+                    ("direction:in,topic:TestDSM,type:sqs", 13854213076663332654, 3337976778666780987)
                 ].payload_size.count
                 == 1
             )
