@@ -569,12 +569,13 @@ class TestOptPlugin:
                 tags[TestTag.TEST_RESULT] = "xpass" if report.passed else "xfail"
 
             excinfo = self.excinfo_by_report.pop(report, None)
+
             if report.failed:
                 status = TestStatus.FAIL
                 tags.update(_get_exception_tags(excinfo))
                 break
 
-            elif report.skipped:
+            if report.skipped:
                 status = TestStatus.SKIP
                 reason = str(excinfo.value) if excinfo else "Unknown skip reason"
                 tags[TestTag.SKIP_REASON] = reason
