@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes a bug where code that sub-classes our wrapped locks, would crash with ``TypeError`` when the profiler is enabled.
+    One example of this is neo4j's ``AsyncRLock`` that inherits from ``asyncio.Lock``.
