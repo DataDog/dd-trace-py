@@ -31,6 +31,9 @@ class ProfilerStats
     // The time the Sampler finished collecting data for the last Sample of this Profile
     std::optional<point_in_time> profile_end;
 
+    // The latest sampling interval (in microseconds) as determined by adaptive sampling
+    std::optional<size_t> sampling_interval_us;
+
   public:
     ProfilerStats() = default;
     ~ProfilerStats() = default;
@@ -44,6 +47,9 @@ class ProfilerStats
     void set_profile_start_if_unset();
     void set_profile_end();
     std::optional<std::chrono::duration<unsigned long long, std::nano>> get_profile_duration();
+
+    void set_sampling_interval_us(size_t interval_us);
+    std::optional<size_t> get_sampling_interval_us();
 
     // Returns a JSON string containing relevant Profiler Stats to be included
     // in the libdatadog payload.
