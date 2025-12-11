@@ -42,6 +42,14 @@ include:
   - local: ".gitlab/benchmarks/serverless.yml"
   - local: ".gitlab/native.yml"
 
+
+# Expose the following variables to the rest of the pipeline
+#   GH_PR_NUMBER: The GitHub PR number if there is an open PR for this commit, empty otherwise
+#   HAS_OPEN_PR: "true" if there is an open PR for this commit, "false" otherwise
+#   IS_MAIN_BRANCH: "true" if the current branch is main
+#   IS_RELEASE_BRANCH: "true" if the current branch is a release branch (e.g., "1.2"), "false" otherwise
+#   IS_RELEASE: "true" if the current commit is a release tag (e.g., "v1.2.3"), "false" otherwise
+#   IS_MERGE_QUEUE: "true" if the current branch is a merge queue branch (e.g., starts with "gh-readonly-queue/"), "false" otherwise
 pipeline variables:
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   tags: [ "arch:amd64" ]
@@ -67,12 +75,13 @@ pipeline variables:
       git config --global --add safe.directory "${CI_PROJECT_DIR}"
     - |
       # Determine if we have an open GitHub PR for this commit
-      GH_PR_NUMBER=$(gh pr list --search "${CI_COMMIT_SHA}" --json number --jq '.[0].number' || echo "")
+      GH_PR_NUMBER=$(gh pr list --state open --search "${CI_COMMIT_SHA}" --json number --jq '.[0].number' || echo "")
       echo "GH_PR_NUMBER=${GH_PR_NUMBER}" | tee -a workflow.env
       echo "HAS_OPEN_PR=$(if [ -z "${GH_PR_NUMBER}" ]; then echo "false"; else echo "true"; fi)" | tee -a workflow.env
       echo "IS_MAIN_BRANCH=$(if [ "${CI_COMMIT_BRANCH}" == "main" ]; then echo "true"; else echo "false"; fi)" | tee -a workflow.env
       echo "IS_RELEASE_BRANCH=$(if [[ "${CI_COMMIT_BRANCH}" =~ ^[0-9]+\.[0-9]+$ ]]; then echo "true"; else echo "false"; fi)" | tee -a workflow.env
-      echo "IS_RELEASE=$(if [[ "${CI_COMMIT_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "true"; else echo "false"; fi)" | tee -a workflow.env
+      echo "IS_RELEASE=$(if [[ "${CI_COMMIT_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$ ]]; then echo "true"; else echo "false"; fi)" | tee -a workflow.env
+      echo "IS_MERGE_QUEUE=$(if [[ "${CI_COMMIT_BRANCH}" =~ ^gh-readonly-queue/.*$ ]]; then echo "true"; else echo "false"; fi)" | tee -a workflow.env
   artifacts:
     reports:
       dotenv: workflow.env
@@ -91,14 +100,14 @@ tests-gen:
         export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
       fi
     - scripts/gen_gitlab_config.py --verbose
-  needs: []
+  needs: [ "pipeline variables" ]
   artifacts:
     paths:
       - .gitlab/tests-gen.yml
 
 run-tests-trigger:
  stage: tests
- needs: [ tests-gen ]
+ needs: [ tests-gen, "pipeline variables" ]
  # Allow the child job to fail if explicitly asked
  rules:
    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
@@ -140,7 +149,13 @@ microbenchmarks:
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true
     # Always run on PRs, tagged releases, and main or release branches
-    - if: ($HAS_OPEN_PR == "true" || $IS_RELEASE == "true" || $IS_MAIN_BRANCH == "true" || $IS_RELEASE_BRANCH == "true")
+    - if: $HAS_OPEN_PR == "true"
+      when: always
+    - if: $IS_MAIN_BRANCH == "true"
+      when: always
+    - if: $IS_RELEASE_BRANCH == "true"
+      when: always
+    - if: $IS_RELEASE == "true"
       when: always
     # Otherwise, run manually
     - when: manual
@@ -167,13 +182,17 @@ macrobenchmarks:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
     DD_DISABLE_VPA: true
-  allow_failure: true
+  allow_failure: false
   rules:
     # Allow failures if explicitly asked
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true
     # Always run on tagged releases, and main or release branches
-    - if: ($IS_RELEASE == "true" || $IS_MAIN_BRANCH == "true" || $IS_RELEASE_BRANCH == "true")
+    - if: $IS_MAIN_BRANCH == "true"
+      when: always
+    - if: $IS_RELEASE_BRANCH == "true"
+      when: always
+    - if: $IS_RELEASE == "true"
       when: always
     # Otherwise, run manually
     - when: manual
@@ -187,10 +206,16 @@ check_new_flaky_tests:
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-api-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
     - export DD_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-app-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
     - datadog-ci gate evaluate
-  except:
-    - main
-    - '[0-9].[0-9]*'
-    - 'mq-working-branch**'
+  rules:
+    - if: $IS_MAIN_BRANCH == "true"
+      when: never
+    - if: $IS_RELEASE == "true"
+      when: never
+    - if: $IS_RELEASE_BRANCH == "true"
+      when: never
+    - if: $IS_MERGE_QUEUE == "true"
+      when: never
+    - when: on_success
 
 requirements_json_test:
   rules:
@@ -204,10 +229,10 @@ package-oci:
 
 promote-oci-to-prod:
   stage: release
-  rules: null
-  only:
-    # TODO: Support publishing rc releases
-    - /^v[0-9]+\.[0-9]+\.[0-9]+$/
+  rules:
+    - if: $IS_RELEASE == "true"
+      when: on_success
+    - when: never
   needs:
     - job: release_pypi_prod
     - job: package-oci
@@ -233,10 +258,10 @@ promote-oci-to-staging:
 
 publish-lib-init-pinned-tags:
   stage: release
-  rules: null
-  only:
-    # TODO: Support publishing rc releases
-    - /^v[0-9]+\.[0-9]+\.[0-9]+$/
+  rules:
+    - if: $IS_RELEASE == "true"
+      when: on_success
+    - when: never
   needs:
     - job: release_pypi_prod
     - job: create-multiarch-lib-injection-image
