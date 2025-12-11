@@ -318,7 +318,7 @@ class _LockAllocatorWrapper:
         """Support subclassing the wrapped lock type (PEP 560).
 
         When custom lock types inherit from a wrapped lock
-        (e.g. neo4j's AsyncRLock that inherits from asyncio.Lock), program error with: 
+        (e.g. neo4j's AsyncRLock that inherits from asyncio.Lock), program error with:
         > TypeError: _LockAllocatorWrapper.__init__() takes 2 positional arguments but 4 were given
 
         This method returns the actual object type to be used as the base class.
