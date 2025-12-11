@@ -3,20 +3,21 @@ set -eo pipefail
 
 source .gitlab/gha-utils.sh
 
-RUN_ID=$(wait_for_run_id)
+# RUN_ID=$(wait_for_run_id)
+RUN_ID="20144599462"
 
 mkdir pywheels
 cd pywheels
 
-if [[ $(gh run view $RUN_ID --exit-status --json status --jq .status) != "completed" ]]; then
-  echo "Waiting for workflow to finish"
+# if [[ $(gh run view $RUN_ID --exit-status --json status --jq .status) != "completed" ]]; then
+#   echo "Waiting for workflow to finish"
 
-  # Give time to the job to finish
-  sleep 300 # 5 minutes
+#   # Give time to the job to finish
+#   sleep 300 # 5 minutes
 
-  # wait for run to finish
-  gh run watch $RUN_ID --interval 60 --exit-status 1 --repo DataDog/dd-trace-py
-fi
+#   # wait for run to finish
+#   gh run watch $RUN_ID --interval 60 --exit-status 1 --repo DataDog/dd-trace-py
+# fi
 
 echo "Github workflow finished. Downloading wheels"
 # download all wheels

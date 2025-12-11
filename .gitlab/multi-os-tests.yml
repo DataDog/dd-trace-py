@@ -1,0 +1,98 @@
+# Multi-OS Test Suite
+# Tests the application across Ubuntu, macOS, and Windows with multiple Python versions
+
+.multi_os_test_base:
+  stage: tests
+  needs: ["download_ddtrace_artifacts"]
+  variables:
+    DD_IAST_ENABLED: "false"
+    DD_REMOTE_CONFIGURATION_ENABLED: "false"
+
+multi_os_tests:ubuntu:
+  extends: .multi_os_test_base
+  image: registry.ddbuild.io/images/mirror/ubuntu:25.04
+  tags: ["arch:amd64"]
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
+  before_script:
+    # Install uv
+    - |
+      apt-get update
+      apt-get install -y curl
+      curl -LsSf https://astral.sh/uv/install.sh | sh
+      export PATH="$HOME/.local/bin:$PATH"
+    # Install Python version and test dependencies with ddtrace wheel
+    - |
+      export PATH="$HOME/.local/bin:$PATH"
+      echo "Installing Python $PYTHON_VERSION and dependencies..."
+      uv python install $PYTHON_VERSION
+      uv venv --python $PYTHON_VERSION .venv
+      export WHEEL_TAG="cp${PYTHON_VERSION//./}"
+      uv pip install --python $PYTHON_VERSION \
+        pytest pytest-cov requests hypothesis flask asgiref botocore dnspython \
+        pywheels/ddtrace*${WHEEL_TAG}*manylinux2014*x86_64.whl
+  script:
+    - export PATH="$HOME/.local/bin:$PATH"
+    - source .venv/bin/activate
+    - echo "Running tests on Ubuntu with Python $PYTHON_VERSION"
+    - python -m pytest tests/internal/service_name/test_extra_services_names.py -v -s
+    - python -m pytest tests/appsec/architectures/test_appsec_loading_modules.py -v -s
+
+multi_os_tests:macos:
+  extends: .multi_os_test_base
+  tags: ["macos:sonoma-amd64"]
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
+  before_script:
+    # Install uv
+    - |
+      curl -LsSf https://astral.sh/uv/install.sh | sh
+      export PATH="$HOME/.local/bin:$PATH"
+    # Install Python version and test dependencies with ddtrace wheel
+    - |
+      export PATH="$HOME/.local/bin:$PATH"
+      echo "Installing Python $PYTHON_VERSION and dependencies..."
+      uv python install $PYTHON_VERSION
+      uv venv --python $PYTHON_VERSION .venv
+      export WHEEL_TAG="cp${PYTHON_VERSION//./}"
+      uv pip install --python $PYTHON_VERSION \
+        pytest pytest-cov requests hypothesis flask asgiref botocore dnspython \
+        pywheels/ddtrace*${WHEEL_TAG}*macosx*x86_64.whl
+  script:
+    - export PATH="$HOME/.local/bin:$PATH"
+    - source .venv/bin/activate
+    - echo "Running tests on macOS with Python $PYTHON_VERSION"
+    - python -m pytest tests/internal/service_name/test_extra_services_names.py -v -s
+    - python -m pytest tests/appsec/architectures/test_appsec_loading_modules.py -v -s
+
+multi_os_tests:windows:
+  extends: .multi_os_test_base
+  tags: ["windows-v2:2022"]
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
+  before_script:
+    # Install uv
+    - |
+      Write-Host "Installing uv..."
+      powershell -Command "irm https://astral.sh/uv/install.ps1 | iex"
+      $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
+    # Install test dependencies with ddtrace wheel
+    - |
+      $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
+      Write-Host "Installing test dependencies and ddtrace..."
+      uv python install $env:PYTHON_VERSION
+      uv venv --python $env:PYTHON_VERSION .venv
+      $wheelTag = "cp$($env:PYTHON_VERSION -replace '\.','')"
+      $wheel = (Get-Item "pywheels\ddtrace*${wheelTag}*win_amd64.whl")[0].FullName
+      uv pip install --python $env:PYTHON_VERSION `
+        pytest pytest-cov requests hypothesis flask asgiref botocore dnspython `
+        $wheel
+  script:
+    - $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
+    - '& .\.venv\Scripts\Activate.ps1'
+    - Write-Host "Running tests on Windows with Python $env:PYTHON_VERSION"
+    - python -m pytest tests/internal/service_name/test_extra_services_names.py -v -s
+    - python -m pytest tests/appsec/architectures/test_appsec_loading_modules.py -v -s
