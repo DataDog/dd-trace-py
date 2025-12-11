@@ -1,5 +1,4 @@
 #include "aspect_str.h"
-#include "helpers.h"
 
 static void
 set_lengthupdated_ranges(PyObject* result,
@@ -177,9 +176,10 @@ api_str_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs, Py
             Py_RETURN_NONE;
         }
     }
+    CHECK_IAST_INITIALIZED_OR_RETURN(result_o);
 
     TRY_CATCH_ASPECT("str_aspect", return result_o, , {
-        const auto tx_map = taint_engine_context->get_tainted_object_map(text);
+        const auto tx_map = safe_get_tainted_object_map(text);
         if (!tx_map || tx_map->empty()) {
             return result_o;
         }

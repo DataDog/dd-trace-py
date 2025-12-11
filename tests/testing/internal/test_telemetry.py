@@ -274,7 +274,6 @@ class TestTelemetry:
             payload_size=613,
             request_seconds=3.14,
             events_count=42,
-            serialization_seconds=0.5,
             error=None,
         )
 
@@ -285,7 +284,6 @@ class TestTelemetry:
             call(CIVISIBILITY, "endpoint_payload.bytes", 613, (("endpoint", "test_cycle"),)),
             call(CIVISIBILITY, "endpoint_payload.requests_ms", 3140, (("endpoint", "test_cycle"),)),
             call(CIVISIBILITY, "endpoint_payload.events_count", 42, (("endpoint", "test_cycle"),)),
-            call(CIVISIBILITY, "endpoint_payload.events_serialization_ms", 500, (("endpoint", "test_cycle"),)),
         ]
 
     @pytest.mark.parametrize(
@@ -307,7 +305,6 @@ class TestTelemetry:
             payload_size=613,
             request_seconds=3.14,
             events_count=42,
-            serialization_seconds=0.5,
             error=http_error_type,
         )
 
@@ -327,6 +324,12 @@ class TestTelemetry:
             call(CIVISIBILITY, "endpoint_payload.bytes", 613, (("endpoint", "test_cycle"),)),
             call(CIVISIBILITY, "endpoint_payload.requests_ms", 3140, (("endpoint", "test_cycle"),)),
             call(CIVISIBILITY, "endpoint_payload.events_count", 42, (("endpoint", "test_cycle"),)),
+        ]
+
+    def test_record_event_payload_serialization_seconds(self, telemetry_api: TelemetryAPI) -> None:
+        telemetry_api.record_event_payload_serialization_seconds("test_cycle", 0.5)
+
+        assert telemetry_api.writer.add_distribution_metric.call_args_list == [
             call(CIVISIBILITY, "endpoint_payload.events_serialization_ms", 500, (("endpoint", "test_cycle"),)),
         ]
 
@@ -486,4 +489,12 @@ class TestTelemetry:
                     ("early_flake_detection_abort_reason", "faulty"),
                 ),
             )
+        ]
+
+    def test_record_git_pack_data(self, telemetry_api: TelemetryAPI) -> None:
+        telemetry_api.record_git_pack_data(uploaded_files=5, uploaded_bytes=200)
+
+        assert telemetry_api.writer.add_distribution_metric.call_args_list == [
+            call(CIVISIBILITY, "git_requests.objects_pack_files", 5, ()),
+            call(CIVISIBILITY, "git_requests.objects_pack_bytes", 200, ()),
         ]

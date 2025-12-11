@@ -13,16 +13,17 @@ import pluggy
 import pytest
 
 from ddtrace.testing.internal.ci import CITag
-from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
+from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
+from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
+from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
+from ddtrace.testing.internal.pytest.utils import nodeid_to_test_ref
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.telemetry import TelemetryAPI
-from ddtrace.testing.internal.test_data import ModuleRef
-from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
 from ddtrace.testing.internal.test_data import TestModule
 from ddtrace.testing.internal.test_data import TestRef
@@ -38,7 +39,6 @@ from ddtrace.testing.internal.tracer_api.coverage import install_coverage
 from ddtrace.testing.internal.utils import TestContext
 
 
-_NODEID_REGEX = re.compile("^(((?P<module>.*)/)?(?P<suite>[^/]*?))::(?P<name>.*?)$")
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
 SKIPPED_BY_ITR_REASON = "Skipped by Datadog Intelligent Test Runner"
 ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
@@ -91,23 +91,6 @@ _Location = t.Tuple[
 ]
 
 
-def nodeid_to_test_ref(nodeid: str) -> TestRef:
-    matches = _NODEID_REGEX.match(nodeid)
-
-    if matches:
-        module_ref = ModuleRef(matches.group("module") or EMPTY_NAME)
-        suite_ref = SuiteRef(module_ref, matches.group("suite") or EMPTY_NAME)
-        test_ref = TestRef(suite_ref, matches.group("name"))
-        return test_ref
-
-    else:
-        # Fallback to considering the whole nodeid as the test name.
-        module_ref = ModuleRef(EMPTY_NAME)
-        suite_ref = SuiteRef(module_ref, EMPTY_NAME)
-        test_ref = TestRef(suite_ref, nodeid)
-        return test_ref
-
-
 def _get_module_path_from_item(item: pytest.Item) -> Path:
     try:
         item_path = getattr(item, "path", None)
@@ -139,6 +122,7 @@ class TestOptPlugin:
         self.enable_ddtrace = False
         self.reports_by_nodeid: t.Dict[str, _ReportGroup] = defaultdict(lambda: {})
         self.excinfo_by_report: t.Dict[pytest.TestReport, t.Optional[pytest.ExceptionInfo[t.Any]]] = {}
+        self.benchmark_data_by_nodeid: t.Dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: t.Dict[str, Test] = {}
         self.is_xdist_worker = False
 
@@ -282,10 +266,7 @@ class TestOptPlugin:
             )
             test_run = test.make_test_run()
             test_run.start(start_ns=test.start_ns)
-            status, tags = self._get_test_outcome(item.nodeid)
-            test_run.set_status(status)
-            test_run.set_tags(tags)
-            test_run.set_context(context)
+            self._set_test_run_data(test_run, item, context)
             test_run.finish()
             test.set_status(test_run.get_status())  # TODO: this should be automatic?
             self.manager.writer.put_item(test_run)
@@ -323,10 +304,7 @@ class TestOptPlugin:
         TelemetryAPI.get().record_test_created(test_framework=TEST_FRAMEWORK, test_run=test_run)
 
         reports = _make_reports_dict(runtestprotocol(item, nextitem=nextitem, log=False))
-        status, tags = self._get_test_outcome(item.nodeid)
-        test_run.set_status(status)
-        test_run.set_tags(tags)
-        test_run.set_context(context)
+        self._set_test_run_data(test_run, item, context)
 
         TelemetryAPI.get().record_test_finished(
             test_framework=TEST_FRAMEWORK,
@@ -353,6 +331,17 @@ class TestOptPlugin:
             test_run.finish()
             test.set_status(test_run.get_status())  # TODO: this should be automatic?
             self.manager.writer.put_item(test_run)
+
+    def _set_test_run_data(self, test_run: TestRun, item: pytest.Item, context: TestContext) -> None:
+        status, tags = self._get_test_outcome(item.nodeid)
+        test_run.set_status(status)
+        test_run.set_tags(tags)
+        test_run.set_context(context)
+
+        if benchmark_data := self.benchmark_data_by_nodeid.pop(item.nodeid, None):
+            test_run.set_tags(benchmark_data.tags)
+            test_run.set_metrics(benchmark_data.metrics)
+            test_run.mark_benchmark()
 
     def _do_retries(
         self,
@@ -526,6 +515,11 @@ class TestOptPlugin:
         self.reports_by_nodeid[item.nodeid][call.when] = report
         self.excinfo_by_report[report] = call.excinfo
 
+        if call.when == TestPhase.TEARDOWN:
+            # We need to extract pytest-benchmark data _before_ the fixture teardown.
+            if benchmark_data := get_benchmark_tags_and_metrics(item):
+                self.benchmark_data_by_nodeid[item.nodeid] = benchmark_data
+
     def pytest_report_teststatus(self, report: pytest.TestReport) -> t.Optional[_ReportTestStatus]:
         if retry_outcome := _get_user_property(report, "dd_retry_outcome"):
             retry_reason = _get_user_property(report, "dd_retry_reason")
@@ -583,13 +577,16 @@ class TestOptPlugin:
         test.mark_skipped_by_itr()
 
 
-class XdistTestOptPlugin(TestOptPlugin):
+class XdistTestOptPlugin:
+    def __init__(self, main_plugin: TestOptPlugin) -> None:
+        self.main_plugin = main_plugin
+
     @pytest.hookimpl
     def pytest_configure_node(self, node: t.Any) -> None:
         """
         Pass test session id from the main process to xdist workers.
         """
-        node.workerinput["dd_session_id"] = self.session.item_id
+        node.workerinput["dd_session_id"] = self.main_plugin.session.item_id
 
     @pytest.hookimpl
     def pytest_testnodedown(self, node: t.Any, error: t.Any) -> None:
@@ -600,7 +597,7 @@ class XdistTestOptPlugin(TestOptPlugin):
             return
 
         if tests_skipped_by_itr := node.workeroutput.get("tests_skipped_by_itr"):
-            self.session.tests_skipped_by_itr += tests_skipped_by_itr
+            self.main_plugin.session.tests_skipped_by_itr += tests_skipped_by_itr
 
 
 def _make_reports_dict(reports: t.List[pytest.TestReport]) -> _ReportGroup:
@@ -694,15 +691,19 @@ def pytest_configure(config: pytest.Config) -> None:
         log.debug("Session manager not initialized (plugin was not enabled)")
         return
 
-    plugin_class = XdistTestOptPlugin if config.pluginmanager.hasplugin("xdist") else TestOptPlugin
-
     try:
-        plugin = plugin_class(session_manager=session_manager)
+        plugin = TestOptPlugin(session_manager=session_manager)
     except Exception:
         log.exception("Error setting up Test Optimization plugin")
         return
 
     config.pluginmanager.register(plugin)
+
+    if config.pluginmanager.hasplugin("xdist"):
+        config.pluginmanager.register(XdistTestOptPlugin(plugin))
+
+    if config.pluginmanager.hasplugin("pytest-bdd"):
+        config.pluginmanager.register(BddTestOptPlugin(plugin))
 
 
 def _get_test_command(config: pytest.Config) -> str:
