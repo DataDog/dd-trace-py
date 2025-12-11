@@ -47,8 +47,9 @@ class traceback_t
     void init_sample_invokes_cpython(size_t size, size_t weighted_size);
 };
 
-/* The maximum number of frames we can collect for a traceback */
-#define TRACEBACK_MAX_NFRAME UINT16_MAX
+/* The maximum number of frames we can collect for a traceback
+ * Limited by the backend's maximum accepted frame count */
+#define TRACEBACK_MAX_NFRAME 600
 
 /* The maximum number of traceback samples we can store in the heap profiler */
 #define TRACEBACK_ARRAY_MAX_COUNT UINT16_MAX
