@@ -12,7 +12,6 @@
 
 #define Py_BUILD_CORE
 #if PY_VERSION_HEX >= 0x030e0000
-// Python 3.14+: _PyInterpreterFrame moved to new header
 #include <cstddef>
 #include <internal/pycore_frame.h>
 #include <internal/pycore_interpframe.h>

@@ -4,13 +4,11 @@
 #include <echion/render.h>
 
 #if PY_VERSION_HEX >= 0x030b0000
-// Common headers needed for Python 3.11+ implementation
 #include <cstddef>
 #include <internal/pycore_code.h>
 #include <internal/pycore_frame.h>
 
 #if PY_VERSION_HEX >= 0x030e0000
-// Python 3.14+: Additional headers for new structure definitions
 #include <internal/pycore_interpframe_structs.h>
 #include <internal/pycore_stackref.h>
 #endif // PY_VERSION_HEX >= 0x030e0000

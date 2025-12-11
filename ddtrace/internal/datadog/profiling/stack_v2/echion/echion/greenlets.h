@@ -8,7 +8,6 @@
 #define Py_BUILD_CORE
 
 #if PY_VERSION_HEX >= 0x030e0000
-// Python 3.14+: Need internal/pycore_frame.h for struct _frame (PyFrameObject) definition
 #include <internal/pycore_frame.h>
 #endif
 

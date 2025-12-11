@@ -18,7 +18,6 @@
 #define Py_BUILD_CORE
 #include <internal/pycore_pystate.h>
 #if PY_VERSION_HEX >= 0x030e0000
-// Python 3.14+: _PyRuntime is declared in pycore_runtime.h
 #include <internal/pycore_runtime.h>
 #endif
 
