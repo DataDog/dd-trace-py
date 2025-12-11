@@ -3,6 +3,9 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+from mcp import InitializeRequest
+from mcp.server.streamable_http import MCP_SESSION_ID_HEADER
+
 from ddtrace._trace.pin import Pin
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
@@ -23,6 +26,9 @@ MCP_SPAN_TYPE = "_ml_obs.mcp_span_type"
 
 SERVER_TOOL_CALL_OPERATION_NAME = "server_tool_call"
 CLIENT_TOOL_CALL_OPERATION_NAME = "client_tool_call"
+REQUEST_RESPONDER_ENTER_OPERATION_NAME = "request_responder_enter"
+REQUEST_RESPONDER_EXIT_OPERATION_NAME = "request_responder_exit"
+REQUEST_RESPONDER_RESPOND_OPERATION_NAME = "request_responder_respond"
 
 
 def _find_client_session_root(span: Optional[Span]) -> Optional[Span]:
@@ -86,6 +92,10 @@ class MCPIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_server(span, args, kwargs, response)
         elif operation == "initialize":
             self._llmobs_set_tags_initialize(span, args, kwargs, response)
+        elif operation == REQUEST_RESPONDER_ENTER_OPERATION_NAME:
+            self._llmobs_set_tags_request_responder_enter(span, args, kwargs, response)
+        elif operation == REQUEST_RESPONDER_RESPOND_OPERATION_NAME:
+            self._llmobs_set_tags_request_responder_respond(span, args, kwargs, response)
         elif operation == "list_tools":
             self._llmobs_set_tags_list_tools(span, args, kwargs, response)
         elif operation == "session":
@@ -178,6 +188,48 @@ class MCPIntegration(BaseLLMIntegration):
                     "mcp_server_title": getattr(server_info, "title", ""),
                 },
             )
+
+    def _llmobs_set_tags_request_responder_enter(
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any
+    ) -> None:
+        # The instance is passed as the first arg to llmobs_set_tags
+        responder = args[0]
+        request = responder.request.root
+
+        if isinstance(request, InitializeRequest):
+            client_name = request.params.clientInfo.name
+            client_version = request.params.clientInfo.version
+            if client_name and client_version:
+                # Set APM span tags
+                span.set_tag("client_name", client_name)
+                span.set_tag("client_version", client_name + "_" + client_version)
+                # Also set LLMObs metadata tags
+                _set_or_update_tags(
+                    span,
+                    {
+                        "client_name": client_name,
+                        "client_version": client_name + "_" + client_version,
+                    },
+                )
+
+        request_method = request.method
+
+        # This only exists for existing sessions using the streamable HTTP transport
+        message_metadata = _get_attr(responder, "message_metadata", None)
+        http_request = message_metadata and _get_attr(message_metadata, "request_context", None)
+        maybe_session_id = http_request and getattr(http_request, "headers", {}).get(MCP_SESSION_ID_HEADER)
+
+        if maybe_session_id:
+            _set_or_update_tags(span, {"mcp_session_id": str(maybe_session_id)})
+
+        span._set_ctx_items({NAME: "mcp.{}".format(request_method), SPAN_KIND: "task", INPUT_VALUE: safe_json(request)})
+
+    def _llmobs_set_tags_request_responder_respond(
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any
+    ) -> None:
+        response = args[0]
+        output_value = safe_json(response)
+        span._set_ctx_item(OUTPUT_VALUE, output_value)
 
     def _llmobs_set_tags_list_tools(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         cursor = get_argument_value(args, kwargs, 0, "cursor", optional=True)

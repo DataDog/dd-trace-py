@@ -1,5 +1,5 @@
 import asyncio
-import importlib
+import importlib.metadata
 import json
 import os
 from textwrap import dedent
@@ -38,7 +38,11 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mock_tracer, llmobs_events, m
         mock_tracer, llmobs_events, "calculator"
     )
 
-    assert len(all_spans) == 5  # session, initialize, client list tools, client tool call, server tool call
+    # Sort all_spans by start_ns to match llmobs_events order
+    all_spans.sort(key=lambda span: span.start_ns)
+
+    # session, client initialize, server initialize, client list tools, client tool call, server tool call
+    assert len(all_spans) == 6
     client_span = client_spans[0]
     server_span = server_spans[0]
 
@@ -89,8 +93,18 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mock_tracer, llmobs_events, m
         all_spans[1], span_kind="task", output_value=mock.ANY, tags={"service": "mcptest", "ml_app": "<ml-app-name>"}
     )
 
-    assert llmobs_events[4] == _expected_llmobs_non_llm_span_event(
-        all_spans[4],
+    # server initialize
+    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(
+        all_spans[2],
+        span_kind="task",
+        input_value=mock.ANY,
+        output_value=mock.ANY,
+        tags={"service": "mcptest", "ml_app": "<ml-app-name>", "client_name": "mcp", "client_version": "mcp_0.1.0"},
+    )
+
+    # tools/list call
+    assert llmobs_events[5] == _expected_llmobs_non_llm_span_event(
+        all_spans[5],
         span_kind="task",
         input_value=mock.ANY,
         output_value=mock.ANY,
@@ -106,7 +120,8 @@ def test_llmobs_client_server_tool_error(mcp_setup, mock_tracer, llmobs_events, 
         mock_tracer, llmobs_events, "failing_tool"
     )
 
-    assert len(all_spans) == 4  # no list tools call for failed tool
+    # session, client initialize, server initialize, client tool call, server tool call (no list tools)
+    assert len(all_spans) == 5
     client_span = client_spans[0]
     server_span = server_spans[0]
 
@@ -144,6 +159,55 @@ def test_llmobs_client_server_tool_error(mcp_setup, mock_tracer, llmobs_events, 
         error_message="Error executing tool failing_tool: Tool execution failed",
         error_stack=mock.ANY,
     )
+
+
+def test_server_initialization_span_created(mcp_setup, mock_tracer, llmobs_events):
+    """Test that server initialization creates a span and LLMObs event with custom client info."""
+    from mcp.server.fastmcp import FastMCP
+    from mcp.shared.memory import create_connected_server_and_client_session
+    from mcp.types import Implementation
+
+    mcp_server = FastMCP("TestInitServer")
+
+    async def run_test():
+        client_info = Implementation(name="test-client", version="1.2.3")
+        async with create_connected_server_and_client_session(mcp_server._mcp_server, client_info=client_info):
+            pass
+
+    asyncio.run(run_test())
+
+    traces = mock_tracer.pop_traces()
+    all_spans = [span for trace in traces for span in trace]
+    llmobs_events.sort(key=lambda event: event["start_ns"])
+
+    initialize_spans = [span for span in all_spans if span.name == "mcp.initialize"]
+    assert len(initialize_spans) == 1
+
+    initialize_span = initialize_spans[0]
+    assert initialize_span.name == "mcp.initialize"
+    assert initialize_span.get_tag("client_name") == "test-client"
+    assert initialize_span.get_tag("client_version") == "test-client_1.2.3"
+
+    initialize_events = [event for event in llmobs_events if event["name"] == "mcp.initialize"]
+    assert len(initialize_events) == 1, f"Expected 1 LLMObs event, got {len(initialize_events)}"
+
+    initialize_event = initialize_events[0]
+    assert initialize_event["span_id"] == str(initialize_span.span_id)
+    assert initialize_event["meta"]["span"]["kind"] == "task"
+
+    # tags is a list of strings like "key:value"
+    assert "client_name:test-client" in initialize_event["tags"]
+    assert "client_version:test-client_1.2.3" in initialize_event["tags"]
+
+    input_data = json.loads(initialize_event["meta"]["input"]["value"])
+    assert input_data["method"] == "initialize"
+    assert input_data["params"]["clientInfo"]["name"] == "test-client"
+    assert input_data["params"]["clientInfo"]["version"] == "1.2.3"
+
+    output_data = json.loads(initialize_event["meta"]["output"]["value"])
+    assert "protocolVersion" in output_data
+    assert "capabilities" in output_data
+    assert "serverInfo" in output_data
 
 
 def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subprocess, llmobs_backend):
@@ -190,7 +254,8 @@ def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subproc
     assert status == 0, err
     events = llmobs_backend.wait_for_num_events(num=1)
     traces = events[0]
-    assert len(traces) == 5
+    # session, client initialize, server initialize, client tool call, server tool call, list tools
+    assert len(traces) == 6
 
     client_trace = next((t for t in traces if "Client Tool Call" in t["spans"][0]["name"]), None)
     server_trace = next((t for t in traces if "Server Tool Execute" in t["spans"][0]["name"]), None)
