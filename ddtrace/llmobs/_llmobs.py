@@ -778,8 +778,8 @@ class LLMObs(Service):
             if not getattr(litellm, "_datadog_patch", False):
                 log.warning(
                     "LLMObs.enable() called after litellm was imported but before it was patched. "
-                    "This may cause tracing issues if you are importing patched methods like 'litellm.completion' directly. "
-                    "To ensure proper tracing, either run your application with ddtrace-run, "
+                    "This may cause tracing issues if you are importing patched methods like 'litellm.completion' "
+                    "directly. To ensure proper tracing, either run your application with ddtrace-run, "
                     "call ddtrace.patch_all() before importing litellm, or "
                     "enable LLMObs before importing other modules."
                 )
