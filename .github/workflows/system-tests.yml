@@ -134,7 +134,7 @@ jobs:
         run: ./run.sh AGENT_SUPPORTING_SPAN_EVENTS
 
       - name: Run RUNTIME_METRICS_ENABLED
-        if: always() && steps.docker_load.outcome == 'sucess' && matrix.scenario == 'other'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
         run: ./run.sh RUNTIME_METRICS_ENABLED
 
       - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
