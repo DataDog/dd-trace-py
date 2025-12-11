@@ -1,0 +1,190 @@
+import_analysis:
+  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
+  tags: ["arch:amd64"]
+  stage: tests
+  needs:
+    - "pipeline variables"
+    - job: download_ddtrace_artifacts
+      artifacts: true
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  rules:
+    - if: $HAS_OPEN_PR == "true"
+      when: on_success
+    - when: never
+  variables:
+    GIT_STRATEGY: clone
+    PYTHON_VERSION: "3.12"
+  before_script:
+    - |
+      if [ -z ${GH_TOKEN} ]
+      then
+        # Use dd-octo-sts to get GitHub token
+        dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > token
+        gh auth login --with-token < token
+        rm token
+      fi
+    - |
+      # Prevent git operation errors:
+      #   failed to determine base repo: failed to run git: fatal: detected dubious ownership in repository at ...
+      git config --global --add safe.directory "${CI_PROJECT_DIR}"
+    - |
+      # Set up Python 3.12 via pyenv (available in the base image)
+      pyenv global 3.12
+      python --version
+  script:
+    - |
+      # Get PR information to determine base branch and commit
+      # GH_PR_NUMBER should be available from pipeline variables job, but add fallback
+      if [ -z "${GH_PR_NUMBER}" ]; then
+        echo "GH_PR_NUMBER not set, attempting to get it from GitHub..."
+        GH_PR_NUMBER=$(gh pr list --state open --search "${CI_COMMIT_SHA}" --json number --jq '.[0].number' || echo "")
+        if [ -z "${GH_PR_NUMBER}" ]; then
+          echo "Error: Could not determine PR number for commit ${CI_COMMIT_SHA}" >&2
+          exit 1
+        fi
+      fi
+
+      echo "Getting PR information for PR #${GH_PR_NUMBER}"
+      BASE_BRANCH=$(gh pr view "${GH_PR_NUMBER}" --json baseRefName --jq .baseRefName)
+      BASE_COMMIT_SHA=$(gh pr view "${GH_PR_NUMBER}" --json baseRefOid --jq .baseRefOid)
+
+      echo "PR base branch: ${BASE_BRANCH}"
+      echo "PR base commit: ${BASE_COMMIT_SHA}"
+      echo "PR commit: ${CI_COMMIT_SHA}"
+    - |
+      # Use wheel from download_ddtrace_artifacts job for PR commit (Python 3.12 x86_64)
+      echo "Finding Python 3.12 x86_64 wheel from download_ddtrace_artifacts job"
+      mkdir -p pywheels-pr
+      PR_WHEEL_SOURCE=$(find pywheels -name "ddtrace-*-cp312-*-*x86_64*.whl" | head -1)
+      if [ -z "${PR_WHEEL_SOURCE}" ]; then
+        echo "Error: Could not find Python 3.12 x86_64 wheel in pywheels" >&2
+        echo "Available wheels:" >&2
+        find pywheels -name "*.whl" | head -10 >&2
+        exit 1
+      fi
+      cp "${PR_WHEEL_SOURCE}" pywheels-pr/
+      echo "Copied PR wheel: ${PR_WHEEL_SOURCE}"
+    - |
+      # Download wheels for base commit using the existing script
+      echo "Downloading wheels for base commit ${BASE_COMMIT_SHA}"
+      .gitlab/download-wheels-from-gh-actions.sh "${BASE_COMMIT_SHA}" pywheels-base || {
+        echo "Warning: Could not download wheels for base commit. This may be expected if the GitHub Actions build hasn't completed yet."
+        exit 1
+      }
+      # Filter to keep only Python 3.12 x86_64 wheel
+      echo "Filtering to keep only Python 3.12 x86_64 wheel"
+      BASE_WHEEL_TO_KEEP=$(find pywheels-base -name "ddtrace-*-cp312-*-*x86_64*.whl" | head -1)
+      if [ -z "${BASE_WHEEL_TO_KEEP}" ]; then
+        echo "Error: Could not find Python 3.12 x86_64 wheel in downloaded wheels" >&2
+        echo "Available wheels:" >&2
+        find pywheels-base -name "*.whl" | head -10 >&2
+        exit 1
+      fi
+      # Remove all other wheels, keep only the one we need
+      find pywheels-base -name "*.whl" ! -name "$(basename "${BASE_WHEEL_TO_KEEP}")" -delete
+      echo "Kept base wheel: ${BASE_WHEEL_TO_KEEP}"
+    - |
+      # Set up PR environment
+      echo "Setting up PR environment"
+      python -m venv .venv-pr
+      source .venv-pr/bin/activate
+
+      # Find and install the wheel for Python 3.12 x86_64
+      PR_WHEEL=$(find pywheels-pr -name "ddtrace-*-cp312-*-*x86_64*.whl" | head -1)
+      if [ -z "${PR_WHEEL}" ]; then
+        echo "Error: Could not find Python 3.12 x86_64 wheel in pywheels-pr" >&2
+        echo "Available wheels:" >&2
+        find pywheels-pr -name "*.whl" | head -10 >&2
+        exit 1
+      fi
+
+      echo "Installing PR wheel: ${PR_WHEEL}"
+      python -m pip install --upgrade pip
+      python -m pip install "${PR_WHEEL}"
+      python -c "import ddtrace.auto"
+      deactivate
+    - |
+      # Collect import data from PR
+      echo "Collecting import data from PR"
+      source .venv-pr/bin/activate
+      export DD_REMOTE_CONFIGURATION_ENABLED=0
+
+      for n in {0..1000}; do
+        python -X importtime -c "import ddtrace.auto" 2> "import-pr-${n}.txt"
+      done
+      deactivate
+    - |
+      # Set up base environment
+      echo "Setting up base environment"
+      python -m venv .venv-base
+      source .venv-base/bin/activate
+
+      # Find and install the wheel for Python 3.12 x86_64
+      BASE_WHEEL=$(find pywheels-base -name "ddtrace-*-cp312-*-*x86_64*.whl" | head -1)
+      if [ -z "${BASE_WHEEL}" ]; then
+        echo "Error: Could not find Python 3.12 x86_64 wheel in pywheels-base" >&2
+        echo "Available wheels:" >&2
+        find pywheels-base -name "*.whl" | head -10 >&2
+        exit 1
+      fi
+
+      echo "Installing base wheel: ${BASE_WHEEL}"
+      python -m pip install --upgrade pip
+      python -m pip install "${BASE_WHEEL}"
+      python -c "import ddtrace.auto"
+      deactivate
+    - |
+      # Collect import data from base
+      echo "Collecting import data from base"
+      source .venv-base/bin/activate
+      export DD_REMOTE_CONFIGURATION_ENABLED=0
+
+      for n in {0..1000}; do
+        python -X importtime -c "import ddtrace.auto" 2> "import-base-${n}.txt"
+      done
+      deactivate
+    - |
+      # Analyze import data
+      echo "Analyzing import data"
+      source .venv-pr/bin/activate
+      python -m pip install -r scripts/import-analysis/requirements.txt
+      python scripts/import-analysis/import_analysis.py > import_analysis.txt || {
+        ANALYSIS_EXIT_CODE=$?
+        cat import_analysis.txt
+        exit ${ANALYSIS_EXIT_CODE}
+      }
+      cat import_analysis.txt
+      deactivate
+    - |
+      # Comment on PR with analysis results
+      # Use a comment tag to identify and update existing comments
+      COMMENT_TAG="<!-- import_analysis -->"
+      COMMENT_BODY=$(cat import_analysis.txt)
+      FULL_COMMENT="${COMMENT_TAG}"$'\n\n'"${COMMENT_BODY}"
+
+      # Try to find and update existing comment
+      # Get all comments for the PR issue (PRs are issues in GitHub API)
+      EXISTING_COMMENT_ID=$(gh api \
+        "/repos/DataDog/dd-trace-py/issues/${GH_PR_NUMBER}/comments" \
+        --jq "[.[] | select(.body | contains(\"${COMMENT_TAG}\")) | .id] | first")
+
+      if [ -n "${EXISTING_COMMENT_ID}" ] && [ "${EXISTING_COMMENT_ID}" != "null" ]; then
+        echo "Updating existing comment ${EXISTING_COMMENT_ID}"
+        gh api \
+          --method PATCH \
+          -H "Accept: application/vnd.github+json" \
+          "/repos/DataDog/dd-trace-py/issues/comments/${EXISTING_COMMENT_ID}" \
+          -f body="${FULL_COMMENT}"
+      else
+        echo "Creating new comment"
+        gh pr comment "${GH_PR_NUMBER}" --body "${FULL_COMMENT}"
+      fi
+  artifacts:
+    when: always
+    paths:
+      - import_analysis.txt
+      - import-pr-*.txt
+      - import-base-*.txt
+    expire_in: 1 week
