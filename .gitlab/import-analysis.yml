@@ -9,9 +9,9 @@ import_analysis:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   rules:
-    - if: $HAS_OPEN_PR == "true"
-      when: on_success
-    - when: never
+    # Always create the job, but check for PR in script
+    # This allows the job to appear in the dependency graph
+    - when: on_success
   variables:
     GIT_STRATEGY: clone
     PYTHON_VERSION: "3.12"
@@ -35,14 +35,19 @@ import_analysis:
   script:
     - |
       # Get PR information to determine base branch and commit
-      # GH_PR_NUMBER should be available from pipeline variables job, but add fallback
+      # Check if we have an open PR (from pipeline variables or by querying GitHub)
       if [ -z "${GH_PR_NUMBER}" ]; then
         echo "GH_PR_NUMBER not set, attempting to get it from GitHub..."
-        GH_PR_NUMBER=$(gh pr list --state open --search "${CI_COMMIT_SHA}" --json number --jq '.[0].number' || echo "")
-        if [ -z "${GH_PR_NUMBER}" ]; then
-          echo "Error: Could not determine PR number for commit ${CI_COMMIT_SHA}" >&2
-          exit 1
+        GH_PR_NUMBER=$(gh pr list --state open --head "${CI_COMMIT_BRANCH}" --json number --jq '.[0].number' || echo "")
+        if [ -z "${GH_PR_NUMBER}" ] || [ "${GH_PR_NUMBER}" = "null" ]; then
+          GH_PR_NUMBER=$(gh pr list --state open --limit 100 --json number,commits --jq "[.[] | select(.commits[].oid == \"${CI_COMMIT_SHA}\") | .number] | first" || echo "")
         fi
+      fi
+
+      # Exit gracefully if no PR found (this job should only run for PRs)
+      if [ -z "${GH_PR_NUMBER}" ] || [ "${GH_PR_NUMBER}" = "null" ]; then
+        echo "No open PR found for commit ${CI_COMMIT_SHA}. Skipping import analysis."
+        exit 0
       fi
 
       echo "Getting PR information for PR #${GH_PR_NUMBER}"
