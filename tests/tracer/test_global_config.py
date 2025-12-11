@@ -22,7 +22,7 @@ class GlobalConfigTestCase(TestCase):
 
     def tearDown(self):
         # Reset all core event listeners after each test to ensure test isolation
-        core.reset()
+        core.reset_listeners()
 
     def test_registration(self):
         # ensure an integration can register a new list of settings
