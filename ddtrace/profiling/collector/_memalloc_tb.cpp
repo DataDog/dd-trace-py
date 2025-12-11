@@ -15,7 +15,7 @@ static PyObject* threading_module = NULL;
 static PyObject* threading_current_thread = NULL;
 
 bool
-traceback_t::init()
+traceback_t::init_invokes_cpython()
 {
     // Initialize threading module structure references
     // Note: MemoryCollector.start() ensures _threading is imported before calling
@@ -112,7 +112,7 @@ class PythonErrorRestorer
 };
 
 void
-traceback_t::deinit()
+traceback_t::deinit_invokes_cpython()
 {
     // Check if Python is finalizing. If so, skip cleanup to avoid segfaults.
     // During finalization, Python objects may be in an invalid state.
