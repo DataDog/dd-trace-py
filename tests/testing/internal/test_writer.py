@@ -1,6 +1,7 @@
 """Tests for ddtrace.testing.internal.writer module."""
 
 from unittest.mock import Mock
+from unittest.mock import call
 from unittest.mock import patch
 
 from ddtrace.testing.internal.http import BackendConnectorAgentlessSetup
@@ -10,6 +11,7 @@ from ddtrace.testing.internal.test_data import TestRun
 from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestSuite
+from ddtrace.testing.internal.tracer_api import msgpack_packb
 from ddtrace.testing.internal.writer import Event
 from ddtrace.testing.internal.writer import TestCoverageWriter
 from ddtrace.testing.internal.writer import TestOptWriter
@@ -100,6 +102,48 @@ class TestTestOptWriter:
             headers={"Content-Type": "application/msgpack"},
             send_gzip=True,
         )
+
+    @patch("ddtrace.testing.internal.http.BackendConnector")
+    def test_split_events(self, mock_backend_connector: Mock) -> None:
+        """Test sending events to backend."""
+        mock_connector = Mock()
+        mock_backend_connector.return_value = mock_connector
+        mock_connector.request.return_value = BackendResult(
+            response=Mock(status=200), response_length=42, elapsed_seconds=1.2
+        )
+
+        writer = TestOptWriter(BackendConnectorAgentlessSetup(site="test", api_key="key"))
+        writer.metadata = {"*": {"foo": "bar"}}
+        writer.max_payload_size = 70
+
+        events = [Event(type="test1"), Event(type="test2"), Event(type="test3")]
+
+        writer._send_events(events)
+
+        expected_pack_1 = msgpack_packb(
+            {"version": 1, "metadata": {"*": {"foo": "bar"}}, "events": [{"type": "test1"}]}
+        )
+        expected_pack_2 = msgpack_packb(
+            {"version": 1, "metadata": {"*": {"foo": "bar"}}, "events": [{"type": "test2"}, {"type": "test3"}]}
+        )
+
+        # Check HTTP request
+        assert mock_connector.request.call_args_list == [
+            call(
+                "POST",
+                "/api/v2/citestcycle",
+                data=expected_pack_1,
+                headers={"Content-Type": "application/msgpack"},
+                send_gzip=True,
+            ),
+            call(
+                "POST",
+                "/api/v2/citestcycle",
+                data=expected_pack_2,
+                headers={"Content-Type": "application/msgpack"},
+                send_gzip=True,
+            ),
+        ]
 
 
 class TestTestCoverageWriter:
