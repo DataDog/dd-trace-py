@@ -723,7 +723,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     """Writer using a native trace exporter to send traces to an agent."""
 
     STATSD_NAMESPACE = "tracer"
-    is_forking = False
 
     def __init__(
         self,
@@ -804,6 +803,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._max_payload_size = max_payload_size
         self._test_session_token = test_session_token
 
+        # Condition variable to coordinate the flushing with flushing
+        self._forking_cv = threading.Condition()
+        self._disable_flush = False
+        # Number of threads currently flushing
+        self._count_flushing = 0
+
         self._clients = [client]
         self.dogstatsd = dogstatsd
         self._metrics: Dict[str, int] = defaultdict(int)
@@ -815,18 +820,27 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._stats_opt_out = stats_opt_out
 
         try:
-            fork_hook = make_weak_method_hook(self.before_fork)
-            forksafe.register_before_fork(fork_hook)
-            self._fork_hook = fork_hook
+            before_fork_hook = make_weak_method_hook(self.before_fork)
+            after_fork_in_parent_hook = make_weak_method_hook(self._after_fork_in_parent)
+
+            forksafe.register_before_fork(before_fork_hook)
+            self._before_fork_hook = before_fork_hook
+
+            forksafe.register_after_parent(after_fork_in_parent_hook)
+            self._after_fork_in_parent_hook = after_fork_in_parent_hook
         except TypeError:
             log.warning("Failed to register NativeWriter fork hook")
 
         self._exporter = self._create_exporter()
 
     def __del__(self):
-        if self._fork_hook:
-            forksafe.unregister_before_fork(self._fork_hook)
-            self._fork_hook = None
+        if self._before_fork_hook:
+            forksafe.unregister_before_fork(self._before_fork_hook)
+            self._before_fork_hook = None
+
+        if self._after_fork_in_parent_hook:
+            forksafe.unregister_parent(self._after_fork_in_parent_hook)
+            self._after_fork_in_parent_hook = None
 
     def _create_exporter(self) -> native.TraceExporter:
         """
@@ -874,13 +888,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
         return builder.build()
 
-    @forksafe.register
-    def _after_fork():
-        NativeWriter.is_forking = False
-
-    @forksafe.register_after_parent
-    def _after_fork_in_parent():
-        NativeWriter.is_forking = False
+    def _after_fork_in_parent(self):
+        with self._forking_cv:
+            self._disable_flush = False
+            self._forking_cv.notify_all()
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         """
@@ -977,6 +988,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
     def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
         try:
+            with self._forking_cv:
+                # postpone flush if we are forking
+                self._forking_cv.wait_for(lambda: not self._disable_flush)
+                self._count_flushing += 1
             response_body = self._exporter.send(payload, count)
         except native.RequestError as e:
             try:
@@ -989,6 +1004,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             else:
                 raise e
         finally:
+            with self._forking_cv:
+                self._count_flushing -= 1
+                if self._count_flushing == 0:
+                    # wake before_fork hook if it's waiting
+                    self._forking_cv.notify_all()
             self._metrics["sent_traces"] += count
 
         if self._response_cb:
@@ -1055,9 +1075,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._metrics_dist("buffer.accepted.spans", len(spans))
 
     def flush_queue(self, raise_exc: bool = False):
-        if NativeWriter.is_forking:
-            # We skip flush while forking as this would restart the native threads
-            return 
         try:
             for client in self._clients:
                 self._flush_queue_with_client(client, raise_exc=raise_exc)
@@ -1117,13 +1134,19 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         # Native threads should be stopped even if the writer is not running
         finally:
             self.before_fork()
-            if self._fork_hook:
-                forksafe.unregister_before_fork(self._fork_hook)
-                self._fork_hook = None
+            if self._before_fork_hook:
+                forksafe.unregister_before_fork(self._before_fork_hook)
+                self._before_fork_hook = None
+            if self._after_fork_in_parent_hook:
+                forksafe.unregister_parent(self._after_fork_in_parent_hook)
+                self._after_fork_in_parent_hook = None
 
     def before_fork(self) -> None:
         # Mark the writer as forking to avoid restarting threads before the fork
-        NativeWriter.is_forking = True
+        with self._forking_cv:
+            # Prevent new flush from being started
+            self._disable_flush = True
+            self._forking_cv.wait_for(lambda: self._count_flushing == 0)
         self._exporter.stop_worker()
 
     def on_shutdown(self):
