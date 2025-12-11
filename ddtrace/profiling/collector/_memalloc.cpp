@@ -12,7 +12,7 @@
 #include "_pymacro.h"
 
 // Ensure profile_state is initialized before creating Sample objects
-#include "dd_wrapper/include/ddup_interface.hpp"
+#include "ddup_interface.hpp"
 
 typedef struct
 {

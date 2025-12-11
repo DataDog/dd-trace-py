@@ -218,7 +218,7 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
         tb->sample.export_sample();
         tb->reported = true;
     }
-    pool_put(std::move(tb));
+    pool_put_no_cpython(std::move(tb));
 }
 
 bool
@@ -251,6 +251,7 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
     memalloc_gil_debug_guard_t guard(gil_guard);
 
     auto [it, inserted] = allocs_m.insert_or_assign(ptr, std::move(tb));
+    (void)it; // Unused, but needed for structured binding
 
     /* This should always be a new insertion. If not, we failed to properly untrack a previous allocation. */
     assert(inserted && "add_sample: found existing entry for key that should have been removed");
@@ -313,6 +314,7 @@ memalloc_heap_untrack_no_cpython(void* ptr)
 void
 memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
 {
+    (void)domain; // Parameter kept for API consistency but not currently used
     if (!heap_tracker_t::instance) {
         return;
     }
