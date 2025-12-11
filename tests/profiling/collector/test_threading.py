@@ -564,6 +564,27 @@ class BaseThreadingLockCollectorTest:
             # Try this way too
             Foobar(self.lock_class)
 
+    def test_subclassing_wrapped_lock(self) -> None:
+        """Test that subclassing of a wrapped lock type when profiling is active."""
+        from ddtrace.profiling.collector._lock import _LockAllocatorWrapper
+
+        with self.collector_class():
+            assert isinstance(self.lock_class, _LockAllocatorWrapper)
+
+            # This should NOT raise TypeError
+            class CustomLock(self.lock_class):  # type: ignore[misc]
+                def __init__(self) -> None:
+                    super().__init__()
+                    self.custom_attr: str = "test"
+
+            # Verify subclassing and functionality
+            custom_lock: CustomLock = CustomLock()
+            assert hasattr(custom_lock, "custom_attr")
+            assert custom_lock.custom_attr == "test"
+
+            assert custom_lock.acquire()
+            custom_lock.release()
+
     def test_lock_events(self) -> None:
         # The first argument is the recorder.Recorder which is used for the
         # v1 exporter. We don't need it for the v2 exporter.
