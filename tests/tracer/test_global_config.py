@@ -20,6 +20,10 @@ class GlobalConfigTestCase(TestCase):
         self.config.web = IntegrationConfig(self.config, "web")
         self.tracer = DummyTracer()
 
+    def tearDown(self):
+        # Reset all core event listeners after each test to ensure test isolation
+        core.reset()
+
     def test_registration(self):
         # ensure an integration can register a new list of settings
         settings = {
