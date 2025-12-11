@@ -167,8 +167,8 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
         // Perform the sample
         for_each_interp([&](InterpreterInfo& interp) -> void {
-            for_each_thread(interp, wall_time_us, [&](PyThreadState* tstate, microsecond_t delta, ThreadInfo& thread) {
-                auto success = thread.sample(interp.id, tstate, delta);
+            for_each_thread(interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
+                auto success = thread.sample(interp.id, tstate, wall_time_us);
                 if (success) {
                     ddup_increment_sample_count();
                 }

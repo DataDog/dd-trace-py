@@ -734,10 +734,10 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
 }
 
 // ----------------------------------------------------------------------------
-using PyThreadStateCallback = std::function<void(PyThreadState*, microsecond_t, ThreadInfo&)>;
+using PyThreadStateCallback = std::function<void(PyThreadState*, ThreadInfo&)>;
 
 static void
-for_each_thread(InterpreterInfo& interp, microsecond_t delta, PyThreadStateCallback callback)
+for_each_thread(InterpreterInfo& interp, PyThreadStateCallback callback)
 {
     std::unordered_set<PyThreadState*> threads;
     std::unordered_set<PyThreadState*> seen_threads;
@@ -811,7 +811,7 @@ for_each_thread(InterpreterInfo& interp, microsecond_t delta, PyThreadStateCallb
             thread_info->tstate_addr = reinterpret_cast<uintptr_t>(tstate_addr);
 
             // Call back with the copied thread state
-            callback(&tstate, delta, *thread_info);
+            callback(&tstate, *thread_info);
         }
     }
 }
