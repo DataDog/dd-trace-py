@@ -78,8 +78,10 @@ target_compile_definitions(${EXTENSION_NAME} PRIVATE UNWIND_NATIVE_DISABLE)
 target_include_directories(
     ${EXTENSION_NAME} PRIVATE .. # include dd_wrapper from the root in order to make its paths transparent in the code
                               include)
-target_include_directories(${EXTENSION_NAME} SYSTEM PRIVATE ${Python3_INCLUDE_DIRS} echion include/vendored
-                                                            include/util)
+target_include_directories(
+    ${EXTENSION_NAME} SYSTEM
+    PRIVATE ${Python3_INCLUDE_DIRS} echion include/vendored include/util
+            ../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/)
 
 # Echion sources need to be given the current platform
 if(APPLE)
