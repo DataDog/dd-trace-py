@@ -299,9 +299,6 @@ class SpanExceptionHandler:
 
                 # Capture
                 snapshot.do_line()
-                # This is safe because the frame is not used after the snapshot is captured, and will allow the
-                # frame to be garbage collected while the snapshot is queued.
-                snapshot.frame = None  # type: ignore[assignment]
 
                 # Collect
                 if (collector := self.__uploader__.get_collector()) is None:

@@ -477,65 +477,6 @@ def test_replay_functions_benchmark(benchmark):
         benchmark(run_replay_functions)
 
 
-def test_snapshots_hold_frame_references_while_queued():
-    """Verify that queued Snapshot objects hold frame references.
-
-    When exception replay captures a snapshot, the Snapshot object stores
-    a reference to the frame. This test confirms that while snapshots are
-    queued (waiting to be sent to Datadog), the associated frame objects
-    remain in memory and cannot be garbage collected.
-    """
-    import gc
-    import types
-    import uuid
-
-    from ddtrace.trace import Span
-
-    def _raise_exception(depth):
-        if depth == 0:
-            raise ValueError(uuid.uuid4())
-        _raise_exception(depth - 1)
-
-    def _capture_exception(depth):
-        try:
-            _raise_exception(depth)
-        except ValueError:
-            raise RuntimeError(f"Wrapped at depth {depth}") from None
-
-    def _get_exception_with_traceback():
-        try:
-            _capture_exception(depth=2)
-        except RuntimeError as exc:
-            return exc, exc.__traceback__
-        return None, None
-
-    def _count_heap_frames():
-        gc.collect()
-        gc.collect()
-        gc.collect()
-        return sum(1 for obj in gc.get_objects() if type(obj) is types.FrameType)
-
-    with exception_replay() as uploader:
-        handler = replay.SpanExceptionHandler()
-        handler.__uploader__ = uploader
-
-        # Process multiple exceptions to create queued snapshots
-        num_exceptions = 10
-        for i in range(num_exceptions):
-            exc, tb = _get_exception_with_traceback()
-            span = Span(f"test_span_{i}")
-
-            chain, exc_id = replay.unwind_exception_chain(exc, tb)
-            for _, frame_tb in replay.get_tb_frames_from_exception_chain(chain):
-                handler._attach_tb_frame_snapshot_to_span(span, frame_tb, exc_id, only_user_code=False)
-
-            # Clear local references to simulate exception handling completion
-            del exc, tb, span, chain, exc_id
-
-        frames_while_queued = _count_heap_frames()
-        assert frames_while_queued < 5
-
-
 def test_unwind_exception_chain_circular_reference():
     """Test that unwind_exception_chain handles circular exception chains."""
     import signal
