@@ -42,7 +42,7 @@ class StackCollector(collector.Collector):
         if self.tracer is not None:
             core.on("ddtrace.context_provider.activate", stack.link_span)
 
-        # stack v2 requires us to patch the Threading module.  It's possible to do this from the stack v2 code
+        # stack requires us to patch the Threading module.  It's possible to do this from the stack code
         # itself, but it's a little bit fiddly and it's easier to make it correct here.
         # TODO take the `threading` import out of here and just handle it in v2 startup
         threading.init_stack()

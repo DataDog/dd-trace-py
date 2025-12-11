@@ -75,7 +75,7 @@ def test_collect_truncate():
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
     for sample in samples:
-        # stack v2 adds one extra frame for "%d frames omitted" message
+        # stack adds one extra frame for "%d frames omitted" message
         # Also, it allows max_nframes + 1 frames, so we add 2 here.
         assert len(sample.location_id) <= max_nframes + 2, len(sample.location_id)
 
