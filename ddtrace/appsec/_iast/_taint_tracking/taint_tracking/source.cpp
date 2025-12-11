@@ -1,3 +1,5 @@
+#include <cstdlib>
+#include <cstring>
 #include <pybind11/pybind11.h>
 
 #include "source.h"
@@ -6,16 +8,59 @@ using namespace std;
 namespace py = pybind11;
 using namespace pybind11::literals;
 
+// Default truncation length if environment variable is not set
+constexpr size_t DEFAULT_TRUNCATION_LENGTH = 250;
+
+// Get the truncation max length from environment variable
+size_t
+get_source_truncation_max_length()
+{
+    static size_t cached_length = 0;
+    static bool initialized = false;
+
+    if (!initialized) {
+        const char* env_value = std::getenv("DD_IAST_TRUNCATION_MAX_VALUE_LENGTH");
+        if (env_value != nullptr) {
+            try {
+                long parsed_value = std::strtol(env_value, nullptr, 10);
+                if (parsed_value > 0) {
+                    cached_length = static_cast<size_t>(parsed_value);
+                } else {
+                    cached_length = DEFAULT_TRUNCATION_LENGTH;
+                }
+            } catch (...) {
+                cached_length = DEFAULT_TRUNCATION_LENGTH;
+            }
+        } else {
+            cached_length = DEFAULT_TRUNCATION_LENGTH;
+        }
+        initialized = true;
+    }
+
+    return cached_length;
+}
+
+// Truncate value string if it exceeds the max length
+string
+truncate_source_value(string value)
+{
+    size_t max_length = get_source_truncation_max_length();
+    if (value.length() > max_length) {
+        return value.substr(0, max_length);
+    }
+    return value;
+}
+
 Source::Source(string name, string value, OriginType origin)
   : name(std::move(name))
-  , value(std::move(value))
+  , value(truncate_source_value(std::move(value)))
   , origin(origin)
 {
 }
 
 Source::Source(int name, string value, const OriginType origin)
   : name(origin_to_str(OriginType{ name }))
-  , value(std::move(value))
+  , value(truncate_source_value(std::move(value)))
   , origin(origin)
 {
 }
