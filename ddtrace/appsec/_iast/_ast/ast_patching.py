@@ -14,6 +14,7 @@ from ddtrace.appsec._iast._logs import iast_compiling_debug_log
 from ddtrace.appsec._iast._logs import iast_instrumentation_ast_patching_debug_log
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
+from ddtrace.internal.settings import _env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 
@@ -292,7 +293,7 @@ def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
         iast_compiling_debug_log(f"Empty file: {module_path}")
         return "", None
 
-    if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")):
+    if not asbool(_env.getenv(IAST.ENV_NO_DIR_PATCH, "false")):
         # Add the dir filter so __ddtrace stuff is not returned by dir(module)
         source_text += _DIR_WRAPPER
 

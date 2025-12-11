@@ -5,7 +5,8 @@ language: python
 files:
   - "ddtrace/**"
 ignores:
-  - "ddtrace/settings/_env.py"
+  - "ddtrace/internal/settings/_env.py"
+  - "ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11/pybind11/setup_helpers.py"
 rule:
   any:
     # Match os.environ access patterns
