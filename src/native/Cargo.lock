@@ -233,7 +233,7 @@ dependencies = [
 [[package]]
 name = "build_common"
 version = "24.0.1"
-source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#9131b83cdbba5920875349c291e99ed5b09c0436"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#bde97103db6575dbb5d87cba9ac1ea09e742aac2"
 dependencies = [
  "cbindgen",
  "serde",
@@ -528,7 +528,7 @@ dependencies = [
 [[package]]
 name = "datadog-ffe"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#9131b83cdbba5920875349c291e99ed5b09c0436"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#bde97103db6575dbb5d87cba9ac1ea09e742aac2"
 dependencies = [
  "chrono",
  "derive_more",
@@ -1241,7 +1241,7 @@ checksum = "2874a2af47a2325c2001a6e6fad9b16a53b802102b528163885171cf92b15976"
 [[package]]
 name = "libdd-alloc"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#9131b83cdbba5920875349c291e99ed5b09c0436"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#bde97103db6575dbb5d87cba9ac1ea09e742aac2"
 dependencies = [
  "allocator-api2",
  "libc",
@@ -1251,7 +1251,7 @@ dependencies = [
 [[package]]
 name = "libdd-common"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#9131b83cdbba5920875349c291e99ed5b09c0436"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#bde97103db6575dbb5d87cba9ac1ea09e742aac2"
 dependencies = [
  "anyhow",
  "cc",
@@ -1284,7 +1284,7 @@ dependencies = [
 [[package]]
 name = "libdd-common-ffi"
 version = "24.0.1"
-source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#9131b83cdbba5920875349c291e99ed5b09c0436"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#bde97103db6575dbb5d87cba9ac1ea09e742aac2"
 dependencies = [
  "anyhow",
  "build_common",
@@ -1298,7 +1298,7 @@ dependencies = [
 [[package]]
 name = "libdd-crashtracker"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#9131b83cdbba5920875349c291e99ed5b09c0436"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#bde97103db6575dbb5d87cba9ac1ea09e742aac2"
 dependencies = [
  "anyhow",
  "backtrace",
@@ -1330,7 +1330,7 @@ dependencies = [
 [[package]]
 name = "libdd-data-pipeline"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#9131b83cdbba5920875349c291e99ed5b09c0436"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#bde97103db6575dbb5d87cba9ac1ea09e742aac2"
 dependencies = [
  "antithesis_sdk",
  "anyhow",
@@ -1362,7 +1362,7 @@ dependencies = [
 [[package]]
 name = "libdd-ddsketch"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#9131b83cdbba5920875349c291e99ed5b09c0436"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#bde97103db6575dbb5d87cba9ac1ea09e742aac2"
 dependencies = [
  "prost",
 ]
@@ -1370,7 +1370,7 @@ dependencies = [
 [[package]]
 name = "libdd-dogstatsd-client"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#9131b83cdbba5920875349c291e99ed5b09c0436"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#bde97103db6575dbb5d87cba9ac1ea09e742aac2"
 dependencies = [
  "anyhow",
  "cadence",
@@ -1383,7 +1383,7 @@ dependencies = [
 [[package]]
 name = "libdd-library-config"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#9131b83cdbba5920875349c291e99ed5b09c0436"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#bde97103db6575dbb5d87cba9ac1ea09e742aac2"
 dependencies = [
  "anyhow",
  "memfd",
@@ -1397,7 +1397,7 @@ dependencies = [
 [[package]]
 name = "libdd-log"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#9131b83cdbba5920875349c291e99ed5b09c0436"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#bde97103db6575dbb5d87cba9ac1ea09e742aac2"
 dependencies = [
  "chrono",
  "tracing",
@@ -1408,7 +1408,7 @@ dependencies = [
 [[package]]
 name = "libdd-profiling"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#9131b83cdbba5920875349c291e99ed5b09c0436"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#bde97103db6575dbb5d87cba9ac1ea09e742aac2"
 dependencies = [
  "allocator-api2",
  "anyhow",
@@ -1444,7 +1444,7 @@ dependencies = [
 [[package]]
 name = "libdd-profiling-ffi"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#9131b83cdbba5920875349c291e99ed5b09c0436"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#bde97103db6575dbb5d87cba9ac1ea09e742aac2"
 dependencies = [
  "anyhow",
  "build_common",
@@ -1463,7 +1463,7 @@ dependencies = [
 [[package]]
 name = "libdd-profiling-protobuf"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#9131b83cdbba5920875349c291e99ed5b09c0436"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#bde97103db6575dbb5d87cba9ac1ea09e742aac2"
 dependencies = [
  "prost",
 ]
@@ -1471,7 +1471,7 @@ dependencies = [
 [[package]]
 name = "libdd-telemetry"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#9131b83cdbba5920875349c291e99ed5b09c0436"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#bde97103db6575dbb5d87cba9ac1ea09e742aac2"
 dependencies = [
  "anyhow",
  "base64",
@@ -1497,7 +1497,7 @@ dependencies = [
 [[package]]
 name = "libdd-tinybytes"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#9131b83cdbba5920875349c291e99ed5b09c0436"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#bde97103db6575dbb5d87cba9ac1ea09e742aac2"
 dependencies = [
  "serde",
 ]
@@ -1505,7 +1505,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-normalization"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#9131b83cdbba5920875349c291e99ed5b09c0436"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#bde97103db6575dbb5d87cba9ac1ea09e742aac2"
 dependencies = [
  "anyhow",
  "libdd-trace-protobuf",
@@ -1514,7 +1514,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-protobuf"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#9131b83cdbba5920875349c291e99ed5b09c0436"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#bde97103db6575dbb5d87cba9ac1ea09e742aac2"
 dependencies = [
  "prost",
  "serde",
@@ -1524,7 +1524,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-stats"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#9131b83cdbba5920875349c291e99ed5b09c0436"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#bde97103db6575dbb5d87cba9ac1ea09e742aac2"
 dependencies = [
  "hashbrown 0.15.5",
  "libdd-ddsketch",
@@ -1535,7 +1535,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-utils"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#9131b83cdbba5920875349c291e99ed5b09c0436"
+source = "git+https://github.com/DataDog/libdatadog?branch=jwiriath%2Fantithesis-poc#bde97103db6575dbb5d87cba9ac1ea09e742aac2"
 dependencies = [
  "anyhow",
  "bytes",
