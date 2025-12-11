@@ -4,12 +4,9 @@
 
 #pragma once
 
-#include <optional>
-
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <frameobject.h>
-#include <weakrefobject.h>
 
 #if PY_VERSION_HEX >= 0x030b0000
 #include <cpython/genobject.h>
@@ -18,9 +15,6 @@
 #include <cstddef>
 #if PY_VERSION_HEX >= 0x030e0000
 #include <internal/pycore_frame.h>
-#include <internal/pycore_interp_structs.h>
-#include <internal/pycore_llist.h>
-#include <internal/pycore_tstate.h>
 #include <opcode.h>
 #elif PY_VERSION_HEX >= 0x030d0000
 #include <opcode.h>
