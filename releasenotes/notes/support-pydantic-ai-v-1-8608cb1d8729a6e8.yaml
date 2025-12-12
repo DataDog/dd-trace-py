@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    pydantic_ai: Introduces tracing support for PydanticAI's ``Agent.run_stream.stream_output`` method as introduced in ``pydantic-ai>=1.0.0``.
