@@ -72,8 +72,7 @@ class APIClient:
             }
 
         except KeyError as e:
-            log.error("Git info not available, cannot fetch settings")
-            log.debug("Git info not available, cannot fetch settings (missing key: %s)", e)
+            log.error("Git info not available, cannot fetch settings (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
             return Settings()
 
@@ -83,9 +82,8 @@ class APIClient:
             )
             result.on_error_raise_exception()
 
-        except Exception:
-            log.error("Error getting settings from API")
-            log.debug("Error getting settings from API", exc_info=True)
+        except Exception as e:
+            log.error("Error getting settings from API: %s", e)
             return Settings()
 
         try:
@@ -123,8 +121,7 @@ class APIClient:
             }
 
         except KeyError as e:
-            log.error("Git info not available, cannot fetch known tests")
-            log.debug("Git info not available, cannot fetch known tests (missing key: %s)", e)
+            log.error("Git info not available, cannot fetch known tests (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
             return set()
 
@@ -133,8 +130,7 @@ class APIClient:
             result.on_error_raise_exception()
 
         except Exception as e:
-            log.error("Error getting known tests from API")
-            log.debug("Error getting known tests from API", exc_info=True)
+            log.exception("Error getting known tests from API: %s", e)
             return set()
 
         try:
@@ -149,8 +145,7 @@ class APIClient:
                         known_test_ids.add(TestRef(suite_ref, test))
 
         except Exception:
-            log.error("Error getting known tests from API")
-            log.debug("Error getting known tests from API", exc_info=True)
+            log.exception("Error getting known tests from API")
             telemetry.record_error(ErrorType.BAD_JSON)
             return set()
 
@@ -179,11 +174,7 @@ class APIClient:
             }
 
         except KeyError as e:
-            log.error("Git info not available, cannot fetch Test Management properties")
-            log.debug(
-                "Git info not available, cannot fetch Test Management properties (missing key: %s)",
-                e,
-            )
+            log.error("Git info not available, cannot fetch Test Management properties (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
             return {}
 
@@ -193,9 +184,8 @@ class APIClient:
             )
             result.on_error_raise_exception()
 
-        except Exception:
-            log.error("Error getting Test Management properties from API")
-            log.debug("Error getting Test Management properties from API", exc_info=True)
+        except Exception as e:
+            log.error("Error getting Test Management properties from API: %s", e)
             return {}
 
         try:
@@ -218,8 +208,7 @@ class APIClient:
                         )
 
         except Exception:
-            log.error("Failed to parse Test Management tests data from API")
-            log.debug("Failed to parse Test Management tests data from API", exc_info=True)
+            log.exception("Failed to parse Test Management tests data from API")
             telemetry.record_error(ErrorType.BAD_JSON)
             return {}
 
@@ -243,8 +232,7 @@ class APIClient:
             }
 
         except KeyError as e:
-            log.error("Git info not available, cannot fetch known commits")
-            log.debug("Git info not available, cannot fetch known commits (missing key: %s)", e)
+            log.error("Git info not available, cannot fetch known commits (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
             return []
 
@@ -262,8 +250,7 @@ class APIClient:
             known_commits = [item["id"] for item in result.parsed_response["data"] if item["type"] == "commit"]
 
         except Exception:
-            log.error("Failed to parse search_commits data")
-            log.debug("Failed to parse search_commits data", exc_info=True)
+            log.exception("Failed to parse search_commits data")
             telemetry.record_error(ErrorType.BAD_JSON)
             return []
 
@@ -284,8 +271,7 @@ class APIClient:
             }
 
         except KeyError as e:
-            log.error("Git info not available, cannot send git packfile")
-            log.debug("Git info not available, cannot send git packfile (missing key: %s)", e)
+            log.error("Git info not available, cannot send git packfile (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
             return None
 
@@ -305,8 +291,7 @@ class APIClient:
             ]
 
         except Exception:
-            log.error("Error sending Git pack data")
-            log.debug("Error sending Git pack data", exc_info=True)
+            log.exception("Error sending Git pack data")
             telemetry.record_error(ErrorType.UNKNOWN)
             return None
 
@@ -318,7 +303,6 @@ class APIClient:
 
         except Exception:
             log.warning("Failed to upload Git pack data")
-            log.debug("Failed to upload Git pack data", exc_info=True)
             return None
 
         return len(content)
@@ -348,8 +332,7 @@ class APIClient:
             }
 
         except KeyError as e:
-            log.error("Git info not available, cannot get skippable items")
-            log.debug("Git info not available, cannot get skippable items (missing key: %s)", e)
+            log.error("Git info not available, cannot get skippable items (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
             return set(), None
 
@@ -357,9 +340,8 @@ class APIClient:
             result = self.connector.post_json("/api/v2/ci/tests/skippable", request_data, telemetry=telemetry)
             result.on_error_raise_exception()
 
-        except Exception:
-            log.error("Error getting skippable tests from API")
-            log.debug("Error getting skippable tests from API", exc_info=True)
+        except Exception as e:
+            log.error("Error getting skippable tests from API: %s", e)
             return set(), None
 
         try:
@@ -378,8 +360,7 @@ class APIClient:
             correlation_id = result.parsed_response["meta"]["correlation_id"]
 
         except Exception:
-            log.error("Failed to parse skippable tests data from API")
-            log.debug("Failed to parse skippable tests data from API", exc_info=True)
+            log.exception("Failed to parse skippable tests data from API")
             telemetry.record_error(ErrorType.BAD_JSON)
             return set(), None
 
