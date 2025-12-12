@@ -1,12 +1,8 @@
-#!/usr/bin/env python3
-# -*- encoding: utf-8 -*-
 """
 Tests for IAST memory optimizations:
 - DD_IAST_TRUNCATION_MAX_VALUE_LENGTH: Truncate Source.value to limit memory
 - DD_IAST_MAX_RANGE_COUNT: Limit number of TaintRange objects per TaintedObject
 """
-
-import os
 
 import pytest
 
