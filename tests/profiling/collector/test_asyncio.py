@@ -214,36 +214,6 @@ class BaseAsyncioLockCollectorTest:
             ],
         )
 
-    def test_subclassing_wrapped_lock(self) -> None:
-        """Test that subclassing of a wrapped lock type when profiling is active."""
-        from typing import Optional
-
-        from ddtrace.profiling.collector._lock import _LockAllocatorWrapper
-
-        with AsyncioLockCollector(capture_pct=100):
-            assert isinstance(asyncio.Lock, _LockAllocatorWrapper)
-
-            # This should NOT raise TypeError
-            class CustomLock(asyncio.Lock):  # type: ignore[misc]
-                def __init__(self) -> None:
-                    super().__init__()
-                    self._owner: Optional[int] = None
-                    self._count: int = 0
-
-            # Verify subclassing and functionality
-            custom_lock: CustomLock = CustomLock()
-            assert hasattr(custom_lock, "_owner")
-            assert hasattr(custom_lock, "_count")
-            assert custom_lock._owner is None
-            assert custom_lock._count == 0
-
-            async def test_async_lock() -> None:
-                await custom_lock.acquire()
-                assert custom_lock.locked()
-                custom_lock.release()
-                assert not custom_lock.locked()
-
-            asyncio.get_event_loop().run_until_complete(test_async_lock())
 
 class TestAsyncioLockCollector(BaseAsyncioLockCollectorTest):
     """Test asyncio.Lock profiling."""

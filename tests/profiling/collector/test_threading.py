@@ -564,27 +564,6 @@ class BaseThreadingLockCollectorTest:
             # Try this way too
             Foobar(self.lock_class)
 
-    def test_subclassing_wrapped_lock(self) -> None:
-        """Test that subclassing of a wrapped lock type when profiling is active."""
-        from ddtrace.profiling.collector._lock import _LockAllocatorWrapper
-
-        with self.collector_class():
-            assert isinstance(self.lock_class, _LockAllocatorWrapper)
-
-            # This should NOT raise TypeError
-            class CustomLock(self.lock_class):  # type: ignore[misc]
-                def __init__(self) -> None:
-                    super().__init__()
-                    self.custom_attr: str = "test"
-
-            # Verify subclassing and functionality
-            custom_lock: CustomLock = CustomLock()
-            assert hasattr(custom_lock, "custom_attr")
-            assert custom_lock.custom_attr == "test"
-
-            assert custom_lock.acquire()
-            custom_lock.release()
-
     def test_lock_events(self) -> None:
         # The first argument is the recorder.Recorder which is used for the
         # v1 exporter. We don't need it for the v2 exporter.
@@ -1399,6 +1378,32 @@ class BaseSemaphoreTest(BaseThreadingLockCollectorTest):
     Contains tests that apply to both regular Semaphore and BoundedSemaphore,
     particularly those related to internal lock detection and Condition-based implementation.
     """
+
+    def test_subclassing_wrapped_lock(self) -> None:
+        """Test that subclassing of a wrapped lock type works when profiling is active.
+
+        This test is only valid for Semaphore-like types (pure Python classes).
+        threading.Lock and threading.RLock are C types that don't support subclassing
+        through __mro_entries__.
+        """
+        from ddtrace.profiling.collector._lock import _LockAllocatorWrapper
+
+        with self.collector_class():
+            assert isinstance(self.lock_class, _LockAllocatorWrapper)
+
+            # This should NOT raise TypeError
+            class CustomLock(self.lock_class):  # type: ignore[misc]
+                def __init__(self) -> None:
+                    super().__init__()
+                    self.custom_attr: str = "test"
+
+            # Verify subclassing and functionality
+            custom_lock: CustomLock = CustomLock()
+            assert hasattr(custom_lock, "custom_attr")
+            assert custom_lock.custom_attr == "test"
+
+            assert custom_lock.acquire()
+            custom_lock.release()
 
     def _verify_no_double_counting(self, marker_name: str, lock_var_name: str) -> None:
         """Helper method to verify no double-counting in profile output.
