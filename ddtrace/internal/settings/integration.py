@@ -183,7 +183,7 @@ class Hooks:
         """
         deprecate(
             "Hooks.emit() is deprecated",
-            message="To interact with spans, use get_current_span() or get_current_root_span().",
+            message="Use tracer.current_span() or TraceFilters to retrieve and/or modify spans",
             removal_version="5.0.0",
             category=DDTraceDeprecationWarning,
         )
