@@ -1,0 +1,38 @@
+# Multi-OS Test Suite
+# Tests the application across Ubuntu, macOS, and Windows with multiple Python versions
+
+.multi_os_test_base:
+  stage: tests
+  needs: ["download_ddtrace_artifacts"]
+  variables:
+    DD_IAST_ENABLED: "false"
+    DD_REMOTE_CONFIGURATION_ENABLED: "false"
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
+
+os tests ubuntu:
+  extends: .multi_os_test_base
+  image: registry.ddbuild.io/images/mirror/ubuntu:25.04
+  tags: ["arch:amd64"]
+  variables:
+    WHEEL_PATTERN: "manylinux2014*x86_64.whl"
+    PLATFORM: "Ubuntu"
+  script:
+    - apt-get update && apt-get install -y curl
+    - bash .gitlab/scripts/multi-os-tests.sh
+
+os tests macos:
+  extends: .multi_os_test_base
+  tags: ["macos:sonoma-amd64"]
+  variables:
+    WHEEL_PATTERN: "macosx*x86_64.whl"
+    PLATFORM: "macOS"
+  script:
+    - bash .gitlab/scripts/multi-os-tests.sh
+
+os tests windows:
+  extends: .multi_os_test_base
+  tags: ["windows-v2:2022"]
+  script:
+    - powershell -File .gitlab/scripts/multi-os-tests.ps1
