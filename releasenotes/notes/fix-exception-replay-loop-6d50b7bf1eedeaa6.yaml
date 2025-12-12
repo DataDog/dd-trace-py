@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    exception replay: fixed an infinite loop that could cause memory leaks when capturing exceptions, and improved
+    overall speed and memory performance.
