@@ -212,6 +212,9 @@ class TestOptPlugin:
             if _is_test_unskippable(item):
                 test.mark_unskippable()
 
+            if custom_tags := _get_test_custom_tags(item):
+                test.set_tags(custom_tags)
+
         return self.manager.discover_test(
             test_ref,
             on_new_module=_on_new_module,
@@ -716,6 +719,12 @@ def setup_coverage_collection() -> None:
 
 
 def pytest_configure(config: pytest.Config) -> None:
+    # We register the marker even if the kill switch is on, to avoid "Unknown pytest.mark.dd_tags" warnings in tests
+    # when the plugin is disabled. This is similar to command line arguments, which are also registered in
+    # `pytest_addoption` regardless of the kill switch, to avoid breaking pytest invocations using --ddtrace and other
+    # options.
+    config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
+
     if _is_test_optimization_disabled_by_kill_switch():
         return
 
@@ -820,3 +829,13 @@ def _is_test_unskippable(item: pytest.Item) -> bool:
         (_get_skipif_condition(marker) is False and marker.kwargs.get("reason") == ITR_UNSKIPPABLE_REASON)
         for marker in item.iter_markers(name="skipif")
     )
+
+
+def _get_test_custom_tags(item: pytest.Item) -> t.Dict[str, str]:
+    tags: t.Dict[str, str] = {}
+
+    for marker in item.iter_markers(name="dd_tags"):
+        for key, value in marker.kwargs.items():
+            tags[key] = str(value)
+
+    return tags
