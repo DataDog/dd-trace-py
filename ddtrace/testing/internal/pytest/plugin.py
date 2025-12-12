@@ -20,7 +20,8 @@ from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
-from ddtrace.testing.internal.pytest.utils import nodeid_to_test_ref
+from ddtrace.testing.internal.pytest.hookspecs import TestOptHooks
+from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.telemetry import TelemetryAPI
@@ -186,7 +187,7 @@ class TestOptPlugin:
         tests that pytest has selection for run (eg: with the use of -k as an argument).
         """
         for item in session.items:
-            test_ref = nodeid_to_test_ref(item.nodeid)
+            test_ref = item_to_test_ref(item)
             test_module, test_suite, test = self._discover_test(item, test_ref)
 
         self.manager.finish_collection()
@@ -226,8 +227,8 @@ class TestOptPlugin:
     def pytest_runtest_protocol_wrapper(
         self, item: pytest.Item, nextitem: t.Optional[pytest.Item]
     ) -> t.Generator[None, None, None]:
-        test_ref = nodeid_to_test_ref(item.nodeid)
-        next_test_ref = nodeid_to_test_ref(nextitem.nodeid) if nextitem else None
+        test_ref = item_to_test_ref(item)
+        next_test_ref = item_to_test_ref(nextitem) if nextitem else None
 
         test_module, test_suite, test = self._discover_test(item, test_ref)
 
@@ -740,6 +741,7 @@ def pytest_configure(config: pytest.Config) -> None:
         return
 
     config.pluginmanager.register(plugin)
+    config.pluginmanager.add_hookspecs(TestOptHooks)
 
     if config.pluginmanager.hasplugin("xdist"):
         config.pluginmanager.register(XdistTestOptPlugin(plugin))
