@@ -803,7 +803,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._max_payload_size = max_payload_size
         self._test_session_token = test_session_token
 
-
         self._clients = [client]
         self.dogstatsd = dogstatsd
         self._metrics: Dict[str, int] = defaultdict(int)
