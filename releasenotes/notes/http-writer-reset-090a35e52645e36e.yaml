@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Tracing, CI Visibility: Ensure the http connection is correctly reset in all error scenarios.

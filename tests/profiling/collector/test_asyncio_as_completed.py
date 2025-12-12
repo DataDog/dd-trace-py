@@ -14,14 +14,14 @@ def test_asyncio_as_completed() -> None:
     import random
     from sys import version_info as PYVERSION
 
-    from ddtrace.internal.datadog.profiling import stack_v2
+    from ddtrace.internal.datadog.profiling import stack
     from ddtrace.internal.logger import get_logger
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
 
     LOG = get_logger(__name__)
 
-    assert stack_v2.is_available, stack_v2.failure_msg
+    assert stack.is_available, stack.failure_msg
 
     async def other(t: float) -> None:
         await asyncio.sleep(t)

@@ -87,7 +87,7 @@ function(add_ddup_config target)
         target_compile_options(${target} PRIVATE -fanalyzer)
     endif()
 
-    # The main targets, ddup, crashtracker, stack_v2, and dd_wrapper are built as dynamic libraries, so PIC is required.
+    # The main targets, ddup, crashtracker, stack, and dd_wrapper are built as dynamic libraries, so PIC is required.
     # And setting this is also fine for tests as they're loading those dynamic libraries.
     set_target_properties(${target} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 

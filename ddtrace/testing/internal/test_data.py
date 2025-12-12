@@ -371,6 +371,9 @@ class TestTag:
     RETRY_REASON = "test.retry_reason"
     HAS_FAILED_ALL_RETRIES = "test.has_failed_all_retries"
 
+    XFAIL_REASON = "pytest.xfail.reason"
+    TEST_RESULT = "test.result"  # used for xfail/xpass
+
     PARAMETERS = "test.parameters"
 
     ITR_UNSKIPPABLE = "test.itr.unskippable"

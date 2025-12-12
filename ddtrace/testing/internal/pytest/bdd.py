@@ -9,7 +9,7 @@ import typing as t
 import pytest
 
 import ddtrace
-from ddtrace.testing.internal.pytest.utils import nodeid_to_test_ref
+from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.test_data import TestTag
 
 
@@ -49,7 +49,7 @@ class BddTestOptPlugin:
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_bdd_before_scenario(self, request: FixtureRequest, feature: Feature, scenario: Scenario) -> None:
-        test_ref = nodeid_to_test_ref(request.node.nodeid)
+        test_ref = item_to_test_ref(request.node)
         test = self.main_plugin.manager.get_test(test_ref)
         if not test:
             log.debug("Could not find test %s", test_ref)
@@ -71,7 +71,6 @@ class BddTestOptPlugin:
         if tracer is None:
             return
 
-        # test_ref = nodeid_to_test_ref(request.node)
         feature_span = tracer.current_root_span()
 
         span = tracer.start_span(

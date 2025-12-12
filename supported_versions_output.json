@@ -546,7 +546,7 @@
         "dependency": "pyodbc",
         "integration": "pyodbc",
         "minimum_tracer_supported": "4.0.39",
-        "max_tracer_supported": "5.2.0",
+        "max_tracer_supported": "5.3.0",
         "auto-instrumented": true
     },
     {

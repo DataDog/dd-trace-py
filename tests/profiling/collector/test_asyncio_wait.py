@@ -15,12 +15,12 @@ def test_asyncio_wait() -> None:
     import uuid
 
     from ddtrace import ext
-    from ddtrace.internal.datadog.profiling import stack_v2
+    from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
 
-    assert stack_v2.is_available, stack_v2.failure_msg
+    assert stack.is_available, stack.failure_msg
 
     sleep_time = 0.2
     loop_run_time = 3

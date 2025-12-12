@@ -136,7 +136,7 @@ def test_path_traversal_redact_abs_paths(iast_context_defaults):
     list(get_parametrize(VULN_PATH_TRAVERSAL)),
 )
 def test_path_traversal_redaction_suite(
-    evidence_input, sources_expected, vulnerabilities_expected, iast_context_defaults, element
+    iast_context_defaults, evidence_input, sources_expected, vulnerabilities_expected, element
 ):
     tainted_object = _taint_pyobject_multiranges(
         evidence_input["value"],

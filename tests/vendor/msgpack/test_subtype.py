@@ -3,7 +3,7 @@
 
 from collections import namedtuple
 
-import pytest
+from msgpack import unpackb
 
 from ddtrace.internal._encoding import packb
 
@@ -24,9 +24,6 @@ MyNamedTuple = namedtuple("MyNamedTuple", "x y")
 
 
 def test_types():
-    with pytest.raises(TypeError):
-        assert packb(MyDict()) == packb(dict())
-    with pytest.raises(TypeError):
-        assert packb(MyList()) == packb(list())
-    with pytest.raises(TypeError):
-        assert packb(MyNamedTuple(1, 2)) == packb((1, 2))
+    assert unpackb(packb(MyDict())) == "Can not serialize [MyDict] object"
+    assert unpackb(packb(MyList())) == "Can not serialize [MyList] object"
+    assert unpackb(packb(MyNamedTuple(1, 2))) == "Can not serialize [MyNamedTuple] object"

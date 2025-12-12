@@ -1,7 +1,49 @@
 #include "api/safe_initializer.h"
 #include "initializer/initializer.h"
+#include <cstdlib>
 
 namespace py = pybind11;
+
+// Default max range count if environment variable is not set
+constexpr int DEFAULT_MAX_RANGE_COUNT = 30;
+
+// Static variables for caching the taint range limit
+namespace {
+int g_cached_limit = 0;
+bool g_limit_initialized = false;
+}
+
+// Get the max range count from environment variable
+int
+get_taint_range_limit()
+{
+    if (g_cached_limit == 0) {
+        const char* env_value = std::getenv("DD_IAST_MAX_RANGE_COUNT");
+        if (env_value != nullptr) {
+            try {
+                long parsed_value = std::strtol(env_value, nullptr, 10);
+                if (parsed_value > 0) {
+                    g_cached_limit = static_cast<int>(parsed_value);
+                } else {
+                    g_cached_limit = DEFAULT_MAX_RANGE_COUNT;
+                }
+            } catch (...) {
+                g_cached_limit = DEFAULT_MAX_RANGE_COUNT;
+            }
+        } else {
+            g_cached_limit = DEFAULT_MAX_RANGE_COUNT;
+        }
+    }
+
+    return g_cached_limit;
+}
+
+// Reset the cached taint range limit (for testing purposes only)
+void
+reset_taint_range_limit_cache()
+{
+    g_cached_limit = 0;
+}
 
 /**
  * This function allocates a new taint range with the given offset and maximum length.
@@ -74,7 +116,7 @@ TaintedObject::add_ranges_shifted(TaintRangeRefs ranges,
                                   const RANGE_LENGTH max_length,
                                   const RANGE_START orig_offset)
 {
-    if (const auto to_add = static_cast<long>(min(ranges.size(), TAINT_RANGE_LIMIT - ranges_.size()));
+    if (const auto to_add = static_cast<long>(min(ranges.size(), get_free_tainted_ranges_space()));
         !ranges.empty() and to_add > 0) {
         ranges_.reserve(ranges_.size() + to_add);
         if (offset == 0 and max_length == -1) {

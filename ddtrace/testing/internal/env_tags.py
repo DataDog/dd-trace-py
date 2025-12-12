@@ -33,6 +33,7 @@ def get_env_tags() -> t.Dict[str, str]:
         git.get_git_tags_from_git_command(),
         ci.get_ci_tags(os.environ),
         git.get_git_tags_from_dd_variables(os.environ),
+        get_custom_dd_tags(os.environ),
     )
 
     if head_sha := tags.get(GitTag.COMMIT_HEAD_SHA):
@@ -66,3 +67,45 @@ def normalize_git_tags(tags: _TagDict) -> None:
         tags[GitTag.TAG] = git.normalize_ref(tag)
 
     tags[GitTag.REPOSITORY_URL] = _filter_sensitive_info(tags.get(GitTag.REPOSITORY_URL))
+
+
+def parse_tags_str(tags_str: t.Optional[str]) -> t.Dict[str, str]:
+    """
+    Parses a string containing key-value pairs and returns a dictionary.
+    Key-value pairs are delimited by ':', and pairs are separated by whitespace, comma, OR BOTH.
+
+    This implementation aligns with the way tags are parsed by the Agent and other Datadog SDKs
+
+    :param tags_str: A string of the above form to parse tags from.
+    :return: A dict containing the tags that were parsed.
+    """
+    tags: t.Dict[str, str] = {}
+    if not tags_str:
+        return tags
+
+    # falling back to comma as separator
+    separator = "," if "," in tags_str else " "
+
+    for tag in tags_str.split(separator):
+        tag = tag.strip()
+        if not tag:
+            # skip empty tags
+            continue
+        elif ":" in tag:
+            # if tag contains a colon, split on the first colon
+            key, val = tag.split(":", 1)
+        else:
+            # if tag does not contain a colon, use the whole string as the key
+            key, val = tag, ""
+        key, val = key.strip(), val.strip()
+        if key:
+            # only add the tag if the key is not empty
+            tags[key] = val
+    return tags
+
+
+def get_custom_dd_tags(env: t.MutableMapping[str, str]) -> _TagDict:
+    tags: _TagDict = {}
+    tags.update(parse_tags_str(env.get("DD_TAGS")))
+    tags.update(parse_tags_str(env.get("_CI_DD_TAGS")))
+    return tags

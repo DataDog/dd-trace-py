@@ -1,16 +1,19 @@
-name: Pytorch Unit Tests (with GPU) 
+name: Pytorch Unit Tests (with GPU)
 
 on:
   push:
     branches:
       - 'main'
-      - 'mq-working-branch**'
     paths:
-      - 'ddtrace/profiling/collector/pytorch.py'
+      - ddtrace/internal/datadog/profiling/**
+      - ddtrace/profiling/**
+      - .github/workflows/pytorch_gpu_tests.yml
   pull_request:
     paths:
-      - 'ddtrace/profiling/collector/pytorch.py'
-  workflow_dispatch: 
+      - ddtrace/internal/datadog/profiling/**
+      - ddtrace/profiling/**
+      - .github/workflows/pytorch_gpu_tests.yml
+  workflow_dispatch:
 
 jobs:
    unit-tests:
@@ -32,12 +35,10 @@ jobs:
         run: rustup update stable && rustup default stable && rustup component add rustfmt clippy
 
       - name: Install hatch
-        uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc # install
-        with:
-          version: "1.12.0"
-      
+        run: pip install hatch==1.12.0
+
       - name: Install PyTorch
         run: pip install torch
 
       - name: Run tests
-        run: hatch run profiling_pytorch:test 
+        run: hatch run profiling_pytorch:test

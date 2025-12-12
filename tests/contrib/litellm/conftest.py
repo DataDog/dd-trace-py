@@ -1,4 +1,3 @@
-from litellm import Router
 import pytest
 
 from ddtrace._trace.pin import Pin
@@ -81,4 +80,6 @@ def request_vcr_include_localhost():
 
 @pytest.fixture
 def router():
+    from litellm import Router
+
     yield Router(model_list=model_list)

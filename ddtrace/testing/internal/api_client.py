@@ -10,6 +10,7 @@ from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
+from ddtrace.testing.internal.http import Subdomain
 from ddtrace.testing.internal.settings_data import Settings
 from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.telemetry import ErrorType
@@ -39,7 +40,7 @@ class APIClient:
         self.env_tags = env_tags
         self.itr_skipping_level = itr_skipping_level
         self.configurations = configurations
-        self.connector = connector_setup.get_connector_for_subdomain("api")
+        self.connector = connector_setup.get_connector_for_subdomain(Subdomain.API)
         self.telemetry_api = telemetry_api
 
     def close(self) -> None:

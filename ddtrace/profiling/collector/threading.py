@@ -4,7 +4,7 @@ import threading
 import typing
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
-from ddtrace.internal.datadog.profiling import stack_v2
+from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.settings.profiling import config
 
 from . import _lock
@@ -59,8 +59,8 @@ class ThreadingBoundedSemaphoreCollector(_lock.LockCollector):
 
 
 # Also patch threading.Thread so echion can track thread lifetimes
-def init_stack_v2() -> None:
-    if config.stack.enabled and stack_v2.is_available:
+def init_stack() -> None:
+    if config.stack.enabled and stack.is_available:
         _thread_set_native_id = typing.cast(
             typing.Callable[[threading.Thread], None],
             ddtrace_threading.Thread._set_native_id,  # type: ignore[attr-defined]
@@ -73,19 +73,19 @@ def init_stack_v2() -> None:
         def thread_set_native_id(self: threading.Thread) -> None:
             _thread_set_native_id(self)
             if self.ident is not None and self.native_id is not None:
-                stack_v2.register_thread(self.ident, self.native_id, self.name)
+                stack.register_thread(self.ident, self.native_id, self.name)
 
         def thread_bootstrap_inner(self: threading.Thread, *args: typing.Any, **kwargs: typing.Any) -> None:
             _thread_bootstrap_inner(self, *args, **kwargs)
             if self.ident is not None:
-                stack_v2.unregister_thread(self.ident)
+                stack.unregister_thread(self.ident)
 
         ddtrace_threading.Thread._set_native_id = thread_set_native_id  # type: ignore[attr-defined]
         ddtrace_threading.Thread._bootstrap_inner = thread_bootstrap_inner  # type: ignore[attr-defined]
 
         # Instrument any living threads
         for thread_id, thread in ddtrace_threading._active.items():  # type: ignore[attr-defined]
-            stack_v2.register_thread(thread_id, thread.native_id, thread.name)
+            stack.register_thread(thread_id, thread.native_id, thread.name)
 
         # Import _asyncio to ensure asyncio post-import wrappers are initialised
         from ddtrace.profiling import _asyncio  # noqa: F401

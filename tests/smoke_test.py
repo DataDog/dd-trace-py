@@ -73,7 +73,7 @@ if __name__ == "__main__":
         print("Skipping test, 32-bit DDWAF not ready yet")
 
     # Profiling smoke test
-    if platform.system() in ("Linux", "Darwin") and sys.maxsize > (1 << 32) and sys.version_info[:2] < (3, 14):
+    if platform.system() in ("Linux", "Darwin") and sys.maxsize > (1 << 32):
         print("Running profiling smoke test...")
         profiling_cmd = [sys.executable, "-c", "import ddtrace.profiling.auto"]
         result = subprocess.run(profiling_cmd, capture_output=True, text=True)

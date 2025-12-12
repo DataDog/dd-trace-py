@@ -283,12 +283,14 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     t,
                     self._intake_endpoint(client),
                 )
+                # Read response body inside try block to ensure connection
+                # is reset if this from_http_response call throws an exception
+                # (e.g. IncompleteRead)
+                return Response.from_http_response(resp)
             except Exception:
                 # Always reset the connection when an exception occurs
                 self._reset_connection()
                 raise
-            else:
-                return Response.from_http_response(resp)
             finally:
                 # Reset the connection if reusing connections is disabled.
                 if not self._reuse_connections:
