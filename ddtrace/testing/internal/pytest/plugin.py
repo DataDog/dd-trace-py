@@ -37,6 +37,7 @@ from ddtrace.testing.internal.tracer_api.context import trace_context
 from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage
 from ddtrace.testing.internal.utils import TestContext
+from ddtrace.testing.internal.utils import asbool
 
 
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
@@ -659,7 +660,14 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addini("ddtrace-patch-all", "Enable all integrations with ddtrace", type="bool")
 
 
+def _is_test_optimization_disabled_by_kill_switch():
+    return not asbool(os.environ.get("DD_CIVISIBILITY_ENABLED", "true"))
+
+
 def _is_enabled_early(early_config: pytest.Config, args: t.List[str]) -> bool:
+    if _is_test_optimization_disabled_by_kill_switch():
+        return False
+
     if _is_option_true("no-ddtrace", early_config, args):
         return False
 
@@ -708,6 +716,9 @@ def setup_coverage_collection() -> None:
 
 
 def pytest_configure(config: pytest.Config) -> None:
+    if _is_test_optimization_disabled_by_kill_switch():
+        return
+
     session_manager = config.stash.get(SESSION_MANAGER_STASH_KEY, None)
     if not session_manager:
         log.debug("Session manager not initialized (plugin was not enabled)")

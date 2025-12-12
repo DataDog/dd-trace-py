@@ -78,6 +78,8 @@ class SessionManager:
             telemetry_api=self.telemetry_api,
         )
         self.settings = self.api_client.get_settings()
+        self.override_settings_with_env_vars()
+
         self.known_tests = self.api_client.get_known_tests() if self.settings.known_tests_enabled else set()
         self.test_properties = (
             self.api_client.get_test_management_properties() if self.settings.test_management.enabled else {}
@@ -151,7 +153,7 @@ class SessionManager:
             else:
                 log.info("Not enabling Early Flake Detection: no known tests")
 
-        if self.settings.auto_test_retries.enabled and asbool(os.getenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "true")):
+        if self.settings.auto_test_retries.enabled:
             self.retry_handlers.append(AutoTestRetriesHandler(self))
 
     def start(self) -> None:
@@ -309,6 +311,33 @@ class SessionManager:
 
     def has_codeowners(self) -> bool:
         return self.codeowners is not None
+
+    def override_settings_with_env_vars(self) -> None:
+        # Kill switches.
+        # These variables default to true, and if explicitly given a false value, disable a feature.
+        if not asbool(os.environ.get("DD_CIVISIBILITY_ITR_ENABLED", "true")):
+            log.debug("Test Impact Analysis is disabled by environment variable")
+            self.settings.itr_enabled = False
+
+        if not asbool(os.environ.get("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "true")):
+            log.debug("Early Flake Detection is disabled by environment variable")
+            self.settings.early_flake_detection.enabled = False
+
+        if not asbool(os.environ.get("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "true")):
+            log.debug("Auto Test Retries is disabled by environment variable")
+            self.settings.auto_test_retries.enabled = False
+
+        # "Reverse" kill switches.
+        # These variables default to false, and if explicitly given a true value, disable a feature.
+        if asbool(os.environ.get("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "false")):
+            log.debug("TIA test skipping is disabled by environment variable")
+            self.settings.skipping_enabled = False
+
+        # Other overrides.
+        # These variables default to false, and if explicitly given a true value, enable a feature.
+        if asbool(os.environ.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false")):
+            log.debug("TIA code coverage collection is enabled by environment variable")
+            self.settings.coverage_enabled = True
 
 
 def _get_service_name_from_git_repo(env_tags: t.Dict[str, str]) -> t.Optional[str]:
