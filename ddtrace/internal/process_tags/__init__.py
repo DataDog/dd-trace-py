@@ -89,10 +89,7 @@ def compute_base_hash(container_tags_hash):
     if not process_tags:
         return
 
-    def get_bytes(s):
-        return bytes(s, encoding="utf-8")
-
-    b = get_bytes(process_tags) + get_bytes(container_tags_hash)
+    b = bytes(process_tags, encoding="utf-8") + bytes(container_tags_hash, encoding="utf-8")
     base_hash = fnv1_64(b)
     base_hash_bytes = struct.pack("<Q", base_hash)
 
