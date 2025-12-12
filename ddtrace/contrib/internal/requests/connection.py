@@ -5,24 +5,20 @@ from urllib import parse
 
 import requests
 
-import ddtrace
 from ddtrace import config
-from ddtrace._trace.pin import Pin
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import _sanitized_url
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import USER_AGENT_HEADER
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.opentelemetry.constants import OTLP_EXPORTER_HEADER_IDENTIFIER
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.propagation.http import HTTPPropagator
 
 
 log = get_logger(__name__)
@@ -69,18 +65,9 @@ def _extract_query_string(uri):
     return uri[start:end]
 
 
-def _wrap_send(func, instance, args, kwargs):
+@trace_utils.with_traced_module
+def _wrap_send(_requests_mod, pin, func, instance, args, kwargs):
     """Trace the `Session.send` instance method"""
-    # TODO[manu]: we already offer a way to provide the Global Tracer
-    # and is ddtrace.tracer; it's used only inside our tests and can
-    # be easily changed by providing a TracingTestCase that sets common
-    # tracing functionalities.
-    tracer = getattr(instance, "datadog_tracer", ddtrace.tracer)
-
-    # skip if tracing is not enabled
-    if not tracer.enabled and not asm_config._apm_opt_out:
-        return func(*args, **kwargs)
-
     request = get_argument_value(args, kwargs, 0, "request")
     if not request or is_otlp_export(request):
         return func(*args, **kwargs)
@@ -92,59 +79,55 @@ def _wrap_send(func, instance, args, kwargs):
     hostname, path = _extract_hostname_and_path(url)
     host_without_port = hostname.split(":")[0] if hostname is not None else None
 
-    cfg: Dict[str, Any] = {}
-    pin = Pin.get_from(instance)
-    if pin:
-        cfg = pin._config
+    parsed_uri = parse.urlparse(url)
 
+    # Support legacy datadog_tracer attribute for backwards compatibility (used in tests)
+    # If not set, use ddtrace.tracer to respect override_global_tracer
+    tracer = getattr(instance, "datadog_tracer", None)
+    if tracer is None:
+        import ddtrace
+
+        tracer = ddtrace.tracer
+
+    # Check if tracing is disabled on the tracer (for APM opt-out tests)
+    from ddtrace.internal.settings.asm import config as asm_config
+
+    if not tracer.enabled and not asm_config._apm_opt_out:
+        return func(*args, **kwargs)
+
+    # Use pin's config if available, otherwise fall back to global config
+    integration_config = pin._config if pin else config.requests
+
+    # Determine service name (check pin config for "service" or "service_name")
     service = None
-    if cfg["split_by_domain"] and hostname:
-        service = hostname
+    if integration_config and isinstance(integration_config, dict):
+        service = integration_config.get("service") or integration_config.get("service_name")
     if service is None:
-        service = cfg.get("service", None)
-    if service is None:
-        service = cfg.get("service_name", None)
-    if service is None:
-        service = trace_utils.ext_service(None, config.requests)
+        service = trace_utils.ext_service(pin, config.requests)
 
-    operation_name = schematize_url_operation("requests.request", protocol="http", direction=SpanDirection.OUTBOUND)
-    with tracer.trace(operation_name, service=service, resource=f"{method} {path}", span_type=SpanTypes.HTTP) as span:
-        span._set_tag_str(COMPONENT, config.requests.integration_name)
-
-        # set span.kind to the type of operation being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
-
-        # propagate distributed tracing headers
-        if cfg.get("distributed_tracing"):
-            HTTPPropagator.inject(span.context, request.headers)
-
-        response = response_headers = None
+    with core.context_with_data(
+        "requests.send",
+        span_name=schematize_url_operation("requests.request", protocol="http", direction=SpanDirection.OUTBOUND),
+        pin=pin,
+        tracer=tracer,
+        service=service,
+        resource=f"{method} {path}",
+        span_type=SpanTypes.HTTP,
+        integration_config=integration_config,
+        measured=True,
+        tags={COMPONENT: config.requests.integration_name, SPAN_KIND: SpanKind.CLIENT},
+        request=request,
+        request_url=url,
+        request_method=method,
+        request_headers=request.headers,
+        hostname=hostname,
+        path=path,
+        host_without_port=host_without_port,
+        parsed_uri=parsed_uri,
+    ) as ctx:
+        response = None
         try:
             response = func(*args, **kwargs)
             return response
         finally:
-            try:
-                status = None
-                if response is not None:
-                    status = response.status_code
-                    # Storing response headers in the span.
-                    # Note that response.headers is not a dict, but an iterable
-                    # requests custom structure, that we convert to a dict
-                    response_headers = dict(getattr(response, "headers", {}))
-
-                trace_utils.set_http_meta(
-                    span,
-                    config.requests,
-                    request_headers=request.headers,
-                    response_headers=response_headers,
-                    method=method,
-                    url=request.url,
-                    target_host=host_without_port,
-                    status_code=status,
-                    query=_extract_query_string(url),
-                )
-            except Exception:
-                log.debug("requests: error adding tags", exc_info=True)
+            ctx.set_item("response", response)
