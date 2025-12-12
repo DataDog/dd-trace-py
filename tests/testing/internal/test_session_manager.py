@@ -1,13 +1,18 @@
 import os
+from unittest.mock import patch
 
 import pytest
 
 from ddtrace.testing.internal.ci import CITag
+from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
+from ddtrace.testing.internal.test_data import TestSession
 from tests.testing.mocks import MockDefaults
+from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import session_manager_mock
+from tests.testing.mocks import setup_standard_mocks
 
 
 class TestSessionManagerIsSkippableTest:
@@ -200,3 +205,68 @@ class TestSessionNameTest:
         expected_name = "pytest"
         assert session_manager._get_test_session_name() == expected_name
         assert session_manager.writer.metadata["*"]["test_session.name"] == expected_name
+
+
+class TestSessionManagerEnvVarOverrides:
+    def setup_method(self) -> None:
+        self.session = TestSession("pytest")
+        self.session.set_attributes(
+            test_command="pytest --ddtrace", test_framework="pytest", test_framework_version="9.0.0"
+        )
+
+    def test_session_manager_efd_kill_switch(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(efd_enabled=True),
+            ),
+            setup_standard_mocks(),
+        ):
+            session_manager = SessionManager(self.session)
+            assert session_manager.settings.early_flake_detection.enabled is True
+
+            monkeypatch.setenv("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "true")
+            session_manager = SessionManager(self.session)
+            assert session_manager.settings.early_flake_detection.enabled is True
+
+            monkeypatch.setenv("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "false")
+            session_manager = SessionManager(self.session)
+            assert session_manager.settings.early_flake_detection.enabled is False
+
+    def test_session_manager_atr_kill_switch(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(auto_retries_enabled=True),
+            ),
+            setup_standard_mocks(),
+        ):
+            session_manager = SessionManager(self.session)
+            assert session_manager.settings.auto_test_retries.enabled is True
+
+            monkeypatch.setenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "true")
+            session_manager = SessionManager(self.session)
+            assert session_manager.settings.auto_test_retries.enabled is True
+
+            monkeypatch.setenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "false")
+            session_manager = SessionManager(self.session)
+            assert session_manager.settings.auto_test_retries.enabled is False
+
+    def test_session_manager_itr_kill_switch(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(skipping_enabled=True),
+            ),
+            setup_standard_mocks(),
+        ):
+            session_manager = SessionManager(self.session)
+            assert session_manager.settings.itr_enabled is True
+
+            monkeypatch.setenv("DD_CIVISIBILITY_ITR_ENABLED", "true")
+            session_manager = SessionManager(self.session)
+            assert session_manager.settings.itr_enabled is True
+
+            monkeypatch.setenv("DD_CIVISIBILITY_ITR_ENABLED", "false")
+            session_manager = SessionManager(self.session)
+            assert session_manager.settings.itr_enabled is False
