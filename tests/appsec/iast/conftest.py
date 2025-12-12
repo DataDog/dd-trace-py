@@ -14,6 +14,8 @@ from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
 from ddtrace.appsec._iast._taint_tracking import initialize_native_state
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
+from ddtrace.appsec._iast._taint_tracking._native import reset_source_truncation_cache
+from ddtrace.appsec._iast._taint_tracking._native import reset_taint_range_limit_cache
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
 from ddtrace.appsec._iast.taint_sinks.untrusted_serialization import patch as unstrusted_serialization_patch
@@ -27,8 +29,6 @@ from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.utils import override_env
 from tests.utils import override_global_config
-from ddtrace.appsec._iast._taint_tracking._native import reset_source_truncation_cache
-from ddtrace.appsec._iast._taint_tracking._native import reset_taint_range_limit_cache
 
 
 CONFIG_SERVER_PORT = "9596"
@@ -90,7 +90,9 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
 
 @pytest.fixture
 def iast_context_defaults():
-    yield from iast_context(dict(DD_IAST_ENABLED="true", DD_IAST_MAX_RANGE_COUNT="5000", DD_IAST_TRUNCATION_MAX_VALUE_LENGTH="10000"))
+    yield from iast_context(
+        dict(DD_IAST_ENABLED="true", DD_IAST_MAX_RANGE_COUNT="5000", DD_IAST_TRUNCATION_MAX_VALUE_LENGTH="10000")
+    )
 
 
 @pytest.fixture
