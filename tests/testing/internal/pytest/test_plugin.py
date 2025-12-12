@@ -21,7 +21,7 @@ from ddtrace.testing.internal.pytest.plugin import _get_module_path_from_item
 from ddtrace.testing.internal.pytest.plugin import _get_test_command
 from ddtrace.testing.internal.pytest.plugin import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.plugin import _get_user_property
-from ddtrace.testing.internal.pytest.plugin import nodeid_to_test_ref
+from ddtrace.testing.internal.pytest.utils import nodeid_to_names
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestTag
 from tests.testing.mocks import TestDataFactory
@@ -328,34 +328,34 @@ class TestReportGeneration:
 
 
 class TestNodeIdToTestRef:
-    """Unit tests for nodeid_to_test_ref function."""
+    """Unit tests for nodeid_to_names function."""
 
     def test_nodeid_with_module_suite_and_name(self) -> None:
         """Test parsing a full nodeid with module, suite and test name."""
         nodeid = "tests/internal/test_example.py::TestClass::test_method"
-        result = nodeid_to_test_ref(nodeid)
+        module, suite, test = nodeid_to_names(nodeid)
 
-        assert result.suite.module.name == "tests/internal"
-        assert result.suite.name == "test_example.py"
-        assert result.name == "TestClass::test_method"
+        assert module == "tests/internal"
+        assert suite == "test_example.py"
+        assert test == "TestClass::test_method"
 
     def test_nodeid_with_suite_and_name_only(self) -> None:
         """Test parsing a nodeid with just suite and test name."""
         nodeid = "test_example.py::test_function"
-        result = nodeid_to_test_ref(nodeid)
+        module, suite, test = nodeid_to_names(nodeid)
 
-        assert result.suite.module.name == "."
-        assert result.suite.name == "test_example.py"
-        assert result.name == "test_function"
+        assert module == "."
+        assert suite == "test_example.py"
+        assert test == "test_function"
 
     def test_nodeid_fallback_format(self) -> None:
         """Test parsing a nodeid that doesn't match the expected format."""
         nodeid = "some_weird_format"
-        result = nodeid_to_test_ref(nodeid)
+        module, suite, test = nodeid_to_names(nodeid)
 
-        assert result.suite.module.name == "."
-        assert result.suite.name == "."
-        assert result.name == "some_weird_format"
+        assert module == "."
+        assert suite == "."
+        assert test == "some_weird_format"
 
 
 class TestHelperFunctions:
