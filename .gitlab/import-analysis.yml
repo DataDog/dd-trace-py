@@ -1,4 +1,6 @@
-import_analysis:
+# Job 1: Download base wheel for import analysis
+# Uses dd-octo-sts-ci-base image which has gh CLI
+download_base_wheel_for_import_analysis:
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   tags: [ "arch:amd64" ]
   stage: tests
@@ -14,7 +16,6 @@ import_analysis:
     - when: on_success
   variables:
     GIT_STRATEGY: clone
-    PYTHON_VERSION: "3.12"
   before_script:
     - |
       if [ -z ${GH_TOKEN} ]
@@ -28,10 +29,6 @@ import_analysis:
       # Prevent git operation errors:
       #   failed to determine base repo: failed to run git: fatal: detected dubious ownership in repository at ...
       git config --global --add safe.directory "${CI_PROJECT_DIR}"
-    - |
-      # Set up Python 3.12 via pyenv (available in the base image)
-      pyenv global 3.12
-      python --version
   script:
     - |
       # Get PR information to determine base branch and commit
@@ -57,19 +54,10 @@ import_analysis:
       echo "PR base branch: ${BASE_BRANCH}"
       echo "PR base commit: ${BASE_COMMIT_SHA}"
       echo "PR commit: ${CI_COMMIT_SHA}"
-    - |
-      # Use wheel from download_ddtrace_artifacts job for PR commit (Python 3.12 x86_64)
-      echo "Finding Python 3.12 x86_64 wheel from download_ddtrace_artifacts job"
-      mkdir -p pywheels-pr
-      PR_WHEEL_SOURCE=$(find pywheels -name "ddtrace-*-cp312-*-*x86_64*.whl" | head -1)
-      if [ -z "${PR_WHEEL_SOURCE}" ]; then
-        echo "Error: Could not find Python 3.12 x86_64 wheel in pywheels" >&2
-        echo "Available wheels:" >&2
-        find pywheels -name "*.whl" | head -10 >&2
-        exit 1
-      fi
-      cp "${PR_WHEEL_SOURCE}" pywheels-pr/
-      echo "Copied PR wheel: ${PR_WHEEL_SOURCE}"
+
+      # Save PR info for the next job
+      echo "${GH_PR_NUMBER}" > pr_number.txt
+      echo "${BASE_COMMIT_SHA}" > base_commit_sha.txt
     - |
       # Download wheels for base commit using the existing script
       echo "Downloading wheels for base commit ${BASE_COMMIT_SHA}"
@@ -77,30 +65,101 @@ import_analysis:
         echo "Warning: Could not download wheels for base commit. This may be expected if the GitHub Actions build hasn't completed yet."
         exit 1
       }
-      # Filter to keep only Python 3.12 x86_64 wheel
-      echo "Filtering to keep only Python 3.12 x86_64 wheel"
-      BASE_WHEEL_TO_KEEP=$(find pywheels-base -name "ddtrace-*-cp312-*-*x86_64*.whl" | head -1)
-      if [ -z "${BASE_WHEEL_TO_KEEP}" ]; then
-        echo "Error: Could not find Python 3.12 x86_64 wheel in downloaded wheels" >&2
-        echo "Available wheels:" >&2
-        find pywheels-base -name "*.whl" | head -10 >&2
-        exit 1
+      echo "Base wheels downloaded successfully"
+  artifacts:
+    when: always
+    paths:
+      - pywheels-base/
+      - pr_number.txt
+      - base_commit_sha.txt
+    expire_in: 1 week
+
+# Job 2: Run import analysis
+# Uses Python image which has Python pre-installed
+import_analysis:
+  image: registry.ddbuild.io/images/mirror/python:3.12.0
+  tags: [ "arch:amd64" ]
+  stage: tests
+  needs:
+    - job: download_ddtrace_artifacts
+      artifacts: true
+    - job: download_base_wheel_for_import_analysis
+      artifacts: true
+  rules:
+    # Always create the job, but check for PR in script
+    # This allows the job to appear in the dependency graph
+    - when: on_success
+  variables:
+    GIT_STRATEGY: clone
+  before_script:
+    - |
+      # Prevent git operation errors
+      git config --global --add safe.directory "${CI_PROJECT_DIR}"
+    - |
+      # Detect Python version from the image
+      PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}' | cut -d. -f1,2)
+      echo "Detected Python version: ${PYTHON_VERSION}"
+      # Convert 3.12 to cp312 for wheel matching
+      PYTHON_TAG=$(echo "${PYTHON_VERSION}" | tr -d '.')
+      PYTHON_WHEEL_TAG="cp${PYTHON_TAG}"
+      echo "Looking for wheels with tag: ${PYTHON_WHEEL_TAG}"
+      export PYTHON_VERSION PYTHON_WHEEL_TAG
+  script:
+    - |
+      # Read PR info from previous job
+      if [ ! -f pr_number.txt ]; then
+        echo "No PR found (pr_number.txt missing). Skipping import analysis."
+        exit 0
       fi
-      # Remove all other wheels, keep only the one we need
-      find pywheels-base -name "*.whl" ! -name "$(basename "${BASE_WHEEL_TO_KEEP}")" -delete
-      echo "Kept base wheel: ${BASE_WHEEL_TO_KEEP}"
+      GH_PR_NUMBER=$(cat pr_number.txt)
+      BASE_COMMIT_SHA=$(cat base_commit_sha.txt)
+      echo "Processing PR #${GH_PR_NUMBER} with base commit ${BASE_COMMIT_SHA}"
+    - |
+      # Find matching wheel from PR commit (from download_ddtrace_artifacts job)
+      echo "Finding matching wheel from PR commit"
+      mkdir -p pywheels-pr
+      # Look for wheel matching Python version and x86_64 architecture
+      PR_WHEEL_SOURCE=$(find pywheels -name "ddtrace-*-${PYTHON_WHEEL_TAG}-*-*x86_64*.whl" | head -1)
+      if [ -z "${PR_WHEEL_SOURCE}" ]; then
+        echo "Warning: Could not find matching wheel (${PYTHON_WHEEL_TAG} x86_64) in pywheels, trying any x86_64 wheel..."
+        PR_WHEEL_SOURCE=$(find pywheels -name "*x86_64*.whl" | head -1)
+        if [ -z "${PR_WHEEL_SOURCE}" ]; then
+          echo "Error: Could not find any x86_64 wheel in pywheels" >&2
+          echo "Available wheels:" >&2
+          find pywheels -name "*.whl" | head -10 >&2
+          exit 1
+        fi
+        echo "Using wheel: ${PR_WHEEL_SOURCE} (may not match Python version exactly)"
+      fi
+      cp "${PR_WHEEL_SOURCE}" pywheels-pr/
+      echo "Copied PR wheel: ${PR_WHEEL_SOURCE}"
+    - |
+      # Find matching wheel from base commit
+      echo "Finding matching wheel from base commit"
+      BASE_WHEEL_SOURCE=$(find pywheels-base -name "ddtrace-*-${PYTHON_WHEEL_TAG}-*-*x86_64*.whl" | head -1)
+      if [ -z "${BASE_WHEEL_SOURCE}" ]; then
+        echo "Warning: Could not find matching wheel (${PYTHON_WHEEL_TAG} x86_64) in pywheels-base, trying any x86_64 wheel..."
+        BASE_WHEEL_SOURCE=$(find pywheels-base -name "*x86_64*.whl" | head -1)
+        if [ -z "${BASE_WHEEL_SOURCE}" ]; then
+          echo "Error: Could not find any x86_64 wheel in pywheels-base" >&2
+          echo "Available wheels:" >&2
+          find pywheels-base -name "*.whl" | head -10 >&2
+          exit 1
+        fi
+        echo "Using wheel: ${BASE_WHEEL_SOURCE} (may not match Python version exactly)"
+      fi
+      mkdir -p pywheels-base-filtered
+      cp "${BASE_WHEEL_SOURCE}" pywheels-base-filtered/
+      echo "Selected base wheel: ${BASE_WHEEL_SOURCE}"
     - |
       # Set up PR environment
       echo "Setting up PR environment"
-      python -m venv .venv-pr
+      python3 -m venv .venv-pr
       source .venv-pr/bin/activate
 
-      # Find and install the wheel for Python 3.12 x86_64
-      PR_WHEEL=$(find pywheels-pr -name "ddtrace-*-cp312-*-*x86_64*.whl" | head -1)
+      PR_WHEEL=$(find pywheels-pr -name "*.whl" | head -1)
       if [ -z "${PR_WHEEL}" ]; then
-        echo "Error: Could not find Python 3.12 x86_64 wheel in pywheels-pr" >&2
-        echo "Available wheels:" >&2
-        find pywheels-pr -name "*.whl" | head -10 >&2
+        echo "Error: Could not find PR wheel" >&2
         exit 1
       fi
 
@@ -122,15 +181,12 @@ import_analysis:
     - |
       # Set up base environment
       echo "Setting up base environment"
-      python -m venv .venv-base
+      python3 -m venv .venv-base
       source .venv-base/bin/activate
 
-      # Find and install the wheel for Python 3.12 x86_64
-      BASE_WHEEL=$(find pywheels-base -name "ddtrace-*-cp312-*-*x86_64*.whl" | head -1)
+      BASE_WHEEL=$(find pywheels-base-filtered -name "*.whl" | head -1)
       if [ -z "${BASE_WHEEL}" ]; then
-        echo "Error: Could not find Python 3.12 x86_64 wheel in pywheels-base" >&2
-        echo "Available wheels:" >&2
-        find pywheels-base -name "*.whl" | head -10 >&2
+        echo "Error: Could not find base wheel" >&2
         exit 1
       fi
 
@@ -161,6 +217,59 @@ import_analysis:
       }
       cat import_analysis.txt
       deactivate
+  artifacts:
+    when: always
+    paths:
+      - import_analysis.txt
+      - import-pr-*.txt
+      - import-base-*.txt
+      - pr_number.txt
+    expire_in: 1 week
+
+# Job 3: Comment on PR with analysis results
+# Uses dd-octo-sts-ci-base image which has gh CLI
+import_analysis_comment:
+  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
+  tags: [ "arch:amd64" ]
+  stage: tests
+  needs:
+    - job: import_analysis
+      artifacts: true
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  rules:
+    # Always create the job, but check for PR in script
+    # This allows the job to appear in the dependency graph
+    - when: on_success
+  variables:
+    GIT_STRATEGY: clone
+  before_script:
+    - |
+      if [ -z ${GH_TOKEN} ]
+      then
+        # Use dd-octo-sts to get GitHub token
+        dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > token
+        gh auth login --with-token < token
+        rm token
+      fi
+    - |
+      # Prevent git operation errors
+      git config --global --add safe.directory "${CI_PROJECT_DIR}"
+  script:
+    - |
+      # Read PR info and check if analysis results exist
+      if [ ! -f pr_number.txt ]; then
+        echo "No PR found (pr_number.txt missing). Skipping PR comment."
+        exit 0
+      fi
+      if [ ! -f import_analysis.txt ]; then
+        echo "No analysis results found (import_analysis.txt missing). Skipping PR comment."
+        exit 0
+      fi
+
+      GH_PR_NUMBER=$(cat pr_number.txt)
+      echo "Commenting on PR #${GH_PR_NUMBER}"
     - |
       # Comment on PR with analysis results
       # Use a comment tag to identify and update existing comments
@@ -172,7 +281,7 @@ import_analysis:
       # Get all comments for the PR issue (PRs are issues in GitHub API)
       EXISTING_COMMENT_ID=$(gh api \
         "/repos/DataDog/dd-trace-py/issues/${GH_PR_NUMBER}/comments" \
-        --jq "[.[] | select(.body | contains(\"${COMMENT_TAG}\")) | .id] | first")
+        --jq "[.[] | select(.body | contains(\"${COMMENT_TAG}\")) | .id] | first" 2>/dev/null || echo "")
 
       if [ -n "${EXISTING_COMMENT_ID}" ] && [ "${EXISTING_COMMENT_ID}" != "null" ]; then
         echo "Updating existing comment ${EXISTING_COMMENT_ID}"
@@ -180,15 +289,15 @@ import_analysis:
           --method PATCH \
           -H "Accept: application/vnd.github+json" \
           "/repos/DataDog/dd-trace-py/issues/comments/${EXISTING_COMMENT_ID}" \
-          -f body="${FULL_COMMENT}"
+          -f body="${FULL_COMMENT}" || {
+          echo "Warning: Failed to update PR comment"
+          exit 1
+        }
       else
         echo "Creating new comment"
-        gh pr comment "${GH_PR_NUMBER}" --body "${FULL_COMMENT}"
+        gh pr comment "${GH_PR_NUMBER}" --body "${FULL_COMMENT}" || {
+          echo "Warning: Failed to create PR comment"
+          exit 1
+        }
       fi
-  artifacts:
-    when: always
-    paths:
-      - import_analysis.txt
-      - import-pr-*.txt
-      - import-base-*.txt
-    expire_in: 1 week
+      echo "Successfully commented on PR #${GH_PR_NUMBER}"
