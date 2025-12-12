@@ -63,11 +63,11 @@ def _check_for_ddup_available():
     return (ddup.failure_msg, ddup.is_available)
 
 
-def _check_for_stack_v2_available():
-    # NB: ditto for stack_v2 module as ddup.
-    from ddtrace.internal.datadog.profiling import stack_v2
+def _check_for_stack_available():
+    # NB: ditto for stack module as ddup.
+    from ddtrace.internal.datadog.profiling import stack
 
-    return (stack_v2.failure_msg, stack_v2.is_available)
+    return (stack.failure_msg, stack.is_available)
 
 
 def _parse_profiling_enabled(raw: str) -> bool:
@@ -261,9 +261,9 @@ class ProfilingConfigStack(DDConfig):
         help="Whether to enable the stack profiler",
     )
 
-    v2_adaptive_sampling = DDConfig.v(
+    adaptive_sampling = DDConfig.v(
         bool,
-        "v2.adaptive_sampling.enabled",
+        "adaptive_sampling.enabled",
         default=True,
         help_type="Boolean",
         private=True,
@@ -374,15 +374,15 @@ if not ddup_is_available:
     )
     config.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 
-# We also need to check if stack_v2 module is available, and turn if off
+# We also need to check if stack module is available, and turn if off
 # if it s not.
-stack_v2_failure_msg, stack_v2_is_available = _check_for_stack_v2_available()
-if config.stack.enabled and not stack_v2_is_available:  # pyright: ignore[reportAttributeAccessIssue]
-    msg = stack_v2_failure_msg or "stack_v2 not available"
-    logger.warning("Failed to load stack_v2 module (%s), falling back to v1 stack sampler", msg)
+stack_failure_msg, stack_is_available = _check_for_stack_available()
+if config.stack.enabled and not stack_is_available:  # pyright: ignore[reportAttributeAccessIssue]
+    msg = stack_failure_msg or "stack not available"
+    logger.warning("Failed to load stack module (%s), falling back to v1 stack sampler", msg)
     telemetry_writer.add_log(
         TELEMETRY_LOG_LEVEL.ERROR,
-        "Failed to load stack_v2 module (%s), disabling profiling" % msg,
+        "Failed to load stack module (%s), disabling profiling" % msg,
     )
     config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -393,6 +393,9 @@ config.tags = _enrich_tags(config.tags)  # pyright: ignore[reportAttributeAccess
 def config_str(config) -> str:
     configured_features: list[str] = []
     if config.stack.enabled:
+        # NOTE: This is intentionally left as stack_v2, to have an easy way
+        # to distinguish between 'stack_v2' and 'stack' on profile viewers
+        # and in crash tracker telemetry logs.
         configured_features.append("stack_v2")
     if config.lock.enabled:
         configured_features.append("lock")

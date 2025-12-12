@@ -14,6 +14,7 @@ on:
       # TODO: Remove this after 3.x work is done
       - 3.x-staging
   pull_request:
+  merge_group:
   release:
     types:
       - published
