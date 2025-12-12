@@ -114,7 +114,6 @@ components:
   telemetry:
     - ddtrace/internal/telemetry/*
   tracing:
-    - ddtrace/_hooks.py
     - ddtrace/_logger.py
     - ddtrace/_monkey.py
     - ddtrace/_trace/*
