@@ -308,6 +308,9 @@ class SpanExceptionHandler:
 
                 collector.push(snapshot)
 
+                # Dereference the frame to allow it to be garbage collected.
+                snapshot.frame = None  # type: ignore[assignment]
+
                 # Memoize
                 frame.f_locals[SNAPSHOT_KEY] = snapshot_id = snapshot.uuid
 
