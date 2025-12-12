@@ -51,7 +51,7 @@ class TestAsyncioLockCollector:
             except Exception as e:
                 print("Error while deleting file: ", e)
 
-    def test_subclassing_wrapped_lock(self) -> None:
+    async def test_subclassing_wrapped_lock(self) -> None:
         """Test that subclassing of a wrapped lock type when profiling is active."""
         from typing import Optional
 
@@ -74,13 +74,11 @@ class TestAsyncioLockCollector:
             assert custom_lock._owner is None
             assert custom_lock._count == 0
 
-            async def test_async_lock() -> None:
-                await custom_lock.acquire()
-                assert custom_lock.locked()
-                custom_lock.release()
-                assert not custom_lock.locked()
-
-            asyncio.get_event_loop().run_until_complete(test_async_lock())
+            # Test async acquire/release
+            await custom_lock.acquire()
+            assert custom_lock.locked()
+            custom_lock.release()
+            assert not custom_lock.locked()
 
     async def test_asyncio_lock_events(self):
         with collector_asyncio.AsyncioLockCollector(capture_pct=100):
