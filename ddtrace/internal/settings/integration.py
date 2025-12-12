@@ -182,7 +182,7 @@ class Hooks:
             or ``get_current_root_span()``.
         """
         deprecate(
-            "Hooks.emit() is deprecated and is currently a no-op.",
+            "Hooks.emit() is deprecated",
             message="To interact with spans, use get_current_span() or get_current_root_span().",
             removal_version="5.0.0",
             category=DDTraceDeprecationWarning,
