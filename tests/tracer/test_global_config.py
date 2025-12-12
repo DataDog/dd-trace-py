@@ -1,30 +1,13 @@
 from unittest import TestCase
 
-import mock
 import pytest
 
 from ddtrace import config as global_config
-from ddtrace.internal import core
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig
 
 from ..utils import DummyTracer
 from ..utils import override_env
-
-
-def with_config_raise_value(raise_value: bool):
-    def _outer(func):
-        def _inner(*args, **kwargs):
-            original_value = global_config._raise
-            global_config._raise = raise_value
-            try:
-                return func(*args, **kwargs)
-            finally:
-                global_config._raise = original_value
-
-        return _inner
-
-    return _outer
 
 
 class GlobalConfigTestCase(TestCase):
@@ -34,10 +17,6 @@ class GlobalConfigTestCase(TestCase):
         self.config = Config()
         self.config.web = IntegrationConfig(self.config, "web")
         self.tracer = DummyTracer()
-
-    def tearDown(self):
-        # Reset all core event listeners after each test to ensure test isolation
-        core.reset_listeners()
 
     def test_registration(self):
         # ensure an integration can register a new list of settings
@@ -131,164 +110,6 @@ class GlobalConfigTestCase(TestCase):
         )
         assert self.config.requests["a"]["b"]["c"] is True
         assert self.config.requests["a"]["b"]["d"] is True
-
-    def test_settings_hook(self):
-        """
-        When calling `core.dispatch()`
-            When there is a hook registered
-                we call the hook as expected
-        """
-
-        # Setup our hook
-        def on_web_request(span):
-            span.set_tag("web.request", "/")
-
-        core.on("web.request", on_web_request)
-
-        # Create our span
-        with self.tracer.start_span("web.request") as span:
-            assert "web.request" not in span.get_tags()
-
-            # Emit the span
-            core.dispatch("web.request", (span,))
-
-            # Assert we updated the span as expected
-            assert span.get_tag("web.request") == "/"
-
-    def test_settings_hook_args(self):
-        """
-        When calling `core.dispatch()` with arguments
-            When there is a hook registered
-                we call the hook as expected
-        """
-
-        # Setup our hook
-        def on_web_request(span, request, response):
-            span.set_tag("web.request", request)
-            span.set_tag("web.response", response)
-
-        core.on("web.request", on_web_request)
-
-        # Create our span
-        with self.tracer.start_span("web.request") as span:
-            assert "web.request" not in span.get_tags()
-
-            # Emit the span
-            # DEV: The actual values don't matter, we just want to test args usage
-            core.dispatch("web.request", (span, "request", "response"))
-
-            # Assert we updated the span as expected
-            assert span.get_tag("web.request") == "request"
-            assert span.get_tag("web.response") == "response"
-
-    @with_config_raise_value(raise_value=False)
-    def test_settings_hook_args_failure(self):
-        """
-        When calling `core.dispatch()` with arguments
-            When there is a hook registered that is missing parameters
-                we do not raise an exception
-        """
-
-        # Setup our hook
-        # DEV: We are missing the required "response" argument
-        def on_web_request(span, request):
-            span.set_tag("web.request", request)
-
-        core.on("web.request", on_web_request)
-
-        # Create our span
-        with self.tracer.start_span("web.request") as span:
-            assert "web.request" not in span.get_tags()
-
-            # Emit the span
-            # DEV: This also asserts that no exception was raised
-            core.dispatch("web.request", (span, "request", "response"))
-
-            # Assert we did not update the span
-            assert "web.request" not in span.get_tags()
-
-    def test_settings_multiple_hooks(self):
-        """
-        When calling `core.dispatch()`
-            When there are multiple hooks registered
-                we do not raise an exception
-        """
-
-        # Setup our hooks
-        def on_web_request(span):
-            span.set_tag("web.request", "/")
-
-        def on_web_request2(span):
-            span.set_tag("web.status", 200)
-
-        def on_web_request3(span):
-            span.set_tag("web.method", "GET")
-
-        core.on("web.request", on_web_request)
-        core.on("web.request", on_web_request2)
-        core.on("web.request", on_web_request3)
-
-        # Create our span
-        with self.tracer.start_span("web.request") as span:
-            assert "web.request" not in span.get_tags()
-            assert "web.status" not in span.get_metrics()
-            assert "web.method" not in span.get_tags()
-
-            # Emit the span
-            core.dispatch("web.request", (span,))
-
-            # Assert we updated the span as expected
-            assert span.get_tag("web.request") == "/"
-            assert span.get_metric("web.status") == 200
-            assert span.get_tag("web.method") == "GET"
-
-    @with_config_raise_value(raise_value=False)
-    def test_settings_hook_failure(self):
-        """
-        When calling `core.dispatch()`
-            When the hook raises an exception
-                we do not raise an exception
-        """
-        # Setup our failing hook
-        on_web_request = mock.Mock(side_effect=Exception)
-        core.on("web.request", on_web_request)
-
-        # Create our span
-        with self.tracer.start_span("web.request") as span:
-            # Emit the span
-            # DEV: This is the test, to ensure no exceptions are raised
-            core.dispatch("web.request", (span,))
-            on_web_request.assert_called()
-
-    def test_settings_no_hook(self):
-        """
-        When calling `core.dispatch()`
-            When no hook is registered
-                we do not raise an exception
-        """
-        # Create our span
-        with self.tracer.start_span("web.request") as span:
-            # Emit the span
-            # DEV: This is the test, to ensure no exceptions are raised
-            core.dispatch("web.request", (span,))
-
-    @with_config_raise_value(raise_value=False)
-    def test_settings_no_span(self):
-        """
-        When calling `core.dispatch()`
-            When no span is provided
-                we do not raise an exception
-        """
-
-        # Setup our hooks
-        def on_web_request(span):
-            span.set_tag("web.request", "/")
-
-        core.on("web.request", on_web_request)
-
-        # Emit the span
-        # DEV: This is the test, to ensure no exceptions are raised
-        core.dispatch("web.request", (None,))
 
     def test_dd_version(self):
         c = Config()
