@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - 'mq-working-branch**'
+  merge_group:
   pull_request:
   workflow_dispatch: {}
 
@@ -29,11 +29,6 @@ jobs:
       - name: Install latest stable toolchain and rustfmt
         run: rustup update stable && rustup default stable && rustup component add rustfmt clippy
 
-      - name: Install hatch
-        uses: pypa/hatch@257e27e51a6a5616ed08a39a408a21c35c9931bc # install
-        with:
-          version: "1.12.0"
-
       - name: Install coreutils for MacOS to get sha256sum
         if: matrix.os == 'macos-latest'
         run: brew install coreutils
@@ -44,6 +39,9 @@ jobs:
           sudo add-apt-repository ppa:deadsnakes/ppa
           sudo apt-get update
           sudo apt-get install -y python3.14 python3.14-dev
+
+      - name: Install hatch
+        run: pip install hatch==1.12.0
 
       - name: Run tests
         run: hatch run +py=${{ matrix.python-version }} multiple_os_tests:test

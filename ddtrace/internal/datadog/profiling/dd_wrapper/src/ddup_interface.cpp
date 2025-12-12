@@ -73,6 +73,12 @@ ddup_set_runtime_id(std::string_view runtime_id) // cppcheck-suppress unusedFunc
 }
 
 void
+ddup_set_process_id() // cppcheck-suppress unusedFunction
+{
+    Datadog::UploaderBuilder::set_process_id();
+}
+
+void
 ddup_config_runtime_version(std::string_view runtime_version) // cppcheck-suppress unusedFunction
 {
     Datadog::UploaderBuilder::set_runtime_version(runtime_version);
@@ -326,7 +332,8 @@ ddup_flush_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
 void
 ddup_flush_sample_v2(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
 {
-    sample->flush_sample(/*reverse_locations*/ true);
+    sample->set_reverse_locations(true);
+    sample->flush_sample();
 }
 
 void

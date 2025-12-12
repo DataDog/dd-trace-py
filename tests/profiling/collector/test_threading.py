@@ -55,6 +55,7 @@ CollectorTypeInst = Union[
     ThreadingLockCollector, ThreadingRLockCollector, ThreadingSemaphoreCollector, ThreadingBoundedSemaphoreCollector
 ]
 
+
 # Module-level globals for testing global lock profiling
 _test_global_lock: LockTypeInst
 
@@ -285,7 +286,7 @@ def test_lock_gevent_tasks() -> None:
                     filename=expected_filename,
                     linenos=linenos,
                     lock_name="lock",
-                    # TODO: With stack_v2, the way we trace gevent greenlets has
+                    # TODO: With stack, the way we trace gevent greenlets has
                     # changed, and we'd need to expose an API to get the task_id,
                     # task_name, and task_frame.
                     # task_id=t.ident,
@@ -298,7 +299,7 @@ def test_lock_gevent_tasks() -> None:
                     filename=expected_filename,
                     linenos=linenos,
                     lock_name="lock",
-                    # TODO: With stack_v2, the way we trace gevent greenlets has
+                    # TODO: With stack, the way we trace gevent greenlets has
                     # changed, and we'd need to expose an API to get the task_id,
                     # task_name, and task_frame.
                     # task_id=t.ident,
@@ -378,7 +379,7 @@ def test_rlock_gevent_tasks() -> None:
                     filename=expected_filename,
                     linenos=linenos,
                     lock_name="lock",
-                    # TODO: With stack_v2, the way we trace gevent greenlets has
+                    # TODO: With stack, the way we trace gevent greenlets has
                     # changed, and we'd need to expose an API to get the task_id,
                     # task_name, and task_frame.
                     # task_id=t.ident,
@@ -391,7 +392,7 @@ def test_rlock_gevent_tasks() -> None:
                     filename=expected_filename,
                     linenos=linenos,
                     lock_name="lock",
-                    # TODO: With stack_v2, the way we trace gevent greenlets has
+                    # TODO: With stack, the way we trace gevent greenlets has
                     # changed, and we'd need to expose an API to get the task_id,
                     # task_name, and task_frame.
                     # task_id=t.ident,
@@ -422,18 +423,10 @@ def test_assertion_error_raised_with_enable_asserts():
     import mock
     import pytest
 
-    from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
 
-    # Initialize ddup (required before using collectors)
-    assert ddup.is_available, "ddup is not available"
-    ddup.config(
-        env="test",
-        service="test_asserts",
-        version="1.0",
-        output_filename="/tmp/test_asserts",
-    )
-    ddup.start()
+    init_ddup("test_asserts")
 
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
@@ -456,18 +449,10 @@ def test_all_exceptions_suppressed_by_default() -> None:
 
     import mock
 
-    from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
 
-    # Initialize ddup (required before using collectors)
-    assert ddup.is_available, "ddup is not available"
-    ddup.config(
-        env="test",
-        service="test_exceptions",
-        version="1.0",
-        output_filename="/tmp/test_exceptions",
-    )
-    ddup.start()
+    init_ddup("test_exceptions")
 
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
@@ -486,6 +471,41 @@ def test_all_exceptions_suppressed_by_default() -> None:
         lock._update_name = mock.Mock(side_effect=Exception("Wut happened?!?!"))
         lock.acquire()
         lock.release()
+
+
+def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
+    """Test that Semaphore and BoundedSemaphore collectors can run simultaneously.
+
+    Tests proper patching where inheritance is involved if both parent and child classes are patched,
+    e.g. when BoundedSemaphore's c-tor calls Semaphore c-tor.
+    We expect that the call to Semaphore c-tor goes to the unpatched version, and NOT our patched version.
+    """
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_semaphore_and_bounded_semaphore_collectors_coexist")
+
+    # Both collectors active at the same time - this triggers the inheritance case
+    with ThreadingSemaphoreCollector(capture_pct=100), ThreadingBoundedSemaphoreCollector(capture_pct=100):
+        sem = threading.Semaphore(2)
+        sem.acquire()
+        sem.release()
+
+        bsem = threading.BoundedSemaphore(3)
+        bsem.acquire()
+        bsem.release()
+
+        # If inheritance delegation failed, these attributes will be missing.
+        wrapped_bsem = bsem.__wrapped__
+        assert hasattr(wrapped_bsem, "_cond"), "BoundedSemaphore._cond not initialized (inheritance bug)"
+        assert hasattr(wrapped_bsem, "_value"), "BoundedSemaphore._value not initialized (inheritance bug)"
+        assert hasattr(wrapped_bsem, "_initial_value"), "BoundedSemaphore._initial_value not initialized"
+
+        # Verify BoundedSemaphore behavior is preserved (i.e. it raises on over-release)
+        bsem2 = threading.BoundedSemaphore(1)
+        bsem2.acquire()
+        bsem2.release()
+        with pytest.raises(ValueError, match="Semaphore released too many times"):
+            bsem2.release()
 
 
 class BaseThreadingLockCollectorTest:
@@ -1595,34 +1615,3 @@ class TestThreadingBoundedSemaphoreCollector(BaseSemaphoreTest):
             # This proves our profiling wrapper doesn't break BoundedSemaphore's behavior
             with pytest.raises(ValueError, match="Semaphore released too many times"):
                 sem.release()
-
-
-def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
-    """Test that Semaphore and BoundedSemaphore collectors can run simultaneously.
-
-    Tests proper patching where inheritance is involved if both parent and child classes are patched,
-    e.g. when BoundedSemaphore's c-tor calls Semaphore c-tor.
-    We expect that the call to Semaphore c-tor goes to the unpatched version, and NOT our patched version.
-    """
-    # Both collectors active at the same time - this triggers the inheritance case
-    with ThreadingSemaphoreCollector(capture_pct=100), ThreadingBoundedSemaphoreCollector(capture_pct=100):
-        sem = threading.Semaphore(2)
-        sem.acquire()
-        sem.release()
-
-        bsem = threading.BoundedSemaphore(3)
-        bsem.acquire()
-        bsem.release()
-
-        # If inheritance delegation failed, these attributes will be missing.
-        wrapped_bsem = bsem.__wrapped__
-        assert hasattr(wrapped_bsem, "_cond"), "BoundedSemaphore._cond not initialized (inheritance bug)"
-        assert hasattr(wrapped_bsem, "_value"), "BoundedSemaphore._value not initialized (inheritance bug)"
-        assert hasattr(wrapped_bsem, "_initial_value"), "BoundedSemaphore._initial_value not initialized"
-
-        # Verify BoundedSemaphore behavior is preserved (i.e. it raises on over-release)
-        bsem2 = threading.BoundedSemaphore(1)
-        bsem2.acquire()
-        bsem2.release()
-        with pytest.raises(ValueError, match="Semaphore released too many times"):
-            bsem2.release()

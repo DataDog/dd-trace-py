@@ -75,7 +75,7 @@ def test_collect_truncate():
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
     for sample in samples:
-        # stack v2 adds one extra frame for "%d frames omitted" message
+        # stack adds one extra frame for "%d frames omitted" message
         # Also, it allows max_nframes + 1 frames, so we add 2 here.
         assert len(sample.location_id) <= max_nframes + 2, len(sample.location_id)
 
@@ -173,7 +173,7 @@ def test_push_span(tmp_path, tracer):
 
 
 def test_push_span_unregister_thread(tmp_path, monkeypatch, tracer):
-    with patch("ddtrace.internal.datadog.profiling.stack_v2.unregister_thread") as unregister_thread:
+    with patch("ddtrace.internal.datadog.profiling.stack.unregister_thread") as unregister_thread:
         tracer._endpoint_call_counter_span_processor.enable()
 
         test_name = "test_push_span_unregister_thread"
