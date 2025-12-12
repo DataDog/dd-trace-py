@@ -66,7 +66,7 @@ class SessionManager:
 
         self.is_auto_injected = bool(os.getenv("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
 
-        self.env = os.environ.get("DD_ENV") or DEFAULT_ENV_NAME
+        self.env = os.environ.get("_CI_DD_ENV") or os.environ.get("DD_ENV") or DEFAULT_ENV_NAME
 
         self.api_client = APIClient(
             service=self.service,
