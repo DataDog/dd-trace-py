@@ -137,11 +137,28 @@ run-tests-trigger:
 
 microbenchmarks:
   stage: benchmarks
-  needs: [ "download_ddtrace_artifacts" ]
+  needs:
+    - job: "build linux"
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp39-cp39"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
   rules:
+    # Allow failures if explicitly asked
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true
-    - allow_failure: false
+    # Always run on PRs, tagged releases, and main or release branches
+    - if: $HAS_OPEN_PR == "true"
+      when: always
+    - if: $IS_MAIN_BRANCH == "true"
+      when: always
+    - if: $IS_RELEASE_BRANCH == "true"
+      when: always
+    - if: $IS_RELEASE == "true"
+      when: always
+    # Otherwise, run manually
+    - when: manual
   trigger:
     include: .gitlab/benchmarks/microbenchmarks.yml
     strategy: depend
@@ -152,19 +169,32 @@ microbenchmarks:
 
 macrobenchmarks:
   stage: benchmarks
-  needs: [ "download_ddtrace_artifacts" ]
+  needs:
+    - job: "build linux"
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp39-cp39"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
     DD_DISABLE_VPA: true
-  allow_failure: true
+  allow_failure: false
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
+    # Allow failures if explicitly asked
+    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
+      allow_failure: true
+    # Always run on tagged releases, and main or release branches
+    - if: $IS_MAIN_BRANCH == "true"
+      when: always
+    - if: $IS_RELEASE_BRANCH == "true"
       when: always
     - if: $IS_RELEASE == "true"
       when: always
+    # Otherwise, run manually
     - when: manual
 
 check_new_flaky_tests:

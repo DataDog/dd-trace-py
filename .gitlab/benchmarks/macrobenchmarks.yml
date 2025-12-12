@@ -27,7 +27,8 @@ candidate:
     - interruptible: true
   needs:
     - pipeline: $PARENT_PIPELINE_ID
-      job: download_ddtrace_artifacts
+      job: "build linux: [amd64, cp39-cp39, v85383392-751efc0-manylinux2014_x86_64]"
+      artifacts: true
   script: |
     cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl ./
     echo "CANDIDATE_WHL=$(ls *.whl | head -n 1)" | tee candidate.env
