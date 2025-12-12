@@ -15,12 +15,12 @@ def test_asyncio():
     import uuid
 
     from ddtrace import ext
-    from ddtrace.internal.datadog.profiling import stack_v2
+    from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
 
-    assert stack_v2.is_available, stack_v2.failure_msg
+    assert stack.is_available, stack.failure_msg
 
     sleep_time = 0.2
     loop_run_time = 3
@@ -67,7 +67,7 @@ def test_asyncio():
 
     # get samples with task_name
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
-    # The next fails if stack_v2 is not properly configured with asyncio task
+    # The next fails if stack is not properly configured with asyncio task
     # tracking via ddtrace.profiling._asyncio
     assert len(samples) > 0
 
@@ -128,10 +128,10 @@ def test_asyncio():
 )
 # For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
 def test_asyncio_start_profiler_from_process_before_importing_asyncio():
-    from ddtrace.internal.datadog.profiling import stack_v2
+    from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
 
-    assert stack_v2.is_available, stack_v2.failure_msg
+    assert stack.is_available, stack.failure_msg
 
     p = profiler.Profiler()
     p.start()
@@ -256,11 +256,11 @@ def test_asyncio_start_profiler_from_process_before_starting_loop():
     import sys
     import time
 
-    from ddtrace.internal.datadog.profiling import stack_v2
+    from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
 
-    assert stack_v2.is_available, stack_v2.failure_msg
+    assert stack.is_available, stack.failure_msg
 
     p = profiler.Profiler()
     p.start()
@@ -379,7 +379,7 @@ def test_asyncio_start_profiler_from_process_after_creating_loop():
     import sys
     import time
 
-    from ddtrace.internal.datadog.profiling import stack_v2
+    from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
 
@@ -388,7 +388,7 @@ def test_asyncio_start_profiler_from_process_after_creating_loop():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-    assert stack_v2.is_available, stack_v2.failure_msg
+    assert stack.is_available, stack.failure_msg
 
     p = profiler.Profiler()
     p.start()
@@ -510,10 +510,10 @@ def test_asyncio_import_profiler_from_process_after_starting_loop():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-    from ddtrace.internal.datadog.profiling import stack_v2
+    from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
 
-    assert stack_v2.is_available, stack_v2.failure_msg
+    assert stack.is_available, stack.failure_msg
 
     p = profiler.Profiler()
     p.start()
@@ -627,7 +627,7 @@ def test_asyncio_start_profiler_from_process_after_task_start():
     import sys
     import time
 
-    from ddtrace.internal.datadog.profiling import stack_v2
+    from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
 
@@ -648,7 +648,7 @@ def test_asyncio_start_profiler_from_process_after_task_start():
         # Start profiler after loop is already running
         assert asyncio.get_running_loop() is loop
 
-        assert stack_v2.is_available, stack_v2.failure_msg
+        assert stack.is_available, stack.failure_msg
 
         p = profiler.Profiler()
         p.start()
@@ -795,10 +795,10 @@ def test_asyncio_import_and_start_profiler_from_process_after_task_start():
         assert asyncio.get_running_loop() is loop
 
         # NOW import profiling modules - this should track the existing loop
-        from ddtrace.internal.datadog.profiling import stack_v2
+        from ddtrace.internal.datadog.profiling import stack
         from ddtrace.profiling import profiler
 
-        assert stack_v2.is_available, stack_v2.failure_msg
+        assert stack.is_available, stack.failure_msg
 
         p = profiler.Profiler()
         p.start()
