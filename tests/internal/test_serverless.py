@@ -1,5 +1,3 @@
-import sys
-
 import pytest
 
 from ddtrace.internal.serverless import in_azure_function
@@ -134,16 +132,7 @@ import {package}
         ("ddtrace.internal.utils", "http"),
         ("ddtrace.llmobs", "LLMObs"),
         ("ddtrace.opentelemetry", "TracerProvider"),
-        pytest.param(
-            "ddtrace.profiling",
-            "profiler",
-            # when 3.14 is officially supported, this xfail can be removed.
-            marks=pytest.mark.xfail(
-                reason="throws AttributeError: module 'asyncio.events' has no attribute 'BaseDefaultEventLoopPolicy'",
-                condition=sys.version_info >= (3, 14),
-                strict=True,
-            ),
-        ),
+        ("ddtrace.profiling", "profiler"),
         ("ddtrace.propagation.http", "HTTPPropagator"),
         ("ddtrace.trace", "Context, Span, tracer"),
         ("ddtrace.trace", "Span"),
