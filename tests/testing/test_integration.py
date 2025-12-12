@@ -115,6 +115,31 @@ class TestFeaturesWithMocking:
         assert result.ret == 0
         result.assert_outcomes(passed=1)
 
+    def test_simple_plugin_disabled_by_kill_switch(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """Test that plugin does not run when DD_CIVISIBILITY_ENABLED is false."""
+        # Create a simple test file
+        pytester.makepyfile(
+            """
+            def test_simple():
+                '''A simple test.'''
+                assert True
+        """
+        )
+
+        monkeypatch.setenv("DD_CIVISIBILITY_ENABLED", "false")
+
+        # Use network mocks to prevent all real HTTP calls
+        with network_mocks(), patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client:
+            mock_api_client.return_value = mock_api_client_settings()
+
+            result = pytester.runpytest("--ddtrace", "-v")
+
+        assert mock_api_client.call_count == 0
+
+        # Test should pass
+        assert result.ret == 0
+        result.assert_outcomes(passed=1)
+
     def test_retry_functionality_with_pytester(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
         """Test that failing tests are retried when auto retry is enabled."""
         # Create a test file with a failing test

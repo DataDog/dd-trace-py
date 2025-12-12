@@ -10,7 +10,7 @@ try:
     from ddtrace._trace import context
     from ddtrace._trace import span as ddspan
 
-    from ._stack_v2 import *  # noqa: F403, F401
+    from ._stack import *  # noqa: F403, F401
 
     is_available = True
 
@@ -19,7 +19,7 @@ try:
             span_id = span.span_id
             local_root_span_id = span._local_root.span_id
             local_root_span_type = span._local_root.span_type
-            _stack_v2.link_span(span_id, local_root_span_id, local_root_span_type)  # type: ignore # noqa: F405
+            _stack.link_span(span_id, local_root_span_id, local_root_span_type)  # type: ignore # noqa: F405
 
 except Exception as e:
     failure_msg = str(e)

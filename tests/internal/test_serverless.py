@@ -49,7 +49,7 @@ standard_blocklist = [
     "ddtrace.appsec._iast._stacktrace",
     "ddtrace.internal.datadog.profiling.libdd_wrapper",
     "ddtrace.internal.datadog.profiling.ddup._ddup",
-    "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
+    "ddtrace.internal.datadog.profiling.stack._stack",
     "ddtrace.internal._file_queue",
     "secrets",
 ]

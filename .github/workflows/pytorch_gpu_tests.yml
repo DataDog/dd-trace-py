@@ -1,16 +1,16 @@
-name: Pytorch Unit Tests (with GPU) 
+name: Pytorch Unit Tests (with GPU)
 
 on:
   push:
     branches:
       - 'main'
-      - 'mq-working-branch**'
     paths:
       - 'ddtrace/profiling/collector/pytorch.py'
+  merge_group:
   pull_request:
     paths:
       - 'ddtrace/profiling/collector/pytorch.py'
-  workflow_dispatch: 
+  workflow_dispatch:
 
 jobs:
    unit-tests:
