@@ -27,6 +27,8 @@ from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.utils import override_env
 from tests.utils import override_global_config
+from ddtrace.appsec._iast._taint_tracking._native import reset_source_truncation_cache
+from ddtrace.appsec._iast._taint_tracking._native import reset_taint_range_limit_cache
 
 
 CONFIG_SERVER_PORT = "9596"
@@ -82,11 +84,13 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
             weak_hash_unpatch()
             _testing_unpatch_iast()
             _end_iast_context_and_oce(span)
+            reset_taint_range_limit_cache()
+            reset_source_truncation_cache()
 
 
 @pytest.fixture
 def iast_context_defaults():
-    yield from iast_context(dict(DD_IAST_ENABLED="true"))
+    yield from iast_context(dict(DD_IAST_ENABLED="true", DD_IAST_MAX_RANGE_COUNT="5000", DD_IAST_TRUNCATION_MAX_VALUE_LENGTH="10000"))
 
 
 @pytest.fixture

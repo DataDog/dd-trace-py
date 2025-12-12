@@ -20,7 +20,7 @@ size_t g_cached_truncation_length = 0;
 size_t
 get_source_truncation_max_length()
 {
-    if (g_cached_truncation_length > 0) {
+    if (g_cached_truncation_length == 0) {
         const char* env_value = std::getenv("DD_IAST_TRUNCATION_MAX_VALUE_LENGTH");
         if (env_value != nullptr) {
             try {

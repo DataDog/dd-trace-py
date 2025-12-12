@@ -223,6 +223,7 @@ class ASMConfig(DDConfig):
         "_iast_security_controls",
         "_iast_is_testing",
         "_iast_use_root_span",
+        "_iast_truncation_max_value_length",
         "_ep_enabled",
         "_use_metastruct_for_triggers",
         "_use_metastruct_for_iast",
