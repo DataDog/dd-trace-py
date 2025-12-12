@@ -319,3 +319,17 @@ def test_falsey_ci_provider_values_overwritten_by_git_executable(
     assert tags["git.commit.author.name"] == "John Doe"
     assert tags["git.commit.author.email"] == "john@doe.com"
     assert tags["ci.workspace_path"] == git_repo
+
+
+def test_custom_dd_tags(monkeypatch: pytest.MonkeyPatch, git_repo: str) -> None:
+    env = {
+        "DD_TAGS": "foo:1 bar.baz:2",
+    }
+
+    monkeypatch.setattr(os, "environ", env)
+    monkeypatch.chdir(git_repo)
+
+    tags = get_env_tags()
+
+    assert tags["foo"] == "1"
+    assert tags["bar.baz"] == "2"
