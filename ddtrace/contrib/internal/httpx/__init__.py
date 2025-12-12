@@ -57,20 +57,6 @@ Global Configuration
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
 
-To configure particular ``httpx`` client instances use the :class:`Pin <ddtrace.trace.Pin>` API::
-
-    import httpx
-    from ddtrace._trace.pin import Pin
-
-    client = httpx.Client()
-    # Override service name for this instance
-    Pin.override(client, service="custom-http-service")
-
-    async_client = httpx.AsyncClient(
-    # Override service name for this instance
-    Pin.override(async_client, service="custom-async-http-service")
-
-
 :ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 
 :ref:`HTTP Tagging <http-tagging>` is supported for this integration.
