@@ -1,5 +1,6 @@
 import logging
 
+from pythonjsonlogger.json import JsonFormatter
 from ray.util.tracing import tracing_helper
 from ray.util.tracing.tracing_helper import _is_tracing_enabled
 
@@ -18,3 +19,19 @@ def setup_tracing():
         # We silently deactivate it as users might be confused as they
         # probably do not activate otel on purpose
         tracing_helper._global_is_tracing_enabled = False
+
+
+def configure_logging(log_level=None):
+    root_logger = logging.getLogger()
+    if log_level:
+        root_logger.setLevel(log_level)
+
+    if root_logger.hasHandlers():
+        root_logger.handlers.clear()
+
+    formatter = JsonFormatter()
+
+    log_handler = logging.StreamHandler()
+    log_handler.setFormatter(formatter)
+
+    root_logger.addHandler(log_handler)
