@@ -6,8 +6,6 @@ download_base_wheel_for_import_analysis:
   stage: tests
   needs:
     - job: "pipeline variables"
-    - job: download_ddtrace_artifacts
-      artifacts: true
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
