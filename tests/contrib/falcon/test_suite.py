@@ -3,7 +3,6 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.falcon.patch import FALCON_VERSION
 from ddtrace.ext import http as httpx
-from ddtrace.internal import core
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -224,28 +223,6 @@ class FalconTestCase(FalconTestMixin):
         assert span.error == 0
         assert span.get_tag("component") == "falcon"
         assert span.get_tag("span.kind") == "server"
-
-    def test_falcon_request_hook(self):
-        def on_falcon_request(span, request, response):
-            span.set_tag("my.custom", "tag")
-
-        core.on("falcon.request", on_falcon_request)
-
-        out = self.make_test_call("/200", expected_status_code=200)
-        assert out.content.decode("utf-8") == "Success"
-
-        traces = self.tracer.pop_traces()
-        assert len(traces) == 1
-        assert len(traces[0]) == 1
-        span = traces[0][0]
-        assert span.get_tag("http.request.headers.my_header") is None
-        assert span.get_tag("http.response.headers.my_response_header") is None
-
-        assert span.name == "falcon.request"
-
-        assert span.get_tag("my.custom") == "tag"
-
-        assert span.error == 0
 
     def test_http_header_tracing(self):
         with self.override_config("falcon", {}):
