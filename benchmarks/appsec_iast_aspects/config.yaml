@@ -21,11 +21,13 @@ add_inplace_noaspect:
 bytearray_aspect: 
   <<: *default_aspect
   function_name: "iast_bytearray_aspect"
+  default_function_type: "bytes"
 
 bytearray_noaspect:
   <<: *default_aspect
   function_name: "bytearray_noaspect"
   iast_enabled: false
+  default_function_type: "bytes"
 
 bytearray_extend_aspect:
   <<: *default_aspect
@@ -50,11 +52,13 @@ bytes_noaspect:
 bytesio_aspect:
   <<: *default_aspect
   function_name: "iast_bytesio_aspect"
+  default_function_type: "bytes"
 
 bytesio_noaspect:
   <<: *default_aspect
   function_name: "bytesio_noaspect"
   iast_enabled: false
+  default_function_type: "bytes"
 
 capitalize_aspect:
   <<: *default_aspect

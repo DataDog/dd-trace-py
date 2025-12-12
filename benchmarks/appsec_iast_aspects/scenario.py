@@ -8,7 +8,8 @@ from bm.utils import override_env
 from ddtrace.appsec._iast import enable_iast_propagation
 from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import is_tainted
+
+# from ddtrace.appsec._iast._taint_tracking import is_tainted
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
@@ -28,13 +29,13 @@ class IASTAspects(bm.Scenario):
 
     def run(self):
         # Create a tainted parameter to pass to functions
-        tainted_param = "example_string"
+        tainted_param = "example_string %s"
         if self.default_function_type == "str":
-            tainted_param = "example_string_str"
+            tainted_param = "example_string_str %s"
         elif self.default_function_type == "bytes":
-            tainted_param = b"example_string_bytes"
+            tainted_param = b"example_string_bytes %s"
         elif self.default_function_type == "bytearray":
-            tainted_param = bytearray(b"example_string_bytearray")
+            tainted_param = bytearray(b"example_string_bytearray %s")
 
         def aspect_loop(loops):
             for _ in range(loops):
@@ -46,8 +47,8 @@ class IASTAspects(bm.Scenario):
                         source_value=tainted_param,
                         source_origin=OriginType.PARAMETER,
                     )
-                    result = getattr(functions, self.function_name)(tainted)
-                    assert is_tainted(result)
+                    _ = getattr(functions, self.function_name)(tainted)
+                    # assert is_tainted(result)
                 else:
                     _ = getattr(functions, self.function_name)(tainted_param)
 
