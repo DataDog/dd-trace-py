@@ -144,6 +144,7 @@ ddtrace/internal/datadog/profiling  @DataDog/profiling-python
 tests/profiling                     @DataDog/profiling-python
 .github/workflows/profiling-native.yml       @DataDog/profiling-python
 .gitlab/tests/profiling.yml         @DataDog/profiling-python
+.github/workflows/pytorch_gpu_tests.yml @DataDog/profiling-python
 
 # Crashtracker
 ddtrace/internal/core/crashtracking.py       @DataDog/profiling-python @DataDog/apm-core-python
