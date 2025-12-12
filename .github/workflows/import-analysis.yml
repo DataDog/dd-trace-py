@@ -2,6 +2,7 @@ name: Import analysis
 
 on:
   pull_request:
+  merge_group:
 
 jobs:
   import_cycles:

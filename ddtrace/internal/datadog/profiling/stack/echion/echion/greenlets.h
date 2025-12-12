@@ -7,6 +7,10 @@
 #include <Python.h>
 #define Py_BUILD_CORE
 
+#if PY_VERSION_HEX >= 0x030e0000
+#include <internal/pycore_frame.h>
+#endif
+
 #include <echion/stacks.h>
 #include <echion/strings.h>
 

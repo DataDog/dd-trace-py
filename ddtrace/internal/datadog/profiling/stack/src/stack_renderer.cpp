@@ -2,6 +2,8 @@
 
 #include "thread_span_links.hpp"
 
+#include "dd_wrapper/include/sample_manager.hpp"
+
 #include "echion/strings.h"
 
 using namespace Datadog;
@@ -25,7 +27,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     if (failed) {
         return;
     }
-    sample = ddup_start_sample();
+    sample = SampleManager::start_sample();
     if (sample == nullptr) {
         std::cerr << "Failed to create a sample.  Stack v2 sampler will be disabled." << std::endl;
         failed = true;
@@ -40,7 +42,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     timespec ts;
     if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
         now_ns = static_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + static_cast<int64_t>(ts.tv_nsec);
-        ddup_push_monotonic_ns(sample, now_ns);
+        sample->push_monotonic_ns(now_ns);
     }
 
     // Save the thread information in case we observe a task on the thread
@@ -55,14 +57,14 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     pushed_task_name = false;
 
     // Finalize the thread information we have
-    ddup_push_threadinfo(sample, static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
-    ddup_push_walltime(sample, thread_state.wall_time_ns, 1);
+    sample->push_threadinfo(static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
+    sample->push_walltime(thread_state.wall_time_ns, 1);
 
     const std::optional<Span> active_span = ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
     if (active_span) {
-        ddup_push_span_id(sample, active_span->span_id);
-        ddup_push_local_root_span_id(sample, active_span->local_root_span_id);
-        ddup_push_trace_type(sample, std::string_view(active_span->span_type));
+        sample->push_span_id(active_span->span_id);
+        sample->push_local_root_span_id(active_span->local_root_span_id);
+        sample->push_trace_type(std::string_view(active_span->span_type));
     }
 }
 
@@ -77,7 +79,7 @@ StackRenderer::render_task_begin(std::string task_name, bool on_cpu)
         // The very first task on a thread will already have a sample, since there's no way to deduce whether
         // a thread has tasks without checking, and checking before populating the sample would make the state
         // management very complicated.  The rest of the tasks will not have samples and will hit this code path.
-        sample = ddup_start_sample();
+        sample = SampleManager::start_sample();
         if (sample == nullptr) {
             std::cerr << "Failed to create a sample.  Stack v2 sampler will be disabled." << std::endl;
             failed = true;
@@ -85,23 +87,21 @@ StackRenderer::render_task_begin(std::string task_name, bool on_cpu)
         }
 
         // Add the thread context into the sample
-        ddup_push_threadinfo(sample,
-                             static_cast<int64_t>(thread_state.id),
-                             static_cast<int64_t>(thread_state.native_id),
-                             thread_state.name);
-        ddup_push_task_name(sample, task_name);
-        ddup_push_walltime(sample, thread_state.wall_time_ns, 1);
+        sample->push_threadinfo(
+          static_cast<int64_t>(thread_state.id), static_cast<int64_t>(thread_state.native_id), thread_state.name);
+        sample->push_task_name(task_name);
+        sample->push_walltime(thread_state.wall_time_ns, 1);
         if (on_cpu)
-            ddup_push_cputime(sample, thread_state.cpu_time_ns, 1); // initialized to 0, so possibly a no-op
-        ddup_push_monotonic_ns(sample, thread_state.now_time_ns);
+            sample->push_cputime(thread_state.cpu_time_ns, 1); // initialized to 0, so possibly a no-op
+        sample->push_monotonic_ns(thread_state.now_time_ns);
 
         // We also want to make sure the tid -> span_id mapping is present in the sample for the task
         const std::optional<Span> active_span =
           ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_state.id);
         if (active_span) {
-            ddup_push_span_id(sample, active_span->span_id);
-            ddup_push_local_root_span_id(sample, active_span->local_root_span_id);
-            ddup_push_trace_type(sample, std::string_view(active_span->span_type));
+            sample->push_span_id(active_span->span_id);
+            sample->push_local_root_span_id(active_span->local_root_span_id);
+            sample->push_trace_type(std::string_view(active_span->span_type));
         }
 
         pushed_task_name = true;
@@ -144,7 +144,7 @@ StackRenderer::render_frame(Frame& frame)
     // number is set to 0.
     if (line == 0) {
         if (!pushed_task_name) {
-            ddup_push_task_name(sample, name_str);
+            sample->push_task_name(name_str);
             pushed_task_name = true;
         }
         // And return early to avoid pushing task name as a frame
@@ -159,7 +159,7 @@ StackRenderer::render_frame(Frame& frame)
         filename_str = missing_filename;
     }
 
-    ddup_push_frame(sample, name_str, filename_str, 0, line);
+    sample->push_frame(name_str, filename_str, 0, line);
 }
 
 void
@@ -173,7 +173,7 @@ StackRenderer::render_cpu_time(uint64_t cpu_time_us)
     // TODO - it's absolutely false that thread-level CPU time is task time.  This needs to be normalized
     // to the task level, but for now just keep it because this is how the v1 sampler works
     thread_state.cpu_time_ns = 1000LL * cpu_time_us;
-    ddup_push_cputime(sample, thread_state.cpu_time_ns, 1);
+    sample->push_cputime(thread_state.cpu_time_ns, 1);
 }
 
 void
@@ -184,8 +184,9 @@ StackRenderer::render_stack_end(MetricType, uint64_t)
         return;
     }
 
-    ddup_flush_sample_v2(sample);
-    ddup_drop_sample(sample);
+    sample->set_reverse_locations(true);
+    sample->flush_sample();
+    SampleManager::drop_sample(sample);
     sample = nullptr;
 }
 
