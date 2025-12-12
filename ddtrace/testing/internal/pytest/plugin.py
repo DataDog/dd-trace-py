@@ -20,7 +20,8 @@ from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
-from ddtrace.testing.internal.pytest.utils import nodeid_to_test_ref
+from ddtrace.testing.internal.pytest.hookspecs import TestOptHooks
+from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.telemetry import TelemetryAPI
@@ -186,7 +187,7 @@ class TestOptPlugin:
         tests that pytest has selection for run (eg: with the use of -k as an argument).
         """
         for item in session.items:
-            test_ref = nodeid_to_test_ref(item.nodeid)
+            test_ref = item_to_test_ref(item)
             test_module, test_suite, test = self._discover_test(item, test_ref)
 
         self.manager.finish_collection()
@@ -212,6 +213,9 @@ class TestOptPlugin:
             if _is_test_unskippable(item):
                 test.mark_unskippable()
 
+            if custom_tags := _get_test_custom_tags(item):
+                test.set_tags(custom_tags)
+
         return self.manager.discover_test(
             test_ref,
             on_new_module=_on_new_module,
@@ -223,8 +227,8 @@ class TestOptPlugin:
     def pytest_runtest_protocol_wrapper(
         self, item: pytest.Item, nextitem: t.Optional[pytest.Item]
     ) -> t.Generator[None, None, None]:
-        test_ref = nodeid_to_test_ref(item.nodeid)
-        next_test_ref = nodeid_to_test_ref(nextitem.nodeid) if nextitem else None
+        test_ref = item_to_test_ref(item)
+        next_test_ref = item_to_test_ref(nextitem) if nextitem else None
 
         test_module, test_suite, test = self._discover_test(item, test_ref)
 
@@ -716,6 +720,12 @@ def setup_coverage_collection() -> None:
 
 
 def pytest_configure(config: pytest.Config) -> None:
+    # We register the marker even if the kill switch is on, to avoid "Unknown pytest.mark.dd_tags" warnings in tests
+    # when the plugin is disabled. This is similar to command line arguments, which are also registered in
+    # `pytest_addoption` regardless of the kill switch, to avoid breaking pytest invocations using --ddtrace and other
+    # options.
+    config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
+
     if _is_test_optimization_disabled_by_kill_switch():
         return
 
@@ -731,6 +741,7 @@ def pytest_configure(config: pytest.Config) -> None:
         return
 
     config.pluginmanager.register(plugin)
+    config.pluginmanager.add_hookspecs(TestOptHooks)
 
     if config.pluginmanager.hasplugin("xdist"):
         config.pluginmanager.register(XdistTestOptPlugin(plugin))
@@ -820,3 +831,13 @@ def _is_test_unskippable(item: pytest.Item) -> bool:
         (_get_skipif_condition(marker) is False and marker.kwargs.get("reason") == ITR_UNSKIPPABLE_REASON)
         for marker in item.iter_markers(name="skipif")
     )
+
+
+def _get_test_custom_tags(item: pytest.Item) -> t.Dict[str, str]:
+    tags: t.Dict[str, str] = {}
+
+    for marker in item.iter_markers(name="dd_tags"):
+        for key, value in marker.kwargs.items():
+            tags[key] = str(value)
+
+    return tags

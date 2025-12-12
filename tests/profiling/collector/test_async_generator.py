@@ -15,12 +15,12 @@ def test_async_generator() -> None:
     import uuid
 
     from ddtrace import ext
-    from ddtrace.internal.datadog.profiling import stack_v2
+    from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
 
-    assert stack_v2.is_available, stack_v2.failure_msg
+    assert stack.is_available, stack.failure_msg
 
     async def deep_dependency():
         await asyncio.sleep(0.05)
@@ -64,7 +64,7 @@ def test_async_generator() -> None:
 
     # get samples with task_name
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
-    # The next fails if stack_v2 is not properly configured with asyncio task
+    # The next fails if stack is not properly configured with asyncio task
     # tracking via ddtrace.profiling._asyncio
     assert len(samples) > 0
 

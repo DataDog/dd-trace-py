@@ -98,7 +98,7 @@ IS_EDITABLE = False  # Set to True if the package is being installed in editable
 LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
-STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
+STACK_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack"
 NATIVE_CRATE = HERE / "src" / "native"
 CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
 
@@ -1188,11 +1188,11 @@ if not IS_PYSTON:
 
         ext_modules.append(
             CMakeExtension(
-                "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
-                source_dir=STACK_V2_DIR,
+                "ddtrace.internal.datadog.profiling.stack._stack",
+                source_dir=STACK_DIR,
                 extra_source_dirs=[
-                    STACK_V2_DIR / ".." / "cmake",
-                    STACK_V2_DIR / ".." / "dd_wrapper",
+                    STACK_DIR / ".." / "cmake",
+                    STACK_DIR / ".." / "dd_wrapper",
                 ],
                 optional=False,
             ),

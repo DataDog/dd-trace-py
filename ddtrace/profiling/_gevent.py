@@ -9,7 +9,7 @@ import gevent.hub
 from greenlet import greenlet
 from greenlet import settrace
 
-from ddtrace.internal.datadog.profiling import stack_v2
+from ddtrace.internal.datadog.profiling import stack
 
 
 # Original objects
@@ -38,7 +38,7 @@ def track_gevent_greenlet(greenlet: _Greenlet) -> _Greenlet:
     frame: t.Union[FrameType, bool, None] = FRAME_NOT_SET
 
     try:
-        stack_v2.track_greenlet(greenlet_id, greenlet.name or type(greenlet).__qualname__, frame)
+        stack.track_greenlet(greenlet_id, greenlet.name or type(greenlet).__qualname__, frame)
     except AttributeError as e:
         raise GreenletTrackingError("Cannot track greenlet with no name attribute") from e
     except Exception as e:
@@ -60,7 +60,7 @@ def track_gevent_greenlet(greenlet: _Greenlet) -> _Greenlet:
 
 def update_greenlet_frame(greenlet_id: int, frame: t.Union[FrameType, bool, None]) -> None:
     _greenlet_frames[greenlet_id] = frame
-    stack_v2.update_greenlet_frame(greenlet_id, frame)
+    stack.update_greenlet_frame(greenlet_id, frame)
 
 
 def greenlet_tracer(event: str, args: t.Any) -> None:
@@ -106,7 +106,7 @@ def greenlet_tracer(event: str, args: t.Any) -> None:
 
 def untrack_greenlet(greenlet: _Greenlet) -> None:
     greenlet_id: int = thread.get_ident(greenlet)
-    stack_v2.untrack_greenlet(greenlet_id)
+    stack.untrack_greenlet(greenlet_id)
     _greenlet_frames.pop(greenlet_id, None)
     _parent_greenlet_count.pop(greenlet_id, None)
     if (parent_id := _greenlet_parent_map.pop(greenlet_id, None)) is not None:
@@ -116,7 +116,7 @@ def untrack_greenlet(greenlet: _Greenlet) -> None:
 
 
 def link_greenlets(greenlet_id: int, parent_id: int) -> None:
-    stack_v2.link_greenlets(greenlet_id, parent_id)
+    stack.link_greenlets(greenlet_id, parent_id)
     _parent_greenlet_count[parent_id] = _parent_greenlet_count.get(parent_id, 0) + 1
     _greenlet_parent_map[greenlet_id] = parent_id
 
