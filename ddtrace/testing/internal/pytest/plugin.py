@@ -660,7 +660,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addini("ddtrace-patch-all", "Enable all integrations with ddtrace", type="bool")
 
 
-def _is_test_optimization_disabled_by_kill_switch():
+def _is_test_optimization_disabled_by_kill_switch() -> bool:
     return not asbool(os.environ.get("DD_CIVISIBILITY_ENABLED", "true"))
 
 
