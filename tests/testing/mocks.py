@@ -17,6 +17,8 @@ import typing as t
 from unittest.mock import Mock
 from unittest.mock import patch
 
+from _pytest.reports import TestReport
+
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.http import ErrorType
@@ -456,7 +458,7 @@ class BackendConnectorMockBuilder:
         mock_connector = Mock()
 
         # Mock methods to prevent real HTTP calls
-        def mock_post_json(endpoint: str, data: t.Any) -> t.Tuple[Mock, t.Any]:
+        def mock_post_json(endpoint: str, data: t.Any, telemetry: t.Any = None) -> t.Tuple[Mock, t.Any]:
             if endpoint in self._post_json_responses:
                 return BackendResult(response=Mock(status=200), parsed_response=self._post_json_responses[endpoint])
             return self._make_404_response()
@@ -667,3 +669,20 @@ class EventCapture:
                 return event
 
         raise AssertionError(f"Expected event with test name {test_name!r}, found none")
+
+
+def test_report(
+    nodeid: str = "foo.py::test_foo",
+    location: t.Tuple[str, int, str] = ("foo.py", 42, "foo"),
+    outcome: str = "passed",
+    longrepr: t.Any = None,
+    when: str = "call",
+    keywords: t.Optional[t.Dict[str, str]] = None,
+    wasxfail: t.Any = None,
+):
+    report = TestReport(
+        nodeid=nodeid, location=location, outcome=outcome, longrepr=longrepr, when=when, keywords=keywords or {}
+    )
+    if wasxfail:
+        setattr(report, "wasxfail", wasxfail)
+    return report
