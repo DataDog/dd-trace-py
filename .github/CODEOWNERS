@@ -83,7 +83,7 @@ ddtrace/internal/ci_visibility                        @DataDog/ci-app-libraries
 ddtrace/internal/test_visibility                      @DataDog/ci-app-libraries
 ddtrace/internal/codeowners.py                        @DataDog/apm-core-python @DataDog/ci-app-libraries
 ddtrace/internal/coverage                             @DataDog/apm-core-python @DataDog/ci-app-libraries
-tests/internal/test_codeowners.py                     @datadog/ci-app-libraries
+tests/internal/test_codeowners.py                     @DataDog/ci-app-libraries
 tests/ci_visibility                                   @DataDog/ci-app-libraries
 tests/coverage                                        @DataDog/apm-core-python @DataDog/ci-app-libraries
 tests/tracer/test_ci.py                               @DataDog/ci-app-libraries
@@ -143,6 +143,13 @@ ddtrace/internal/settings/profiling.py       @DataDog/profiling-python
 ddtrace/internal/datadog/profiling  @DataDog/profiling-python
 tests/profiling                     @DataDog/profiling-python
 .gitlab/tests/profiling.yml         @DataDog/profiling-python
+
+# Crashtracker
+ddtrace/internal/core/crashtracking.py       @DataDog/profiling-python @DataDog/apm-core-python
+ddtrace/internal/settings/crashtracker.py   @DataDog/profiling-python @DataDog/apm-core-python
+ddtrace/commands/_dd_crashtracker_receiver.py @DataDog/profiling-python @DataDog/apm-core-python
+tests/internal/crashtracker/                 @DataDog/profiling-python @DataDog/apm-core-python
+src/native/crashtracker*                     @DataDog/profiling-python @DataDog/apm-core-python
 
 # MLObs
 ddtrace/llmobs/                                               @DataDog/ml-observability
