@@ -15,7 +15,7 @@ with override_env(IAST_ENV):
     import functions  # noqa: E402
 
 
-class IASTAspectsOsPath(bm.Scenario):
+class IAST_Aspects(bm.Scenario):
     iast_enabled: bool
     function_name: str
 
