@@ -15,7 +15,7 @@ The native code here is comprised of a few components.
 
 * *dd_wrapper*:  ships C interfaces to libdatadog resources
 * *ddup*:  Python interfaces to `dd_wrapper`
-* *stack_v2*:  wraps echion, providing a shim layer to conform its concepts to those used in this repo
+* *stack*:  wraps echion, providing a shim layer to conform its concepts to those used in this repo
 * *crashtracker*:  Python interfaces for `crashtracker`
 
 

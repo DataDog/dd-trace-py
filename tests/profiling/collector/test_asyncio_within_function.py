@@ -16,13 +16,13 @@ def test_asyncio_within_function():
     import uuid
 
     from ddtrace import ext
-    from ddtrace.internal.datadog.profiling import stack_v2
+    from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.pprof_utils import StackLocation
 
-    assert stack_v2.is_available, stack_v2.failure_msg
+    assert stack.is_available, stack.failure_msg
 
     def synchronous_code_dep() -> None:
         time.sleep(0.25)
