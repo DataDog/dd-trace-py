@@ -30,6 +30,7 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PROMPT_TRACKING_AUTO
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
@@ -957,5 +958,6 @@ class LangChainIntegration(BaseLLMIntegration):
             try:
                 prompt = _validate_prompt(prompt, strict_validation=True)
                 span._set_ctx_item(INPUT_PROMPT, prompt)
+                span._set_ctx_item(PROMPT_TRACKING_AUTO, 1)
             except Exception as e:
                 log.debug("Failed to validate langchain prompt", e)

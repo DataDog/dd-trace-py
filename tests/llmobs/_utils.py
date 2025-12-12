@@ -75,6 +75,7 @@ def _expected_llmobs_llm_span_event(
     span,
     span_kind="llm",
     prompt=None,
+    prompt_tracking_auto=None,
     input_messages=None,
     input_documents=None,
     output_messages=None,
@@ -109,7 +110,15 @@ def _expected_llmobs_llm_span_event(
     tool_definitions: list of tool definitions that were available to the LLM
     """
     span_event = _llmobs_base_span_event(
-        span, span_kind, tags, session_id, error, error_message, error_stack, span_links
+        span,
+        span_kind,
+        tags,
+        session_id,
+        error,
+        error_message,
+        error_stack,
+        span_links,
+        prompt_tracking_auto,
     )
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "llm":
@@ -171,6 +180,7 @@ def _expected_llmobs_non_llm_span_event(
     error_message=None,
     error_stack=None,
     span_links=False,
+    prompt_tracking_auto=None,
 ):
     """
     Helper function to create an expected span event of type (workflow, task, tool, retrieval).
@@ -187,7 +197,15 @@ def _expected_llmobs_non_llm_span_event(
     span_links: whether there are span links present on this span.
     """
     span_event = _llmobs_base_span_event(
-        span, span_kind, tags, session_id, error, error_message, error_stack, span_links
+        span,
+        span_kind,
+        tags,
+        session_id,
+        error,
+        error_message,
+        error_stack,
+        span_links,
+        prompt_tracking_auto,
     )
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "retrieval":
@@ -221,6 +239,7 @@ def _llmobs_base_span_event(
     error_message=None,
     error_stack=None,
     span_links=False,
+    prompt_tracking_auto=None,
 ):
     span_event = {
         "trace_id": mock.ANY,
@@ -239,6 +258,8 @@ def _llmobs_base_span_event(
             "apm_trace_id": format_trace_id(span.trace_id),
         },
     }
+    if prompt_tracking_auto:
+        span_event["_dd"]["prompt_tracking_auto"] = 1
     if session_id:
         span_event["session_id"] = session_id
     if error:

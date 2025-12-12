@@ -29,6 +29,7 @@ from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PROMPT_TRACKING_AUTO
 from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
@@ -922,6 +923,7 @@ def openai_set_meta_tags_from_response(
 
             validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
             span._set_ctx_item(INPUT_PROMPT, validated_prompt)
+            span._set_ctx_item(PROMPT_TRACKING_AUTO, 1)
         except (TypeError, ValueError, AttributeError) as e:
             logger.debug("Failed to validate prompt for OpenAI response: %s", e)
 

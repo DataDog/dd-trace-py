@@ -2332,6 +2332,7 @@ MUL: "*"
                 },
             ],
         )
+        assert mock_llmobs_writer.enqueue.call_args[0][0]["_dd"]["prompt_tracking_auto"] == 1
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 87),
@@ -2408,6 +2409,7 @@ MUL: "*"
                 }
             ],
         )
+        assert mock_llmobs_writer.enqueue.call_args[0][0]["_dd"]["prompt_tracking_auto"] == 1
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 87),
@@ -2486,6 +2488,7 @@ MUL: "*"
                 }
             ],
         )
+        assert mock_llmobs_writer.enqueue.call_args[0][0]["_dd"]["prompt_tracking_auto"] == 1
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
