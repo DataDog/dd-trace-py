@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import itertools
 import math
 import os
-import sys
 import typing as t
+
+from envier import Env
 
 from ddtrace.ext.git import COMMIT_SHA
 from ddtrace.ext.git import MAIN_PACKAGE
@@ -20,11 +23,14 @@ from ddtrace.internal.utils.formats import parse_tags_str
 logger = get_logger(__name__)
 
 
-def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 * 1024):
-    # type: (ProfilingConfigHeap, int) -> int
+def _derive_default_heap_sample_size(
+    heap_config: Env,
+    default_heap_sample_size: int = 1024 * 1024,
+) -> int:
+    assert isinstance(heap_config, ProfilingConfigHeap)  # nosec: assert is used for type checking
     heap_sample_size = heap_config._sample_size
     if heap_sample_size is not None:
-        return heap_sample_size
+        return t.cast(int, heap_sample_size)
 
     if not heap_config.enabled:
         return 0
@@ -65,9 +71,6 @@ def _check_for_stack_v2_available():
 
 
 def _parse_profiling_enabled(raw: str) -> bool:
-    if sys.version_info >= (3, 14):
-        return False
-
     # Try to derive whether we're enabled via DD_INJECTION_ENABLED
     # - Are we injected (DD_INJECTION_ENABLED set)
     # - Is profiling enabled ("profiler" in the list)
@@ -253,7 +256,7 @@ class ProfilingConfigStack(DDConfig):
     enabled = DDConfig.v(
         bool,
         "enabled",
-        default=sys.version_info < (3, 14),
+        default=True,
         help_type="Boolean",
         help="Whether to enable the stack profiler",
     )
@@ -363,34 +366,32 @@ ddup_failure_msg, ddup_is_available = _check_for_ddup_available()
 
 # We need to check if ddup is available, and turn off profiling if it is not.
 if not ddup_is_available:
-    # We know it is not supported on 3.14, so don't report the error, but still disable
-    if sys.version_info < (3, 14):
-        msg = ddup_failure_msg or "libdd not available"
-        logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
-        telemetry_writer.add_log(
-            TELEMETRY_LOG_LEVEL.ERROR,
-            "Failed to load ddup module (%s), disabling profiling" % ddup_failure_msg,
-        )
-    config.enabled = False
+    msg = ddup_failure_msg or "libdd not available"
+    logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
+    telemetry_writer.add_log(
+        TELEMETRY_LOG_LEVEL.ERROR,
+        f"Failed to load ddup module ({ddup_failure_msg}), disabling profiling",
+    )
+    config.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 
 # We also need to check if stack_v2 module is available, and turn if off
 # if it s not.
 stack_v2_failure_msg, stack_v2_is_available = _check_for_stack_v2_available()
-if config.stack.enabled and not stack_v2_is_available:
+if config.stack.enabled and not stack_v2_is_available:  # pyright: ignore[reportAttributeAccessIssue]
     msg = stack_v2_failure_msg or "stack_v2 not available"
     logger.warning("Failed to load stack_v2 module (%s), falling back to v1 stack sampler", msg)
     telemetry_writer.add_log(
         TELEMETRY_LOG_LEVEL.ERROR,
         "Failed to load stack_v2 module (%s), disabling profiling" % msg,
     )
-    config.stack.enabled = False
+    config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 
 # Enrich tags with git metadata and DD_TAGS
-config.tags = _enrich_tags(config.tags)
+config.tags = _enrich_tags(config.tags)  # pyright: ignore[reportAttributeAccessIssue]
 
 
-def config_str(config):
-    configured_features = []
+def config_str(config) -> str:
+    configured_features: list[str] = []
     if config.stack.enabled:
         configured_features.append("stack_v2")
     if config.lock.enabled:

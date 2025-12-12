@@ -18,7 +18,7 @@ _ignore_list = {}
     list(get_parametrize(VULN_CODE_INJECTION, ignore_list=_ignore_list)),
 )
 def test_code_injection_redaction_suite(
-    evidence_input, sources_expected, vulnerabilities_expected, iast_context_defaults, element
+    iast_context_defaults, evidence_input, sources_expected, vulnerabilities_expected, element
 ):
     tainted_object = evidence_input_value = evidence_input.get("value", "")
     if evidence_input_value:

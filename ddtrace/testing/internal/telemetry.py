@@ -177,7 +177,6 @@ class TelemetryAPI:
         payload_size: int,
         request_seconds: float,
         events_count: int,
-        serialization_seconds: float,
         error: t.Optional[ErrorType],
     ) -> None:
         tags = {"endpoint": endpoint}
@@ -186,10 +185,13 @@ class TelemetryAPI:
         self.add_count_metric("endpoint_payload.requests", 1, tags)
         self.add_distribution_metric("endpoint_payload.requests_ms", request_seconds * 1000, tags)
         self.add_distribution_metric("endpoint_payload.events_count", events_count, tags)
-        self.add_distribution_metric("endpoint_payload.events_serialization_ms", serialization_seconds * 1000, tags)
 
         if error:
             self.record_event_payload_error(endpoint, error)
+
+    def record_event_payload_serialization_seconds(self, endpoint: str, serialization_seconds: float) -> None:
+        tags = {"endpoint": endpoint}
+        self.add_distribution_metric("endpoint_payload.events_serialization_ms", serialization_seconds * 1000, tags)
 
     def record_event_payload_error(self, endpoint: str, error: ErrorType) -> None:
         # `endpoint_payload.requests_errors` accepts a different set of error types, so we need to convert them here.
@@ -273,6 +275,10 @@ class TelemetryAPI:
         }
 
         self.add_count_metric("event_finished", 1, tags)
+
+    def record_git_pack_data(self, uploaded_files: int, uploaded_bytes: int) -> None:
+        self.add_distribution_metric("git_requests.objects_pack_files", uploaded_files)
+        self.add_distribution_metric("git_requests.objects_pack_bytes", uploaded_bytes)
 
 
 @dataclasses.dataclass
