@@ -19,7 +19,9 @@
 #include "aspects/aspects_exports.h"
 #include "constants.h"
 #include "context/_taint_engine_context.h"
+#include "taint_tracking/source.h"
 #include "taint_tracking/taint_tracking.h"
+#include "taint_tracking/tainted_object.h"
 #include "tainted_ops/tainted_ops.h"
 #include "utils/generic_utils.h"
 
@@ -245,6 +247,18 @@ PYBIND11_MODULE(_native, m)
           "Explicitly initialize native IAST state. "
           "Normally called automatically at module load, but can be called manually "
           "from Python for explicit initialization control.");
+
+    // Export testing utilities
+    m.def("reset_taint_range_limit_cache",
+          &reset_taint_range_limit_cache,
+          "Reset the cached taint range limit for testing purposes. "
+          "This forces get_taint_range_limit() to re-read DD_IAST_MAX_RANGE_COUNT environment variable.");
+
+    m.def("reset_source_truncation_cache",
+          &reset_source_truncation_cache,
+          "Reset the cached source truncation length for testing purposes. "
+          "This forces get_source_truncation_max_length() to re-read DD_IAST_TRUNCATION_MAX_VALUE_LENGTH environment "
+          "variable.");
 
     // Note: the order of these definitions matter. For example,
     // stacktrace_element definitions must be before the ones of the
