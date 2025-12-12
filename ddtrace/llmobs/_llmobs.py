@@ -101,7 +101,7 @@ from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
-from ddtrace.llmobs._utils import LLMObsExportSpansClient
+from ddtrace.llmobs._utils import LLMObsSubmitEvaluationError
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_session_id
@@ -110,9 +110,9 @@ from ddtrace.llmobs._utils import _is_evaluation_span
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
-from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
+from ddtrace.llmobs._writer import LLMObsEvalMetricWriter, LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
+from ddtrace.llmobs._writer import LLMObsExportSpansClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
@@ -172,12 +172,6 @@ class LLMObsAnnotateSpanError(Exception):
     """Error raised when annotating a span."""
 
     pass
-
-
-class LLMObsSubmitEvaluationError(Exception):
-    """Error raised when submitting an evaluation."""
-
-    error_type: str
 
 
 class LLMObsInjectDistributedHeadersError(Exception):
@@ -1935,7 +1929,7 @@ class LLMObs(Service):
                 finally:
                     metric_type = evaluation_result.get("metric_type") or ""
                     telemetry.record_llmobs_submit_evaluation(join_on, metric_type, "run_evaluations", error)
-
+    
     @staticmethod
     def _build_evaluation_metric(
         evaluation_result: LLMObsEvaluationResult,
@@ -2063,6 +2057,7 @@ class LLMObs(Service):
 
         return evaluation_metric
 
+    
     @classmethod
     def _inject_llmobs_context(cls, span_context: Context, request_headers: Dict[str, str]) -> None:
         if cls.enabled is False:

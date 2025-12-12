@@ -47,6 +47,7 @@ REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
 
 EVAL_ENDPOINT = "/api/intake/llm-obs/v2/eval-metric"
 SPAN_ENDPOINT = "/api/v2/llmobs"
+EXPORT_SPANS_ENDPOINT = "/api/v2/llm-obs/v1/spans/events"
 SPAN_SUBDOMAIN_NAME = "llmobs-intake"
 EVAL_SUBDOMAIN_NAME = "api"
 EXP_SUBDOMAIN_NAME = "api"

@@ -1,5 +1,5 @@
 features:
   - |
     LLM Observability: Adds ``LLMObs.run_evaluations()`` method to run evaluations on spans that match the given filters and submit those evaluation metrics to
-    LLM Observability. This method requires both an API key and an APP key to be set since it uses the LLM Observability Export API under the hood to 
+    LLM Observability. This method requires both DD_API_KEY and DD_APP_KEY to be set as it uses the LLM Observability Export API under the hood to 
     retrieve spans. See ``the docs <https://docs.datadoghq.com/llm_observability/evaluations/export_api/>`` for details.

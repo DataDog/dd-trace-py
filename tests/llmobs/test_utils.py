@@ -4,7 +4,7 @@ import pytest
 
 from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs._utils import ExportSpansAPIError
-from ddtrace.llmobs._utils import LLMObsExportSpansClient
+from ddtrace.llmobs._writer import LLMObsExportSpansClient
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
@@ -347,7 +347,7 @@ def test_export_spans_client_build_url_options_empty():
     }
 
 
-@mock.patch("ddtrace.llmobs._utils.LLMObsExportSpansClient._request")
+@mock.patch("ddtrace.llmobs._writer.LLMObsExportSpansClient._request")
 def test_export_spans_client_export_spans(mock_request):
     """Test successful export_spans call with pagination."""
     export_spans_client = LLMObsExportSpansClient(
@@ -382,7 +382,7 @@ def test_export_spans_client_export_spans(mock_request):
     assert spans[1] == {"span_id": "span-2", "trace_id": "trace-1"}
 
 
-@mock.patch("ddtrace.llmobs._utils.LLMObsExportSpansClient._request")
+@mock.patch("ddtrace.llmobs._writer.LLMObsExportSpansClient._request")
 def test_export_spans_client_export_spans_error(mock_request):
     """Test export_spans raises ExportSpansAPIError on non-200 response."""
     export_spans_client = LLMObsExportSpansClient(

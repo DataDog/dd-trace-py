@@ -28,7 +28,7 @@ from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.llmobs import _telemetry as telemetry
-from ddtrace.llmobs._constants import AGENTLESS_EVAL_BASE_URL
+from ddtrace.llmobs._constants import AGENTLESS_EVAL_BASE_URL, EXPORT_SPANS_ENDPOINT
 from ddtrace.llmobs._constants import AGENTLESS_EXP_BASE_URL
 from ddtrace.llmobs._constants import AGENTLESS_SPAN_BASE_URL
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
@@ -45,14 +45,13 @@ from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import UpdatableDatasetRecord
 from ddtrace.llmobs._http import get_connection
-from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs.types import _Meta
+from ddtrace.llmobs._utils import ExportSpansAPIError, safe_json
 from ddtrace.llmobs.types import _SpanLink
+from ddtrace.llmobs.types import _Meta
 from ddtrace.version import __version__
 
 
 logger = get_logger(__name__)
-
 
 class _LLMObsSpanEventOptional(TypedDict, total=False):
     session_id: str
@@ -105,6 +104,7 @@ class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
     error: Optional[Dict[str, str]]
     tags: List[str]
     experiment_id: str
+
 
 
 def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
@@ -743,6 +743,131 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
                 event_data["_dd.scope"] = "experiments"
             payload.append(event_data)
         return payload
+
+class LLMObsExportSpansClient:
+    """Retrieves spans from the LLMObs Export API."""
+
+    TIMEOUT = 10.0
+    DEFAULT_PAGE_LIMIT = 100
+
+    def __init__(
+        self,
+        api_key: str,
+        app_key: str,
+        site: str,
+    ) -> None:
+        self._api_key: str = api_key
+        self._app_key: str = app_key
+        self._site: str = site
+        self._base_url: str = f"https://api.{self._site}"
+
+    def export_spans(
+        self,
+        span_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
+        tags: Optional[Dict[str, str]] = None,
+        span_kind: Optional[str] = None,
+        span_name: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        from_timestamp: Optional[str] = None,
+        to_timestamp: Optional[str] = None,
+    ):
+        """
+        Generator that yields spans from the LLMObs Export API, handling pagination automatically.
+        """
+        url_options = self._build_url_options(
+            span_id, trace_id, tags, span_kind, span_name, ml_app, from_timestamp, to_timestamp
+        )
+
+        has_next_page = True
+        page_num = 0
+
+        while has_next_page:
+            path = f"{EXPORT_SPANS_ENDPOINT}?{urllib.parse.urlencode(url_options)}"
+
+            resp = self._request(path, self.TIMEOUT)
+
+            if resp.status != 200:
+                logger.error(
+                    "Failed to export spans: page=%d, status=%d, response=%s",
+                    page_num,
+                    getattr(resp, "status", None),
+                    getattr(resp, "body", None),
+                )
+                raise ExportSpansAPIError(
+                    f"Failed to export spans with status {resp.status} for url options {url_options}"
+                )
+
+            response_data = resp.get_json() if hasattr(resp, "get_json") else {}
+
+            for span in response_data.get("data", []):
+                yield span.get("attributes", {})
+
+            has_next_page = False
+            next_cursor = self._extract_next_cursor(response_data)
+            if next_cursor:
+                has_next_page = True
+                url_options["page[cursor]"] = next_cursor
+                page_num += 1
+
+    def _request(self, path: str, timeout: float) -> Response:
+        if not self._api_key or not self._app_key:
+            raise ValueError("Both an API key and an APP key are required to make requests to the LLMObs Export API")
+
+        headers = {
+            "Content-Type": "application/vnd.api+json",
+            "DD-API-KEY": self._api_key,
+            "DD-APPLICATION-KEY": self._app_key,
+        }
+
+        conn = get_connection(url=self._base_url, timeout=timeout)
+        try:
+            url = self._base_url + path
+            logger.debug("Making GET request to %s", url)
+            conn.request("GET", url, b"", headers)
+            resp = conn.getresponse()
+            return Response.from_http_response(resp)
+        finally:
+            conn.close()
+
+    def _extract_next_cursor(self, response_data) -> Optional[str]:
+        if not response_data:
+            return None
+        meta = response_data.get("meta", {}) or {}
+        page = meta.get("page", {}) or {}
+        return page.get("after")
+
+    def _build_url_options(
+        self,
+        span_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
+        tags: Optional[Dict[str, str]] = None,
+        span_kind: Optional[str] = None,
+        span_name: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        from_timestamp: Optional[str] = None,
+        to_timestamp: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        url_options: Dict[str, Any] = {}
+        if span_id:
+            url_options["filter[span_id]"] = span_id
+        if trace_id:
+            url_options["filter[trace_id]"] = trace_id
+        if tags:
+            for k, v in tags.items():
+                url_options[f"filter[tag][{k}]"] = v
+        if span_kind:
+            url_options["filter[span_kind]"] = span_kind
+        if span_name:
+            url_options["filter[span_name]"] = span_name
+        if ml_app:
+            url_options["filter[ml_app]"] = ml_app
+        if from_timestamp:
+            url_options["filter[from]"] = from_timestamp
+        if to_timestamp:
+            url_options["filter[to]"] = to_timestamp
+        url_options["page[limit]"] = self.DEFAULT_PAGE_LIMIT
+        return url_options
 
 
 def _truncate_span_event(event: LLMObsSpanEvent) -> LLMObsSpanEvent:
