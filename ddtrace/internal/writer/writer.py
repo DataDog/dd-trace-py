@@ -803,12 +803,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._max_payload_size = max_payload_size
         self._test_session_token = test_session_token
 
-        try:
-            fork_hook = make_weak_method_hook(self.before_fork)
-            forksafe.register_before_fork(fork_hook)
-            self._fork_hook = fork_hook
-        except TypeError:
-            log.warning("Failed to register NativeWriter fork hook")
 
         self._clients = [client]
         self.dogstatsd = dogstatsd
@@ -819,6 +813,14 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._compute_stats_enabled = compute_stats_enabled
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
+
+        try:
+            fork_hook = make_weak_method_hook(self.before_fork)
+            forksafe.register_before_fork(fork_hook)
+            self._fork_hook = fork_hook
+        except TypeError:
+            log.warning("Failed to register NativeWriter fork hook")
+
         self._exporter = self._create_exporter()
 
     def __del__(self):
@@ -890,9 +892,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             # Writers like AgentWriter may not start until the first trace is encoded.
             # Stopping them before that will raise a ServiceStatusError.
             pass
-
-        # Stop the trace exporter worker
-        self._exporter.stop_worker()
 
         api_version = "v0.4" if appsec_enabled else self._api_version
         return self.__class__(
@@ -1100,13 +1099,16 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self,
         timeout: Optional[float] = None,
     ) -> None:
-        # FIXME: don't join() on stop(), let the caller handle this
-        super(NativeWriter, self)._stop_service()
-        if self._fork_hook:
-            forksafe.unregister_before_fork(self._fork_hook)
-            self._fork_hook = None
-        self.join(timeout=timeout)
-        self.before_fork()
+        try:
+            # FIXME: don't join() on stop(), let the caller handle this
+            super(NativeWriter, self)._stop_service()
+            self.join(timeout=timeout)
+        # Native threads should be stopped even if the writer is not running
+        finally:
+            self.before_fork()
+            if self._fork_hook:
+                forksafe.unregister_before_fork(self._fork_hook)
+                self._fork_hook = None
 
     def before_fork(self) -> None:
         self._exporter.stop_worker()
