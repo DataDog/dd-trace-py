@@ -132,7 +132,7 @@ class APIClient:
             result = self.connector.post_json("/api/v2/ci/libraries/tests", request_data, telemetry=telemetry)
             result.on_error_raise_exception()
 
-        except Exception:
+        except Exception as e:
             log.error("Error getting known tests from API")
             log.debug("Error getting known tests from API", exc_info=True)
             return set()
