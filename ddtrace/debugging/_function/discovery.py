@@ -139,7 +139,10 @@ class _FunctionCodePair:
             msg = "Cannot resolve pair with no code object"
             raise ValueError(msg)
 
-        if self.function is not None:
+        # Check that the function we have cached is not a wrapper layer that
+        # has been unwrapped. In this case we need to resolve the new function
+        # from the code object.
+        if (_ := self.function) is not None and _.__name__ != "<unwrapped>":
             return cast(FullyNamedFunction, self.function)
 
         code = self.code
