@@ -156,8 +156,8 @@ class Hooks:
             return wrapper
         return None
 
-    # Provide shorthand `on` method for `register`
-    on = register
+     def on(self):
+        return self.register()
 
     def deregister(self, hook, func):
         """No-op: Hook deregistration is deprecated.
