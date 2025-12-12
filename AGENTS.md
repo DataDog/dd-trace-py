@@ -27,7 +27,6 @@
 ## Initial Setup for AI Assistants
 
 When starting a new chat session, ALWAYS read and apply the rules from:
-
 2. `.cursor/rules/*.mdc` - All rule files in this directory (version controlled):
    - `dd-trace-py.mdc` - Core project guidelines
    - `linting.mdc` - Code quality and formatting
@@ -99,4 +98,3 @@ This project has custom skills that provide specialized workflows. **Always chec
 ---
 
 <!-- Add more skills below as they are created -->
-

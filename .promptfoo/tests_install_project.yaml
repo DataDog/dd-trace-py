@@ -1,0 +1,228 @@
+# Promptfoo Test Suite: Project Installation and Setup Validation
+# Tests that the dd-trace-py development environment is properly set up
+# and key development tools are functional
+
+description: "Validates dd-trace-py project installation, Python environments, and development tools"
+
+providers:
+  - id: anthropic:messages:claude-sonnet-4-5
+    config:
+      temperature: 0
+      max_tokens: 4000
+
+prompts:
+  - file://.promptfoo/prompts/project_setup.txt
+
+defaultTest:
+  options:
+    provider: anthropic:messages:claude-sonnet-4-5
+
+tests:
+  # Test 1: Check Python Versions Installation
+  - description: "Verify Python versions 3.8-3.14 are installed"
+    vars:
+      task: "Check if Python versions 3.8 through 3.14 are installed on the system. Use pyenv or uv to list installed versions. Report which versions are available."
+    assert:
+      - type: contains
+        value: "3.10"
+      - type: contains
+        value: "3.12"
+      - type: contains
+        value: "3.13"
+      - type: javascript
+        value: |
+          // Check that the response mentions multiple Python versions
+          const versions = ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13'];
+          const mentionedVersions = versions.filter(v => output.includes(v));
+          return mentionedVersions.length >= 3;
+
+  - description: "Verify pyenv or uv is installed and functional"
+    vars:
+      task: "Check if pyenv or uv (Python version manager) is installed and working. Run the appropriate command to verify."
+    assert:
+      - type: javascript
+        value: |
+          // Should mention either pyenv or uv and show it's working
+          const hasPyenv = output.toLowerCase().includes('pyenv');
+          const hasUv = output.toLowerCase().includes('uv');
+          const hasVersion = /version|v?\d+\.\d+\.\d+/.test(output);
+          return (hasPyenv || hasUv) && hasVersion;
+
+  # Test 2: Run Tests for Specific File
+  - description: "Run tests for tests/internal/test_wrapping.py"
+    vars:
+      task: "Run the test suite for tests/internal/test_wrapping.py using the project's test infrastructure. Use scripts/run-tests or appropriate method."
+    assert:
+      - type: contains
+        value: "test"
+      - type: javascript
+        value: |
+          // Should show test execution or mention the test file
+          const hasTestFile = output.includes('test_wrapping') || output.includes('tests/internal');
+          const hasTestExecution = output.includes('passed') || output.includes('PASSED') ||
+                                   output.includes('run') || output.includes('pytest') ||
+                                   output.includes('scripts/run-tests');
+          return hasTestFile && hasTestExecution;
+      - type: not-contains
+        value: "FAILED"
+        # Allow failure but we want to detect it
+
+  - description: "Verify test discovery for test_wrapping.py"
+    vars:
+      task: "Use scripts/run-tests --list tests/internal/test_wrapping.py to discover which test suites would run. Show the output."
+    assert:
+      - type: contains
+        value: "suite"
+      - type: javascript
+        value: |
+          // Should show suite discovery output
+          const hasSuiteInfo = output.includes('suite') || output.includes('venv') || output.includes('internal');
+          const hasListCommand = output.includes('--list') || output.includes('Checking');
+          return hasSuiteInfo;
+
+  # Test 3: Hatch Lint Formatting
+  - description: "Run hatch lint formatter on current directory"
+    vars:
+      task: "Execute 'hatch -v run lint:fmt .' to format the code in the current directory. Show the command output."
+    assert:
+      - type: contains
+        value: "hatch"
+      - type: javascript
+        value: |
+          // Should show hatch execution
+          const hasHatch = output.toLowerCase().includes('hatch');
+          const hasLint = output.toLowerCase().includes('lint') || output.toLowerCase().includes('fmt');
+          const hasExecution = output.includes('run') || output.includes('reformatted') ||
+                               output.includes('formatted') || output.includes('All done') ||
+                               output.includes('checking') || output.includes('would reformat');
+          return hasHatch && (hasLint || hasExecution);
+      - type: not-contains
+        value: "command not found"
+
+  - description: "Verify hatch is installed and accessible"
+    vars:
+      task: "Check if hatch is installed by running 'hatch --version' or 'hatch -V'. Show the version."
+    assert:
+      - type: contains-any
+        value:
+          - "hatch"
+          - "version"
+      - type: javascript
+        value: |
+          // Should show hatch version
+          const hasVersion = /\d+\.\d+\.\d+/.test(output) || /version/i.test(output);
+          return hasVersion;
+
+  # Test 4: Riot Meta-Testing
+  - description: "Run riot meta-testing with Python 3.10"
+    vars:
+      task: "Execute 'riot -vv run --python=3.10 meta-testing' to run the meta-testing suite. Show command output and results."
+    assert:
+      - type: contains
+        value: "riot"
+      - type: javascript
+        value: |
+          // Should show riot execution
+          const hasRiot = output.toLowerCase().includes('riot');
+          const hasPython310 = output.includes('3.10') || output.includes('py310');
+          const hasExecution = output.includes('run') || output.includes('meta-testing') ||
+                               output.includes('passed') || output.includes('test') ||
+                               output.includes('venv');
+          return hasRiot && hasExecution;
+      - type: not-contains
+        value: "not found"
+
+  - description: "Verify riot is installed and can list venvs"
+    vars:
+      task: "Check if riot is installed by running 'riot list' or 'riot --version'. Show available venvs or version."
+    assert:
+      - type: contains
+        value: "riot"
+      - type: javascript
+        value: |
+          // Should show riot is working
+          const hasRiot = output.toLowerCase().includes('riot');
+          const hasInfo = output.includes('venv') || output.includes('version') ||
+                         output.includes('python') || /\d+\.\d+/.test(output);
+          return hasRiot && hasInfo;
+
+  # Integration Test: Complete Workflow
+  - description: "Validate complete development workflow"
+    vars:
+      task: "Perform a complete validation: 1) Check Python versions, 2) Verify hatch works, 3) Verify riot works, 4) Run a quick test. Report overall status."
+    assert:
+      - type: javascript
+        value: |
+          // Should mention all key tools
+          const hasPython = output.toLowerCase().includes('python');
+          const hasHatch = output.toLowerCase().includes('hatch');
+          const hasRiot = output.toLowerCase().includes('riot');
+          const hasTest = output.toLowerCase().includes('test');
+          return hasPython && hasHatch && hasRiot && hasTest;
+      - type: javascript
+        value: |
+          // Should indicate success or working status
+          const positiveIndicators = [
+            'working', 'installed', 'available', 'success', 'passed',
+            'ok', 'ready', 'functional', 'found', 'version'
+          ];
+          const hasPositive = positiveIndicators.some(indicator =>
+            output.toLowerCase().includes(indicator)
+          );
+          return hasPositive;
+
+  # Environment Validation
+  - description: "Check required build dependencies"
+    vars:
+      task: "Verify that required build dependencies are installed: cmake, cython, setuptools-rust. Check versions or availability."
+    assert:
+      - type: contains-any
+        value:
+          - "cmake"
+          - "cython"
+          - "setuptools"
+      - type: javascript
+        value: |
+          // Should check build dependencies
+          const hasCmake = output.toLowerCase().includes('cmake');
+          const hasCython = output.toLowerCase().includes('cython');
+          const hasSetuptools = output.toLowerCase().includes('setuptools') || output.toLowerCase().includes('rust');
+          return hasCmake || hasCython || hasSetuptools;
+
+  # Docker Services Check
+  - description: "Verify Docker is available for test services"
+    vars:
+      task: "Check if Docker is installed and running. Verify docker-compose is available for test services."
+    assert:
+      - type: contains
+        value: "docker"
+      - type: javascript
+        value: |
+          // Should show docker status
+          const hasDocker = output.toLowerCase().includes('docker');
+          const hasInfo = output.includes('version') || output.includes('running') ||
+                         output.includes('compose') || output.includes('containers');
+          return hasDocker;
+
+# Assertions that should apply to most tests
+defaultTests:
+  - type: not-contains
+    value: "error"
+    metric: ErrorRate
+  - type: not-contains
+    value: "failed"
+    metric: FailureRate
+
+# Grading configuration
+outputPath: .promptfoo/output/tests_install_project.json
+
+# Test metadata
+metadata:
+  suite: project-setup
+  category: installation
+  priority: high
+  tags:
+    - setup
+    - installation
+    - environment
+    - validation
