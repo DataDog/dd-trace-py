@@ -36,6 +36,23 @@ MOCK_GENERATE_CONTENT_RESPONSE = types.GenerateContentResponse(
     ),
 )
 
+MOCK_GENERATE_CONTENT_RESPONSE_WITH_REASONING = types.GenerateContentResponse(
+    candidates=[
+        types.Candidate(
+            content=types.Content(
+                role="model",
+                parts=[
+                    types.Part.from_text(text="Let me think about this..."),
+                    types.Part.from_text(text="The sky is blue due to rayleigh scattering"),
+                ],
+            )
+        )
+    ],
+    usage_metadata=types.GenerateContentResponseUsageMetadata(
+        prompt_token_count=8, candidates_token_count=9, thoughts_token_count=5, total_token_count=22
+    ),
+)
+
 MOCK_GENERATE_CONTENT_RESPONSE_STREAM = [
     types.GenerateContentResponse(
         candidates=[types.Candidate(content=types.Content(role="model", parts=[types.Part.from_text(text="The sky")]))],

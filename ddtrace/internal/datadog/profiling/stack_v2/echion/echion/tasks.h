@@ -4,19 +4,22 @@
 
 #pragma once
 
-#include <optional>
-
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
-#include <weakrefobject.h>
+#include <frameobject.h>
 
 #if PY_VERSION_HEX >= 0x030b0000
 #include <cpython/genobject.h>
 
 #define Py_BUILD_CORE
-#if PY_VERSION_HEX >= 0x030d0000
+#include <cstddef>
+#if PY_VERSION_HEX >= 0x030e0000
+#include <internal/pycore_frame.h>
+#include <opcode.h>
+#elif PY_VERSION_HEX >= 0x030d0000
 #include <opcode.h>
 #else
+#include <internal/pycore_frame.h>
 #include <internal/pycore_opcode.h>
 #endif // PY_VERSION_HEX >= 0x030d0000
 #else
@@ -273,67 +276,6 @@ TaskInfo::current(PyObject* loop)
     }
 
     return TaskInfo::create(reinterpret_cast<TaskObj*>(task));
-}
-
-// ----------------------------------------------------------------------------
-// TODO: Make this a "for_each_task" function?
-[[nodiscard]] inline Result<std::vector<TaskInfo::Ptr>>
-get_all_tasks(PyObject* loop)
-{
-    std::vector<TaskInfo::Ptr> tasks;
-    if (loop == NULL)
-        return tasks;
-
-    auto maybe_scheduled_tasks_set = MirrorSet::create(asyncio_scheduled_tasks);
-    if (!maybe_scheduled_tasks_set) {
-        return ErrorKind::TaskInfoError;
-    }
-
-    auto scheduled_tasks_set = std::move(*maybe_scheduled_tasks_set);
-    auto maybe_scheduled_tasks = scheduled_tasks_set.as_unordered_set();
-    if (!maybe_scheduled_tasks) {
-        return ErrorKind::TaskInfoError;
-    }
-
-    auto scheduled_tasks = std::move(*maybe_scheduled_tasks);
-    for (auto task_wr_addr : scheduled_tasks) {
-        PyWeakReference task_wr;
-        if (copy_type(task_wr_addr, task_wr))
-            continue;
-
-        auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_wr.wr_object));
-        if (maybe_task_info) {
-            if ((*maybe_task_info)->loop == loop) {
-                tasks.push_back(std::move(*maybe_task_info));
-            }
-        }
-    }
-
-    if (asyncio_eager_tasks != NULL) {
-        auto maybe_eager_tasks_set = MirrorSet::create(asyncio_eager_tasks);
-        if (!maybe_eager_tasks_set) {
-            return ErrorKind::TaskInfoError;
-        }
-
-        auto eager_tasks_set = std::move(*maybe_eager_tasks_set);
-
-        auto maybe_eager_tasks = eager_tasks_set.as_unordered_set();
-        if (!maybe_eager_tasks) {
-            return ErrorKind::TaskInfoError;
-        }
-
-        auto eager_tasks = std::move(*maybe_eager_tasks);
-        for (auto task_addr : eager_tasks) {
-            auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_addr));
-            if (maybe_task_info) {
-                if ((*maybe_task_info)->loop == loop) {
-                    tasks.push_back(std::move(*maybe_task_info));
-                }
-            }
-        }
-    }
-
-    return tasks;
 }
 
 // ----------------------------------------------------------------------------

@@ -103,20 +103,32 @@ def _(asyncio: ModuleType) -> None:
 
     init_stack_v2: bool = config.stack.enabled and stack_v2.is_available
 
-    @partial(wrap, sys.modules["asyncio.events"].BaseDefaultEventLoopPolicy.set_event_loop)
-    def _(
-        f: typing.Callable[..., typing.Any], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]
-    ) -> typing.Any:
-        loop: typing.Optional["aio.AbstractEventLoop"] = get_argument_value(args, kwargs, 1, "loop")
-        try:
-            if init_stack_v2:
-                stack_v2.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
-            return f(*args, **kwargs)
-        finally:
-            assert THREAD_LINK is not None  # nosec: assert is used for typing
-            THREAD_LINK.clear_threads(set(sys._current_frames().keys()))
-            if loop is not None:
-                THREAD_LINK.link_object(loop)
+    # Python 3.14+: BaseDefaultEventLoopPolicy was renamed to _BaseDefaultEventLoopPolicy
+    # Try both names for compatibility
+    events_module = sys.modules["asyncio.events"]
+    if sys.hexversion >= 0x030E0000:
+        # Python 3.14+: Use _BaseDefaultEventLoopPolicy
+        policy_class = getattr(events_module, "_BaseDefaultEventLoopPolicy", None)
+    else:
+        # Python < 3.14: Use BaseDefaultEventLoopPolicy
+        policy_class = getattr(events_module, "BaseDefaultEventLoopPolicy", None)
+
+    if policy_class is not None:
+
+        @partial(wrap, policy_class.set_event_loop)
+        def _(
+            f: typing.Callable[..., typing.Any], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]
+        ) -> typing.Any:
+            loop: typing.Optional["aio.AbstractEventLoop"] = get_argument_value(args, kwargs, 1, "loop")
+            try:
+                if init_stack_v2:
+                    stack_v2.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
+                return f(*args, **kwargs)
+            finally:
+                assert THREAD_LINK is not None  # nosec: assert is used for typing
+                THREAD_LINK.clear_threads(set(sys._current_frames().keys()))
+                if loop is not None:
+                    THREAD_LINK.link_object(loop)
 
     if init_stack_v2:
 

@@ -17,6 +17,8 @@ import typing as t
 from unittest.mock import Mock
 from unittest.mock import patch
 
+from _pytest.reports import TestReport
+
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.http import ErrorType
@@ -667,3 +669,20 @@ class EventCapture:
                 return event
 
         raise AssertionError(f"Expected event with test name {test_name!r}, found none")
+
+
+def test_report(
+    nodeid: str = "foo.py::test_foo",
+    location: t.Tuple[str, int, str] = ("foo.py", 42, "foo"),
+    outcome: str = "passed",
+    longrepr: t.Any = None,
+    when: str = "call",
+    keywords: t.Optional[t.Dict[str, str]] = None,
+    wasxfail: t.Any = None,
+):
+    report = TestReport(
+        nodeid=nodeid, location=location, outcome=outcome, longrepr=longrepr, when=when, keywords=keywords or {}
+    )
+    if wasxfail:
+        setattr(report, "wasxfail", wasxfail)
+    return report
