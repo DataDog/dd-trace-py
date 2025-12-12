@@ -140,3 +140,13 @@ def test_process_tags_enabled():
         assert tags_dict[ENTRYPOINT_WORKDIR_TAG] == "workdir"
         assert tags_dict[ENTRYPOINT_BASEDIR_TAG] == "to"
         assert tags_dict[ENTRYPOINT_TYPE_TAG] == "script"
+
+
+@pytest.mark.subprocess(env={"DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": "true"})
+def test_process_tag_class():
+    from typing import List
+
+    from ddtrace.internal.runtime.runtime_metrics import ProcessTags
+
+    process_tags: List[str] = list(ProcessTags())
+    assert len(process_tags) >= 4
