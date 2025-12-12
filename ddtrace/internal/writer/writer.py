@@ -821,13 +821,14 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
         try:
             before_fork_hook = make_weak_method_hook(self.before_fork)
-            after_fork_in_parent_hook = make_weak_method_hook(self._after_fork_in_parent)
+            after_fork_hook = make_weak_method_hook(self._after_fork)
 
             forksafe.register_before_fork(before_fork_hook)
             self._before_fork_hook = before_fork_hook
 
-            forksafe.register_after_parent(after_fork_in_parent_hook)
-            self._after_fork_in_parent_hook = after_fork_in_parent_hook
+            forksafe.register_after_parent(after_fork_hook)
+            forksafe.register(after_fork_hook)
+            self._after_fork_hook = after_fork_hook
         except TypeError:
             log.warning("Failed to register NativeWriter fork hook")
 
@@ -838,9 +839,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             forksafe.unregister_before_fork(self._before_fork_hook)
             self._before_fork_hook = None
 
-        if self._after_fork_in_parent_hook:
-            forksafe.unregister_parent(self._after_fork_in_parent_hook)
-            self._after_fork_in_parent_hook = None
+        if self._after_fork_hook:
+            forksafe.unregister_parent(self._after_fork_hook)
+            forksafe.unregister(self._after_fork_hook)
+            self._after_fork_hook = None
 
     def _create_exporter(self) -> native.TraceExporter:
         """
@@ -888,7 +890,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
         return builder.build()
 
-    def _after_fork_in_parent(self):
+    def _after_fork(self):
         with self._forking_cv:
             self._disable_flush = False
             self._forking_cv.notify_all()
@@ -1137,9 +1139,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             if self._before_fork_hook:
                 forksafe.unregister_before_fork(self._before_fork_hook)
                 self._before_fork_hook = None
-            if self._after_fork_in_parent_hook:
-                forksafe.unregister_parent(self._after_fork_in_parent_hook)
-                self._after_fork_in_parent_hook = None
+            if self._after_fork_hook:
+                forksafe.unregister_parent(self._after_fork_hook)
+                forksafe.unregister(self._after_fork_hook)
+                self._after_fork_hook = None
 
     def before_fork(self) -> None:
         # Mark the writer as forking to avoid restarting threads before the fork
