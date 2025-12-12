@@ -72,6 +72,7 @@ suites:
       - '@ci_visibility'
       - '@coverage'
       - '@codeowners'
+      - '@testing'
       - tests/testing/*
     runner: riot
     snapshot: true
