@@ -26,7 +26,7 @@ add_aspect(PyObject* result_o,
     }
 
     const auto& to_candidate_text = get_tainted_object(candidate_text, tx_taint_map);
-    if (to_candidate_text and to_candidate_text->get_ranges().size() >= TaintedObject::TAINT_RANGE_LIMIT) {
+    if (to_candidate_text and !to_candidate_text->has_free_tainted_ranges_space()) {
         const auto& res_new_id = new_pyobject_id(result_o);
         Py_DECREF(result_o);
         // If left side is already at the maximum taint ranges, we just reuse its

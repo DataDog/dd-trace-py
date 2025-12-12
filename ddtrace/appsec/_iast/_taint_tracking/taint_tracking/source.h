@@ -30,6 +30,18 @@ enum class TagMappingMode
     Mapper_Replace
 };
 
+// Helper function to get truncation max length from environment variable
+size_t
+get_source_truncation_max_length();
+
+// Reset the cached truncation length (for testing purposes only)
+void
+reset_source_truncation_cache();
+
+// Helper function to truncate value string if needed
+string
+truncate_source_value(string value);
+
 struct Source
 {
     Source(string, string, OriginType);
@@ -44,7 +56,7 @@ struct Source
     void set_values(string name_ = "", string value_ = "", OriginType origin_ = OriginType())
     {
         name = std::move(name_);
-        value = std::move(value_);
+        value = truncate_source_value(std::move(value_));
         origin = origin_;
     }
 
