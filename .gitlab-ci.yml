@@ -41,6 +41,7 @@ include:
   - local: ".gitlab/testrunner.yml"
   - local: ".gitlab/benchmarks/serverless.yml"
   - local: ".gitlab/native.yml"
+  - local: ".gitlab/import-analysis.yml"
 
 
 # Expose the following variables to the rest of the pipeline

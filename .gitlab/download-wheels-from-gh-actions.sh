@@ -1,12 +1,32 @@
 #!/bin/bash
 set -eo pipefail
 
+# Optional: accept commit SHA as first argument, otherwise use CI_COMMIT_SHA
+COMMIT_SHA="${1:-${CI_COMMIT_SHA}}"
+OUTPUT_DIR="${2:-pywheels}"
+
+if [ -z "${COMMIT_SHA}" ]; then
+  echo "Error: Commit SHA must be provided as argument or CI_COMMIT_SHA must be set" >&2
+  exit 1
+fi
+
 source .gitlab/gha-utils.sh
+
+# Temporarily override CI_COMMIT_SHA to get run ID for the specified commit
+ORIGINAL_CI_COMMIT_SHA="${CI_COMMIT_SHA:-}"
+export CI_COMMIT_SHA="${COMMIT_SHA}"
 
 RUN_ID=$(wait_for_run_id)
 
-mkdir pywheels
-cd pywheels
+# Restore original CI_COMMIT_SHA (or unset if it wasn't set originally)
+if [ -n "${ORIGINAL_CI_COMMIT_SHA}" ]; then
+  export CI_COMMIT_SHA="${ORIGINAL_CI_COMMIT_SHA}"
+else
+  unset CI_COMMIT_SHA
+fi
+
+mkdir -p "${OUTPUT_DIR}"
+cd "${OUTPUT_DIR}"
 
 if [[ $(gh run view $RUN_ID --exit-status --json status --jq .status) != "completed" ]]; then
   echo "Waiting for workflow to finish"
@@ -27,6 +47,6 @@ cd ..
 echo "Finished downloading wheels. Fixing directory structure"
 
 # Flatten directory structure so all wheels are top level
-find pywheels -type f -exec mv {} pywheels \;
+find "${OUTPUT_DIR}" -type f -exec mv {} "${OUTPUT_DIR}" \;
 
 echo "Done"
