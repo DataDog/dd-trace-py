@@ -7,92 +7,84 @@
   variables:
     DD_IAST_ENABLED: "false"
     DD_REMOTE_CONFIGURATION_ENABLED: "false"
+    TEST_DEPS: "pytest pytest-cov requests hypothesis flask asgiref botocore dnspython"
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
 
-multi_os_tests:ubuntu:
+.unix_test_base:
   extends: .multi_os_test_base
+  before_script:
+    # Install uv
+    - |
+      curl -LsSf https://astral.sh/uv/install.sh | sh
+      export PATH="$HOME/.local/bin:$PATH"
+    # Create temp directory and install in isolation
+    - |
+      export PATH="$HOME/.local/bin:$PATH"
+      export TMPDIR=$(mktemp -d)
+      cd "$TMPDIR"
+      export WHEEL_TAG="cp${PYTHON_VERSION//./}"
+      echo "Installing Python $PYTHON_VERSION and dependencies in $TMPDIR..."
+      uv python install $PYTHON_VERSION
+      uv venv --python $PYTHON_VERSION .venv
+      WHEEL_PATH="$CI_PROJECT_DIR/pywheels/ddtrace*${WHEEL_TAG}*${WHEEL_PATTERN}"
+      uv pip install --python $PYTHON_VERSION $TEST_DEPS $WHEEL_PATH
+  script:
+    - |
+      export PATH="$HOME/.local/bin:$PATH"
+      cd "$TMPDIR"
+      source .venv/bin/activate
+      echo "Running tests on $PLATFORM with Python $PYTHON_VERSION"
+      python -m pytest "$CI_PROJECT_DIR/tests/internal/service_name/test_extra_services_names.py" -v -s
+      python -m pytest "$CI_PROJECT_DIR/tests/appsec/architectures/test_appsec_loading_modules.py" -v -s
+
+os tests ubuntu:
+  extends: .unix_test_base
   image: registry.ddbuild.io/images/mirror/ubuntu:25.04
   tags: ["arch:amd64"]
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
+  variables:
+    WHEEL_PATTERN: "manylinux2014*x86_64.whl"
+    PLATFORM: "Ubuntu"
   before_script:
-    # Install uv
-    - |
-      apt-get update
-      apt-get install -y curl
-      curl -LsSf https://astral.sh/uv/install.sh | sh
-      export PATH="$HOME/.local/bin:$PATH"
-    # Install Python version and test dependencies with ddtrace wheel
-    - |
-      export PATH="$HOME/.local/bin:$PATH"
-      echo "Installing Python $PYTHON_VERSION and dependencies..."
-      uv python install $PYTHON_VERSION
-      uv venv --python $PYTHON_VERSION .venv
-      export WHEEL_TAG="cp${PYTHON_VERSION//./}"
-      uv pip install --python $PYTHON_VERSION \
-        pytest pytest-cov requests hypothesis flask asgiref botocore dnspython \
-        pywheels/ddtrace*${WHEEL_TAG}*manylinux2014*x86_64.whl
-  script:
-    - export PATH="$HOME/.local/bin:$PATH"
-    - source .venv/bin/activate
-    - echo "Running tests on Ubuntu with Python $PYTHON_VERSION"
-    - python -m pytest tests/internal/service_name/test_extra_services_names.py -v -s
-    - python -m pytest tests/appsec/architectures/test_appsec_loading_modules.py -v -s
+    - apt-get update && apt-get install -y curl
+    - !reference [.unix_test_base, before_script]
 
-multi_os_tests:macos:
-  extends: .multi_os_test_base
+os tests macos:
+  extends: .unix_test_base
   tags: ["macos:sonoma-amd64"]
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
-  before_script:
-    # Install uv
-    - |
-      curl -LsSf https://astral.sh/uv/install.sh | sh
-      export PATH="$HOME/.local/bin:$PATH"
-    # Install Python version and test dependencies with ddtrace wheel
-    - |
-      export PATH="$HOME/.local/bin:$PATH"
-      echo "Installing Python $PYTHON_VERSION and dependencies..."
-      uv python install $PYTHON_VERSION
-      uv venv --python $PYTHON_VERSION .venv
-      export WHEEL_TAG="cp${PYTHON_VERSION//./}"
-      uv pip install --python $PYTHON_VERSION \
-        pytest pytest-cov requests hypothesis flask asgiref botocore dnspython \
-        pywheels/ddtrace*${WHEEL_TAG}*macosx*x86_64.whl
-  script:
-    - export PATH="$HOME/.local/bin:$PATH"
-    - source .venv/bin/activate
-    - echo "Running tests on macOS with Python $PYTHON_VERSION"
-    - python -m pytest tests/internal/service_name/test_extra_services_names.py -v -s
-    - python -m pytest tests/appsec/architectures/test_appsec_loading_modules.py -v -s
+  variables:
+    WHEEL_PATTERN: "macosx*x86_64.whl"
+    PLATFORM: "macOS"
 
-multi_os_tests:windows:
+os tests windows:
   extends: .multi_os_test_base
   tags: ["windows-v2:2022"]
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
   before_script:
     # Install uv
     - |
       Write-Host "Installing uv..."
       powershell -Command "irm https://astral.sh/uv/install.ps1 | iex"
       $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
-    # Install test dependencies with ddtrace wheel
+    # Create temp directory and install in isolation
     - |
       $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
-      Write-Host "Installing test dependencies and ddtrace..."
+      $env:TMPDIR = [System.IO.Path]::GetTempPath() + [System.Guid]::NewGuid().ToString()
+      New-Item -ItemType Directory -Path $env:TMPDIR -Force | Out-Null
+      Set-Location $env:TMPDIR
+      Write-Host "Installing test dependencies and ddtrace in $env:TMPDIR..."
       uv python install $env:PYTHON_VERSION
       uv venv --python $env:PYTHON_VERSION .venv
       $wheelTag = "cp$($env:PYTHON_VERSION -replace '\.','')"
-      $wheel = (Get-Item "pywheels\ddtrace*${wheelTag}*win_amd64.whl")[0].FullName
+      $wheel = (Get-Item "$env:CI_PROJECT_DIR\pywheels\ddtrace*${wheelTag}*win_amd64.whl")[0].FullName
       uv pip install --python $env:PYTHON_VERSION `
         pytest pytest-cov requests hypothesis flask asgiref botocore dnspython `
         $wheel
   script:
-    - $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
-    - '& .\.venv\Scripts\Activate.ps1'
-    - Write-Host "Running tests on Windows with Python $env:PYTHON_VERSION"
-    - python -m pytest tests/internal/service_name/test_extra_services_names.py -v -s
-    - python -m pytest tests/appsec/architectures/test_appsec_loading_modules.py -v -s
+    - |
+      $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
+      Set-Location $env:TMPDIR
+      & ".\\.venv\\Scripts\\Activate.ps1"
+      Write-Host "Running tests on Windows with Python $env:PYTHON_VERSION"
+      python -m pytest "$env:CI_PROJECT_DIR\tests\internal\service_name\test_extra_services_names.py" -v -s
+      python -m pytest "$env:CI_PROJECT_DIR\tests\appsec\architectures\test_appsec_loading_modules.py" -v -s
