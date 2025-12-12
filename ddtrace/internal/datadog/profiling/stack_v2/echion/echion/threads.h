@@ -7,6 +7,10 @@
 #include <Python.h>
 #define Py_BUILD_CORE
 
+#if PY_VERSION_HEX >= 0x030e0000
+#include <internal/pycore_tstate.h>
+#endif
+
 #include <algorithm>
 #include <cstdint>
 #include <functional>
@@ -46,6 +50,7 @@ class ThreadInfo
     microsecond_t cpu_time;
 
     uintptr_t asyncio_loop = 0;
+    uintptr_t tstate_addr = 0; // Remote address of PyThreadState for accessing asyncio_tasks_head
 
     [[nodiscard]] Result<void> update_cpu_time();
     bool is_running();
@@ -101,8 +106,15 @@ class ThreadInfo
     };
 
   private:
-    [[nodiscard]] Result<void> unwind_tasks();
+    [[nodiscard]] Result<void> unwind_tasks(PyThreadState*);
     void unwind_greenlets(PyThreadState*, unsigned long);
+    [[nodiscard]] Result<std::vector<TaskInfo::Ptr>> get_all_tasks(PyThreadState* tstate);
+#if PY_VERSION_HEX >= 0x030e0000
+    [[nodiscard]] Result<void> get_tasks_from_thread_linked_list(std::vector<TaskInfo::Ptr>& tasks);
+    [[nodiscard]] Result<void> get_tasks_from_interpreter_linked_list(PyThreadState* tstate,
+                                                                      std::vector<TaskInfo::Ptr>& tasks);
+    [[nodiscard]] Result<void> get_tasks_from_linked_list(uintptr_t head_addr, std::vector<TaskInfo::Ptr>& tasks);
+#endif
 };
 
 inline Result<void>
@@ -192,7 +204,7 @@ ThreadInfo::unwind(PyThreadState* tstate)
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
         // We cast it to void to ignore failures.
-        (void)unwind_tasks();
+        (void)unwind_tasks(tstate);
     }
 
     // We make the assumption that gevent and asyncio are not mixed
@@ -203,7 +215,7 @@ ThreadInfo::unwind(PyThreadState* tstate)
 
 // ----------------------------------------------------------------------------
 inline Result<void>
-ThreadInfo::unwind_tasks()
+ThreadInfo::unwind_tasks(PyThreadState* tstate)
 {
     std::vector<TaskInfo::Ref> leaf_tasks;
     std::unordered_set<PyObject*> parent_tasks;
@@ -211,7 +223,7 @@ ThreadInfo::unwind_tasks()
     std::unordered_map<PyObject*, TaskInfo::Ref> origin_map; // Indexed by task origin
     static std::unordered_set<PyObject*> previous_task_objects;
 
-    auto maybe_all_tasks = get_all_tasks(reinterpret_cast<PyObject*>(asyncio_loop));
+    auto maybe_all_tasks = get_all_tasks(tstate);
     if (!maybe_all_tasks) {
         return ErrorKind::TaskInfoError;
     }
@@ -257,38 +269,52 @@ ThreadInfo::unwind_tasks()
     for (auto& task : all_tasks) {
         origin_map.emplace(task->origin, std::ref(*task));
 
-        if (task->waiter != NULL)
+        if (task->waiter != nullptr)
             waitee_map.emplace(task->waiter->origin, std::ref(*task));
         else if (parent_tasks.find(task->origin) == parent_tasks.end()) {
             leaf_tasks.push_back(std::ref(*task));
         }
     }
 
+    // Make sure the on CPU task is first
+    for (size_t i = 0; i < leaf_tasks.size(); i++) {
+        if (leaf_tasks[i].get().is_on_cpu) {
+            if (i > 0) {
+                std::swap(leaf_tasks[i], leaf_tasks[0]);
+            }
+            break;
+        }
+    }
+
+    // The size of the "pure Python" stack (before asyncio Frames), computed later by TaskInfo::unwind
+    size_t upper_python_stack_size = 0;
+    // Unused variable, will be used later by TaskInfo::unwind
+    size_t unused;
+
+    bool on_cpu_task_seen = false;
     for (auto& leaf_task : leaf_tasks) {
+        on_cpu_task_seen = on_cpu_task_seen || leaf_task.get().is_on_cpu;
+
         auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu);
         auto& stack = stack_info->stack;
+
         for (auto current_task = leaf_task;;) {
             auto& task = current_task.get();
 
-            size_t stack_size = task.unwind(stack);
-
+            // The task_stack_size includes both the coroutines frames and the "upper" Python synchronous frames
+            size_t task_stack_size = task.unwind(stack, task.is_on_cpu ? upper_python_stack_size : unused);
             if (task.is_on_cpu) {
-                // Undo the stack unwinding
-                // TODO[perf]: not super-efficient :(
-                for (size_t i = 0; i < stack_size; i++)
-                    stack.pop_back();
-
-                // Instead we get part of the thread stack
-                FrameStack temp_stack;
-                size_t nframes = (python_stack.size() > stack_size) ? python_stack.size() - stack_size : 0;
-                for (size_t i = 0; i < nframes; i++) {
-                    auto python_frame = python_stack.front();
-                    temp_stack.push_front(python_frame);
-                    python_stack.pop_front();
-                }
-                while (!temp_stack.empty()) {
-                    stack.push_front(temp_stack.front());
-                    temp_stack.pop_front();
+                // Get the "bottom" part of the Python synchronous Stack, that is to say the
+                // synchronous functions and coroutines called by the Task's outermost coroutine
+                // The number of Frames to push is the total number of Frames in the Python stack, from which we
+                // subtract the number of Frames in the "upper Python stack" (asyncio machinery + sync entrypoint)
+                // This gives us [outermost coroutine, ... , innermost coroutine, outermost sync function, ... ,
+                // innermost sync function]
+                size_t frames_to_push =
+                  (python_stack.size() > task_stack_size) ? python_stack.size() - task_stack_size : 0;
+                for (size_t i = 0; i < frames_to_push; i++) {
+                    const auto& python_frame = python_stack[frames_to_push - i - 1];
+                    stack.push_front(python_frame);
                 }
             }
 
@@ -317,14 +343,256 @@ ThreadInfo::unwind_tasks()
         }
 
         // Finish off with the remaining thread stack
-        for (auto p = python_stack.begin(); p != python_stack.end(); p++)
-            stack.push_back(*p);
+        // If we have seen an on-CPU Task, then upper_python_stack_size will be set and will include the sync entry
+        // point and the asyncio machinery Frames. Otherwise, we are in `select` (idle) and we should push all the
+        // Frames.
+
+        // There could be a race condition where relevant partial Python Thread Stack ends up being different from the
+        // one we saw in TaskInfo::unwind. This is extremely unlikely, I believe, but failing to account for it would
+        // cause an underflow, so let's be conservative.
+        size_t start_index = 0;
+        if (on_cpu_task_seen && python_stack.size() >= upper_python_stack_size) {
+            start_index = python_stack.size() - upper_python_stack_size;
+        }
+        for (size_t i = start_index; i < python_stack.size(); i++) {
+            const auto& python_frame = python_stack[i];
+            stack.push_back(python_frame);
+        }
 
         current_tasks.push_back(std::move(stack_info));
     }
 
     return Result<void>::ok();
 }
+
+// ----------------------------------------------------------------------------
+#if PY_VERSION_HEX >= 0x030e0000
+inline Result<void>
+ThreadInfo::get_tasks_from_thread_linked_list(std::vector<TaskInfo::Ptr>& tasks)
+{
+    if (this->tstate_addr == 0 || this->asyncio_loop == 0) {
+        return ErrorKind::TaskInfoError;
+    }
+
+    // Calculate thread state's asyncio_tasks_head remote address
+    // Note: Since 3.13+, every PyThreadState is actually allocated as a _PyThreadStateImpl.
+    // We use PyThreadState* everywhere and cast to _PyThreadStateImpl* only when we need
+    // to access asyncio_tasks_head (which is only available in Python 3.14+).
+    // Since tstate_addr is a remote address, we calculate the offset and add it to the address.
+    // get_tasks_from_linked_list will handle copying the head node from remote memory internally.
+    constexpr size_t asyncio_tasks_head_offset = offsetof(_PyThreadStateImpl, asyncio_tasks_head);
+    uintptr_t head_addr = this->tstate_addr + asyncio_tasks_head_offset;
+
+    return get_tasks_from_linked_list(head_addr, tasks);
+}
+
+inline Result<void>
+ThreadInfo::get_tasks_from_interpreter_linked_list(PyThreadState* tstate, std::vector<TaskInfo::Ptr>& tasks)
+{
+    if (tstate == nullptr || tstate->interp == nullptr || this->asyncio_loop == 0) {
+        return ErrorKind::TaskInfoError;
+    }
+
+    constexpr size_t asyncio_tasks_head_offset = offsetof(PyInterpreterState, asyncio_tasks_head);
+    uintptr_t head_addr = reinterpret_cast<uintptr_t>(tstate->interp) + asyncio_tasks_head_offset;
+
+    return get_tasks_from_linked_list(head_addr, tasks);
+}
+
+inline Result<void>
+ThreadInfo::get_tasks_from_linked_list(uintptr_t head_addr, std::vector<TaskInfo::Ptr>& tasks)
+{
+    if (head_addr == 0 || this->asyncio_loop == 0) {
+        return ErrorKind::TaskInfoError;
+    }
+
+    // Copy head node struct from remote memory to local memory
+    struct llist_node head_node_local;
+    if (copy_type(reinterpret_cast<void*>(head_addr), head_node_local)) {
+        return ErrorKind::TaskInfoError;
+    }
+
+    // Check if list is empty (head points to itself in circular list)
+    uintptr_t head_addr_uint = head_addr;
+    uintptr_t next_as_uint = reinterpret_cast<uintptr_t>(head_node_local.next);
+    uintptr_t prev_as_uint = reinterpret_cast<uintptr_t>(head_node_local.prev);
+    if (next_as_uint == head_addr_uint && prev_as_uint == head_addr_uint) {
+        return Result<void>::ok();
+    }
+
+    struct llist_node current_node = head_node_local; // Start with head node
+    uintptr_t current_node_addr = head_addr;          // Address of current node
+
+    // Copied from CPython's _remote_debugging_module.c: MAX_ITERATIONS
+    const size_t MAX_ITERATIONS = 1 << 16;
+    size_t iteration_count = 0;
+
+    // Iterate over linked-list. The linked list is circular, so we stop
+    // when we're back at head.
+    while (reinterpret_cast<uintptr_t>(current_node.next) != head_addr_uint) {
+        // Safety: prevent infinite loops
+        if (++iteration_count > MAX_ITERATIONS) {
+            return ErrorKind::TaskInfoError;
+        }
+
+        if (current_node.next == nullptr) {
+            return ErrorKind::TaskInfoError; // nullptr pointer - invalid list
+        }
+
+        uintptr_t next_node_addr = reinterpret_cast<uintptr_t>(current_node.next);
+
+        // Calculate task_addr from current_node.next
+        size_t task_node_offset_val = offsetof(TaskObj, task_node);
+        uintptr_t task_addr_uint = next_node_addr - task_node_offset_val;
+
+        // Create TaskInfo for the task
+        auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_addr_uint));
+        if (maybe_task_info) {
+            auto& task_info = *maybe_task_info;
+            if (task_info->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
+                tasks.push_back(std::move(task_info));
+            }
+        }
+
+        // Read next node from current_node.next into current_node
+        if (copy_type(reinterpret_cast<void*>(next_node_addr), current_node)) {
+            return ErrorKind::TaskInfoError; // Failed to read next node
+        }
+        current_node_addr = next_node_addr; // Update address for next iteration
+    }
+
+    return Result<void>::ok();
+}
+
+inline Result<std::vector<TaskInfo::Ptr>>
+ThreadInfo::get_all_tasks(PyThreadState* tstate)
+{
+    std::vector<TaskInfo::Ptr> tasks;
+    if (this->asyncio_loop == 0)
+        return tasks;
+
+    // Python 3.14+: Native tasks are in linked-list per thread AND per interpreter
+    // CPython iterates over both:
+    // 1. Per-thread list: tstate->asyncio_tasks_head (active tasks)
+    // 2. Per-interpreter list: interp->asyncio_tasks_head (lingering tasks)
+    // First, get tasks from this thread's linked-list (if tstate_addr is set)
+    // Note: We continue processing even if one source fails to maximize partial results
+    if (tstate != nullptr && this->tstate_addr != 0) {
+        (void)get_tasks_from_thread_linked_list(tasks);
+
+        // Second, get tasks from interpreter's linked-list (lingering tasks)
+        (void)get_tasks_from_interpreter_linked_list(tstate, tasks);
+    }
+
+    // Handle third-party tasks from Python _scheduled_tasks WeakSet
+    // In Python 3.14+, _scheduled_tasks is a Python-level weakref.WeakSet() that only contains
+    // tasks that don't inherit from asyncio.Task. Native asyncio.Task instances are stored
+    // in linked-lists (handled above) and are NOT added to _scheduled_tasks.
+    // This is typically empty in practice, but we handle it for completeness.
+    if (asyncio_scheduled_tasks != nullptr) {
+        if (auto maybe_scheduled_tasks_set = MirrorSet::create(asyncio_scheduled_tasks)) {
+            auto scheduled_tasks_set = std::move(*maybe_scheduled_tasks_set);
+            if (auto maybe_scheduled_tasks = scheduled_tasks_set.as_unordered_set()) {
+                auto scheduled_tasks = std::move(*maybe_scheduled_tasks);
+                for (auto task_addr : scheduled_tasks) {
+                    // In WeakSet.data (set), elements are the Task objects themselves
+                    auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_addr));
+                    if (maybe_task_info &&
+                        (*maybe_task_info)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
+                        tasks.push_back(std::move(*maybe_task_info));
+                    }
+                }
+            }
+        }
+    }
+
+    if (asyncio_eager_tasks != NULL) {
+        auto maybe_eager_tasks_set = MirrorSet::create(asyncio_eager_tasks);
+        if (!maybe_eager_tasks_set) {
+            return ErrorKind::TaskInfoError;
+        }
+
+        auto eager_tasks_set = std::move(*maybe_eager_tasks_set);
+
+        auto maybe_eager_tasks = eager_tasks_set.as_unordered_set();
+        if (!maybe_eager_tasks) {
+            return ErrorKind::TaskInfoError;
+        }
+
+        auto eager_tasks = std::move(*maybe_eager_tasks);
+        for (auto task_addr : eager_tasks) {
+            auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_addr));
+            if (maybe_task_info) {
+                if ((*maybe_task_info)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
+                    tasks.push_back(std::move(*maybe_task_info));
+                }
+            }
+        }
+    }
+
+    return tasks;
+}
+#else
+// Pre-Python 3.14: get_all_tasks uses WeakSet approach
+inline Result<std::vector<TaskInfo::Ptr>>
+ThreadInfo::get_all_tasks(PyThreadState*)
+{
+    std::vector<TaskInfo::Ptr> tasks;
+    if (this->asyncio_loop == 0)
+        return tasks;
+
+    auto maybe_scheduled_tasks_set = MirrorSet::create(asyncio_scheduled_tasks);
+    if (!maybe_scheduled_tasks_set) {
+        return ErrorKind::TaskInfoError;
+    }
+
+    auto scheduled_tasks_set = std::move(*maybe_scheduled_tasks_set);
+    auto maybe_scheduled_tasks = scheduled_tasks_set.as_unordered_set();
+    if (!maybe_scheduled_tasks) {
+        return ErrorKind::TaskInfoError;
+    }
+
+    auto scheduled_tasks = std::move(*maybe_scheduled_tasks);
+    for (auto task_wr_addr : scheduled_tasks) {
+        PyWeakReference task_wr;
+        if (copy_type(task_wr_addr, task_wr))
+            continue;
+
+        auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_wr.wr_object));
+        if (maybe_task_info) {
+            if ((*maybe_task_info)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
+                tasks.push_back(std::move(*maybe_task_info));
+            }
+        }
+    }
+
+    if (asyncio_eager_tasks != NULL) {
+        auto maybe_eager_tasks_set = MirrorSet::create(asyncio_eager_tasks);
+        if (!maybe_eager_tasks_set) {
+            return ErrorKind::TaskInfoError;
+        }
+
+        auto eager_tasks_set = std::move(*maybe_eager_tasks_set);
+
+        auto maybe_eager_tasks = eager_tasks_set.as_unordered_set();
+        if (!maybe_eager_tasks) {
+            return ErrorKind::TaskInfoError;
+        }
+
+        auto eager_tasks = std::move(*maybe_eager_tasks);
+        for (auto task_addr : eager_tasks) {
+            auto maybe_task_info = TaskInfo::create(reinterpret_cast<TaskObj*>(task_addr));
+            if (maybe_task_info) {
+                if ((*maybe_task_info)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
+                    tasks.push_back(std::move(*maybe_task_info));
+                }
+            }
+        }
+    }
+
+    return tasks;
+}
+#endif // PY_VERSION_HEX >= 0x030e0000
 
 // ----------------------------------------------------------------------------
 inline void
@@ -466,8 +734,10 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
 }
 
 // ----------------------------------------------------------------------------
+using PyThreadStateCallback = std::function<void(PyThreadState*, ThreadInfo&)>;
+
 static void
-for_each_thread(InterpreterInfo& interp, std::function<void(PyThreadState*, ThreadInfo&)> callback)
+for_each_thread(InterpreterInfo& interp, PyThreadStateCallback callback)
 {
     std::unordered_set<PyThreadState*> threads;
     std::unordered_set<PyThreadState*> seen_threads;
@@ -535,8 +805,14 @@ for_each_thread(InterpreterInfo& interp, std::function<void(PyThreadState*, Thre
                 thread_info_map.emplace(tstate.thread_id, std::move(*maybe_thread_info));
             }
 
-            // Call back with the thread state and thread info.
-            callback(&tstate, *thread_info_map.find(tstate.thread_id)->second);
+            // Update the tstate_addr for thread info, so we can access
+            // asyncio_tasks_head field from `_PyThreadStateImpl` struct
+            // later when we unwind tasks.
+            auto thread_info = thread_info_map.find(tstate.thread_id)->second.get();
+            thread_info->tstate_addr = reinterpret_cast<uintptr_t>(tstate_addr);
+
+            // Call back with the copied thread state
+            callback(&tstate, *thread_info);
         }
     }
 }
