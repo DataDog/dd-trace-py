@@ -5,6 +5,7 @@ download_base_wheel_for_import_analysis:
   tags: [ "arch:amd64" ]
   stage: tests
   needs:
+    - job: "pipeline variables"
     - job: download_ddtrace_artifacts
       artifacts: true
   id_tokens:
@@ -18,45 +19,29 @@ download_base_wheel_for_import_analysis:
     GIT_STRATEGY: clone
   before_script:
     - |
-      if [ -z ${GH_TOKEN} ]
-      then
-        # Use dd-octo-sts to get GitHub token
-        dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > token
-        gh auth login --with-token < token
-        rm token
-      fi
-    - |
       # Prevent git operation errors:
       #   failed to determine base repo: failed to run git: fatal: detected dubious ownership in repository at ...
       git config --global --add safe.directory "${CI_PROJECT_DIR}"
   script:
     - |
       # Get PR information to determine base branch and commit
-      # Check if we have an open PR (from pipeline variables or by querying GitHub)
-      if [ -z "${GH_PR_NUMBER}" ]; then
-        echo "GH_PR_NUMBER not set, attempting to get it from GitHub..."
-        GH_PR_NUMBER=$(gh pr list --state open --head "${CI_COMMIT_BRANCH}" --json number --jq '.[0].number' || echo "")
-        if [ -z "${GH_PR_NUMBER}" ] || [ "${GH_PR_NUMBER}" = "null" ]; then
-          GH_PR_NUMBER=$(gh pr list --state open --limit 100 --json number,commits --jq "[.[] | select(.commits[].oid == \"${CI_COMMIT_SHA}\") | .number] | first" || echo "")
-        fi
+      # GH_PR_NUMBER should be set by the "pipeline variables" job
+      if [ -z "${GH_PR_NUMBER}" ] || [ "${GH_PR_NUMBER}" = "null" ]; then
+        echo "Error: GH_PR_NUMBER is not set. This job requires a PR number from the pipeline variables job." >&2
+        exit 1
       fi
 
-      # Exit gracefully if no PR found (this job should only run for PRs)
-      if [ -z "${GH_PR_NUMBER}" ] || [ "${GH_PR_NUMBER}" = "null" ]; then
-        echo "No open PR found for commit ${CI_COMMIT_SHA}. Skipping import analysis."
-        exit 0
-      fi
+      echo "Using GH_PR_NUMBER from pipeline variables: ${GH_PR_NUMBER}"
 
       echo "Getting PR information for PR #${GH_PR_NUMBER}"
-      BASE_BRANCH=$(gh pr view "${GH_PR_NUMBER}" --json baseRefName --jq .baseRefName)
-      BASE_COMMIT_SHA=$(gh pr view "${GH_PR_NUMBER}" --json baseRefOid --jq .baseRefOid)
+      BASE_BRANCH=$(gh pr view "${GH_PR_NUMBER}" --repo DataDog/dd-trace-py --json baseRefName --jq .baseRefName)
+      BASE_COMMIT_SHA=$(gh pr view "${GH_PR_NUMBER}" --repo DataDog/dd-trace-py --json baseRefOid --jq .baseRefOid)
 
       echo "PR base branch: ${BASE_BRANCH}"
       echo "PR base commit: ${BASE_COMMIT_SHA}"
       echo "PR commit: ${CI_COMMIT_SHA}"
 
-      # Save PR info for the next job
-      echo "${GH_PR_NUMBER}" > pr_number.txt
+      # Save base commit SHA for the next job
       echo "${BASE_COMMIT_SHA}" > base_commit_sha.txt
     - |
       # Download wheels for base commit using the existing script
@@ -70,7 +55,6 @@ download_base_wheel_for_import_analysis:
     when: always
     paths:
       - pywheels-base/
-      - pr_number.txt
       - base_commit_sha.txt
     expire_in: 1 week
 
@@ -81,6 +65,7 @@ import_analysis:
   tags: [ "arch:amd64" ]
   stage: tests
   needs:
+    - job: "pipeline variables"
     - job: download_ddtrace_artifacts
       artifacts: true
     - job: download_base_wheel_for_import_analysis
@@ -106,12 +91,12 @@ import_analysis:
       export PYTHON_VERSION PYTHON_WHEEL_TAG
   script:
     - |
-      # Read PR info from previous job
-      if [ ! -f pr_number.txt ]; then
-        echo "No PR found (pr_number.txt missing). Skipping import analysis."
-        exit 0
+      # GH_PR_NUMBER should be set by the "pipeline variables" job
+      if [ -z "${GH_PR_NUMBER}" ] || [ "${GH_PR_NUMBER}" = "null" ]; then
+        echo "Error: GH_PR_NUMBER is not set. This job requires a PR number from the pipeline variables job." >&2
+        exit 1
       fi
-      GH_PR_NUMBER=$(cat pr_number.txt)
+
       BASE_COMMIT_SHA=$(cat base_commit_sha.txt)
       echo "Processing PR #${GH_PR_NUMBER} with base commit ${BASE_COMMIT_SHA}"
     - |
@@ -223,7 +208,6 @@ import_analysis:
       - import_analysis.txt
       - import-pr-*.txt
       - import-base-*.txt
-      - pr_number.txt
     expire_in: 1 week
 
 # Job 3: Comment on PR with analysis results
@@ -233,6 +217,7 @@ import_analysis_comment:
   tags: [ "arch:amd64" ]
   stage: tests
   needs:
+    - job: "pipeline variables"
     - job: import_analysis
       artifacts: true
   id_tokens:
@@ -246,29 +231,37 @@ import_analysis_comment:
     GIT_STRATEGY: clone
   before_script:
     - |
-      if [ -z ${GH_TOKEN} ]
-      then
+      # Prevent git operation errors
+      git config --global --add safe.directory "${CI_PROJECT_DIR}"
+    - |
+      # Set up GitHub remote so gh CLI knows about the repository
+      GITHUB_REPO_URL="https://github.com/DataDog/dd-trace-py.git"
+      git remote set-url origin "${GITHUB_REPO_URL}" || git remote add origin "${GITHUB_REPO_URL}"
+    - |
+      # Authenticate with GitHub
+      if [ -z "${GH_TOKEN}" ]; then
         # Use dd-octo-sts to get GitHub token
         dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > token
         gh auth login --with-token < token
         rm token
+      else
+        echo "${GH_TOKEN}" | gh auth login --with-token
       fi
-    - |
-      # Prevent git operation errors
-      git config --global --add safe.directory "${CI_PROJECT_DIR}"
+      # Verify authentication works
+      gh auth status
   script:
     - |
-      # Read PR info and check if analysis results exist
-      if [ ! -f pr_number.txt ]; then
-        echo "No PR found (pr_number.txt missing). Skipping PR comment."
-        exit 0
-      fi
-      if [ ! -f import_analysis.txt ]; then
-        echo "No analysis results found (import_analysis.txt missing). Skipping PR comment."
-        exit 0
+      # GH_PR_NUMBER should be set by the "pipeline variables" job
+      if [ -z "${GH_PR_NUMBER}" ] || [ "${GH_PR_NUMBER}" = "null" ]; then
+        echo "Error: GH_PR_NUMBER is not set. This job requires a PR number from the pipeline variables job." >&2
+        exit 1
       fi
 
-      GH_PR_NUMBER=$(cat pr_number.txt)
+      if [ ! -f import_analysis.txt ]; then
+        echo "Error: Analysis results not found (import_analysis.txt missing)." >&2
+        exit 1
+      fi
+
       echo "Commenting on PR #${GH_PR_NUMBER}"
     - |
       # Comment on PR with analysis results
