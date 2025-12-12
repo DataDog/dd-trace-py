@@ -1,4 +1,6 @@
+from contextlib import contextmanager
 import os
+import typing as t
 from unittest.mock import patch
 
 import pytest
@@ -214,59 +216,53 @@ class TestSessionManagerEnvVarOverrides:
             test_command="pytest --ddtrace", test_framework="pytest", test_framework_version="9.0.0"
         )
 
-    def test_session_manager_efd_kill_switch(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    @contextmanager
+    def mock_settings(self, **kwargs) -> t.Generator[None, None, None]:
         with (
             patch(
                 "ddtrace.testing.internal.session_manager.APIClient",
-                return_value=mock_api_client_settings(efd_enabled=True),
+                return_value=mock_api_client_settings(**kwargs),
             ),
             setup_standard_mocks(),
         ):
-            session_manager = SessionManager(self.session)
-            assert session_manager.settings.early_flake_detection.enabled is True
+            yield
 
-            monkeypatch.setenv("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "true")
+    @pytest.mark.parametrize("env_var_value, expected_setting", [(None, True), ("true", True), ("false", False)])
+    def test_session_manager_efd_kill_switch(self, monkeypatch, env_var_value, expected_setting):
+        with self.mock_settings(efd_enabled=True):
+            if env_var_value is not None:
+                monkeypatch.setenv("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", env_var_value)
             session_manager = SessionManager(self.session)
-            assert session_manager.settings.early_flake_detection.enabled is True
+            assert session_manager.settings.early_flake_detection.enabled is expected_setting
 
-            monkeypatch.setenv("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "false")
+    @pytest.mark.parametrize("env_var_value, expected_setting", [(None, True), ("true", True), ("false", False)])
+    def test_session_manager_atr_kill_switch(self, monkeypatch, env_var_value, expected_setting):
+        with self.mock_settings(auto_retries_enabled=True):
+            if env_var_value is not None:
+                monkeypatch.setenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", env_var_value)
             session_manager = SessionManager(self.session)
-            assert session_manager.settings.early_flake_detection.enabled is False
+            assert session_manager.settings.auto_test_retries.enabled is expected_setting
 
-    def test_session_manager_atr_kill_switch(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        with (
-            patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
-                return_value=mock_api_client_settings(auto_retries_enabled=True),
-            ),
-            setup_standard_mocks(),
-        ):
+    @pytest.mark.parametrize("env_var_value, expected_setting", [(None, True), ("true", True), ("false", False)])
+    def test_session_manager_itr_kill_switch(self, monkeypatch, env_var_value, expected_setting):
+        with self.mock_settings(skipping_enabled=True):
+            if env_var_value is not None:
+                monkeypatch.setenv("DD_CIVISIBILITY_ITR_ENABLED", env_var_value)
             session_manager = SessionManager(self.session)
-            assert session_manager.settings.auto_test_retries.enabled is True
+            assert session_manager.settings.itr_enabled is expected_setting
 
-            monkeypatch.setenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "true")
+    @pytest.mark.parametrize("env_var_value, expected_setting", [(None, True), ("true", False), ("false", True)])
+    def test_session_manager_skipping_kill_switch(self, monkeypatch, env_var_value, expected_setting):
+        with self.mock_settings(skipping_enabled=True):
+            if env_var_value is not None:
+                monkeypatch.setenv("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", env_var_value)
             session_manager = SessionManager(self.session)
-            assert session_manager.settings.auto_test_retries.enabled is True
+            assert session_manager.settings.skipping_enabled is expected_setting
 
-            monkeypatch.setenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "false")
+    @pytest.mark.parametrize("env_var_value, expected_setting", [(None, False), ("true", True), ("false", False)])
+    def test_session_manager_force_coverage(self, monkeypatch, env_var_value, expected_setting):
+        with self.mock_settings():
+            if env_var_value is not None:
+                monkeypatch.setenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", env_var_value)
             session_manager = SessionManager(self.session)
-            assert session_manager.settings.auto_test_retries.enabled is False
-
-    def test_session_manager_itr_kill_switch(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        with (
-            patch(
-                "ddtrace.testing.internal.session_manager.APIClient",
-                return_value=mock_api_client_settings(skipping_enabled=True),
-            ),
-            setup_standard_mocks(),
-        ):
-            session_manager = SessionManager(self.session)
-            assert session_manager.settings.itr_enabled is True
-
-            monkeypatch.setenv("DD_CIVISIBILITY_ITR_ENABLED", "true")
-            session_manager = SessionManager(self.session)
-            assert session_manager.settings.itr_enabled is True
-
-            monkeypatch.setenv("DD_CIVISIBILITY_ITR_ENABLED", "false")
-            session_manager = SessionManager(self.session)
-            assert session_manager.settings.itr_enabled is False
+            assert session_manager.settings.coverage_enabled is expected_setting
