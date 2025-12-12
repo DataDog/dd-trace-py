@@ -595,6 +595,87 @@ def _on_django_cache(
         _finish_span(ctx, exc_info)
 
 
+def _on_requests_send_start(ctx: core.ExecutionContext) -> None:
+    span = _start_span(ctx)
+    if not span:
+        return
+
+    integration_config = ctx.get_item("integration_config")
+    hostname = ctx.get_item("hostname")
+
+    # integration_config can be either a dict (from pin._config) or ConfigNamespace (from config.requests)
+    split_by_domain = (
+        integration_config.get("split_by_domain")
+        if isinstance(integration_config, dict)
+        else integration_config.split_by_domain
+    )
+    distributed_tracing = (
+        integration_config.get("distributed_tracing", True)
+        if isinstance(integration_config, dict)
+        else integration_config.distributed_tracing
+    )
+
+    if split_by_domain and hostname:
+        span.service = hostname
+
+    if distributed_tracing:
+        request = ctx.get_item("request")
+        HTTPPropagator.inject(span.context, request.headers)
+
+
+def _on_requests_send_end(
+    ctx: core.ExecutionContext,
+    exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+) -> None:
+    span = ctx.span
+    if not span:
+        _finish_span(ctx, exc_info)
+        return
+
+    (
+        request,
+        request_method,
+        request_url,
+        host_without_port,
+        response,
+    ) = ctx.get_items(["request", "request_method", "request_url", "host_without_port", "response"])
+
+    def _extract_query_string(uri):
+        start = uri.find("?") + 1
+        if start == 0:
+            return None
+        end = len(uri)
+        j = uri.rfind("#", 0, end)
+        if j != -1:
+            end = j
+        if end <= start:
+            return None
+        return uri[start:end]
+
+    status_code = None
+    response_headers = {}
+    if response is not None:
+        status_code = response.status_code
+        response_headers = dict(getattr(response, "headers", {}))
+
+    if request is not None:
+        # For set_http_meta, we need the global config.requests which has all the HTTP tagging settings
+        # The pin's integration_config dict may not have all attributes
+        trace_utils.set_http_meta(
+            span,
+            config.requests,
+            request_headers=request.headers,
+            response_headers=response_headers,
+            method=request_method,
+            url=request_url,
+            target_host=host_without_port,
+            status_code=status_code,
+            query=_extract_query_string(request_url) if request_url else None,
+        )
+
+    _finish_span(ctx, exc_info)
+
+
 def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
     if ignored_excs:
         for exc in ignored_excs:
@@ -1523,6 +1604,10 @@ def listen():
 
     # Special/extra handling before calling _finish_span
     core.on("context.ended.django.cache", _on_django_cache)
+
+    # Requests handlers (also registered conditionally in patch.py)
+    core.on("context.started.requests.send", _on_requests_send_start)
+    core.on("context.ended.requests.send", _on_requests_send_end)
 
 
 listen()
