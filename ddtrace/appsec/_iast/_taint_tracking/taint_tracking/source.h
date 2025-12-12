@@ -34,6 +34,10 @@ enum class TagMappingMode
 size_t
 get_source_truncation_max_length();
 
+// Reset the cached truncation length (for testing purposes only)
+void
+reset_source_truncation_cache();
+
 // Helper function to truncate value string if needed
 string
 truncate_source_value(string value);

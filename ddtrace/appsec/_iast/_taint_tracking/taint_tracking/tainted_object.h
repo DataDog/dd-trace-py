@@ -6,6 +6,10 @@
 int
 get_taint_range_limit();
 
+// Reset the cached taint range limit (for testing purposes only)
+void
+reset_taint_range_limit_cache();
+
 class TaintedObject
 {
     friend class Initializer;

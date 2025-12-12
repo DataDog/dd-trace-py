@@ -5,35 +5,44 @@
 namespace py = pybind11;
 
 // Default max range count if environment variable is not set
-constexpr int DEFAULT_MAX_RANGE_COUNT = 10;
+constexpr int DEFAULT_MAX_RANGE_COUNT = 30;
+
+// Static variables for caching the taint range limit
+namespace {
+int g_cached_limit = 0;
+bool g_limit_initialized = false;
+}
 
 // Get the max range count from environment variable
 int
 get_taint_range_limit()
 {
-    static int cached_limit = 0;
-    static bool initialized = false;
-
-    if (!initialized) {
+    if (g_cached_limit == 0) {
         const char* env_value = std::getenv("DD_IAST_MAX_RANGE_COUNT");
         if (env_value != nullptr) {
             try {
                 long parsed_value = std::strtol(env_value, nullptr, 10);
                 if (parsed_value > 0) {
-                    cached_limit = static_cast<int>(parsed_value);
+                    g_cached_limit = static_cast<int>(parsed_value);
                 } else {
-                    cached_limit = DEFAULT_MAX_RANGE_COUNT;
+                    g_cached_limit = DEFAULT_MAX_RANGE_COUNT;
                 }
             } catch (...) {
-                cached_limit = DEFAULT_MAX_RANGE_COUNT;
+                g_cached_limit = DEFAULT_MAX_RANGE_COUNT;
             }
         } else {
-            cached_limit = DEFAULT_MAX_RANGE_COUNT;
+            g_cached_limit = DEFAULT_MAX_RANGE_COUNT;
         }
-        initialized = true;
     }
 
-    return cached_limit;
+    return g_cached_limit;
+}
+
+// Reset the cached taint range limit (for testing purposes only)
+void
+reset_taint_range_limit_cache()
+{
+    g_cached_limit = 0;
 }
 
 /**

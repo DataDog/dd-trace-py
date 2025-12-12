@@ -11,33 +11,41 @@ using namespace pybind11::literals;
 // Default truncation length if environment variable is not set
 constexpr size_t DEFAULT_TRUNCATION_LENGTH = 250;
 
+// Static variables for caching the truncation length
+namespace {
+size_t g_cached_truncation_length = 0;
+}
+
 // Get the truncation max length from environment variable
 size_t
 get_source_truncation_max_length()
 {
-    static size_t cached_length = 0;
-    static bool initialized = false;
-
-    if (!initialized) {
+    if (g_cached_truncation_length > 0) {
         const char* env_value = std::getenv("DD_IAST_TRUNCATION_MAX_VALUE_LENGTH");
         if (env_value != nullptr) {
             try {
                 long parsed_value = std::strtol(env_value, nullptr, 10);
                 if (parsed_value > 0) {
-                    cached_length = static_cast<size_t>(parsed_value);
+                    g_cached_truncation_length = static_cast<size_t>(parsed_value);
                 } else {
-                    cached_length = DEFAULT_TRUNCATION_LENGTH;
+                    g_cached_truncation_length = DEFAULT_TRUNCATION_LENGTH;
                 }
             } catch (...) {
-                cached_length = DEFAULT_TRUNCATION_LENGTH;
+                g_cached_truncation_length = DEFAULT_TRUNCATION_LENGTH;
             }
         } else {
-            cached_length = DEFAULT_TRUNCATION_LENGTH;
+            g_cached_truncation_length = DEFAULT_TRUNCATION_LENGTH;
         }
-        initialized = true;
     }
 
-    return cached_length;
+    return g_cached_truncation_length;
+}
+
+// Reset the cached truncation length (for testing purposes only)
+void
+reset_source_truncation_cache()
+{
+    g_cached_truncation_length = 0;
 }
 
 // Truncate value string if it exceeds the max length
