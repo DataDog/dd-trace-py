@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import re
+import struct
 import sys
 from typing import Callable
 from typing import List
@@ -9,6 +10,7 @@ from typing import Tuple
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.process_tags import process_tags_config as config
+from ddtrace.internal.utils.fnv import fnv1_64
 
 
 log = get_logger(__name__)
@@ -82,4 +84,15 @@ def generate_process_tags() -> Tuple[Optional[str], Optional[List[str]]]:
     return process_tags, process_tags_list
 
 
+def compute_base_hash(container_tags_hash):
+    global base_hash, base_hash_bytes
+    if not process_tags:
+        return
+
+    b = bytes(process_tags, encoding="utf-8") + bytes(container_tags_hash, encoding="utf-8")
+    base_hash = fnv1_64(b)
+    base_hash_bytes = struct.pack("<Q", base_hash)
+
+
+base_hash, base_hash_bytes = None, b""
 process_tags, process_tags_list = generate_process_tags()
