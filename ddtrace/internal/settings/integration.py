@@ -119,29 +119,9 @@ class IntegrationConfig(AttrDict):
 
 
 class Hooks:
-    """
-    Deprecated no-op Hooks class for backwards compatibility.
-
-    This class previously provided hook registration and invocation functionality,
-    but has been deprecated in favor of using the public tracing API.
-
-    All methods are now no-ops to maintain backwards compatibility with existing code.
-
-    .. deprecated:: 4.0
-        The Hooks class is deprecated and will be removed in v5.0.
-        To interact with spans, use ``get_current_span()`` or ``get_current_root_span()``.
-    """
-
-    __slots__ = ()
+    """Deprecated no-op Hooks class for backwards compatibility."""
 
     def register(self, hook, func=None):
-        """No-op: Hook registration is deprecated.
-
-        .. deprecated:: 4.0
-            Hook registration via ``config.<integration>.hooks.register()`` is deprecated
-            and will be removed in v5.0. To interact with spans, use ``get_current_span()``
-            or ``get_current_root_span()``.
-        """
         deprecate(
             "Hooks.register() is deprecated and is currently a no-op.",
             message="To interact with spans, use get_current_span() or get_current_root_span().",
@@ -156,16 +136,10 @@ class Hooks:
             return wrapper
         return None
 
-     def on(self):
-        return self.register()
+    def on(self, hook, func=None):
+        return self.register(hook, func)
 
     def deregister(self, hook, func):
-        """No-op: Hook deregistration is deprecated.
-
-        .. deprecated:: 4.0
-            Hook deregistration via ``config.<integration>.hooks.deregister()`` is deprecated
-            and will be removed in v5.0.
-        """
         deprecate(
             "Hooks.deregister() is deprecated and is currently a no-op.",
             removal_version="5.0.0",
@@ -174,13 +148,6 @@ class Hooks:
         pass
 
     def emit(self, hook, *args, **kwargs):
-        """No-op: Hook emission is deprecated.
-
-        .. deprecated:: 4.0
-            Hook emission via ``config.<integration>.hooks.emit()`` is deprecated
-            and will be removed in v5.0. To interact with spans, use ``get_current_span()``
-            or ``get_current_root_span()``.
-        """
         deprecate(
             "Hooks.emit() is deprecated",
             message="Use tracer.current_span() or TraceFilters to retrieve and/or modify spans",
