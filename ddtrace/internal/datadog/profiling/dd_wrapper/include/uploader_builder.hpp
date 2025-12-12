@@ -20,6 +20,7 @@ class UploaderBuilder
     static inline std::string version;
     static inline std::string runtime{ g_runtime_name };
     static inline std::string runtime_id;
+    static inline std::string process_id;
     static inline std::string runtime_version;
     static inline std::string profiler_version;
     static inline std::string url{ "http://localhost:8126" };
@@ -36,6 +37,7 @@ class UploaderBuilder
     static void set_version(std::string_view _version);
     static void set_runtime(std::string_view _runtime);
     static void set_runtime_id(std::string_view _runtime_id);
+    static void set_process_id();
     static void set_runtime_version(std::string_view _runtime_version);
     static void set_profiler_version(std::string_view _profiler_version);
     static void set_url(std::string_view _url);

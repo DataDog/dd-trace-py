@@ -11,6 +11,7 @@ from typing import List
 from typing import Optional
 from typing import Union
 
+from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
@@ -173,14 +174,26 @@ class Block_config:
         self.location = location.replace(APPSEC.SECURITY_RESPONSE_ID, security_response_id)
         self.content_type: str = "application/json"
 
-    def get(self, method_name: str, default: Any = None) -> Any:
+    def get(self, key: str, default: Any = None) -> Union[str, int]:
         """
         Dictionary-like get method for backward compatibility with Lambda integration.
 
         Returns the attribute value if it exists, otherwise returns the default value.
         This allows Block_config to be used in contexts that expect dictionary-like access.
         """
-        return getattr(self, method_name, default)
+        if key == "content-type":
+            key = "content_type"
+        return getattr(self, key, default)
+
+    def __getitem__(self, key: str) -> Optional[Union[str, int]]:
+        if key == "content-type":
+            key = "content_type"
+        return getattr(self, key, None)
+
+    def __contains__(self, key: str) -> bool:
+        if key == "content-type":
+            key = "content_type"
+        return bool(getattr(self, key, None))
 
 
 class Telemetry_result:
@@ -403,3 +416,7 @@ def unpatching_popen():
         subprocess.Popen = original_popen
         os.close = original_os_close
         asm_config._bypass_instrumentation_for_waf = False
+
+
+def is_inferred_span(span: Span) -> bool:
+    return span.name in ("aws.apigateway", "aws.httpapi")

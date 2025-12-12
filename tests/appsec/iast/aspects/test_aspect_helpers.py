@@ -10,6 +10,7 @@ from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from ddtrace.appsec._iast._taint_tracking import common_replace
 from ddtrace.appsec._iast._taint_tracking import get_ranges
+from ddtrace.appsec._iast._taint_tracking import initialize_native_state
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking import set_ranges_on_splitted
 from ddtrace.appsec._iast._taint_tracking.aspects import _convert_escaped_text_to_tainted_text
@@ -17,9 +18,6 @@ from ddtrace.appsec._iast._taint_tracking.aspects import _convert_escaped_text_t
 
 _SOURCE1 = Source(name="name", value="value", origin=OriginType.COOKIE)
 _SOURCE2 = Source(name="name2", value="value2", origin=OriginType.BODY)
-
-_RANGE1 = TaintRange(0, 2, _SOURCE1)
-_RANGE2 = TaintRange(1, 3, _SOURCE2)
 
 
 def test_common_replace_untainted():
@@ -50,9 +48,24 @@ def test_common_replace_untainted_wrong_args_method():
         _ = common_replace("rjust", s, "10", 35)
 
 
+def test_common_replace_tainted_str_multiple_initialize_native_state():
+    initialize_native_state()
+    context_id = _get_iast_context_id()
+    _RANGE1 = TaintRange(0, 2, _SOURCE1)
+    _RANGE2 = TaintRange(1, 3, _SOURCE2)
+    print(f"context_id {context_id}")
+    s = "FooBar"
+    set_ranges(s, [_RANGE1, _RANGE2], context_id)
+    s2 = common_replace("lower", s)
+    assert s2 == "foobar"
+    assert get_ranges(s2) == [_RANGE1, _RANGE2]
+
+
 def test_common_replace_tainted_str():
     context_id = _get_iast_context_id()
-
+    _RANGE1 = TaintRange(0, 2, _SOURCE1)
+    _RANGE2 = TaintRange(1, 3, _SOURCE2)
+    print(f"context_id {context_id}")
     s = "FooBar"
     set_ranges(s, [_RANGE1, _RANGE2], context_id)
     s2 = common_replace("lower", s)
@@ -62,7 +75,8 @@ def test_common_replace_tainted_str():
 
 def test_common_replace_tainted_bytes():
     context_id = _get_iast_context_id()
-
+    _RANGE1 = TaintRange(0, 2, _SOURCE1)
+    _RANGE2 = TaintRange(1, 3, _SOURCE2)
     s = b"FooBar"
     set_ranges(s, [_RANGE1, _RANGE2], context_id)
     s2 = common_replace("lower", s)
@@ -72,7 +86,8 @@ def test_common_replace_tainted_bytes():
 
 def test_common_replace_tainted_bytearray():
     context_id = _get_iast_context_id()
-
+    _RANGE1 = TaintRange(0, 2, _SOURCE1)
+    _RANGE2 = TaintRange(1, 3, _SOURCE2)
     s = b"FooBar"
     set_ranges(s, [_RANGE1, _RANGE2], context_id)
     s2 = common_replace("lower", s)

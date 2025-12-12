@@ -3,7 +3,7 @@ on:
   push:
     branches:
       - main
-      - 'mq-working-branch**'
+  merge_group:
   pull_request:
     types: [opened, reopened, synchronize]
 
@@ -25,7 +25,7 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Set python interpreters
-        run: pyenv global 3.10 3.8 3.9 3.11 3.12 3.13 3.14
+        run: pyenv global 3.10 3.9 3.11 3.12 3.13 3.14
 
       - name: Install Dependencies
         # Keep pip at <25.3 until https://github.com/jazzband/pip-tools/issues/2252 is resolved

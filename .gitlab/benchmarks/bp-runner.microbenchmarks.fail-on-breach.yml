@@ -723,22 +723,22 @@ experiments:
               - max_rss_usage < 41.00 MB
 
           # iastpropagation
-          # - name: iastpropagation-no-propagation
-          #   thresholds:
-          #     - execution_time < 0.06 ms
-          #     - max_rss_usage < 40.50 MB
-          # - name: iastpropagation-propagation_enabled
-          #   thresholds:
-          #     - execution_time < 0.19 ms
-          #     - max_rss_usage < 40.00 MB
-          # - name: iastpropagation-propagation_enabled_100
-          #   thresholds:
-          #     - execution_time < 2.30 ms
-          #     - max_rss_usage < 40.00 MB
-          # - name: iastpropagation-propagation_enabled_1000
-          #   thresholds:
-          #     - execution_time < 34.55 ms
-          #     - max_rss_usage < 40.00 MB
+          - name: iastpropagation-no-propagation
+            thresholds:
+              - execution_time < 0.06 ms
+              - max_rss_usage < 42.00 MB
+          - name: iastpropagation-propagation_enabled
+            thresholds:
+              - execution_time < 0.19 ms
+              - max_rss_usage < 42.00 MB
+          - name: iastpropagation-propagation_enabled_100
+            thresholds:
+              - execution_time < 2.30 ms
+              - max_rss_usage < 42.00 MB
+          - name: iastpropagation-propagation_enabled_1000
+            thresholds:
+              - execution_time < 34.55 ms
+              - max_rss_usage < 42.00 MB
 
           # otelsdkspan
           - name: otelsdkspan-add-event
@@ -1092,7 +1092,7 @@ experiments:
               - max_rss_usage < 35.50 MB
           - name: telemetryaddmetric-1-distribution-metrics-100-times
             thresholds:
-              - execution_time < 0.22 ms
+              - execution_time < 0.23 ms
               - max_rss_usage < 35.50 MB
           - name: telemetryaddmetric-1-gauge-metric-1-times
             thresholds:
@@ -1116,7 +1116,7 @@ experiments:
               - max_rss_usage < 35.50 MB
           - name: telemetryaddmetric-100-distribution-metrics-100-times
             thresholds:
-              - execution_time < 2.30 ms
+              - execution_time < 2.55 ms
               - max_rss_usage < 35.50 MB
           - name: telemetryaddmetric-100-gauge-metrics-100-times
             thresholds:

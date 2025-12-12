@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - "mq-working-branch**"
+  merge_group:
   pull_request:
     paths:
     - ddtrace/internal/datadog/profiling/**
@@ -20,7 +20,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04]
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
         memcpy-mode: ["default", "fast"]
         sanitizer: ["safety", "thread", "valgrind"]
 
@@ -47,8 +47,8 @@ jobs:
 
       - name: Run tests with sanitizers
         run: |
-          # DEV: We currently have tests in dd_wrapper and stack_v2, setting
-          # stack_v2 here will also run tests in dd_wrapper. Revisit this when
+          # DEV: We currently have tests in dd_wrapper and stack, setting
+          # stack here will also run tests in dd_wrapper. Revisit this when
           # that changes.
           if [ "${{matrix.memcpy-mode}}" == "fast" ]; then
             export ECHION_USE_FAST_COPY_MEMORY=1
@@ -56,4 +56,4 @@ jobs:
             export ECHION_USE_FAST_COPY_MEMORY=0
           fi
 
-          ./ddtrace/internal/datadog/profiling/build_standalone.sh --${{matrix.sanitizer}} RelWithDebInfo stack_v2_test
+          ./ddtrace/internal/datadog/profiling/build_standalone.sh --${{matrix.sanitizer}} RelWithDebInfo stack_test

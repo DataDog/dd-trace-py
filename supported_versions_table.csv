@@ -3,10 +3,11 @@ aiobotocore,aiobotocore,1.0.7,2.24.1,False
 aiohttp,aiohttp,3.7.4.post0,3.12.15,True
 aiohttp-jinja2,aiohttp_jinja2,1.5.1,1.6,True
 aiohttp_jinja2,aiohttp_jinja2,1.5.1,1.6,True
+aiokafka,aiokafka,0.9.0,0.12.0,False
 aiomysql,aiomysql,0.1.1,0.2.0,True
 aiopg,aiopg *,0.16.0,1.4.0,True
 algoliasearch,algoliasearch *,2.6.3,2.6.3,True
-anthropic,anthropic,0.28.1,0.69.0,True
+anthropic,anthropic,0.28.1,0.74.1,True
 aredis,aredis,1.1.8,1.1.8,True
 pytest-asyncio,asyncio *,0.21.1,1.2.0,True
 asyncpg,asyncpg,0.23.0,0.30.0,True
@@ -74,7 +75,7 @@ pymemcache,pymemcache,3.4.4,4.0.0,True
 pymongo,pymongo,3.8.0,4.15.0,True
 pymysql,pymysql,0.10.1,1.1.2,True
 pynamodb,pynamodb *,5.5.1,5.5.1,True
-pyodbc,pyodbc,4.0.39,5.2.0,True
+pyodbc,pyodbc,4.0.39,5.3.0,True
 pyramid,pyramid,1.10.8,2.0.2,True
 pytest,pytest,6.2.5,8.4.2,False
 pytest-bdd,pytest_bdd *,4.1.0,6.0.1,False
@@ -89,7 +90,7 @@ sqlalchemy,sqlalchemy,1.3.24,2.0.43,False
 pysqlite3-binary,sqlite3,0.5.2.post3,0.5.2.post3,True
 starlette,starlette,0.14.2,0.48.0,True
 structlog,structlog,20.2.0,25.4.0,True
-tornado,tornado *,6.0.4,6.5.1,False
+tornado,tornado *,6.1,6.5.1,False
 urllib3,urllib3,1.25.8,2.5.0,False
 valkey,valkey,6.0.2,6.1.1,True
 google-cloud-aiplatform,vertexai,1.71.1,1.71.1,True

@@ -6,6 +6,7 @@
 
 #include "structmember.h"
 
+#include "api/utils.h"
 #include "constants.h"
 #include "taint_tracking/source.h"
 #include "utils/string_utils.h"
