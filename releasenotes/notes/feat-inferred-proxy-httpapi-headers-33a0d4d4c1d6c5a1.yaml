@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    tracing: Ensures inferred proxy spans for AWS API Gateway HTTP APIs are created when the
+    ``x-dd-proxy`` header reports ``aws-httpapi``.
+    AAP: Update inferred proxy span tags to ensure that inferred services are discovered by the App and API Protection API Catalog.

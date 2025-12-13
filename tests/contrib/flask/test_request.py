@@ -309,7 +309,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 api_gateway_resource="GET /",
                 method="GET",
                 status_code="200",
-                url="local/",
+                url="https://local/",
                 start=1736973768,
             )
 
@@ -330,7 +330,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 api_gateway_resource="GET /",
                 method="GET",
                 status_code="500",
-                url="local/",
+                url="https://local/",
                 start=1736973768,
             )
 
@@ -351,7 +351,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 api_gateway_resource="GET /",
                 method="GET",
                 status_code="599",
-                url="local/",
+                url="https://local/",
                 start=1736973768,
             )
 
@@ -405,7 +405,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 api_gateway_resource="GET /",
                 method="GET",
                 status_code="200",
-                url="local/",
+                url="https://local/",
                 start=1736973768,
                 is_distributed=True,
                 distributed_trace_id=1,

@@ -689,7 +689,7 @@ class TestAPIGatewayTracing(TornadoTestCase):
                             api_gateway_resource="GET /",
                             method="GET",
                             status_code=test_endpoint["status"],
-                            url="local/",
+                            url="https://local/",
                             start=1736973768,
                             is_distributed=test_headers == distributed_headers,
                             distributed_trace_id=1,
