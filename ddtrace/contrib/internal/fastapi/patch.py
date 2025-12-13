@@ -1,8 +1,10 @@
+import copyreg
 import os
 from typing import Dict
 
 import fastapi
 import fastapi.routing
+import wrapt
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -21,6 +23,37 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 
 
 log = get_logger(__name__)
+
+_WRAPT_REDUCERS_REGISTERED = False
+
+
+def _identity(x):
+    """Identity function for pickle reconstruction - returns unwrapped object."""
+    return x
+
+
+def _reduce_wrapt_proxy(proxy):
+    """Pickle reducer for wrapt proxies.
+
+    Returns (callable, args) tuple for pickle reconstruction.
+    Using _identity(proxy.__wrapped__) strips the wrapper.
+    """
+    return (_identity, (proxy.__wrapped__,))
+
+
+def _register_wrapt_pickle_reducers():
+    """Register pickle reducers for wrapt proxy types.
+
+    Must be called before FastAPI app is pickled (e.g., by Ray/vLLM).
+    """
+    global _WRAPT_REDUCERS_REGISTERED
+    if _WRAPT_REDUCERS_REGISTERED:
+        return
+    for cls in [wrapt.ObjectProxy, wrapt.FunctionWrapper, wrapt.BoundFunctionWrapper]:
+        if cls not in copyreg.dispatch_table:
+            copyreg.dispatch_table[cls] = _reduce_wrapt_proxy
+    _WRAPT_REDUCERS_REGISTERED = True
+
 
 config._add(
     "fastapi",
@@ -87,6 +120,8 @@ async def traced_serialize_response(wrapped, instance, args, kwargs):
 def patch():
     if getattr(fastapi, "_datadog_patch", False):
         return
+
+    _register_wrapt_pickle_reducers()
 
     fastapi._datadog_patch = True
     Pin().onto(fastapi)

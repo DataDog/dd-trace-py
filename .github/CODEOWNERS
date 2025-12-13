@@ -172,6 +172,7 @@ ddtrace/contrib/internal/litellm                              @DataDog/ml-observ
 ddtrace/contrib/internal/pydantic_ai                          @DataDog/ml-observability
 ddtrace/contrib/internal/ray                                  @DataDog/ml-observability
 ddtrace/contrib/internal/mcp                                  @DataDog/ml-observability
+ddtrace/contrib/internal/vllm                                 @DataDog/ml-observability
 tests/llmobs                                                  @DataDog/ml-observability
 tests/contrib/openai                                          @DataDog/ml-observability
 tests/contrib/langchain                                       @DataDog/ml-observability
@@ -193,6 +194,7 @@ tests/contrib/litellm                                         @DataDog/ml-observ
 tests/contrib/pydantic_ai                                     @DataDog/ml-observability
 tests/contrib/ray                                             @DataDog/ml-observability
 tests/contrib/mcp                                             @DataDog/ml-observability
+tests/contrib/vllm                                            @DataDog/ml-observability
 .gitlab/tests/llmobs.yml                                      @DataDog/ml-observability
 # MLObs snapshot tests
 tests/snapshots/tests.contrib.anthropic.*                     @DataDog/ml-observability
@@ -207,6 +209,7 @@ tests/snapshots/tests.contrib.langgraph.*                     @DataDog/ml-observ
 tests/snapshots/tests.contrib.crewai.*                        @DataDog/ml-observability
 tests/snapshots/tests.contrib.openai_agents.*                 @DataDog/ml-observability
 tests/snapshots/tests.contrib.litellm.*                       @DataDog/ml-observability
+tests/snapshots/tests.contrib.vllm.*                          @DataDog/ml-observability
 
 # Remote Config
 ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python
