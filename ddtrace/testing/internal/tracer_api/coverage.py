@@ -13,8 +13,8 @@ import typing as t
 from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
 from ddtrace.contrib.internal.coverage.data import _coverage_data
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
-from ddtrace.contrib.internal.coverage.patch import unpatch as unpatch_coverage
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
+from ddtrace.contrib.internal.coverage.patch import unpatch as unpatch_coverage
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.internal.coverage.code import ModuleCodeCollector
