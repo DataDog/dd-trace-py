@@ -2,6 +2,7 @@ import os
 
 import mock
 
+from ddtrace.llmobs._llmobs import LLMObsEvaluationResult
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _SpanField
@@ -907,6 +908,48 @@ def _assert_span_link(from_span_event, to_span_event, from_io, to_io):
             found = True
             break
     assert found
+
+
+def sample_score_evaluation(exported_span) -> LLMObsEvaluationResult:
+    return LLMObsEvaluationResult(
+        metric_type="score",
+        label="accuracy",
+        value=0.95,
+        ml_app=exported_span.get("ml_app"),
+        timestamp_ms=1763676378390000000,
+        tags={"test-key": "test-value"},
+        assessment="pass",
+        reasoning="The answer is correct.",
+        metadata={"test-key": "test-value"},
+    )
+
+
+def sample_categorical_evaluation(exported_span) -> LLMObsEvaluationResult:
+    return LLMObsEvaluationResult(
+        metric_type="categorical",
+        label="sentiment",
+        value="positive",
+        ml_app=exported_span.get("ml_app"),
+        timestamp_ms=1763676378390000000,
+        tags={"test-key": "test-value"},
+        assessment="pass",
+        reasoning="The answer is correct.",
+        metadata={"test-key": "test-value"},
+    )
+
+
+def sample_boolean_evaluation(exported_span) -> LLMObsEvaluationResult:
+    return LLMObsEvaluationResult(
+        metric_type="boolean",
+        label="is_correct",
+        value=True,
+        ml_app=exported_span.get("ml_app"),
+        timestamp_ms=1763676378390000000,
+        tags={"test-key": "test-value"},
+        assessment="pass",
+        reasoning="The answer is correct.",
+        metadata={"test-key": "test-value"},
+    )
 
 
 def iterate_stream(stream):

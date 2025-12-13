@@ -1,0 +1,53 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Length
+      : - '0'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/vnd.api+json
+      User-Agent:
+      - python-requests/2.32.5
+    method: GET
+    uri: https://api.datadoghq.com/api/v2/llm-obs/v1/spans/events?filter%5Bml_app%5D=test-ml-app&page%5Blimit%5D=100
+  response:
+    body:
+      string: '{"data":[{"id":"9131050925916112476","type":"span","attributes":{"duration":34000,"input":{"value":"What
+        is the capital of Germany?","messages":[{"content":"What is the capital of
+        Germany?"}]},"metrics":{"cache_read_input_tokens":0,"cache_write_input_tokens":0,"estimated_cache_read_input_cost":0,"estimated_cache_write_input_cost":0,"estimated_input_cost":0,"estimated_non_cached_input_cost":0,"estimated_output_cost":0,"estimated_total_cost":0,"input_tokens":0,"non_cached_input_tokens":0,"output_tokens":0,"total_tokens":0},"ml_app":"test-ml-app","model_name":"gpt-4o-mini","model_provider":"openai","name":"llm_call2","output":{"value":"The
+        capital of Germany is Berlin.","messages":[{"content":"The capital of Germany
+        is Berlin."}]},"parent_id":"undefined","span_id":"9131050925916112476","span_kind":"llm","start_ns":1765220033128,"status":"ok","tags":["ddtrace.version:4.1.0.dev0","env:","service:scratch_work","ml_app:test-ml-app","error:0","source:llm-observability","source:integration","version:","language:python"],"trace_id":"69371ec1000000000d553d4c4630c224"}},{"id":"17182260850694671657","type":"span","attributes":{"duration":54000,"input":{"value":"What
+        is the capital of France?","messages":[{"content":"What is the capital of
+        France?"}]},"metrics":{"cache_read_input_tokens":0,"cache_write_input_tokens":0,"estimated_cache_read_input_cost":0,"estimated_cache_write_input_cost":0,"estimated_input_cost":0,"estimated_non_cached_input_cost":0,"estimated_output_cost":0,"estimated_total_cost":0,"input_tokens":0,"non_cached_input_tokens":0,"output_tokens":0,"total_tokens":0},"ml_app":"test-ml-app","model_name":"gpt-4o-mini","model_provider":"openai","name":"llm_call1","output":{"value":"The
+        capital of France is Paris.","messages":[{"content":"The capital of France
+        is Paris."}]},"parent_id":"undefined","span_id":"17182260850694671657","span_kind":"llm","start_ns":1765220033127,"status":"ok","tags":["ddtrace.version:4.1.0.dev0","env:","service:scratch_work","ml_app:test-ml-app","error:0","source:llm-observability","source:integration","version:","language:python"],"trace_id":"69371ec100000000a96c44fe148eab7a"}}],"meta":{"elapsed":2505,"request_id":"pddv1ChZJM1g1YUYydlIxV3ZTajhXc3pVWE9nIiwKHPmZIUQgIj1dW4IggPk0Jd7ArXOeUlnxBLhyQRMSDL_tI8IGQvv0RoR4FA","status":"done","page":null}}'
+    headers:
+      content-length:
+      - '2305'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 08 Dec 2025 18:55:42 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

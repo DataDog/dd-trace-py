@@ -2,6 +2,7 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
+import time
 from typing import Any
 from typing import Dict
 from typing import List
@@ -33,6 +34,7 @@ from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.trace import Span
+from ddtrace.version import __version__
 
 
 log = get_logger(__name__)
@@ -473,3 +475,15 @@ class LinkTracker:
         since output guardrails are only linked to the last LLM span for a particular agent.
         """
         self._last_llm_span = None
+
+
+class ExportSpansAPIError(Exception):
+    """Error raised when exporting spans from the LLMObs Export API."""
+
+    pass
+
+class LLMObsSubmitEvaluationError(Exception):
+    """Error raised when submitting an evaluation."""
+
+    error_type: str
+
