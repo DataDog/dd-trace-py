@@ -850,3 +850,20 @@ def _get_test_custom_tags(item: pytest.Item) -> t.Dict[str, str]:
             tags[key] = str(value)
 
     return tags
+
+
+@pytest.fixture(scope="session")
+def ddtracer():
+    """Return the current tracer instance."""
+    import ddtrace
+
+    return ddtrace.tracer
+
+
+@pytest.fixture(scope="function")
+def ddspan(ddtracer):
+    """Return the current root span."""
+    if ddtracer is None:
+        return None
+
+    return ddtracer.current_root_span()
