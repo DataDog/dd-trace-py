@@ -28,7 +28,8 @@ def install_global_trace_filter(writer: TestOptWriter) -> None:
 
     ddtrace.tracer.configure(trace_processors=[span_processor])
 
-    # TODO: this should be somewhere else.
+
+def enable_all_ddtrace_integrations():
     try:
         from ddtrace._monkey import _patch_all
 

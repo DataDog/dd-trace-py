@@ -96,7 +96,7 @@ class TestPytestBdd:
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
-                pytester.inline_run("-p", "no:randomly", "--ddtrace", "--ddtrace-patch-all", file_name)
+                pytester.inline_run("-p", "no:randomly", "--ddtrace", file_name)
 
         events = list(event_capture.events())
 
@@ -147,7 +147,7 @@ class TestPytestBdd:
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
-                pytester.inline_run("-p", "no:randomly", "--ddtrace", "--ddtrace-patch-all", file_name)
+                pytester.inline_run("-p", "no:randomly", "--ddtrace", file_name)
 
         events = list(event_capture.events())
 
@@ -203,7 +203,7 @@ class TestPytestBdd:
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
-                pytester.inline_run("-p", "no:randomly", "--ddtrace", "--ddtrace-patch-all", file_name)
+                pytester.inline_run("-p", "no:randomly", "--ddtrace", file_name)
 
         events = list(event_capture.events())
 
@@ -235,7 +235,7 @@ class TestPytestBdd:
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
-                pytester.inline_run("-p", "no:randomly", "--ddtrace", "--ddtrace-patch-all", file_name)
+                pytester.inline_run("-p", "no:randomly", "--ddtrace", file_name)
 
         events = list(event_capture.events())
 
