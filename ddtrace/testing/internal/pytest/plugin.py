@@ -37,6 +37,7 @@ from ddtrace.testing.internal.tracer_api.context import install_global_trace_fil
 from ddtrace.testing.internal.tracer_api.context import trace_context
 from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage
+import ddtrace.testing.internal.tracer_api.pytest_hooks
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import asbool
 
@@ -663,6 +664,8 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addini("no-ddtrace", "Disable Datadog Test Optimization (overrides 'ddtrace')", type="bool")
     parser.addini("ddtrace-patch-all", "Enable all integrations with ddtrace", type="bool")
 
+    ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_addoption(parser)
+
 
 def _is_test_optimization_disabled_by_kill_switch() -> bool:
     return not asbool(os.environ.get("DD_CIVISIBILITY_ENABLED", "true"))
@@ -748,6 +751,8 @@ def pytest_configure(config: pytest.Config) -> None:
 
     if config.pluginmanager.hasplugin("pytest-bdd"):
         config.pluginmanager.register(BddTestOptPlugin(plugin))
+
+    ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_configure(config)
 
 
 def _get_test_command(config: pytest.Config) -> str:

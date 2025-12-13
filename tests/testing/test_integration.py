@@ -431,6 +431,40 @@ class TestPytestPluginIntegration:
         result.assert_outcomes(passed=2)
 
 
+class TestIASTTerminalSummary:
+    def test_ddtrace_iast_terminal_summary_enabled(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """Test that IAST terminal summary is present when IAST is enabled."""
+        pytester.makepyfile(
+            test_iast="""
+            def test_ok():
+                assert True
+        """
+        )
+
+        monkeypatch.setenv("DD_IAST_ENABLED", "true")
+        monkeypatch.setenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "true")
+        result = pytester.runpytest_subprocess("--ddtrace", "-v", "-s")
+
+        output = result.stdout.str()
+        assert "Datadog Code Security Report" in output
+
+    def test_ddtrace_iast_terminal_summary_disabled(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """Test that IAST terminal summary is NOT present when IAST is disabled."""
+        pytester.makepyfile(
+            test_iast="""
+            def test_ok():
+                assert True
+        """
+        )
+
+        monkeypatch.setenv("DD_IAST_ENABLED", "false")
+        monkeypatch.setenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "true")
+        result = pytester.runpytest_subprocess("--ddtrace", "-v", "-s")
+
+        output = result.stdout.str()
+        assert "Datadog Code Security Report" not in output
+
+
 class TestRetryHandler:
     """Test auto retry functionality using mocking for unit testing."""
 
