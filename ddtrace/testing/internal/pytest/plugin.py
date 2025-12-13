@@ -37,6 +37,7 @@ from ddtrace.testing.internal.tracer_api.context import install_global_trace_fil
 from ddtrace.testing.internal.tracer_api.context import trace_context
 from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage
+from ddtrace.testing.internal.tracer_api.misc import setup_ddtrace_subsystems_for_testing
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import asbool
 
@@ -659,9 +660,26 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help="Enable all integrations with ddtrace",
     )
 
+    group.addoption(
+        "--ddtrace-include-class-name",
+        action="store_true",
+        dest="ddtrace-include-class-name",
+        default=False,
+        help="(obsolete)",
+    )
+
+    group.addoption(
+        "--ddtrace-iast-fail-tests",
+        action="store_true",
+        dest="ddtrace-iast-fail-tests",
+        default=False,
+        help="Fail tests containing security vulnerabilities detected by IAST",
+    )
+
     parser.addini("ddtrace", "Enable Datadog Test Optimization", type="bool")
     parser.addini("no-ddtrace", "Disable Datadog Test Optimization (overrides 'ddtrace')", type="bool")
     parser.addini("ddtrace-patch-all", "Enable all integrations with ddtrace", type="bool")
+    parser.addini("ddtrace-include-class-name", "Obsolete", type="bool")
 
 
 def _is_test_optimization_disabled_by_kill_switch() -> bool:
@@ -748,6 +766,8 @@ def pytest_configure(config: pytest.Config) -> None:
 
     if config.pluginmanager.hasplugin("pytest-bdd"):
         config.pluginmanager.register(BddTestOptPlugin(plugin))
+
+    setup_ddtrace_subsystems_for_testing()
 
 
 def _get_test_command(config: pytest.Config) -> str:
