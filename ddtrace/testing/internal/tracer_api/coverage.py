@@ -13,6 +13,7 @@ import typing as t
 from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
 from ddtrace.contrib.internal.coverage.data import _coverage_data
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
+from ddtrace.contrib.internal.coverage.patch import unpatch as unpatch_coverage
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
@@ -60,6 +61,13 @@ def install_coverage_percentage():
     Patch coverage.py to obtain coverage percentage from pytest-cov.
     """
     patch_coverage()
+
+
+def uninstall_coverage_percentage():
+    """
+    Undo patching of coverage.py.
+    """
+    unpatch_coverage()
 
 
 def get_coverage_percentage(pytest_cov_status: bool) -> t.Optional[float]:

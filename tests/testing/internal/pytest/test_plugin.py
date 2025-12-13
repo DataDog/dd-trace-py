@@ -6,6 +6,7 @@ Integration tests are in tests/test_integration.py.
 
 import os
 import typing as t
+from unittest.mock import MagicMock
 from unittest.mock import Mock
 from unittest.mock import patch
 
@@ -638,7 +639,7 @@ class TestSessionLifecycleMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Set up session and manager
-        plugin.session = Mock()
+        plugin.session = MagicMock()
         plugin.manager = Mock()
         plugin.is_xdist_worker = False
 
@@ -661,7 +662,7 @@ class TestSessionLifecycleMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Set up session and manager
-        plugin.session = Mock()
+        plugin.session = MagicMock()
         plugin.manager = Mock()
         plugin.is_xdist_worker = False
 
@@ -681,7 +682,7 @@ class TestSessionLifecycleMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Set up session and manager
-        plugin.session = Mock()
+        plugin.session = MagicMock()
         plugin.manager = Mock()
         plugin.is_xdist_worker = True  # Worker mode
 
