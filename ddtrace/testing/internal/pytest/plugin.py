@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections import defaultdict
 from io import StringIO
 import json
@@ -21,6 +23,7 @@ from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
 from ddtrace.testing.internal.pytest.hookspecs import TestOptHooks
+from ddtrace.testing.internal.pytest.report_links import print_test_report_links
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
@@ -43,6 +46,10 @@ from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_perc
 import ddtrace.testing.internal.tracer_api.pytest_hooks
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import asbool
+
+
+if t.TYPE_CHECKING:
+    from _pytest.terminal import TerminalReporter
 
 
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
@@ -611,6 +618,11 @@ class TestOptPlugin:
 
         item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))
         test.mark_skipped_by_itr()
+
+    def pytest_terminal_summary(
+        self, terminalreporter: TerminalReporter, exitstatus: int, config: pytest.Config
+    ) -> None:
+        print_test_report_links(terminalreporter, self.manager)
 
 
 class XdistTestOptPlugin:
