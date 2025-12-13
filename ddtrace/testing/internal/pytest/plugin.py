@@ -33,6 +33,7 @@ from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestSuite
 from ddtrace.testing.internal.test_data import TestTag
+from ddtrace.testing.internal.tracer_api.context import enable_all_ddtrace_integrations
 from ddtrace.testing.internal.tracer_api.context import install_global_trace_filter
 from ddtrace.testing.internal.tracer_api.context import trace_context
 from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
@@ -156,6 +157,9 @@ class TestOptPlugin:
 
         if self.enable_ddtrace_trace_filter:
             install_global_trace_filter(self.manager.writer)
+
+        if self.enable_all_ddtrace_integrations:
+            enable_all_ddtrace_integrations()
 
     def pytest_sessionfinish(self, session: pytest.Session) -> None:
         # With xdist, the main process does not execute tests, so we cannot rely on the normal `session.get_status()`
