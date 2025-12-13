@@ -14,7 +14,7 @@ def pytest_addoption(parser):
     """Add ddtrace options."""
     group = parser.getgroup("ddtrace")
 
-    group._addoption(
+    group.addoption(
         "--ddtrace-iast-fail-tests",
         action="store_true",
         dest="ddtrace-iast-fail-tests",
