@@ -120,7 +120,7 @@ class TestOptWriter(BaseWriter):
                 "_dd.library_capabilities.test_impact_analysis": "1",
                 "_dd.library_capabilities.test_management.quarantine": "1",
                 "_dd.library_capabilities.test_management.disable": "1",
-                "_dd.library_capabilities.test_management.attempt_to_fix": "4",
+                "_dd.library_capabilities.test_management.attempt_to_fix": "5",
             },
         }
 

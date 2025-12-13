@@ -446,46 +446,48 @@ class TestAPIClientGetKnownTests:
 
 
 class TestAPIClientGetTestManagementTests:
+    RESPONSE_DATA = {
+        "data": {
+            "attributes": {
+                "modules": {
+                    "some_module": {
+                        "suites": {
+                            "first.py": {
+                                "tests": {
+                                    "test_01": {
+                                        "properties": {
+                                            "attempt_to_fix": False,
+                                            "disabled": False,
+                                            "quarantined": True,
+                                        }
+                                    }
+                                }
+                            },
+                            "second.py": {
+                                "tests": {
+                                    "test_02": {
+                                        "properties": {
+                                            "attempt_to_fix": False,
+                                            "disabled": True,
+                                            "quarantined": False,
+                                        }
+                                    }
+                                }
+                            },
+                        }
+                    }
+                }
+            },
+            "id": "e7e4d0b95cb68806",
+            "type": "ci_app_libraries_tests",
+        }
+    }
+
     def test_get_test_management_tests(self, mock_telemetry: Mock) -> None:
         mock_connector = (
             mock_backend_connector().with_post_json_response(
                 endpoint="/api/v2/test/libraries/test-management/tests",
-                response_data={
-                    "data": {
-                        "attributes": {
-                            "modules": {
-                                "some_module": {
-                                    "suites": {
-                                        "first.py": {
-                                            "tests": {
-                                                "test_01": {
-                                                    "properties": {
-                                                        "attempt_to_fix": False,
-                                                        "disabled": False,
-                                                        "quarantined": True,
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        "second.py": {
-                                            "tests": {
-                                                "test_02": {
-                                                    "properties": {
-                                                        "attempt_to_fix": False,
-                                                        "disabled": True,
-                                                        "quarantined": False,
-                                                    }
-                                                }
-                                            }
-                                        },
-                                    }
-                                }
-                            }
-                        },
-                        "id": "e7e4d0b95cb68806",
-                        "type": "ci_app_libraries_tests",
-                    }
-                },
+                response_data=self.RESPONSE_DATA,
             )
         ).build()
         mock_connector_setup = Mock()
@@ -522,6 +524,65 @@ class TestAPIClientGetTestManagementTests:
                             "repository_url": "http://github.com/DataDog/some-repo.git",
                             "commit_message": "I am a commit",
                             "sha": "abcd1234",
+                        },
+                    }
+                },
+                telemetry=mock_telemetry.with_request_metric_names.return_value,
+            )
+        ]
+
+        assert properties == {
+            TestRef(SuiteRef(ModuleRef("some_module"), "first.py"), "test_01"): TestProperties(
+                quarantined=True, disabled=False, attempt_to_fix=False
+            ),
+            TestRef(SuiteRef(ModuleRef("some_module"), "second.py"), "test_02"): TestProperties(
+                quarantined=False, disabled=True, attempt_to_fix=False
+            ),
+        }
+
+    def test_get_test_management_tests_use_head_commit_data_if_available(self, mock_telemetry: Mock) -> None:
+        mock_connector = (
+            mock_backend_connector().with_post_json_response(
+                endpoint="/api/v2/test/libraries/test-management/tests",
+                response_data=self.RESPONSE_DATA,
+            )
+        ).build()
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+                GitTag.BRANCH: "some-branch",
+                GitTag.COMMIT_MESSAGE: "I am a commit",
+                GitTag.COMMIT_HEAD_SHA: "8ead8ead",
+                GitTag.COMMIT_HEAD_MESSAGE: "I am the head commit",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={
+                "os.platform": "Linux",
+            },
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            properties = api_client.get_test_management_properties()
+
+        assert mock_connector.post_json.call_args_list == [
+            call(
+                "/api/v2/test/libraries/test-management/tests",
+                {
+                    "data": {
+                        "id": "00000000-0000-0000-0000-000000000000",
+                        "type": "ci_app_libraries_tests_request",
+                        "attributes": {
+                            "repository_url": "http://github.com/DataDog/some-repo.git",
+                            "commit_message": "I am the head commit",
+                            "sha": "8ead8ead",
                         },
                     }
                 },
