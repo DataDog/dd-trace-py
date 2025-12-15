@@ -75,7 +75,7 @@ pymemcache,pymemcache,3.4.4,4.0.0,True
 pymongo,pymongo,3.8.0,4.15.0,True
 pymysql,pymysql,0.10.1,1.1.2,True
 pynamodb,pynamodb *,5.5.1,5.5.1,True
-pyodbc,pyodbc,4.0.39,5.2.0,True
+pyodbc,pyodbc,4.0.39,5.3.0,True
 pyramid,pyramid,1.10.8,2.0.2,True
 pytest,pytest,6.2.5,8.4.2,False
 pytest-bdd,pytest_bdd *,4.1.0,6.0.1,False

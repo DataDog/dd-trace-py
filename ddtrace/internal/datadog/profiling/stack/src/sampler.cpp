@@ -1,6 +1,6 @@
 #include "sampler.hpp"
 
-#include "dd_wrapper/include/ddup_interface.hpp"
+#include "dd_wrapper/include/sample.hpp"
 #include "thread_span_links.hpp"
 
 #include "echion/danger.h"
@@ -170,12 +170,12 @@ Sampler::sampling_thread(const uint64_t seq_num)
             for_each_thread(interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
                 auto success = thread.sample(interp.id, tstate, wall_time_us);
                 if (success) {
-                    ddup_increment_sample_count();
+                    Sample::profile_borrow().stats().increment_sample_count();
                 }
             });
         });
 
-        ddup_increment_sampling_event_count();
+        Sample::profile_borrow().stats().increment_sampling_event_count();
 
         if (do_adaptive_sampling) {
             // Adjust the sampling interval at most every second
