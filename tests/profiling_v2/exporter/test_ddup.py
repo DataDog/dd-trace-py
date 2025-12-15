@@ -5,6 +5,26 @@ import pytest
 from ddtrace.internal.datadog.profiling import ddup
 
 
+class MockSpan:
+    """Mock span object for testing"""
+
+    def __init__(self, span_id=None, local_root=None):
+        if span_id is not None:
+            self.span_id = span_id
+        if local_root is not None:
+            self._local_root = local_root
+
+
+class MockLocalRoot:
+    """Mock local root span object for testing"""
+
+    def __init__(self, span_id=None, span_type=None):
+        if span_id is not None:
+            self.span_id = span_id
+        if span_type is not None:
+            self.span_type = span_type
+
+
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_libdd_available():
     """
@@ -62,3 +82,46 @@ def test_tags_propagated():
     # Profiler could add tags, so check that tags is a superset of config.tags
     for k, v in config.tags.items():
         assert tags[k] == v
+
+
+@pytest.mark.skipif(not ddup.is_available, reason="ddup not available")
+def test_push_span_without_span_id():
+    """
+    Test that push_span handles span objects without span_id attribute gracefully.
+    This can happen when profiling collector encounters mock span objects in tests.
+    Regression test for issue where AttributeError was raised when accessing span.span_id.
+    """
+
+    # Create a sample handle
+    handle = ddup.SampleHandle()
+
+    # Test 1: Span without span_id attribute
+    span_no_id = MockSpan()
+    # Should not raise AttributeError
+    handle.push_span(span_no_id)
+
+    # Test 2: Span without _local_root attribute
+    span_no_local_root = MockSpan(span_id=12345)
+    # Should not raise AttributeError
+    handle.push_span(span_no_local_root)
+
+    # Test 3: Span with _local_root but local_root without span_id
+    local_root_no_id = MockLocalRoot()
+    span_with_incomplete_root = MockSpan(span_id=12345, local_root=local_root_no_id)
+    # Should not raise AttributeError
+    handle.push_span(span_with_incomplete_root)
+
+    # Test 4: Span with _local_root but local_root without span_type
+    local_root_no_type = MockLocalRoot(span_id=67890)
+    span_with_root_no_type = MockSpan(span_id=12345, local_root=local_root_no_type)
+    # Should not raise AttributeError
+    handle.push_span(span_with_root_no_type)
+
+    # Test 5: Complete span (should work as before)
+    complete_local_root = MockLocalRoot(span_id=67890, span_type="web")
+    complete_span = MockSpan(span_id=12345, local_root=complete_local_root)
+    # Should not raise AttributeError
+    handle.push_span(complete_span)
+
+    # Test 6: None span (should handle gracefully)
+    handle.push_span(None)
