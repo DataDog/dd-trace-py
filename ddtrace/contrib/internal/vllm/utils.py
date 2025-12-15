@@ -16,6 +16,16 @@ from ._constants import OPERATION_ID
 from .extractors import LatencyMetrics
 
 
+# Mapping from LatencyMetrics attributes to APM span metric names
+_APM_LATENCY_METRIC_MAP = {
+    "time_to_first_token": METRIC_LATENCY_TTFT,
+    "time_in_queue": METRIC_LATENCY_QUEUE,
+    "time_in_model_prefill": METRIC_LATENCY_PREFILL,
+    "time_in_model_decode": METRIC_LATENCY_DECODE,
+    "time_in_model_inference": METRIC_LATENCY_INFERENCE,
+}
+
+
 def create_span(
     pin: Pin,
     integration,
@@ -47,15 +57,7 @@ def set_latency_metrics(span: Span, latency_metrics: Optional[LatencyMetrics]) -
     if not latency_metrics:
         return
 
-    metric_map = {
-        "time_to_first_token": METRIC_LATENCY_TTFT,
-        "time_in_queue": METRIC_LATENCY_QUEUE,
-        "time_in_model_prefill": METRIC_LATENCY_PREFILL,
-        "time_in_model_decode": METRIC_LATENCY_DECODE,
-        "time_in_model_inference": METRIC_LATENCY_INFERENCE,
-    }
-
-    for attr, tag_name in metric_map.items():
+    for attr, tag_name in _APM_LATENCY_METRIC_MAP.items():
         value = getattr(latency_metrics, attr, None)
         if value is not None:
             span.set_metric(tag_name, value)

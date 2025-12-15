@@ -31,7 +31,7 @@ def test_llmobs_basic(llmobs_events, mock_tracer, opt_125m_llm):
         model_name="facebook/opt-125m",
         model_provider="vllm",
         input_messages=[Message(content="The future of AI is")],
-        output_messages=[Message(content=" in the hands of the people.")],
+        output_messages=[Message(role="assistant", content=" in the hands of the people.")],
         metadata={
             "max_tokens": 8,
             "n": 1,
@@ -83,7 +83,7 @@ def test_llmobs_chat(llmobs_events, mock_tracer, opt_125m_llm):
             Message(role="assistant", content="Hello! How can I assist you today?"),
             Message(role="user", content="Write an essay about the importance of higher education."),
         ],
-        output_messages=[Message(content=mock.ANY)],
+        output_messages=[Message(role="assistant", content=mock.ANY)],
         metadata={
             "max_tokens": 16,
             "temperature": 1.0,

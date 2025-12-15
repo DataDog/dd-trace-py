@@ -52,6 +52,15 @@ class VLLMIntegration(BaseLLMIntegration):
         "lora_name",
     }
 
+    # Mapping from LatencyMetrics attributes to LLMObs metric keys
+    _LLMOBS_LATENCY_METRIC_MAP = {
+        "time_to_first_token": TIME_TO_FIRST_TOKEN_METRIC_KEY,
+        "time_in_queue": TIME_IN_QUEUE_METRIC_KEY,
+        "time_in_model_prefill": TIME_IN_MODEL_PREFILL_METRIC_KEY,
+        "time_in_model_decode": TIME_IN_MODEL_DECODE_METRIC_KEY,
+        "time_in_model_inference": TIME_IN_MODEL_INFERENCE_METRIC_KEY,
+    }
+
     def _set_base_span_tags(self, span: Span, **kwargs: Any) -> None:
         """Set base tags on vLLM spans."""
         model_name = kwargs.get("model_name")
@@ -81,15 +90,7 @@ class VLLMIntegration(BaseLLMIntegration):
         }
 
         if latency_metrics:
-            metric_map = {
-                "time_to_first_token": TIME_TO_FIRST_TOKEN_METRIC_KEY,
-                "time_in_queue": TIME_IN_QUEUE_METRIC_KEY,
-                "time_in_model_prefill": TIME_IN_MODEL_PREFILL_METRIC_KEY,
-                "time_in_model_decode": TIME_IN_MODEL_DECODE_METRIC_KEY,
-                "time_in_model_inference": TIME_IN_MODEL_INFERENCE_METRIC_KEY,
-            }
-
-            for attr, constant_key in metric_map.items():
+            for attr, constant_key in self._LLMOBS_LATENCY_METRIC_MAP.items():
                 value = getattr(latency_metrics, attr, None)
                 if value is not None:
                     metrics[constant_key] = value
@@ -137,7 +138,7 @@ class VLLMIntegration(BaseLLMIntegration):
             ctx[INPUT_MESSAGES] = parse_prompt_to_messages(data.prompt)
 
         if data.output_text:
-            ctx[OUTPUT_MESSAGES] = [Message(content=data.output_text)]
+            ctx[OUTPUT_MESSAGES] = [Message(role="assistant", content=data.output_text)]
 
         return ctx
 

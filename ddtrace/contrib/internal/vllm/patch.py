@@ -41,6 +41,10 @@ config._add("vllm", {})
 @with_traced_module
 def traced_engine_init(vllm, pin, func, instance, args, kwargs):
     """Inject model name into OutputProcessor and force-enable stats for tracing."""
+    # Force log_stats=True to enable vLLM's internal stats collection.
+    # We need these stats for:
+    # - output_tokens (num_generation_tokens from stats)
+    # - latency metrics (TTFT, queue time, prefill, decode, inference)
     if len(args) > ARG_POSITION_LOG_STATS:
         args = args[:ARG_POSITION_LOG_STATS] + (True,) + args[ARG_POSITION_LOG_STATS + 1 :]
     else:
@@ -75,7 +79,6 @@ def traced_processor_process_inputs(vllm, pin, func, instance, args, kwargs):
 def _capture_request_states(
     instance: "OutputProcessor",
     engine_core_outputs: Any,
-    iteration_stats: Optional[Any],
 ) -> Dict[str, Dict[str, Any]]:
     """Capture request state data before original function removes them.
 
@@ -94,7 +97,6 @@ def _capture_request_states(
             "arrival_time": req_state.stats.arrival_time if req_state.stats else None,
             "data": extract_request_data(req_state, engine_core_output),
             "stats": req_state.stats,
-            "iteration_stats": iteration_stats,
         }
 
     return spans_data
@@ -149,13 +151,12 @@ def traced_output_processor_process_outputs(vllm, pin, func, instance, args, kwa
     integration = getattr(vllm, ATTR_DATADOG_INTEGRATION)
 
     engine_core_outputs = args[0] if args else kwargs.get("engine_core_outputs")
-    iteration_stats = kwargs.get("iteration_stats") if kwargs else (args[2] if len(args) > 2 else None)
 
     if not engine_core_outputs:
         return func(*args, **kwargs)
 
     model_name = get_model_name(instance)
-    spans_data = _capture_request_states(instance, engine_core_outputs, iteration_stats)
+    spans_data = _capture_request_states(instance, engine_core_outputs)
 
     result = func(*args, **kwargs)
 
