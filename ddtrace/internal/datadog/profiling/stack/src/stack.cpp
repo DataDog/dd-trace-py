@@ -6,7 +6,7 @@
 using namespace Datadog;
 
 static PyObject*
-_stack_v2_start(PyObject* self, PyObject* args, PyObject* kwargs)
+_stack_start(PyObject* self, PyObject* args, PyObject* kwargs)
 {
     (void)self;
     static const char* const_kwlist[] = { "min_interval", NULL };
@@ -25,10 +25,10 @@ _stack_v2_start(PyObject* self, PyObject* args, PyObject* kwargs)
 }
 
 // Bypasses the old-style cast warning with an unchecked helper function
-PyCFunction stack_v2_start = cast_to_pycfunction(_stack_v2_start);
+PyCFunction stack_start = cast_to_pycfunction(_stack_start);
 
 static PyObject*
-stack_v2_stop(PyObject* self, PyObject* args)
+stack_stop(PyObject* self, PyObject* args)
 {
     (void)self;
     (void)args;
@@ -42,7 +42,7 @@ stack_v2_stop(PyObject* self, PyObject* args)
 }
 
 static PyObject*
-stack_v2_set_interval(PyObject* self, PyObject* args)
+stack_set_interval(PyObject* self, PyObject* args)
 {
     // Assumes the interval is given in fractional seconds
     (void)self;
@@ -57,7 +57,7 @@ stack_v2_set_interval(PyObject* self, PyObject* args)
 // Echion needs us to propagate information about threads, usually at thread start by patching the threading module
 // We reference some data structures here which are internal to echion (but global in scope)
 static PyObject*
-stack_v2_thread_register(PyObject* self, PyObject* args)
+stack_thread_register(PyObject* self, PyObject* args)
 {
 
     (void)self;
@@ -78,7 +78,7 @@ stack_v2_thread_register(PyObject* self, PyObject* args)
 }
 
 static PyObject*
-stack_v2_thread_unregister(PyObject* self, PyObject* args)
+stack_thread_unregister(PyObject* self, PyObject* args)
 {
     (void)self;
     uint64_t id;
@@ -96,7 +96,7 @@ stack_v2_thread_unregister(PyObject* self, PyObject* args)
 }
 
 static PyObject*
-_stack_v2_link_span(PyObject* self, PyObject* args, PyObject* kwargs)
+_stack_link_span(PyObject* self, PyObject* args, PyObject* kwargs)
 {
     (void)self;
     uint64_t thread_id;
@@ -132,10 +132,10 @@ _stack_v2_link_span(PyObject* self, PyObject* args, PyObject* kwargs)
     Py_RETURN_NONE;
 }
 
-PyCFunction stack_v2_link_span = cast_to_pycfunction(_stack_v2_link_span);
+PyCFunction stack_link_span = cast_to_pycfunction(_stack_link_span);
 
 static PyObject*
-stack_v2_track_asyncio_loop(PyObject* self, PyObject* args)
+stack_track_asyncio_loop(PyObject* self, PyObject* args)
 {
     (void)self;
     uintptr_t thread_id; // map key
@@ -153,7 +153,7 @@ stack_v2_track_asyncio_loop(PyObject* self, PyObject* args)
 }
 
 static PyObject*
-stack_v2_init_asyncio(PyObject* self, PyObject* args)
+stack_init_asyncio(PyObject* self, PyObject* args)
 {
     (void)self;
     PyObject* asyncio_current_tasks;
@@ -170,7 +170,7 @@ stack_v2_init_asyncio(PyObject* self, PyObject* args)
 }
 
 static PyObject*
-stack_v2_link_tasks(PyObject* self, PyObject* args)
+stack_link_tasks(PyObject* self, PyObject* args)
 {
     (void)self;
     PyObject *parent, *child;
@@ -187,7 +187,7 @@ stack_v2_link_tasks(PyObject* self, PyObject* args)
 }
 
 static PyObject*
-stack_v2_set_adaptive_sampling(PyObject* Py_UNUSED(self), PyObject* args)
+stack_set_adaptive_sampling(PyObject* Py_UNUSED(self), PyObject* args)
 {
     int do_adaptive_sampling = false;
 
@@ -271,36 +271,36 @@ update_greenlet_frame(PyObject* Py_UNUSED(m), PyObject* args)
     Py_RETURN_NONE;
 }
 
-static PyMethodDef _stack_v2_methods[] = {
-    { "start", reinterpret_cast<PyCFunction>(stack_v2_start), METH_VARARGS | METH_KEYWORDS, "Start the sampler" },
-    { "stop", stack_v2_stop, METH_VARARGS, "Stop the sampler" },
-    { "register_thread", stack_v2_thread_register, METH_VARARGS, "Register a thread" },
-    { "unregister_thread", stack_v2_thread_unregister, METH_VARARGS, "Unregister a thread" },
-    { "set_interval", stack_v2_set_interval, METH_VARARGS, "Set the sampling interval" },
+static PyMethodDef _stack_methods[] = {
+    { "start", reinterpret_cast<PyCFunction>(stack_start), METH_VARARGS | METH_KEYWORDS, "Start the sampler" },
+    { "stop", stack_stop, METH_VARARGS, "Stop the sampler" },
+    { "register_thread", stack_thread_register, METH_VARARGS, "Register a thread" },
+    { "unregister_thread", stack_thread_unregister, METH_VARARGS, "Unregister a thread" },
+    { "set_interval", stack_set_interval, METH_VARARGS, "Set the sampling interval" },
     { "link_span",
-      reinterpret_cast<PyCFunction>(stack_v2_link_span),
+      reinterpret_cast<PyCFunction>(stack_link_span),
       METH_VARARGS | METH_KEYWORDS,
       "Link a span to a thread" },
     // asyncio task support
-    { "track_asyncio_loop", stack_v2_track_asyncio_loop, METH_VARARGS, "Map the name of a task with its identifier" },
-    { "init_asyncio", stack_v2_init_asyncio, METH_VARARGS, "Initialise asyncio tracking" },
-    { "link_tasks", stack_v2_link_tasks, METH_VARARGS, "Link two tasks" },
+    { "track_asyncio_loop", stack_track_asyncio_loop, METH_VARARGS, "Map the name of a task with its identifier" },
+    { "init_asyncio", stack_init_asyncio, METH_VARARGS, "Initialise asyncio tracking" },
+    { "link_tasks", stack_link_tasks, METH_VARARGS, "Link two tasks" },
     // greenlet support
     { "track_greenlet", track_greenlet, METH_VARARGS, "Map a greenlet with its identifier" },
     { "untrack_greenlet", untrack_greenlet, METH_VARARGS, "Untrack a terminated greenlet" },
     { "link_greenlets", link_greenlets, METH_VARARGS, "Link two greenlets" },
     { "update_greenlet_frame", update_greenlet_frame, METH_VARARGS, "Update the frame of a greenlet" },
 
-    { "set_adaptive_sampling", stack_v2_set_adaptive_sampling, METH_VARARGS, "Set adaptive sampling" },
+    { "set_adaptive_sampling", stack_set_adaptive_sampling, METH_VARARGS, "Set adaptive sampling" },
     { NULL, NULL, 0, NULL }
 };
 
 PyMODINIT_FUNC
-PyInit__stack_v2(void)
+PyInit__stack(void)
 {
     PyObject* m;
     static struct PyModuleDef moduledef = {
-        PyModuleDef_HEAD_INIT, "_stack_v2", NULL, -1, _stack_v2_methods, NULL, NULL, NULL, NULL
+        PyModuleDef_HEAD_INIT, "_stack", NULL, -1, _stack_methods, NULL, NULL, NULL, NULL
     };
 
     m = PyModule_Create(&moduledef);

@@ -5,7 +5,8 @@
 
 #include "python_headers.hpp"
 
-#include "dd_wrapper/include/ddup_interface.hpp"
+#include "dd_wrapper/include/sample.hpp"
+#include "dd_wrapper/include/sample_manager.hpp"
 
 #include "echion/frame.h"
 #include "echion/render.h"

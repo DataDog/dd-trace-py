@@ -35,7 +35,7 @@ endif()
 function(dd_wrapper_add_test name)
     add_executable(${name} ${ARGN})
     target_include_directories(${name} PRIVATE ../include)
-    # this has to refer to the stack_v2 extension name to properly link against
+    # this has to refer to the stack extension name to properly link against
     target_link_libraries(${name} PRIVATE gmock gtest_main ${EXTENSION_NAME})
 
     if(Python3_LIBRARIES)
@@ -44,8 +44,8 @@ function(dd_wrapper_add_test name)
 
     add_ddup_config(${name})
 
-    # Test executable needs to find _stack_v2 in parent directory Append to INSTALL_RPATH instead of replacing to
-    # preserve sanitizer library paths set by add_ddup_config
+    # Test executable needs to find _stack in parent directory Append to INSTALL_RPATH instead of replacing to preserve
+    # sanitizer library paths set by add_ddup_config
     get_target_property(EXISTING_INSTALL_RPATH ${name} INSTALL_RPATH)
     if(EXISTING_INSTALL_RPATH)
         set_target_properties(${name} PROPERTIES INSTALL_RPATH "${EXISTING_INSTALL_RPATH};$ORIGIN/.."
