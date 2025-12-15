@@ -3,8 +3,12 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from mcp import InitializeRequest
-from mcp.server.streamable_http import MCP_SESSION_ID_HEADER
+try:
+    from mcp import InitializeRequest
+    from mcp.server.streamable_http import MCP_SESSION_ID_HEADER
+except:
+    InitializeRequest = None
+    MCP_SESSION_ID_HEADER = None
 
 from ddtrace._trace.pin import Pin
 from ddtrace.internal.logger import get_logger
@@ -26,8 +30,7 @@ MCP_SPAN_TYPE = "_ml_obs.mcp_span_type"
 
 SERVER_TOOL_CALL_OPERATION_NAME = "server_tool_call"
 CLIENT_TOOL_CALL_OPERATION_NAME = "client_tool_call"
-REQUEST_RESPONDER_ENTER_OPERATION_NAME = "request_responder_enter"
-REQUEST_RESPONDER_EXIT_OPERATION_NAME = "request_responder_exit"
+REQUEST_RESPONDER_ENTER_OPERATION_NAME = "request_responder"
 REQUEST_RESPONDER_RESPOND_OPERATION_NAME = "request_responder_respond"
 
 
@@ -194,30 +197,30 @@ class MCPIntegration(BaseLLMIntegration):
     ) -> None:
         # The instance is passed as the first arg to llmobs_set_tags
         responder = args[0]
-        request = responder.request.root
+        request = getattr(responder, "request", None)
+        request_root = getattr(request, "root", None)
 
-        if isinstance(request, InitializeRequest):
-            client_name = request.params.clientInfo.name
-            client_version = request.params.clientInfo.version
-            if client_name and client_version:
-                # Set APM span tags
-                span.set_tag("client_name", client_name)
-                span.set_tag("client_version", client_name + "_" + client_version)
-                # Also set LLMObs metadata tags
-                _set_or_update_tags(
-                    span,
-                    {
-                        "client_name": client_name,
-                        "client_version": client_name + "_" + client_version,
-                    },
-                )
+        if request_root is not None:
+            if InitializeRequest and request_root and isinstance(request_root, InitializeRequest):
+                request_params = _get_attr(request_root, "params", None)
+                client_info = _get_attr(request_params, "clientInfo", None)
+                client_name = _get_attr(client_info, "name", None)
+                client_version = _get_attr(client_info, "version", None)
+                if client_name and client_version:
+                    _set_or_update_tags(
+                        span,
+                        {
+                            "client_name": client_name,
+                            "client_version": f"{client_name}_{client_version}",
+                        },
+                    )
 
-        request_method = request.method
+        request_method = _get_attr(request_root, "method", "unknown")
 
         # This only exists for existing sessions using the streamable HTTP transport
         message_metadata = _get_attr(responder, "message_metadata", None)
         http_request = message_metadata and _get_attr(message_metadata, "request_context", None)
-        maybe_session_id = http_request and getattr(http_request, "headers", {}).get(MCP_SESSION_ID_HEADER)
+        maybe_session_id = http_request and getattr(http_request, "headers", {}).get(MCP_SESSION_ID_HEADER) if MCP_SESSION_ID_HEADER else None
 
         if maybe_session_id:
             _set_or_update_tags(span, {"mcp_session_id": str(maybe_session_id)})

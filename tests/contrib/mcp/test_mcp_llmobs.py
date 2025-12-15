@@ -161,20 +161,8 @@ def test_llmobs_client_server_tool_error(mcp_setup, mock_tracer, llmobs_events, 
     )
 
 
-def test_server_initialization_span_created(mcp_setup, mock_tracer, llmobs_events):
+def test_server_initialization_span_created(mcp_setup, mock_tracer, llmobs_events, mcp_server_initialized):
     """Test that server initialization creates a span and LLMObs event with custom client info."""
-    from mcp.server.fastmcp import FastMCP
-    from mcp.shared.memory import create_connected_server_and_client_session
-    from mcp.types import Implementation
-
-    mcp_server = FastMCP("TestInitServer")
-
-    async def run_test():
-        client_info = Implementation(name="test-client", version="1.2.3")
-        async with create_connected_server_and_client_session(mcp_server._mcp_server, client_info=client_info):
-            pass
-
-    asyncio.run(run_test())
 
     traces = mock_tracer.pop_traces()
     all_spans = [span for trace in traces for span in trace]
@@ -185,8 +173,6 @@ def test_server_initialization_span_created(mcp_setup, mock_tracer, llmobs_event
 
     initialize_span = initialize_spans[0]
     assert initialize_span.name == "mcp.initialize"
-    assert initialize_span.get_tag("client_name") == "test-client"
-    assert initialize_span.get_tag("client_version") == "test-client_1.2.3"
 
     initialize_events = [event for event in llmobs_events if event["name"] == "mcp.initialize"]
     assert len(initialize_events) == 1, f"Expected 1 LLMObs event, got {len(initialize_events)}"

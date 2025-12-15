@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Adds llmobs tracing of `initialize` requests and their responses on MCP servers.
+    LLM Observability: Adds tracing of ``initialize`` requests and their responses on MCP servers.
