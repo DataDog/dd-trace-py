@@ -385,7 +385,7 @@ class TestOptPlugin:
         self._log_test_report(item, reports, TestPhase.CALL)
 
         test_run = test.last_test_run
-        test_run.set_tags(retry_handler.get_tags_for_test_run(test_run))
+        retry_handler.set_tags_for_test_run(test_run)
         test_run.finish()
 
         should_retry = True
@@ -395,7 +395,7 @@ class TestOptPlugin:
                 test_run, reports = self._do_one_test_run(item, nextitem, context)
 
             should_retry = retry_handler.should_retry(test)
-            test_run.set_tags(retry_handler.get_tags_for_test_run(test_run))
+            retry_handler.set_tags_for_test_run(test_run)
             self._mark_test_reports_as_retry(reports, retry_handler)
 
             # Even though we run setup, call, teardown for each retry, we only log _one_ report per retry, as various
@@ -407,9 +407,8 @@ class TestOptPlugin:
 
             test_run.finish()
 
-        final_status, final_tags = retry_handler.get_final_status(test)
+        final_status = retry_handler.get_final_status(test)
         test.set_status(final_status)
-        test_run.set_tags(final_tags)
 
         for test_run in test.test_runs:
             self.manager.writer.put_item(test_run)

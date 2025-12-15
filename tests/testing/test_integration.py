@@ -140,6 +140,66 @@ class TestFeaturesWithMocking:
         assert result.ret == 0
         result.assert_outcomes(passed=1)
 
+    def test_simple_plugin_pytest_ini_file_enabled(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """Test that plugin can be enabled from pytest.ini file."""
+        # Create a simple test file
+        pytester.makepyfile(
+            """
+            def test_simple():
+                '''A simple test.'''
+                assert True
+        """
+        )
+        pytester.makefile(
+            ".ini",
+            pytest="""
+            [pytest]
+            ddtrace = 1
+            """,
+        )
+
+        # Use network mocks to prevent all real HTTP calls
+        with network_mocks(), patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client:
+            mock_api_client.return_value = mock_api_client_settings()
+
+            result = pytester.runpytest("-v")
+
+        assert mock_api_client.call_count == 1
+
+        # Test should pass
+        assert result.ret == 0
+        result.assert_outcomes(passed=1)
+
+    def test_simple_plugin_pytest_ini_file_disabled(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """Test that plugin can be disabled from pytest.ini file."""
+        # Create a simple test file
+        pytester.makepyfile(
+            """
+            def test_simple():
+                '''A simple test.'''
+                assert True
+        """
+        )
+        pytester.makefile(
+            ".ini",
+            pytest="""
+            [pytest]
+            ddtrace = 0
+            """,
+        )
+
+        # Use network mocks to prevent all real HTTP calls
+        with network_mocks(), patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client:
+            mock_api_client.return_value = mock_api_client_settings()
+
+            result = pytester.runpytest("-v")
+
+        assert mock_api_client.call_count == 0
+
+        # Test should pass
+        assert result.ret == 0
+        result.assert_outcomes(passed=1)
+
     def test_retry_functionality_with_pytester(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
         """Test that failing tests are retried when auto retry is enabled."""
         # Create a test file with a failing test
