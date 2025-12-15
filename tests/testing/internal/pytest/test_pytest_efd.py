@@ -99,7 +99,7 @@ class TestEFD:
                 ),
             ),
             # Simulate test that takes more than 5 minutes to run.
-            patch("ddtrace.testing.internal.test_data.Test.seconds_so_far", return_value=501),
+            patch("ddtrace.testing.internal.test_data.Test.seconds_so_far", return_value=301),
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
