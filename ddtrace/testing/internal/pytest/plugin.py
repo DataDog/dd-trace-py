@@ -23,6 +23,7 @@ from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
 from ddtrace.testing.internal.pytest.hookspecs import TestOptHooks
+from ddtrace.testing.internal.pytest.report_links import print_test_report_links
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
@@ -629,6 +630,8 @@ class TestOptPlugin:
         terminalreporter.stats["failed"] = original_failed_reports
         if not terminalreporter.stats["failed"]:
             del terminalreporter.stats["failed"]
+
+        print_test_report_links(terminalreporter, self.manager)
 
 
 class RetryReports:
