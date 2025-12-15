@@ -9,11 +9,11 @@ log = get_logger(__name__)
 
 
 class TEST_MANAGEMENT_TELEMETRY(str, Enum):
-    REQUEST = "test_management.request"
-    REQUEST_MS = "test_management.request_ms"
-    REQUEST_ERRORS = "test_management.request_errors"
-    RESPONSE_BYTES = "test_management.response_bytes"
-    RESPONSE_TESTS = "test_management.response_tests"
+    REQUEST = "test_management_tests.request"
+    REQUEST_MS = "test_management_tests.request_ms"
+    REQUEST_ERRORS = "test_management_tests.request_errors"
+    RESPONSE_BYTES = "test_management_tests.response_bytes"
+    RESPONSE_TESTS = "test_management_tests.response_tests"
 
 
 def record_test_management_tests_count(test_management_count: int):

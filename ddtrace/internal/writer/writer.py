@@ -13,17 +13,16 @@ from typing import List
 from typing import Optional
 from typing import TextIO
 
-import ddtrace
 from ddtrace import config
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
 from ddtrace.internal.runtime import get_runtime_id
-import ddtrace.internal.utils.http
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings.asm import ai_guard_config
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings.asm import ai_guard_config
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.version import __version__
 
 from ...constants import _KEEP_SPANS_RATE_KEY
 from .. import compat
@@ -448,6 +447,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     self._intake_endpoint(client),
                     self.RETRY_ATTEMPTS,
                     exc_info=True,
+                    extra={"send_to_telemetry": False},
                 )
         finally:
             self._metrics_dist("http.sent.bytes", len(encoded))
@@ -576,7 +576,7 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
             "Datadog-Meta-Lang": "python",
             "Datadog-Meta-Lang-Version": compat.PYTHON_VERSION,
             "Datadog-Meta-Lang-Interpreter": compat.PYTHON_INTERPRETER,
-            "Datadog-Meta-Tracer-Version": ddtrace.__version__,
+            "Datadog-Meta-Tracer-Version": __version__,
             "Datadog-Client-Computed-Top-Level": "yes",
         }
         if headers:
@@ -802,7 +802,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             .set_language("python")
             .set_language_version(compat.PYTHON_VERSION)
             .set_language_interpreter(compat.PYTHON_INTERPRETER)
-            .set_tracer_version(ddtrace.__version__)
+            .set_tracer_version(__version__)
             .set_git_commit_sha(commit_sha)
             .set_client_computed_top_level()
             .set_input_format(self._api_version)

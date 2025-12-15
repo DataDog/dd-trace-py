@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 import os
+import re
 import subprocess
-import sys
 
 import django
 import pytest
@@ -56,9 +56,7 @@ def daphne_client(django_asgi, additional_env=None):
         proc.terminate()
 
 
-@pytest.mark.skipif(
-    django.VERSION < (3, 2, 0) or sys.version_info[:2] == (3, 8), reason="Only want to test with latest Django"
-)
+@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
         "error",
@@ -79,6 +77,7 @@ def daphne_client(django_asgi, additional_env=None):
         "meta." + FINGERPRINTING.ENDPOINT,
         "meta." + FINGERPRINTING.SESSION,
         "meta._dd.appsec.rc_products",
+        "meta.http.response.headers.content-length",
     ]
 )
 def test_appsec_enabled():
@@ -88,9 +87,7 @@ def test_appsec_enabled():
         assert resp.content == b"Hello, test app."
 
 
-@pytest.mark.skipif(
-    django.VERSION < (3, 2, 0) or sys.version_info[:2] == (3, 8), reason="Only want to test with latest Django"
-)
+@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
         "error",
@@ -112,6 +109,7 @@ def test_appsec_enabled():
         "meta." + FINGERPRINTING.ENDPOINT,
         "meta." + FINGERPRINTING.SESSION,
         "meta._dd.appsec.rc_products",
+        "meta.http.response.headers.content-length",
     ]
 )
 def test_appsec_enabled_attack():
@@ -120,9 +118,7 @@ def test_appsec_enabled_attack():
         assert resp.status_code == 404
 
 
-@pytest.mark.skipif(
-    django.VERSION < (3, 2, 0) or sys.version_info[:2] == (3, 8), reason="Only want to test with latest Django"
-)
+@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
         "error",
@@ -139,6 +135,7 @@ def test_appsec_enabled_attack():
         APPSEC_JSON_TAG,
         "metrics._dd.appsec.event_rules.loaded",
         "meta._dd.appsec.rc_products",
+        "meta.http.response.headers.content-length",
     ]
 )
 def test_request_ipblock_nomatch_200():
@@ -155,9 +152,7 @@ def test_request_ipblock_nomatch_200():
         assert result.content == b"Hello, test app."
 
 
-@pytest.mark.skipif(
-    django.VERSION < (3, 2, 0) or sys.version_info[:2] == (3, 8), reason="Only want to test with latest Django"
-)
+@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
         "error",
@@ -176,6 +171,7 @@ def test_request_ipblock_nomatch_200():
         "metrics._dd.appsec.rasp.rule.eval",
         "metrics._dd.appsec.event_rules.loaded",
         "meta._dd.appsec.rc_products",
+        "meta.http.response.headers.content-length",
     ]
 )
 def test_request_ipblock_match_403():
@@ -194,13 +190,12 @@ def test_request_ipblock_match_403():
             },
         )
         assert result.status_code == 403
-        as_bytes = bytes(constants.BLOCKED_RESPONSE_HTML, "utf-8")
-        assert result.content == as_bytes
+        body = result.content.decode()
+        body_parsed = re.sub(r"Response ID: [-0-9a-z]+", r"Response ID: [security_response_id]", body)
+        assert body_parsed == constants.BLOCKED_RESPONSE_HTML
 
 
-@pytest.mark.skipif(
-    django.VERSION < (3, 2, 0) or sys.version_info[:2] == (3, 8), reason="Only want to test with latest Django"
-)
+@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
 @snapshot(
     ignores=[
         "error",
@@ -219,6 +214,7 @@ def test_request_ipblock_match_403():
         "metrics._dd.appsec.rasp.rule.eval",
         "metrics._dd.appsec.event_rules.loaded",
         "meta._dd.appsec.rc_products",
+        "meta.http.response.headers.content-length",
     ]
 )
 def test_request_ipblock_match_403_json():
@@ -236,5 +232,8 @@ def test_request_ipblock_match_403_json():
             },
         )
         assert result.status_code == 403
-        as_bytes = bytes(constants.BLOCKED_RESPONSE_JSON, "utf-8")
-        assert result.content == as_bytes
+        body = result.content.decode()
+        body_parsed = re.sub(
+            r'"security_response_id":"[-0-9a-z]+"', r'"security_response_id":"[security_response_id]"', body
+        )
+        assert body_parsed == constants.BLOCKED_RESPONSE_JSON

@@ -6,7 +6,8 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
-from ..settings._agent import config as agent_config  # noqa:F401
+from ddtrace.internal.settings._agent import config as agent_config  # noqa:F401
+
 from ._encoding import ListStringTable
 from ._encoding import MsgpackEncoderV04
 from ._encoding import MsgpackEncoderV05

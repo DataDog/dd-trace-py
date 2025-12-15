@@ -14,11 +14,13 @@ from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.internal import gitmetadata
+from ddtrace.internal import process_tags
 from ddtrace.internal import telemetry
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
+from ddtrace.internal.constants import PROCESS_TAGS
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
@@ -26,11 +28,11 @@ from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import create_trace_writer
-from ddtrace.settings._config import config
-from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -224,11 +226,11 @@ class TraceTagsProcessor(TraceProcessor):
     def _set_git_metadata(self, chunk_root):
         repository_url, commit_sha, main_package = gitmetadata.get_git_tags()
         if repository_url:
-            chunk_root.set_tag_str("_dd.git.repository_url", repository_url)
+            chunk_root._set_tag_str("_dd.git.repository_url", repository_url)
         if commit_sha:
-            chunk_root.set_tag_str("_dd.git.commit.sha", commit_sha)
+            chunk_root._set_tag_str("_dd.git.commit.sha", commit_sha)
         if main_package:
-            chunk_root.set_tag_str("_dd.python_main_package", main_package)
+            chunk_root._set_tag_str("_dd.python_main_package", main_package)
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if not trace:
@@ -249,11 +251,13 @@ class TraceTagsProcessor(TraceProcessor):
         for span in spans_to_tag:
             span._update_tags_from_context()
             self._set_git_metadata(span)
-            span.set_tag_str("language", "python")
+            span._set_tag_str("language", "python")
+            if p_tags := process_tags.process_tags:
+                span._set_tag_str(PROCESS_TAGS, p_tags)
             # for 128 bit trace ids
             if span.trace_id > MAX_UINT_64BITS:
                 trace_id_hob = _get_64_highest_order_bits_as_hex(span.trace_id)
-                span.set_tag_str(HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob)
+                span._set_tag_str(HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob)
 
             if span._get_meta_inner(LAST_DD_PARENT_ID_KEY) is not None and span._parent is not None:
                 # we should only set the last parent id on local root spans
@@ -263,9 +267,20 @@ class TraceTagsProcessor(TraceProcessor):
 
 
 class _Trace:
-    def __init__(self, spans=None, num_finished=0):
-        self.spans = spans if spans is not None else []
-        self.num_finished = num_finished
+    __slots__ = ("spans", "num_finished")
+
+    def __init__(self, spans: Optional[List[Span]] = None, num_finished: int = 0):
+        self.spans: List[Span] = spans if spans is not None else []
+        self.num_finished: int = num_finished
+
+    def remove_finished(self) -> List[Span]:
+        # perf: Avoid Span.finished which is a computed property and has function call overhead
+        #       so check Span.duration_ns manually.
+        finished = [s for s in self.spans if s.duration_ns is not None]
+        if finished:
+            self.spans[:] = [s for s in self.spans if s.duration_ns is None]
+            self.num_finished = 0
+        return finished
 
 
 class SpanAggregator(SpanProcessor):
@@ -350,31 +365,26 @@ class SpanAggregator(SpanProcessor):
                 return
 
             trace = self._traces[span.trace_id]
-            num_buffered = len(trace.spans)
             trace.num_finished += 1
-            should_partial_flush = self.partial_flush_enabled and trace.num_finished >= self.partial_flush_min_spans
-            is_trace_complete = trace.num_finished >= len(trace.spans)
-            if not is_trace_complete and not should_partial_flush:
-                return
-
-            if not is_trace_complete:
-                finished = [s for s in trace.spans if s.finished]
-                if not finished:
-                    return
-                trace.spans[:] = [s for s in trace.spans if not s.finished]  # In-place update
-                trace.num_finished = 0
-            else:
+            num_buffered = len(trace.spans)
+            is_trace_complete = trace.num_finished >= num_buffered
+            num_finished = trace.num_finished
+            should_partial_flush = False
+            if is_trace_complete:
                 finished = trace.spans
                 del self._traces[span.trace_id]
                 # perf: Flush span finish metrics to the telemetry writer after the trace is complete
                 self._queue_span_count_metrics("spans_finished", "integration_name")
-
-        num_finished = len(finished)
-        if should_partial_flush:
-            # FIXME(munir): should_partial_flush should return false if all the spans in the trace are finished.
-            # For example if partial flushing min spans is 10 and the trace has 10 spans, the trace should
-            # not have a partial flush metric. This trace was processed in its entirety.
-            finished[0].set_metric("_dd.py.partial_flush", num_finished)
+            elif self.partial_flush_enabled and num_finished >= self.partial_flush_min_spans:
+                should_partial_flush = True
+                finished = trace.remove_finished()
+                if finished:
+                    finished[0].set_metric("_dd.py.partial_flush", num_finished)
+                else:
+                    # num_finished was out of sync with the actual finished spans, skip partial flush
+                    return
+            else:
+                return
 
         # perf: Process spans outside of the span aggregator lock
         spans = finished
@@ -440,17 +450,16 @@ class SpanAggregator(SpanProcessor):
         self._queue_span_count_metrics("spans_finished", "integration_name", 1)
         # Log a warning if the tracer is shutdown before spans are finished
         if log.isEnabledFor(logging.WARNING):
-            unfinished_spans = [
+            unsent_spans = [
                 f"trace_id={s.trace_id} parent_id={s.parent_id} span_id={s.span_id} name={s.name} resource={s.resource} started={s.start} sampling_priority={s.context.sampling_priority}"  # noqa: E501
                 for t in self._traces.values()
                 for s in t.spans
-                if not s.finished
             ]
-            if unfinished_spans:
+            if unsent_spans:
                 log.warning(
-                    "Shutting down tracer with %d unfinished spans. Unfinished spans will not be sent to Datadog: %s",
-                    len(unfinished_spans),
-                    ", ".join(unfinished_spans),
+                    "Shutting down tracer with %d spans. These spans will not be sent to Datadog: %s",
+                    len(unsent_spans),
+                    ", ".join(unsent_spans),
                 )
 
         try:

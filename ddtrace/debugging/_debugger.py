@@ -334,7 +334,10 @@ class Debugger(Service):
                 self._probe_registry.set_emitting(probe)
 
             log.debug("[%s][P: %s] Debugger. Report signal %s", os.getpid(), os.getppid(), signal)
-            self.__uploader__.get_collector().push(signal)
+            if (collector := self.__uploader__.get_collector()) is None:
+                log.error("No collector available to push signal %s", signal)
+                return
+            collector.push(signal)
 
         except Exception:
             log.error("Failed to execute probe hook", exc_info=True)
@@ -397,9 +400,6 @@ class Debugger(Service):
     def _inject_probes(self, probes: List[LineProbe]) -> None:
         for probe in probes:
             if probe not in self._probe_registry:
-                if len(self._probe_registry) >= di_config.max_probes:
-                    log.warning("Too many active probes. Ignoring new ones.")
-                    return
                 log.debug("[%s][P: %s] Received new %s.", os.getpid(), os.getppid(), probe)
                 self._probe_registry.register(probe)
 
@@ -474,6 +474,7 @@ class Debugger(Service):
 
     def _probe_wrapping_hook(self, module: ModuleType) -> None:
         probes = self._probe_registry.get_pending(module.__name__)
+        collector = self.__uploader__.get_collector()
         for probe in probes:
             if not isinstance(probe, FunctionLocationMixin):
                 continue
@@ -500,9 +501,13 @@ class Debugger(Service):
                     function,
                 )
             else:
+                if collector is None:
+                    log.error("No signal collector available")
+                    self._probe_registry.set_error(probe, "NoCollector", "No signal collector available")
+                    continue
                 context = DebuggerWrappingContext(
                     function,
-                    collector=self.__uploader__.get_collector(),
+                    collector=collector,
                     registry=self._probe_registry,
                     tracer=self._tracer,
                     probe_meter=self._probe_meter,
@@ -521,10 +526,6 @@ class Debugger(Service):
 
     def _wrap_functions(self, probes: List[FunctionProbe]) -> None:
         for probe in probes:
-            if len(self._probe_registry) >= di_config.max_probes:
-                log.warning("Too many active probes. Ignoring new ones.")
-                return
-
             self._probe_registry.register(probe)
             try:
                 assert probe.module is not None  # nosec

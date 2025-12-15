@@ -5,6 +5,7 @@ from ddtrace.internal.runtime import get_runtime_id
 
 from ...constants import ENV_KEY
 from ...constants import VERSION_KEY
+from .. import process_tags
 from ..constants import DEFAULT_SERVICE_NAME
 from .collector import ValueCollector
 from .constants import LANG
@@ -63,16 +64,16 @@ class PlatformTagCollector(RuntimeTagCollector):
     - ``tracer_version`` e.g. ``0.29.0``
     """
 
-    required_modules = ["platform", "ddtrace"]
+    required_modules = ["platform", "ddtrace.version"]
 
     def collect_fn(self, keys):
         platform = self.modules.get("platform")
-        ddtrace = self.modules.get("ddtrace")
+        version = self.modules.get("ddtrace.version")
         tags = [
             (LANG, "python"),
             (LANG_INTERPRETER, platform.python_implementation()),
             (LANG_VERSION, platform.python_version()),
-            (TRACER_VERSION, ddtrace.__version__),
+            (TRACER_VERSION, version.__version__),
         ]
         return tags
 
@@ -97,3 +98,13 @@ class PlatformTagCollectorV2(PlatformTagCollector):
         tags = super(PlatformTagCollectorV2, self).collect_fn(keys)
         tags.append(("runtime-id", get_runtime_id()))
         return tags
+
+
+class ProcessTagCollector(RuntimeTagCollector):
+    """Tag collector for process tags."""
+
+    def collect_fn(self, keys):
+        # DEV: we do not access direct process_tags_list so we can
+        # reload it in the tests
+        process_tags_list = process_tags.process_tags_list
+        return process_tags_list or []

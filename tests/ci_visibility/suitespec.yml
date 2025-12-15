@@ -14,8 +14,8 @@ components:
     - ddtrace/contrib/internal/selenium/*
   unittest:
     - ddtrace/contrib/internal/unittest/*
-  freezegun:
-    - ddtrace/contrib/internal/freezegun/*
+  testing:
+    - ddtrace/testing/*
 suites:
   ci_visibility:
     parallelism: 4
@@ -28,12 +28,13 @@ suites:
       - '@pytest'
       - '@codeowners'
       - '@unittest'
-      - '@freezegun'
+      - '@testing'
       - tests/ci_visibility/*
+      - tests/snapshots/test_api_fake_runners.*
     runner: riot
     snapshot: true
   dd_coverage:
-    parallelism: 5
+    parallelism: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -43,7 +44,7 @@ suites:
     runner: riot
     snapshot: true
   pytest:
-    parallelism: 12
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -53,7 +54,6 @@ suites:
       - '@ci_visibility'
       - '@coverage'
       - '@codeowners'
-      - '@freezegun'
       - tests/contrib/pytest/*
       - tests/contrib/pytest_benchmark/*
       - tests/contrib/pytest_bdd/*
@@ -61,8 +61,8 @@ suites:
       - tests/snapshots/tests.contrib.pytest.*
     runner: riot
     snapshot: true
-  pytest_v2:
-    parallelism: 7
+  testing:
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -72,12 +72,7 @@ suites:
       - '@ci_visibility'
       - '@coverage'
       - '@codeowners'
-      - '@freezegun'
-      - tests/contrib/pytest/*
-      - tests/contrib/pytest_benchmark/*
-      - tests/contrib/pytest_bdd/*
-      - tests/snapshots/tests.contrib.pytest.*
-    pattern: pytest_plugin_v2
+      - tests/testing/*
     runner: riot
     snapshot: true
   selenium:
@@ -102,7 +97,6 @@ suites:
       - '@unittest'
       - '@ci_visibility'
       - '@coverage'
-      - '@freezegun'
       - tests/contrib/unittest/*
       - tests/snapshots/tests.contrib.unittest.*
     runner: riot

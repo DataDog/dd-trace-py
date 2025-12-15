@@ -5,6 +5,7 @@ agentless
 aiobotocore
 aiohttp
 aiomysql
+aiokafka
 aiopg
 aioredis
 algolia
@@ -40,6 +41,7 @@ AWS
 ARN
 backend
 backends
+backoff
 backport
 backported
 backporting
@@ -203,6 +205,7 @@ namespace
 NeedsAppKey
 NSight
 obfuscator
+observability
 ObjectProxy
 oce
 openai
@@ -297,6 +300,7 @@ subpackages
 Subprocess
 substring
 suitespec
+Temporality
 TensorBoard
 testagent
 TestCase
@@ -345,3 +349,5 @@ xfail
 yaaredis
 openai-agents
 validators
+jitter
+durations

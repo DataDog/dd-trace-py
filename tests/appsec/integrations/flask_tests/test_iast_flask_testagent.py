@@ -1,6 +1,5 @@
 import concurrent.futures
 import json
-import sys
 
 import pytest
 
@@ -66,9 +65,9 @@ def test_iast_stacktrace_error(iast_test_token):
             "/iast-stacktrace-leak-vulnerability", headers={"X-Datadog-Test-Session-Token": iast_test_token}
         )
         assert response.status_code == 500
-        assert (
-            b"<title>ValueError: Check my stacktrace!" in response.content
-        ), f"Exception doesn't found in CONTENT: {response.content}"
+        assert b"<title>ValueError: Check my stacktrace!" in response.content, (
+            f"Exception doesn't found in CONTENT: {response.content}"
+        )
 
     response_tracer = _get_span(iast_test_token)
     spans_with_iast = []
@@ -520,7 +519,6 @@ def test_gevent_sensitive_socketpair(server, config, iast_enabled, iast_test_tok
         assert response.text == "OK:True"
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Test not compatible with Python 3.8")
 @pytest.mark.parametrize("server, config", _GEVENT_SERVERS_SCENARIOS)
 @pytest.mark.parametrize("iast_enabled", ("true", "false"))
 def test_gevent_sensitive_greenlet(server, config, iast_enabled, iast_test_token):

@@ -250,6 +250,45 @@
       "on_match": [
         "stack_trace"
       ]
+    },
+    {
+      "id": "ua0-600-56x",
+      "name": "Datadog test scanner - blocking version: user-agent",
+      "tags": {
+        "type": "attack_tool",
+        "category": "attack_attempt",
+        "cwe": "200",
+        "capec": "1000/118/169",
+        "tool_name": "Datadog Canary Test",
+        "confidence": "1",
+        "module": "waf"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.headers.no_cookies",
+                "key_path": [
+                  "user-agent"
+                ]
+              },
+              {
+                "address": "grpc.server.request.metadata",
+                "key_path": [
+                  "dd-canary"
+                ]
+              }
+            ],
+            "regex": "^dd-test-scanner-log-block(?:$|/|\\s)"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "transformers": [],
+      "on_match": [
+        "block"
+      ]
     }
   ]
 }

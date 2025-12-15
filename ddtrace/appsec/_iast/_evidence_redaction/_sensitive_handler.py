@@ -2,8 +2,10 @@ import re
 import string
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.asm import config as asm_config
 
+from .._taint_tracking import OriginType
 from .._utils import _get_source_index
 from ..constants import VULN_CMDI
 from ..constants import VULN_CODE_INJECTION
@@ -41,6 +43,8 @@ class SensitiveHandler:
     def __init__(self):
         self._name_pattern = re.compile(asm_config._iast_redaction_name_pattern, re.IGNORECASE | re.MULTILINE)
         self._value_pattern = re.compile(asm_config._iast_redaction_value_pattern, re.IGNORECASE | re.MULTILINE)
+        # Query string obfuscation pattern for synchronization with span-level redaction
+        self._query_string_pattern = config._obfuscation_query_string_pattern
 
         self._sensitive_analyzers = {
             VULN_CMDI: command_injection_sensitive_analyzer,
@@ -131,6 +135,21 @@ class SensitiveHandler:
         """
         return bool(self._value_pattern.search(value))
 
+    def is_query_string_source(self, source):
+        """
+        Checks if a source originates from a query string.
+
+        Args:
+        - source: The source to check.
+
+        Returns:
+        - bool: True if the source is from a query string, False otherwise.
+        """
+        try:
+            return source is not None and hasattr(source, "origin") and source.origin == OriginType.QUERY
+        except Exception:
+            return False
+
     def is_sensible_source(self, source):
         """
         Checks if a source is sensible.
@@ -141,11 +160,22 @@ class SensitiveHandler:
         Returns:
         - bool: True if the source is sensible, False otherwise.
         """
-        return (
-            source is not None
-            and source.value is not None
-            and (self.is_sensible_name(source.name) or self.is_sensible_value(source.value))
-        )
+        if source is None or source.value is None:
+            return False
+
+        # For query string sources, check against the query string obfuscation pattern
+        # to maintain synchronization with span-level redaction
+        if self.is_query_string_source(source) and self._query_string_pattern is not None:
+            try:
+                # Convert pattern to string for matching (pattern is in bytes, source value is string)
+                value_bytes = source.value if isinstance(source.value, bytes) else source.value.encode("utf-8")
+                if self._query_string_pattern.search(value_bytes):
+                    return True
+            except Exception:
+                log.debug("Error checking query string pattern against source", exc_info=True)
+
+        # Standard IAST redaction patterns
+        return self.is_sensible_name(source.name) or self.is_sensible_value(source.value)
 
     def scrub_evidence(self, vulnerability_type, evidence, tainted_ranges, sources):
         """
@@ -166,7 +196,10 @@ class SensitiveHandler:
                 if not evidence.value:
                     log.debug("No evidence value found in evidence %s", evidence)
                     return None
-                sensitive_ranges = sensitive_analyzer(evidence, self._name_pattern, self._value_pattern)
+                # Pass query string pattern for synchronization with span-level redaction
+                sensitive_ranges = sensitive_analyzer(
+                    evidence, self._name_pattern, self._value_pattern, self._query_string_pattern
+                )
                 return self.to_redacted_json(evidence.value, sensitive_ranges, tainted_ranges, sources)
         return None
 

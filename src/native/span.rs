@@ -9,7 +9,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use datadog_trace_utils::span::{Span as NativeSpan, SpanEvent, SpanLink, SpanText};
+use libdd_trace_utils::span::{Span as NativeSpan, SpanEvent, SpanLink, SpanText};
 
 use pyo3::{
     exceptions::{PyTypeError, PyValueError},
@@ -182,6 +182,7 @@ pub struct SpanData {
     pub duration_ns: Option<i64>,
     #[pyo3(get, set)]
     _span_api: PyBackedString,
+    #[pyo3(get, set)]
     pub _meta_struct: HashMap<PyBackedString, Py<PyDict>>,
 }
 
@@ -484,6 +485,14 @@ impl SpanData {
         self._set_link_or_append_pointer(span_link)
     }
 
+    #[pyo3(
+        signature=(
+            pointer_kind,
+            pointer_direction,
+            pointer_hash,
+            extra_attributes = None,
+        )
+    )]
     fn _add_span_pointer<'p>(
         &mut self,
         py: Python<'p>,
@@ -773,9 +782,8 @@ impl SpanEventData {
 impl SpanEventData {
     fn convert_attributes(
         attrs: &Bound<'_, PyDict>,
-    ) -> PyResult<
-        HashMap<PyBackedString, datadog_trace_utils::span::AttributeAnyValue<PyBackedString>>,
-    > {
+    ) -> PyResult<HashMap<PyBackedString, libdd_trace_utils::span::AttributeAnyValue<PyBackedString>>>
+    {
         let mut result = HashMap::new();
 
         for (key, value) in attrs.iter() {
@@ -789,8 +797,8 @@ impl SpanEventData {
 
     fn convert_attribute_value(
         value: &Bound<'_, PyAny>,
-    ) -> PyResult<datadog_trace_utils::span::AttributeAnyValue<PyBackedString>> {
-        use datadog_trace_utils::span::{AttributeAnyValue, AttributeArrayValue::*};
+    ) -> PyResult<libdd_trace_utils::span::AttributeAnyValue<PyBackedString>> {
+        use libdd_trace_utils::span::{AttributeAnyValue, AttributeArrayValue::*};
         let from_py = |value: &Bound<'_, PyAny>| {
             Some(if let Ok(s) = value.extract::<PyBackedString>() {
                 String(s)
@@ -826,12 +834,9 @@ impl SpanEventData {
 
     fn attributes_to_py_dict<'py>(
         py: Python<'py>,
-        attrs: &HashMap<
-            PyBackedString,
-            datadog_trace_utils::span::AttributeAnyValue<PyBackedString>,
-        >,
+        attrs: &HashMap<PyBackedString, libdd_trace_utils::span::AttributeAnyValue<PyBackedString>>,
     ) -> PyResult<Bound<'py, PyDict>> {
-        use datadog_trace_utils::span::{AttributeAnyValue, AttributeArrayValue};
+        use libdd_trace_utils::span::{AttributeAnyValue, AttributeArrayValue};
 
         let dict = PyDict::new(py);
 
@@ -886,7 +891,7 @@ impl SpanEventData {
                     .attributes
                     .iter()
                     .map(|(k, v)| {
-                        use datadog_trace_utils::span::{
+                        use libdd_trace_utils::span::{
                             AttributeAnyValue::*, AttributeArrayValue, AttributeArrayValue::*,
                         };
 

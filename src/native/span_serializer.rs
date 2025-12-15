@@ -1,6 +1,6 @@
 use std::{ops::DerefMut, sync::{Arc, Mutex}};
 
-use ddcommon::MutexExt;
+use libdd_common::MutexExt;
 use pyo3::{
     types::{
         PyAnyMethods, PyDict, PyDictMethods, PyFloat, PyFloatMethods, PyList, PyListMethods,
@@ -35,7 +35,7 @@ impl NativeSpanSerializer {
         let buff = &self.buff;
         py.allow_threads(|| {
             let buff = buff.lock_or_panic();
-            datadog_trace_utils::msgpack_encoder::v04::(slice, traces)
+            // libdd_trace_utils::msgpack_encoder::v04::write_to_slice(sslice, traces)
         });
         Ok(())
     }

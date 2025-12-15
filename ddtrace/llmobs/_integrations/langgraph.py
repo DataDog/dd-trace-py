@@ -501,7 +501,7 @@ def _find_pregel_push_index(task, pregel_pushes: List[Tuple[str, str]]) -> int:
 
 
 def _map_channel_writes_to_finished_tasks_ids(
-    finished_tasks: Dict[str, Any]
+    finished_tasks: Dict[str, Any],
 ) -> Dict[str, List[Union[str, Tuple[str, str]]]]:
     """
     Maps channel writes for finished tasks to the list of finished tasks ids that wrote to that channel.

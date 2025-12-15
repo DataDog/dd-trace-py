@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: this fix resolves an issue where importing the profiler module after an asyncio Event Loop had been
+    started would make the Profiler blind to the existing Event Loop and its Tasks.

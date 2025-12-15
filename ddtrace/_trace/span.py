@@ -20,9 +20,6 @@ from ddtrace._trace._span_pointer import _SpanPointer
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
 from ddtrace._trace.types import _AttributeValueType
-from ddtrace._trace.types import _MetaDictType
-from ddtrace._trace.types import _MetricDictType
-from ddtrace._trace.types import _TagNameType
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
 from ddtrace.constants import _SAMPLING_RULE_DECISION
@@ -52,9 +49,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.native._native import SpanEventData
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils.time import Time
-from ddtrace.settings._config import config
-from ddtrace.vendor.debtcollector import deprecate
 
 
 class SpanEvent(SpanEventData):
@@ -98,7 +94,7 @@ def _get_64_lowest_order_bits_as_int(large_int: int) -> int:
 
 def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
     """Get the 64 highest order bits from a 128bit integer"""
-    return "{:032x}".format(large_int)[:16]
+    return f"{large_int:032x}"[:16]
 
 
 class Span(SpanData):
@@ -234,7 +230,7 @@ class Span(SpanData):
         self.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
         return value
 
-    def set_tag(self, key: _TagNameType, value: Any = None) -> None:
+    def set_tag(self, key: str, value: Optional[str] = None) -> None:
         """Set a tag key/value pair on the span.
 
         Keys must be strings, values must be ``str``-able.
@@ -244,11 +240,6 @@ class Span(SpanData):
         :param value: Value to assign for the tag
         :type value: ``str``-able value
         """
-
-        if not isinstance(key, str):
-            log.warning("Ignoring tag pair %s:%s. Key must be a string.", key, value)
-            return
-
         # Special case, force `http.status_code` as a string
         # DEV: `http.status_code` *has* to be in `meta` for metrics
         #   calculated in the trace agent
@@ -263,14 +254,14 @@ class Span(SpanData):
         INT_TYPES = (net.TARGET_PORT,)
         if key in INT_TYPES and not val_is_an_int:
             try:
-                value = int(value)
+                value = int(value)  # type: ignore
                 val_is_an_int = True
             except (ValueError, TypeError):
                 pass
 
         # Set integers that are less than equal to 2^53 as metrics
-        if value is not None and val_is_an_int and abs(value) <= 2**53:
-            self.set_metric(key, value)
+        if value is not None and val_is_an_int and abs(value) <= 2**53:  # type: ignore
+            self.set_metric(key, value)  # type: ignore
             return
 
         # All floats should be set as a metric
@@ -294,8 +285,8 @@ class Span(SpanData):
             # Set `_dd.measured` tag as a metric
             # DEV: `set_metric` will ensure it is an integer 0 or 1
             if value is None:
-                value = 1
-            self.set_metric(key, value)
+                value = 1  # type: ignore
+            self.set_metric(key, value)  # type: ignore
             return
 
         try:
@@ -304,18 +295,18 @@ class Span(SpanData):
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
-    def set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
+    def _set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
         """
         Set a tag key/value pair on the span meta_struct
         Currently it will only be exported with V4 encoding
         """
-        self._meta_struct[key] = value
+        return self._set_struct_tag_inner(key, value)
 
-    def get_struct_tag(self, key: str) -> Optional[Dict[str, Any]]:
+    def _get_struct_tag(self, key: str) -> Optional[Dict[str, Any]]:
         """Return the given struct or None if it doesn't exist."""
-        return self._meta_struct.get(key, None)
+        return self._get_struct_tag_inner(key)
 
-    def set_tag_str(self, key: _TagNameType, value: Text) -> None:
+    def _set_tag_str(self, key: str, value: str) -> None:
         """Set a value for a tag. Values are coerced to unicode in Python 2 and
         str in Python 3, with decoding errors in conversion being replaced with
         U+FFFD.
@@ -327,15 +318,15 @@ class Span(SpanData):
                 raise e
             log.warning("Failed to set text tag '%s'", key, exc_info=True)
 
-    def get_tag(self, key: _TagNameType) -> Optional[Text]:
+    def get_tag(self, key: str) -> Optional[str]:
         """Return the given tag or None if it doesn't exist."""
         return self._get_meta_inner(key)
 
-    def get_tags(self) -> _MetaDictType:
+    def get_tags(self) -> Dict[str, str]:
         """Return all tags."""
         return self._meta_into_py_dict()
 
-    def set_tags(self, tags: Dict[_TagNameType, Any]) -> None:
+    def set_tags(self, tags: Dict[str, str]) -> None:
         """Set a dictionary of tags on the given span. Keys and values
         must be strings (or stringable)
         """
@@ -343,7 +334,7 @@ class Span(SpanData):
             for k, v in iter(tags.items()):
                 self.set_tag(k, v)
 
-    def set_metric(self, key: _TagNameType, value: NumericType) -> None:
+    def set_metric(self, key: str, value: NumericType) -> None:
         """This method sets a numeric tag value for the given key."""
         # Enforce a specific constant for `_dd.measured`
         if key == _SPAN_MEASURED_KEY:
@@ -372,7 +363,7 @@ class Span(SpanData):
         self._delete_meta_inner(key)
         self._set_metrics_inner(key, value)
 
-    def set_metrics(self, metrics: _MetricDictType) -> None:
+    def set_metrics(self, metrics: Dict[str, NumericType]) -> None:
         """Set a dictionary of metrics on the given span. Keys must be
         must be strings (or stringable). Values must be numeric.
         """
@@ -380,7 +371,7 @@ class Span(SpanData):
             for k, v in metrics.items():
                 self.set_metric(k, v)
 
-    def get_metric(self, key: _TagNameType) -> Optional[NumericType]:
+    def get_metric(self, key: str) -> Optional[NumericType]:
         """Return the given metric or None if it doesn't exist."""
         return self._get_metrics_inner(key)
 
@@ -393,7 +384,7 @@ class Span(SpanData):
         """Add an errortracking related callback to the on_finish_callback array"""
         self._on_finish_callbacks.insert(0, callback)
 
-    def get_metrics(self) -> _MetricDictType:
+    def get_metrics(self) -> Dict[str, NumericType]:
         """Return all metrics."""
         return self._metrics_into_py_dict()
 
@@ -503,8 +494,6 @@ class Span(SpanData):
         self,
         exception: BaseException,
         attributes: Optional[Dict[str, _AttributeValueType]] = None,
-        timestamp: Optional[int] = None,
-        escaped: bool = False,
     ) -> None:
         """
         Records an exception as a span event. Multiple exceptions can be recorded on a span.
@@ -513,26 +502,7 @@ class Span(SpanData):
         :param attributes: Optional dictionary of additional attributes to add to the exception event.
             These attributes will override the default exception attributes if they contain the same keys.
             Valid attribute values include (homogeneous array of) strings, booleans, integers, floats.
-        :param timestamp: Deprecated.
-        :param escaped: Deprecated.
         """
-        if escaped:
-            deprecate(
-                prefix="The escaped argument is deprecated for record_exception",
-                message="""If an exception exits the scope of the span, it will automatically be
-                reported in the span tags.""",
-                category=DDTraceDeprecationWarning,
-                removal_version="4.0.0",
-            )
-        if timestamp is not None:
-            deprecate(
-                prefix="The timestamp argument is deprecated for record_exception",
-                message="""The timestamp of the span event should correspond to the time when the
-                error is recorded which is set automatically.""",
-                category=DDTraceDeprecationWarning,
-                removal_version="4.0.0",
-            )
-
         tb = self._get_traceback(type(exception), exception, exception.__traceback__)
 
         attrs: Dict[str, _AttributeValueType] = {
@@ -634,7 +604,7 @@ class Span(SpanData):
                 attributes=attributes,
             )
 
-    def finish_with_ancestors(self) -> None:
+    def _finish_with_ancestors(self) -> None:
         """Finish this span along with all (accessible) ancestors of this span.
 
         This method is useful if a sudden program shutdown is required and finishing
@@ -660,18 +630,6 @@ class Span(SpanData):
             self.finish()
         except Exception:
             log.exception("error closing trace")
-
-    def _pprint(self) -> str:
-        # Although Span._pprint has been internal to ddtrace since v1.0.0, it is still
-        # used to debug spans in the wild. Introducing a deprecation warning here to
-        # give users a chance to migrate to __repr__ before we remove it.
-        deprecate(
-            prefix="The _pprint method is deprecated for __repr__",
-            message="""Use __repr__ instead.""",
-            category=DDTraceDeprecationWarning,
-            removal_version="4.0.0",
-        )
-        return self.__repr__()
 
     def __repr__(self) -> str:
         """Return a detailed string representation of a span."""

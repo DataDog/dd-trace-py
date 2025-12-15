@@ -62,8 +62,8 @@ TYPE = "langchain.request.type"
 ANTHROPIC_PROVIDER_NAME = "anthropic"
 BEDROCK_PROVIDER_NAME = "amazon_bedrock"
 OPENAI_PROVIDER_NAME = "openai"
+AZURE_OAI_PROVIDER_NAME = "azure"
 VERTEXAI_PROVIDER_NAME = "vertexai"
-GEMINI_PROVIDER_NAME = "google_palm"
 
 ROLE_MAPPING = {
     "human": "user",
@@ -71,7 +71,7 @@ ROLE_MAPPING = {
     "system": "system",
 }
 
-SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool"]
+SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool", "runnable_lambda"]
 LANGCHAIN_BASE_URL_FIELDS = [
     "api_base",
     "api_host",
@@ -165,7 +165,7 @@ class LangChainIntegration(BaseLLMIntegration):
         args: List[Any],
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
-        operation: str = "",  # oneof "llm","chat","chain","embedding","retrieval","tool"
+        operation: str = "",  # oneof SUPPORTED_OPERATIONS
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
@@ -186,10 +186,7 @@ class LangChainIntegration(BaseLLMIntegration):
             # only the llm interface for Vertex AI will get instrumented
             elif model_provider.startswith(VERTEXAI_PROVIDER_NAME) and operation == "llm":
                 llmobs_integration = "vertexai"
-            # only the llm interface for Gemini will get instrumented
-            elif model_provider.startswith(GEMINI_PROVIDER_NAME) and operation == "llm":
-                llmobs_integration = "google_generativeai"
-            elif model_provider.startswith(OPENAI_PROVIDER_NAME):
+            elif any(provider in model_provider for provider in (OPENAI_PROVIDER_NAME, AZURE_OAI_PROVIDER_NAME)):
                 llmobs_integration = "openai"
             elif operation == "chat" and model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
                 llmobs_integration = "anthropic"
@@ -214,6 +211,8 @@ class LangChainIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_similarity_search(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "tool":
             self._llmobs_set_meta_tags_from_tool(span, tool_inputs=kwargs, tool_output=response)
+        elif operation == "runnable_lambda":
+            self._llmobs_set_meta_tags_from_runnable_lambda(span, args, kwargs, response)
 
     def _set_links(self, span: Span) -> None:
         """
@@ -766,6 +765,19 @@ class LangChainIntegration(BaseLLMIntegration):
             }
         )
 
+    def _llmobs_set_meta_tags_from_runnable_lambda(
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any
+    ) -> None:
+        inputs = get_argument_value(args, kwargs, 0, "inputs")
+
+        span._set_ctx_items(
+            {
+                SPAN_KIND: "task",
+                INPUT_VALUE: safe_json(inputs),
+                OUTPUT_VALUE: safe_json(response),
+            }
+        )
+
     def _set_base_span_tags(
         self,
         span: Span,
@@ -777,9 +789,9 @@ class LangChainIntegration(BaseLLMIntegration):
     ) -> None:
         """Set base level tags that should be present on all LangChain spans (if they are not None)."""
         if provider is not None:
-            span.set_tag_str(PROVIDER, provider)
+            span._set_tag_str(PROVIDER, provider)
         if model is not None:
-            span.set_tag_str(MODEL, model)
+            span._set_tag_str(MODEL, model)
 
     def _extract_tool_call_args_from_inputs(self, tool_inputs: Dict[str, Any]) -> Tuple[str, str, str]:
         """
@@ -915,7 +927,6 @@ class LangChainIntegration(BaseLLMIntegration):
             "template": template,
             "chat_template": chat_template,
             "id": prompt_id if prompt_id is not None else "unknown",
-            "version": "0.0.0",
             "rag_context_variables": [],
             "rag_query_variables": [],
             "tags": tags,

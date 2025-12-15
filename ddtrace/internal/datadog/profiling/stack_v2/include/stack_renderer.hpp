@@ -1,13 +1,7 @@
 #pragma once
 
-#include <chrono>
-#include <fstream>
-#include <memory>
-#include <mutex>
 #include <string>
 #include <string_view>
-#include <thread>
-#include <vector>
 
 #include "python_headers.hpp"
 
@@ -40,15 +34,15 @@ class StackRenderer : public RendererInterface
     // the sample is created, this has to be reset.
     bool pushed_task_name = false;
 
-    void open() override {}
+    Result<void> open() override { return Result<void>::ok(); }
     void close() override {}
     void header() override {}
     void metadata(const std::string&, const std::string&) override {}
-    void frame(mojo_ref_t, mojo_ref_t, mojo_ref_t, mojo_int_t, mojo_int_t, mojo_int_t, mojo_int_t) override{};
-    void frame_ref(mojo_ref_t) override{};
+    void frame(uintptr_t, uintptr_t, uintptr_t, int, int, int, int) override {};
+    void frame_ref(uintptr_t) override{};
     void frame_kernel(const std::string&) override {};
-    void string(mojo_ref_t, const std::string&) override {};
-    void string_ref(mojo_ref_t) override{};
+    void string(uintptr_t, const std::string&) override {};
+    void string_ref(uintptr_t) override{};
 
     virtual void render_message(std::string_view msg) override;
     virtual void render_thread_begin(PyThreadState* tstate,

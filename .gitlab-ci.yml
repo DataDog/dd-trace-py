@@ -14,7 +14,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "6be22a6418b86c3be4920790dfa121149aed2903"
+  SYSTEM_TESTS_REF: "30e17ba7009b84998c0ada3b3a17f39c0037faba"
 
 default:
   interruptible: true
@@ -54,7 +54,7 @@ tests-gen:
         # Use dd-octo-sts to get GitHub token
         export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
       fi
-    - riot -v run --pass-env -s gitlab-gen-config -v
+    - scripts/gen_gitlab_config.py --verbose
   needs: []
   artifacts:
     paths:

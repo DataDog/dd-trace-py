@@ -3,15 +3,13 @@ import logging
 import os
 import threading
 from types import TracebackType
-from typing import List
-from typing import NamedTuple
+from typing import Any
 from typing import Optional
 from typing import Set
-from typing import Tuple
 from typing import Type
 from typing import cast
 
-from ddtrace.profiling.event import DDFrame
+from typing_extensions import Self
 
 
 try:
@@ -21,23 +19,12 @@ except ImportError:
     _memalloc = None  # type: ignore[assignment]
 
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
-from ddtrace.settings.profiling import config
 
 
 LOG = logging.getLogger(__name__)
-
-
-class MemorySample(NamedTuple):
-    frames: List[DDFrame]
-    size: int
-    count: (  # pyright: ignore[reportIncompatibleMethodOverride] (count is a method of tuple)
-        int  # type: ignore[assignment]
-    )
-    in_use_size: int
-    alloc_size: int
-    thread_id: int
 
 
 class MemoryCollector:
@@ -70,8 +57,9 @@ class MemoryCollector:
             _memalloc.stop()
             _memalloc.start(self.max_nframe, self.heap_sample_size)
 
-    def __enter__(self) -> None:
+    def __enter__(self) -> Self:
         self.start()
+        return self
 
     def __exit__(
         self,
@@ -81,7 +69,7 @@ class MemoryCollector:
     ) -> None:
         self.stop()
 
-    def join(self) -> None:
+    def join(self, timeout: Optional[float] = None) -> None:
         pass
 
     def stop(self) -> None:
@@ -91,7 +79,8 @@ class MemoryCollector:
             except RuntimeError:
                 LOG.debug("Failed to stop memalloc profiling on shutdown", exc_info=True)
 
-    def _get_thread_id_ignore_set(self) -> Set[int]:
+    @staticmethod
+    def _get_thread_id_ignore_set() -> Set[int]:
         # This method is not perfect and prone to race condition in theory, but very little in practice.
         # Anyhow it's not a big deal — it's a best effort feature.
         return {
@@ -100,8 +89,9 @@ class MemoryCollector:
             if getattr(thread, "_ddtrace_profiling_ignore", False) and thread.ident is not None
         }
 
-    def snapshot(self) -> Tuple[MemorySample, ...]:
-        thread_id_ignore_set = self._get_thread_id_ignore_set()
+    def snapshot(self) -> None:
+        """Take a snapshot of collected data, to be exported."""
+        thread_id_ignore_set = MemoryCollector._get_thread_id_ignore_set()
 
         try:
             if _memalloc is None:
@@ -110,7 +100,7 @@ class MemoryCollector:
         except (RuntimeError, ValueError):
             # DEV: This can happen if either _memalloc has not been started or has been stopped.
             LOG.debug("Unable to collect heap events from process %d", os.getpid(), exc_info=True)
-            return tuple()
+            return
 
         for event in events:
             (frames, thread_id), in_use_size, alloc_size, count = event
@@ -137,30 +127,33 @@ class MemoryCollector:
                     #      re-initialization.
                     LOG.debug("Invalid state detected in memalloc module, suppressing profile")
 
-        return tuple()
+    def snapshot_and_parse_pprof(self, output_filename: str) -> Any:
+        """Export samples to profile, upload, and parse the pprof profile.
 
-    def test_snapshot(self) -> Tuple[MemorySample, ...]:
-        thread_id_ignore_set = self._get_thread_id_ignore_set()
+        This is similar to test_snapshot() but exports to the profile and returns
+        the parsed pprof profile instead of Python objects.
 
+        Args:
+            output_filename: The pprof output filename prefix (without .pid.counter suffix)
+
+        Returns:
+            Parsed pprof profile object (pprof_pb2.Profile)
+
+        Raises:
+            ImportError: If pprof_utils is not available (only available in test environment)
+        """
+        # Export samples to profile
+        self.snapshot()
+
+        # Upload to write profile to disk
+        ddup.upload()
+
+        # Parse the profile (only available in test environment)
         try:
-            if _memalloc is None:
-                raise ValueError("Memalloc is not initialized")
-            events = _memalloc.heap()
-        except (RuntimeError, ValueError):
-            # DEV: This can happen if either _memalloc has not been started or has been stopped.
-            LOG.debug("Unable to collect heap events from process %d", os.getpid(), exc_info=True)
-            return tuple()
+            from tests.profiling.collector import pprof_utils
+        except ImportError:
+            raise ImportError(
+                "pprof_utils is not available. snapshot_and_parse_pprof() is only available in test environment."
+            )
 
-        samples: List[MemorySample] = []
-        for event in events:
-            (frames, thread_id), in_use_size, alloc_size, count = event
-
-            if not self.ignore_profiler or thread_id not in thread_id_ignore_set:
-                size = in_use_size if in_use_size > 0 else alloc_size
-
-                samples.append(MemorySample(frames, size, count, in_use_size, alloc_size, thread_id))
-
-        return tuple(samples)
-
-    def collect(self) -> Tuple[MemorySample, ...]:
-        return tuple()
+        return pprof_utils.parse_newest_profile(output_filename)

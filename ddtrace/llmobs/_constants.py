@@ -43,11 +43,10 @@ TOTAL_TOKENS_METRIC_KEY = "total_tokens"
 CACHE_WRITE_INPUT_TOKENS_METRIC_KEY = "cache_write_input_tokens"
 CACHE_READ_INPUT_TOKENS_METRIC_KEY = "cache_read_input_tokens"
 BILLABLE_CHARACTER_COUNT_METRIC_KEY = "billable_character_count"
+REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
 
-EVP_PROXY_AGENT_BASE_PATH = "/evp_proxy/v2"
 EVAL_ENDPOINT = "/api/intake/llm-obs/v2/eval-metric"
 SPAN_ENDPOINT = "/api/v2/llmobs"
-EVP_SUBDOMAIN_HEADER_NAME = "X-Datadog-EVP-Subdomain"
 SPAN_SUBDOMAIN_NAME = "llmobs-intake"
 EVAL_SUBDOMAIN_NAME = "api"
 EXP_SUBDOMAIN_NAME = "api"
@@ -57,9 +56,6 @@ AGENTLESS_EXP_BASE_URL = "https://{}".format(EXP_SUBDOMAIN_NAME)
 
 # from https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site
 DD_SITES_NEEDING_APP_SUBDOMAIN = {"datadoghq.com", "datadoghq.eu", "ddog-gov.com"}
-
-EVP_PAYLOAD_SIZE_LIMIT = 5 << 20  # 5MB (actual limit is 5.1MB)
-EVP_EVENT_SIZE_LIMIT = 5_000_000  # 5MB LLM Obs event size limit
 
 EXPERIMENT_CSV_FIELD_MAX_SIZE = 10 * 1024 * 1024
 
@@ -110,7 +106,22 @@ LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"
 PROXY_REQUEST = "llmobs.proxy_request"
 
 EXPERIMENT_ID_KEY = "_ml_obs.experiment_id"
+EXPERIMENT_RUN_ID_KEY = "_ml_obs.experiment_run_id"
+EXPERIMENT_RUN_ITERATION_KEY = "_ml_obs.experiment_run_iteration"
+EXPERIMENT_PROJECT_NAME_KEY = "_ml_obs.experiment_project_name"
+EXPERIMENT_PROJECT_ID_KEY = "_ml_obs.experiment_project_id"
+EXPERIMENT_DATASET_NAME_KEY = "_ml_obs.experiment_dataset_name"
+EXPERIMENT_NAME_KEY = "_ml_obs.experiment_name"
 EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
 EXPERIMENTS_INPUT = "_ml_obs.meta.input"
 EXPERIMENTS_OUTPUT = "_ml_obs.meta.output"
 DEFAULT_PROJECT_NAME = "default-project"
+
+# Fallback markers for prompt tracking when OpenAI strips values
+IMAGE_FALLBACK_MARKER = "[image]"
+FILE_FALLBACK_MARKER = "[file]"
+
+# OpenAI input types
+INPUT_TYPE_IMAGE = "input_image"
+INPUT_TYPE_FILE = "input_file"
+INPUT_TYPE_TEXT = "input_text"

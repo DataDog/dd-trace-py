@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    google_generativeai: The ``google_generativeai`` integration has been removed as the ``google_generativeai`` library has reached end-of-life.
+     As an alternative, you can use the recommended ``google_genai`` library and corresponding integration instead.

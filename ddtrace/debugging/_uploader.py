@@ -32,7 +32,7 @@ class UploaderProduct(str, Enum):
 
     DEBUGGER = "dynamic_instrumentation"
     EXCEPTION_REPLAY = "exception_replay"
-    CODE_ORIGIN_SPAN = "code_origin.span"
+    CODE_ORIGIN_SPAN_ENTRY = "code_origin.span.entry"
 
 
 @dataclass
@@ -153,7 +153,7 @@ class SignalUploader(agent.AgentCheckPeriodicService):
                 if not (200 <= resp.status < 300):
                     log.error("Failed to upload payload to endpoint %s: [%d] %r", endpoint, resp.status, resp.read())
                     meter.increment("upload.error", tags={"status": str(resp.status)})
-                    if 400 <= resp.status < 500:
+                    if 400 <= resp.status:
                         msg = "Failed to upload payload"
                         raise SignalUploaderError(msg)
                 else:
@@ -220,11 +220,8 @@ class SignalUploader(agent.AgentCheckPeriodicService):
     on_shutdown = online
 
     @classmethod
-    def get_collector(cls) -> SignalCollector:
-        if cls._instance is None:
-            raise RuntimeError("No products registered with the uploader")
-
-        return cls._instance._collector
+    def get_collector(cls) -> Optional[SignalCollector]:
+        return cls._instance._collector if cls._instance is not None else None
 
     @classmethod
     def register(cls, product: UploaderProduct) -> None:

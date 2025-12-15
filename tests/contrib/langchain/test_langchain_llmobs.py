@@ -414,7 +414,6 @@ def test_llmobs_chain(langchain_core, langchain_openai, openai_url, llmobs_event
                 {"content": "{input}", "role": "user"},
             ],
             "variables": {"input": "Can you explain what an LLM chain is?"},
-            "version": "0.0.0",
             "_dd_context_variable_keys": ["context"],
             "_dd_query_variable_keys": ["question"],
         },
@@ -435,7 +434,7 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
 
     llmobs_events.sort(key=lambda span: span["start_ns"])
     trace = tracer.pop_traces()[0]
-    assert len(llmobs_events) == 4
+    assert len(llmobs_events) == 5
     assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
         trace[0],
         input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}]),
@@ -448,28 +447,34 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
         output_value=mock.ANY,
         span_links=True,
     )
-    assert llmobs_events[2] == _expected_langchain_llmobs_llm_span(
+    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(
         trace[2],
-        mock_token_metrics=True,
+        span_kind="task",
+        input_value=json.dumps({"person": "Spongebob Squarepants", "language": "Spanish"}),
+        output_value="Spanish",
         span_links=True,
-        prompt={
-            "id": "langchain.unknown_prompt_template",
-            "chat_template": [{"content": "what is the city {person} is from?", "role": "user"}],
-            "variables": {"person": "Spongebob Squarepants", "language": "Spanish"},
-            "version": "0.0.0",
-            "_dd_context_variable_keys": ["context"],
-            "_dd_query_variable_keys": ["question"],
-        },
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
     )
     assert llmobs_events[3] == _expected_langchain_llmobs_llm_span(
         trace[3],
         mock_token_metrics=True,
         span_links=True,
         prompt={
+            "id": "langchain.unknown_prompt_template",
+            "chat_template": [{"content": "what is the city {person} is from?", "role": "user"}],
+            "variables": {"person": "Spongebob Squarepants", "language": "Spanish"},
+            "_dd_context_variable_keys": ["context"],
+            "_dd_query_variable_keys": ["question"],
+        },
+    )
+    assert llmobs_events[4] == _expected_langchain_llmobs_llm_span(
+        trace[4],
+        mock_token_metrics=True,
+        span_links=True,
+        prompt={
             "id": "test_langchain_llmobs.prompt2",
             "chat_template": [{"content": "what country is the city {city} in? respond in {language}", "role": "user"}],
             "variables": {"city": mock.ANY, "language": "Spanish"},
-            "version": "0.0.0",
             "_dd_context_variable_keys": ["context"],
             "_dd_query_variable_keys": ["question"],
         },
@@ -505,7 +510,6 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
                 "id": "langchain.unknown_prompt_template",
                 "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
                 "variables": {"topic": "chickens"},
-                "version": "0.0.0",
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
             },
@@ -519,7 +523,6 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
                 "id": "langchain.unknown_prompt_template",
                 "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
                 "variables": {"topic": "pigs"},
-                "version": "0.0.0",
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
             },
@@ -534,7 +537,6 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
                 "id": "langchain.unknown_prompt_template",
                 "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
                 "variables": {"topic": "chickens"},
-                "version": "0.0.0",
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
             },
@@ -548,7 +550,6 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
                 "id": "langchain.unknown_prompt_template",
                 "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
                 "variables": {"topic": "pigs"},
-                "version": "0.0.0",
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
             },
@@ -831,6 +832,173 @@ def test_llmobs_set_tags_with_none_response(langchain_core):
     )
 
 
+def test_llmobs_runnable_lambda_invoke(langchain_core, llmobs_events, tracer):
+    def add(inputs: dict) -> int:
+        return inputs["a"] + inputs["b"]
+
+    runnable_lambda = langchain_core.runnables.RunnableLambda(add)
+    result = runnable_lambda.invoke(dict(a=1, b=2))
+    assert result == 3
+
+    span = tracer.pop_traces()[0][0]
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+        span,
+        span_kind="task",
+        input_value=json.dumps({"a": 1, "b": 2}),
+        output_value="3",
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+    )
+
+
+async def test_llmobs_runnable_lambda_ainvoke(langchain_core, llmobs_events, tracer):
+    async def add(inputs: dict) -> int:
+        return inputs["a"] + inputs["b"]
+
+    runnable_lambda = langchain_core.runnables.RunnableLambda(add)
+    result = await runnable_lambda.ainvoke(dict(a=1, b=2))
+    assert result == 3
+
+    span = tracer.pop_traces()[0][0]
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+        span,
+        span_kind="task",
+        input_value=json.dumps({"a": 1, "b": 2}),
+        output_value="3",
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+    )
+
+
+def test_llmobs_runnable_lambda_batch(langchain_core, llmobs_events):
+    def add(inputs: dict) -> int:
+        return inputs["a"] + inputs["b"]
+
+    runnable_lambda = langchain_core.runnables.RunnableLambda(add)
+    result = runnable_lambda.batch([dict(a=1, b=2), dict(a=3, b=4), dict(a=5, b=6)])
+    assert result == [3, 7, 11]
+
+    assert len(llmobs_events) == 4
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+
+    # parent should be batch span
+    assert llmobs_events[0]["parent_id"] == "undefined"
+    assert llmobs_events[0]["name"] == "add_batch"
+    assert llmobs_events[0]["meta"]["span"]["kind"] == "task"
+    assert llmobs_events[0]["meta"]["input"]["value"] == json.dumps(
+        [{"a": 1, "b": 2}, {"a": 3, "b": 4}, {"a": 5, "b": 6}]
+    )
+    assert llmobs_events[0]["meta"]["output"]["value"] == json.dumps([3, 7, 11])
+
+    # assert all children have batch as the parent
+    # however, order of children is not guaranteed
+    # loosely check that the children have the correct input and output values
+    for i in range(1, 4):
+        assert llmobs_events[i]["parent_id"] == llmobs_events[0]["span_id"]
+        assert llmobs_events[i]["name"] == "add"
+        assert llmobs_events[i]["meta"]["span"]["kind"] == "task"
+
+        input_value = json.loads(llmobs_events[i]["meta"]["input"]["value"])
+        output_value = json.loads(llmobs_events[i]["meta"]["output"]["value"])
+        assert "a" in input_value
+        assert "b" in input_value
+        assert isinstance(output_value, int)
+
+
+async def test_llmobs_runnable_lambda_abatch(langchain_core, llmobs_events):
+    async def add(inputs: dict) -> int:
+        return inputs["a"] + inputs["b"]
+
+    runnable_lambda = langchain_core.runnables.RunnableLambda(add)
+    result = await runnable_lambda.abatch([dict(a=1, b=2), dict(a=3, b=4), dict(a=5, b=6)])
+    assert result == [3, 7, 11]
+
+    assert len(llmobs_events) == 4
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+
+    # parent should be batch span
+    assert llmobs_events[0]["parent_id"] == "undefined"
+    assert llmobs_events[0]["name"] == "add_batch"
+    assert llmobs_events[0]["meta"]["span"]["kind"] == "task"
+    assert llmobs_events[0]["meta"]["input"]["value"] == json.dumps(
+        [{"a": 1, "b": 2}, {"a": 3, "b": 4}, {"a": 5, "b": 6}]
+    )
+    assert llmobs_events[0]["meta"]["output"]["value"] == json.dumps([3, 7, 11])
+
+    # assert all children have batch as the parent
+    # however, order of children is not guaranteed
+    # loosely check that the children have the correct input and output values
+    for i in range(1, 4):
+        assert llmobs_events[i]["parent_id"] == llmobs_events[0]["span_id"]
+        assert llmobs_events[i]["name"] == "add"
+        assert llmobs_events[i]["meta"]["span"]["kind"] == "task"
+
+        input_value = json.loads(llmobs_events[i]["meta"]["input"]["value"])
+        output_value = json.loads(llmobs_events[i]["meta"]["output"]["value"])
+        assert "a" in input_value
+        assert "b" in input_value
+        assert isinstance(output_value, int)
+
+
+def test_llmobs_runnable_with_span_links(langchain_core, llmobs_events):
+    sequence = langchain_core.runnables.RunnableLambda(lambda x: x + 1, name="add_1") | {
+        "mul_2": langchain_core.runnables.RunnableLambda(lambda x: x * 2, name="mul_2"),
+        "mul_5": langchain_core.runnables.RunnableLambda(lambda x: x * 5, name="mul_5"),
+    }
+
+    result = sequence.invoke(1)
+
+    assert result == {"mul_2": 4, "mul_5": 10}
+    assert len(llmobs_events) == 4
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+
+    # assert output -> output links for runnable sequence span from last two runnable lambdas
+    # the order of the links is not guaranteed
+    expected_links = [
+        {
+            "trace_id": mock.ANY,
+            "span_id": llmobs_events[2]["span_id"],
+            "attributes": {"from": "output", "to": "output"},
+        },
+        {
+            "trace_id": mock.ANY,
+            "span_id": llmobs_events[3]["span_id"],
+            "attributes": {"from": "output", "to": "output"},
+        },
+    ]
+    assert len(llmobs_events[0]["span_links"]) == len(expected_links)
+    for expected_link in expected_links:
+        assert expected_link in llmobs_events[0]["span_links"]
+
+    # assert input -> input links for add_1 span
+    assert llmobs_events[1]["span_links"] == [
+        {
+            "trace_id": mock.ANY,
+            "span_id": llmobs_events[0]["span_id"],
+            "attributes": {"from": "input", "to": "input"},
+        },
+    ]
+
+    # assert output -> input links for mul_2 and mul_5 spans
+    assert llmobs_events[2]["span_links"] == [
+        {
+            "trace_id": mock.ANY,
+            "span_id": llmobs_events[1]["span_id"],
+            "attributes": {"from": "output", "to": "input"},
+        },
+    ]
+    assert llmobs_events[3]["span_links"] == [
+        {
+            "trace_id": mock.ANY,
+            "span_id": llmobs_events[1]["span_id"],
+            "attributes": {"from": "output", "to": "input"},
+        },
+    ]
+
+
 class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
     bedrock_env_config = dict(
         AWS_ACCESS_KEY_ID="testing",
@@ -845,6 +1013,11 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
     openai_env_config = dict(
         OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "testing"),
         DD_API_KEY="<not-a-real-key>",
+    )
+
+    azure_openai_env_config = dict(
+        OPENAI_API_VERSION="2024-12-01-preview",
+        AZURE_OPENAI_API_KEY=os.getenv("AZURE_OPENAI_API_KEY", "testing"),
     )
 
     anthropic_env_config = dict(
@@ -873,9 +1046,9 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         for span_kind, call in zip(span_kinds, calls):
             call_args = call.args[0]
 
-            assert (
-                call_args["meta"]["span"]["kind"] == span_kind
-            ), f"Span kind is {call_args['meta']['span']['kind']} but expected {span_kind}"
+            assert call_args["meta"]["span"]["kind"] == span_kind, (
+                f"Span kind is {call_args['meta']['span']['kind']} but expected {span_kind}"
+            )
             if span_kind == "workflow":
                 assert len(call_args["meta"]["input"]["value"]) > 0
                 assert len(call_args["meta"]["output"]["value"]) > 0
@@ -889,6 +1062,11 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
     @staticmethod
     def _call_openai_llm(OpenAI):
         llm = OpenAI(base_url="http://localhost:9126/vcr/openai")
+        llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
+
+    @staticmethod
+    def _call_azure_openai_chat(AzureChatOpenAI):
+        llm = AzureChatOpenAI(azure_endpoint="http://localhost:9126/vcr/azure_openai", deployment_name="gpt-4.1-mini")
         llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
     @staticmethod
@@ -922,6 +1100,15 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         patch(langchain=True, openai=True)
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_openai_llm(OpenAI)
+        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
+
+    @run_in_subprocess(env_overrides=azure_openai_env_config)
+    def test_llmobs_with_openai_enabled_azure(self):
+        from langchain_openai import AzureChatOpenAI
+
+        patch(langchain=True, openai=True)
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_azure_openai_chat(AzureChatOpenAI)
         self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
 
     @run_in_subprocess(env_overrides=openai_env_config)
@@ -964,6 +1151,16 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_openai_llm(OpenAI)
+        self._assert_trace_structure_from_writer_call_args(["llm"])
+
+    @run_in_subprocess(env_overrides=azure_openai_env_config)
+    def test_llmobs_with_openai_disabled_azure(self):
+        from langchain_openai import AzureChatOpenAI
+
+        patch(langchain=True)
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_azure_openai_chat(AzureChatOpenAI)
         self._assert_trace_structure_from_writer_call_args(["llm"])
 
     @run_in_subprocess(env_overrides=anthropic_env_config)

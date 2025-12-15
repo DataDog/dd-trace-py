@@ -14,6 +14,7 @@ from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
 from ddtrace.appsec.trace_utils import track_user_signup_event
 from ddtrace.appsec.track_user_sdk import track_user
+from ddtrace.appsec.track_user_sdk import track_user_id
 from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import user
 import ddtrace.internal.telemetry
@@ -144,9 +145,10 @@ class EventsSDKTestCase(TracerTestCase):
             assert entry_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == str(LOGIN_EVENTS_MODE.IDENT)
 
     def test_track_user_login_event_success_with_metadata(self):
-        with mock_patch.object(
-            ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()
-        ) as telemetry_mock, asm_context(tracer=self.tracer, span_name="test_success2", config=config_asm) as span:
+        with (
+            mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as telemetry_mock,
+            asm_context(tracer=self.tracer, span_name="test_success2", config=config_asm) as span,
+        ):
             track_user_login_success_event(self.tracer, "1234", metadata={"foo": "bar"})
             entry_span = span._service_entry_span
             assert entry_span.get_tag("appsec.events.users.login.success.track") == "true"
@@ -209,9 +211,10 @@ class EventsSDKTestCase(TracerTestCase):
             assert not entry_span.get_tag(user.SESSION_ID)
 
     def test_track_user_login_event_failure_user_doesnt_exists(self):
-        with mock_patch.object(
-            ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()
-        ) as telemetry_mock, self.trace("test_failure") as span:
+        with (
+            mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as telemetry_mock,
+            self.trace("test_failure") as span,
+        ):
             track_user_login_failure_event(
                 self.tracer,
                 "john",
@@ -227,9 +230,10 @@ class EventsSDKTestCase(TracerTestCase):
             ]
 
     def test_track_user_signup_event_exists(self):
-        with mock_patch.object(
-            ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()
-        ) as telemetry_mock, self.trace("test_signup_exists") as span:
+        with (
+            mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as telemetry_mock,
+            self.trace("test_signup_exists") as span,
+        ):
             track_user_signup_event(self.tracer, "john", True)
             entry_span = span._service_entry_span
             assert entry_span.get_tag(APPSEC.USER_SIGNUP_EVENT) == "true"
@@ -238,9 +242,10 @@ class EventsSDKTestCase(TracerTestCase):
             assert metrics == [("count", "appsec", "sdk.event", 1, (("event_type", "signup"), ("sdk_version", "v1")))]
 
     def test_custom_event(self):
-        with mock_patch.object(
-            ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()
-        ) as telemetry_mock, self.trace("test_custom") as span:
+        with (
+            mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as telemetry_mock,
+            self.trace("test_custom") as span,
+        ):
             event = "some_event"
             track_custom_event(self.tracer, event, {"foo": "bar"})
             entry_span = span._service_entry_span
@@ -275,8 +280,33 @@ class EventsSDKTestCase(TracerTestCase):
     def test_track_user_blocked(self):
         with asm_context(tracer=self.tracer, span_name="fake_span", config=config_good_rules) as span:
             track_user(
-                self.tracer,
+                "login",
                 user_id=self._BLOCKED_USER,
+                session_id="usr.session_id",
+                metadata={
+                    "email": "usr.email",
+                    "name": "usr.name",
+                    "role": "usr.role",
+                    "scope": "usr.scope",
+                },
+            )
+        assert span.get_tag(user.ID)
+        assert span.get_tag(user.EMAIL)
+        assert span.get_tag(user.SESSION_ID)
+        assert span.get_tag(user.NAME)
+        assert span.get_tag(user.ROLE)
+        assert span.get_tag(user.SCOPE)
+        assert span.get_tag(user.SESSION_ID)
+        assert span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE) == LOGIN_EVENTS_MODE.SDK
+        # assert metadata tags are not set for usual data
+        assert span.get_tag("appsec.events.auth_sdk.track") is None
+        assert span.get_tag("usr.id") == str(self._BLOCKED_USER)
+        assert is_blocked(span)
+
+    def test_track_user_id_blocked(self):
+        with asm_context(tracer=self.tracer, span_name="fake_span", config=config_good_rules) as span:
+            track_user_id(
+                self._BLOCKED_USER,
                 session_id="usr.session_id",
                 metadata={
                     "email": "usr.email",

@@ -1,0 +1,82 @@
+interactions:
+- request:
+    body: "{\n  \"model\": \"claude-3-7-sonnet-20250219\",\n  \"messages\": [\n    {\n
+      \     \"role\": \"user\",\n      \"content\": \"Hello, world!\"\n    }\n  ],\n
+      \ \"max_tokens\": 100,\n  \"temperature\": 0.5,\n  \"stream\": true\n}"
+    headers:
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - gzip,deflate
+      ? !!python/object/apply:multidict._multidict.istr
+      - Connection
+      : - keep-alive
+      Content-Length:
+      - '192'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - User-Agent
+      : - Anthropic/JS 0.33.0
+      ? !!python/object/apply:multidict._multidict.istr
+      - anthropic-version
+      : - '2023-06-01'
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-arch
+      : - arm64
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-lang
+      : - js
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-os
+      : - MacOS
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-package-version
+      : - 0.33.0
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-retry-count
+      : - '0'
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-runtime
+      : - node
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-runtime-version
+      : - v22.17.0
+    method: POST
+    uri: https://api.anthropic.com/v1/messages?beta=true
+  response:
+    body:
+      string: '{"type":"error","error":{"type":"authentication_error","message":"invalid
+        x-api-key"},"request_id":"req_011CVa2keDyYxR4zcffmFjWv"}'
+    headers:
+      CF-RAY:
+      - 9a58bfc648920481-CDG
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '130'
+      Content-Type:
+      - application/json
+      Date:
+      - Fri, 28 Nov 2025 09:13:24 GMT
+      Server:
+      - cloudflare
+      X-Robots-Tag:
+      - none
+      cf-cache-status:
+      - DYNAMIC
+      request-id:
+      - req_011CVa2keDyYxR4zcffmFjWv
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-envoy-upstream-service-time:
+      - '8'
+      x-should-retry:
+      - 'false'
+    status:
+      code: 401
+      message: Unauthorized
+version: 1

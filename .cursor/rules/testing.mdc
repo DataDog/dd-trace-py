@@ -1,0 +1,35 @@
+---
+description: Testing guidance - use run-tests skill for validation
+globs: ["**/*.py", "tests/**/*", "scripts/run-tests"]
+alwaysApply: false
+---
+
+<!-- ⚠️ EDITOR WARNING ⚠️ -->
+<!-- Don't update this file. If you want to extend the rules and description, -->
+<!-- go to the skill: .claude/skills/run-tests/SKILL.md -->
+
+# Testing and Test Validation
+
+## Overview
+
+Always use the **`run-tests` skill** for validating code changes. This skill intelligently selects which tests to run based on changed files, avoiding unnecessary long test runs.
+
+## Usage
+
+Use the Skill tool with command "run-tests"
+
+## Full Documentation
+
+For complete documentation including:
+- Key principles and best practices
+- How the skill works (5-step process)
+- Venv selection strategies
+- Handling test failures
+- Examples and troubleshooting
+
+See: `.claude/skills/run-tests/SKILL.md`
+
+## Related
+
+- Official testing guide: `docs/contributing-testing.rst`
+- Test infrastructure: `tests/suitespec.yml`, `riotfile.py`

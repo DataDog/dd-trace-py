@@ -7,6 +7,7 @@ from warnings import warn
 import mock
 import pytest
 
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 import tests.test_module
@@ -428,6 +429,7 @@ def test_module_watchdog_namespace_import():
         ModuleWatchdog.uninstall()
 
 
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(
@@ -514,9 +516,9 @@ def test_module_watchdog_does_not_rewrap_get_code():
     reload(ns_module)
     reload(ns_module)
     new_get_code = ns_module.__loader__.get_code
-    assert (
-        new_get_code is initial_get_code
-    ), f"module loader get_code (id: {id(new_get_code)}is not initial get_code (id: {id(initial_get_code)})"
+    assert new_get_code is initial_get_code, (
+        f"module loader get_code (id: {id(new_get_code)}is not initial get_code (id: {id(initial_get_code)})"
+    )
 
 
 @pytest.mark.subprocess
@@ -567,7 +569,6 @@ def test_public_modules_in_ddtrace_contrib():
         "ddtrace.contrib.__init__",
         "ddtrace.contrib.trace_utils",
         "ddtrace.contrib.celery",
-        "ddtrace.contrib.tornado",
         "ddtrace.contrib.valkey",
         "ddtrace.contrib.asgi",
         "ddtrace.contrib.bottle",

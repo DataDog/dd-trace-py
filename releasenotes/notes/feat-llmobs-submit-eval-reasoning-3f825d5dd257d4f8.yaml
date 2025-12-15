@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: The ``LLMObs.submit_evaluation()`` and ``LLMObs.submit_evaluation_for()`` methods now accept a ``reasoning`` argument to denote an explanation of the evaluation results.

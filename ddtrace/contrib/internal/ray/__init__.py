@@ -10,17 +10,18 @@ Enabling
 Ray instrumentation is experimental. It is deactivated by default. To enable it,
 you have to follow one of the two methods below:
 
-The recommended way to instrument Ray, is to instrument the Ray cluster.
-You can do it by starting the Ray head with a tracing startup hook::
+The recommended way to instrument Ray, is to instrument the Ray cluster using ddtrace-run::
+
+    DD_PATCH_MODULES="ray:true, aiohttp:false, grpc:false, requests:false" ddtrace-run ray start --head
+
+DD_PATCH_MODULES will allow to reduce noise by sending only the jobs related spans.
+
+You can also do it by starting Ray head with a tracing startup hook::
 
     ray start --head --tracing-startup-hook=ddtrace.contrib.ray:setup_tracing
 
-Otherwise, you can specify the tracing hook in `ray.init()` using::
-
-    ray.init(_tracing_startup_hook="ddtrace.contrib.ray:setup_tracing")
-
-Note that this method does not provide full tracing capabilities.
-
+Note that this method does not provide full tracing capabilities if ``ray.init()`` is not called at the top
+of your job scripts.
 
 Configuration
 ~~~~~~~~~~~~~
@@ -44,20 +45,16 @@ The Ray integration can be configured using environment variables:
     (default: ``True``). If ``True``, file paths in the entrypoint will be redacted to avoid
     leaking sensitive information.
 
-Ray service name can be configured by:
-
-- specifying in submission ID using ``job:your-job-name`` during job submission::
-
-    ray job submit --submission-id="job:my_model,run:39" -- python entrypoint.py
-
-- specifying in metadata during job submission::
-
-    ray job submit --metadata-json='{"job_name": "my_model"}' -- python entrypoint.py
+Ray service name can be configured, in order of precedence by:
 
 - specifying ``DD_SERVICE`` when initializing your Ray cluster.
 
 - setting ``DD_TRACE_RAY_USE_ENTRYPOINT_AS_SERVICE_NAME=True``. In this case, the service
   name will be the name of your entrypoint script.
+
+- specifying in metadata during job submission::
+
+    ray job submit --metadata-json='{"job_name": "my_model"}' -- python entrypoint.py
 
 By default, the service name will be ``unnamed.ray.job``.
 
@@ -66,4 +63,5 @@ Notes
 
 - The integration disables Ray's built-in OpenTelemetry tracing to avoid duplicate telemetry.
 - Actor methods like ``ping`` and ``_polling`` are excluded from tracing to reduce noise.
+- Actors whose names start with an underscore (_) are not instrumented.
 """

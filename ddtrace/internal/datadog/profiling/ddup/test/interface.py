@@ -1,9 +1,17 @@
+from __future__ import annotations
+
 # mypy: ignore-errors
 from itertools import product
 import os
 from pathlib import Path
 import sys
+from typing import Callable
+from typing import Optional
+from typing import Type
+from typing import Union
 from unittest.mock import MagicMock
+
+from ddtrace.internal.datadog.profiling._types import StringType
 
 
 sys.modules["ddtrace"] = MagicMock()
@@ -28,10 +36,10 @@ sys.modules["ddtrace._trace.span"] = MagicMock()
 class Span(object):
     def __init__(
         self,
-        span_id=None,  # type: Optional[int]
-        service=None,  # type: Union[None, str, bytes]
-        span_type=None,  # type: Union[None, str, bytes]
-        _local_root=None,  # type: Optional[Span]
+        span_id: Optional[int] = None,
+        service: Union[None, str, bytes] = None,
+        span_type: Union[None, str, bytes] = None,
+        _local_root: Optional[Span] = None,
     ):
         self.span_id = span_id
         self.service = service
@@ -50,7 +58,7 @@ import _ddup  # noqa
 
 # Function for running a test in a fork
 # Returns true if there were no exceptions, else false
-def run_test(test: callable) -> bool:
+def run_test(test: Callable) -> bool:
     pid = os.fork()
     if pid == 0:
         try:
@@ -121,8 +129,10 @@ def SampleTestSimple():
     h.flush_sample()
 
 
-def SampleTest(value, name, exc_type, lineno, span, endpoint):
-    def test():
+def SampleTest(
+    value: int, name: StringType, exc_type: Optional[Type[Exception]], lineno: int, span: Optional[Span]
+) -> Callable[[], None]:
+    def test() -> None:
         try:
             InitNormal()
             h = _ddup.SampleHandle()
@@ -136,7 +146,7 @@ def SampleTest(value, name, exc_type, lineno, span, endpoint):
             h.push_task_id(value)
             h.push_task_name(name)
             h.push_exceptioninfo(exc_type, value)
-            h.push_span(span)
+            h.push_span(span)  # type: ignore (uses our fake Span class)
             h.push_frame(name, name, value, lineno)
             h.flush_sample()
         except Exception as e:
@@ -148,14 +158,14 @@ def SampleTest(value, name, exc_type, lineno, span, endpoint):
     return test
 
 
-def MakeSpan(span_id, service, span_type, add_local_root):
+def MakeSpan(span_id: int, service: StringType, span_type: StringType, add_local_root: bool) -> Span:
     return Span(span_id, service, span_type, Span(span_id, service, span_type) if add_local_root else None)
 
 
 # 13 * 3 * 3 * 5 * 2 * 3 = 7020 tests
 SampleTypeTests = [
-    SampleTest(value, exc_type, name, lineno, MakeSpan(value, name, name, add_local_root), endpoint)
-    for value, exc_type, name, lineno, add_local_root, endpoint in product(
+    SampleTest(value, name, exc_type, lineno, MakeSpan(value, name, name, add_local_root))
+    for value, exc_type, name, lineno, add_local_root in product(
         [
             0,
             -1,
@@ -176,7 +186,6 @@ SampleTypeTests = [
         [None, b"name", "name"],  # names
         [-1, 0, 1, 256, 1000],  # lineno
         [False, True],  # add_local_root
-        [None, False, True],  # endpoint
     )
 ]
 

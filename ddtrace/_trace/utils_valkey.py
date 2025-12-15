@@ -26,14 +26,14 @@ format_command_args = stringify_cache_args
 def _set_span_tags(
     span, pin, config_integration, args: Optional[List], instance, query: Optional[List], is_cluster: bool = False
 ):
-    span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-    span.set_tag_str(COMPONENT, config_integration.integration_name)
-    span.set_tag_str(db.SYSTEM, valkeyx.APP)
+    span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+    span._set_tag_str(COMPONENT, config_integration.integration_name)
+    span._set_tag_str(db.SYSTEM, valkeyx.APP)
     # PERF: avoid setting via Span.set_tag
     span.set_metric(_SPAN_MEASURED_KEY, 1)
     if query is not None:
         span_name = schematize_cache_operation(valkeyx.RAWCMD, cache_provider=valkeyx.APP)  # type: ignore[operator]
-        span.set_tag_str(span_name, query)
+        span._set_tag_str(span_name, query)
     if pin.tags:
         span.set_tags(pin.tags)
     # some valkey clients do not have a connection_pool attribute (ex. aiovalkey v1.3)
@@ -50,14 +50,17 @@ def _set_span_tags(
 @contextmanager
 def _instrument_valkey_cmd(pin, config_integration, instance, args):
     query = stringify_cache_args(args, cmd_max_len=config_integration.cmd_max_length)
-    with core.context_with_data(
-        "valkey.command",
-        span_name=schematize_cache_operation(valkeyx.CMD, cache_provider=valkeyx.APP),
-        pin=pin,
-        service=trace_utils.ext_service(pin, config_integration),
-        span_type=SpanTypes.VALKEY,
-        resource=query.split(" ")[0] if config_integration.resource_only_command else query,
-    ) as ctx, ctx.span as span:
+    with (
+        core.context_with_data(
+            "valkey.command",
+            span_name=schematize_cache_operation(valkeyx.CMD, cache_provider=valkeyx.APP),
+            pin=pin,
+            service=trace_utils.ext_service(pin, config_integration),
+            span_type=SpanTypes.VALKEY,
+            resource=query.split(" ")[0] if config_integration.resource_only_command else query,
+        ) as ctx,
+        ctx.span as span,
+    ):
         _set_span_tags(span, pin, config_integration, args, instance, query)
         yield ctx
 

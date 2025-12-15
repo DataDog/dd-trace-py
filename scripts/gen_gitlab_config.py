@@ -1,9 +1,21 @@
-# This script is used to generate the GitLab dynamic config file in
-# .gitlab/tests.yml.
-#
-# To add new configuration manipulations that are based on top of the template
-# file in .gitlab/tests.yml, add a function named gen_<name> to this
-# file. The function will be called automatically when this script is run.
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#     "riot>=0.20.1",
+#     "ruamel.yaml>=0.17.21",
+#     "lxml>=4.9.0",
+# ]
+# ///
+"""
+This script is used to generate the GitLab dynamic config file in
+.gitlab/tests.yml.
+
+To add new configuration manipulations that are based on top of the template
+file in .gitlab/tests.yml, add a function named gen_<name> to this
+file. The function will be called automatically when this script is run.
+"""
 
 from dataclasses import dataclass
 import datetime
@@ -23,6 +35,7 @@ class JobSpec:
     services: t.Optional[t.List[str]] = None
     env: t.Optional[t.Dict[str, str]] = None
     parallelism: t.Optional[int] = None
+    venvs_per_job: t.Optional[int] = None
     retry: t.Optional[int] = None
     timeout: t.Optional[int] = None
     skip: bool = False
@@ -117,6 +130,71 @@ class JobSpec:
         return "\n".join(lines)
 
 
+def calculate_dynamic_parallelism(suite_name: str, suite_config: dict) -> t.Optional[int]:
+    """Calculate parallelism based on venvs_per_job configuration.
+
+    Packs N venvs per parallel job, scaling automatically with venv count changes.
+    Only applies to riot runner suites with venvs_per_job configured.
+
+    Args:
+        suite_name: The name of the test suite
+        suite_config: The suite configuration dict from suitespec
+
+    Returns:
+        The calculated parallelism value (1 to 20), or None if venvs_per_job not configured
+    """
+    # Only for riot suites
+    if suite_config.get("runner") != "riot":
+        return None
+
+    # Check if venvs_per_job is configured
+    venvs_per_job = suite_config.get("venvs_per_job")
+    if venvs_per_job is None:
+        return None
+
+    # Only import when needed
+    import math
+
+    # Importing will load/evaluate the whole riotfile.py
+    import riotfile
+
+    pattern = suite_config.get("pattern", suite_name)
+    try:
+        pattern_regex = re.compile(pattern)
+    except re.error:
+        LOGGER.warning("Invalid pattern for suite %s: %s", suite_name, pattern)
+        return None
+
+    # Collect unique venv hashes by matching pattern (mimics riot's --hash-only logic)
+    venv_hashes = set()
+    for inst in riotfile.venv.instances():  # type: ignore[attr-defined]
+        if not inst.name or not inst.matches_pattern(pattern_regex):  # type: ignore[attr-defined]
+            continue
+        venv_hashes.add(inst.short_hash)  # type: ignore[attr-defined]
+
+    venv_count = len(venv_hashes)
+
+    if venv_count == 0:
+        LOGGER.warning("No riot venvs found for suite %s with pattern %s", suite_name, pattern)
+        return None
+
+    # Calculate parallelism
+    calculated = math.ceil(venv_count / venvs_per_job)
+
+    # Cap at 20 to avoid over-parallelization
+    MAX_PARALLELISM = 20
+    calculated = min(calculated, MAX_PARALLELISM)
+
+    LOGGER.debug(
+        "Suite %s: %d venvs, %d venvs_per_job -> parallelism %d",
+        suite_name,
+        venv_count,
+        venvs_per_job,
+        calculated,
+    )
+    return calculated
+
+
 def gen_required_suites() -> None:
     """Generate the list of test suites that need to be run."""
     from needs_testrun import extract_git_commit_selections
@@ -134,7 +212,7 @@ def gen_required_suites() -> None:
     )
 
     # If the ci_visibility suite is in the list of required suites, we need to run all suites
-    ci_visibility_suites = {"ci_visibility", "pytest", "pytest_v2"}
+    ci_visibility_suites = {"ci_visibility", "pytest"}
     # If any of them in required_suites:
     if any(suite in required_suites for suite in ci_visibility_suites):
         required_suites = sorted(suites.keys())
@@ -181,6 +259,15 @@ def gen_required_suites() -> None:
                 LOGGER.debug("Skipping suite %s", suite)
                 continue
 
+            # Calculate dynamic parallelism for riot suites without explicit value
+            if jobspec.parallelism is None and suite_config.get("runner") == "riot":
+                calculated = calculate_dynamic_parallelism(suite, suite_config)
+                if calculated is not None:
+                    jobspec.parallelism = calculated
+                    LOGGER.info("Suite %s: calculated parallelism=%d", suite, calculated)
+                else:
+                    LOGGER.debug("Suite %s: no venvs_per_job config, using GitLab default", suite)
+
             print(str(jobspec), file=f)
 
 
@@ -190,11 +277,10 @@ def gen_build_docs() -> None:
 
     if pr_matches_patterns(
         {
-            "docker*",
             "docs/*",
             "ddtrace/*",
             "scripts/docs/*",
-            "releasenotes/*",
+            "scripts/gen_gitlab_config.py",
             "benchmarks/README.rst",
             ".readthedocs.yml",
         }
@@ -205,16 +291,13 @@ def gen_build_docs() -> None:
             print("  stage: core", file=f)
             print("  needs:", file=f)
             print("    - prechecks", file=f)
-            print("  variables:", file=f)
-            print("    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'", file=f)
+            print("    - job: build_base_venvs", file=f)
+            print("      artifacts: true", file=f)
             print("  script:", file=f)
             print("    - |", file=f)
-            print("      hatch run docs:build", file=f)
+            print("      git config --global --add safe.directory $CI_PROJECT_DIR", file=f)
+            print("      riot -v run -s --pass-env build_docs", file=f)
             print("      mkdir -p /tmp/docs", file=f)
-            print("  cache:", file=f)
-            print("    key: v2-build_docs-pip-cache", file=f)
-            print("    paths:", file=f)
-            print("      - .cache", file=f)
             print("  artifacts:", file=f)
             print("    paths:", file=f)
             print("      - 'docs/'", file=f)
@@ -266,9 +349,24 @@ def gen_pre_checks() -> None:
         paths={"*"},
     )
     check(
-        name="Check integration error logs",
+        name="Check ddtrace error logs",
         command="hatch run lint:error-log-check",
-        paths={"ddtrace/contrib/**/*.py"},
+        paths={"ddtrace/*", "scripts/check_constant_log_message.py"},
+    )
+    check(
+        name="Check project dependency bounds",
+        command="scripts/check-dependency-bounds",
+        paths={"pyproject.toml"},
+    )
+    check(
+        name="Check package version",
+        command="scripts/verify-package-version",
+        paths={"pyproject.toml"},
+    )
+    check(
+        name="Check for namespace packages",
+        command="scripts/check-for-namespace-packages.sh",
+        paths={"*"},
     )
     if not checks:
         return
