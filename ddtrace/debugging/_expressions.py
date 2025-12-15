@@ -90,7 +90,6 @@ def instanceof(value: Any, type_qname: str) -> bool:
 
 def isdefined(predicate: Callable[[Mapping[str, Any]], Any], _locals: Mapping[str, Any]) -> bool:
     try:
-        print(predicate, _locals)
         predicate(_locals)
     except BaseException:
         return False
