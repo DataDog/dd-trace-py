@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import _thread
 import asyncio
 import glob
@@ -27,15 +29,11 @@ init_linenos(__file__)
 PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
 
 # Type aliases for supported classes
-LockTypeClass = Union[Type[asyncio.Lock], Type[asyncio.Semaphore], Type[asyncio.BoundedSemaphore]]
 LockTypeInst = Union[asyncio.Lock, asyncio.Semaphore, asyncio.BoundedSemaphore]
+LockTypeClass = Type[LockTypeInst]
 
-CollectorTypeClass = Union[
-    Type[AsyncioLockCollector],
-    Type[AsyncioSemaphoreCollector],
-    Type[AsyncioBoundedSemaphoreCollector],
-]
 CollectorTypeInst = Union[AsyncioLockCollector, AsyncioSemaphoreCollector, AsyncioBoundedSemaphoreCollector]
+CollectorTypeClass = Type[CollectorTypeInst]
 
 
 @pytest.mark.parametrize(
@@ -245,14 +243,14 @@ class TestAsyncioBoundedSemaphoreCollector(BaseAsyncioLockCollectorTest):
     """Test asyncio.BoundedSemaphore profiling."""
 
     @property
-    def collector_class(self):
+    def collector_class(self) -> Type[AsyncioBoundedSemaphoreCollector]:
         return AsyncioBoundedSemaphoreCollector
 
     @property
-    def lock_class(self):
+    def lock_class(self) -> Type[asyncio.BoundedSemaphore]:
         return asyncio.BoundedSemaphore
 
-    async def test_bounded_behavior_preserved(self):
+    async def test_bounded_behavior_preserved(self) -> None:
         """Test that profiling wrapper preserves BoundedSemaphore's bounded behavior.
 
         This verifies the wrapper doesn't interfere with BoundedSemaphore's unique characteristic:
