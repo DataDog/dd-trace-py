@@ -382,8 +382,6 @@ class TestOptPlugin:
         retry_handler: RetryHandler,
         reports: _ReportGroup,
     ) -> None:
-        # Save failure/skip representation to put into the final report.
-        # TODO: for flaky tests, we currently don't show the longrepr (because the final report has `passed` status).
         retry_reports = RetryReports()
 
         # Log initial attempt.
