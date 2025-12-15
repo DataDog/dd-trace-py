@@ -763,3 +763,15 @@ async def test_llmobs_oai_agents_with_guardrail_spans(
     _assert_span_link(llmobs_events[2], llmobs_events[3], "output", "input")
     # assert LLM span links to output guardrail span
     _assert_span_link(llmobs_events[5], llmobs_events[6], "output", "input")
+
+
+@pytest.mark.asyncio
+async def test_no_error_when_current_span_is_none(agents, mock_tracer, request_vcr, simple_agent):
+    """Regression test: tag_agent_manifest should not raise AttributeError when current_span is None."""
+    from ddtrace._trace.pin import Pin
+
+    pin = Pin.get_from(agents)
+    with mock.patch.object(pin.tracer, "current_span", return_value=None):
+        with request_vcr.use_cassette("test_simple_agent.yaml"):
+            # Should not raise AttributeError: 'NoneType' object has no attribute '_set_ctx_item'
+            await agents.Runner.run(simple_agent, "What is the capital of France?")
