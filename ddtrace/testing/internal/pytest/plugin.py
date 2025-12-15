@@ -37,7 +37,10 @@ from ddtrace.testing.internal.tracer_api.context import enable_all_ddtrace_integ
 from ddtrace.testing.internal.tracer_api.context import install_global_trace_filter
 from ddtrace.testing.internal.tracer_api.context import trace_context
 from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
+from ddtrace.testing.internal.tracer_api.coverage import get_coverage_percentage
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage
+from ddtrace.testing.internal.tracer_api.coverage import install_coverage_percentage
+from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_percentage
 import ddtrace.testing.internal.tracer_api.pytest_hooks
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import asbool
@@ -173,6 +176,11 @@ class TestOptPlugin:
         if self.is_xdist_worker and hasattr(session.config, "workeroutput"):
             # Propagate number of skipped tests to the main process.
             session.config.workeroutput["tests_skipped_by_itr"] = self.session.tests_skipped_by_itr
+
+        coverage_percentage = get_coverage_percentage(_is_pytest_cov_enabled(session.config))
+        if coverage_percentage is not None:
+            self.session.metrics[TestTag.CODE_COVERAGE_LINES_PCT] = coverage_percentage
+            uninstall_coverage_percentage()
 
         self.session.finish()
 
@@ -763,6 +771,9 @@ def pytest_configure(config: pytest.Config) -> None:
 
     ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_configure(config)
 
+    if _is_pytest_cov_enabled(config):
+        install_coverage_percentage()
+
 
 def _get_test_command(config: pytest.Config) -> str:
     """Extract and re-create pytest session command from pytest config."""
@@ -855,6 +866,18 @@ def _get_test_custom_tags(item: pytest.Item) -> t.Dict[str, str]:
             tags[key] = str(value)
 
     return tags
+
+
+def _is_pytest_cov_enabled(config) -> bool:
+    if not config.pluginmanager.get_plugin("pytest_cov"):
+        return False
+    cov_option = config.getoption("--cov", default=False)
+    nocov_option = config.getoption("--no-cov", default=False)
+    if nocov_option is True:
+        return False
+    if isinstance(cov_option, list) and cov_option == [True] and not nocov_option:
+        return True
+    return cov_option
 
 
 @pytest.fixture(scope="session")

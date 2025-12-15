@@ -394,4 +394,6 @@ class TestTag:
     IS_RUM_ACTIVE = "test.is_rum_active"
     BROWSER_DRIVER = "test.browser.driver"
 
+    CODE_COVERAGE_LINES_PCT = "test.code_coverage.lines_pct"
+
     __test__ = False
