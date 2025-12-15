@@ -1,7 +1,4 @@
 ---
 features:
   - |
-    profiling: Add support for ``asyncio.BoundedSemaphore`` locking type profiling in Python.
-    Unlike ``threading.BoundedSemaphore``, the asyncio version does not use internal locks,
-    so no internal lock detection is needed.
-
+    profiling: Add support for ``asyncio.BoundedSemaphore`` lock type profiling in Python Lock Profiler.

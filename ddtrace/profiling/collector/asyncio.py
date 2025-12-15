@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 from types import ModuleType
 from typing import Type
@@ -37,5 +39,5 @@ class AsyncioBoundedSemaphoreCollector(_lock.LockCollector):
     """Record asyncio.BoundedSemaphore usage."""
 
     PROFILED_LOCK_CLASS: Type[_ProfiledAsyncioBoundedSemaphore] = _ProfiledAsyncioBoundedSemaphore
-    MODULE = asyncio
-    PATCHED_LOCK_NAME = "BoundedSemaphore"
+    MODULE: ModuleType = asyncio
+    PATCHED_LOCK_NAME: str = "BoundedSemaphore"
