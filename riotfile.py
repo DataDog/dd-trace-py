@@ -1349,7 +1349,7 @@ venv = Venv(
         Venv(
             name="appsec_iast_memcheck",
             command=(
-                "pytest --memray --stacks=35 --no-cov --no-ddtrace -p no:randomly {cmdargs} tests/appsec/iast_memcheck/"
+                "pytest --memray --stacks=35 {cmdargs} tests/appsec/iast_memcheck/"
             ),
             pys=select_pys(),
             pkgs={
