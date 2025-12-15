@@ -93,7 +93,7 @@ def _expected_langchain_llmobs_llm_span(
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
         span_links=span_links,
         prompt=prompt,
-        prompt_tracking_source="auto" if prompt else None,
+        prompt_tracking_instrumentation_method="auto" if prompt else None,
     )
 
 
@@ -215,7 +215,7 @@ def test_llmobs_string_prompt_template_invoke(langchain_core, langchain_openai, 
     assert actual_prompt["variables"] == variable_dict
     assert "tags" in actual_prompt
     assert actual_prompt["tags"] == {"test_type": "basic_invoke", "author": "test_suite"}
-    assert "prompt_tracking_source:auto" in llmobs_events[1]["tags"]
+    assert "prompt_tracking_instrumentation_method:auto" in llmobs_events[1]["tags"]
 
 
 def test_llmobs_string_prompt_template_direct_invoke(
@@ -244,7 +244,7 @@ def test_llmobs_string_prompt_template_direct_invoke(
     assert actual_prompt["variables"] == variable_dict
     assert "tags" in actual_prompt
     assert actual_prompt["tags"] == {"test_type": "direct_invoke", "interaction": "greeting"}
-    assert "prompt_tracking_source:auto" in llmobs_events[0]["tags"]
+    assert "prompt_tracking_instrumentation_method:auto" in llmobs_events[0]["tags"]
 
 
 def test_llmobs_string_prompt_template_invoke_chat_model(

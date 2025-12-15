@@ -958,7 +958,7 @@ class LangChainIntegration(BaseLLMIntegration):
             try:
                 prompt = _validate_prompt(prompt, strict_validation=True)
                 span._set_ctx_item(INPUT_PROMPT, prompt)
-                tags = {"prompt_tracking_source": "auto"}
+                tags = {"prompt_tracking_instrumentation_method": "auto"}
                 existing_tags = span._get_ctx_item(TAGS)
                 if existing_tags:
                     existing_tags.update(tags)

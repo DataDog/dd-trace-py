@@ -75,7 +75,7 @@ def _expected_llmobs_llm_span_event(
     span,
     span_kind="llm",
     prompt=None,
-    prompt_tracking_source=None,
+    prompt_tracking_instrumentation_method=None,
     prompt_multimodal=None,
     input_messages=None,
     input_documents=None,
@@ -97,7 +97,7 @@ def _expected_llmobs_llm_span_event(
     Helper function to create an expected LLM span event.
     span_kind: either "llm" or "agent" or "embedding"
     prompt: prompt metadata dict (id, version, variables, template)
-    prompt_tracking_source: prompt tracking source tag ('auto' for auto-instrumented)
+    prompt_tracking_instrumentation_method: prompt tracking source tag ('auto' for auto-instrumented)
     prompt_multimodal: whether prompt contains multimodal inputs (True if present)
     input_messages: list of input messages in format {"content": "...", "optional_role", "..."}
     output_messages: list of output messages in format {"content": "...", "optional_role", "..."}
@@ -122,7 +122,7 @@ def _expected_llmobs_llm_span_event(
         error_message,
         error_stack,
         span_links,
-        prompt_tracking_source,
+        prompt_tracking_instrumentation_method,
         prompt_multimodal,
     )
     meta_dict = {"input": {}, "output": {}}
@@ -185,7 +185,7 @@ def _expected_llmobs_non_llm_span_event(
     error_message=None,
     error_stack=None,
     span_links=False,
-    prompt_tracking_source=None,
+    prompt_tracking_instrumentation_method=None,
     prompt_multimodal=None,
 ):
     """
@@ -201,7 +201,7 @@ def _expected_llmobs_non_llm_span_event(
     error_message: error message
     error_stack: error stack
     span_links: whether there are span links present on this span.
-    prompt_tracking_source: prompt tracking source tag ('auto' for auto-instrumented)
+    prompt_tracking_instrumentation_method: prompt tracking source tag ('auto' for auto-instrumented)
     prompt_multimodal: whether prompt contains multimodal inputs (True if present)
     """
     span_event = _llmobs_base_span_event(
@@ -213,7 +213,7 @@ def _expected_llmobs_non_llm_span_event(
         error_message,
         error_stack,
         span_links,
-        prompt_tracking_source,
+        prompt_tracking_instrumentation_method,
         prompt_multimodal,
     )
     meta_dict = {"input": {}, "output": {}}
@@ -248,12 +248,12 @@ def _llmobs_base_span_event(
     error_message=None,
     error_stack=None,
     span_links=False,
-    prompt_tracking_source=None,
+    prompt_tracking_instrumentation_method=None,
     prompt_multimodal=None,
 ):
     expected_tags = _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id)
-    if prompt_tracking_source:
-        expected_tags.append(f"prompt_tracking_source:{prompt_tracking_source}")
+    if prompt_tracking_instrumentation_method:
+        expected_tags.append(f"prompt_tracking_instrumentation_method:{prompt_tracking_instrumentation_method}")
     if prompt_multimodal:
         expected_tags.append(f"prompt_multimodal:{prompt_multimodal}")
     span_event = {

@@ -936,7 +936,7 @@ def openai_set_meta_tags_from_response(
             validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
             span._set_ctx_item(INPUT_PROMPT, validated_prompt)
 
-            tags = {"prompt_tracking_source": "auto"}
+            tags = {"prompt_tracking_instrumentation_method": "auto"}
             if has_multimodal:
                 tags["prompt_multimodal"] = "true"
             existing_tags = span._get_ctx_item(TAGS)
