@@ -5,6 +5,26 @@ import pytest
 from ddtrace.internal.datadog.profiling import ddup
 
 
+class MockSpan:
+    """Mock span object for testing"""
+
+    def __init__(self, span_id=None, local_root=None):
+        if span_id is not None:
+            self.span_id = span_id
+        if local_root is not None:
+            self._local_root = local_root
+
+
+class MockLocalRoot:
+    """Mock local root span object for testing"""
+
+    def __init__(self, span_id=None, span_type=None):
+        if span_id is not None:
+            self.span_id = span_id
+        if span_type is not None:
+            self.span_type = span_type
+
+
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_libdd_available():
     """
