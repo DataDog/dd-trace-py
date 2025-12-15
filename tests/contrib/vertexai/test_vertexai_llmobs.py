@@ -668,7 +668,7 @@ def expected_llmobs_span_event(span):
             {"content": MOCK_COMPLETION_SIMPLE_1["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
         ],
         metadata={"temperature": 1.0, "max_output_tokens": 30},
-        token_metrics={"input_tokens": 14, "output_tokens": 16, "total_tokens": 30},
+        token_metrics={"input_tokens": 14, "output_tokens": 16, "total_tokens": 30, "reasoning_output_tokens": 0},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
     )
 
@@ -711,7 +711,7 @@ def expected_llmobs_tool_span_event(span):
             }
         ],
         metadata={"temperature": 1.0, "max_output_tokens": 30},
-        token_metrics={"input_tokens": 43, "output_tokens": 11, "total_tokens": 54},
+        token_metrics={"input_tokens": 43, "output_tokens": 11, "total_tokens": 54, "reasoning_output_tokens": 0},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
         tool_definitions=[
             {
@@ -747,7 +747,7 @@ def expected_llmobs_stream_span_event(span):
             {"content": "".join([chunk["text"] for chunk in MOCK_COMPLETION_STREAM_CHUNKS]), "role": "model"},
         ],
         metadata={"temperature": 1.0, "max_output_tokens": 30},
-        token_metrics={"input_tokens": 16, "output_tokens": 37, "total_tokens": 53},
+        token_metrics={"input_tokens": 16, "output_tokens": 37, "total_tokens": 53, "reasoning_output_tokens": 0},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
     )
 
@@ -781,7 +781,7 @@ def expected_llmobs_history_span_event(span):
             {"content": MOCK_COMPLETION_SIMPLE_1["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
         ],
         metadata={"temperature": 1.0, "max_output_tokens": 30},
-        token_metrics={"input_tokens": 14, "output_tokens": 16, "total_tokens": 30},
+        token_metrics={"input_tokens": 14, "output_tokens": 16, "total_tokens": 30, "reasoning_output_tokens": 0},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
     )
 
@@ -799,7 +799,7 @@ def expected_llmobs_system_prompt_span_event(span):
             {"content": MOCK_COMPLETION_SIMPLE_2["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
         ],
         metadata={"temperature": 1.0, "max_output_tokens": 50},
-        token_metrics={"input_tokens": 16, "output_tokens": 50, "total_tokens": 66},
+        token_metrics={"input_tokens": 16, "output_tokens": 50, "total_tokens": 66, "reasoning_output_tokens": 0},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
     )
 
@@ -814,7 +814,7 @@ def expected_llmobs_no_generation_config_span_event(span):
             {"content": MOCK_COMPLETION_SIMPLE_1["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
         ],
         metadata={},
-        token_metrics={"input_tokens": 14, "output_tokens": 16, "total_tokens": 30},
+        token_metrics={"input_tokens": 14, "output_tokens": 16, "total_tokens": 30, "reasoning_output_tokens": 0},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
     )
 
@@ -842,7 +842,7 @@ def expected_llmobs_tool_result_span_event(span):
             {"content": MOCK_COMPLETION_TOOL_RESULT["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
         ],
         metadata={"temperature": 1.0, "max_output_tokens": 30},
-        token_metrics={"input_tokens": 50, "output_tokens": 20, "total_tokens": 70},
+        token_metrics={"input_tokens": 50, "output_tokens": 20, "total_tokens": 70, "reasoning_output_tokens": 0},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
         tool_definitions=[
             {

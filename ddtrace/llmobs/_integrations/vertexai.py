@@ -14,6 +14,7 @@ from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
@@ -88,6 +89,8 @@ class VertexAIIntegration(BaseLLMIntegration):
                     continue
                 input_tokens = _get_attr(token_counts, "prompt_token_count", 0)
                 output_tokens = _get_attr(token_counts, "candidates_token_count", 0)
+                thoughts_tokens = _get_attr(token_counts, "thoughts_token_count", 0)
+
                 total_tokens = _get_attr(token_counts, "total_token_count", 0)
         else:
             generations_dict = response.to_dict()
@@ -98,6 +101,7 @@ class VertexAIIntegration(BaseLLMIntegration):
 
             input_tokens = _get_attr(token_counts, "prompt_token_count", 0)
             output_tokens = _get_attr(token_counts, "candidates_token_count", 0)
+            thoughts_tokens = _get_attr(token_counts, "thoughts_token_count", 0)
             total_tokens = _get_attr(token_counts, "total_token_count", 0)
 
         metrics = {}
@@ -107,7 +111,8 @@ class VertexAIIntegration(BaseLLMIntegration):
             metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
         if total_tokens is not None:
             metrics[TOTAL_TOKENS_METRIC_KEY] = total_tokens
-
+        if thoughts_tokens is not None:
+            metrics[REASONING_OUTPUT_TOKENS_METRIC_KEY] = thoughts_tokens
         return metrics
 
     def _extract_input_message(self, contents, history, system_instruction=None) -> List[Message]:
