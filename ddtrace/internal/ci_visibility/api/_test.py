@@ -623,7 +623,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
     def _is_rum(self):
         if self._span is None:
             return False
-        return self._span.get_tag("is_rum_active") == "true"
+        return self._span.get_tag("test.is_rum_active") == "true"
 
     def _get_browser_driver(self):
         if self._span is None:

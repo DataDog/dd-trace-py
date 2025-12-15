@@ -172,6 +172,7 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@contrib'
+      - '@vendor'
       - tests/integration/*
       - tests/snapshots/tests.integration.*
     pattern: integration-latest*
@@ -183,6 +184,7 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@contrib'
+      - '@vendor'
       - tests/integration/*
       - tests/snapshots/tests.integration.*
     pattern: integration-snapshot*
@@ -201,6 +203,7 @@ suites:
       - '@remoteconfig'
       - '@symbol_db'
       - '@tracing'
+      - '@vendor'
       - ddtrace/internal/*
       - tests/internal/*
       - tests/submod/*
@@ -223,6 +226,7 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@runtime'
+      - '@vendor'
       - tests/runtime/*
     runner: riot
     skip: true
@@ -244,6 +248,7 @@ suites:
       - '@tracing'
       - '@settings'
       - '@profiling'
+      - '@vendor'
       - tests/telemetry/*
       - tests/snapshots/tests.telemetry.*
     runner: riot
@@ -263,6 +268,7 @@ suites:
       - '@remoteconfig'
       - '@futures'
       - '@ci_visibility'
+      - '@vendor'
       - tests/tracer/*
       - tests/snapshots/test_*
     retry: 2

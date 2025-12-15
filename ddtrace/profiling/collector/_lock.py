@@ -2,7 +2,6 @@ from __future__ import absolute_import
 from __future__ import annotations
 
 import _thread
-import abc
 import os.path
 import sys
 import time
@@ -52,6 +51,7 @@ class _ProfiledLock:
         "init_location",
         "acquired_time",
         "name",
+        "is_internal",
     )
 
     def __init__(
@@ -60,6 +60,7 @@ class _ProfiledLock:
         tracer: Optional[Tracer],
         max_nframes: int,
         capture_sampler: collector.CaptureSampler,
+        is_internal: bool = False,
     ) -> None:
         self.__wrapped__: Any = wrapped
         self.tracer: Optional[Tracer] = tracer
@@ -71,6 +72,9 @@ class _ProfiledLock:
         self.init_location: str = f"{os.path.basename(code.co_filename)}:{frame.f_lineno}"
         self.acquired_time: Optional[int] = None
         self.name: Optional[str] = None
+        # If True, this lock is internal to another sync primitive (e.g., Lock inside Semaphore)
+        # and should not generate profile samples to avoid double-counting
+        self.is_internal: bool = is_internal
 
     ### DUNDER methods ###
 
@@ -159,6 +163,11 @@ class _ProfiledLock:
             end: End timestamp in nanoseconds
             is_acquire: True for acquire operations, False for release operations
         """
+        # Skip profiling for internal locks (e.g., Lock inside Semaphore/Condition)
+        # to avoid double-counting when multiple collectors are active
+        if self.is_internal:
+            return
+
         handle: ddup.SampleHandle = ddup.SampleHandle()
 
         handle.push_monotonic_ns(end)
@@ -193,8 +202,7 @@ class _ProfiledLock:
         # If we can't get the task frame, we use the caller frame.
         # Call stack: 0: _flush_sample, 1: _acquire/_release, 2: acquire/release/__enter__/__exit__, 3: caller
         frame: FrameType = task_frame or sys._getframe(3)
-        frames: List[DDFrame]
-        frames, _ = _traceback.pyframe_to_frames(frame, self.max_nframes)
+        frames: List[DDFrame] = _traceback.pyframe_to_frames(frame, self.max_nframes)
         for ddframe in frames:
             handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
 
@@ -241,25 +249,77 @@ class _ProfiledLock:
 
 
 class _LockAllocatorWrapper:
-    """Wrapper for lock allocator functions that prevents method binding."""
+    """Wrapper for lock allocator functions that prevents method binding.
 
-    __slots__ = ("_func",)
+    For simple locks (Lock, RLock), this wrapper just intercepts instantiation.
 
-    def __init__(self, func: Callable[..., Any]) -> None:
-        self._func: Callable[..., Any] = func
+    For class-based locks with inheritance (Semaphore, BoundedSemaphore), this wrapper
+    also handles the case where a subclass calls Parent.__init__(self, value). Example:
 
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        # In Python's threading.py:
+        class BoundedSemaphore(Semaphore):
+            def __init__(self, value=1):
+                Semaphore.__init__(self, value)  # <-- We intercept this!
+                self._initial_value = value
+
+    When we patch threading.Semaphore with this wrapper, the call to Semaphore.__init__
+    goes to our __init__, which detects the inheritance case and delegates to the
+    original Semaphore.__init__.
+    """
+
+    __slots__ = ("_func", "_original_class")
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        # This __init__ handles TWO different cases:
+        #
+        # Case 1 - Normal wrapper initialization (most common):
+        #   Called when setting up the profiling wrapper.
+        #
+        # Case 2 - Inheritance delegation (Semaphore/BoundedSemaphore only):
+        #   We detect this by checking if args[0] is an instance of the original class.
+
+        # Case 2: inheritance call where first arg is an instance being initialized
+        # This happens when BoundedSemaphore.__init__ calls Semaphore.__init__(self, value)
+        if args and hasattr(self, "_original_class") and self._original_class is not None:
+            first_arg: Any = args[0]
+            if isinstance(first_arg, self._original_class):
+                # Delegate to the real Semaphore.__init__
+                self._original_class.__init__(*args, **kwargs)
+                return
+
+        # Case 1: Normal wrapper initialization
+        self._func: Callable[..., _ProfiledLock]
+        self._original_class: Optional[Type[Any]]
+        if args:
+            self._func = args[0]
+            self._original_class = kwargs.get("original_class") or (args[1] if len(args) > 1 else None)
+        else:
+            self._func = kwargs.get("func")  # type: ignore[assignment]
+            self._original_class = kwargs.get("original_class")
+
+    def __call__(self, *args: Any, **kwargs: Any) -> _ProfiledLock:
         return self._func(*args, **kwargs)
 
-    def __get__(self, instance: Any, owner: Optional[Type] = None) -> _LockAllocatorWrapper:
+    def __get__(self, instance: Any, owner: Optional[Type[Any]] = None) -> _LockAllocatorWrapper:
         # Prevent automatic method binding (e.g., Foo.lock_class = threading.Lock)
         return self
+
+    def __getattr__(self, name: str) -> Any:
+        # Delegate attribute access to the original class.
+        # This is needed for Semaphore/BoundedSemaphore inheritance where code accesses
+        # Semaphore.__init__ c-tor through our wrapper.
+        original_class: Optional[Type[Any]] = object.__getattribute__(self, "_original_class")
+        if original_class is not None:
+            return getattr(original_class, name)
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
 
 class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
     PROFILED_LOCK_CLASS: Type[Any]
+    MODULE: ModuleType  # e.g., threading module
+    PATCHED_LOCK_NAME: str  # e.g., "Lock", "RLock", "Semaphore"
 
     def __init__(
         self,
@@ -273,11 +333,11 @@ class LockCollector(collector.CaptureSamplerCollector):
         self.tracer: Optional[Tracer] = tracer
         self._original_lock: Any = None
 
-    @abc.abstractmethod
-    def _get_patch_target(self) -> Callable[..., Any]: ...
+    def _get_patch_target(self) -> Callable[..., Any]:
+        return getattr(self.MODULE, self.PATCHED_LOCK_NAME)
 
-    @abc.abstractmethod
-    def _set_patch_target(self, value: Any) -> None: ...
+    def _set_patch_target(self, value: Any) -> None:
+        setattr(self.MODULE, self.PATCHED_LOCK_NAME, value)
 
     def _start_service(self) -> None:
         """Start collecting lock usage."""
@@ -295,15 +355,38 @@ class LockCollector(collector.CaptureSamplerCollector):
         original_lock: Any = self._original_lock  # Capture non-None value
 
         def _profiled_allocate_lock(*args: Any, **kwargs: Any) -> _ProfiledLock:
-            """Simple wrapper that returns profiled locks."""
+            """Simple wrapper that returns profiled locks.
+
+            Detects if the lock is being created from within threading.py stdlib
+            (i.e., internal to Semaphore/Condition) to avoid double-counting.
+            """
+            import threading as threading_module
+
+            # Check if caller is from threading.py (internal lock)
+            is_internal: bool = False
+            try:
+                # Frame 0: _profiled_allocate_lock
+                # Frame 1: _LockAllocatorWrapper.__call__
+                # Frame 2: actual caller (threading.Lock() call site)
+                caller_filename = sys._getframe(2).f_code.co_filename
+                threading_module_file = threading_module.__file__
+                if threading_module_file and caller_filename:
+                    # Normalize paths to handle symlinks and different path formats
+                    caller_filename_normalized = os.path.normpath(os.path.realpath(caller_filename))
+                    threading_file_normalized = os.path.normpath(os.path.realpath(threading_module_file))
+                    is_internal = caller_filename_normalized == threading_file_normalized
+            except (ValueError, AttributeError, OSError):
+                pass
+
             return self.PROFILED_LOCK_CLASS(
                 wrapped=original_lock(*args, **kwargs),
                 tracer=self.tracer,
                 max_nframes=self.nframes,
                 capture_sampler=self._capture_sampler,
+                is_internal=is_internal,
             )
 
-        self._set_patch_target(_LockAllocatorWrapper(_profiled_allocate_lock))
+        self._set_patch_target(_LockAllocatorWrapper(_profiled_allocate_lock, original_class=original_lock))
 
     def unpatch(self) -> None:
         """Unpatch the threading module for tracking lock allocation."""

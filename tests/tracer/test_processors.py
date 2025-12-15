@@ -282,6 +282,17 @@ def test_aggregator_multi_span():
     assert writer.pop() == [parent, child]
 
 
+@pytest.mark.subprocess(
+    parametrize={"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": ["0", "-1", "-20"]},
+    err=b"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS must be >= 1, defaulting to 1\n",
+)
+def test_config_partial_flush_min_spans_validation():
+    """Test that DD_TRACE_PARTIAL_FLUSH_MIN_SPANS < 1 defaults to 1 with warning."""
+    from ddtrace import config
+
+    assert config._partial_flush_min_spans == 1
+
+
 def test_aggregator_partial_flush_0_spans():
     writer = DummyWriter()
     aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=0)

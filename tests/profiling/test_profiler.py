@@ -231,18 +231,18 @@ def test_libdd_failure_telemetry_logging_with_auto():
 
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_ENABLED="true"),
-    err="Failed to load stack_v2 module (mock failure message), falling back to v1 stack sampler\n",
+    err="Failed to load stack module (mock failure message), falling back to v1 stack sampler\n",
 )
-def test_stack_v2_failure_telemetry_logging():
-    # Test that stack_v2 initialization failures log to telemetry. This is
+def test_stack_failure_telemetry_logging():
+    # Test that stack initialization failures log to telemetry. This is
     # mimicking the behavior of ddtrace-run, where the config is imported to
-    # determine if profiling/stack_v2 is enabled
+    # determine if profiling/stack is enabled
 
     from unittest import mock
 
     with (
         mock.patch.multiple(
-            "ddtrace.internal.datadog.profiling.stack_v2",
+            "ddtrace.internal.datadog.profiling.stack",
             failure_msg="mock failure message",
             is_available=False,
         ),
@@ -255,7 +255,7 @@ def test_stack_v2_failure_telemetry_logging():
         call_args = mock_add_log.call_args
         assert call_args[0][0] == TELEMETRY_LOG_LEVEL.ERROR
         message = call_args[0][1]
-        assert "Failed to load stack_v2 module" in message
+        assert "Failed to load stack module" in message
         assert "mock failure message" in message
 
 
@@ -264,12 +264,12 @@ def test_stack_v2_failure_telemetry_logging():
     # upload code path on macOS.
     err=None,
 )
-def test_stack_v2_failure_telemetry_logging_with_auto():
+def test_stack_failure_telemetry_logging_with_auto():
     from unittest import mock
 
     with (
         mock.patch.multiple(
-            "ddtrace.internal.datadog.profiling.stack_v2",
+            "ddtrace.internal.datadog.profiling.stack",
             failure_msg="mock failure message",
             is_available=False,
         ),
@@ -282,7 +282,7 @@ def test_stack_v2_failure_telemetry_logging_with_auto():
         call_args = mock_add_log.call_args
         assert call_args[0][0] == TELEMETRY_LOG_LEVEL.ERROR
         message = call_args[0][1]
-        assert "Failed to load stack_v2 module" in message
+        assert "Failed to load stack module" in message
         assert "mock failure message" in message
 
 
@@ -298,10 +298,6 @@ def test_user_threads_have_native_id():
 
     from ddtrace.profiling import profiler
 
-    # DEV: We used to run this test with ddtrace_run=True passed into the
-    # subprocess decorator, but that caused this to be flaky for Python 3.8.x
-    # with gevent. When it failed for that specific venv, current_thread()
-    # returned a DummyThread instead of a _MainThread.
     p = profiler.Profiler()
     p.start()
 
