@@ -1,0 +1,43 @@
+# Minimal fuzzing image for the stack_v2/echion harness (libFuzzer + ASAN/UBSAN).
+#
+# Build:
+#   $ docker build -f docker/Dockerfile.fuzz -t ddtrace-py-stackv2-fuzz .
+# Run: 
+#   $ docker run --rm -it -v "$PWD/.fuzz:/fuzz" ddtrace-py-stackv2-fuzz
+
+FROM debian:trixie-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    clang \
+    cmake \
+    git \
+    libclang-rt-dev \
+    lld \
+    make \
+    ninja-build \
+    python3 \
+    python3-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY . /src
+
+# Build only the fuzz target; skip the Python extension (avoids libdd_wrapper dependency).
+RUN cmake -S ddtrace/internal/datadog/profiling/stack_v2 -B /build \
+      -DBUILD_FUZZING=ON -DBUILD_TESTING=OFF -DSTACKV2_USE_LIBFUZZER=ON \
+      -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+      -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+      -DCMAKE_C_FLAGS="-O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined" \
+      -DCMAKE_CXX_FLAGS="-O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined" \
+      -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
+  && cmake --build /build -j --target fuzz_echion_remote_read
+
+# RUN mkdir -p /fuzz/corpus /fuzz/out
+
+CMD ["/build/fuzz/fuzz_echion_remote_read", "/fuzz/", "-artifact_prefix=/fuzz/"]
+
+

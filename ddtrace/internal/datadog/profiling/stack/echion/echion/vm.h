@@ -162,8 +162,21 @@ init_safe_copy()
  *
  * @return  zero on success, otherwise non-zero.
  */
+#if defined(ECHION_FUZZING)
+// Let the fuzzing harness control the copy_memory behavior, so we can simulate "garbage" reads.
+extern "C" int
+echion_fuzz_copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf);
+
+int
+copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf)
+{
+    return echion_fuzz_copy_memory(proc_ref, addr, len, buf);
+}
+#else
+// Implementation in vm.cc
 int
 copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf);
+#endif
 
 inline pid_t pid = 0;
 
