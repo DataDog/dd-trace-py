@@ -30,6 +30,18 @@ class TestLLMObsGoogleGenAI:
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_span_event(span)
 
+    def test_generate_content_with_reasoning_tokens(
+        self, genai_client, llmobs_events, mock_tracer, mock_generate_content_with_reasoning
+    ):
+        genai_client.models.generate_content(
+            model="gemini-2.5-pro",
+            contents="Why is the sky blue? Explain in 2-3 sentences.",
+            config=FULL_GENERATE_CONTENT_CONFIG,
+        )
+        span = mock_tracer.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected_llmobs_span_event_with_reasoning(span)
+
     def test_generate_content_error(self, genai_client, llmobs_events, mock_tracer, mock_generate_content):
         with pytest.raises(TypeError):
             genai_client.models.generate_content(
@@ -586,6 +598,30 @@ def expected_llmobs_embedding_error_span_event(span):
             "output_dimensionality": 10,
             "task_type": None,
             "title": None,
+        },
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
+    )
+
+
+def expected_llmobs_span_event_with_reasoning(span):
+    return _expected_llmobs_llm_span_event(
+        span,
+        model_name="gemini-2.5-pro",
+        model_provider="google",
+        input_messages=[
+            {"content": "You are a helpful assistant.", "role": "system"},
+            {"content": "Why is the sky blue? Explain in 2-3 sentences.", "role": "user"},
+        ],
+        output_messages=[
+            {"content": "Let me think about this...", "role": "assistant"},
+            {"content": "The sky is blue due to rayleigh scattering", "role": "assistant"},
+        ],
+        metadata=get_expected_metadata(),
+        token_metrics={
+            "input_tokens": 8,
+            "output_tokens": 14,
+            "total_tokens": 22,
+            "reasoning_output_tokens": 5,
         },
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
     )
