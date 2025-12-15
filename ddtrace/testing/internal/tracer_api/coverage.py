@@ -20,6 +20,7 @@ from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 import ddtrace.internal.coverage.installer
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.testing.internal.logging import catch_and_log_exceptions
 
 
 log = logging.getLogger(__name__)
@@ -70,6 +71,7 @@ def uninstall_coverage_percentage():
     unpatch_coverage()
 
 
+@catch_and_log_exceptions()
 def get_coverage_percentage(pytest_cov_status: bool) -> t.Optional[float]:
     """
     Retrieve coverage percentage collected during a pytest-cov test session, if available.
