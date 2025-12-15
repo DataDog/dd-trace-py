@@ -267,7 +267,17 @@ def get_openai_vcr(subdirectory_name=""):
     )
 
 
-def assert_prompt_tracking(span_event, prompt_id, prompt_version, variables, expected_chat_template, expected_messages):
+def assert_prompt_tracking(
+    span_event,
+    prompt_id,
+    prompt_version,
+    variables,
+    expected_chat_template,
+    expected_messages,
+    *,
+    prompt_tracking_source="auto",
+    prompt_multimodal=False,
+):
     """Helper to assert prompt tracking metadata and template extraction."""
     assert "prompt" in span_event["meta"]["input"]
     actual_prompt = span_event["meta"]["input"]["prompt"]
@@ -277,3 +287,6 @@ def assert_prompt_tracking(span_event, prompt_id, prompt_version, variables, exp
     assert "chat_template" in actual_prompt
     assert actual_prompt["chat_template"] == expected_chat_template
     assert span_event["meta"]["input"]["messages"] == expected_messages
+    assert f"prompt_tracking_source:{prompt_tracking_source}" in span_event["tags"]
+    if prompt_multimodal:
+        assert "prompt_multimodal:true" in span_event["tags"]

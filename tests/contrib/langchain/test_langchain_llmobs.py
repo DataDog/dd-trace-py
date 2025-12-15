@@ -93,6 +93,7 @@ def _expected_langchain_llmobs_llm_span(
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
         span_links=span_links,
         prompt=prompt,
+        prompt_tracking_source="auto" if prompt else None,
     )
 
 
@@ -208,14 +209,13 @@ def test_llmobs_string_prompt_template_invoke(langchain_core, langchain_openai, 
 
     llmobs_events.sort(key=lambda span: span["start_ns"])
     assert len(llmobs_events) == 2
-    assert "prompt_tracking_source:auto" in llmobs_events[1]["tags"]
     actual_prompt = llmobs_events[1]["meta"]["input"]["prompt"]
     assert actual_prompt["id"] == "test_langchain_llmobs.prompt_template"
     assert actual_prompt["template"] == template_string
     assert actual_prompt["variables"] == variable_dict
-    # Check that metadata from the prompt template is preserved
     assert "tags" in actual_prompt
     assert actual_prompt["tags"] == {"test_type": "basic_invoke", "author": "test_suite"}
+    assert "prompt_tracking_source:auto" in llmobs_events[1]["tags"]
 
 
 def test_llmobs_string_prompt_template_direct_invoke(
@@ -238,15 +238,13 @@ def test_llmobs_string_prompt_template_direct_invoke(
     llmobs_events.sort(key=lambda span: span["start_ns"])
     assert len(llmobs_events) == 1  # Only LLM span, prompt template invoke doesn't create LLMObs event by itself
 
-    # The prompt should be attached to the LLM span
-    assert "prompt_tracking_source:auto" in llmobs_events[0]["tags"]
     actual_prompt = llmobs_events[0]["meta"]["input"]["prompt"]
     assert actual_prompt["id"] == "test_langchain_llmobs.greeting_template"
     assert actual_prompt["template"] == template_string
     assert actual_prompt["variables"] == variable_dict
-    # Check that metadata from the prompt template is preserved
     assert "tags" in actual_prompt
     assert actual_prompt["tags"] == {"test_type": "direct_invoke", "interaction": "greeting"}
+    assert "prompt_tracking_source:auto" in llmobs_events[0]["tags"]
 
 
 def test_llmobs_string_prompt_template_invoke_chat_model(

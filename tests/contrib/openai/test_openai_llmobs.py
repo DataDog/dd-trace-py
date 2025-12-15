@@ -2332,7 +2332,6 @@ MUL: "*"
                 },
             ],
         )
-        assert "prompt_tracking_source:auto" in mock_llmobs_writer.enqueue.call_args[0][0]["tags"]
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 87),
@@ -2408,9 +2407,8 @@ MUL: "*"
                     ),
                 }
             ],
+            prompt_multimodal=True,
         )
-        assert "prompt_tracking_source:auto" in mock_llmobs_writer.enqueue.call_args[0][0]["tags"]
-        assert "prompt_multimodal:true" in mock_llmobs_writer.enqueue.call_args[0][0]["tags"]
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 87),
@@ -2488,9 +2486,8 @@ MUL: "*"
                     ),
                 }
             ],
+            prompt_multimodal=True,
         )
-        assert "prompt_tracking_source:auto" in mock_llmobs_writer.enqueue.call_args[0][0]["tags"]
-        assert "prompt_multimodal:true" in mock_llmobs_writer.enqueue.call_args[0][0]["tags"]
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
