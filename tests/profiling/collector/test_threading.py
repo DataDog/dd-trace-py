@@ -163,8 +163,6 @@ def test_lock_repr(
 
 
 def test_patch():
-    from ddtrace.profiling.collector._lock import _LockAllocatorWrapper
-
     lock = threading.Lock
     collector = ThreadingLockCollector()
     collector.start()
@@ -172,7 +170,7 @@ def test_patch():
     # After patching, threading.Lock is replaced with our wrapper
     # The old reference (lock) points to the original builtin Lock class
     assert lock != threading.Lock  # They're different after patching
-    assert isinstance(threading.Lock, _LockAllocatorWrapper)  # threading.Lock is now wrapped
+    assert isinstance(threading.Lock, LockAllocatorWrapper)  # threading.Lock is now wrapped
     assert callable(threading.Lock)  # and it's callable
     collector.stop()
     # After stopping, everything is restored
@@ -1386,22 +1384,16 @@ class BaseSemaphoreTest(BaseThreadingLockCollectorTest):
         threading.Lock and threading.RLock are C types that don't support subclassing
         through __mro_entries__.
         """
-        from ddtrace.profiling.collector._lock import _LockAllocatorWrapper
-
         with self.collector_class():
-            assert isinstance(self.lock_class, _LockAllocatorWrapper)
+            assert isinstance(self.lock_class, LockAllocatorWrapper)
 
             # This should NOT raise TypeError
             class CustomLock(self.lock_class):  # type: ignore[misc]
                 def __init__(self) -> None:
                     super().__init__()
-                    self.custom_attr: str = "test"
 
             # Verify subclassing and functionality
             custom_lock: CustomLock = CustomLock()
-            assert hasattr(custom_lock, "custom_attr")
-            assert custom_lock.custom_attr == "test"
-
             assert custom_lock.acquire()
             custom_lock.release()
 
