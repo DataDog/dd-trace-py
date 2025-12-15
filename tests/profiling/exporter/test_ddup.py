@@ -84,15 +84,13 @@ def test_tags_propagated():
         assert tags[k] == v
 
 
-@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.skipif(not ddup.is_available, reason="ddup not available")
 def test_push_span_without_span_id():
     """
     Test that push_span handles span objects without span_id attribute gracefully.
     This can happen when profiling collector encounters mock span objects in tests.
     Regression test for issue where AttributeError was raised when accessing span.span_id.
     """
-    if not ddup.is_available:
-        pytest.skip("ddup not available")
 
     # Create a sample handle
     handle = ddup.SampleHandle()
