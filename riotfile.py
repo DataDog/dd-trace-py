@@ -1358,6 +1358,7 @@ venv = Venv(
                 "cryptography": latest,
                 "pytest-memray": latest,
                 "pytest-asyncio": latest,
+                "pytest-randomly": latest,
                 "psycopg2-binary": "~=2.9.9",
             },
             env={

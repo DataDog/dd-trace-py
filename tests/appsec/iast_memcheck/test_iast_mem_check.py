@@ -75,7 +75,7 @@ class IASTFilter(LeaksFilterFunction):
         (b"taintsource1", bytearray(b"taintsource2")),
     ],
 )
-def test_propagation_memory_check(origin1, origin2, iast_context_defaults):
+def test_propagation_memory_check(iast_context_defaults, origin1, origin2):
     """Biggest allocating functions:
     - join_aspect: ddtrace/appsec/_iast/_taint_tracking/aspects.py:124 -> 8.0KiB
     - _prepare_report: ddtrace/appsec/_iast/taint_sinks/_base.py:111 -> 8.0KiB
@@ -131,7 +131,7 @@ def test_propagation_memory_check(origin1, origin2, iast_context_defaults):
         (b"taintsource1", bytearray(b"taintsource2")),
     ],
 )
-async def test_propagation_memory_check_async(origin1, origin2, iast_context_defaults):
+async def test_propagation_memory_check_async(iast_context_defaults, origin1, origin2):
     """Biggest allocating functions:
     - join_aspect: ddtrace/appsec/_iast/_taint_tracking/aspects.py:124 -> 8.0KiB
     - _prepare_report: ddtrace/appsec/_iast/taint_sinks/_base.py:111 -> 8.0KiB
