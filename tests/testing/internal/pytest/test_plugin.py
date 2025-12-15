@@ -6,10 +6,10 @@ Integration tests are in tests/test_integration.py.
 
 import os
 import typing as t
+from unittest.mock import MagicMock
 from unittest.mock import Mock
 from unittest.mock import patch
 
-from _pytest.reports import TestReport
 import pytest
 
 from ddtrace.testing.internal.pytest.plugin import DISABLED_BY_TEST_MANAGEMENT_REASON
@@ -22,11 +22,14 @@ from ddtrace.testing.internal.pytest.plugin import _get_module_path_from_item
 from ddtrace.testing.internal.pytest.plugin import _get_test_command
 from ddtrace.testing.internal.pytest.plugin import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.plugin import _get_user_property
-from ddtrace.testing.internal.pytest.plugin import nodeid_to_test_ref
+from ddtrace.testing.internal.pytest.utils import nodeid_to_names
+from ddtrace.testing.internal.test_data import TestStatus
+from ddtrace.testing.internal.test_data import TestTag
 from tests.testing.mocks import TestDataFactory
 from tests.testing.mocks import mock_test
 from tests.testing.mocks import pytest_item_mock
 from tests.testing.mocks import session_manager_mock
+from tests.testing.mocks import test_report
 
 
 # =============================================================================
@@ -199,7 +202,8 @@ class TestSessionManagement:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         assert plugin.is_xdist_worker is False
-        assert plugin.enable_ddtrace is False
+        assert plugin.enable_ddtrace_trace_filter is True
+        assert plugin.enable_all_ddtrace_integrations is False
         assert isinstance(plugin.reports_by_nodeid, dict)
         assert isinstance(plugin.excinfo_by_report, dict)
         assert isinstance(plugin.tests_by_nodeid, dict)
@@ -207,10 +211,10 @@ class TestSessionManagement:
     def test_xdist_plugin_initialization(self) -> None:
         """Test that XdistTestOptPlugin initializes correctly."""
         mock_manager = session_manager_mock().build_mock()
-        plugin = XdistTestOptPlugin(session_manager=mock_manager)
+        plugin = XdistTestOptPlugin(TestOptPlugin(session_manager=mock_manager))
 
         # Should inherit from TestOptPlugin
-        assert plugin.is_xdist_worker is False
+        assert plugin.main_plugin.is_xdist_worker is False
         assert hasattr(plugin, "pytest_configure_node")
 
     def test_session_start_with_xdist_worker_input(self) -> None:
@@ -269,7 +273,7 @@ class TestReportGeneration:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Mock report with retry properties
-        mock_report = Mock()
+        mock_report = test_report()
         mock_report.user_properties = [("dd_retry_outcome", "failed"), ("dd_retry_reason", "Auto Test Retries")]
 
         result = plugin.pytest_report_teststatus(mock_report)
@@ -282,7 +286,7 @@ class TestReportGeneration:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Mock report with quarantined property (call phase)
-        mock_report = Mock()
+        mock_report = test_report()
         mock_report.user_properties = [("dd_quarantined", True)]
         mock_report.when = "call"
 
@@ -297,7 +301,7 @@ class TestReportGeneration:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Mock report with quarantined property (teardown phase)
-        mock_report = Mock()
+        mock_report = test_report()
         mock_report.user_properties = [("dd_quarantined", True)]
         mock_report.when = "teardown"
 
@@ -312,7 +316,7 @@ class TestReportGeneration:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Mock normal report
-        mock_report = Mock()
+        mock_report = test_report()
         mock_report.user_properties = []
 
         result = plugin.pytest_report_teststatus(mock_report)
@@ -326,34 +330,34 @@ class TestReportGeneration:
 
 
 class TestNodeIdToTestRef:
-    """Unit tests for nodeid_to_test_ref function."""
+    """Unit tests for nodeid_to_names function."""
 
     def test_nodeid_with_module_suite_and_name(self) -> None:
         """Test parsing a full nodeid with module, suite and test name."""
         nodeid = "tests/internal/test_example.py::TestClass::test_method"
-        result = nodeid_to_test_ref(nodeid)
+        module, suite, test = nodeid_to_names(nodeid)
 
-        assert result.suite.module.name == "tests/internal"
-        assert result.suite.name == "test_example.py"
-        assert result.name == "TestClass::test_method"
+        assert module == "tests/internal"
+        assert suite == "test_example.py"
+        assert test == "TestClass::test_method"
 
     def test_nodeid_with_suite_and_name_only(self) -> None:
         """Test parsing a nodeid with just suite and test name."""
         nodeid = "test_example.py::test_function"
-        result = nodeid_to_test_ref(nodeid)
+        module, suite, test = nodeid_to_names(nodeid)
 
-        assert result.suite.module.name == "."
-        assert result.suite.name == "test_example.py"
-        assert result.name == "test_function"
+        assert module == "."
+        assert suite == "test_example.py"
+        assert test == "test_function"
 
     def test_nodeid_fallback_format(self) -> None:
         """Test parsing a nodeid that doesn't match the expected format."""
         nodeid = "some_weird_format"
-        result = nodeid_to_test_ref(nodeid)
+        module, suite, test = nodeid_to_names(nodeid)
 
-        assert result.suite.module.name == "."
-        assert result.suite.name == "."
-        assert result.name == "some_weird_format"
+        assert module == "."
+        assert suite == "."
+        assert test == "some_weird_format"
 
 
 class TestHelperFunctions:
@@ -418,7 +422,7 @@ class TestHelperFunctions:
 
     def test_get_user_property_found(self) -> None:
         """Test _get_user_property when property exists."""
-        mock_report = Mock()
+        mock_report = test_report()
         mock_report.user_properties = [("key1", "value1"), ("key2", "value2")]
 
         result = _get_user_property(mock_report, "key1")
@@ -426,7 +430,7 @@ class TestHelperFunctions:
 
     def test_get_user_property_not_found(self) -> None:
         """Test _get_user_property when property doesn't exist."""
-        mock_report = Mock()
+        mock_report = test_report()
         mock_report.user_properties = [("key1", "value1")]
 
         result = _get_user_property(mock_report, "missing_key")
@@ -434,7 +438,7 @@ class TestHelperFunctions:
 
     def test_get_user_property_no_properties(self) -> None:
         """Test _get_user_property when report has no user_properties."""
-        mock_report = Mock()
+        mock_report = test_report()
         del mock_report.user_properties
 
         result = _get_user_property(mock_report, "any_key")
@@ -493,13 +497,13 @@ class TestPrivateMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         reports = {
-            "setup": Mock(longrepr="setup error"),
-            "call": Mock(longrepr="call error"),
-            "teardown": Mock(longrepr="teardown error"),
+            "setup": test_report(longrepr="setup error"),
+            "call": test_report(longrepr="call error"),
+            "teardown": test_report(longrepr="teardown error"),
         }
 
-        result = plugin._extract_longrepr(t.cast(t.Dict[str, TestReport], reports))
-        assert result == "call error"
+        result = plugin._extract_longrepr(reports)
+        assert result == ("call error", None)
 
     def test_extract_longrepr_setup_fallback(self) -> None:
         """Test _extract_longrepr falls back to setup when call is missing."""
@@ -507,12 +511,12 @@ class TestPrivateMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         reports = {
-            "setup": Mock(longrepr="setup error"),
-            "teardown": Mock(longrepr="teardown error"),
+            "setup": test_report(longrepr="setup error"),
+            "teardown": test_report(longrepr="teardown error"),
         }
 
-        result = plugin._extract_longrepr(t.cast(t.Dict[str, TestReport], reports))
-        assert result == "setup error"
+        result = plugin._extract_longrepr(reports)
+        assert result == ("setup error", None)
 
     def test_extract_longrepr_no_errors(self) -> None:
         """Test _extract_longrepr returns None when no errors."""
@@ -520,13 +524,27 @@ class TestPrivateMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         reports = {
-            "setup": Mock(longrepr=None),
-            "call": Mock(longrepr=None),
-            "teardown": Mock(longrepr=None),
+            "setup": test_report(longrepr=None),
+            "call": test_report(longrepr=None),
+            "teardown": test_report(longrepr=None),
         }
 
-        result = plugin._extract_longrepr(t.cast(t.Dict[str, TestReport], reports))
-        assert result is None
+        result = plugin._extract_longrepr(reports)
+        assert result == (None, None)
+
+    def test_extract_longrepr_xfail(self) -> None:
+        """Test _extract_longrepr extracts the wasxfail attribute if present."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        reports = {
+            "setup": test_report(longrepr="setup error"),
+            "call": test_report(longrepr="call error", wasxfail="call xfail"),
+            "teardown": test_report(longrepr="teardown error"),
+        }
+
+        result = plugin._extract_longrepr(reports)
+        assert result == ("call error", "call xfail")
 
     def test_check_applicable_retry_handlers_found(self) -> None:
         """Test _check_applicable_retry_handlers when handler applies."""
@@ -576,7 +594,7 @@ class TestPrivateMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         mock_item = pytest_item_mock("test_file.py::test_name").build()
-        mock_report = Mock()
+        mock_report = test_report()
         mock_report.when = "call"
 
         plugin._mark_quarantined_test_report_as_skipped(mock_item, mock_report)
@@ -590,7 +608,7 @@ class TestPrivateMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         mock_item = pytest_item_mock("test_file.py::test_name").build()
-        mock_report = Mock()
+        mock_report = test_report()
         mock_report.when = "teardown"
 
         plugin._mark_quarantined_test_report_as_skipped(mock_item, mock_report)
@@ -622,7 +640,7 @@ class TestSessionLifecycleMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Set up session and manager
-        plugin.session = Mock()
+        plugin.session = MagicMock()
         plugin.manager = Mock()
         plugin.is_xdist_worker = False
 
@@ -633,7 +651,6 @@ class TestSessionLifecycleMethods:
         plugin.pytest_sessionfinish(mock_session)
 
         # Verify session was finished with PASS status
-        from ddtrace.testing.internal.test_data import TestStatus
 
         plugin.session.set_status.assert_called_once_with(TestStatus.PASS)
         plugin.session.finish.assert_called_once()
@@ -646,7 +663,7 @@ class TestSessionLifecycleMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Set up session and manager
-        plugin.session = Mock()
+        plugin.session = MagicMock()
         plugin.manager = Mock()
         plugin.is_xdist_worker = False
 
@@ -657,7 +674,6 @@ class TestSessionLifecycleMethods:
         plugin.pytest_sessionfinish(mock_session)
 
         # Verify session was finished with FAIL status
-        from ddtrace.testing.internal.test_data import TestStatus
 
         plugin.session.set_status.assert_called_once_with(TestStatus.FAIL)
 
@@ -667,7 +683,7 @@ class TestSessionLifecycleMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Set up session and manager
-        plugin.session = Mock()
+        plugin.session = MagicMock()
         plugin.manager = Mock()
         plugin.is_xdist_worker = True  # Worker mode
 
@@ -695,12 +711,11 @@ class TestReportAndLoggingMethods:
         mock_handler = Mock()
         mock_handler.get_pretty_name.return_value = "Test Handler"
 
-        mock_report = Mock()
-        mock_report.outcome = "failed"
+        mock_report = test_report(outcome="failed")
         mock_report.user_properties = []
         reports = {"call": mock_report}
 
-        result = plugin._mark_test_report_as_retry(t.cast(t.Dict[str, TestReport], reports), mock_handler, "call")
+        result = plugin._mark_test_report_as_retry(reports, mock_handler, "call")
 
         assert result is True
         assert mock_report.outcome == "dd_retry"
@@ -715,7 +730,7 @@ class TestReportAndLoggingMethods:
         mock_handler = Mock()
         reports: t.Dict[str, Mock] = {}
 
-        result = plugin._mark_test_report_as_retry(t.cast(t.Dict[str, TestReport], reports), mock_handler, "call")
+        result = plugin._mark_test_report_as_retry(reports, mock_handler, "call")
 
         assert result is False
 
@@ -725,8 +740,7 @@ class TestReportAndLoggingMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         mock_handler = Mock()
-        mock_call_report = Mock()
-        mock_call_report.outcome = "failed"
+        mock_call_report = test_report(outcome="failed")
         mock_call_report.user_properties = []
 
         reports = {
@@ -734,7 +748,7 @@ class TestReportAndLoggingMethods:
             "call": mock_call_report,
         }
 
-        plugin._mark_test_reports_as_retry(t.cast(t.Dict[str, TestReport], reports), mock_handler)
+        plugin._mark_test_reports_as_retry(reports, mock_handler)
 
         # Should only mark call report
         assert mock_call_report.outcome == "dd_retry"
@@ -745,8 +759,7 @@ class TestReportAndLoggingMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         mock_handler = Mock()
-        mock_setup_report = Mock()
-        mock_setup_report.outcome = "failed"
+        mock_setup_report = test_report(outcome="failed")
         mock_setup_report.user_properties = []
 
         reports = {
@@ -754,7 +767,7 @@ class TestReportAndLoggingMethods:
             "teardown": Mock(),
         }
 
-        plugin._mark_test_reports_as_retry(t.cast(t.Dict[str, TestReport], reports), mock_handler)
+        plugin._mark_test_reports_as_retry(reports, mock_handler)
 
         # Should mark setup report
         assert mock_setup_report.outcome == "dd_retry"
@@ -779,7 +792,7 @@ class TestQuarantineHandling:
             "teardown": mock_teardown,
         }
 
-        plugin._mark_quarantined_test_report_group_as_skipped(mock_item, t.cast(t.Dict[str, TestReport], reports))
+        plugin._mark_quarantined_test_report_group_as_skipped(mock_item, reports)
 
         # Call should be marked as skipped, others as passed
         assert mock_call.outcome == "skipped"
@@ -800,7 +813,7 @@ class TestQuarantineHandling:
             "teardown": mock_teardown,
         }
 
-        plugin._mark_quarantined_test_report_group_as_skipped(mock_item, t.cast(t.Dict[str, TestReport], reports))
+        plugin._mark_quarantined_test_report_group_as_skipped(mock_item, reports)
 
         # Setup should be marked as skipped, teardown as passed
         assert mock_setup.outcome == "skipped"
@@ -813,11 +826,11 @@ class TestXdistPlugin:
     def test_pytest_configure_node(self) -> None:
         """Test pytest_configure_node method."""
         session_manager = session_manager_mock().build_mock()
-        plugin = XdistTestOptPlugin(session_manager=session_manager)
+        plugin = XdistTestOptPlugin(TestOptPlugin(session_manager=session_manager))
 
         # Mock session with session_id
-        plugin.session = Mock()
-        plugin.session.item_id = "test-session-123"
+        plugin.main_plugin.session = Mock()
+        plugin.main_plugin.session.item_id = "test-session-123"
 
         # Mock node
         mock_node = Mock()
@@ -838,17 +851,11 @@ class TestOutcomeProcessing:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Set up reports for a passing test
-        setup_report = Mock()
-        setup_report.failed = False
-        setup_report.skipped = False
+        setup_report = test_report(outcome="passed")
 
-        call_report = Mock()
-        call_report.failed = False
-        call_report.skipped = False
+        call_report = test_report(outcome="passed")
 
-        teardown_report = Mock()
-        teardown_report.failed = False
-        teardown_report.skipped = False
+        teardown_report = test_report(outcome="passed")
 
         plugin.reports_by_nodeid["test_id"] = {
             "setup": setup_report,
@@ -862,8 +869,6 @@ class TestOutcomeProcessing:
             teardown_report: None,
         }
 
-        from ddtrace.testing.internal.test_data import TestStatus
-
         status, tags = plugin._get_test_outcome("test_id")
 
         assert status == TestStatus.PASS
@@ -875,13 +880,9 @@ class TestOutcomeProcessing:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Set up reports for a failing test
-        setup_report = Mock()
-        setup_report.failed = False
-        setup_report.skipped = False
+        setup_report = test_report(outcome="passed")
 
-        call_report = Mock()
-        call_report.failed = True
-        call_report.skipped = False
+        call_report = test_report(outcome="failed")
 
         plugin.reports_by_nodeid["test_id"] = {
             "setup": setup_report,
@@ -899,8 +900,6 @@ class TestOutcomeProcessing:
             call_report: mock_excinfo,
         }
 
-        from ddtrace.testing.internal.test_data import TestStatus
-
         status, tags = plugin._get_test_outcome("test_id")
 
         assert status == TestStatus.FAIL
@@ -913,9 +912,7 @@ class TestOutcomeProcessing:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Set up reports for a skipped test
-        setup_report = Mock()
-        setup_report.failed = False
-        setup_report.skipped = True
+        setup_report = test_report(outcome="skipped")
 
         plugin.reports_by_nodeid["test_id"] = {
             "setup": setup_report,
@@ -929,9 +926,6 @@ class TestOutcomeProcessing:
             setup_report: mock_excinfo,
         }
 
-        from ddtrace.testing.internal.test_data import TestStatus
-        from ddtrace.testing.internal.test_data import TestTag
-
         status, tags = plugin._get_test_outcome("test_id")
 
         assert status == TestStatus.SKIP
@@ -943,9 +937,7 @@ class TestOutcomeProcessing:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Set up reports for a skipped test
-        setup_report = Mock()
-        setup_report.failed = False
-        setup_report.skipped = True
+        setup_report = test_report(outcome="skipped")
 
         plugin.reports_by_nodeid["test_id"] = {
             "setup": setup_report,
@@ -955,10 +947,95 @@ class TestOutcomeProcessing:
             setup_report: None,
         }
 
-        from ddtrace.testing.internal.test_data import TestStatus
-        from ddtrace.testing.internal.test_data import TestTag
-
         status, tags = plugin._get_test_outcome("test_id")
 
         assert status == TestStatus.SKIP
         assert tags[TestTag.SKIP_REASON] == "Unknown skip reason"
+
+    def test_get_test_outcome_xfail_call(self) -> None:
+        """Test _get_test_outcome for xfail test."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        # Set up reports for a failing test
+        setup_report = test_report(outcome="passed")
+        call_report = test_report(outcome="skipped", wasxfail="reason: no fun")
+        teardown_report = test_report(outcome="passed")
+
+        plugin.reports_by_nodeid["test_id"] = {
+            "setup": setup_report,
+            "call": call_report,
+            "teardown": teardown_report,
+        }
+
+        # Mock exception info
+        mock_excinfo = Mock()
+        mock_excinfo.type = ValueError
+        mock_excinfo.value = ValueError("test failed")
+        mock_excinfo.tb = None
+
+        plugin.excinfo_by_report = {
+            setup_report: None,
+            call_report: mock_excinfo,
+        }
+
+        status, tags = plugin._get_test_outcome("test_id")
+
+        assert status == TestStatus.SKIP
+        assert tags[TestTag.XFAIL_REASON] == "reason: no fun"
+        assert tags[TestTag.TEST_RESULT] == "xfail"
+
+    def test_get_test_outcome_xpass_call(self) -> None:
+        """Test _get_test_outcome for xpass test."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        # Set up reports for a failing test
+        setup_report = test_report(outcome="passed")
+        call_report = test_report(outcome="passed", wasxfail="reason: no fun")
+        teardown_report = test_report(outcome="passed")
+
+        plugin.reports_by_nodeid["test_id"] = {
+            "setup": setup_report,
+            "call": call_report,
+            "teardown": teardown_report,
+        }
+
+        # Mock exception info
+        mock_excinfo = Mock()
+        mock_excinfo.type = ValueError
+        mock_excinfo.value = ValueError("test failed")
+        mock_excinfo.tb = None
+
+        plugin.excinfo_by_report = {
+            setup_report: None,
+            call_report: mock_excinfo,
+        }
+
+        status, tags = plugin._get_test_outcome("test_id")
+
+        assert status == TestStatus.PASS
+        assert tags[TestTag.XFAIL_REASON] == "reason: no fun"
+        assert tags[TestTag.TEST_RESULT] == "xpass"
+
+    def test_get_test_outcome_xfail_setup(self) -> None:
+        """Test _get_test_outcome for xfail test."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        # Set up reports for a failing test
+        setup_report = test_report(outcome="skipped", wasxfail="reason: no fun")
+        teardown_report = test_report(outcome="passed")
+
+        plugin.reports_by_nodeid["test_id"] = {
+            "setup": setup_report,
+            "teardown": teardown_report,
+        }
+
+        plugin.excinfo_by_report = {}
+
+        status, tags = plugin._get_test_outcome("test_id")
+
+        assert status == TestStatus.SKIP
+        assert tags[TestTag.XFAIL_REASON] == "reason: no fun"
+        assert tags[TestTag.TEST_RESULT] == "xfail"

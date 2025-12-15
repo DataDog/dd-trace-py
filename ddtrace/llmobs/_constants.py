@@ -43,6 +43,7 @@ TOTAL_TOKENS_METRIC_KEY = "total_tokens"
 CACHE_WRITE_INPUT_TOKENS_METRIC_KEY = "cache_write_input_tokens"
 CACHE_READ_INPUT_TOKENS_METRIC_KEY = "cache_read_input_tokens"
 BILLABLE_CHARACTER_COUNT_METRIC_KEY = "billable_character_count"
+REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
 
 EVAL_ENDPOINT = "/api/intake/llm-obs/v2/eval-metric"
 SPAN_ENDPOINT = "/api/v2/llmobs"
@@ -104,6 +105,7 @@ LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"
 
 PROXY_REQUEST = "llmobs.proxy_request"
 
+# experiment span baggage keys to be propagated across boundaries
 EXPERIMENT_ID_KEY = "_ml_obs.experiment_id"
 EXPERIMENT_RUN_ID_KEY = "_ml_obs.experiment_run_id"
 EXPERIMENT_RUN_ITERATION_KEY = "_ml_obs.experiment_run_iteration"
@@ -111,7 +113,19 @@ EXPERIMENT_PROJECT_NAME_KEY = "_ml_obs.experiment_project_name"
 EXPERIMENT_PROJECT_ID_KEY = "_ml_obs.experiment_project_id"
 EXPERIMENT_DATASET_NAME_KEY = "_ml_obs.experiment_dataset_name"
 EXPERIMENT_NAME_KEY = "_ml_obs.experiment_name"
+
+# experiment context keys
+EXPERIMENT_RECORD_METADATA = "_ml_obs.meta.metadata"
 EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
 EXPERIMENTS_INPUT = "_ml_obs.meta.input"
 EXPERIMENTS_OUTPUT = "_ml_obs.meta.output"
 DEFAULT_PROJECT_NAME = "default-project"
+
+# Fallback markers for prompt tracking when OpenAI strips values
+IMAGE_FALLBACK_MARKER = "[image]"
+FILE_FALLBACK_MARKER = "[file]"
+
+# OpenAI input types
+INPUT_TYPE_IMAGE = "input_image"
+INPUT_TYPE_FILE = "input_file"
+INPUT_TYPE_TEXT = "input_text"

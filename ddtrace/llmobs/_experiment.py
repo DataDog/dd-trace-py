@@ -24,6 +24,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
+from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.version import __version__
@@ -488,7 +489,11 @@ class Experiment:
             except Exception:
                 span.set_exc_info(*sys.exc_info())
             self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
-            span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, safe_json(record["expected_output"]))
+
+            span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
+            if "metadata" in record:
+                span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
+
             return {
                 "idx": idx,
                 "span_id": span_id,

@@ -97,7 +97,7 @@ def test_common_django_header_injection_redact(header_name, header_value, value_
     list(get_parametrize(VULN_HEADER_INJECTION)),
 )
 def test_header_injection_redaction_suite(
-    evidence_input, sources_expected, vulnerabilities_expected, iast_context_defaults, element
+    iast_context_defaults, evidence_input, sources_expected, vulnerabilities_expected, element
 ):
     tainted_object = _taint_pyobject_multiranges(
         evidence_input["value"],

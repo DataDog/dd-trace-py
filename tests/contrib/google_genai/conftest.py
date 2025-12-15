@@ -13,6 +13,7 @@ from ddtrace.llmobs import LLMObs
 from tests.contrib.google_genai.utils import MOCK_EMBED_CONTENT_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE_STREAM
+from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE_WITH_REASONING
 from tests.contrib.google_genai.utils import MOCK_TOOL_CALL_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_TOOL_CALL_RESPONSE_STREAM
 from tests.contrib.google_genai.utils import MOCK_TOOL_FINAL_RESPONSE
@@ -104,6 +105,15 @@ def genai(ddtrace_global_config):
 def mock_generate_content(genai):
     def _fake_generate_content(self, *, model: str, contents, config=None):
         return MOCK_GENERATE_CONTENT_RESPONSE
+
+    with mock_patch.object(genai.models.Models, "_generate_content", _fake_generate_content):
+        yield
+
+
+@pytest.fixture
+def mock_generate_content_with_reasoning(genai):
+    def _fake_generate_content(self, *, model: str, contents, config=None):
+        return MOCK_GENERATE_CONTENT_RESPONSE_WITH_REASONING
 
     with mock_patch.object(genai.models.Models, "_generate_content", _fake_generate_content):
         yield
