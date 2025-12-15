@@ -161,14 +161,17 @@ class APIClient:
         )
 
         try:
+            commit_message = self.env_tags.get(GitTag.COMMIT_HEAD_MESSAGE) or self.env_tags[GitTag.COMMIT_MESSAGE]
+            commit_sha = self.env_tags.get(GitTag.COMMIT_HEAD_SHA) or self.env_tags[GitTag.COMMIT_SHA]
+
             request_data = {
                 "data": {
                     "id": str(uuid.uuid4()),
                     "type": "ci_app_libraries_tests_request",
                     "attributes": {
                         "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
-                        "commit_message": self.env_tags[GitTag.COMMIT_MESSAGE],
-                        "sha": self.env_tags[GitTag.COMMIT_SHA],
+                        "commit_message": commit_message,
+                        "sha": commit_sha,
                     },
                 }
             }
