@@ -512,10 +512,6 @@ class AgentWriterInterface(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def before_fork(self) -> None:
-        pass
-
-    @abc.abstractmethod
     def flush_queue(self, raise_exc: bool = False) -> None:
         pass
 
@@ -712,9 +708,6 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
         headers["X-Datadog-Trace-Count"] = str(count)
         return headers
 
-    def before_fork(self) -> None:
-        pass
-
     def set_test_session_token(self, token: Optional[str]) -> None:
         self._headers["X-Datadog-Test-Session-Token"] = token or ""
 
@@ -820,7 +813,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._stats_opt_out = stats_opt_out
 
         try:
-            before_fork_hook = make_weak_method_hook(self.before_fork)
+            before_fork_hook = make_weak_method_hook(self._before_fork)
             after_fork_hook = make_weak_method_hook(self._after_fork)
 
             forksafe.register_before_fork(before_fork_hook)
@@ -1135,7 +1128,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self.join(timeout=timeout)
         # Native threads should be stopped even if the writer is not running
         finally:
-            self.before_fork()
+            self._exporter.stop_worker()
             if self._before_fork_hook:
                 forksafe.unregister_before_fork(self._before_fork_hook)
                 self._before_fork_hook = None
@@ -1144,7 +1137,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 forksafe.unregister(self._after_fork_hook)
                 self._after_fork_hook = None
 
-    def before_fork(self) -> None:
+    def _before_fork(self) -> None:
         # Mark the writer as forking to avoid restarting threads before the fork
         with self._forking_cv:
             # Prevent new flush from being started
