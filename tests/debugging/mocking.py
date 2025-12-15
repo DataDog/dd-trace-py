@@ -110,7 +110,10 @@ class MockSignalUploader(SignalUploader):
                 raise PayloadWaitTimeout(_cond, timeout)
             sleep(0.05)
 
-        return self.payloads
+        try:
+            return self.payloads
+        finally:
+            self.flush()
 
     def flush(self) -> None:
         self.queue.clear()

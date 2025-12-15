@@ -98,6 +98,15 @@ def undecorated(f: FunctionType, name: str, path: Path) -> FunctionType:
                     q.append(c)
                     seen_functions.add(c)
 
+        # If the function has bytecode wrapping we return the function itself.
+        # We don't want to return the temporary wrapped function from the
+        # __dd_wrapped__ attribute.
+        try:
+            object.__getattribute__(g, "__dd_wrapped__")
+            return g
+        except AttributeError:
+            pass
+
         # Look for a function attribute (method decoration)
         # DEV: We don't recurse over arbitrary objects. We stop at the first
         # depth level.
