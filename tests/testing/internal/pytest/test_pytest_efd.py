@@ -6,7 +6,6 @@ from unittest.mock import patch
 from _pytest.pytester import Pytester
 import pytest
 
-from ddtrace.testing.internal.retry_handlers import EarlyFlakeDetectionHandler
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
@@ -92,8 +91,6 @@ class TestEFD:
             TestRef(SuiteRef(ModuleRef("."), "test_foo.py"), "test_known"),
         }
 
-        monkeypatch.setattr(EarlyFlakeDetectionHandler, "EFD_ABORT_TEST_SECONDS", -1)  # Force all tests to abort EFD.
-
         with (
             patch(
                 "ddtrace.testing.internal.session_manager.APIClient",
@@ -101,6 +98,8 @@ class TestEFD:
                     efd_enabled=True, known_tests_enabled=True, known_tests=known_tests
                 ),
             ),
+            # Simulate test that takes more than 5 minutes to run.
+            patch("ddtrace.testing.internal.test_data.Test.seconds_so_far", return_value=501),
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
