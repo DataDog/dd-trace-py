@@ -9,7 +9,6 @@ from ddtrace.appsec._iast import enable_iast_propagation
 from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 
-# from ddtrace.appsec._iast._taint_tracking import is_tainted
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
@@ -48,6 +47,8 @@ class IASTAspects(bm.Scenario):
                         source_origin=OriginType.PARAMETER,
                     )
                     _ = getattr(functions, self.function_name)(tainted)
+                    # DEBUG-NOTE: Uncomment to test locally that everything is working correctly
+                    # from ddtrace.appsec._iast._taint_tracking import is_tainted
                     # assert is_tainted(result)
                 else:
                     _ = getattr(functions, self.function_name)(tainted_param)
