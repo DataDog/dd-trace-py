@@ -1,7 +1,4 @@
 ---
 features:
   - |
-    profiling: Add support for ``asyncio.Semaphore`` locking type profiling in Python.
-    Also refactored asyncio collectors to use base class attributes (``MODULE`` and ``PATCHED_LOCK_NAME``)
-    for consistency with the threading module collectors.
-
+    profiling: Add support for ``asyncio.Semaphore`` lock type profiling in Python Lock Profiler.

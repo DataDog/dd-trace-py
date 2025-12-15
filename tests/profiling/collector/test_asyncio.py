@@ -3,6 +3,8 @@ import asyncio
 import glob
 import os
 import sys
+from typing import Any
+from typing import Callable
 from typing import Type
 from typing import Union
 import uuid
@@ -66,10 +68,10 @@ class BaseAsyncioLockCollectorTest:
     def lock_class(self) -> LockType:
         raise NotImplementedError("Child classes must implement lock_class")
 
-    def setup_method(self, method):
-        self.test_name = method.__qualname__ if PY_311_OR_ABOVE else method.__name__
-        self.output_prefix = "/tmp" + os.sep + self.test_name
-        self.output_filename = self.output_prefix + "." + str(os.getpid())
+    def setup_method(self, method: Callable[..., Any]) -> None:
+        self.test_name: str = method.__qualname__ if PY_311_OR_ABOVE else method.__name__
+        self.output_prefix: str = "/tmp" + os.sep + self.test_name
+        self.output_filename: str = self.output_prefix + "." + str(os.getpid())
 
         assert ddup.is_available, "ddup is not available"
         ddup.config(
@@ -80,14 +82,14 @@ class BaseAsyncioLockCollectorTest:
         )
         ddup.start()
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         for f in glob.glob(self.output_prefix + "*"):
             try:
                 os.remove(f)
             except Exception as e:
                 print("Error while deleting file: ", e)
 
-    async def test_lock_events(self):
+    async def test_lock_events(self) -> None:
         """Test basic acquire/release event profiling."""
         with self.collector_class(capture_pct=100):
             lock = self.lock_class()  # !CREATE! asyncio_test_lock_events
@@ -122,7 +124,7 @@ class BaseAsyncioLockCollectorTest:
             ],
         )
 
-    async def test_lock_events_tracer(self, tracer):
+    async def test_lock_events_tracer(self, tracer: Any) -> None:
         """Test event profiling with tracer integration."""
         tracer._endpoint_call_counter_span_processor.enable()
         resource = str(uuid.uuid4())
@@ -211,11 +213,11 @@ class TestAsyncioLockCollector(BaseAsyncioLockCollectorTest):
     """Test asyncio.Lock profiling."""
 
     @property
-    def collector_class(self):
+    def collector_class(self) -> Type[AsyncioLockCollector]:
         return AsyncioLockCollector
 
     @property
-    def lock_class(self):
+    def lock_class(self) -> Type[asyncio.Lock]:
         return asyncio.Lock
 
 
@@ -223,9 +225,9 @@ class TestAsyncioSemaphoreCollector(BaseAsyncioLockCollectorTest):
     """Test asyncio.Semaphore profiling."""
 
     @property
-    def collector_class(self):
+    def collector_class(self) -> Type[AsyncioSemaphoreCollector]:
         return AsyncioSemaphoreCollector
 
     @property
-    def lock_class(self):
+    def lock_class(self) -> Type[asyncio.Semaphore]:
         return asyncio.Semaphore
