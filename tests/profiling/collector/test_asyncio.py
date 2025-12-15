@@ -4,6 +4,7 @@ import glob
 import os
 import sys
 from typing import Any
+from typing import Callable
 from typing import Type
 from typing import Union
 import uuid
@@ -66,10 +67,10 @@ class BaseAsyncioLockCollectorTest:
     def lock_class(self) -> LockType:
         raise NotImplementedError("Child classes must implement lock_class")
 
-    def setup_method(self, method):
-        self.test_name = method.__qualname__ if PY_311_OR_ABOVE else method.__name__
-        self.output_prefix = "/tmp" + os.sep + self.test_name
-        self.output_filename = self.output_prefix + "." + str(os.getpid())
+    def setup_method(self, method: Callable[..., Any]) -> None:
+        self.test_name: str = method.__qualname__ if PY_311_OR_ABOVE else method.__name__
+        self.output_prefix: str = "/tmp" + os.sep + self.test_name
+        self.output_filename: str = self.output_prefix + "." + str(os.getpid())
 
         assert ddup.is_available, "ddup is not available"
         ddup.config(
