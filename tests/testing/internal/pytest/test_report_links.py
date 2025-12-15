@@ -67,7 +67,7 @@ class TerminalReporterMock:
 
 
 class TestPytestReportLinks:
-    def test_print_report_links_full(mocker):
+    def test_print_report_links_full(self):
         terminalreporter = TerminalReporterMock()
         session_manager = Mock(
             service="the_test_service",
@@ -95,7 +95,7 @@ class TestPytestReportLinks:
             "https://app.datadoghq.com/ci/test-runs?query=%40ci.job.name%3Athe_job%20%40ci.pipeline.id%3A123456&index=citest",
         ]
 
-    def test_print_report_links_only_commit_report(mocker):
+    def test_print_report_links_only_commit_report(self):
         terminalreporter = TerminalReporterMock()
         session_manager = Mock(
             service="the_test_service",
@@ -116,7 +116,7 @@ class TestPytestReportLinks:
             "  → https://app.datadoghq.com/ci/redirect/tests/https%3A%2F%2Fgithub.com%2Fsome-org%2Fsome-repo/-/the_test_service/-/main/-/abcd0123",
         ]
 
-    def test_print_report_links_only_test_runs_report(mocker):
+    def test_print_report_links_only_test_runs_report(self):
         terminalreporter = TerminalReporterMock()
         session_manager = Mock(
             service="the_test_service",
@@ -137,7 +137,7 @@ class TestPytestReportLinks:
             "https://app.datadoghq.com/ci/test-runs?query=%40ci.job.name%3Athe_job%20%40ci.pipeline.id%3A123456&index=citest",
         ]
 
-    def test_print_report_links_no_report(mocker):
+    def test_print_report_links_no_report(self):
         terminalreporter = TerminalReporterMock()
         session_manager = Mock(
             service="the_test_service",
@@ -149,7 +149,7 @@ class TestPytestReportLinks:
 
         assert terminalreporter.lines == []
 
-    def test_print_report_links_escape_names(mocker):
+    def test_print_report_links_escape_names(self):
         terminalreporter = TerminalReporterMock()
         session_manager = Mock(
             service="the_test_service",
@@ -175,7 +175,7 @@ class TestPytestReportLinks:
             "  → https://app.datadoghq.com/ci/test-runs?query=%40ci.job.name%3A%22the_job%3A%3Athe_suite%201%2F2%22%20%40ci.pipeline.id%3A%22a%20%5C%22strange%5C%22%20id%22&index=citest",
         ]
 
-    def test_print_report_links_commit_report_with_env(mocker):
+    def test_print_report_links_commit_report_with_env(self):
         terminalreporter = TerminalReporterMock()
         session_manager = Mock(
             service="the_test_service",
