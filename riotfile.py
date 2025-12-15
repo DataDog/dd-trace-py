@@ -1350,9 +1350,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_memcheck",
-            command=(
-                "pytest --memray --stacks=35 {cmdargs} tests/appsec/iast_memcheck/"
-            ),
+            command="pytest --memray --stacks=35 {cmdargs} tests/appsec/iast_memcheck/",
             pys=select_pys(),
             pkgs={
                 "requests": latest,
