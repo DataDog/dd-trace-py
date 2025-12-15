@@ -134,7 +134,9 @@ def test_evaluate_method(
             ("error", "false"),
         ),
     )
-    assert_mock_execute_request_call(mock_execute_request, ai_guard_client, messages)
+    assert_mock_execute_request_call(
+        mock_execute_request, ai_guard_client, messages, endpoint="https://api.example.com/ai-guard"
+    )
 
 
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
