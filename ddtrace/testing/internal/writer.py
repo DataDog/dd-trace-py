@@ -7,6 +7,7 @@ import uuid
 
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
+from ddtrace.testing.internal.http import Subdomain
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import TestItem
 from ddtrace.testing.internal.test_data import TestModule
@@ -35,9 +36,10 @@ class BaseWriter(ABC):
         self.should_finish = threading.Event()
         self.flush_interval_seconds = 60
         self.events: t.List[Event] = []
+        # 4.5MB max uncompressed payload size, following <https://github.com/DataDog/datadog-ci-rb/pull/272>.
+        self.max_payload_size = int(4.5 * 1024 * 1024)
 
     def put_event(self, event: Event) -> None:
-        # TODO: compute/estimate payload size as events are inserted, and force a push once we reach a certain size.
         with self.lock:
             self.events.append(event)
 
@@ -80,6 +82,22 @@ class BaseWriter(ABC):
     def _send_events(self, events: t.List[Event]) -> None:
         pass
 
+    @abstractmethod
+    def _encode_events(self, events: t.List[Event]) -> bytes:
+        pass
+
+    def _split_pack_events(self, events: t.List[Event]) -> t.List[bytes]:
+        pack = self._encode_events(events)
+
+        if len(pack) > self.max_payload_size and len(events) > 1:
+            del pack
+            midpoint = len(events) // 2
+            packs = self._split_pack_events(events[0:midpoint])
+            packs += self._split_pack_events(events[midpoint:])
+            return packs
+        else:
+            return [pack]
+
 
 class TestOptWriter(BaseWriter):
     __test__ = False
@@ -102,11 +120,11 @@ class TestOptWriter(BaseWriter):
                 "_dd.library_capabilities.test_impact_analysis": "1",
                 "_dd.library_capabilities.test_management.quarantine": "1",
                 "_dd.library_capabilities.test_management.disable": "1",
-                "_dd.library_capabilities.test_management.attempt_to_fix": "4",
+                "_dd.library_capabilities.test_management.attempt_to_fix": "5",
             },
         }
 
-        self.connector = connector_setup.get_connector_for_subdomain("citestcycle-intake")
+        self.connector = connector_setup.get_connector_for_subdomain(Subdomain.CITESTCYCLE)
 
         self.serializers: t.Dict[t.Type[TestItem[t.Any, t.Any]], EventSerializer[t.Any]] = {
             TestRun: serialize_test_run,
@@ -122,27 +140,36 @@ class TestOptWriter(BaseWriter):
         event = self.serializers[type(item)](item)
         self.put_event(event)
 
-    def _send_events(self, events: t.List[Event]) -> None:
+    def _encode_events(self, events: t.List[Event]) -> bytes:
         payload = {
             "version": 1,
             "metadata": self.metadata,
             "events": events,
         }
+        return msgpack_packb(payload)
+
+    def _send_events(self, events: t.List[Event]) -> None:
         with StopWatch() as serialization_time:
-            pack = msgpack_packb(payload)
+            packs = self._split_pack_events(events)
 
-        result = self.connector.request(
-            "POST", "/api/v2/citestcycle", data=pack, headers={"Content-Type": "application/msgpack"}, send_gzip=True
-        )
+        TelemetryAPI.get().record_event_payload_serialization_seconds("test_cycle", serialization_time.elapsed())
 
-        TelemetryAPI.get().record_event_payload(
-            endpoint="test_cycle",
-            payload_size=len(pack),
-            request_seconds=result.elapsed_seconds,
-            events_count=len(events),
-            serialization_seconds=serialization_time.elapsed(),
-            error=result.error_type,
-        )
+        for pack in packs:
+            result = self.connector.request(
+                "POST",
+                "/api/v2/citestcycle",
+                data=pack,
+                headers={"Content-Type": "application/msgpack"},
+                send_gzip=True,
+            )
+
+            TelemetryAPI.get().record_event_payload(
+                endpoint="test_cycle",
+                payload_size=len(pack),
+                request_seconds=result.elapsed_seconds,
+                events_count=len(events),
+                error=result.error_type,
+            )
 
 
 class TestCoverageWriter(BaseWriter):
@@ -151,7 +178,7 @@ class TestCoverageWriter(BaseWriter):
     def __init__(self, connector_setup: BackendConnectorSetup) -> None:
         super().__init__()
 
-        self.connector = connector_setup.get_connector_for_subdomain("citestcov-intake")
+        self.connector = connector_setup.get_connector_for_subdomain(Subdomain.CITESTCOV)
 
     def put_coverage(self, test_run: TestRun, coverage_bitmaps: t.Iterable[t.Tuple[str, bytes]]) -> None:
         files = [{"filename": pathname, "bitmap": bitmap} for pathname, bitmap in coverage_bitmaps]
@@ -169,35 +196,40 @@ class TestCoverageWriter(BaseWriter):
         )
         self.put_event(event)
 
+    def _encode_events(self, events: t.List[Event]) -> bytes:
+        return msgpack_packb({"version": 2, "coverages": events})
+
     def _send_events(self, events: t.List[Event]) -> None:
         with StopWatch() as serialization_time:
-            pack = msgpack_packb({"version": 2, "coverages": events})
+            packs = self._split_pack_events(events)
 
-        files = [
-            FileAttachment(
-                name="coverage1",
-                filename="coverage1.msgpack",
-                content_type="application/msgpack",
-                data=pack,
-            ),
-            FileAttachment(
-                name="event",
-                filename="event.json",
-                content_type="application/json",
-                data=b'{"dummy":true}',
-            ),
-        ]
+        TelemetryAPI.get().record_event_payload_serialization_seconds("code_coverage", serialization_time.elapsed())
 
-        result = self.connector.post_files("/api/v2/citestcov", files=files, send_gzip=True)
+        for pack in packs:
+            files = [
+                FileAttachment(
+                    name="coverage1",
+                    filename="coverage1.msgpack",
+                    content_type="application/msgpack",
+                    data=pack,
+                ),
+                FileAttachment(
+                    name="event",
+                    filename="event.json",
+                    content_type="application/json",
+                    data=b'{"dummy":true}',
+                ),
+            ]
 
-        TelemetryAPI.get().record_event_payload(
-            endpoint="code_coverage",
-            payload_size=len(pack),
-            request_seconds=result.elapsed_seconds,
-            events_count=len(events),
-            serialization_seconds=serialization_time.elapsed(),
-            error=result.error_type,
-        )
+            result = self.connector.post_files("/api/v2/citestcov", files=files, send_gzip=True)
+
+            TelemetryAPI.get().record_event_payload(
+                endpoint="code_coverage",
+                payload_size=len(pack),
+                request_seconds=result.elapsed_seconds,
+                events_count=len(events),
+                error=result.error_type,
+            )
 
 
 def serialize_test_run(test_run: TestRun) -> Event:

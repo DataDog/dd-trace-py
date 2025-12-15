@@ -371,6 +371,9 @@ class TestTag:
     RETRY_REASON = "test.retry_reason"
     HAS_FAILED_ALL_RETRIES = "test.has_failed_all_retries"
 
+    XFAIL_REASON = "pytest.xfail.reason"
+    TEST_RESULT = "test.result"  # used for xfail/xpass
+
     PARAMETERS = "test.parameters"
 
     ITR_UNSKIPPABLE = "test.itr.unskippable"
@@ -390,5 +393,7 @@ class TestTag:
 
     IS_RUM_ACTIVE = "test.is_rum_active"
     BROWSER_DRIVER = "test.browser.driver"
+
+    CODE_COVERAGE_LINES_PCT = "test.code_coverage.lines_pct"
 
     __test__ = False

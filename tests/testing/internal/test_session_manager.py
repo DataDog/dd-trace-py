@@ -1,13 +1,20 @@
+from contextlib import contextmanager
 import os
+import typing as t
+from unittest.mock import patch
 
 import pytest
 
 from ddtrace.testing.internal.ci import CITag
+from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
+from ddtrace.testing.internal.test_data import TestSession
 from tests.testing.mocks import MockDefaults
+from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import session_manager_mock
+from tests.testing.mocks import setup_standard_mocks
 
 
 class TestSessionManagerIsSkippableTest:
@@ -200,3 +207,62 @@ class TestSessionNameTest:
         expected_name = "pytest"
         assert session_manager._get_test_session_name() == expected_name
         assert session_manager.writer.metadata["*"]["test_session.name"] == expected_name
+
+
+class TestSessionManagerEnvVarOverrides:
+    def setup_method(self) -> None:
+        self.session = TestSession("pytest")
+        self.session.set_attributes(
+            test_command="pytest --ddtrace", test_framework="pytest", test_framework_version="9.0.0"
+        )
+
+    @contextmanager
+    def mock_settings(self, **kwargs) -> t.Generator[None, None, None]:
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(**kwargs),
+            ),
+            setup_standard_mocks(),
+        ):
+            yield
+
+    @pytest.mark.parametrize("env_var_value, expected_setting", [(None, True), ("true", True), ("false", False)])
+    def test_session_manager_efd_kill_switch(self, monkeypatch, env_var_value, expected_setting):
+        with self.mock_settings(efd_enabled=True):
+            if env_var_value is not None:
+                monkeypatch.setenv("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", env_var_value)
+            session_manager = SessionManager(self.session)
+            assert session_manager.settings.early_flake_detection.enabled is expected_setting
+
+    @pytest.mark.parametrize("env_var_value, expected_setting", [(None, True), ("true", True), ("false", False)])
+    def test_session_manager_atr_kill_switch(self, monkeypatch, env_var_value, expected_setting):
+        with self.mock_settings(auto_retries_enabled=True):
+            if env_var_value is not None:
+                monkeypatch.setenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", env_var_value)
+            session_manager = SessionManager(self.session)
+            assert session_manager.settings.auto_test_retries.enabled is expected_setting
+
+    @pytest.mark.parametrize("env_var_value, expected_setting", [(None, True), ("true", True), ("false", False)])
+    def test_session_manager_itr_kill_switch(self, monkeypatch, env_var_value, expected_setting):
+        with self.mock_settings(skipping_enabled=True):
+            if env_var_value is not None:
+                monkeypatch.setenv("DD_CIVISIBILITY_ITR_ENABLED", env_var_value)
+            session_manager = SessionManager(self.session)
+            assert session_manager.settings.itr_enabled is expected_setting
+
+    @pytest.mark.parametrize("env_var_value, expected_setting", [(None, True), ("true", False), ("false", True)])
+    def test_session_manager_skipping_kill_switch(self, monkeypatch, env_var_value, expected_setting):
+        with self.mock_settings(skipping_enabled=True):
+            if env_var_value is not None:
+                monkeypatch.setenv("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", env_var_value)
+            session_manager = SessionManager(self.session)
+            assert session_manager.settings.skipping_enabled is expected_setting
+
+    @pytest.mark.parametrize("env_var_value, expected_setting", [(None, False), ("true", True), ("false", False)])
+    def test_session_manager_force_coverage(self, monkeypatch, env_var_value, expected_setting):
+        with self.mock_settings():
+            if env_var_value is not None:
+                monkeypatch.setenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", env_var_value)
+            session_manager = SessionManager(self.session)
+            assert session_manager.settings.coverage_enabled is expected_setting

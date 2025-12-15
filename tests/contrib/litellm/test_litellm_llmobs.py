@@ -488,3 +488,37 @@ class TestLLMObsLiteLLM:
 
         assert len(llmobs_events) == 1
         assert llmobs_events[0]["name"] == "OpenAI.createChatCompletion" if not stream else "litellm.request"
+
+
+def test_enable_llmobs_after_litellm_was_imported(run_python_code_in_subprocess):
+    """
+    Test that LLMObs.enable() logs a warning if litellm is imported before LLMObs.enable() is called.
+    """
+    _, err, _, _ = run_python_code_in_subprocess(
+        """
+import litellm
+from ddtrace.llmobs import LLMObs
+LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+assert LLMObs.enabled
+LLMObs.disable()
+"""
+    )
+
+    assert ("LLMObs.enable() called after litellm was imported but before it was patched") in err.decode()
+
+
+def test_import_litellm_after_llmobs_was_enabled(run_python_code_in_subprocess):
+    """
+    Test that LLMObs.enable() does not logs a warning if litellm is imported after LLMObs.enable() is called.
+    """
+    _, err, _, _ = run_python_code_in_subprocess(
+        """
+from ddtrace.llmobs import LLMObs
+LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+assert LLMObs.enabled
+import litellm
+LLMObs.disable()
+"""
+    )
+
+    assert ("LLMObs.enable() called after litellm was imported but before it was patched") not in err.decode()

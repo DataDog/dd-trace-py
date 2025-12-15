@@ -715,7 +715,7 @@ integrations:
   tested_versions_by_dependency:
     pyodbc:
       min: 4.0.39
-      max: 5.2.0
+      max: 5.3.0
 
 - integration_name: pyramid
   is_external_package: true
