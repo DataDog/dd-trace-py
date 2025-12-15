@@ -82,3 +82,48 @@ def test_tags_propagated():
     # Profiler could add tags, so check that tags is a superset of config.tags
     for k, v in config.tags.items():
         assert tags[k] == v
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+def test_push_span_without_span_id():
+    """
+    Test that push_span handles span objects without span_id attribute gracefully.
+    This can happen when profiling collector encounters mock span objects in tests.
+    Regression test for issue where AttributeError was raised when accessing span.span_id.
+    """
+    if not ddup.is_available:
+        pytest.skip("ddup not available")
+
+    # Create a sample handle
+    handle = ddup.SampleHandle()
+
+    # Test 1: Span without span_id attribute
+    span_no_id = MockSpan()
+    # Should not raise AttributeError
+    handle.push_span(span_no_id)
+
+    # Test 2: Span without _local_root attribute
+    span_no_local_root = MockSpan(span_id=12345)
+    # Should not raise AttributeError
+    handle.push_span(span_no_local_root)
+
+    # Test 3: Span with _local_root but local_root without span_id
+    local_root_no_id = MockLocalRoot()
+    span_with_incomplete_root = MockSpan(span_id=12345, local_root=local_root_no_id)
+    # Should not raise AttributeError
+    handle.push_span(span_with_incomplete_root)
+
+    # Test 4: Span with _local_root but local_root without span_type
+    local_root_no_type = MockLocalRoot(span_id=67890)
+    span_with_root_no_type = MockSpan(span_id=12345, local_root=local_root_no_type)
+    # Should not raise AttributeError
+    handle.push_span(span_with_root_no_type)
+
+    # Test 5: Complete span (should work as before)
+    complete_local_root = MockLocalRoot(span_id=67890, span_type="web")
+    complete_span = MockSpan(span_id=12345, local_root=complete_local_root)
+    # Should not raise AttributeError
+    handle.push_span(complete_span)
+
+    # Test 6: None span (should handle gracefully)
+    handle.push_span(None)
