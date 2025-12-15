@@ -820,7 +820,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._before_fork_hook = before_fork_hook
 
             forksafe.register_after_parent(after_fork_hook)
-            forksafe.register(after_fork_hook)
             self._after_fork_hook = after_fork_hook
         except TypeError:
             log.warning("Failed to register NativeWriter fork hook")
@@ -834,7 +833,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
         if self._after_fork_hook:
             forksafe.unregister_parent(self._after_fork_hook)
-            forksafe.unregister(self._after_fork_hook)
             self._after_fork_hook = None
 
     def _create_exporter(self) -> native.TraceExporter:
@@ -1134,7 +1132,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 self._before_fork_hook = None
             if self._after_fork_hook:
                 forksafe.unregister_parent(self._after_fork_hook)
-                forksafe.unregister(self._after_fork_hook)
                 self._after_fork_hook = None
 
     def _before_fork(self) -> None:
