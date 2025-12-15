@@ -3,7 +3,6 @@ from pydantic import BaseModel
 import pytest
 
 from ddtrace.internal.utils.http import Response
-from ddtrace.llmobs._utils import ExportSpansAPIError
 from ddtrace.llmobs._writer import LLMObsExportSpansClient
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.utils import Documents
@@ -383,8 +382,8 @@ def test_export_spans_client_export_spans(mock_request):
 
 
 @mock.patch("ddtrace.llmobs._writer.LLMObsExportSpansClient._request")
-def test_export_spans_client_export_spans_error(mock_request):
-    """Test export_spans raises ExportSpansAPIError on non-200 response."""
+def test_export_spans_client_export_spans_error(mock_request, mock_writer_logs):
+    """Test export_spans logs error on non-200 response."""
     export_spans_client = LLMObsExportSpansClient(
         api_key="test-api-key",
         app_key="test-app-key",
@@ -397,9 +396,17 @@ def test_export_spans_client_export_spans_error(mock_request):
     )
     mock_request.return_value = mock_response
 
-    with pytest.raises(ExportSpansAPIError, match="Failed to export spans with status 500"):
-        list(
-            export_spans_client.export_spans(
-                span_id="test-span-id",
-            )
+    spans = list(
+        export_spans_client.export_spans(
+            span_id="test-span-id",
         )
+    )
+
+    assert len(spans) == 0
+
+    mock_writer_logs.error.assert_called_with(
+        "Failed to export spans: page=%d, status=%d, response=%s",
+        0,
+        500,
+        '{"error": "Internal server error"}',
+    )

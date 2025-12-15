@@ -477,11 +477,6 @@ class LinkTracker:
         self._last_llm_span = None
 
 
-class ExportSpansAPIError(Exception):
-    """Error raised when exporting spans from the LLMObs Export API."""
-
-    pass
-
 class LLMObsSubmitEvaluationError(Exception):
     """Error raised when submitting an evaluation."""
 

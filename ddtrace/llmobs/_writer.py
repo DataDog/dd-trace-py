@@ -45,7 +45,7 @@ from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import UpdatableDatasetRecord
 from ddtrace.llmobs._http import get_connection
-from ddtrace.llmobs._utils import ExportSpansAPIError, safe_json
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.llmobs.types import _Meta
 from ddtrace.version import __version__
@@ -783,9 +783,13 @@ class LLMObsExportSpansClient:
         page_num = 0
 
         while has_next_page:
+            has_next_page = False
             path = f"{EXPORT_SPANS_ENDPOINT}?{urllib.parse.urlencode(url_options)}"
 
             resp = self._request(path, self.TIMEOUT)
+
+            if resp is None:
+                continue
 
             if resp.status != 200:
                 logger.error(
@@ -794,23 +798,20 @@ class LLMObsExportSpansClient:
                     getattr(resp, "status", None),
                     getattr(resp, "body", None),
                 )
-                raise ExportSpansAPIError(
-                    f"Failed to export spans with status {resp.status} for url options {url_options}"
-                )
+                continue
 
             response_data = resp.get_json() if hasattr(resp, "get_json") else {}
 
             for span in response_data.get("data", []):
                 yield span.get("attributes", {})
 
-            has_next_page = False
             next_cursor = self._extract_next_cursor(response_data)
             if next_cursor:
                 has_next_page = True
                 url_options["page[cursor]"] = next_cursor
                 page_num += 1
 
-    def _request(self, path: str, timeout: float) -> Response:
+    def _request(self, path: str, timeout: float) -> Optional[Response]:
         if not self._api_key or not self._app_key:
             raise ValueError("Both an API key and an APP key are required to make requests to the LLMObs Export API")
 
@@ -820,15 +821,24 @@ class LLMObsExportSpansClient:
             "DD-APPLICATION-KEY": self._app_key,
         }
 
-        conn = get_connection(url=self._base_url, timeout=timeout)
         try:
-            url = self._base_url + path
-            logger.debug("Making GET request to %s", url)
-            conn.request("GET", url, b"", headers)
-            resp = conn.getresponse()
-            return Response.from_http_response(resp)
-        finally:
-            conn.close()
+            conn = get_connection(url=self._base_url, timeout=timeout)
+            try:
+                url = self._base_url + path
+                logger.debug("Making GET request to %s", url)
+                conn.request("GET", url, b"", headers)
+                resp = conn.getresponse()
+                return Response.from_http_response(resp)
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.error(
+                "Failed to make request to %s: %s",
+                self._base_url + path,
+                str(e),
+                exc_info=True
+            )
+            return None
 
     def _extract_next_cursor(self, response_data) -> Optional[str]:
         if not response_data:
