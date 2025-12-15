@@ -65,7 +65,7 @@ def _expected_payload(
 
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-MOCK_AGENT_RESPONSES_FILE = os.path.join(ROOT_DIR, "rc_mocked_responses_asm_features.json")
+MOCK_AGENT_RESPONSES_FILE = os.path.join("/ressources", "rc_mocked_responses_asm_features.json")
 
 
 def _assert_response(mock_send_request, expected_response):
