@@ -188,7 +188,7 @@ class TestOptPlugin:
             test_framework=TEST_FRAMEWORK,
             has_codeowners=self.manager.has_codeowners(),
             is_unsupported_ci=(self.manager.env_tags.get(CITag.PROVIDER_NAME) is None),
-            efd_abort_reason=None,  # TODO: keep track of EFD faulty session status.
+            efd_abort_reason=self.session.get_early_flake_detection_abort_reason(),
         )
 
         if not self.is_xdist_worker:
@@ -291,7 +291,7 @@ class TestOptPlugin:
             test_run.start(start_ns=test.start_ns)
             self._set_test_run_data(test_run, item, context)
             test_run.finish()
-            test.set_status(test_run.get_status())  # TODO: this should be automatic?
+            test.set_status(test_run.get_status())
             self.manager.writer.put_item(test_run)
 
         test.finish()
@@ -345,14 +345,14 @@ class TestOptPlugin:
         with trace_context(self.enable_ddtrace_trace_filter) as context:
             test_run, reports = self._do_one_test_run(item, nextitem, context)
 
-        if retry_handler and retry_handler.should_retry(test):
+        if not test.is_skipped_by_itr() and retry_handler and retry_handler.should_retry(test):
             self._do_retries(item, nextitem, test, retry_handler, reports)
         else:
             if test.is_quarantined() or test.is_disabled():
                 self._mark_quarantined_test_report_group_as_skipped(item, reports)
             self._log_test_reports(item, reports)
             test_run.finish()
-            test.set_status(test_run.get_status())  # TODO: this should be automatic?
+            test.set_status(test_run.get_status())
             self.manager.writer.put_item(test_run)
 
     def _set_test_run_data(self, test_run: TestRun, item: pytest.Item, context: TestContext) -> None:

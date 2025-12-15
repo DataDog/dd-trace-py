@@ -148,6 +148,7 @@ class SessionManager:
                 )
                 if is_faulty_session:
                     log.info("Not enabling Early Flake Detection: too many new tests")
+                    self.session.set_early_flake_detection_abort_reason("faulty")
                 else:
                     self.retry_handlers.append(EarlyFlakeDetectionHandler(self))
             else:
