@@ -397,11 +397,6 @@ class APIClientMockBuilder:
         mock_client.get_settings.return_value = Settings(
             early_flake_detection=EarlyFlakeDetectionSettings(
                 enabled=self._efd_enabled,
-                slow_test_retries_5s=3,
-                slow_test_retries_10s=2,
-                slow_test_retries_30s=1,
-                slow_test_retries_5m=1,
-                faulty_session_threshold=30,
             ),
             test_management=TestManagementSettings(enabled=self._test_management_enabled),
             auto_test_retries=AutoTestRetriesSettings(enabled=self._auto_retries_enabled),
@@ -663,12 +658,16 @@ class EventCapture:
             if event["type"] == event_type:
                 yield event
 
-    def event_by_test_name(self, test_name: str) -> Event:
+    def events_by_test_name(self, test_name: str) -> t.Iterable[Event]:
         for event in self.events():
             if event["type"] == "test" and event["content"]["meta"]["test.name"] == test_name:
-                return event
+                yield event
 
-        raise AssertionError(f"Expected event with test name {test_name!r}, found none")
+    def event_by_test_name(self, test_name: str) -> Event:
+        try:
+            return next(self.events_by_test_name(test_name))
+        except StopIteration:
+            raise AssertionError(f"Expected event with test name {test_name!r}, found none")
 
 
 def test_report(

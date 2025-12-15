@@ -387,7 +387,6 @@ class TestOptPlugin:
         test_run = test.last_test_run
         test_run.set_tags(retry_handler.get_tags_for_test_run(test_run))
         test_run.finish()
-        self.manager.writer.put_item(test_run)
 
         should_retry = True
 

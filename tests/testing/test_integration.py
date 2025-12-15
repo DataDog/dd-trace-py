@@ -229,7 +229,7 @@ class TestFeaturesWithMocking:
 
         # Verify that EFD retries happened - should see "RETRY FAILED (Early Flake Detection)" messages
         flaky_efd_retry_messages = output.count("test_efd.py::test_new_flaky RETRY FAILED (Early Flake Detection)")
-        assert flaky_efd_retry_messages == 4, f"Expected 4 EFD retry messages, got {flaky_efd_retry_messages}"
+        assert flaky_efd_retry_messages == 11, f"Expected 11 EFD retry messages, got {flaky_efd_retry_messages}"
 
         known_test_efd_retry_messages = output.count(
             "test_efd.py::test_known_test RETRY FAILED (Early Flake Detection)"
