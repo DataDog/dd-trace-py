@@ -349,6 +349,8 @@ class TestTag:
     TEST_FRAMEWORK = "test.framework"
     TEST_FRAMEWORK_VERSION = "test.framework_version"
     TEST_SESSION_NAME = "test_session.name"
+    TEST_NAME = "test.name"
+    TEST_SUITE = "test.suite"
 
     ENV = "env"
 
@@ -369,6 +371,9 @@ class TestTag:
     RETRY_REASON = "test.retry_reason"
     HAS_FAILED_ALL_RETRIES = "test.has_failed_all_retries"
 
+    XFAIL_REASON = "pytest.xfail.reason"
+    TEST_RESULT = "test.result"  # used for xfail/xpass
+
     PARAMETERS = "test.parameters"
 
     ITR_UNSKIPPABLE = "test.itr.unskippable"
@@ -378,6 +383,9 @@ class TestTag:
     ITR_TESTS_SKIPPING_TYPE = "test.itr.tests_skipping.type"
     ITR_TESTS_SKIPPING_COUNT = "test.itr.tests_skipping.count"
 
+    # Test File; used when test implementation file is different from test suite name (pytest-bdd).
+    TEST_FILE = "test.file"
+
     SOURCE_FILE = "test.source.file"
     SOURCE_START = "test.source.start"
 
@@ -385,5 +393,7 @@ class TestTag:
 
     IS_RUM_ACTIVE = "test.is_rum_active"
     BROWSER_DRIVER = "test.browser.driver"
+
+    CODE_COVERAGE_LINES_PCT = "test.code_coverage.lines_pct"
 
     __test__ = False

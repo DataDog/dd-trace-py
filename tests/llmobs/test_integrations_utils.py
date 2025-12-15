@@ -1,4 +1,5 @@
 from ddtrace.llmobs._integrations.utils import _extract_chat_template_from_instructions
+from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 
 
 def test_basic_functionality():
@@ -108,7 +109,75 @@ def test_response_input_text_objects():
     ]
     variables = {"question": ResponseInputText("What is AI?")}
 
-    result = _extract_chat_template_from_instructions(instructions, variables)
+    # Normalize variables before extraction (as done in openai_set_meta_tags_from_response)
+    normalized_vars = _normalize_prompt_variables(variables)
+    result = _extract_chat_template_from_instructions(instructions, normalized_vars)
 
     # Also tests that multiple content items are concatenated
     assert result[0]["content"] == "Part one Question: {{question}}"
+
+
+def test_normalize_prompt_variables():
+    """Test normalization of complex variable types."""
+
+    class ResponseInputText:
+        def __init__(self, text):
+            self.text = text
+
+    class ResponseInputImage:
+        def __init__(self, image_url=None, file_id=None):
+            self.type = "input_image"
+            self.image_url = image_url
+            self.file_id = file_id
+
+    class ResponseInputFile:
+        def __init__(self, file_url=None, file_id=None, filename=None, file_data=None):
+            self.type = "input_file"
+            self.file_url = file_url
+            self.file_id = file_id
+            self.filename = filename
+            self.file_data = file_data
+
+    variables = {
+        "plain_string": "hello",
+        "text_obj": ResponseInputText("world"),
+        "image_url": ResponseInputImage(image_url="https://example.com/img.png"),
+        "image_file": ResponseInputImage(file_id="file-123"),
+        "image_fallback": ResponseInputImage(),
+        "file_url": ResponseInputFile(file_url="https://example.com/doc.pdf"),
+        "file_name": ResponseInputFile(filename="report.pdf"),
+        "file_data": ResponseInputFile(file_data="Some content"),
+        "file_fallback": ResponseInputFile(),
+    }
+
+    result = _normalize_prompt_variables(variables)
+
+    assert result["plain_string"] == "hello"
+    assert result["text_obj"] == "world"
+    assert result["image_url"] == "https://example.com/img.png"
+    assert result["image_file"] == "file-123"
+    assert result["image_fallback"] == "[image]"
+    assert result["file_url"] == "https://example.com/doc.pdf"
+    assert result["file_name"] == "report.pdf"
+    assert result["file_data"] == "[file]"
+    assert result["file_fallback"] == "[file]"
+
+
+def test_extract_chat_template_with_falsy_values():
+    """Test that falsy but valid values (0, False) are preserved in template extraction."""
+
+    instructions = [
+        {
+            "role": "user",
+            "content": [
+                {"text": "Count: 0, Flag: False, Empty: "},
+            ],
+        }
+    ]
+    variables = {"count": 0, "flag": False, "empty": ""}
+
+    result = _extract_chat_template_from_instructions(instructions, variables)
+
+    # 0 and False should be replaced with placeholders
+    # Empty string should remain as-is (not replaceable through reverse-templating)
+    assert result[0]["content"] == "Count: {{count}}, Flag: {{flag}}, Empty: "
