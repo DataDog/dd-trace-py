@@ -202,7 +202,8 @@ class TestSessionManagement:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         assert plugin.is_xdist_worker is False
-        assert plugin.enable_ddtrace is False
+        assert plugin.enable_ddtrace_trace_filter is True
+        assert plugin.enable_all_ddtrace_integrations is False
         assert isinstance(plugin.reports_by_nodeid, dict)
         assert isinstance(plugin.excinfo_by_report, dict)
         assert isinstance(plugin.tests_by_nodeid, dict)
