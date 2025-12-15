@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import asyncio.locks
 from types import ModuleType
