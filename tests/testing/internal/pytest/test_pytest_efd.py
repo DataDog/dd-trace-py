@@ -18,7 +18,7 @@ from tests.testing.mocks import setup_standard_mocks
 
 class TestEFD:
     def test_efd_one_new_test(self, pytester: Pytester) -> None:
-        # Create a test file with multiple tests
+        """Test that EFD retries new tests and not known tests."""
         pytester.makepyfile(
             test_foo="""
             def test_known():
@@ -75,8 +75,11 @@ class TestEFD:
         assert known_tests[0]["content"]["meta"].get("test.is_new") is None
         assert known_tests[0]["content"]["meta"].get("test.is_retry") is None
 
+        [session_event] = event_capture.events_by_type("test_session_end")
+        assert session_event["content"]["meta"].get("test.early_flake.abort_reason") is None
+
     def test_efd_slow_test(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
-        # Create a test file with multiple tests
+        """Test that EFD abort reason is marked on slow tests."""
         pytester.makepyfile(
             test_foo="""
             def test_new():
@@ -116,3 +119,83 @@ class TestEFD:
         assert efd_tests[0]["content"]["meta"].get("test.is_new") == "true"
         assert efd_tests[0]["content"]["meta"].get("test.is_retry") is None
         assert efd_tests[0]["content"]["meta"].get("test.early_flake.abort_reason") == "slow"
+
+        [session_event] = event_capture.events_by_type("test_session_end")
+        assert session_event["content"]["meta"].get("test.early_flake.abort_reason") is None
+
+    def test_efd_no_known_tests(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that EFD is disabled when there are no known tests."""
+        pytester.makepyfile(
+            test_foo="""
+            def test_new():
+                '''A test that should be retried by EFD.'''
+                assert True
+        """
+        )
+
+        known_tests: t.Set[t.Union[TestRef, SuiteRef]] = {}
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    efd_enabled=True, known_tests_enabled=True, known_tests=known_tests
+                ),
+            ),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+        assert_stats(result, passed=1, dd_retry=0)
+
+        # There should be events for 1 test, 1 suite, 1 module, 1 session
+        assert len(list(event_capture.events())) == 4
+
+        efd_tests = list(event_capture.events_by_test_name("test_new"))
+        assert len(efd_tests) == 1
+
+        assert efd_tests[0]["content"]["meta"].get("test.status") == "pass"
+        assert efd_tests[0]["content"]["meta"].get("test.is_new") is None
+        assert efd_tests[0]["content"]["meta"].get("test.is_retry") is None
+
+        [session_event] = event_capture.events_by_type("test_session_end")
+        assert session_event["content"]["meta"].get("test.early_flake.abort_reason") is None
+
+    def test_efd_faulty_session(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that session is marked as faulty if there are too many new tests."""
+        lots_of_new_tests = "".join(
+            f"""
+            def test_{i}():
+                assert True
+            """
+            for i in range(100)
+        )
+
+        pytester.makepyfile(test_foo=lots_of_new_tests)
+
+        known_tests: t.Set[t.Union[TestRef, SuiteRef]] = {
+            TestRef(SuiteRef(ModuleRef("."), "test_foo.py"), "test_known"),
+        }
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    efd_enabled=True, known_tests_enabled=True, known_tests=known_tests
+                ),
+            ),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+        assert_stats(result, passed=100, dd_retry=0)
+
+        # There should be events for 100 test, 1 suite, 1 module, 1 session
+        assert len(list(event_capture.events())) == 103
+
+        [session_event] = event_capture.events_by_type("test_session_end")
+        assert session_event["content"]["meta"].get("test.early_flake.abort_reason") == "faulty"

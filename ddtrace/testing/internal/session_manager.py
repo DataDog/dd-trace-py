@@ -143,7 +143,7 @@ class SessionManager:
                 total_tests = len(new_tests) + len(self.known_tests)
                 new_tests_percentage = len(new_tests) / total_tests * 100
                 is_faulty_session = (
-                    len(self.known_tests) > self.settings.early_flake_detection.faulty_session_threshold
+                    len(new_tests) > self.settings.early_flake_detection.faulty_session_threshold
                     and new_tests_percentage > self.settings.early_flake_detection.faulty_session_threshold
                 )
                 if is_faulty_session:
