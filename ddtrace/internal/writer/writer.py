@@ -796,7 +796,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._max_payload_size = max_payload_size
         self._test_session_token = test_session_token
 
-        # Condition variable to coordinate the flushing with flushing
+        # Condition variable to coordinate the flushing with forking
         self._forking_cv = threading.Condition()
         self._disable_flush = False
         # Number of threads currently flushing
