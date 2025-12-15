@@ -43,8 +43,9 @@ async def _patched_run_single_turn(agents, pin, func, instance, args, kwargs, ag
     current_span = pin.tracer.current_span()
     result = await func(*args, **kwargs)
 
-    integration = agents._datadog_integration
-    integration.tag_agent_manifest(current_span, args, kwargs, agent_index)
+    if current_span is not None:
+        integration = agents._datadog_integration
+        integration.tag_agent_manifest(current_span, args, kwargs, agent_index)
 
     return result
 
