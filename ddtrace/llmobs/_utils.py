@@ -2,7 +2,6 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
-import time
 from typing import Any
 from typing import Dict
 from typing import List
@@ -34,7 +33,6 @@ from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.trace import Span
-from ddtrace.version import __version__
 
 
 log = get_logger(__name__)

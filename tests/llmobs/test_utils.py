@@ -3,8 +3,8 @@ from pydantic import BaseModel
 import pytest
 
 from ddtrace.internal.utils.http import Response
-from ddtrace.llmobs._writer import LLMObsExportSpansClient
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._writer import LLMObsExportSpansClient
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 

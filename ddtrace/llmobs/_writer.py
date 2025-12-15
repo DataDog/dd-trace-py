@@ -28,7 +28,7 @@ from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.llmobs import _telemetry as telemetry
-from ddtrace.llmobs._constants import AGENTLESS_EVAL_BASE_URL, EXPORT_SPANS_ENDPOINT
+from ddtrace.llmobs._constants import AGENTLESS_EVAL_BASE_URL
 from ddtrace.llmobs._constants import AGENTLESS_EXP_BASE_URL
 from ddtrace.llmobs._constants import AGENTLESS_SPAN_BASE_URL
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
@@ -36,6 +36,7 @@ from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
 from ddtrace.llmobs._constants import EVAL_ENDPOINT
 from ddtrace.llmobs._constants import EVAL_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import EXP_SUBDOMAIN_NAME
+from ddtrace.llmobs._constants import EXPORT_SPANS_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
 from ddtrace.llmobs._experiment import Dataset
@@ -46,8 +47,8 @@ from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import UpdatableDatasetRecord
 from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs.types import _SpanLink
 from ddtrace.llmobs.types import _Meta
+from ddtrace.llmobs.types import _SpanLink
 from ddtrace.version import __version__
 
 
