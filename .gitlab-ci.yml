@@ -46,6 +46,7 @@ include:
 
 # Expose the following variables to the rest of the pipeline
 #   GH_PR_NUMBER: The GitHub PR number if there is an open PR for this commit, empty otherwise
+#   GH_PR_TITLE: The GitHub PR title if there is an open PR for this commit, empty otherwise
 #   HAS_OPEN_PR: "true" if there is an open PR for this commit, "false" otherwise
 #   IS_MAIN_BRANCH: "true" if the current branch is main
 #   IS_RELEASE_BRANCH: "true" if the current branch is a release branch (e.g., "1.2"), "false" otherwise
@@ -76,8 +77,11 @@ pipeline variables:
       git config --global --add safe.directory "${CI_PROJECT_DIR}"
     - |
       # Determine if we have an open GitHub PR for this commit
-      GH_PR_NUMBER=$(gh pr list --state open --search "${CI_COMMIT_SHA}" --json number --jq '.[0].number' || echo "")
+      GH_RESULT=$(gh pr list --state open --search "${CI_COMMIT_SHA}" --json title,number --jq '.[0].title,.[0].number' || echo "")
+      GH_PR_NUMBER=$(echo $GH_RESULT | awk 'NR==2')
+      GH_PR_TITLE=$(echo $GH_RESULT | awk 'NR==1')
       echo "GH_PR_NUMBER=${GH_PR_NUMBER}" | tee -a workflow.env
+      echo "GH_PR_TITLE=${GH_PR_TITLE}" | tee -a workflow.env
       echo "HAS_OPEN_PR=$(if [ -z "${GH_PR_NUMBER}" ]; then echo "false"; else echo "true"; fi)" | tee -a workflow.env
       echo "IS_MAIN_BRANCH=$(if [ "${CI_COMMIT_BRANCH}" == "main" ]; then echo "true"; else echo "false"; fi)" | tee -a workflow.env
       echo "IS_RELEASE_BRANCH=$(if [[ "${CI_COMMIT_BRANCH}" =~ ^[0-9]+\.[0-9]+$ ]]; then echo "true"; else echo "false"; fi)" | tee -a workflow.env
@@ -187,6 +191,17 @@ check_new_flaky_tests:
     - if: $IS_MERGE_QUEUE == "true"
       when: never
     - when: on_success
+
+pr_name_lint:
+  stage: tests
+  needs: ["run-tests-trigger"]
+  extends: .testrunner
+  script:
+    - pip install gitlint
+    - echo $GH_PR_TITLE | gitlint
+  rules:
+    - if: $HAS_OPEN_PR == "false"
+      when: never
 
 requirements_json_test:
   rules:

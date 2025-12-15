@@ -1,0 +1,3 @@
+[general]
+contrib = contrib-title-conventional-commits
+ignore = T1, B6
