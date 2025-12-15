@@ -53,6 +53,7 @@ from ddtrace.version import __version__
 
 logger = get_logger(__name__)
 
+
 class _LLMObsSpanEventOptional(TypedDict, total=False):
     session_id: str
     service: str
@@ -104,7 +105,6 @@ class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
     error: Optional[Dict[str, str]]
     tags: List[str]
     experiment_id: str
-
 
 
 def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
@@ -744,6 +744,7 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
             payload.append(event_data)
         return payload
 
+
 class LLMObsExportSpansClient:
     """Retrieves spans from the LLMObs Export API."""
 
@@ -832,12 +833,7 @@ class LLMObsExportSpansClient:
             finally:
                 conn.close()
         except Exception as e:
-            logger.error(
-                "Failed to make request to %s: %s",
-                self._base_url + path,
-                str(e),
-                exc_info=True
-            )
+            logger.error("Failed to make request to %s: %s", self._base_url + path, str(e), exc_info=True)
             return None
 
     def _extract_next_cursor(self, response_data) -> Optional[str]:

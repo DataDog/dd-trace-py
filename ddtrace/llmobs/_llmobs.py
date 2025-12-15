@@ -1929,7 +1929,7 @@ class LLMObs(Service):
                 finally:
                     metric_type = evaluation_result.get("metric_type") or ""
                     telemetry.record_llmobs_submit_evaluation(join_on, metric_type, "run_evaluations", error)
-    
+
     @staticmethod
     def _build_evaluation_metric(
         evaluation_result: LLMObsEvaluationResult,
@@ -2057,7 +2057,6 @@ class LLMObs(Service):
 
         return evaluation_metric
 
-    
     @classmethod
     def _inject_llmobs_context(cls, span_context: Context, request_headers: Dict[str, str]) -> None:
         if cls.enabled is False:

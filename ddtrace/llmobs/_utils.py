@@ -481,4 +481,3 @@ class LLMObsSubmitEvaluationError(Exception):
     """Error raised when submitting an evaluation."""
 
     error_type: str
-
