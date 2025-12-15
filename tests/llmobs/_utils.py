@@ -96,6 +96,9 @@ def _expected_llmobs_llm_span_event(
     """
     Helper function to create an expected LLM span event.
     span_kind: either "llm" or "agent" or "embedding"
+    prompt: prompt metadata dict (id, version, variables, template)
+    prompt_tracking_source: prompt tracking source tag ('auto' for auto-instrumented)
+    prompt_multimodal: whether prompt contains multimodal inputs (True if present)
     input_messages: list of input messages in format {"content": "...", "optional_role", "..."}
     output_messages: list of output messages in format {"content": "...", "optional_role", "..."}
     metadata: dict of metadata key value pairs
@@ -198,6 +201,8 @@ def _expected_llmobs_non_llm_span_event(
     error_message: error message
     error_stack: error stack
     span_links: whether there are span links present on this span.
+    prompt_tracking_source: prompt tracking source tag ('auto' for auto-instrumented)
+    prompt_multimodal: whether prompt contains multimodal inputs (True if present)
     """
     span_event = _llmobs_base_span_event(
         span,
