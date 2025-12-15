@@ -7,7 +7,7 @@ from ddtrace.appsec._iast.reporter import Location
 from ddtrace.appsec._iast.reporter import Source
 from ddtrace.appsec._iast.reporter import Vulnerability
 from ddtrace.appsec._iast.reporter import _truncate_evidence_value
-from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.settings.asm import config as asm_config
 
 
 def _do_assert_hash(e, f, g, e2):
