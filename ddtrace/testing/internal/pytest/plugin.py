@@ -147,6 +147,8 @@ class TestOptPlugin:
         self.manager = session_manager
         self.session = self.manager.session
 
+        self.extra_failed_reports: t.List[pytest.TestReport] = []
+
     def pytest_sessionstart(self, session: pytest.Session) -> None:
         if xdist_worker_input := getattr(session.config, "workerinput", None):
             if session_id := xdist_worker_input.get("dd_session_id"):
@@ -382,13 +384,13 @@ class TestOptPlugin:
     ) -> None:
         # Save failure/skip representation to put into the final report.
         # TODO: for flaky tests, we currently don't show the longrepr (because the final report has `passed` status).
-        longrepr, wasxfail = self._extract_longrepr(reports)
+        retry_reports = RetryReports()
 
         # Log initial attempt.
         self._mark_test_reports_as_retry(reports, retry_handler)
-        self._log_test_report(item, reports, TestPhase.SETUP)
+        retry_reports.log_test_report(item, reports, TestPhase.SETUP)
         # The call report may not exist if setup failed or skipped.
-        self._log_test_report(item, reports, TestPhase.CALL)
+        retry_reports.log_test_report(item, reports, TestPhase.CALL)
 
         test_run = test.last_test_run
         retry_handler.set_tags_for_test_run(test_run)
@@ -408,8 +410,8 @@ class TestOptPlugin:
             # pytest plugins generally expect only one teardown to be logged for a test (as they run test finish actions
             # on teardown). If the call report is available, we log that, otherwise we log the setup report. (Logging
             # multiple setups for a test does not seem to cause an issue with junitxml, at least.)
-            if not self._log_test_report(item, reports, TestPhase.CALL):
-                self._log_test_report(item, reports, TestPhase.SETUP)
+            if not retry_reports.log_test_report(item, reports, TestPhase.CALL):
+                retry_reports.log_test_report(item, reports, TestPhase.SETUP)
 
             test_run.finish()
 
@@ -420,7 +422,10 @@ class TestOptPlugin:
             self.manager.writer.put_item(test_run)
 
         # Log final status.
-        final_report = self._make_final_report(test, item, final_status, longrepr, wasxfail)
+        final_report = retry_reports.make_final_report(test, item, final_status)
+
+        if extra_failed_report := retry_reports.get_extra_failed_report(test, final_status):
+            self.extra_failed_reports.append(extra_failed_report)
 
         if test.is_quarantined() or test.is_disabled():
             self._mark_quarantined_test_report_as_skipped(item, final_report)
@@ -428,7 +433,7 @@ class TestOptPlugin:
         item.ihook.pytest_runtest_logreport(report=final_report)
 
         # Log teardown. There should be just one teardown logged for all of the retries, because the junitxml plugin
-        # closes the <testcase> element when teardown is logged.
+        # closes te <testcase> element when teardown is logged.
         teardown_report = reports.get(TestPhase.TEARDOWN)
         if test.is_quarantined() or test.is_disabled():
             self._mark_quarantined_test_report_as_skipped(item, teardown_report)
@@ -523,33 +528,6 @@ class TestOptPlugin:
             if report := reports.get(when):
                 item.ihook.pytest_runtest_logreport(report=report)
 
-    def _make_final_report(
-        self, test: Test, item: pytest.Item, final_status: TestStatus, longrepr: t.Any, wasxfail: t.Any
-    ) -> pytest.TestReport:
-        outcomes = {
-            TestStatus.PASS: "passed",
-            TestStatus.FAIL: "failed",
-            TestStatus.SKIP: "skipped",
-        }
-
-        extra_user_properties = []
-        if test.is_flaky_run():
-            extra_user_properties += [("dd_flaky", True)]
-
-        final_report = pytest.TestReport(
-            nodeid=item.nodeid,
-            location=item.location,
-            keywords={k: 1 for k in item.keywords},
-            when=TestPhase.CALL,
-            longrepr=longrepr,
-            outcome=outcomes.get(final_status, str(final_status)),
-            user_properties=item.user_properties + extra_user_properties,
-        )
-        if wasxfail is not None:
-            setattr(final_report, "wasxfail", wasxfail)
-
-        return final_report
-
     @pytest.hookimpl(hookwrapper=True)
     def pytest_runtest_makereport(
         self, item: pytest.Item, call: pytest.CallInfo[t.Any]
@@ -638,30 +616,16 @@ class TestOptPlugin:
     def pytest_terminal_summary(
         self, terminalreporter: TerminalReporter, exitstatus: int, config: pytest.Config
     ) -> t.Generator[None, None, None]:
+        terminalreporter.stats.pop("dd_retry", [])  # Do not show dd_retry in final stats.
+
         original_failed_reports = terminalreporter.stats.get("failed", [])
-        extra_failed_reports = []
 
-        dd_retry_reports = terminalreporter.stats.pop("dd_retry", [])  # Do not show dd_retry in final stats.
+        # Make extra failed reports look like normal failed reports.
+        for report in self.extra_failed_reports:
+            report.outcome = "failed"
+            report.user_properties = [(k, v) for (k, v) in report.user_properties if k != "dd_retry_outcome"]
 
-        retries_by_nodeid = defaultdict(lambda: [])
-        original_failures_by_nodeid = defaultdict(lambda: [])
-
-        for report in dd_retry_reports:
-            retries_by_nodeid[report.nodeid].append(report)
-
-        for report in original_failed_reports:
-            original_failures_by_nodeid[report.nodeid].append(report)
-
-        for nodeid, reports in retries_by_nodeid.items():
-            failures = (report for report in reports if _get_user_property(report, "dd_retry_outcome") == "failed")
-            failure = next(failures, None)
-            if failure and nodeid not in original_failures_by_nodeid:
-                # Make it look like a regular failed report.
-                failure.outcome = "failed"
-                failure.user_properties = [(k, v) for (k, v) in failure.user_properties if k != "dd_retry_outcome"]
-                extra_failed_reports.append(failure)
-
-        terminalreporter.stats["failed"] = original_failed_reports + extra_failed_reports
+        terminalreporter.stats["failed"] = original_failed_reports + self.extra_failed_reports
 
         yield
 
@@ -941,3 +905,69 @@ def ddspan(ddtracer):
         return None
 
     return ddtracer.current_root_span()
+
+
+class RetryReports:
+    def __init__(self):
+        self.reports = []
+        self.reports_by_outcome = defaultdict(lambda: [])
+
+    def log_test_report(self, item: pytest.Item, reports: _ReportGroup, when: str) -> bool:
+        """
+        Log the test report for a given test phase, if it exists.
+
+        Returns True if the report exists, and False if not.
+        Tests that fail or skip during setup do not have the call phase report.
+        """
+        if report := reports.get(when):
+            item.ihook.pytest_runtest_logreport(report=report)
+            outcome = _get_user_property(report, "dd_retry_outcome") or report.outcome
+            self.reports_by_outcome[outcome].append(report)
+            self.reports.append(report)
+            return True
+
+        return False
+
+    def make_final_report(self, test: Test, item: pytest.Item, final_status: TestStatus) -> pytest.TestReport:
+        outcomes = {
+            TestStatus.PASS: "passed",
+            TestStatus.FAIL: "failed",
+            TestStatus.SKIP: "skipped",
+        }
+
+        outcome = outcomes.get(final_status, str(final_status))
+
+        try:
+            source_report = self.reports_by_outcome[outcome][0]
+            longrepr = source_report.longrepr
+            wasxfail = getattr(source_report, "wasxfail", None)
+        except IndexError:
+            breakpoint()
+
+        extra_user_properties = []
+        if test.is_flaky_run():
+            extra_user_properties += [("dd_flaky", True)]
+
+        final_report = pytest.TestReport(
+            nodeid=item.nodeid,
+            location=item.location,
+            keywords={k: 1 for k in item.keywords},
+            when=TestPhase.CALL,
+            longrepr=longrepr,
+            outcome=outcome,
+            user_properties=item.user_properties + extra_user_properties,
+        )
+        if wasxfail is not None:
+            setattr(final_report, "wasxfail", wasxfail)
+
+        return final_report
+
+    def get_extra_failed_report(self, test: Test, final_status: TestStatus) -> t.Optional[pytest.TestReport]:
+        suppress_errors = (test.is_quarantined() or test.is_disabled()) and not test.is_attempt_to_fix()
+        if suppress_errors:
+            return None
+
+        if self.reports_by_outcome["failed"] and final_status != TestStatus.FAIL:
+            return self.reports_by_outcome["failed"][0]
+
+        return None
