@@ -199,9 +199,9 @@ pr_name_lint:
   script:
     - pip install gitlint
     - echo $GH_PR_TITLE | gitlint
-  rules:
-    - if: $HAS_OPEN_PR == "false"
-      when: never
+    #rules:
+    #- if: $HAS_OPEN_PR == "false"
+    #  when: never
 
 requirements_json_test:
   rules:
