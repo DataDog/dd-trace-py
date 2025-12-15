@@ -601,7 +601,19 @@ class TestOptPlugin:
     def pytest_terminal_summary(
         self, terminalreporter: TerminalReporter, exitstatus: int, config: pytest.Config
     ) -> t.Generator[None, None, None]:
-        terminalreporter.stats.pop("dd_retry", [])  # Do not show dd_retry in final stats.
+        """
+        Modify terminal summary before letting pytest emit it.
+
+        During the test session, all retry attempt reports are logged with a 'dd_retry' category. We remove this
+        category here so it doesn't show up in the final stat counts.
+
+        To make the extra failed reports collected during retries (see `get_extra_failed_report` for details) show up
+        with the rest of the failure exception reports, we modify them to look like normal failures, and append them to
+        the failed reports. After they have been shown by pytest, we undo the change so tha the final count of failed
+        tests is not affected.
+        """
+        # Do not show dd_retry in final stats.
+        terminalreporter.stats.pop("dd_retry", None)
 
         original_failed_reports = terminalreporter.stats.get("failed", [])
 
