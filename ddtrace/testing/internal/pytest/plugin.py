@@ -431,7 +431,7 @@ class TestOptPlugin:
         item.ihook.pytest_runtest_logreport(report=final_report)
 
         # Log teardown. There should be just one teardown logged for all of the retries, because the junitxml plugin
-        # closes te <testcase> element when teardown is logged.
+        # closes the <testcase> element when teardown is logged.
         teardown_report = reports.get(TestPhase.TEARDOWN)
         if test.is_quarantined() or test.is_disabled():
             self._mark_quarantined_test_report_as_skipped(item, teardown_report)
