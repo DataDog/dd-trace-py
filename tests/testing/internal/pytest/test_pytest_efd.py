@@ -123,6 +123,46 @@ class TestEFD:
         [session_event] = event_capture.events_by_type("test_session_end")
         assert session_event["content"]["meta"].get("test.early_flake.abort_reason") is None
 
+    def test_efd_not_so_slow_test(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that EFD retries fewer times if the test takes longer."""
+        pytester.makepyfile(
+            test_foo="""
+            def test_new():
+                '''A test that should be retried by EFD.'''
+                assert True
+        """
+        )
+
+        known_tests: t.Set[t.Union[TestRef, SuiteRef]] = {
+            TestRef(SuiteRef(ModuleRef("."), "test_foo.py"), "test_known"),
+        }
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    efd_enabled=True, known_tests_enabled=True, known_tests=known_tests
+                ),
+            ),
+            # slow_test_retries_10s is 5, so a test that takes 8 seconds should have 1 initial attempt + 5 retries.
+            patch("ddtrace.testing.internal.test_data.TestRun.seconds_so_far", return_value=8),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+        assert_stats(result, passed=1, dd_retry=6)
+
+        # There should be events for 6 tests, 1 suite, 1 module, 1 session
+        assert len(list(event_capture.events())) == 9
+
+        efd_tests = list(event_capture.events_by_test_name("test_new"))
+        assert len(efd_tests) == 6
+
+        [session_event] = event_capture.events_by_type("test_session_end")
+        assert session_event["content"]["meta"].get("test.early_flake.abort_reason") is None
+
     def test_efd_no_known_tests(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that EFD is disabled when there are no known tests."""
         pytester.makepyfile(
