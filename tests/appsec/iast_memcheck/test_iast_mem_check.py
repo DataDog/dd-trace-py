@@ -312,9 +312,9 @@ def test_slice_memory_check_repeated_operations_iast_disable():
 
     # Allow small variation but no significant growth
     # With the old buggy code, this would grow proportionally to iterations
-    assert final_context_size <= initial_context_size + 10, (
-        f"Context size grew from {initial_context_size} to {final_context_size}"
-    )
+    assert (
+        final_context_size <= initial_context_size + 10
+    ), f"Context size grew from {initial_context_size} to {final_context_size}"
 
 
 @pytest.mark.limit_leaks("2.0 KB", filter_fn=IASTFilter())
@@ -426,9 +426,9 @@ def test_join_memory_check_repeated_operations(iast_context_defaults):
 
     # Allow small variation but no significant growth
     # With buggy code, this would grow proportionally to iterations
-    assert final_context_size <= initial_context_size + 10, (
-        f"Context size grew from {initial_context_size} to {final_context_size}"
-    )
+    assert (
+        final_context_size <= initial_context_size + 10
+    ), f"Context size grew from {initial_context_size} to {final_context_size}"
 
     _iast_finish_request()
 
@@ -465,6 +465,6 @@ def test_join_memory_check_repeated_operations_iast_disable():
 
     # Allow small variation but no significant growth
     # With buggy code, this would grow proportionally to iterations
-    assert final_context_size <= initial_context_size + 10, (
-        f"Context size grew from {initial_context_size} to {final_context_size}"
-    )
+    assert (
+        final_context_size <= initial_context_size + 10
+    ), f"Context size grew from {initial_context_size} to {final_context_size}"

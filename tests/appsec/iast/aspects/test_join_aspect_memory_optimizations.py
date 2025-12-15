@@ -80,9 +80,9 @@ class TestSourceValueTruncation:
 
         source_value = ranges[0].source.value
         assert len(source_value) <= max_length, f"Source.value length {len(source_value)} exceeds max {max_length}"
-        assert len(source_value) == expected_length, (
-            f"Expected source.value length {expected_length}, got {len(source_value)}"
-        )
+        assert (
+            len(source_value) == expected_length
+        ), f"Expected source.value length {expected_length}, got {len(source_value)}"
 
     @pytest.mark.parametrize(
         "string_value,max_length,expected",
@@ -138,9 +138,9 @@ class TestSourceValueTruncation:
         # Check that all source values are truncated
         for i, range_obj in enumerate(result_ranges):
             source_value_len = len(range_obj.source.value)
-            assert source_value_len <= max_length, (
-                f"Range {i}: source.value length {source_value_len} exceeds max {max_length}"
-            )
+            assert (
+                source_value_len <= max_length
+            ), f"Range {i}: source.value length {source_value_len} exceeds max {max_length}"
 
 
 class TestRangeCountLimiting:
@@ -217,9 +217,9 @@ class TestRangeCountLimiting:
             result_ranges = get_ranges(result)
 
             assert result_ranges is not None
-            assert len(result_ranges) <= max_ranges, (
-                f"Iteration {iteration}: range count {len(result_ranges)} exceeds max {max_ranges}"
-            )
+            assert (
+                len(result_ranges) <= max_ranges
+            ), f"Iteration {iteration}: range count {len(result_ranges)} exceeds max {max_ranges}"
 
 
 class TestCombinedOptimizations:
@@ -252,9 +252,9 @@ class TestCombinedOptimizations:
         # Check source value truncation
         for i, range_obj in enumerate(result_ranges):
             source_value_len = len(range_obj.source.value)
-            assert source_value_len <= max_length, (
-                f"Range {i}: source.value length {source_value_len} exceeds max {max_length}"
-            )
+            assert (
+                source_value_len <= max_length
+            ), f"Range {i}: source.value length {source_value_len} exceeds max {max_length}"
 
     def test_current_configuration(self, set_max_range_count, set_truncation_max_length):
         """Test that current environment configuration is respected."""
@@ -280,15 +280,15 @@ class TestCombinedOptimizations:
         assert result_ranges is not None
 
         # Verify that current configuration is being used
-        assert len(result_ranges) <= actual_max_ranges, (
-            f"Range count {len(result_ranges)} exceeds configured max {actual_max_ranges}"
-        )
+        assert (
+            len(result_ranges) <= actual_max_ranges
+        ), f"Range count {len(result_ranges)} exceeds configured max {actual_max_ranges}"
 
         for i, range_obj in enumerate(result_ranges):
             source_value_len = len(range_obj.source.value)
-            assert source_value_len <= actual_max_length, (
-                f"Range {i}: source.value length {source_value_len} exceeds configured max {actual_max_length}"
-            )
+            assert (
+                source_value_len <= actual_max_length
+            ), f"Range {i}: source.value length {source_value_len} exceeds configured max {actual_max_length}"
 
 
 class TestMemoryScaling:
