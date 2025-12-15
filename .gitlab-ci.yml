@@ -39,6 +39,7 @@ include:
   - local: ".gitlab/package.yml"
   - local: ".gitlab/release.yml"
   - local: ".gitlab/testrunner.yml"
+  - local: ".gitlab/multi-os-tests.yml"
   - local: ".gitlab/benchmarks/serverless.yml"
   - local: ".gitlab/native.yml"
 
