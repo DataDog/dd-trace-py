@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections import defaultdict
 from io import StringIO
 import json
@@ -44,6 +46,10 @@ from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_perc
 import ddtrace.testing.internal.tracer_api.pytest_hooks
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import asbool
+
+
+if t.TYPE_CHECKING:
+    from _pytest.terminal import TerminalReporter
 
 
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
@@ -414,9 +420,11 @@ class TestOptPlugin:
             self.manager.writer.put_item(test_run)
 
         # Log final status.
-        final_report = self._make_final_report(item, final_status, longrepr, wasxfail)
+        final_report = self._make_final_report(test, item, final_status, longrepr, wasxfail)
+
         if test.is_quarantined() or test.is_disabled():
             self._mark_quarantined_test_report_as_skipped(item, final_report)
+
         item.ihook.pytest_runtest_logreport(report=final_report)
 
         # Log teardown. There should be just one teardown logged for all of the retries, because the junitxml plugin
@@ -516,13 +524,17 @@ class TestOptPlugin:
                 item.ihook.pytest_runtest_logreport(report=report)
 
     def _make_final_report(
-        self, item: pytest.Item, final_status: TestStatus, longrepr: t.Any, wasxfail: t.Any
+        self, test: Test, item: pytest.Item, final_status: TestStatus, longrepr: t.Any, wasxfail: t.Any
     ) -> pytest.TestReport:
         outcomes = {
             TestStatus.PASS: "passed",
             TestStatus.FAIL: "failed",
             TestStatus.SKIP: "skipped",
         }
+
+        extra_user_properties = []
+        if test.is_flaky_run():
+            extra_user_properties += [("dd_flaky", True)]
 
         final_report = pytest.TestReport(
             nodeid=item.nodeid,
@@ -531,7 +543,7 @@ class TestOptPlugin:
             when=TestPhase.CALL,
             longrepr=longrepr,
             outcome=outcomes.get(final_status, str(final_status)),
-            user_properties=item.user_properties,
+            user_properties=item.user_properties + extra_user_properties,
         )
         if wasxfail is not None:
             setattr(final_report, "wasxfail", wasxfail)
@@ -565,6 +577,9 @@ class TestOptPlugin:
                 return ("quarantined", "Q", ("QUARANTINED", {"blue": True}))
             else:
                 return ("", "", "")
+
+        if _get_user_property(report, "dd_flaky"):
+            return ("flaky", "K", ("FLAKY", {"yellow": True}))
 
         return None
 
@@ -618,6 +633,39 @@ class TestOptPlugin:
 
         item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))
         test.mark_skipped_by_itr()
+
+    @pytest.hookimpl(tryfirst=True, hookwrapper=True)
+    def pytest_terminal_summary(
+        self, terminalreporter: TerminalReporter, exitstatus: int, config: pytest.Config
+    ) -> t.Generator[None, None, None]:
+        original_failed_reports = terminalreporter.stats.get("failed", [])
+        extra_failed_reports = []
+
+        dd_retry_reports = terminalreporter.stats.pop("dd_retry", [])  # Do not show dd_retry in final stats.
+
+        retries_by_nodeid = defaultdict(lambda: [])
+        original_failures_by_nodeid = defaultdict(lambda: [])
+
+        for report in dd_retry_reports:
+            retries_by_nodeid[report.nodeid].append(report)
+
+        for report in original_failed_reports:
+            original_failures_by_nodeid[report.nodeid].append(report)
+
+        for nodeid, reports in retries_by_nodeid.items():
+            failures = (report for report in reports if _get_user_property(report, "dd_retry_outcome") == "failed")
+            failure = next(failures, None)
+            if failure and nodeid not in original_failures_by_nodeid:
+                # Make it look like a regular failed report.
+                failure.outcome = "failed"
+                failure.user_properties = [(k, v) for (k, v) in failure.user_properties if k != "dd_retry_outcome"]
+                extra_failed_reports.append(failure)
+
+        terminalreporter.stats["failed"] = original_failed_reports + extra_failed_reports
+
+        yield
+
+        terminalreporter.stats["failed"] = original_failed_reports
 
 
 class XdistTestOptPlugin:

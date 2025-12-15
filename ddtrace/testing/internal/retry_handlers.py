@@ -140,6 +140,8 @@ class EarlyFlakeDetectionHandler(RetryHandler):
             total_count += 1
 
         if status_counts[TestStatus.PASS] > 0:
+            if status_counts[TestStatus.PASS] != total_count:
+                test.mark_flaky_run()
             return TestStatus.PASS
 
         if status_counts[TestStatus.FAIL] > 0:

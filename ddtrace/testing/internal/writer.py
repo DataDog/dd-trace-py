@@ -149,6 +149,7 @@ class TestOptWriter(BaseWriter):
         return msgpack_packb(payload)
 
     def _send_events(self, events: t.List[Event]) -> None:
+        return  ### ꙮꙮꙮꙮꙮꙮꙮ
         with StopWatch() as serialization_time:
             packs = self._split_pack_events(events)
 
@@ -200,6 +201,7 @@ class TestCoverageWriter(BaseWriter):
         return msgpack_packb({"version": 2, "coverages": events})
 
     def _send_events(self, events: t.List[Event]) -> None:
+        return  ### ꙮꙮꙮꙮꙮꙮꙮ
         with StopWatch() as serialization_time:
             packs = self._split_pack_events(events)
 
