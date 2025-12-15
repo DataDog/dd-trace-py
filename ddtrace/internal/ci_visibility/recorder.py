@@ -207,7 +207,7 @@ class CIVisibility(Service):
         if custom_configurations:
             self._configurations["custom"] = custom_configurations
 
-        self._api_key = os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY"))
+        self._api_key = os.getenv("_CI_DD_DD_API_KEY", os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY")))
 
         self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
         self.config = config or ddconfig.test_visibility  # type: Optional[IntegrationConfig]
