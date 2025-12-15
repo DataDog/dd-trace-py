@@ -510,19 +510,6 @@ class TestOptPlugin:
 
         return False
 
-    def _log_test_report(self, item: pytest.Item, reports: _ReportGroup, when: str) -> bool:
-        """
-        Log the test report for a given test phase, if it exists.
-
-        Returns True if the report exists, and False if not.
-        Tests that fail or skip during setup do not have the call phase report.
-        """
-        if report := reports.get(when):
-            item.ihook.pytest_runtest_logreport(report=report)
-            return True
-
-        return False
-
     def _log_test_reports(self, item: pytest.Item, reports: _ReportGroup) -> None:
         for when in (TestPhase.SETUP, TestPhase.CALL, TestPhase.TEARDOWN):
             if report := reports.get(when):
@@ -632,6 +619,111 @@ class TestOptPlugin:
         terminalreporter.stats["failed"] = original_failed_reports
         if not terminalreporter.stats["failed"]:
             del terminalreporter.stats["failed"]
+
+
+class RetryReports:
+    """
+    Collect and manage reports for the retries of a single test.
+    """
+
+    def __init__(self):
+        self.reports_by_outcome = defaultdict(lambda: [])
+
+    def log_test_report(self, item: pytest.Item, reports: _ReportGroup, when: str) -> bool:
+        """
+        Collect and log the test report for a given test phase, if it exists.
+
+        Returns True if the report exists, and False if not.
+        Tests that fail or skip during setup do not have the call phase report.
+        """
+        if report := reports.get(when):
+            item.ihook.pytest_runtest_logreport(report=report)
+            outcome = _get_user_property(report, "dd_retry_outcome") or report.outcome
+            self.reports_by_outcome[outcome].append(report)
+            return True
+
+        return False
+
+    def make_final_report(self, test: Test, item: pytest.Item, final_status: TestStatus) -> pytest.TestReport:
+        """
+        Make the final report for the retries of a single test.
+
+        The final status is provided by the retry handler. We assume that for a test to have a given outcome, at least
+        one attempt must have had that outcome (e.g., for a test to have a 'failed' outcome, at least one retry must
+        have failed).
+
+        The attributes of the final report will be copied from the first retry report that had the same outcome. For
+        instance, if the final report outcome is 'failed', it will have the same `longrepr` and `wasxfail` features as
+        the first failed report.
+
+        Additionally, if a test is marked as flaky (e.g., it both passed and failed during EFD), the final report will
+        contain the `dd_flaky` user property. This allows us to identify the test as 'flaky' during logging, even though
+        the final outcome is still one of 'passed', 'failed', or 'skipped'.
+        """
+
+        outcomes = {
+            TestStatus.PASS: "passed",
+            TestStatus.FAIL: "failed",
+            TestStatus.SKIP: "skipped",
+        }
+
+        outcome = outcomes.get(final_status, str(final_status))
+
+        try:
+            source_report = self.reports_by_outcome[outcome][0]
+            longrepr = source_report.longrepr
+            wasxfail = getattr(source_report, "wasxfail", None)
+        except IndexError:
+            log.warning("Test %s has final outcome %r, but no retry had this outcome; this should never happen", test)
+            longrepr = None
+            wasxfail = None
+
+        extra_user_properties = []
+        if test.is_flaky_run():
+            extra_user_properties += [("dd_flaky", True)]
+
+        final_report = pytest.TestReport(
+            nodeid=item.nodeid,
+            location=item.location,
+            keywords={k: 1 for k in item.keywords},
+            when=TestPhase.CALL,
+            longrepr=longrepr,
+            outcome=outcome,
+            user_properties=item.user_properties + extra_user_properties,
+        )
+        if wasxfail is not None:
+            setattr(final_report, "wasxfail", wasxfail)
+
+        return final_report
+
+    def get_extra_failed_report(self, test: Test, final_status: TestStatus) -> t.Optional[pytest.TestReport]:
+        """
+        Get an extra failed report to log at the end of the test session.
+
+        If a test is retried and all retries failed, the final report will have a 'failed' status and contain the
+        `longrepr` of one of the failures, and so the failure exception will be automatically logged at the end of the
+        test session by pytest. In this case, this function returns None.
+
+        But if some retries pass and others fail, the test will have a 'passed' final status, and no failure exception
+        will be logged for the test. In this case, this function returns one of the failed reports, which is saved for
+        logging at the end of the test session. This ensures we provide some failure log to the user.
+
+        If the test is quarantined or disabled, and not attempt-to-fix, the failed report is not returned. If the test
+        is attempt-to-fix, the failed report is returned, even if the test is quarantined or disabled: if the user is
+        attempting to fix the test, and the attempt fails, we need to provide some feedback on the failure.
+
+        Note that we only report _one_ failure per test (either the one embedded in the 'failed' final report, or the
+        one retured by this function), even if the test failed multiple times. This is to avoid spamming the test output
+        with multiple copies of the same error.
+        """
+        suppress_errors = (test.is_quarantined() or test.is_disabled()) and not test.is_attempt_to_fix()
+        if suppress_errors:
+            return None
+
+        if self.reports_by_outcome["failed"] and final_status != TestStatus.FAIL:
+            return self.reports_by_outcome["failed"][0]
+
+        return None
 
 
 class XdistTestOptPlugin:
@@ -907,69 +999,3 @@ def ddspan(ddtracer):
         return None
 
     return ddtracer.current_root_span()
-
-
-class RetryReports:
-    def __init__(self):
-        self.reports = []
-        self.reports_by_outcome = defaultdict(lambda: [])
-
-    def log_test_report(self, item: pytest.Item, reports: _ReportGroup, when: str) -> bool:
-        """
-        Log the test report for a given test phase, if it exists.
-
-        Returns True if the report exists, and False if not.
-        Tests that fail or skip during setup do not have the call phase report.
-        """
-        if report := reports.get(when):
-            item.ihook.pytest_runtest_logreport(report=report)
-            outcome = _get_user_property(report, "dd_retry_outcome") or report.outcome
-            self.reports_by_outcome[outcome].append(report)
-            self.reports.append(report)
-            return True
-
-        return False
-
-    def make_final_report(self, test: Test, item: pytest.Item, final_status: TestStatus) -> pytest.TestReport:
-        outcomes = {
-            TestStatus.PASS: "passed",
-            TestStatus.FAIL: "failed",
-            TestStatus.SKIP: "skipped",
-        }
-
-        outcome = outcomes.get(final_status, str(final_status))
-
-        try:
-            source_report = self.reports_by_outcome[outcome][0]
-            longrepr = source_report.longrepr
-            wasxfail = getattr(source_report, "wasxfail", None)
-        except IndexError:
-            breakpoint()
-
-        extra_user_properties = []
-        if test.is_flaky_run():
-            extra_user_properties += [("dd_flaky", True)]
-
-        final_report = pytest.TestReport(
-            nodeid=item.nodeid,
-            location=item.location,
-            keywords={k: 1 for k in item.keywords},
-            when=TestPhase.CALL,
-            longrepr=longrepr,
-            outcome=outcome,
-            user_properties=item.user_properties + extra_user_properties,
-        )
-        if wasxfail is not None:
-            setattr(final_report, "wasxfail", wasxfail)
-
-        return final_report
-
-    def get_extra_failed_report(self, test: Test, final_status: TestStatus) -> t.Optional[pytest.TestReport]:
-        suppress_errors = (test.is_quarantined() or test.is_disabled()) and not test.is_attempt_to_fix()
-        if suppress_errors:
-            return None
-
-        if self.reports_by_outcome["failed"] and final_status != TestStatus.FAIL:
-            return self.reports_by_outcome["failed"][0]
-
-        return None
