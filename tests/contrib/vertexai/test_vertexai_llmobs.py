@@ -1,6 +1,9 @@
+import google.cloud.aiplatform as aiplatform_module
 import mock
 import pytest
 
+from ddtrace.internal.utils.version import parse_version
+from tests.contrib.vertexai.utils import MOCK_COMPLETION_REASONING
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_SIMPLE_1
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_SIMPLE_2
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_STREAM_CHUNKS
@@ -35,6 +38,25 @@ class TestLLMObsVertexai:
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
+
+    @pytest.mark.skipif(
+        parse_version(aiplatform_module.__version__) < (1, 94, 0),
+        reason="reasoning_output_tokens only available in google-cloud-aiplatform SDK version >= 1.94.0",
+    )
+    def test_completion_reasoning_tokens(self, vertexai, mock_llmobs_writer, mock_tracer):
+        parsed_version = parse_version(aiplatform_module.__version__)
+        print("aiplatform version is ", parsed_version)
+        llm = vertexai.generative_models.GenerativeModel("gemini-2.5-pro")
+        llm._prediction_client.responses["generate_content"].append(
+            _mock_completion_response(MOCK_COMPLETION_REASONING)
+        )
+        llm.generate_content(
+            contents="What is the sum of the first 50 prime numbers?",
+            generation_config=vertexai.generative_models.GenerationConfig(max_output_tokens=300, temperature=1.0),
+        )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_reasoning_span_event(span))
 
     def test_completion_error(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -865,4 +887,19 @@ def expected_llmobs_tool_result_span_event(span):
                 },
             }
         ],
+    )
+
+
+def expected_llmobs_reasoning_span_event(span):
+    return _expected_llmobs_llm_span_event(
+        span,
+        model_name="gemini-2.5-pro",
+        model_provider="google",
+        input_messages=[{"content": "What is the sum of the first 50 prime numbers?"}],
+        output_messages=[
+            {"content": MOCK_COMPLETION_REASONING["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
+        ],
+        metadata={"temperature": 1.0, "max_output_tokens": 300},
+        token_metrics={"input_tokens": 20, "output_tokens": 143, "total_tokens": 163, "reasoning_output_tokens": 128},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
     )

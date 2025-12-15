@@ -2979,6 +2979,7 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "vertexai": [latest],
                 "google-ai-generativelanguage": [latest],
+                "google-cloud-aiplatform": [latest],
             },
         ),
         Venv(
