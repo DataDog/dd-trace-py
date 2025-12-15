@@ -1348,7 +1348,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_memcheck",
-            command="pytest --memray --stacks=35 --no-ddtrace {cmdargs} tests/appsec/iast_memcheck/",
+            command=(
+                "pytest --memray --stacks=35 --no-cov --no-ddtrace -p no:randomly {cmdargs} tests/appsec/iast_memcheck/"
+            ),
             pys=select_pys(),
             pkgs={
                 "requests": latest,
@@ -1356,13 +1358,15 @@ venv = Venv(
                 "cryptography": latest,
                 "pytest-memray": latest,
                 "pytest-asyncio": latest,
-                "pytest-randomly": latest,
                 "psycopg2-binary": "~=2.9.9",
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
+                "DD_IAST_MAX_CONCURRENT_REQUEST": "1000",
+                "DD_IAST_TRUNCATION_MAX_VALUE_LENGTH": "10000",
+                "DD_IAST_MAX_RANGE_COUNT": "10000",
             },
         ),
         Venv(

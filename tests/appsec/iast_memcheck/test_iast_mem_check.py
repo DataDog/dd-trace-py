@@ -22,7 +22,24 @@ FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
 LOOPS = 5
 CWD = os.path.abspath(os.getcwd())
 ALLOW_LIST = ["iast_memcheck/test_iast_mem_check.py", "fixtures/stacktrace.py"]
-DISALLOW_LIST = ["_iast/_ast/visitor", "_pytest/assertion/rewrite", "coverage/", "internal/ci_visibility/"]
+DISALLOW_LIST = [
+    "_pytest/assertion/rewrite",
+    "coverage/",
+    "internal/ci_visibility/",
+    # Python 3.14+ standard library (regex compilation, etc.)
+    "lib/python3.",
+    ".pyenv/versions/",
+    # Python internal C code (instrumentation API, objects, etc.)
+    "Python/instrumentation.c",
+    "Python/ceval.c",
+    "Python/context.c",
+    "Objects/",
+    "Include/",
+    # Python standard library modules
+    "/re/__init__.py",
+    "/re/_compiler.py",
+    "/asyncio/",
+]
 
 mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
 
