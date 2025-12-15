@@ -47,7 +47,7 @@ class TestEFD:
                 result = pytester.inline_run("--ddtrace", "-v", "-s")
 
         assert result.ret == 0
-        assert_stats(result, passed=2, dd_retry=11)
+        assert_stats(result, passed=2)
 
         # There should be events for 1 new test + 10 retries + 1 known test, 1 suite, 1 module, 1 session
         assert len(list(event_capture.events())) == 15
@@ -106,7 +106,7 @@ class TestEFD:
                 result = pytester.inline_run("--ddtrace", "-v", "-s")
 
         assert result.ret == 0
-        assert_stats(result, passed=1, dd_retry=0)
+        assert_stats(result, passed=1)
 
         # There should be events for 1 test, 1 suite, 1 module, 1 session
         assert len(list(event_capture.events())) == 4
@@ -151,7 +151,7 @@ class TestEFD:
                 result = pytester.inline_run("--ddtrace", "-v", "-s")
 
         assert result.ret == 0
-        assert_stats(result, passed=1, dd_retry=6)
+        assert_stats(result, passed=1)
 
         # There should be events for 6 tests, 1 suite, 1 module, 1 session
         assert len(list(event_capture.events())) == 9
@@ -187,7 +187,7 @@ class TestEFD:
                 result = pytester.inline_run("--ddtrace", "-v", "-s")
 
         assert result.ret == 0
-        assert_stats(result, passed=1, dd_retry=0)
+        assert_stats(result, passed=1)
 
         # There should be events for 1 test, 1 suite, 1 module, 1 session
         assert len(list(event_capture.events())) == 4
@@ -231,7 +231,7 @@ class TestEFD:
                 result = pytester.inline_run("--ddtrace", "-v", "-s")
 
         assert result.ret == 0
-        assert_stats(result, passed=100, dd_retry=0)
+        assert_stats(result, passed=100)
 
         # There should be events for 100 test, 1 suite, 1 module, 1 session
         assert len(list(event_capture.events())) == 103

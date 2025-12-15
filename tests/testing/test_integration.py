@@ -240,8 +240,8 @@ class TestFeaturesWithMocking:
         retry_messages = output.count("RETRY FAILED (Auto Test Retries)")
         assert retry_messages == 3, f"Expected 3 retry messages, got {retry_messages}"
 
-        # Should see the final summary mentioning dd_retry
-        assert "dd_retry" in output
+        # Should NOT see the final summary mentioning dd_retry
+        assert "dd_retry" not in output
 
         # The test should ultimately fail after all retries
         assert "test_always_fails FAILED" in output
@@ -296,8 +296,8 @@ class TestFeaturesWithMocking:
         )
         assert known_test_efd_retry_messages == 0, f"Expected 0 EFD retry messages, got {known_test_efd_retry_messages}"
 
-        # Should see the final summary mentioning dd_retry
-        assert "dd_retry" in output
+        # Should NOT see the final summary mentioning dd_retry
+        assert "dd_retry" not in output
 
         # The new test should ultimately fail after EFD retries
         assert "test_new_flaky FAILED" in output

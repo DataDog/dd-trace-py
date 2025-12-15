@@ -630,6 +630,8 @@ class TestOptPlugin:
         yield
 
         terminalreporter.stats["failed"] = original_failed_reports
+        if not terminalreporter.stats["failed"]:
+            del terminalreporter.stats["failed"]
 
 
 class XdistTestOptPlugin:
