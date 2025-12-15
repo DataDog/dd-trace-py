@@ -16,9 +16,15 @@ def _assert_distributed_trace(mock_tracer, llmobs_events, expected_tool_name):
 
     all_spans = [span for trace in traces for span in trace]
     client_spans = [span for span in all_spans if span.resource == "client_tool_call"]
-    server_spans = [span for span in all_spans if span.resource == "server_tool_call"]
+    server_spans = [
+        span for span in all_spans if span.name == "mcp.tools/call" and span.resource == "request_responder"
+    ]
     client_events = [event for event in llmobs_events if "MCP Client Tool Call" in event["name"]]
-    server_events = [event for event in llmobs_events if "MCP Server Tool Execute" in event["name"]]
+    server_events = [
+        event
+        for event in llmobs_events
+        if event["name"] == expected_tool_name and "mcp_tool_kind:server" in event.get("tags", [])
+    ]
 
     assert len(client_spans) >= 1 and len(server_spans) >= 1
     assert len(client_events) >= 1 and len(server_events) >= 1
@@ -47,7 +53,7 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mock_tracer, llmobs_events, m
     server_span = server_spans[0]
 
     assert client_events[0]["name"] == "MCP Client Tool Call: calculator"
-    assert server_events[0]["name"] == "MCP Server Tool Execute: calculator"
+    assert server_events[0]["name"] == "calculator"
 
     assert client_events[0] == _expected_llmobs_non_llm_span_event(
         client_span,
@@ -66,11 +72,32 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mock_tracer, llmobs_events, m
             "mcp_tool_kind": "client",
         },
     )
+    server_input_actual = json.loads(server_events[0]["meta"]["input"]["value"])
+    actual_meta = server_input_actual["params"]["meta"]
+
     assert server_events[0] == _expected_llmobs_non_llm_span_event(
         server_span,
         span_kind="tool",
-        input_value=json.dumps({"operation": "add", "a": 20, "b": 22}),
-        output_value=json.dumps([{"type": "text", "annotations": {}, "meta": {}, "text": '{\n  "result": 42\n}'}]),
+        input_value=json.dumps(
+            {
+                "method": "tools/call",
+                "params": {
+                    "meta": actual_meta,
+                    "name": "calculator",
+                    "arguments": {"operation": "add", "a": 20, "b": 22},
+                },
+                "jsonrpc": "2.0",
+                "id": 1,
+            }
+        ),
+        output_value=json.dumps(
+            {
+                "meta": None,
+                "content": [{"type": "text", "text": '{\n  "result": 42\n}', "annotations": None, "meta": None}],
+                "structuredContent": None,
+                "isError": False,
+            }
+        ),
         tags={"service": "mcptest", "ml_app": "<ml-app-name>", "mcp_tool_kind": "server"},
     )
 
@@ -126,7 +153,7 @@ def test_llmobs_client_server_tool_error(mcp_setup, mock_tracer, llmobs_events, 
     server_span = server_spans[0]
 
     assert client_events[0]["name"] == "MCP Client Tool Call: failing_tool"
-    assert server_events[0]["name"] == "MCP Server Tool Execute: failing_tool"
+    assert server_events[0]["name"] == "failing_tool"
 
     assert client_span.error
     assert server_span.error
@@ -150,14 +177,40 @@ def test_llmobs_client_server_tool_error(mcp_setup, mock_tracer, llmobs_events, 
     assert client_events[0]["status"] == "error"
     assert "error:1" in client_events[0]["tags"]
 
+    # Server event - attempting to use literal input_value (will fail with dynamic trace IDs)
+    server_input_actual = json.loads(server_events[0]["meta"]["input"]["value"])
+    actual_meta = server_input_actual["params"]["meta"]
+
     assert server_events[0] == _expected_llmobs_non_llm_span_event(
         server_span,
         span_kind="tool",
-        input_value=json.dumps({"param": "value"}),
+        input_value=json.dumps(
+            {
+                "method": "tools/call",
+                "params": {"meta": actual_meta, "name": "failing_tool", "arguments": {"param": "value"}},
+                "jsonrpc": "2.0",
+                "id": 1,
+            }
+        ),
+        output_value=json.dumps(
+            {
+                "meta": None,
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Error executing tool failing_tool: Tool execution failed",
+                        "annotations": None,
+                        "meta": None,
+                    }
+                ],
+                "structuredContent": None,
+                "isError": True,
+            }
+        ),
         tags={"service": "mcptest", "ml_app": "<ml-app-name>", "mcp_tool_kind": "server"},
-        error="mcp.server.fastmcp.exceptions.ToolError",
-        error_message="Error executing tool failing_tool: Tool execution failed",
-        error_stack=mock.ANY,
+        error="ToolError",
+        error_message="tool resulted in an error",
+        error_stack="",
     )
 
 
@@ -247,7 +300,14 @@ def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subproc
     assert len(traces) == 6
 
     client_trace = next((t for t in traces if "Client Tool Call" in t["spans"][0]["name"]), None)
-    server_trace = next((t for t in traces if "Server Tool Execute" in t["spans"][0]["name"]), None)
+    server_trace = next(
+        (
+            t
+            for t in traces
+            if t["spans"][0]["name"] == "get_weather" and "mcp_tool_kind:server" in t["spans"][0]["tags"]
+        ),
+        None,
+    )
 
     assert client_trace is not None
     assert server_trace is not None

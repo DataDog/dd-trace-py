@@ -4,6 +4,8 @@ from typing import List
 from typing import Optional
 
 from ddtrace._trace.pin import Pin
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_VALUE
@@ -21,7 +23,6 @@ log = get_logger(__name__)
 
 MCP_SPAN_TYPE = "_ml_obs.mcp_span_type"
 
-SERVER_TOOL_CALL_OPERATION_NAME = "server_tool_call"
 CLIENT_TOOL_CALL_OPERATION_NAME = "client_tool_call"
 REQUEST_RESPONDER_ENTER_OPERATION_NAME = "request_responder"
 REQUEST_RESPONDER_RESPOND_OPERATION_NAME = "request_responder_respond"
@@ -63,11 +64,14 @@ class MCPIntegration(BaseLLMIntegration):
 
     def _parse_mcp_text_content(self, item: Any) -> Dict[str, Any]:
         """Parse MCP TextContent fields, extracting only non-None values."""
+        annotations = _get_attr(item, "annotations", None)
+        annotations_dict = {}
+        if annotations and hasattr(annotations, "model_dump"):
+            annotations_dict = annotations.model_dump()  # type: ignore[union-attr]
+
         content_block = {
             "type": _get_attr(item, "type", "") or "",
-            "annotations": annotations.model_dump()
-            if (annotations := _get_attr(item, "annotations", None)) and hasattr(annotations, "model_dump")
-            else {},
+            "annotations": annotations_dict,
             "meta": _get_attr(item, "meta", {}) or {},
         }
         if content_block["type"] == "text":
@@ -84,8 +88,6 @@ class MCPIntegration(BaseLLMIntegration):
     ) -> None:
         if operation == CLIENT_TOOL_CALL_OPERATION_NAME:
             self._llmobs_set_tags_client(span, args, kwargs, response)
-        elif operation == SERVER_TOOL_CALL_OPERATION_NAME:
-            self._llmobs_set_tags_server(span, args, kwargs, response)
         elif operation == "initialize":
             self._llmobs_set_tags_initialize(span, args, kwargs, response)
         elif operation == REQUEST_RESPONDER_RESPOND_OPERATION_NAME:
@@ -126,37 +128,14 @@ class MCPIntegration(BaseLLMIntegration):
         # Tool response is `mcp.types.CallToolResult` type
         content = _get_attr(response, "content", [])
         is_error = _get_attr(response, "isError", False)
-        processed_content = [
-            self._parse_mcp_text_content(item) for item in content if _get_attr(item, "type", None) == "text"
-        ]
+        processed_content = []
+        if content and hasattr(content, "__iter__"):
+            processed_content = [
+                self._parse_mcp_text_content(item)
+                for item in content
+                if _get_attr(item, "type", None) == "text"  # type: ignore[union-attr]
+            ]
         output_value = {"content": processed_content, "isError": is_error}
-        span._set_ctx_item(OUTPUT_VALUE, output_value)
-
-    def _llmobs_set_tags_server(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
-        tool_arguments = get_argument_value(args, kwargs, 1, "arguments", optional=True) or {}
-        tool_name = args[0] if len(args) > 0 else "unknown_tool"
-        span_name = "MCP Server Tool Execute: {}".format(tool_name)
-
-        span._set_ctx_items(
-            {
-                SPAN_KIND: "tool",
-                NAME: span_name,
-                INPUT_VALUE: tool_arguments,
-            }
-        )
-
-        _set_or_update_tags(span, {"mcp_tool_kind": "server"})
-
-        if span.error or response is None:
-            return
-
-        # As of mcp 1.10.0, the response object is list of `mcp.types.TextContent` objects since `run_tool` is called
-        # with convert_result=True. Before this, the response was the raw tool result.
-        if isinstance(response, list) and len(response) > 0 and _get_attr(response[0], "type", None) == "text":
-            output_value = [self._parse_mcp_text_content(item) for item in response]
-        else:
-            output_value = safe_json(response)
-
         span._set_ctx_item(OUTPUT_VALUE, output_value)
 
     def _llmobs_set_tags_initialize(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
@@ -188,16 +167,27 @@ class MCPIntegration(BaseLLMIntegration):
     ) -> None:
         try:
             from mcp.server.streamable_http import MCP_SESSION_ID_HEADER
+            from mcp.types import CallToolRequest
+            from mcp.types import CallToolResult
             from mcp.types import InitializeRequest
         except ImportError:
             InitializeRequest = None
             MCP_SESSION_ID_HEADER = None
+            CallToolRequest = None
+            CallToolResult = None
 
         responder = get_argument_value(args, kwargs, 0, "request_responder", optional=True)
-        response = get_argument_value(args, kwargs, 0, "response", optional=True)
+        response_value = get_argument_value(args, kwargs, 0, "response", optional=True)
 
         request = getattr(responder, "request", None)
         request_root = getattr(request, "root", None)
+
+        response_root = getattr(response_value, "root", response_value)
+
+        request_method = _get_attr(request_root, "method", "unknown")
+        span_kind = "task"
+        span_name = "mcp.{}".format(request_method)
+        custom_tags = {}
 
         if request_root is not None:
             if InitializeRequest and request_root and isinstance(request_root, InitializeRequest):
@@ -213,8 +203,17 @@ class MCPIntegration(BaseLLMIntegration):
                             "client_version": f"{client_name}_{client_version}",
                         },
                     )
+        if CallToolRequest and request_root and isinstance(request_root, CallToolRequest):
+            custom_tags["mcp_tool_kind"] = "server"
+            params = _get_attr(request_root, "params", None)
+            if params:
+                span_name = _get_attr(params, "name", "unknown_tool")
+            span_kind = "tool"
 
-        request_method = _get_attr(request_root, "method", "unknown")
+        if CallToolResult and isinstance(response_root, CallToolResult) and response_root.isError:
+            span.error = 1
+            span.set_tag(ERROR_TYPE, "ToolError")
+            span.set_tag(ERROR_MSG, "tool resulted in an error")
 
         # This only exists for existing sessions using the streamable HTTP transport
         message_metadata = _get_attr(responder, "message_metadata", None)
@@ -226,16 +225,14 @@ class MCPIntegration(BaseLLMIntegration):
         )
 
         if maybe_session_id:
-            _set_or_update_tags(span, {"mcp_session_id": str(maybe_session_id)})
+            custom_tags["mcp_session_id"] = str(maybe_session_id)
+
 
         span._set_ctx_items(
-            {
-                NAME: "mcp.{}".format(request_method),
-                SPAN_KIND: "task",
-                INPUT_VALUE: safe_json(request),
-                OUTPUT_VALUE: safe_json(response),
-            }
+            {NAME: span_name, SPAN_KIND: span_kind, INPUT_VALUE: safe_json(request_root), OUTPUT_VALUE: safe_json(response_root)}
         )
+        if custom_tags:
+            _set_or_update_tags(span, custom_tags)
 
     def _llmobs_set_tags_list_tools(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         cursor = get_argument_value(args, kwargs, 0, "cursor", optional=True)
