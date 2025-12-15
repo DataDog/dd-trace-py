@@ -184,30 +184,29 @@ class MCPIntegration(BaseLLMIntegration):
 
         response_root = getattr(response_value, "root", response_value)
 
-        request_method = _get_attr(request_root, "method", "unknown")
+        request_method = str(_get_attr(request_root, "method", "unknown"))
         span_kind = "task"
         span_name = "mcp.{}".format(request_method)
-        custom_tags = {}
+        custom_tags = {
+            "mcp_method": request_method,
+        }
 
-        if request_root is not None:
-            if InitializeRequest and request_root and isinstance(request_root, InitializeRequest):
-                request_params = _get_attr(request_root, "params", None)
-                client_info = _get_attr(request_params, "clientInfo", None)
-                client_name = _get_attr(client_info, "name", None)
-                client_version = _get_attr(client_info, "version", None)
-                if client_name and client_version:
-                    _set_or_update_tags(
-                        span,
-                        {
-                            "client_name": str(client_name),
-                            "client_version": f"{client_name}_{client_version}",
-                        },
-                    )
+        if InitializeRequest and request_root and isinstance(request_root, InitializeRequest):
+            request_params = _get_attr(request_root, "params", None)
+            client_info = _get_attr(request_params, "clientInfo", None)
+            client_name = _get_attr(client_info, "name", None)
+            client_version = _get_attr(client_info, "version", None)
+            if isinstance(client_name, str) and isinstance(client_version, str):
+                custom_tags["client_name"] = client_name
+                custom_tags["client_version"] = f"{client_name}_{client_version}"
+
         if CallToolRequest and request_root and isinstance(request_root, CallToolRequest):
-            custom_tags["mcp_tool_kind"] = "server"
             params = _get_attr(request_root, "params", None)
             if params:
-                span_name = _get_attr(params, "name", "unknown_tool")
+                tool_name = str(_get_attr(params, "name", "unknown_tool"))
+                custom_tags["mcp_tool"] = tool_name
+                custom_tags["mcp_tool_kind"] = "server"
+                span_name = tool_name
             span_kind = "tool"
 
         if CallToolResult and isinstance(response_root, CallToolResult) and response_root.isError:
