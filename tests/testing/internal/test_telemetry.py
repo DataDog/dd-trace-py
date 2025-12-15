@@ -390,12 +390,12 @@ class TestTelemetry:
             is_disabled=True,
             is_attempt_to_fix=True,
         )
+        test.set_early_flake_detection_abort_reason("slow")
         _initial_test_run = test.make_test_run()
         retry_test_run = test.make_test_run()
         retry_test_run.is_benchmark = lambda: True
         retry_test_run.tags[TestTag.IS_RUM_ACTIVE] = "true"
         retry_test_run.tags[TestTag.BROWSER_DRIVER] = "selenium"
-        retry_test_run.tags[TestTag.EFD_ABORT_REASON] = "slow"
         retry_test_run.tags[TestTag.HAS_FAILED_ALL_RETRIES] = "true"
 
         telemetry_api.record_test_finished(
