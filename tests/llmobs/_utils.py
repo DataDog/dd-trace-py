@@ -75,7 +75,8 @@ def _expected_llmobs_llm_span_event(
     span,
     span_kind="llm",
     prompt=None,
-    prompt_tracking_auto=None,
+    prompt_tracking_source=None,
+    prompt_multimodal=None,
     input_messages=None,
     input_documents=None,
     output_messages=None,
@@ -118,7 +119,8 @@ def _expected_llmobs_llm_span_event(
         error_message,
         error_stack,
         span_links,
-        prompt_tracking_auto,
+        prompt_tracking_source,
+        prompt_multimodal,
     )
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "llm":
@@ -180,7 +182,8 @@ def _expected_llmobs_non_llm_span_event(
     error_message=None,
     error_stack=None,
     span_links=False,
-    prompt_tracking_auto=None,
+    prompt_tracking_source=None,
+    prompt_multimodal=None,
 ):
     """
     Helper function to create an expected span event of type (workflow, task, tool, retrieval).
@@ -205,7 +208,8 @@ def _expected_llmobs_non_llm_span_event(
         error_message,
         error_stack,
         span_links,
-        prompt_tracking_auto,
+        prompt_tracking_source,
+        prompt_multimodal,
     )
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "retrieval":
@@ -239,8 +243,14 @@ def _llmobs_base_span_event(
     error_message=None,
     error_stack=None,
     span_links=False,
-    prompt_tracking_auto=None,
+    prompt_tracking_source=None,
+    prompt_multimodal=None,
 ):
+    expected_tags = _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id)
+    if prompt_tracking_source:
+        expected_tags.append(f"prompt_tracking_source:{prompt_tracking_source}")
+    if prompt_multimodal:
+        expected_tags.append(f"prompt_multimodal:{prompt_multimodal}")
     span_event = {
         "trace_id": mock.ANY,
         "span_id": str(span.span_id),
@@ -251,15 +261,13 @@ def _llmobs_base_span_event(
         "status": "error" if error else "ok",
         "meta": _Meta(span=_SpanField(kind=span_kind)),
         "metrics": {},
-        "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
+        "tags": expected_tags,
         "_dd": {
             "span_id": str(span.span_id),
             "trace_id": format_trace_id(span.trace_id),
             "apm_trace_id": format_trace_id(span.trace_id),
         },
     }
-    if prompt_tracking_auto:
-        span_event["_dd"]["prompt_tracking_auto"] = 1
     if session_id:
         span_event["session_id"] = session_id
     if error:

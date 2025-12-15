@@ -208,7 +208,7 @@ def test_llmobs_string_prompt_template_invoke(langchain_core, langchain_openai, 
 
     llmobs_events.sort(key=lambda span: span["start_ns"])
     assert len(llmobs_events) == 2
-    assert llmobs_events[1]["_dd"]["prompt_tracking_auto"] == 1
+    assert "prompt_tracking_source:auto" in llmobs_events[1]["tags"]
     actual_prompt = llmobs_events[1]["meta"]["input"]["prompt"]
     assert actual_prompt["id"] == "test_langchain_llmobs.prompt_template"
     assert actual_prompt["template"] == template_string
@@ -239,7 +239,7 @@ def test_llmobs_string_prompt_template_direct_invoke(
     assert len(llmobs_events) == 1  # Only LLM span, prompt template invoke doesn't create LLMObs event by itself
 
     # The prompt should be attached to the LLM span
-    assert llmobs_events[0]["_dd"]["prompt_tracking_auto"] == 1
+    assert "prompt_tracking_source:auto" in llmobs_events[0]["tags"]
     actual_prompt = llmobs_events[0]["meta"]["input"]["prompt"]
     assert actual_prompt["id"] == "test_langchain_llmobs.greeting_template"
     assert actual_prompt["template"] == template_string

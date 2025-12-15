@@ -29,7 +29,7 @@ from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
-from ddtrace.llmobs._constants import PROMPT_TRACKING_AUTO
+from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
@@ -881,6 +881,17 @@ def _extract_chat_template_from_instructions(
     return chat_template
 
 
+def _has_multimodal_inputs(variables: Dict[str, Any]) -> bool:
+    """Check if prompt variables contain multimodal inputs (image/file)."""
+    if not variables or not isinstance(variables, dict):
+        return False
+    for value in variables.values():
+        item_type = _get_attr(value, "type", None)
+        if item_type in (INPUT_TYPE_IMAGE, INPUT_TYPE_FILE):
+            return True
+    return False
+
+
 def openai_set_meta_tags_from_response(
     span: Span, kwargs: Dict[str, Any], response: Optional[Any], integration: Any = None
 ) -> None:
@@ -909,12 +920,13 @@ def openai_set_meta_tags_from_response(
     if prompt_data:
         try:
             prompt_data = dict(prompt_data)  # Make a copy to avoid modifying the original
+            variables = prompt_data.get("variables", {})
+            has_multimodal = _has_multimodal_inputs(variables)
 
             # Extract chat_template from response instructions if not already provided
             if response and not prompt_data.get("chat_template") and not prompt_data.get("template"):
                 instructions = _get_attr(response, "instructions", None)
                 if instructions:
-                    variables = prompt_data.get("variables", {})
                     normalized_variables = _normalize_prompt_variables(variables)
                     chat_template = _extract_chat_template_from_instructions(instructions, normalized_variables)
                     if chat_template:
@@ -923,7 +935,15 @@ def openai_set_meta_tags_from_response(
 
             validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
             span._set_ctx_item(INPUT_PROMPT, validated_prompt)
-            span._set_ctx_item(PROMPT_TRACKING_AUTO, 1)
+
+            tags = {"prompt_tracking_source": "auto"}
+            if has_multimodal:
+                tags["prompt_multimodal"] = "true"
+            existing_tags = span._get_ctx_item(TAGS)
+            if existing_tags:
+                existing_tags.update(tags)
+            else:
+                span._set_ctx_item(TAGS, tags)
         except (TypeError, ValueError, AttributeError) as e:
             logger.debug("Failed to validate prompt for OpenAI response: %s", e)
 

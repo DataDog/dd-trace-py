@@ -20,8 +20,6 @@ INPUT_VALUE = "_ml_obs.meta.input.value"
 INPUT_PROMPT = "_ml_obs.meta.input.prompt"
 TOOL_DEFINITIONS = "_ml_obs.meta.tool_definitions"
 
-PROMPT_TRACKING_AUTO = "_ml_obs._dd.prompt_tracking_auto"
-
 OUTPUT_DOCUMENTS = "_ml_obs.meta.output.documents"
 OUTPUT_MESSAGES = "_ml_obs.meta.output.messages"
 OUTPUT_VALUE = "_ml_obs.meta.output.value"

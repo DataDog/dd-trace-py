@@ -30,10 +30,10 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
-from ddtrace.llmobs._constants import PROMPT_TRACKING_AUTO
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
+from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import LANGCHAIN_ROLE_MAPPING
@@ -958,6 +958,11 @@ class LangChainIntegration(BaseLLMIntegration):
             try:
                 prompt = _validate_prompt(prompt, strict_validation=True)
                 span._set_ctx_item(INPUT_PROMPT, prompt)
-                span._set_ctx_item(PROMPT_TRACKING_AUTO, 1)
+                tags = {"prompt_tracking_source": "auto"}
+                existing_tags = span._get_ctx_item(TAGS)
+                if existing_tags:
+                    existing_tags.update(tags)
+                else:
+                    span._set_ctx_item(TAGS, tags)
             except Exception as e:
                 log.debug("Failed to validate langchain prompt", e)

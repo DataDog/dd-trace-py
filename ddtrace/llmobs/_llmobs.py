@@ -81,7 +81,6 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PARENT_ID_KEY
-from ddtrace.llmobs._constants import PROMPT_TRACKING_AUTO
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
@@ -311,8 +310,6 @@ class LLMObs(Service):
             "trace_id": format_trace_id(span.trace_id),
             "apm_trace_id": format_trace_id(span.trace_id),
         }
-        if span._get_ctx_item(PROMPT_TRACKING_AUTO):
-            _dd_attrs["prompt_tracking_auto"] = "1"
 
         meta = _Meta(span=_SpanField(kind=span_kind), input=_MetaIO(), output=_MetaIO())
         if span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
