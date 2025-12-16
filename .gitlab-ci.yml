@@ -138,7 +138,7 @@ serverless lambda tests:
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
     UPSTREAM_GITLAB_USER_LOGIN: $GITLAB_USER_LOGIN
     UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL
-    SKIP_E2E_TESTS: true
+    SKIP_E2E_TESTS: "true"
 
 # Validate the ast-grep rule's test suite in .sg/tests
 "ast-grep rules":
