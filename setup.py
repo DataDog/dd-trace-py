@@ -3,6 +3,7 @@ import hashlib
 from itertools import chain
 import os
 import platform
+import random
 import re
 import shutil
 import subprocess
@@ -41,7 +42,9 @@ except ImportError:
         "https://ddtrace.readthedocs.io/en/stable/installation_quickstart.html"
     )
 
+from functools import wraps
 from urllib.error import HTTPError
+from urllib.error import URLError
 from urllib.request import urlretrieve
 
 
@@ -84,13 +87,18 @@ if FAST_BUILD:
 
 SCCACHE_COMPILE = os.getenv("DD_USE_SCCACHE", "0").lower() in ("1", "yes", "on", "true")
 
+# Retry configuration for downloads (handles GitHub API failures like 503, 429)
+DOWNLOAD_MAX_RETRIES = int(os.getenv("DD_DOWNLOAD_MAX_RETRIES", "10"))
+DOWNLOAD_INITIAL_DELAY = float(os.getenv("DD_DOWNLOAD_INITIAL_DELAY", "1.0"))
+DOWNLOAD_MAX_DELAY = float(os.getenv("DD_DOWNLOAD_MAX_DELAY", "120"))
+
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 IS_EDITABLE = False  # Set to True if the package is being installed in editable mode
 
 LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
-STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
+STACK_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack"
 NATIVE_CRATE = HERE / "src" / "native"
 CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
 
@@ -137,6 +145,71 @@ def interpose_sccache():
         if cxx_path:
             os.environ["DD_CXX_OLD"] = cxx_path
             os.environ["CXX"] = str(sccache_path) + " " + str(cxx_path)
+
+
+def retry_download(
+    max_attempts=DOWNLOAD_MAX_RETRIES,
+    initial_delay=DOWNLOAD_INITIAL_DELAY,
+    max_delay=DOWNLOAD_MAX_DELAY,
+    backoff_factor=1.618,
+):
+    """
+    Decorator to retry downloads with exponential backoff.
+    Handles HTTP 503, 429, network errors from GitHub API, and cargo install failures.
+    Retriable errors: HTTP 429 (rate limit), 502, 503, 504, network timeouts, and subprocess errors.
+    """
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_attempts):
+                try:
+                    return func(*args, **kwargs)
+                except (HTTPError, URLError, TimeoutError, OSError, subprocess.CalledProcessError) as e:
+                    # Check if it's a retriable error
+                    is_retriable = False
+                    if isinstance(e, HTTPError):
+                        # Retry on 429 (rate limit), 502/503/504 (server errors)
+                        is_retriable = e.code in (429, 502, 503, 504)
+                        error_code = f"HTTP {e.code}"
+                    elif isinstance(e, (URLError, TimeoutError)):
+                        # Retry on network errors and timeouts
+                        is_retriable = True
+                        error_code = type(e).__name__
+                    elif isinstance(e, OSError):
+                        # Retry on connection errors
+                        is_retriable = True
+                        error_code = type(e).__name__
+                    elif isinstance(e, subprocess.CalledProcessError):
+                        # Retry on subprocess errors (e.g., cargo install network failures)
+                        # These often indicate temporary network issues
+                        is_retriable = True
+                        error_code = f"subprocess exit code {e.returncode}"
+                    else:
+                        error_code = type(e).__name__
+
+                    if not is_retriable:
+                        print(f"ERROR: Operation failed (non-retriable {error_code}): {e}")
+                        raise
+
+                    if attempt == max_attempts - 1:
+                        print(f"ERROR: Operation failed after {max_attempts} attempts (last error: {error_code})")
+                        raise
+
+                    # Calculate delay with jitter
+                    delay = min(initial_delay * (backoff_factor**attempt), max_delay)
+                    jitter = random.uniform(0, delay * 0.1)
+                    total_delay = delay + jitter
+
+                    print(f"WARNING: Operation failed (attempt {attempt + 1}/{max_attempts}): {error_code} - {e}")
+                    print(f"  Retrying in {total_delay:.1f} seconds...")
+                    time.sleep(total_delay)
+
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 def verify_checksum_from_file(sha256_filename, filename):
@@ -196,8 +269,7 @@ def is_64_bit_python():
 rust_features = []
 if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
     rust_features.append("crashtracker")
-    if sys.version_info[:2] < (3, 14):
-        rust_features.append("profiling")
+    rust_features.append("profiling")
 
 
 class PatchedDistribution(Distribution):
@@ -296,18 +368,24 @@ class CustomBuildRust(build_rust):
     def install_dedup_headers(self):
         """Install dedup_headers if not already installed."""
         if not self.is_installed("dedup_headers"):
-            subprocess.run(
-                [
-                    "cargo",
-                    "install",
-                    "--git",
-                    "https://github.com/DataDog/libdatadog",
-                    "--bin",
-                    "dedup_headers",
-                    "tools",
-                ],
-                check=True,
-            )
+            # Create retry-wrapped cargo install function
+            @retry_download(max_attempts=DOWNLOAD_MAX_RETRIES, initial_delay=2.0)
+            def cargo_install_with_retry():
+                """Run cargo install with retry on network failures."""
+                subprocess.run(
+                    [
+                        "cargo",
+                        "install",
+                        "--git",
+                        "https://github.com/DataDog/libdatadog",
+                        "--bin",
+                        "dedup_headers",
+                        "tools",
+                    ],
+                    check=True,
+                )
+
+            cargo_install_with_retry()
 
     def run(self):
         """Run the build process with additional post-processing."""
@@ -409,16 +487,20 @@ class LibraryDownload:
             if not (cls.USE_CACHE and download_dest.exists()):
                 print(f"Downloading {archive_name} to {download_dest}")
                 start_ns = time.time_ns()
-                try:
-                    filename, _ = urlretrieve(download_address, str(download_dest))
-                except HTTPError as e:
-                    print("No archive found for dynamic library {}: {}".format(cls.name, archive_dir))
-                    raise e
+
+                # Create retry-wrapped download function
+                @retry_download()
+                def download_file(url, dest):
+                    """Download file with automatic retry on transient errors."""
+                    return urlretrieve(url, str(dest))
+
+                filename, _ = download_file(download_address, download_dest)
 
                 # Verify checksum of downloaded file
                 if cls.expected_checksums is None:
                     sha256_address = download_address + ".sha256"
-                    sha256_filename, _ = urlretrieve(sha256_address, str(download_dest) + ".sha256")
+                    sha256_dest = str(download_dest) + ".sha256"
+                    sha256_filename, _ = download_file(sha256_address, sha256_dest)
                     verify_checksum_from_file(sha256_filename, str(download_dest))
                 else:
                     expected_checksum = cls.expected_checksums[CURRENT_OS][arch]
@@ -535,7 +617,7 @@ class CustomBuildExt(build_ext):
         self.build_rust()
 
         # Build libdd_wrapper before building other extensions that depend on it
-        if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 14):
+        if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
             self.build_libdd_wrapper()
 
         super().run()
@@ -581,8 +663,15 @@ class CustomBuildExt(build_ext):
                 if src_file.exists():
                     newest_source_time = max(newest_source_time, src_file.stat().st_mtime)
 
-            # Only rebuild if source files are newer than the destination
-            should_build = newest_source_time > library_mtime
+            required_headers = ["common.h"]
+            if "profiling" in rust_features:
+                required_headers.append("profiling.h")
+
+            include_dir = CARGO_TARGET_DIR / "include" / "datadog"
+            headers_exist = include_dir.exists() and all((include_dir / header).exists() for header in required_headers)
+
+            # Only rebuild if source files are newer than the destination OR if any required header is missing
+            should_build = newest_source_time > library_mtime or not headers_exist
 
         if should_build:
             # Create and run the CustomBuildRust command
@@ -718,6 +807,7 @@ class CustomBuildExt(build_ext):
             f"-DEXTENSION_NAME={extension_name}",
             f"-DEXTENSION_SUFFIX={self.suffix}",
             f"-DNATIVE_EXTENSION_LOCATION={self.output_dir}",
+            f"-DRUST_GENERATED_HEADERS_DIR={CARGO_TARGET_DIR / 'include'}",
         ]
 
         # Add sccache support if available
@@ -1074,40 +1164,39 @@ if not IS_PYSTON:
         )
 
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
-        if sys.version_info < (3, 14):
-            # Memory profiler now uses CMake to support Abseil dependency
-            MEMALLOC_DIR = HERE / "ddtrace" / "profiling" / "collector"
-            ext_modules.append(
-                CMakeExtension(
-                    "ddtrace.profiling.collector._memalloc",
-                    source_dir=MEMALLOC_DIR,
-                    optional=False,
-                )
+        # Memory profiler now uses CMake to support Abseil dependency
+        MEMALLOC_DIR = HERE / "ddtrace" / "profiling" / "collector"
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.profiling.collector._memalloc",
+                source_dir=MEMALLOC_DIR,
+                optional=False,
             )
+        )
 
-            ext_modules.append(
-                CMakeExtension(
-                    "ddtrace.internal.datadog.profiling.ddup._ddup",
-                    source_dir=DDUP_DIR,
-                    extra_source_dirs=[
-                        DDUP_DIR / ".." / "cmake",
-                        DDUP_DIR / ".." / "dd_wrapper",
-                    ],
-                    optional=False,
-                )
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.ddup._ddup",
+                source_dir=DDUP_DIR,
+                extra_source_dirs=[
+                    DDUP_DIR / ".." / "cmake",
+                    DDUP_DIR / ".." / "dd_wrapper",
+                ],
+                optional=False,
             )
+        )
 
-            ext_modules.append(
-                CMakeExtension(
-                    "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
-                    source_dir=STACK_V2_DIR,
-                    extra_source_dirs=[
-                        STACK_V2_DIR / ".." / "cmake",
-                        STACK_V2_DIR / ".." / "dd_wrapper",
-                    ],
-                    optional=False,
-                ),
-            )
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.stack._stack",
+                source_dir=STACK_DIR,
+                extra_source_dirs=[
+                    STACK_DIR / ".." / "cmake",
+                    STACK_DIR / ".." / "dd_wrapper",
+                ],
+                optional=False,
+            ),
+        )
 
 
 else:

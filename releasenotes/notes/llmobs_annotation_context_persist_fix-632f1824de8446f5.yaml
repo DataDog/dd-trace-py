@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where ``LLMObs.annotation_context()`` properties (tags, prompt, 
+    and name) were not applied to subsequent LLM operations within the same context block. This occurred when 
+    multiple sequential operations (such as Langchain batch calls with structured outputs) were performed, 
+    causing only the first operation to receive the annotations.

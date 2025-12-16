@@ -1399,6 +1399,44 @@ def test_annotation_context_separate_traces_maintained(llmobs, llmobs_events):
     assert agent_span["parent_id"] == "undefined"
 
 
+def test_annotation_context_persists_across_multiple_root_span_operations(llmobs):
+    """
+    Regression test: verifies that annotation context tags persist across multiple
+    sequential root span operations. This simulates scenarios like multiple batch()
+    calls with structured outputs in Langchain, where each batch creates a root span
+    that finishes before the next batch starts.
+
+    The bug occurred because the trace context wasn't being reactivated after a root
+    span finished, causing subsequent operations to lose the annotation context's baggage.
+    """
+    with llmobs.annotation_context(tags={"test_tag": "should_persist"}):
+        # First operation - creates and finishes a root span
+        with llmobs.workflow(name="first_batch") as span1:
+            assert span1._get_ctx_item(TAGS) == {"test_tag": "should_persist"}
+
+        # Second operation - should still have annotation context applied
+        with llmobs.workflow(name="second_batch") as span2:
+            assert span2._get_ctx_item(TAGS) == {"test_tag": "should_persist"}
+
+        # Third operation - verify it continues to work
+        with llmobs.agent(name="third_operation") as span3:
+            assert span3._get_ctx_item(TAGS) == {"test_tag": "should_persist"}
+
+
+def test_annotation_context_not_reactivated_after_exit(llmobs):
+    """
+    Verifies that once an annotation context exits, the context we created is not
+    reactivated even after subsequent span operations within a new context.
+    """
+    with llmobs.annotation_context(tags={"inside": "context"}):
+        with llmobs.workflow(name="inside_span") as span1:
+            assert span1._get_ctx_item(TAGS) == {"inside": "context"}
+
+    # After exiting annotation_context, tags should not be applied
+    with llmobs.workflow(name="outside_span") as span2:
+        assert span2._get_ctx_item(TAGS) is None
+
+
 def test_annotation_context_only_applies_to_local_context(llmobs):
     """
     tests that annotation contexts only apply to spans belonging to the same
@@ -1530,6 +1568,11 @@ def test_service_enable_does_not_start_evaluator_runner():
         assert llmobs_service._instance._llmobs_span_writer.status.value == "running"
         assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
         llmobs_service.disable()
+
+
+def test_export_span_when_llmobs_is_disabled_returns_none(llmobs):
+    llmobs.disable()
+    assert llmobs.export_span() is None
 
 
 def test_submit_evaluation_no_ml_app_raises(llmobs):

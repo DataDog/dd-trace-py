@@ -115,6 +115,31 @@ class TestFeaturesWithMocking:
         assert result.ret == 0
         result.assert_outcomes(passed=1)
 
+    def test_simple_plugin_disabled_by_kill_switch(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """Test that plugin does not run when DD_CIVISIBILITY_ENABLED is false."""
+        # Create a simple test file
+        pytester.makepyfile(
+            """
+            def test_simple():
+                '''A simple test.'''
+                assert True
+        """
+        )
+
+        monkeypatch.setenv("DD_CIVISIBILITY_ENABLED", "false")
+
+        # Use network mocks to prevent all real HTTP calls
+        with network_mocks(), patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client:
+            mock_api_client.return_value = mock_api_client_settings()
+
+            result = pytester.runpytest("--ddtrace", "-v")
+
+        assert mock_api_client.call_count == 0
+
+        # Test should pass
+        assert result.ret == 0
+        result.assert_outcomes(passed=1)
+
     def test_retry_functionality_with_pytester(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
         """Test that failing tests are retried when auto retry is enabled."""
         # Create a test file with a failing test
@@ -204,7 +229,7 @@ class TestFeaturesWithMocking:
 
         # Verify that EFD retries happened - should see "RETRY FAILED (Early Flake Detection)" messages
         flaky_efd_retry_messages = output.count("test_efd.py::test_new_flaky RETRY FAILED (Early Flake Detection)")
-        assert flaky_efd_retry_messages == 4, f"Expected 4 EFD retry messages, got {flaky_efd_retry_messages}"
+        assert flaky_efd_retry_messages == 11, f"Expected 11 EFD retry messages, got {flaky_efd_retry_messages}"
 
         known_test_efd_retry_messages = output.count(
             "test_efd.py::test_known_test RETRY FAILED (Early Flake Detection)"
@@ -404,6 +429,40 @@ class TestPytestPluginIntegration:
         # Tests should pass
         assert result.ret == 0
         result.assert_outcomes(passed=2)
+
+
+class TestIASTTerminalSummary:
+    def test_ddtrace_iast_terminal_summary_enabled(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """Test that IAST terminal summary is present when IAST is enabled."""
+        pytester.makepyfile(
+            test_iast="""
+            def test_ok():
+                assert True
+        """
+        )
+
+        monkeypatch.setenv("DD_IAST_ENABLED", "true")
+        monkeypatch.setenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "true")
+        result = pytester.runpytest_subprocess("--ddtrace", "-v", "-s")
+
+        output = result.stdout.str()
+        assert "Datadog Code Security Report" in output
+
+    def test_ddtrace_iast_terminal_summary_disabled(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """Test that IAST terminal summary is NOT present when IAST is disabled."""
+        pytester.makepyfile(
+            test_iast="""
+            def test_ok():
+                assert True
+        """
+        )
+
+        monkeypatch.setenv("DD_IAST_ENABLED", "false")
+        monkeypatch.setenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "true")
+        result = pytester.runpytest_subprocess("--ddtrace", "-v", "-s")
+
+        output = result.stdout.str()
+        assert "Datadog Code Security Report" not in output
 
 
 class TestRetryHandler:

@@ -73,6 +73,12 @@ ddup_set_runtime_id(std::string_view runtime_id) // cppcheck-suppress unusedFunc
 }
 
 void
+ddup_set_process_id() // cppcheck-suppress unusedFunction
+{
+    Datadog::UploaderBuilder::set_process_id();
+}
+
+void
 ddup_config_runtime_version(std::string_view runtime_version) // cppcheck-suppress unusedFunction
 {
     Datadog::UploaderBuilder::set_runtime_version(runtime_version);
@@ -304,29 +310,9 @@ ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns) // cppchec
 }
 
 void
-ddup_increment_sampling_event_count() // cppcheck-suppress unusedFunction
-{
-    auto borrowed = Datadog::Sample::profile_borrow();
-    borrowed.stats().increment_sampling_event_count();
-}
-
-void
-ddup_increment_sample_count() // cppcheck-suppress unusedFunction
-{
-    auto borrowed = Datadog::Sample::profile_borrow();
-    borrowed.stats().increment_sample_count();
-}
-
-void
 ddup_flush_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
 {
     sample->flush_sample();
-}
-
-void
-ddup_flush_sample_v2(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
-{
-    sample->flush_sample(/*reverse_locations*/ true);
 }
 
 void
