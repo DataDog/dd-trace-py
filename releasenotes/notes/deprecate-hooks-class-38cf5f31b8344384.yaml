@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    tracing: The ``Hooks`` class (``config.<integration>.hooks``) is deprecated and will be removed in v5.0. All hook methods (``register()``, ``on()``, ``deregister()``, ``emit()``) are now no-op and no longer affect span behavior. To interact with spans, use ``ddtrace.trace_utils.get_current_span()`` or ``ddtrace.trace_utils.get_current_root_span()`` instead.
