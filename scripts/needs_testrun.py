@@ -159,18 +159,6 @@ def needs_testrun(suite: str, pr_number: int, sha: t.Optional[str] = None) -> bo
     """
     if "itr:noskip" in get_latest_commit_message().lower():
         return True
-
-    # Custom GitLab env variables
-    # Always run all tests under these conditions
-    if os.getenv("IS_MERGE_QUEUE", "false") == "true":
-        return True
-    if os.getenv("IS_MAIN_BRANCH", "false") == "true":
-        return True
-    if os.getenv("IS_RELEASE_BRANCH", "false") == "true":
-        return True
-    if os.getenv("IS_RELEASE", "false") == "true":
-        return True
-
     try:
         patterns = get_patterns(suite)
     except Exception as exc:
@@ -220,11 +208,6 @@ def _get_pr_number() -> int:
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
     if pr_url is not None:
         return int(pr_url.split("/")[-1])
-
-    # Custom environment variable
-    number = os.environ.get("GH_PR_NUMBER")
-    if number is not None:
-        return int(number)
 
     # GitLab
     ref_name = os.environ.get("CI_COMMIT_REF_NAME")
