@@ -28,6 +28,7 @@ Feature: Simple feature
 
 
 class TestPytestBdd:
+    @pytest.mark.xfail(raises=ConnectionRefusedError, reason="test agent is down")
     def test_and_emit_get_version(self) -> None:
         plugin = BddTestOptPlugin(Mock())
         version = plugin._get_framework_version()
@@ -96,7 +97,7 @@ class TestPytestBdd:
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
-                pytester.inline_run("-p", "no:randomly", "--ddtrace", "--ddtrace-patch-all", file_name)
+                pytester.inline_run("-p", "no:randomly", "--ddtrace", file_name)
 
         events = list(event_capture.events())
 
@@ -147,7 +148,7 @@ class TestPytestBdd:
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
-                pytester.inline_run("-p", "no:randomly", "--ddtrace", "--ddtrace-patch-all", file_name)
+                pytester.inline_run("-p", "no:randomly", "--ddtrace", file_name)
 
         events = list(event_capture.events())
 
@@ -203,7 +204,7 @@ class TestPytestBdd:
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
-                pytester.inline_run("-p", "no:randomly", "--ddtrace", "--ddtrace-patch-all", file_name)
+                pytester.inline_run("-p", "no:randomly", "--ddtrace", file_name)
 
         events = list(event_capture.events())
 
@@ -235,7 +236,7 @@ class TestPytestBdd:
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
-                pytester.inline_run("-p", "no:randomly", "--ddtrace", "--ddtrace-patch-all", file_name)
+                pytester.inline_run("-p", "no:randomly", "--ddtrace", file_name)
 
         events = list(event_capture.events())
 
