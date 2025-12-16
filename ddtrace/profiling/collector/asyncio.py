@@ -1,6 +1,5 @@
-from __future__ import annotations
-
 import asyncio
+import asyncio.locks
 
 from . import _lock
 
@@ -27,14 +26,16 @@ class AsyncioLockCollector(_lock.LockCollector):
     PROFILED_LOCK_CLASS = _ProfiledAsyncioLock
     MODULE = asyncio
     PATCHED_LOCK_NAME = "Lock"
+    # Detect internal locks created by asyncio.Condition
+    INTERNAL_MODULE_FILE = asyncio.locks.__file__
 
 
 class AsyncioSemaphoreCollector(_lock.LockCollector):
     """Record asyncio.Semaphore usage."""
 
-    PROFILED_LOCK_CLASS: Type[_ProfiledAsyncioSemaphore] = _ProfiledAsyncioSemaphore
-    MODULE: ModuleType = asyncio
-    PATCHED_LOCK_NAME: str = "Semaphore"
+    PROFILED_LOCK_CLASS = _ProfiledAsyncioSemaphore
+    MODULE = asyncio
+    PATCHED_LOCK_NAME = "Semaphore"
 
 
 class AsyncioBoundedSemaphoreCollector(_lock.LockCollector):
@@ -43,3 +44,11 @@ class AsyncioBoundedSemaphoreCollector(_lock.LockCollector):
     PROFILED_LOCK_CLASS = _ProfiledAsyncioBoundedSemaphore
     MODULE = asyncio
     PATCHED_LOCK_NAME = "BoundedSemaphore"
+
+
+class AsyncioConditionCollector(_lock.LockCollector):
+    """Record asyncio.Condition usage."""
+
+    PROFILED_LOCK_CLASS = _ProfiledAsyncioCondition
+    MODULE = asyncio
+    PATCHED_LOCK_NAME = "Condition"
