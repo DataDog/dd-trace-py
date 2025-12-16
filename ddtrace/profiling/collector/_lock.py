@@ -202,7 +202,8 @@ class _ProfiledLock:
         # If we can't get the task frame, we use the caller frame.
         # Call stack: 0: _flush_sample, 1: _acquire/_release, 2: acquire/release/__enter__/__exit__, 3: caller
         frame: FrameType = task_frame or sys._getframe(3)
-        frames: List[DDFrame] = _traceback.pyframe_to_frames(frame, self.max_nframes)
+        frames: List[DDFrame]
+        frames, _ = _traceback.pyframe_to_frames(frame, self.max_nframes)
         for ddframe in frames:
             handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
 
