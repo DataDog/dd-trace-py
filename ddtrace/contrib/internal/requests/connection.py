@@ -105,6 +105,24 @@ def _wrap_send(_requests_mod, pin, func, instance, args, kwargs):
     if service is None:
         service = trace_utils.ext_service(pin, config.requests)
 
+    # AppSec Integration: Provide context items for RASP and API Security (API10)
+    # The requests library calls urllib3 methods that have AppSec wrappers (see _common_module_patches.py).
+    # These wrappers expect to find 'full_url' and 'use_body' via core.get_item() to:
+    #   - full_url: Analyze outbound requests for SSRF threats (e.g., requests to 169.254.169.254)
+    #   - use_body: Determine if response bodies should be analyzed for sensitive data leakage
+    # Without these context items, AppSec security checks are skipped for requests made via this library.
+    full_url = url
+    use_body = False
+    try:
+        from ddtrace.appsec._asm_request_context import _get_asm_context
+        from ddtrace.appsec._asm_request_context import should_analyze_body_response
+
+        if asm_context := _get_asm_context():
+            use_body = should_analyze_body_response(asm_context)
+    except ImportError:
+        # AppSec is not available, which is fine - not all users have it enabled
+        pass
+
     with core.context_with_data(
         "requests.send",
         span_name=schematize_url_operation("requests.request", protocol="http", direction=SpanDirection.OUTBOUND),
@@ -124,6 +142,8 @@ def _wrap_send(_requests_mod, pin, func, instance, args, kwargs):
         path=path,
         host_without_port=host_without_port,
         parsed_uri=parsed_uri,
+        full_url=full_url,
+        use_body=use_body,
     ) as ctx:
         response = None
         try:
