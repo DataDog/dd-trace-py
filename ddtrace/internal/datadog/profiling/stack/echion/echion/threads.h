@@ -221,7 +221,7 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
     std::unordered_set<PyObject*> parent_tasks;
     std::unordered_map<PyObject*, TaskInfo::Ref> waitee_map; // Indexed by task origin
     std::unordered_map<PyObject*, TaskInfo::Ref> origin_map; // Indexed by task origin
-    static std::unordered_set<PyObject*> previous_task_objects;
+    static std::unordered_map<PyObject*, StringTable::Key> previous_task_objects;
 
     auto maybe_all_tasks = get_all_tasks(tstate);
     if (!maybe_all_tasks) {
@@ -248,8 +248,10 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
         for (auto key : to_remove) {
             // Only remove the link if the Child Task previously existed; otherwise it's a Task that
             // has just been created and that wasn't in all_tasks when we took the snapshot.
-            if (previous_task_objects.find(key) != previous_task_objects.end()) {
+            if (auto it = previous_task_objects.find(key); it != previous_task_objects.end()) {
                 task_link_map.erase(key);
+                // Remove the task name from the stringtable
+                string_table.remove(it->second);
             }
         }
 
@@ -259,10 +261,10 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
                        std::inserter(parent_tasks, parent_tasks.begin()),
                        [](const std::pair<PyObject*, PyObject*>& kv) { return kv.second; });
 
-        // Copy all Task object pointers into previous_task_objects
+        // Copy all Task object pointers (and the StringTable::Key for their name) into previous_task_objects
         previous_task_objects.clear();
         for (const auto& task : all_tasks) {
-            previous_task_objects.insert(task->origin);
+            previous_task_objects.emplace(task->origin, task->name);
         }
     }
 
