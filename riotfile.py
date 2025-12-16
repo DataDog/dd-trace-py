@@ -646,6 +646,8 @@ venv = Venv(
                 "httpretty": latest,
                 "typing-extensions": latest,
                 "pytest-asyncio": latest,
+                "pytest-benchmark": latest,
+                "pytest-memray": latest,
             },
             pys=select_pys(),
         ),
@@ -1363,6 +1365,9 @@ venv = Venv(
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
+                "DD_IAST_MAX_CONCURRENT_REQUEST": "1000",
+                "DD_IAST_TRUNCATION_MAX_VALUE_LENGTH": "10000",
+                "DD_IAST_MAX_RANGE_COUNT": "10000",
             },
         ),
         Venv(

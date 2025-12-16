@@ -32,7 +32,7 @@ class TestPytestBenchmark:
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
-                result = pytester.inline_run("--ddtrace", "--ddtrace-patch-all", "-v", "-s")
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
 
         assert result.ret == 0
 
