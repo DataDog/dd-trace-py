@@ -1,6 +1,9 @@
 name: Import analysis
 
 on:
+  push:
+    branches:
+      - mq-working-branch-*
   pull_request:
   merge_group:
 
@@ -23,7 +26,7 @@ jobs:
 
       - name: Install rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@9d7e65c320fdb52dcd45ffaa68deb6c02c8754d9 # v1.12.0
-        
+
       - name: Install apt dependencies
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential
 
@@ -50,7 +53,7 @@ jobs:
           ref: ${{ github.base_ref }}
           persist-credentials: false
           path: dd-trace-py
-  
+
       - name: Set up base environment
         run: |
           python -m venv .venv-base
@@ -58,7 +61,7 @@ jobs:
           python -m pip install ./dd-trace-py
           python -c "import ddtrace.auto"
           deactivate
-  
+
       - name: Collect import data from base
         env:
           DD_REMOTE_CONFIGURATION_ENABLED: 0
@@ -100,7 +103,7 @@ jobs:
         with:
           persist-credentials: false
           path: dd-trace-py
-            
+
       - name: "Install dependencies"
         run: python -m pip install -r dd-trace-py/scripts/import-analysis/requirements-cycles.txt
 
@@ -144,4 +147,3 @@ jobs:
           mode: upsert
         if: failure()
 
-      
