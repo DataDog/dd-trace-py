@@ -7,6 +7,7 @@ import uuid
 
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
+from ddtrace.testing.internal.http import Subdomain
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import TestItem
 from ddtrace.testing.internal.test_data import TestModule
@@ -119,11 +120,11 @@ class TestOptWriter(BaseWriter):
                 "_dd.library_capabilities.test_impact_analysis": "1",
                 "_dd.library_capabilities.test_management.quarantine": "1",
                 "_dd.library_capabilities.test_management.disable": "1",
-                "_dd.library_capabilities.test_management.attempt_to_fix": "4",
+                "_dd.library_capabilities.test_management.attempt_to_fix": "5",
             },
         }
 
-        self.connector = connector_setup.get_connector_for_subdomain("citestcycle-intake")
+        self.connector = connector_setup.get_connector_for_subdomain(Subdomain.CITESTCYCLE)
 
         self.serializers: t.Dict[t.Type[TestItem[t.Any, t.Any]], EventSerializer[t.Any]] = {
             TestRun: serialize_test_run,
@@ -177,7 +178,7 @@ class TestCoverageWriter(BaseWriter):
     def __init__(self, connector_setup: BackendConnectorSetup) -> None:
         super().__init__()
 
-        self.connector = connector_setup.get_connector_for_subdomain("citestcov-intake")
+        self.connector = connector_setup.get_connector_for_subdomain(Subdomain.CITESTCOV)
 
     def put_coverage(self, test_run: TestRun, coverage_bitmaps: t.Iterable[t.Tuple[str, bytes]]) -> None:
         files = [{"filename": pathname, "bitmap": bitmap} for pathname, bitmap in coverage_bitmaps]

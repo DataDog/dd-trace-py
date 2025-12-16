@@ -646,6 +646,8 @@ venv = Venv(
                 "httpretty": latest,
                 "typing-extensions": latest,
                 "pytest-asyncio": latest,
+                "pytest-benchmark": latest,
+                "pytest-memray": latest,
             },
             pys=select_pys(),
         ),
@@ -1363,6 +1365,9 @@ venv = Venv(
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
+                "DD_IAST_MAX_CONCURRENT_REQUEST": "1000",
+                "DD_IAST_TRUNCATION_MAX_VALUE_LENGTH": "10000",
+                "DD_IAST_MAX_RANGE_COUNT": "10000",
             },
         ),
         Venv(
@@ -3282,7 +3287,7 @@ venv = Venv(
                 Venv(
                     name="profile-uwsgi",
                     command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/test_uwsgi.py",  # noqa: E501
-                    pys=select_pys(max_version="3.13"),
+                    pys=select_pys(max_version="3.13"),  # uwsgi<2.0.30 is not compatible with Python 3.14
                     pkgs={
                         "uwsgi": "<2.0.30",
                         "protobuf": latest,
@@ -3365,7 +3370,7 @@ venv = Venv(
                         ),
                     ],
                 ),
-                # Python >= 3.11
+                # Python >= 3.11 (excluding 3.14)
                 Venv(
                     pys=select_pys("3.11", "3.13"),
                     pkgs={"uwsgi": latest},
@@ -3397,11 +3402,43 @@ venv = Venv(
                         ),
                     ],
                 ),
+                # Python 3.14 - protobuf 4.22.0 is not compatible (TypeError: Metaclasses with custom tp_new)
+                Venv(
+                    pys="3.14",
+                    pkgs={"uwsgi": latest},
+                    venvs=[
+                        Venv(
+                            pkgs={
+                                # Use latest only - protobuf 4.22.0 fails with Python 3.14
+                                "protobuf": latest,
+                            },
+                        ),
+                        # Gevent
+                        Venv(
+                            env={
+                                "DD_PROFILE_TEST_GEVENT": "1",
+                            },
+                            pkgs={
+                                "gunicorn[gevent]": latest,
+                                "gevent": latest,
+                                "protobuf": latest,
+                            },
+                        ),
+                        # memcpy-based sampler
+                        Venv(
+                            env={
+                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                            },
+                            pkgs={
+                                "protobuf": latest,
+                            },
+                        ),
+                    ],
+                ),
                 Venv(
                     name="profile-memalloc",
                     command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py",  # noqa: E501
-                    # skipping v3.14 for now due to an unstable `lz4 ` lib issue: https://gitlab.ddbuild.io/DataDog/apm-reliability/dd-trace-py/-/jobs/1163312347
-                    pys=select_pys(max_version="3.13"),
+                    pys=select_pys(),
                     pkgs={
                         "protobuf": latest,
                     },
