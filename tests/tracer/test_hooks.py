@@ -46,7 +46,7 @@ class HooksDeprecationTestCase(TestCase):
             self.config.web.hooks.emit("test_hook")
         assert len(warns) == 1
         assert (
-            "Hooks.emit() is deprecated and is currently a no-op. and will be removed in version '5.0.0': To interact with spans, use get_current_span() or get_current_root_span()."  # noqa:E501
+            "Hooks.emit() is deprecated and will be removed in version '5.0.0': Use tracer.current_span() or TraceFilters to retrieve and/or modify spans"  # noqa:E501
             in str(warns[0].message)
         )
 
