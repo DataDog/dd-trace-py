@@ -91,7 +91,6 @@ StackRenderer::render_task_begin(std::string task_name, bool on_cpu)
           static_cast<int64_t>(thread_state.id), static_cast<int64_t>(thread_state.native_id), thread_state.name);
         sample->push_task_name(task_name);
         sample->push_walltime(thread_state.wall_time_ns, 1);
-        std::cerr << "==== Task: " << task_name << std::endl;
 
         if (on_cpu)
             sample->push_cputime(thread_state.cpu_time_ns, 1); // initialized to 0, so possibly a no-op
@@ -113,7 +112,6 @@ StackRenderer::render_task_begin(std::string task_name, bool on_cpu)
 void
 StackRenderer::render_stack_begin(long long, long long, const std::string&)
 {
-    std::cerr << "-- Stack begin" << std::endl;
     // This function is part of the necessary API, but it is unused by the Datadog profiler for now.
 }
 
@@ -162,7 +160,6 @@ StackRenderer::render_frame(Frame& frame)
         filename_str = missing_filename;
     }
 
-    std::cerr << "Pushing frame: " << name_str << " " << filename_str << " " << line << std::endl;
     sample->push_frame(name_str, filename_str, 0, line);
 }
 
@@ -191,7 +188,6 @@ StackRenderer::render_stack_end(MetricType, uint64_t)
     sample->set_reverse_locations(true);
     sample->flush_sample();
     SampleManager::drop_sample(sample);
-    std::cerr << "-- Stack end" << std::endl;
     sample = nullptr;
 }
 

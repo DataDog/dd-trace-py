@@ -247,7 +247,6 @@ init_safe_copy()
 {
     if (use_alternative_copy_memory()) {
         if (init_segv_catcher() == 0) {
-            std::cerr << "Using safe_memcpy_wrapper" << std::endl;
             safe_copy = safe_memcpy_wrapper;
             return;
         }
