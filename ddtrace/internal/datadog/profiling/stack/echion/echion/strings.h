@@ -12,6 +12,7 @@
 #include <mutex>
 #include <string>
 
+#include <echion/errors.h>
 #include <echion/long.h>
 #include <echion/render.h>
 #include <echion/vm.h>
@@ -148,6 +149,12 @@ class StringTable : public std::unordered_map<uintptr_t, std::string>
             return ErrorKind::LookupError;
 
         return std::ref(it->second);
+    };
+
+    inline void remove(Key key)
+    {
+        const std::lock_guard<std::mutex> lock(table_lock);
+        this->erase(key);
     };
 
     StringTable()

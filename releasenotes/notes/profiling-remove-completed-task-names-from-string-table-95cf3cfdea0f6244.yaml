@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: This changes fixes a possible memory leak caused by keeping the names of completed asyncio Tasks in
+    memory forever.
