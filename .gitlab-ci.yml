@@ -195,6 +195,15 @@ requirements_json_test:
     REQUIREMENTS_BLOCK_JSON_PATH: ".gitlab/requirements_block.json"
     REQUIREMENTS_ALLOW_JSON_PATH: ".gitlab/requirements_allow.json"
 
+detect-circular-imports:
+  stage: test
+  needs: ["run-tests-trigger"]
+  extends: .testrunner
+  script:
+    - wget binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64
+    - curl 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' -H "$(authanywhere)" -X PATCH -d '{ "commit": "My commit", "message": "My message", "header": "My header", "org": "Datadog", "repo": "dd-trace-py" }'
+
+
 package-oci:
   needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
 
