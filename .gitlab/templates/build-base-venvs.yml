@@ -12,16 +12,10 @@ build_base_venvs:
     DD_USE_SCCACHE: '1'
     DD_FAST_BUILD: '1'
   rules:
-    - if: $IS_MAIN == "true"
+    - if: '$CI_COMMIT_REF_NAME == "main"'
       variables:
         DD_FAST_BUILD: '0'
-    - if: $IS_RELEASE == "true"
-      variables:
-        DD_FAST_BUILD: '0'
-    - if: $IS_RELEASE_BRANCH == "true"
-      variables:
-        DD_FAST_BUILD: '0'
-    - when: on_success
+    - when: always
   script: |
     set -e -o pipefail
     riot -P -v generate --python=$PYTHON_VERSION
