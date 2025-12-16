@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections import defaultdict
 from io import StringIO
 import json
@@ -21,6 +23,7 @@ from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
 from ddtrace.testing.internal.pytest.hookspecs import TestOptHooks
+from ddtrace.testing.internal.pytest.report_links import print_test_report_links
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
@@ -44,6 +47,10 @@ from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_perc
 import ddtrace.testing.internal.tracer_api.pytest_hooks
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import asbool
+
+
+if t.TYPE_CHECKING:
+    from _pytest.terminal import TerminalReporter
 
 
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
@@ -188,7 +195,7 @@ class TestOptPlugin:
             test_framework=TEST_FRAMEWORK,
             has_codeowners=self.manager.has_codeowners(),
             is_unsupported_ci=(self.manager.env_tags.get(CITag.PROVIDER_NAME) is None),
-            efd_abort_reason=None,  # TODO: keep track of EFD faulty session status.
+            efd_abort_reason=self.session.get_early_flake_detection_abort_reason(),
         )
 
         if not self.is_xdist_worker:
@@ -291,7 +298,7 @@ class TestOptPlugin:
             test_run.start(start_ns=test.start_ns)
             self._set_test_run_data(test_run, item, context)
             test_run.finish()
-            test.set_status(test_run.get_status())  # TODO: this should be automatic?
+            test.set_status(test_run.get_status())
             self.manager.writer.put_item(test_run)
 
         test.finish()
@@ -345,14 +352,14 @@ class TestOptPlugin:
         with trace_context(self.enable_ddtrace_trace_filter) as context:
             test_run, reports = self._do_one_test_run(item, nextitem, context)
 
-        if retry_handler and retry_handler.should_retry(test):
+        if not test.is_skipped_by_itr() and retry_handler and retry_handler.should_retry(test):
             self._do_retries(item, nextitem, test, retry_handler, reports)
         else:
             if test.is_quarantined() or test.is_disabled():
                 self._mark_quarantined_test_report_group_as_skipped(item, reports)
             self._log_test_reports(item, reports)
             test_run.finish()
-            test.set_status(test_run.get_status())  # TODO: this should be automatic?
+            test.set_status(test_run.get_status())
             self.manager.writer.put_item(test_run)
 
     def _set_test_run_data(self, test_run: TestRun, item: pytest.Item, context: TestContext) -> None:
@@ -387,7 +394,6 @@ class TestOptPlugin:
         test_run = test.last_test_run
         test_run.set_tags(retry_handler.get_tags_for_test_run(test_run))
         test_run.finish()
-        self.manager.writer.put_item(test_run)
 
         should_retry = True
 
@@ -620,6 +626,11 @@ class TestOptPlugin:
 
         item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))
         test.mark_skipped_by_itr()
+
+    def pytest_terminal_summary(
+        self, terminalreporter: TerminalReporter, exitstatus: int, config: pytest.Config
+    ) -> None:
+        print_test_report_links(terminalreporter, self.manager)
 
 
 class XdistTestOptPlugin:
