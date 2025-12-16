@@ -95,6 +95,8 @@ class AutoTestRetriesHandler(RetryHandler):
 
 
 class EarlyFlakeDetectionHandler(RetryHandler):
+    EFD_ABORT_TEST_SECONDS = 300
+
     def get_pretty_name(self) -> str:
         return "Early Flake Detection"
 
@@ -104,21 +106,28 @@ class EarlyFlakeDetectionHandler(RetryHandler):
         # EFD. But this would be more complex, and for now replicating dd-trace-py's behavior is Fine™.
         return test.is_new() and not test.has_parameters()
 
-    def should_retry(self, test: Test) -> bool:
-        seconds_so_far = test.seconds_so_far()
-        retries_so_far = len(test.test_runs) - 1  # Initial attempt does not count.
+    def _target_number_of_retries(self, test: Test) -> int:
         efd_settings = self.session_manager.settings.early_flake_detection
+        initial_attempt_seconds = test.test_runs[0].seconds_so_far()
 
-        if seconds_so_far <= 5:
-            return retries_so_far < efd_settings.slow_test_retries_5s
-        if seconds_so_far <= 10:
-            return retries_so_far < efd_settings.slow_test_retries_10s
-        if seconds_so_far <= 30:
-            return retries_so_far < efd_settings.slow_test_retries_30s
-        if seconds_so_far <= 300:
-            return retries_so_far < efd_settings.slow_test_retries_5m
+        if initial_attempt_seconds <= 5:
+            return efd_settings.slow_test_retries_5s
+        if initial_attempt_seconds <= 10:
+            return efd_settings.slow_test_retries_10s
+        if initial_attempt_seconds <= 30:
+            return efd_settings.slow_test_retries_30s
+        if initial_attempt_seconds <= 300:
+            return efd_settings.slow_test_retries_5m
+        return 0  # No retries if the test ran for more than 5 minutes.
 
-        return False
+    def should_retry(self, test: Test) -> bool:
+        if test.seconds_so_far() > self.EFD_ABORT_TEST_SECONDS:
+            test.set_early_flake_detection_abort_reason("slow")
+            return False
+
+        target_number_of_retries = self._target_number_of_retries(test)
+        retries_so_far = len(test.test_runs) - 1  # Initial attempt does not count.
+        return retries_so_far < target_number_of_retries
 
     def get_final_status(self, test: Test) -> t.Tuple[TestStatus, t.Dict[str, str]]:
         status_counts: t.Dict[TestStatus, int] = defaultdict(lambda: 0)

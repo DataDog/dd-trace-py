@@ -229,7 +229,7 @@ class TestFeaturesWithMocking:
 
         # Verify that EFD retries happened - should see "RETRY FAILED (Early Flake Detection)" messages
         flaky_efd_retry_messages = output.count("test_efd.py::test_new_flaky RETRY FAILED (Early Flake Detection)")
-        assert flaky_efd_retry_messages == 4, f"Expected 4 EFD retry messages, got {flaky_efd_retry_messages}"
+        assert flaky_efd_retry_messages == 11, f"Expected 11 EFD retry messages, got {flaky_efd_retry_messages}"
 
         known_test_efd_retry_messages = output.count(
             "test_efd.py::test_known_test RETRY FAILED (Early Flake Detection)"
@@ -429,6 +429,40 @@ class TestPytestPluginIntegration:
         # Tests should pass
         assert result.ret == 0
         result.assert_outcomes(passed=2)
+
+
+class TestIASTTerminalSummary:
+    def test_ddtrace_iast_terminal_summary_enabled(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """Test that IAST terminal summary is present when IAST is enabled."""
+        pytester.makepyfile(
+            test_iast="""
+            def test_ok():
+                assert True
+        """
+        )
+
+        monkeypatch.setenv("DD_IAST_ENABLED", "true")
+        monkeypatch.setenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "true")
+        result = pytester.runpytest_subprocess("--ddtrace", "-v", "-s")
+
+        output = result.stdout.str()
+        assert "Datadog Code Security Report" in output
+
+    def test_ddtrace_iast_terminal_summary_disabled(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """Test that IAST terminal summary is NOT present when IAST is disabled."""
+        pytester.makepyfile(
+            test_iast="""
+            def test_ok():
+                assert True
+        """
+        )
+
+        monkeypatch.setenv("DD_IAST_ENABLED", "false")
+        monkeypatch.setenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "true")
+        result = pytester.runpytest_subprocess("--ddtrace", "-v", "-s")
+
+        output = result.stdout.str()
+        assert "Datadog Code Security Report" not in output
 
 
 class TestRetryHandler:

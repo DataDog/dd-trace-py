@@ -1,5 +1,8 @@
 name: All Green
 on:
+  push:
+    branches:
+      - mq-working-branch-*
   pull_request:
   merge_group:
 
