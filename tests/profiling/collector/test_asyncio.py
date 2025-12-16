@@ -1,57 +1,45 @@
-import _thread
-import asyncio
-import glob
-import os
-import sys
-import uuid
-
 import pytest
-
-from ddtrace import ext
-from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.profiling.collector import asyncio as collector_asyncio
-from tests.profiling.collector import pprof_utils
-from tests.profiling.collector import test_collector
-from tests.profiling.collector.lock_utils import get_lock_linenos
-from tests.profiling.collector.lock_utils import init_linenos
-
-
-init_linenos(__file__)
-
-PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
 
 
 def test_repr():
+    from ddtrace.profiling.collector import asyncio as collector_asyncio
+    from tests.profiling.collector import test_collector
+
     test_collector._test_repr(
         collector_asyncio.AsyncioLockCollector,
         "AsyncioLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
     )
 
 
-@pytest.mark.asyncio
-class TestAsyncioLockCollector:
-    def setup_method(self, method):
-        self.test_name = method.__qualname__ if PY_311_OR_ABOVE else method.__name__
-        self.output_prefix = "/tmp" + os.sep + self.test_name
-        self.output_filename = self.output_prefix + "." + str(os.getpid())
+@pytest.mark.subprocess
+def test_asyncio_lock_events():
+    import _thread
+    import asyncio
+    import glob
+    import os
 
-        assert ddup.is_available, "ddup is not available"
-        ddup.config(
-            env="test",
-            service="test_asyncio",
-            version="my_version",
-            output_filename=self.output_prefix,
-        )
-        ddup.start()
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import asyncio as collector_asyncio
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
 
-    def teardown_method(self):
-        for f in glob.glob(self.output_prefix + "*"):
-            try:
-                os.remove(f)
-            except Exception as e:
-                print("Error while deleting file: ", e)
+    init_linenos(__file__)
 
-    async def test_asyncio_lock_events(self):
+    test_name = "test_asyncio_lock_events"
+    output_prefix = "/tmp" + os.sep + test_name
+    output_filename = output_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available, "ddup is not available"
+    ddup.config(
+        env="test",
+        service="test_asyncio",
+        version="my_version",
+        output_filename=output_prefix,
+    )
+    ddup.start()
+
+    async def run_test():
         with collector_asyncio.AsyncioLockCollector(capture_pct=100):
             lock = asyncio.Lock()  # !CREATE! test_asyncio_lock_events
             await lock.acquire()  # !ACQUIRE! test_asyncio_lock_events
@@ -61,13 +49,13 @@ class TestAsyncioLockCollector:
         ddup.upload()
 
         linenos = get_lock_linenos("test_asyncio_lock_events")
-        profile = pprof_utils.parse_newest_profile(self.output_filename)
+        profile = pprof_utils.parse_newest_profile(output_filename)
         expected_thread_id = _thread.get_ident()
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
                 pprof_utils.LockAcquireEvent(
-                    caller_name=self.test_name,
+                    caller_name="run_test",
                     filename=os.path.basename(__file__),
                     linenos=linenos,
                     lock_name="lock",
@@ -76,7 +64,7 @@ class TestAsyncioLockCollector:
             ],
             expected_release_events=[
                 pprof_utils.LockReleaseEvent(
-                    caller_name=self.test_name,
+                    caller_name="run_test",
                     filename=os.path.basename(__file__),
                     linenos=linenos,
                     lock_name="lock",
@@ -85,10 +73,54 @@ class TestAsyncioLockCollector:
             ],
         )
 
-    async def test_asyncio_lock_events_tracer(self, tracer):
-        tracer._endpoint_call_counter_span_processor.enable()
-        resource = str(uuid.uuid4())
-        span_type = ext.SpanTypes.WEB
+    try:
+        asyncio.run(run_test())
+    finally:
+        for f in glob.glob(output_prefix + "*"):
+            try:
+                os.remove(f)
+            except Exception as e:
+                print("Error while deleting file: ", e)
+
+
+@pytest.mark.subprocess
+def test_asyncio_lock_events_tracer():
+    import _thread
+    import asyncio
+    import glob
+    import os
+    import uuid
+
+    from ddtrace import ext
+    from ddtrace._trace.tracer import Tracer
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import asyncio as collector_asyncio
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+
+    init_linenos(__file__)
+
+    test_name = "test_asyncio_lock_events_tracer"
+    output_prefix = "/tmp" + os.sep + test_name
+    output_filename = output_prefix + "." + str(os.getpid())
+
+    tracer = Tracer()
+    tracer._endpoint_call_counter_span_processor.enable()
+    resource = str(uuid.uuid4())
+    span_type = ext.SpanTypes.WEB
+
+    assert ddup.is_available, "ddup is not available"
+    ddup.config(
+        env="test",
+        service="test_asyncio",
+        version="my_version",
+        output_filename=output_prefix,
+    )
+    ddup.start()
+
+    async def run_test():
+        nonlocal resource, span_type, tracer
 
         with collector_asyncio.AsyncioLockCollector(capture_pct=100, tracer=tracer):
             lock = asyncio.Lock()  # !CREATE! test_asyncio_lock_events_tracer_1
@@ -109,21 +141,21 @@ class TestAsyncioLockCollector:
         linenos_2 = get_lock_linenos("test_asyncio_lock_events_tracer_2")
         linenos_3 = get_lock_linenos("test_asyncio_lock_events_tracer_3", with_stmt=True)
 
-        profile = pprof_utils.parse_newest_profile(self.output_filename)
+        profile = pprof_utils.parse_newest_profile(output_filename)
         expected_thread_id = _thread.get_ident()
 
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
                 pprof_utils.LockAcquireEvent(
-                    caller_name=self.test_name,
+                    caller_name="run_test",
                     filename=os.path.basename(__file__),
                     linenos=linenos_1,
                     lock_name="lock",
                     thread_id=expected_thread_id,
                 ),
                 pprof_utils.LockAcquireEvent(
-                    caller_name=self.test_name,
+                    caller_name="run_test",
                     filename=os.path.basename(__file__),
                     linenos=linenos_2,
                     lock_name="lock2",
@@ -133,7 +165,7 @@ class TestAsyncioLockCollector:
                     thread_id=expected_thread_id,
                 ),
                 pprof_utils.LockAcquireEvent(
-                    caller_name=self.test_name,
+                    caller_name="run_test",
                     filename=os.path.basename(__file__),
                     linenos=linenos_3,
                     lock_name="lock_ctx",
@@ -142,7 +174,7 @@ class TestAsyncioLockCollector:
             ],
             expected_release_events=[
                 pprof_utils.LockReleaseEvent(
-                    caller_name=self.test_name,
+                    caller_name="run_test",
                     filename=os.path.basename(__file__),
                     linenos=linenos_1,
                     lock_name="lock",
@@ -152,14 +184,14 @@ class TestAsyncioLockCollector:
                     thread_id=expected_thread_id,
                 ),
                 pprof_utils.LockReleaseEvent(
-                    caller_name=self.test_name,
+                    caller_name="run_test",
                     filename=os.path.basename(__file__),
                     linenos=linenos_2,
                     lock_name="lock2",
                     thread_id=expected_thread_id,
                 ),
                 pprof_utils.LockReleaseEvent(
-                    caller_name=self.test_name,
+                    caller_name="run_test",
                     filename=os.path.basename(__file__),
                     linenos=linenos_3,
                     lock_name="lock_ctx",
@@ -167,3 +199,12 @@ class TestAsyncioLockCollector:
                 ),
             ],
         )
+
+    try:
+        asyncio.run(run_test())
+    finally:
+        for f in glob.glob(output_prefix + "*"):
+            try:
+                os.remove(f)
+            except Exception as e:
+                print("Error while deleting file: ", e)
