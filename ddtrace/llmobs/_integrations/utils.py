@@ -25,13 +25,13 @@ from ddtrace.llmobs._constants import INPUT_TYPE_IMAGE
 from ddtrace.llmobs._constants import INPUT_TYPE_TEXT
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_AUTO
-from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
-from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
+from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
