@@ -12,10 +12,12 @@
 #endif
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 
 #if defined PL_LINUX
 #include <time.h>
@@ -217,6 +219,9 @@ ThreadInfo::unwind(PyThreadState* tstate)
 inline Result<void>
 ThreadInfo::unwind_tasks(PyThreadState* tstate)
 {
+    // The size of the "pure Python" stack (before asyncio Frames), computed later by TaskInfo::unwind
+    size_t upper_python_stack_size = 0;
+
     // Check if the Python stack contains "_run".
     // To avoid having to do string comparisons every time we unwind Tasks, we keep track
     // of the cache key of the "_run" Frame.
@@ -231,7 +236,7 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
             // After Python 3.11, function names in Frames are qualified with e.g. the class name, so we
             // can use the qualified name to identify the "_run" Frame.
             constexpr std::string_view _run = "Handle._run";
-            auto is_run_frame = name.size() >= _run.size() && name == _run;
+            auto is_run_frame = frame_name.size() >= _run.size() && frame_name == _run;
 #else
             // Before Python 3.11, function names in Frames are not qualified, so we
             // can use the filename to identify the "_run" Frame.
@@ -240,8 +245,8 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
             auto filename = string_table.lookup(frame.filename)->get();
             auto is_asyncio = filename.size() >= asyncio_runners_py.size() &&
                               filename.rfind(asyncio_runners_py) == filename.size() - asyncio_runners_py.size();
-            auto is_run_frame =
-              is_asyncio && (name.size() >= _run.size() && name.rfind(_run) == name.size() - _run.size());
+            auto is_run_frame = is_asyncio && (frame_name.size() >= _run.size() &&
+                                               frame_name.rfind(_run) == frame_name.size() - _run.size());
 #endif
             if (is_run_frame) {
                 // Although Frames are stored in an LRUCache, the cache key is ALWAYS the same
@@ -250,6 +255,7 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
                 // whether we see the "_run" Frame in the Python stack.
                 frame_cache_key = frame.cache_key;
                 expect_at_least_one_running_task = true;
+                upper_python_stack_size = python_stack.size() - i;
                 break;
             }
         }
@@ -258,6 +264,7 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
             const auto& frame = python_stack[i].get();
             if (frame.cache_key == *frame_cache_key) {
                 expect_at_least_one_running_task = true;
+                upper_python_stack_size = python_stack.size() - i;
                 break;
             }
         }
@@ -313,7 +320,6 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
             if (auto it = previous_task_objects.find(key); it != previous_task_objects.end()) {
                 task_link_map.erase(key);
                 // Remove the task name from the stringtable
-                std::cerr << "removing " << string_table.lookup(it->second)->get() << std::endl;
                 string_table.remove(it->second);
             }
         }
@@ -351,24 +357,25 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
         }
     }
 
-    // The size of the "pure Python" stack (before asyncio Frames), computed later by TaskInfo::unwind
-    size_t upper_python_stack_size = 0;
-    // Unused variable, will be used later by TaskInfo::unwind
-    size_t unused;
-
-    bool on_cpu_task_seen = false;
+    bool on_cpu_task_seen = expect_at_least_one_running_task;
     for (auto& leaf_task : leaf_tasks) {
         on_cpu_task_seen = on_cpu_task_seen || leaf_task.get().is_on_cpu;
 
         auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu);
         auto& stack = stack_info->stack;
 
+        std::unordered_set<PyObject*> seen_task_origins;
         for (auto current_task = leaf_task;;) {
             auto& task = current_task.get();
             auto task_name = string_table.lookup(task.name)->get();
-            std::cerr << "pushing " << task_name << std::endl;
 
-            auto maybe_task_stack_size = task.unwind(stack, task.is_on_cpu ? upper_python_stack_size : unused);
+            // Check for cycle in task chain
+            if (seen_task_origins.find(task.origin) != seen_task_origins.end()) {
+                break;
+            }
+            seen_task_origins.insert(task.origin);
+
+            auto maybe_task_stack_size = task.unwind(stack);
             if (!maybe_task_stack_size) {
                 return ErrorKind::TaskInfoError;
             }

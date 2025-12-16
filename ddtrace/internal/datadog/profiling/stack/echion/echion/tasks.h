@@ -30,6 +30,7 @@
 #include <mutex>
 #include <stack>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <echion/config.h>
@@ -204,7 +205,7 @@ class TaskInfo
     }
 
     [[nodiscard]] static Result<TaskInfo::Ptr> current(PyObject*);
-    inline Result<size_t> unwind(FrameStack&, size_t& upper_python_stack_size);
+    inline Result<size_t> unwind(FrameStack&);
 };
 
 inline std::unordered_map<PyObject*, PyObject*> task_link_map;
@@ -285,13 +286,22 @@ inline std::vector<std::unique_ptr<StackInfo>> current_tasks;
 // ----------------------------------------------------------------------------
 
 inline Result<size_t>
-TaskInfo::unwind(FrameStack& stack, size_t& upper_python_stack_size)
+TaskInfo::unwind(FrameStack& stack)
 {
     // TODO: Check for running task.
     std::stack<PyObject*> coro_frames;
 
     // Unwind the coro chain
+    // AIDEV-NOTE: Must detect cycles in the await chain to prevent infinite loops.
+    // This can happen if the profiler samples during in-flight asyncio state changes
+    // or due to memory corruption/race conditions when reading coroutine pointers.
+    std::unordered_set<GenInfo*> seen_coros;
+    std::unordered_set<size_t> pure_coro_frames;
     for (auto py_coro = this->coro.get(); py_coro != NULL; py_coro = py_coro->await.get()) {
+        if (seen_coros.find(py_coro) != seen_coros.end())
+            break; // Cycle detected - stop to prevent infinite loop
+        seen_coros.insert(py_coro);
+
         if (py_coro->frame != NULL)
             coro_frames.push(py_coro->frame);
     }
@@ -316,12 +326,12 @@ TaskInfo::unwind(FrameStack& stack, size_t& upper_python_stack_size)
         // use the number of Frames added to the Stack to determine the size of the upper Python stack.
         if (count == 0) {
             // The first Frame is the coroutine Frame, so the Python stack size is the number of Frames - 1
-            upper_python_stack_size = new_frames - 1;
+            size_t upper_python_stack_size = new_frames - 1;
 
             // If the Task is on CPU, then we should have at least the asyncio runtime Frames on top of
             // the asynchronous Stack. If we do not have any Python Frames, then the execution state changed
             // (race condition) and we cannot recover.
-            if (this->is_on_cpu && upper_python_stack_size == 0) {
+            if (this->is_on_cpu && new_frames == 1) {
                 return ErrorKind::TaskInfoError;
             }
 
