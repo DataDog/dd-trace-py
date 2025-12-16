@@ -1,4 +1,5 @@
-import google.cloud.aiplatform as aiplatform_module
+import sys
+
 import mock
 import pytest
 
@@ -20,6 +21,15 @@ from tests.llmobs._utils import aiterate_stream
 from tests.llmobs._utils import anext_stream
 from tests.llmobs._utils import iterate_stream
 from tests.llmobs._utils import next_stream
+
+
+if sys.version_info >= (3, 10):
+    try:
+        import google.cloud.aiplatform as aiplatform_module
+    except ImportError:
+        aiplatform_module = None
+else:
+    aiplatform_module = None
 
 
 @pytest.mark.parametrize(
@@ -44,8 +54,6 @@ class TestLLMObsVertexai:
         reason="reasoning_output_tokens only available in google-cloud-aiplatform SDK version >= 1.94.0",
     )
     def test_completion_reasoning_tokens(self, vertexai, mock_llmobs_writer, mock_tracer):
-        parsed_version = parse_version(aiplatform_module.__version__)
-        print("aiplatform version is ", parsed_version)
         llm = vertexai.generative_models.GenerativeModel("gemini-2.5-pro")
         llm._prediction_client.responses["generate_content"].append(
             _mock_completion_response(MOCK_COMPLETION_REASONING)
