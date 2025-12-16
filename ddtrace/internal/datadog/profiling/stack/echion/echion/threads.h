@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 
 #if defined PL_LINUX
@@ -201,16 +202,17 @@ inline void
 ThreadInfo::unwind(PyThreadState* tstate)
 {
     unwind_python_stack(tstate);
+
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
         // We cast it to void to ignore failures.
         (void)unwind_tasks(tstate);
+    } else {
+        // We make the assumption that gevent and asyncio are not mixed
+        // together to keep the logic here simple. We can always revisit this
+        // should there be a substantial demand for it.
+        unwind_greenlets(tstate, native_id);
     }
-
-    // We make the assumption that gevent and asyncio are not mixed
-    // together to keep the logic here simple. We can always revisit this
-    // should there be a substantial demand for it.
-    unwind_greenlets(tstate, native_id);
 }
 
 // ----------------------------------------------------------------------------
@@ -672,9 +674,7 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
         return ErrorKind::CpuTimeError;
     }
 
-    bool thread_is_running = is_running();
-
-    Renderer::get().render_cpu_time(thread_is_running ? cpu_time - previous_cpu_time : 0);
+    Renderer::get().render_cpu_time(is_running() ? cpu_time - previous_cpu_time : 0);
 
     this->unwind(tstate);
 
@@ -718,18 +718,9 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
 
         current_greenlets.clear();
     } else {
-        // If we don't have any asyncio tasks, we check that we don't have any
-        // greenlets either. In this case, we print the ordinary thread stack.
-        // With greenlets, we recover the thread stack from the active greenlet,
-        // so if we don't skip here we would have a double print.
-        if (current_greenlets.empty()) {
-            // Print the PID and thread name
-            Renderer::get().render_stack_begin(pid, iid, name);
-            // Print the stack
-            python_stack.render();
-
-            Renderer::get().render_stack_end(MetricType::Time, delta);
-        }
+        Renderer::get().render_stack_begin(pid, iid, name);
+        python_stack.render();
+        Renderer::get().render_stack_end(MetricType::Time, delta);
     }
 
     return Result<void>::ok();
