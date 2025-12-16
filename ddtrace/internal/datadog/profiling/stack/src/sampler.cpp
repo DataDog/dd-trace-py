@@ -1,6 +1,6 @@
 #include "sampler.hpp"
 
-#include "dd_wrapper/include/ddup_interface.hpp"
+#include "dd_wrapper/include/sample.hpp"
 #include "thread_span_links.hpp"
 
 #include "echion/danger.h"
@@ -170,12 +170,12 @@ Sampler::sampling_thread(const uint64_t seq_num)
             for_each_thread(interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
                 auto success = thread.sample(interp.id, tstate, wall_time_us);
                 if (success) {
-                    ddup_increment_sample_count();
+                    Sample::profile_borrow().stats().increment_sample_count();
                 }
             });
         });
 
-        ddup_increment_sampling_event_count();
+        Sample::profile_borrow().stats().increment_sampling_event_count();
 
         if (do_adaptive_sampling) {
             // Adjust the sampling interval at most every second
@@ -218,7 +218,7 @@ Sampler::get()
 }
 
 void
-_stack_v2_atfork_child()
+_stack_atfork_child()
 {
     // The only thing we need to do at fork is to propagate the PID to echion
     // so we don't even reveal this function to the user
@@ -233,9 +233,9 @@ _stack_v2_atfork_child()
 }
 
 __attribute__((constructor)) void
-_stack_v2_init()
+_stack_init()
 {
-    _stack_v2_atfork_child();
+    _stack_atfork_child();
 }
 
 void
@@ -245,8 +245,8 @@ Sampler::one_time_setup()
 
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the atfork handler to ensure that we're tracking the correct process
-    _stack_v2_atfork_child();
-    pthread_atfork(nullptr, nullptr, _stack_v2_atfork_child);
+    _stack_atfork_child();
+    pthread_atfork(nullptr, nullptr, _stack_atfork_child);
 
     // Register our rendering callbacks with echion's Renderer singleton
     Renderer::get().set_renderer(renderer_ptr);

@@ -235,7 +235,7 @@ def test_propagation_path_2_origins_3_propagation(origin1, origin2, iast_context
         (b"taintsource1", bytearray(b"taintsource2")),
     ],
 )
-def test_propagation_path_2_origins_5_propagation(origin1, origin2, iast_context_defaults):
+def test_propagation_path_2_origins_5_propagation(iast_context_defaults, origin1, origin2):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
 
     tainted_string_1 = taint_pyobject(origin1, source_name="path1", source_value=origin1, source_origin=OriginType.PATH)
