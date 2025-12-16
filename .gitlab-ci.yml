@@ -1,15 +1,14 @@
 stages:
+  - discover
   - trigger
-  - wait
 
 variables:
   GIT_STRATEGY: none
-  IMAGE_URL: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
-  API_URL: "https://gitlab.ddbuild.io/api/v4/projects/${CI_PROJECT_ID}/pipeline"
 
-discover_and_trigger:
-  stage: trigger
-  image: ${IMAGE_URL}
+# Job 1: Discover branches and output as variables
+discover_branches:
+  stage: discover
+  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   tags: ["arch:amd64"]
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
@@ -18,7 +17,6 @@ discover_and_trigger:
     - |
       # Configure gh cli authentication
       if [ -z ${GH_TOKEN} ]; then
-        # Use dd-octo-sts to get GitHub token
         dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > token
         gh auth login --with-token < token
         rm token
@@ -41,94 +39,69 @@ discover_and_trigger:
           | ($majors[-2]) as $prevMaj
           | ($minors | map(select((split(".")[0]|tonumber)==$curMaj))) as $curMajMinors
           | [
-              $curMajMinors[-1],                                         # current minor
-              $curMajMinors[-2],                                         # previous minor
-              ($minors | map(select((split(".")[0]|tonumber)==$prevMaj)))[-1]  # latest from past major
+              $curMajMinors[-1],                                         # current minor (latest 4.x)
+              $curMajMinors[-2],                                         # previous minor (previous 4.x)
+              ($minors | map(select((split(".")[0]|tonumber)==$prevMaj)))[-1]  # latest from past major (latest 3.x)
             ]
           | .[]'
       )
 
-      BRANCHES=("main" "${VERSIONS[@]}")
-      echo "Discovered branches: ${BRANCHES[*]}"
-      echo "[" > triggered.json
-      SEP=""
-      for BRANCH in "${BRANCHES[@]}"; do
-        echo "Triggering $BRANCH..."
-        PIPELINE=$(curl -sS -v --request POST \
-          --header "JOB-TOKEN: ${CI_JOB_TOKEN}" \
-          --form "ref=$BRANCH" \
-          "${API_URL}" )
+      # Output discovered branches as dotenv variables
+      # Only need: main, current minor (latest 4.x), previous major (latest 3.x)
+      echo "BRANCH_MAIN=main" >> branches.env
+      echo "BRANCH_CURRENT_MINOR=${VERSIONS[0]}" >> branches.env
+      echo "BRANCH_PREV_MAJOR=${VERSIONS[2]}" >> branches.env
 
-        echo ">>> RAW RESPONSE for $BRANCH:"
-        echo "$PIPELINE"
+      echo "Discovered branches:"
+      echo "  main"
+      echo "  ${VERSIONS[0]} (latest minor from current major - e.g., 4.0)"
+      echo "  ${VERSIONS[2]} (latest minor from previous major - e.g., 3.19)"
 
-        ID=$(echo "$PIPELINE" | jq -r .id)
-        WEB_URL=$(echo "$PIPELINE" | jq -r .web_url)
-
-        echo "$SEP{\"branch\":\"$BRANCH\",\"id\":$ID,\"url\":\"$WEB_URL\"}" >> triggered.json
-        SEP=","
-        echo "  → triggered pipeline #$ID at $WEB_URL"
-      done
-      echo "]" >> triggered.json
+      cat branches.env
 
   artifacts:
-    paths:
-      - triggered.json
+    reports:
+      dotenv: branches.env
     expire_in: 1 day
 
-wait_for_downstreams:
-  stage: wait
-  image: ${IMAGE_URL}
+# Job 2: Trigger CI for main branch
+main:
+  stage: trigger
+  image: registry.ddbuild.io/images/ddr-ci:3.8.x
   tags: ["arch:amd64"]
-  script: |
-    set -euo pipefail
-
-    jq -c '.[]' triggered.json | while read item; do
-      BRANCH=$(echo "$item" | jq -r .branch)
-      ID=$(echo "$item" | jq -r .id)
-      URL=$(echo "$item" | jq -r .url)
-
-      echo "⏳ Waiting for $BRANCH → pipeline #$ID"
-      STATUS=""
-      while true; do
-        STATUS=$(curl -sS --header "JOB-TOKEN: $CI_JOB_TOKEN" \
-          "${API_URL}/${ID}" | jq -r .status)
-        case "$STATUS" in
-          running|pending)
-            echo "  [$BRANCH] status: $STATUS"
-            sleep 30
-            ;;
-          success)
-            echo "✅ [$BRANCH] succeeded"
-            break
-            ;;
-          failed|canceled)
-            echo "❌ [$BRANCH] failed ($STATUS) — see $URL"
-            echo "$BRANCH:$STATUS" >> failures.txt
-            break
-            ;;
-          *)
-            echo "⚠️ [$BRANCH] unexpected status: $STATUS"
-            break
-            ;;
-        esac
-      done
-    done
-
-    if [ -f failures.txt ]; then
-      echo
-      echo "Summary of failures:"
-      cat failures.txt
-      exit 1
-    else
-      echo "🎉 All downstream pipelines succeeded!"
-    fi
-
   needs:
-    - job: discover_and_trigger
-  artifacts:
-    when: always
-    paths:
-      - triggered.json
-      - failures.txt
-    expire_in: 1 day
+    - job: discover_branches
+      artifacts: true
+  script:
+    - |
+      echo "Triggering CI for branch: ${BRANCH_MAIN}"
+      ddr devflow gitlab trigger-ci --repository dd-trace-py --ref "${BRANCH_MAIN}"
+      echo "✓ Triggered pipeline for ${BRANCH_MAIN}"
+
+# Job 3: Trigger CI for latest minor from current major (e.g., 4.0)
+current minor:
+  stage: trigger
+  image: registry.ddbuild.io/images/ddr-ci:3.8.x
+  tags: ["arch:amd64"]
+  needs:
+    - job: discover_branches
+      artifacts: true
+  script:
+    - |
+      echo "Triggering CI for branch: ${BRANCH_CURRENT_MINOR}"
+      ddr devflow gitlab trigger-ci --repository dd-trace-py --ref "${BRANCH_CURRENT_MINOR}"
+      echo "✓ Triggered pipeline for ${BRANCH_CURRENT_MINOR}"
+
+# Job 4: Trigger CI for latest minor from previous major (e.g., 3.19)
+previous major:
+  stage: trigger
+  image: registry.ddbuild.io/images/ddr-ci:3.8.x
+  tags: ["arch:amd64"]
+  needs:
+    - job: discover_branches
+      artifacts: true
+  script:
+    - |
+      echo "Triggering CI for branch: ${BRANCH_PREV_MAJOR}"
+      ddr devflow gitlab trigger-ci --repository dd-trace-py --ref "${BRANCH_PREV_MAJOR}"
+      echo "✓ Triggered pipeline for ${BRANCH_PREV_MAJOR}"
