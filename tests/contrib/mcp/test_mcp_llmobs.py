@@ -72,8 +72,6 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mock_tracer, llmobs_events, m
             "mcp_tool_kind": "client",
         },
     )
-    server_input_actual = json.loads(server_events[0]["meta"]["input"]["value"])
-    actual_meta = server_input_actual["params"]["meta"]
 
     assert server_events[0] == _expected_llmobs_non_llm_span_event(
         server_span,
@@ -82,7 +80,7 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mock_tracer, llmobs_events, m
             {
                 "method": "tools/call",
                 "params": {
-                    "meta": actual_meta,
+                    "meta": {"progressToken": None},
                     "name": "calculator",
                     "arguments": {"operation": "add", "a": 20, "b": 22},
                 },
@@ -189,17 +187,13 @@ def test_llmobs_client_server_tool_error(mcp_setup, mock_tracer, llmobs_events, 
     assert client_events[0]["status"] == "error"
     assert "error:1" in client_events[0]["tags"]
 
-    # Server event - attempting to use literal input_value (will fail with dynamic trace IDs)
-    server_input_actual = json.loads(server_events[0]["meta"]["input"]["value"])
-    actual_meta = server_input_actual["params"]["meta"]
-
     assert server_events[0] == _expected_llmobs_non_llm_span_event(
         server_span,
         span_kind="tool",
         input_value=json.dumps(
             {
                 "method": "tools/call",
-                "params": {"meta": actual_meta, "name": "failing_tool", "arguments": {"param": "value"}},
+                "params": {"meta": {"progressToken": None}, "name": "failing_tool", "arguments": {"param": "value"}},
                 "jsonrpc": "2.0",
                 "id": 1,
             }

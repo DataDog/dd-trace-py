@@ -15,7 +15,6 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._integrations.mcp import CLIENT_TOOL_CALL_OPERATION_NAME
 from ddtrace.llmobs._integrations.mcp import REQUEST_RESPONDER_ENTER_OPERATION_NAME
@@ -223,7 +222,7 @@ def traced_request_responder_enter(mcp, pin: Pin, func, instance, args: tuple, k
     ):
         return func(*args, **kwargs)
 
-    # For CallToolRequest, activate distributed tracing if enabled
+    # Activate distributed tracing if enabled
     if isinstance(request_root, CallToolRequest) and config.mcp.distributed_tracing:
         request_params = _get_attr(request_root, "params", None)
         meta = _get_attr(request_params, "meta", None) if request_params else None
