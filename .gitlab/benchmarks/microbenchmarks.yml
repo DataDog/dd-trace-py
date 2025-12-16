@@ -166,7 +166,7 @@ microbenchmarks:
     matrix:
       - CPUS_PER_RUN: "1"
         SCENARIOS:
-        - "span tracer core_api set_http_meta telemetry_add_metric otel_span otel_sdk_span recursive_computation sampling_rule_matches"
+        - "startup span tracer core_api set_http_meta telemetry_add_metric otel_span otel_sdk_span recursive_computation sampling_rule_matches"
         - "http_propagation_extract http_propagation_inject rate_limiter appsec_iast_aspects appsec_iast_aspects_ospath appsec_iast_aspects_re_module appsec_iast_aspects_split appsec_iast_propagation"
         - "packages_package_for_root_module_mapping packages_update_imported_dependencies"
       - CPUS_PER_RUN: "2"
@@ -211,8 +211,8 @@ benchmarks-pr-comment:
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
 
 # Unlike pre-release SLO checks that run unconditionally (which have
-# "when: always"), this PR-level check runs only if benchmarks succeed. 
-# Since benchmark failures block the PR directly, this job blocks the PR if 
+# "when: always"), this PR-level check runs only if benchmarks succeed.
+# Since benchmark failures block the PR directly, this job blocks the PR if
 # benchmarks succeed but there are SLO breaches.
 check-slo-breaches:
   extends: .check-slo-breaches
