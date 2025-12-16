@@ -4,7 +4,7 @@ variables:
 .release_base:
   stage: release
   rules:
-    - if: $IS_RELEASE == "true"
+    - if: !reference [.is_release]
       when: on_success
     - when: never
 
