@@ -74,6 +74,28 @@ This project has custom skills that provide specialized workflows. **Always chec
 
 **Usage:** Use the Skill tool with command "lint"
 
+### find-cpython-usage
+
+**Use whenever:** Adding support for a new Python version or investigating CPython API dependencies.
+
+**Purpose:** Identifies all CPython internal headers and structures used in the codebase:
+- Searches for CPython header includes
+- Finds struct field accesses
+- Documents CPython internals we depend on
+
+**Usage:** Use the Skill tool with command "find-cpython-usage"
+
+### compare-cpython-versions
+
+**Use whenever:** Comparing CPython source code between two Python versions to identify changes.
+
+**Purpose:** Compares CPython headers and structs between versions:
+- Uses git diff or manual diff to compare versions
+- Identifies breaking changes and API modifications
+- Assesses impact on our codebase
+
+**Usage:** Use the Skill tool with command "compare-cpython-versions"
+
 ---
 
 <!-- Add more skills below as they are created -->

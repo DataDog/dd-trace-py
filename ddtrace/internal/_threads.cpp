@@ -366,8 +366,12 @@ PeriodicThread_stop(PeriodicThread* self, PyObject* args)
         return NULL;
     }
 
-    self->_stopping = true;
-    self->_request->set();
+    if (!self->_after_fork) {
+        // The thread is no longer running so it makes no sense to stop it.
+        // Attempting to acquire the Event lock could deadlock.
+        self->_stopping = true;
+        self->_request->set();
+    }
 
     Py_RETURN_NONE;
 }

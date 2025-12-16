@@ -92,7 +92,9 @@ def test_dataset_name(request) -> str:
 @pytest.fixture
 def test_dataset(llmobs, test_dataset_records, test_dataset_name) -> Generator[Dataset, None, None]:
     ds = llmobs.create_dataset(
-        dataset_name=test_dataset_name, description="A test dataset", records=test_dataset_records
+        dataset_name=test_dataset_name,
+        description="A test dataset",
+        records=test_dataset_records,
     )
 
     # When recording the requests, we need to wait for the dataset to be queryable.
@@ -106,7 +108,27 @@ def test_dataset(llmobs, test_dataset_records, test_dataset_name) -> Generator[D
 @pytest.fixture
 def test_dataset_one_record(llmobs):
     records = [
-        DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})
+        DatasetRecord(
+            input_data={"prompt": "What is the capital of France?"},
+            expected_output={"answer": "Paris"},
+        )
+    ]
+    ds = llmobs.create_dataset(dataset_name="test-dataset-123", description="A test dataset", records=records)
+    wait_for_backend()
+
+    yield ds
+
+    llmobs._delete_dataset(dataset_id=ds._id)
+
+
+@pytest.fixture
+def test_dataset_one_record_w_metadata(llmobs):
+    records = [
+        DatasetRecord(
+            input_data={"prompt": "What is the capital of France?"},
+            expected_output={"answer": "Paris"},
+            metadata={"difficulty": "easy"},
+        )
     ]
     ds = llmobs.create_dataset(dataset_name="test-dataset-123", description="A test dataset", records=records)
     wait_for_backend()
@@ -120,11 +142,15 @@ def test_dataset_one_record(llmobs):
 def test_dataset_one_record_separate_project(llmobs):
     records = [
         DatasetRecord(
-            input_data={"prompt": "What is the capital of Massachusetts?"}, expected_output={"answer": "Boston"}
+            input_data={"prompt": "What is the capital of Massachusetts?"},
+            expected_output={"answer": "Boston"},
         )
     ]
     ds = llmobs.create_dataset(
-        dataset_name="test-dataset-857", project_name="boston-project", description="A boston dataset", records=records
+        dataset_name="test-dataset-857",
+        project_name="boston-project",
+        description="A boston dataset",
+        records=records,
     )
     wait_for_backend()
 
@@ -182,7 +208,9 @@ def test_dataset_create_delete(llmobs):
 
 def test_dataset_create_delete_project_override(llmobs):
     dataset = llmobs.create_dataset(
-        dataset_name="test-dataset-2", project_name="second project", description="A second test dataset"
+        dataset_name="test-dataset-2",
+        project_name="second project",
+        description="A second test dataset",
     )
     assert dataset._id is not None
     assert dataset.url == f"https://app.datadoghq.com/llm/datasets/{dataset._id}"
@@ -216,7 +244,10 @@ def test_csv_dataset_as_dataframe(llmobs, tmp_csv_file_for_upload):
     csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
     dataset_id = None
 
-    with mock.patch("ddtrace.llmobs._writer.tempfile.NamedTemporaryFile", return_value=tmp_csv_file_for_upload):
+    with mock.patch(
+        "ddtrace.llmobs._writer.tempfile.NamedTemporaryFile",
+        return_value=tmp_csv_file_for_upload,
+    ):
         try:
             dataset = llmobs.create_dataset_from_csv(
                 csv_path=csv_path,
@@ -247,7 +278,10 @@ def test_csv_dataset_as_dataframe(llmobs, tmp_csv_file_for_upload):
 def test_dataset_csv_missing_input_col(llmobs):
     test_path = os.path.dirname(__file__)
     csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
-    with pytest.raises(ValueError, match=re.escape("Input columns not found in CSV header: ['in998', 'in999']")):
+    with pytest.raises(
+        ValueError,
+        match=re.escape("Input columns not found in CSV header: ['in998', 'in999']"),
+    ):
         llmobs.create_dataset_from_csv(
             csv_path=csv_path,
             dataset_name="test-dataset-good-csv",
@@ -260,7 +294,10 @@ def test_dataset_csv_missing_input_col(llmobs):
 def test_dataset_csv_missing_output_col(llmobs):
     test_path = os.path.dirname(__file__)
     csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
-    with pytest.raises(ValueError, match=re.escape("Expected output columns not found in CSV header: ['out999']")):
+    with pytest.raises(
+        ValueError,
+        match=re.escape("Expected output columns not found in CSV header: ['out999']"),
+    ):
         llmobs.create_dataset_from_csv(
             csv_path=csv_path,
             dataset_name="test-dataset-good-csv",
@@ -273,7 +310,10 @@ def test_dataset_csv_missing_output_col(llmobs):
 def test_dataset_csv_empty_csv(llmobs):
     test_path = os.path.dirname(__file__)
     csv_path = os.path.join(test_path, "static_files/empty.csv")
-    with pytest.raises(ValueError, match=re.escape("CSV file appears to be empty or header is missing.")):
+    with pytest.raises(
+        ValueError,
+        match=re.escape("CSV file appears to be empty or header is missing."),
+    ):
         llmobs.create_dataset_from_csv(
             csv_path=csv_path,
             dataset_name="test-dataset-empty-csv",
@@ -287,7 +327,10 @@ def test_dataset_csv_no_expected_output(llmobs, tmp_csv_file_for_upload):
     test_path = os.path.dirname(__file__)
     csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
     dataset_id = None
-    with mock.patch("ddtrace.llmobs._writer.tempfile.NamedTemporaryFile", return_value=tmp_csv_file_for_upload):
+    with mock.patch(
+        "ddtrace.llmobs._writer.tempfile.NamedTemporaryFile",
+        return_value=tmp_csv_file_for_upload,
+    ):
         try:
             dataset = llmobs.create_dataset_from_csv(
                 csv_path=csv_path,
@@ -328,7 +371,10 @@ def test_dataset_csv(llmobs, tmp_csv_file_for_upload):
     test_path = os.path.dirname(__file__)
     csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
     dataset_id = None
-    with mock.patch("ddtrace.llmobs._writer.tempfile.NamedTemporaryFile", return_value=tmp_csv_file_for_upload):
+    with mock.patch(
+        "ddtrace.llmobs._writer.tempfile.NamedTemporaryFile",
+        return_value=tmp_csv_file_for_upload,
+    ):
         try:
             dataset = llmobs.create_dataset_from_csv(
                 csv_path=csv_path,
@@ -376,7 +422,10 @@ def test_dataset_csv_pipe_separated(llmobs, tmp_csv_file_for_upload):
     test_path = os.path.dirname(__file__)
     csv_path = os.path.join(test_path, "static_files/good_dataset_pipe_separated.csv")
     dataset_id = None
-    with mock.patch("ddtrace.llmobs._writer.tempfile.NamedTemporaryFile", return_value=tmp_csv_file_for_upload):
+    with mock.patch(
+        "ddtrace.llmobs._writer.tempfile.NamedTemporaryFile",
+        return_value=tmp_csv_file_for_upload,
+    ):
         try:
             dataset = llmobs.create_dataset_from_csv(
                 csv_path=csv_path,
@@ -477,7 +526,14 @@ def test_dataset_pull_exists_with_record(llmobs, test_dataset_one_record):
 
 @pytest.mark.parametrize(
     "test_dataset_records",
-    [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "What is the capital of France?"},
+                expected_output={"answer": "Paris"},
+            )
+        ]
+    ],
 )
 def test_dataset_pull_w_versions(llmobs, test_dataset, test_dataset_records):
     assert len(test_dataset) == 1
@@ -487,7 +543,10 @@ def test_dataset_pull_w_versions(llmobs, test_dataset, test_dataset_records):
     assert test_dataset.version == 1
 
     test_dataset.append(
-        {"input_data": {"prompt": "What is the capital of China?"}, "expected_output": {"answer": "Beijing"}}
+        {
+            "input_data": {"prompt": "What is the capital of China?"},
+            "expected_output": {"answer": "Beijing"},
+        }
     )
     test_dataset.push()
     wait_for_backend(4)
@@ -515,18 +574,27 @@ def test_dataset_pull_w_versions(llmobs, test_dataset, test_dataset_records):
 
 @pytest.mark.parametrize(
     "test_dataset_records",
-    [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "What is the capital of France?"},
+                expected_output={"answer": "Paris"},
+            )
+        ]
+    ],
 )
 def test_dataset_pull_w_invalid_version(llmobs, test_dataset, test_dataset_records):
     with pytest.raises(
-        ValueError, match="Failed to pull dataset records for.*version is greater than the current version or negative"
+        ValueError,
+        match="Failed to pull dataset records for.*version is greater than the current version or negative",
     ):
         llmobs.pull_dataset(dataset_name=test_dataset.name, version=420)
 
 
 def test_dataset_pull_from_project(llmobs, test_dataset_one_record_separate_project):
     dataset = llmobs.pull_dataset(
-        dataset_name=test_dataset_one_record_separate_project.name, project_name="boston-project"
+        dataset_name=test_dataset_one_record_separate_project.name,
+        project_name="boston-project",
     )
     assert dataset.project.get("name") == "boston-project"
     assert dataset.project.get("_id")
@@ -543,9 +611,13 @@ def test_dataset_pull_from_project(llmobs, test_dataset_one_record_separate_proj
     "test_dataset_records",
     [
         [
-            DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"}),
             DatasetRecord(
-                input_data={"prompt": "What is the capital of China?"}, expected_output={"answer": "Beijing"}
+                input_data={"prompt": "What is the capital of France?"},
+                expected_output={"answer": "Paris"},
+            ),
+            DatasetRecord(
+                input_data={"prompt": "What is the capital of China?"},
+                expected_output={"answer": "Beijing"},
             ),
         ]
     ],
@@ -571,7 +643,11 @@ def test_dataset_modify_records_multiple_times(llmobs, test_dataset, test_datase
 
     test_dataset.update(0, {"expected_output": {"answer": "Berlin"}})
     test_dataset.update(
-        1, {"input_data": {"prompt": "What is the capital of Mexico?"}, "metadata": {"difficulty": "easy"}}
+        1,
+        {
+            "input_data": {"prompt": "What is the capital of Mexico?"},
+            "metadata": {"difficulty": "easy"},
+        },
     )
     assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
     assert test_dataset[0]["expected_output"] == {"answer": "Berlin"}
@@ -628,7 +704,14 @@ def test_dataset_modify_records_multiple_times(llmobs, test_dataset, test_datase
 
 @pytest.mark.parametrize(
     "test_dataset_records",
-    [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "What is the capital of France?"},
+                expected_output={"answer": "Paris"},
+            )
+        ]
+    ],
 )
 def test_dataset_modify_single_record(llmobs, test_dataset, test_dataset_records):
     assert test_dataset.latest_version == 1
@@ -636,7 +719,10 @@ def test_dataset_modify_single_record(llmobs, test_dataset, test_dataset_records
 
     test_dataset.update(
         0,
-        DatasetRecord(input_data={"prompt": "What is the capital of Germany?"}, expected_output={"answer": "Berlin"}),
+        DatasetRecord(
+            input_data={"prompt": "What is the capital of Germany?"},
+            expected_output={"answer": "Berlin"},
+        ),
     )
     assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
     assert test_dataset[0]["expected_output"] == {"answer": "Berlin"}
@@ -668,7 +754,14 @@ def test_dataset_modify_single_record(llmobs, test_dataset, test_dataset_records
 
 @pytest.mark.parametrize(
     "test_dataset_records",
-    [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "What is the capital of France?"},
+                expected_output={"answer": "Paris"},
+            )
+        ]
+    ],
 )
 def test_dataset_modify_single_record_empty_record(llmobs, test_dataset, test_dataset_records):
     assert test_dataset.latest_version == 1
@@ -684,14 +777,24 @@ def test_dataset_modify_single_record_empty_record(llmobs, test_dataset, test_da
 
 def test_dataset_estimate_size(llmobs, test_dataset):
     test_dataset.append(
-        {"input_data": {"prompt": "What is the capital of France?"}, "expected_output": {"answer": "Paris"}}
+        {
+            "input_data": {"prompt": "What is the capital of France?"},
+            "expected_output": {"answer": "Paris"},
+        }
     )
     assert 170 <= test_dataset._estimate_delta_size() <= 200
 
 
 @pytest.mark.parametrize(
     "test_dataset_records",
-    [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "What is the capital of France?"},
+                expected_output={"answer": "Paris"},
+            )
+        ]
+    ],
 )
 def test_dataset_modify_record_on_optional(llmobs, test_dataset, test_dataset_records):
     assert test_dataset.latest_version == 1
@@ -774,11 +877,21 @@ def test_dataset_modify_record_on_input(llmobs, test_dataset, test_dataset_recor
 
 @pytest.mark.parametrize(
     "test_dataset_records",
-    [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "What is the capital of France?"},
+                expected_output={"answer": "Paris"},
+            )
+        ]
+    ],
 )
 def test_dataset_append(llmobs, test_dataset):
     test_dataset.append(
-        DatasetRecord(input_data={"prompt": "What is the capital of Italy?"}, expected_output={"answer": "Rome"})
+        DatasetRecord(
+            input_data={"prompt": "What is the capital of Italy?"},
+            expected_output={"answer": "Rome"},
+        )
     )
     assert len(test_dataset) == 2
     assert test_dataset.latest_version == 1
@@ -811,14 +924,25 @@ def test_dataset_append(llmobs, test_dataset):
 
 @pytest.mark.parametrize(
     "test_dataset_records",
-    [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "What is the capital of France?"},
+                expected_output={"answer": "Paris"},
+            )
+        ]
+    ],
 )
 def test_dataset_extend(llmobs, test_dataset):
     test_dataset.extend(
         [
-            DatasetRecord(input_data={"prompt": "What is the capital of Italy?"}, expected_output={"answer": "Rome"}),
             DatasetRecord(
-                input_data={"prompt": "What is the capital of Sweden?"}, expected_output={"answer": "Stockholm"}
+                input_data={"prompt": "What is the capital of Italy?"},
+                expected_output={"answer": "Rome"},
+            ),
+            DatasetRecord(
+                input_data={"prompt": "What is the capital of Sweden?"},
+                expected_output={"answer": "Stockholm"},
             ),
         ]
     )
@@ -856,7 +980,14 @@ def test_dataset_extend(llmobs, test_dataset):
 
 @pytest.mark.parametrize(
     "test_dataset_records",
-    [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "What is the capital of France?"},
+                expected_output={"answer": "Paris"},
+            )
+        ]
+    ],
 )
 def test_dataset_append_no_expected_output(llmobs, test_dataset):
     test_dataset.append(DatasetRecord(input_data={"prompt": "What is the capital of Sealand?"}))
@@ -895,8 +1026,14 @@ def test_dataset_append_no_expected_output(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"}),
-            DatasetRecord(input_data={"prompt": "What is the capital of Italy?"}, expected_output={"answer": "Rome"}),
+            DatasetRecord(
+                input_data={"prompt": "What is the capital of France?"},
+                expected_output={"answer": "Paris"},
+            ),
+            DatasetRecord(
+                input_data={"prompt": "What is the capital of Italy?"},
+                expected_output={"answer": "Rome"},
+            ),
         ],
     ],
 )
@@ -965,8 +1102,14 @@ def test_dataset_delete_no_expected_output(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"}),
-            DatasetRecord(input_data={"prompt": "What is the capital of Italy?"}, expected_output={"answer": "Rome"}),
+            DatasetRecord(
+                input_data={"prompt": "What is the capital of France?"},
+                expected_output={"answer": "Paris"},
+            ),
+            DatasetRecord(
+                input_data={"prompt": "What is the capital of Italy?"},
+                expected_output={"answer": "Rome"},
+            ),
         ],
     ],
 )
@@ -1006,8 +1149,14 @@ def test_dataset_delete_after_update(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"}),
-            DatasetRecord(input_data={"prompt": "What is the capital of Italy?"}, expected_output={"answer": "Rome"}),
+            DatasetRecord(
+                input_data={"prompt": "What is the capital of France?"},
+                expected_output={"answer": "Paris"},
+            ),
+            DatasetRecord(
+                input_data={"prompt": "What is the capital of Italy?"},
+                expected_output={"answer": "Rome"},
+            ),
         ],
     ],
 )
@@ -1104,20 +1253,33 @@ def test_experiment_invalid_evaluator_signature_raises(llmobs, test_dataset_one_
             pass
 
         llmobs.experiment(
-            "test_experiment", dummy_task, test_dataset_one_record, [my_evaluator_missing_expected_output]
+            "test_experiment",
+            dummy_task,
+            test_dataset_one_record,
+            [my_evaluator_missing_expected_output],
         )
     with pytest.raises(TypeError, match=re.escape(expected_err)):
 
         def my_evaluator_missing_input(output_data, expected_output):
             pass
 
-        llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [my_evaluator_missing_input])
+        llmobs.experiment(
+            "test_experiment",
+            dummy_task,
+            test_dataset_one_record,
+            [my_evaluator_missing_input],
+        )
     with pytest.raises(TypeError, match=re.escape(expected_err)):
 
         def my_evaluator_missing_output(input_data, expected_output):
             pass
 
-        llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [my_evaluator_missing_output])
+        llmobs.experiment(
+            "test_experiment",
+            dummy_task,
+            test_dataset_one_record,
+            [my_evaluator_missing_output],
+        )
 
 
 def test_project_name_set(run_python_code_in_subprocess):
@@ -1167,7 +1329,13 @@ def test_project_name_not_set_env(ddtrace_run_python_code_in_subprocess):
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
-    env.update({"PYTHONPATH": ":".join(pypath), "DD_TRACE_ENABLED": "0", "DD_LLMOBS_ENABLED": "1"})
+    env.update(
+        {
+            "PYTHONPATH": ":".join(pypath),
+            "DD_TRACE_ENABLED": "0",
+            "DD_LLMOBS_ENABLED": "1",
+        }
+    )
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 from ddtrace.llmobs import LLMObs
@@ -1222,9 +1390,13 @@ def test_experiment_create(llmobs, test_dataset_one_record):
     "test_dataset_records",
     [
         [
-            DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"}),
             DatasetRecord(
-                input_data={"prompt": "What is the capital of Canada?"}, expected_output={"answer": "Ottawa"}
+                input_data={"prompt": "What is the capital of France?"},
+                expected_output={"answer": "Paris"},
+            ),
+            DatasetRecord(
+                input_data={"prompt": "What is the capital of Canada?"},
+                expected_output={"answer": "Ottawa"},
             ),
         ]
     ],
@@ -1295,7 +1467,10 @@ def test_experiment_run_task_error_raises(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", faulty_task, test_dataset_one_record, [dummy_evaluator])
     with pytest.raises(
         RuntimeError,
-        match=re.compile("Error on record 0: This is a test error\n.*ValueError.*in faulty_task.*", flags=re.DOTALL),
+        match=re.compile(
+            "Error on record 0: This is a test error\n.*ValueError.*in faulty_task.*",
+            flags=re.DOTALL,
+        ),
     ):
         exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=True)
 
@@ -1306,7 +1481,10 @@ def test_experiment_run_evaluators(llmobs, test_dataset_one_record):
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     assert len(eval_results) == 1
-    assert eval_results[0] == {"idx": 0, "evaluations": {"dummy_evaluator": {"value": False, "error": None}}}
+    assert eval_results[0] == {
+        "idx": 0,
+        "evaluations": {"dummy_evaluator": {"value": False, "error": None}},
+    }
 
 
 def test_experiment_run_summary_evaluators(llmobs, test_dataset_one_record):
@@ -1321,7 +1499,10 @@ def test_experiment_run_summary_evaluators(llmobs, test_dataset_one_record):
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     assert len(eval_results) == 1
-    assert eval_results[0] == {"idx": 0, "evaluations": {"dummy_evaluator": {"value": False, "error": None}}}
+    assert eval_results[0] == {
+        "idx": 0,
+        "evaluations": {"dummy_evaluator": {"value": False, "error": None}},
+    }
     summary_eval_results = exp._run_summary_evaluators(task_results, eval_results, raise_errors=False)
     assert len(summary_eval_results) == 1
     assert summary_eval_results[0] == {
@@ -1336,7 +1517,10 @@ def test_experiment_run_evaluators_error(llmobs, test_dataset_one_record):
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     assert len(eval_results) == 1
-    assert eval_results[0] == {"idx": 0, "evaluations": {"faulty_evaluator": {"value": None, "error": mock.ANY}}}
+    assert eval_results[0] == {
+        "idx": 0,
+        "evaluations": {"faulty_evaluator": {"value": None, "error": mock.ANY}},
+    }
     err = eval_results[0]["evaluations"]["faulty_evaluator"]["error"]
     assert err["message"] == "This is a test error in evaluator"
     assert err["type"] == "ValueError"
@@ -1355,7 +1539,10 @@ def test_experiment_run_summary_evaluators_error(llmobs, test_dataset_one_record
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     assert len(eval_results) == 1
-    assert eval_results[0] == {"idx": 0, "evaluations": {"dummy_evaluator": {"value": False, "error": None}}}
+    assert eval_results[0] == {
+        "idx": 0,
+        "evaluations": {"dummy_evaluator": {"value": False, "error": None}},
+    }
     summary_eval_results = exp._run_summary_evaluators(task_results, eval_results, raise_errors=False)
     assert summary_eval_results[0] == {
         "idx": 0,
@@ -1379,11 +1566,19 @@ def test_experiment_summary_evaluators_missing_eval_error(llmobs, test_dataset_o
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     assert len(eval_results) == 1
-    assert eval_results[0] == {"idx": 0, "evaluations": {"dummy_evaluator": {"value": False, "error": None}}}
+    assert eval_results[0] == {
+        "idx": 0,
+        "evaluations": {"dummy_evaluator": {"value": False, "error": None}},
+    }
     summary_eval_results = exp._run_summary_evaluators(task_results, eval_results, raise_errors=False)
     assert summary_eval_results[0] == {
         "idx": 0,
-        "evaluations": {"dummy_summary_evaluator_using_missing_eval_results": {"value": None, "error": mock.ANY}},
+        "evaluations": {
+            "dummy_summary_evaluator_using_missing_eval_results": {
+                "value": None,
+                "error": mock.ANY,
+            }
+        },
     }
     err = summary_eval_results[0]["evaluations"]["dummy_summary_evaluator_using_missing_eval_results"]["error"]
     assert err["message"] == "'non_existent_evaluator'"
@@ -1426,7 +1621,8 @@ def test_experiment_summary_eval_missing_results_raises(llmobs, test_dataset_one
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     with pytest.raises(
-        RuntimeError, match="Summary evaluator dummy_summary_evaluator_using_missing_eval_results failed"
+        RuntimeError,
+        match="Summary evaluator dummy_summary_evaluator_using_missing_eval_results failed",
     ):
         exp._run_summary_evaluators(task_results, eval_results, raise_errors=True)
 
@@ -1513,7 +1709,12 @@ def test_experiment_run(llmobs, test_dataset_one_record):
         with mock.patch("ddtrace.llmobs._experiment._ExperimentRunInfo") as mock_experiment_run_info:
             # this is to ensure that the UUID for the run is always the same
             mock_experiment_run_info.return_value = run_info_with_stable_id(0)
-            exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
+            exp = llmobs.experiment(
+                "test_experiment",
+                dummy_task,
+                test_dataset_one_record,
+                [dummy_evaluator],
+            )
             exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
             exp_results = exp.run()
 
@@ -1623,9 +1824,14 @@ def test_experiment_run_w_summary(llmobs, test_dataset_one_record):
     assert exp.url == f"https://app.datadoghq.com/llm/experiments/{exp._id}"
 
 
-def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test_dataset_one_record):
+def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test_dataset_one_record_w_metadata):
     """Assert that the experiment span includes expected output field and includes the experiment scope."""
-    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record_w_metadata,
+        [dummy_evaluator],
+    )
     exp._id = "1234567890"
     exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(llmobs_events) == 1
@@ -1634,14 +1840,15 @@ def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test
     for key in ("span_id", "trace_id", "parent_id", "start_ns", "duration", "metrics"):
         assert event[key] == mock.ANY
     assert event["status"] == "ok"
-    assert event["meta"]["input"] == '{"prompt": "What is the capital of France?"}'
-    assert event["meta"]["output"] == '{"prompt": "What is the capital of France?"}'
-    assert event["meta"]["expected_output"] == '{"answer": "Paris"}'
-    assert "dataset_name:{}".format(test_dataset_one_record.name) in event["tags"]
+    assert event["meta"]["input"] == {"prompt": "What is the capital of France?"}
+    assert event["meta"]["output"] == {"prompt": "What is the capital of France?"}
+    assert event["meta"]["expected_output"] == {"answer": "Paris"}
+    assert event["meta"]["metadata"] == {"difficulty": "easy"}
+    assert "dataset_name:{}".format(test_dataset_one_record_w_metadata.name) in event["tags"]
     assert "project_name:test-project" in event["tags"]
     assert "experiment_name:test_experiment" in event["tags"]
-    assert "dataset_id:{}".format(test_dataset_one_record._id) in event["tags"]
-    assert "dataset_record_id:{}".format(test_dataset_one_record._records[0]["record_id"]) in event["tags"]
+    assert "dataset_id:{}".format(test_dataset_one_record_w_metadata._id) in event["tags"]
+    assert "dataset_record_id:{}".format(test_dataset_one_record_w_metadata._records[0]["record_id"]) in event["tags"]
     assert "experiment_id:1234567890" in event["tags"]
     assert f"run_id:{DUMMY_EXPERIMENT_FIRST_RUN_ID}" in event["tags"]
     assert "run_iteration:1" in event["tags"]
@@ -1649,25 +1856,40 @@ def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test
     assert event["_dd"]["scope"] == "experiments"
 
 
-def test_experiment_span_multi_run_tags(llmobs, llmobs_events, test_dataset_one_record):
-    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
+def test_experiment_span_multi_run_tags(llmobs, llmobs_events, test_dataset_one_record_w_metadata):
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record_w_metadata,
+        [dummy_evaluator],
+    )
     exp._id = "1234567890"
     for i in range(2):
         exp._run_task(1, run=run_info_with_stable_id(i), raise_errors=False)
         assert len(llmobs_events) == i + 1
         event = llmobs_events[i]
         assert event["name"] == "dummy_task"
-        for key in ("span_id", "trace_id", "parent_id", "start_ns", "duration", "metrics"):
+        for key in (
+            "span_id",
+            "trace_id",
+            "parent_id",
+            "start_ns",
+            "duration",
+            "metrics",
+        ):
             assert event[key] == mock.ANY
         assert event["status"] == "ok"
-        assert event["meta"]["input"] == '{"prompt": "What is the capital of France?"}'
-        assert event["meta"]["output"] == '{"prompt": "What is the capital of France?"}'
-        assert event["meta"]["expected_output"] == '{"answer": "Paris"}'
-        assert "dataset_name:{}".format(test_dataset_one_record.name) in event["tags"]
+        assert event["meta"]["input"] == {"prompt": "What is the capital of France?"}
+        assert event["meta"]["output"] == {"prompt": "What is the capital of France?"}
+        assert event["meta"]["expected_output"] == {"answer": "Paris"}
+        assert event["meta"]["metadata"] == {"difficulty": "easy"}
+        assert "dataset_name:{}".format(test_dataset_one_record_w_metadata.name) in event["tags"]
         assert "project_name:test-project" in event["tags"]
         assert "experiment_name:test_experiment" in event["tags"]
-        assert "dataset_id:{}".format(test_dataset_one_record._id) in event["tags"]
-        assert "dataset_record_id:{}".format(test_dataset_one_record._records[0]["record_id"]) in event["tags"]
+        assert "dataset_id:{}".format(test_dataset_one_record_w_metadata._id) in event["tags"]
+        assert (
+            "dataset_record_id:{}".format(test_dataset_one_record_w_metadata._records[0]["record_id"]) in event["tags"]
+        )
         assert "experiment_id:1234567890" in event["tags"]
         assert f"run_id:{DUMMY_EXPERIMENT_FIRST_RUN_ID}" in event["tags"]
         assert f"run_iteration:{i + 1}" in event["tags"]
