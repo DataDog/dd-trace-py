@@ -125,7 +125,7 @@ serverless lambda tests:
   trigger:
     project: DataDog/datadog-lambda-python
     strategy: depend
-    branch: rithika.narayan/APMSVLS-284-dd-trace-py-ci
+    branch: main
   needs:
     - job: publish-wheels-to-s3
   variables:
