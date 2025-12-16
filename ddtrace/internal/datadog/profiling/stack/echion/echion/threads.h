@@ -218,11 +218,123 @@ ThreadInfo::unwind(PyThreadState* tstate)
 }
 
 // ----------------------------------------------------------------------------
+inline void
+print_task_tree(const std::vector<TaskInfo::Ptr>& all_tasks,
+                const std::vector<TaskInfo::Ref>& leaf_tasks,
+                const std::unordered_map<PyObject*, TaskInfo::Ref>& waitee_map,
+                const std::unordered_map<PyObject*, TaskInfo::Ref>& origin_map)
+{
+    std::cerr << "Total tasks: " << all_tasks.size() << ", Leaf tasks: " << leaf_tasks.size() << "\n\n";
+
+    // Find root tasks (not waited on by anyone and not a child in task_link_map)
+    std::unordered_set<PyObject*> waited_tasks;
+    for (const auto& task : all_tasks) {
+        if (task->waiter)
+            waited_tasks.insert(task->waiter->origin);
+    }
+    {
+        std::lock_guard<std::mutex> lock(task_link_map_lock);
+        for (const auto& kv : task_link_map) {
+            waited_tasks.insert(kv.first); // children in gather
+        }
+    }
+
+    std::vector<TaskInfo::Ref> root_tasks;
+    for (const auto& task : all_tasks) {
+        if (waited_tasks.find(task->origin) == waited_tasks.end()) {
+            root_tasks.push_back(std::ref(*task));
+        }
+    }
+
+    // Helper to print a task with indentation
+    enum class DepType
+    {
+        AWAIT,
+        GATHER
+    };
+    std::function<void(const TaskInfo&, const std::string&, bool, DepType*)> print_task_subtree;
+    print_task_subtree = [&](const TaskInfo& task, const std::string& prefix, bool is_last, DepType* dep_type) {
+        auto task_name = string_table.lookup(task.name);
+        std::string name_str = task_name ? task_name->get() : "<unknown>";
+
+        // Print current task
+        std::cerr << prefix;
+        std::cerr << (is_last ? "└── " : "├── ");
+
+        // Show dependency type if provided
+        if (dep_type) {
+            std::cerr << (*dep_type == DepType::AWAIT ? "[await] " : "[gather] ");
+        }
+
+        std::cerr << name_str;
+        if (task.is_on_cpu)
+            std::cerr << " [ON CPU]";
+        std::cerr << " @" << task.origin << "\n";
+
+        // Find children: tasks that wait on this task (via waitee_map or task_link_map)
+        std::vector<std::pair<TaskInfo::Ref, DepType>> children;
+
+        // Check waitee_map: if task.origin is a key, then the value is waiting on us
+        auto it = waitee_map.find(task.origin);
+        if (it != waitee_map.end()) {
+            children.push_back({ it->second, DepType::AWAIT });
+        }
+
+        // Check task_link_map for gather children
+        {
+            std::lock_guard<std::mutex> lock(task_link_map_lock);
+            for (const auto& kv : task_link_map) {
+                if (kv.second == task.origin) { // child -> parent
+                    auto child_it = origin_map.find(kv.first);
+                    if (child_it != origin_map.end()) {
+                        children.push_back({ child_it->second, DepType::GATHER });
+                    }
+                }
+            }
+        }
+
+        // Recurse
+        std::string new_prefix = prefix + (is_last ? "    " : "│   ");
+        for (size_t i = 0; i < children.size(); i++) {
+            print_task_subtree(children[i].first.get(), new_prefix, i == children.size() - 1, &children[i].second);
+        }
+    };
+
+    // Print from root tasks
+    std::cerr << "Task Dependency Tree (root → leaf):\n";
+    std::cerr << "────────────────────────────────────\n";
+    for (size_t i = 0; i < root_tasks.size(); i++) {
+        print_task_subtree(root_tasks[i].get(), "", i == root_tasks.size() - 1, nullptr);
+    }
+
+    // Also show leaf tasks summary
+    std::cerr << "\nLeaf Tasks (will generate stacks):\n";
+    std::cerr << "────────────────────────────────────\n";
+    for (const auto& leaf : leaf_tasks) {
+        auto task_name = string_table.lookup(leaf.get().name);
+        std::string name_str = task_name ? task_name->get() : "<unknown>";
+        std::cerr << "  • " << name_str;
+        if (leaf.get().is_on_cpu)
+            std::cerr << " [ON CPU]";
+        std::cerr << "\n";
+    }
+    std::cerr << "\n";
+}
+
+// ----------------------------------------------------------------------------
 inline Result<void>
 ThreadInfo::unwind_tasks(PyThreadState* tstate)
 {
     // The size of the "pure Python" stack (before asyncio Frames), computed later by TaskInfo::unwind
     size_t upper_python_stack_size = 0;
+    // Unused variable, will be used later by TaskInfo::unwind
+    size_t unused;
+
+    std::cerr << "== Python stack size: " << python_stack.size() << std::endl;
+    for (size_t i = 0; i < python_stack.size(); i++) {
+        const auto& frame = python_stack[i].get();
+        std::cerr << "Frame " << i << ": " << string_table.lookup(frame.name)->get() << std::endl;
+    }
 
     // Check if the Python stack contains "_run".
     // To avoid having to do string comparisons every time we unwind Tasks, we keep track
@@ -258,6 +370,7 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
                 frame_cache_key = frame.cache_key;
                 expect_at_least_one_running_task = true;
                 upper_python_stack_size = python_stack.size() - i;
+                std::cerr << "== Upper Python stack size: " << upper_python_stack_size << std::endl;
                 break;
             }
         }
@@ -267,6 +380,7 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
             if (frame.cache_key == *frame_cache_key) {
                 expect_at_least_one_running_task = true;
                 upper_python_stack_size = python_stack.size() - i;
+                std::cerr << "== Upper Python stack size: " << upper_python_stack_size << std::endl;
                 break;
             }
         }
@@ -359,21 +473,30 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
         }
     }
 
-    bool on_cpu_task_seen = expect_at_least_one_running_task;
+    // Print the Task tree
+    print_task_tree(all_tasks, leaf_tasks, waitee_map, origin_map);
+
+    bool on_cpu_task_seen = false || expect_at_least_one_running_task;
     for (auto& leaf_task : leaf_tasks) {
+        std::cerr << "==== Leaf task " << string_table.lookup(leaf_task.get().name)->get() << std::endl;
         on_cpu_task_seen = on_cpu_task_seen || leaf_task.get().is_on_cpu;
 
         auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu);
         auto& stack = stack_info->stack;
+        // stack.push_back(Frame::get(
+        //   string_table.key(expect_at_least_one_running_task ? "Expect running: yes" : "Expect running: no")));
 
+        // AIDEV-NOTE: Must detect cycles in the task chain to prevent infinite loops.
+        // This can happen if waitee_map or task_link_map form cycles (e.g., A waits for B, B waits for A).
         std::unordered_set<PyObject*> seen_task_origins;
         for (auto current_task = leaf_task;;) {
             auto& task = current_task.get();
             auto task_name = string_table.lookup(task.name)->get();
+            std::cerr << "=== Task: " << string_table.lookup(task.name)->get() << std::endl;
 
             // Check for cycle in task chain
             if (seen_task_origins.find(task.origin) != seen_task_origins.end()) {
-                break;
+                break; // Cycle detected - stop to prevent infinite loop
             }
             seen_task_origins.insert(task.origin);
 
@@ -431,6 +554,7 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
         // There could be a race condition where relevant partial Python Thread Stack ends up being different from the
         // one we saw in TaskInfo::unwind. This is extremely unlikely, I believe, but failing to account for it would
         // cause an underflow, so let's be conservative.
+        stack.push_back(Frame::get(string_table.key("== Python frames")));
         size_t start_index = 0;
         if (on_cpu_task_seen && python_stack.size() >= upper_python_stack_size) {
             start_index = python_stack.size() - upper_python_stack_size;
@@ -809,6 +933,12 @@ using PyThreadStateCallback = std::function<void(PyThreadState*, ThreadInfo&)>;
 static void
 for_each_thread(InterpreterInfo& interp, PyThreadStateCallback callback)
 {
+    // Track call count and duration for performance monitoring
+    static uint64_t call_count = 0;
+    static uint64_t total_duration_us = 0;
+    static auto first_call_time = std::chrono::steady_clock::now();
+    auto start_time = std::chrono::steady_clock::now();
+
     std::unordered_set<PyThreadState*> threads;
     std::unordered_set<PyThreadState*> seen_threads;
 
@@ -885,4 +1015,20 @@ for_each_thread(InterpreterInfo& interp, PyThreadStateCallback callback)
             callback(&tstate, *thread_info);
         }
     }
+
+    // Update call statistics
+    auto end_time = std::chrono::steady_clock::now();
+    auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
+
+    call_count++;
+    total_duration_us += duration_us;
+
+    // Print statistics every 30 calls
+    if (call_count % 30 == 0) {
+        double avg_duration_us = static_cast<double>(total_duration_us) / call_count;
+        fprintf(stderr, "[for_each_thread] Call count: %lu, Average duration: %.2f us\n", call_count, avg_duration_us);
+    }
+
+    auto elapsed_since_first = std::chrono::duration_cast<std::chrono::seconds>(end_time - first_call_time).count();
+    fprintf(stderr, "[for_each_thread] Elapsed since first call: %ld s\n", elapsed_since_first);
 }

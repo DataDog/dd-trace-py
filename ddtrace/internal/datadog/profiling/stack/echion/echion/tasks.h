@@ -310,11 +310,17 @@ TaskInfo::unwind(FrameStack& stack)
     size_t count = 0;
 
     // Unwind the coro frames
+    stack.push_back(Frame::get(string_table.key("== Task frames")));
+    std::cerr << "== Coro stack" << std::endl;
     while (!coro_frames.empty()) {
         PyObject* frame = coro_frames.top();
         coro_frames.pop();
 
         auto new_frames = unwind_frame(frame, stack);
+        for (size_t i = stack.size() - new_frames; i < stack.size(); i++) {
+            std::cerr << "  " << ((i == 0) ? "-" : "+") << i << ": " << string_table.lookup(stack[i].get().name)->get()
+                      << std::endl;
+        }
 
         // If we failed to unwind the Frame, stop unwinding the coroutine chain; otherwise we could
         // end up with Stacks with missing Frames between two coroutines Frames.
