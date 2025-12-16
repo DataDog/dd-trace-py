@@ -28,6 +28,7 @@ Feature: Simple feature
 
 
 class TestPytestBdd:
+    @pytest.mark.xfail(raises=ConnectionRefusedError, reason="test agent is down")
     def test_and_emit_get_version(self) -> None:
         plugin = BddTestOptPlugin(Mock())
         version = plugin._get_framework_version()
