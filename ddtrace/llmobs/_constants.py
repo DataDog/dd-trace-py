@@ -86,6 +86,11 @@ NAME = "_ml_obs.name"
 # Prompt constants
 DEFAULT_PROMPT_NAME = "unnamed-prompt"
 
+# Prompt tracking tags
+PROMPT_TRACKING_INSTRUMENTATION_METHOD = "prompt_tracking_instrumentation_method"
+PROMPT_MULTIMODAL = "prompt_multimodal"
+INSTRUMENTATION_METHOD_AUTO = "auto"
+
 DECORATOR = "_ml_obs.decorator"
 INTEGRATION = "_ml_obs.integration"
 

@@ -24,6 +24,9 @@ from ddtrace.llmobs._constants import INPUT_TYPE_FILE
 from ddtrace.llmobs._constants import INPUT_TYPE_IMAGE
 from ddtrace.llmobs._constants import INPUT_TYPE_TEXT
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_AUTO
+from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
+from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
@@ -892,6 +895,24 @@ def _has_multimodal_inputs(variables: Dict[str, Any]) -> bool:
     return False
 
 
+def set_prompt_tracking_tags(span: Span, *, is_multimodal: bool = False) -> None:
+    """Set prompt tracking telemetry tags on a span.
+
+    Args:
+        span: The span to tag
+        is_multimodal: Whether the prompt contains image/file inputs
+    """
+    new_tags = {PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_AUTO}
+    if is_multimodal:
+        new_tags[PROMPT_MULTIMODAL] = "true"
+
+    existing_tags = span._get_ctx_item(TAGS)
+    if existing_tags:
+        existing_tags.update(new_tags)
+    else:
+        span._set_ctx_item(TAGS, new_tags)
+
+
 def openai_set_meta_tags_from_response(
     span: Span, kwargs: Dict[str, Any], response: Optional[Any], integration: Any = None
 ) -> None:
@@ -936,14 +957,7 @@ def openai_set_meta_tags_from_response(
             validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
             span._set_ctx_item(INPUT_PROMPT, validated_prompt)
 
-            tags = {"prompt_tracking_instrumentation_method": "auto"}
-            if has_multimodal:
-                tags["prompt_multimodal"] = "true"
-            existing_tags = span._get_ctx_item(TAGS)
-            if existing_tags:
-                existing_tags.update(tags)
-            else:
-                span._set_ctx_item(TAGS, tags)
+            set_prompt_tracking_tags(span, is_multimodal=has_multimodal)
         except (TypeError, ValueError, AttributeError) as e:
             logger.debug("Failed to validate prompt for OpenAI response: %s", e)
 
