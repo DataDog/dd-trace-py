@@ -19,15 +19,22 @@ variables:
 default:
   interruptible: true
 
+
+.is_main: $CI_COMMIT_REF_NAME == "main"
+.is_release: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+.is_release_branch: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+.is_gh_merge_queue: $CI_COMMIT_BRANCH =~ /^gh-readonly-queue\/.*$/
+.is_devflow_merge_queue: $CI_COMMIT_BRANCH =~ /^mq-working-branch-.*$/
+
 # trigger new commit cancel
 workflow:
   auto_cancel:
     on_new_commit: interruptible
   rules:
-    - if: $CI_COMMIT_BRANCH == 'main'
+    - if: !reference [.is_main]
       auto_cancel:
         on_new_commit: none
-    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+    - if: !reference [.is_release_branch]
       auto_cancel:
         on_new_commit: none
     - when: always
@@ -75,6 +82,26 @@ run-tests-trigger:
        job: tests-gen
    strategy: depend
 
+serverless lambda tests:
+  stage: tests
+  trigger:
+    project: DataDog/datadog-lambda-python
+    strategy: depend
+    branch: main
+  needs:
+    - job: publish-wheels-to-s3
+  variables:
+    UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
+    UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
+    UPSTREAM_COMMIT_BRANCH: $CI_COMMIT_BRANCH
+    UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
+    UPSTREAM_COMMIT_TITLE: $CI_COMMIT_TITLE
+    UPSTREAM_COMMIT_TAG: $CI_COMMIT_TAG
+    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
+    UPSTREAM_GITLAB_USER_LOGIN: $GITLAB_USER_LOGIN
+    UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL
+    SKIP_E2E_TESTS: "true"
+
 # Validate the ast-grep rule's test suite in .sg/tests
 "ast-grep rules":
   extends: .testrunner
@@ -119,7 +146,7 @@ macrobenchmarks:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: always
-    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+/
+    - if: !reference [.is_release]
       when: always
     - when: manual
 
@@ -132,10 +159,18 @@ check_new_flaky_tests:
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-api-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
     - export DD_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-app-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
     - datadog-ci gate evaluate
-  except:
-    - main
-    - '[0-9].[0-9]*'
-    - 'mq-working-branch**'
+  rules:
+    - if: !reference [.is_main]
+      when: never
+    - if: !reference [.is_release]
+      when: never
+    - if: !reference [.is_release_branch]
+      when: never
+    - if: !reference [.is_gh_merge_queue]
+      when: never
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
 
 requirements_json_test:
   rules:
@@ -159,10 +194,10 @@ package-oci:
 
 promote-oci-to-prod:
   stage: release
-  rules: null
-  only:
-    # TODO: Support publishing rc releases
-    - /^v[0-9]+\.[0-9]+\.[0-9]+$/
+  rules:
+    - if: !reference [.is_release]
+      when: on_success
+    - when: never
   needs:
     - job: release_pypi_prod
     - job: package-oci
@@ -188,10 +223,10 @@ promote-oci-to-staging:
 
 publish-lib-init-pinned-tags:
   stage: release
-  rules: null
-  only:
-    # TODO: Support publishing rc releases
-    - /^v[0-9]+\.[0-9]+\.[0-9]+$/
+  rules:
+    - if: !reference [.is_release]
+      when: on_success
+    - when: never
   needs:
     - job: release_pypi_prod
     - job: create-multiarch-lib-injection-image
