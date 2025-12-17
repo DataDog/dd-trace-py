@@ -19,7 +19,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.opentelemetry.constants import OTLP_EXPORTER_HEADER_IDENTIFIER
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import get_argument_value
 
 
@@ -82,13 +81,8 @@ def _wrap_send(func, instance, args, kwargs):
 
     parsed_uri = parse.urlparse(url)
 
-    # Get pin from instance to access integration config and tracer
+    # Get pin from instance to access integration config
     pin = Pin.get_from(instance)
-    tracer = getattr(instance, "datadog_tracer", ddtrace.tracer)
-
-    # Check if tracing is disabled on the tracer (for APM opt-out tests)
-    if not tracer.enabled and not asm_config._apm_opt_out:
-        return func(*args, **kwargs)
 
     # Use pin's config if available, otherwise fall back to global config
     integration_config = pin._config if pin else config.requests
@@ -124,7 +118,6 @@ def _wrap_send(func, instance, args, kwargs):
         "requests.send",
         span_name=schematize_url_operation("requests.request", protocol="http", direction=SpanDirection.OUTBOUND),
         pin=pin,
-        tracer=tracer,
         service=service,
         resource=f"{method} {path}",
         span_type=SpanTypes.HTTP,
