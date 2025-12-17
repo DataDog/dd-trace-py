@@ -43,8 +43,7 @@ LockClassInst = Union[_thread.LockType, _thread.RLock]
 _test_global_lock: LockClassInst
 
 
-class TestBar:
-    ...
+class TestBar: ...
 
 
 _test_global_bar_instance: TestBar
