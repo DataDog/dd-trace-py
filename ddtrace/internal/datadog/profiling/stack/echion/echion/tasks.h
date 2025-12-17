@@ -304,7 +304,6 @@ TaskInfo::unwind(FrameStack& stack)
     // This can happen if the Profiler samples during as the Task is running,
     // or due to memory corruption/race conditions when reading coroutine pointers.
     std::unordered_set<GenInfo*> seen_coros;
-    std::unordered_set<size_t> pure_coro_frames;
     for (auto py_coro = this->coro.get(); py_coro != NULL; py_coro = py_coro->await.get()) {
         if (seen_coros.find(py_coro) != seen_coros.end()) {
             std::cerr << "! Coro " << py_coro << " has a cycle" << std::endl;
@@ -315,7 +314,9 @@ TaskInfo::unwind(FrameStack& stack)
         std::cerr << "  coro " << py_coro << " frame=" << py_coro->frame << std::endl;
 
         if (py_coro->frame != NULL) {
+            std::cerr << "    pushing " << py_coro->frame << std::endl;
             coro_frames.push(py_coro->frame);
+            std::cerr << "    top after push = " << coro_frames.top() << std::endl;
         }
     }
     std::cerr << "  coro_frames.size()=" << coro_frames.size() << std::endl;
