@@ -303,15 +303,15 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.9"),
+                    pys=select_pys(min_version="3.9", max_version="3.13"),
                     pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.9"),
+                    pys=select_pys(min_version="3.9", max_version="3.13"),
                     pkgs={"fastapi": "==0.94.1"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pys=select_pys(min_version="3.10"),
                     pkgs={"fastapi": "~=0.114.2", "mcp": "==1.20.0"},
                 ),
                 Venv(
