@@ -229,7 +229,7 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
     // of the cache key of the "_run" Frame.
     static std::optional<Frame::Key> frame_cache_key;
     bool expect_at_least_one_running_task = false;
-    if (!frame_cache_key) {
+    if (!frame_cache_key || true) {
         for (size_t i = 0; i < python_stack.size(); i++) {
             const auto& frame = python_stack[i].get();
             const auto& frame_name = string_table.lookup(frame.name)->get();
