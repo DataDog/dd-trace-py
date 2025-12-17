@@ -147,8 +147,8 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 
         // CORE of the fuzz harness
         (void)Frame::create(&code, lasti);
-        // TODO: Call more internal functions to trigger more code paths 
-        // Possible ideas: 
+        // TODO: Call more internal functions to trigger more code paths
+        // Possible ideas:
         // - MirrorSet::*
         // - StackChunk::*
         // - ThreadInfo::*
@@ -184,5 +184,3 @@ main(int argc, char** argv)
     return 0;
 }
 #endif
-
-
