@@ -182,6 +182,8 @@ requirements_json_test:
 detect_circular_imports:
   script:
     - python -m pip install -r dd-trace-py/scripts/import-analysis/requirements-cycles.txt
+    - cd ..
+    - pwd
     - cp dd-trace-py/scripts/import-analysis/cycles.py .
     - python dd-trace-py/scripts/import-analysis/cycles.py analyze cycles-pr.json
     - git checkout main
