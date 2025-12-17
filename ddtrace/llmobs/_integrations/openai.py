@@ -44,20 +44,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         # object that is strongly linked with configuration.
         super().__init__(integration_config)
         self._openai = openai
-        self._user_api_key = None
         self._client = None
-        if self._openai.api_key is not None:
-            self.user_api_key = self._openai.api_key
-
-    @property
-    def user_api_key(self) -> Optional[str]:
-        """Get a representation of the user API key for tagging."""
-        return self._user_api_key
-
-    @user_api_key.setter
-    def user_api_key(self, value: str) -> None:
-        # Match the API key representation that OpenAI uses in their UI.
-        self._user_api_key = "sk-...%s" % value[-4:]
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
         traced_operations = (
