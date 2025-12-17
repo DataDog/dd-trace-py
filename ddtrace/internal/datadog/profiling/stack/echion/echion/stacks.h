@@ -46,6 +46,11 @@ inline FrameStack python_stack;
 static size_t
 unwind_frame(PyObject* frame_addr, FrameStack& stack)
 {
+    if (frame_addr == NULL) {
+        std::cerr << "! Unwinding NULL frame" << std::endl;
+        return 0;
+    }
+
     std::unordered_set<PyObject*> seen_frames; // Used to detect cycles in the stack
     int count = 0;
 
