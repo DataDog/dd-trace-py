@@ -16,9 +16,7 @@ def _assert_distributed_trace(mock_tracer, llmobs_events, expected_tool_name):
 
     all_spans = [span for trace in traces for span in trace]
     client_spans = [span for span in all_spans if span.resource == "client_tool_call"]
-    server_spans = [
-        span for span in all_spans if span.name == "mcp.tools/call" and span.resource == "request_responder"
-    ]
+    server_spans = [span for span in all_spans if span.resource == "server_tool_call"]
     client_events = [event for event in llmobs_events if "MCP Client Tool Call" in event["name"]]
     server_events = [
         event

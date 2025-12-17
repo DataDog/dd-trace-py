@@ -24,8 +24,9 @@ log = get_logger(__name__)
 MCP_SPAN_TYPE = "_ml_obs.mcp_span_type"
 
 CLIENT_TOOL_CALL_OPERATION_NAME = "client_tool_call"
-REQUEST_RESPONDER_ENTER_OPERATION_NAME = "request_responder"
-REQUEST_RESPONDER_RESPOND_OPERATION_NAME = "request_responder_respond"
+SERVER_REQUEST_OPERATION_NAME = "server_request"
+# This operation is handled the same as server_request but has a different name for legacy reasons
+SERVER_TOOL_CALL_OPERATION_NAME = "server_tool_call"
 
 
 def _find_client_session_root(span: Optional[Span]) -> Optional[Span]:
@@ -90,7 +91,7 @@ class MCPIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_client(span, args, kwargs, response)
         elif operation == "initialize":
             self._llmobs_set_tags_initialize(span, args, kwargs, response)
-        elif operation == REQUEST_RESPONDER_RESPOND_OPERATION_NAME:
+        elif operation == SERVER_REQUEST_OPERATION_NAME or operation == SERVER_TOOL_CALL_OPERATION_NAME:
             self._llmobs_set_tags_request_responder_respond(span, args, kwargs, response)
         elif operation == "list_tools":
             self._llmobs_set_tags_list_tools(span, args, kwargs, response)

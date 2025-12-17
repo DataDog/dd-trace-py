@@ -17,8 +17,8 @@ from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._integrations.mcp import CLIENT_TOOL_CALL_OPERATION_NAME
-from ddtrace.llmobs._integrations.mcp import REQUEST_RESPONDER_ENTER_OPERATION_NAME
-from ddtrace.llmobs._integrations.mcp import REQUEST_RESPONDER_RESPOND_OPERATION_NAME
+from ddtrace.llmobs._integrations.mcp import SERVER_REQUEST_OPERATION_NAME
+from ddtrace.llmobs._integrations.mcp import SERVER_TOOL_CALL_OPERATION_NAME
 from ddtrace.llmobs._integrations.mcp import MCPIntegration
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.propagation.http import HTTPPropagator
@@ -231,9 +231,13 @@ def traced_request_responder_enter(mcp, pin: Pin, func, instance, args: tuple, k
         if headers:
             activate_distributed_headers(pin.tracer, config.mcp, headers)
 
+    operation_name = (
+        SERVER_TOOL_CALL_OPERATION_NAME if isinstance(request_root, CallToolRequest) else SERVER_REQUEST_OPERATION_NAME
+    )
+
     span = integration.trace(
         pin,
-        REQUEST_RESPONDER_ENTER_OPERATION_NAME,
+        operation_name,
         submit_to_llmobs=True,
         span_name="mcp.{}".format(_get_attr(request_root, "method", "unknown")),
     )
@@ -263,18 +267,16 @@ async def traced_request_responder_respond(mcp, pin: Pin, func, instance, args: 
     integration: MCPIntegration = mcp._datadog_integration
     span: Optional[Span] = getattr(instance, "_dd_span", None)
 
-    result = await func(*args, **kwargs)
-
     if span:
         integration.llmobs_set_tags(
             span,
             args=args,
             kwargs=dict(**kwargs, request_responder=instance),
             response=None,
-            operation=REQUEST_RESPONDER_RESPOND_OPERATION_NAME,
+            operation=SERVER_REQUEST_OPERATION_NAME,
         )
 
-    return result
+    return await func(*args, **kwargs)
 
 
 def patch():
