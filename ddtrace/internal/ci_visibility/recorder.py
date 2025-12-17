@@ -207,7 +207,7 @@ class CIVisibility(Service):
         if custom_configurations:
             self._configurations["custom"] = custom_configurations
 
-        self._api_key = os.getenv("_CI_DD_DD_API_KEY", os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY")))
+        self._api_key = os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY"))
 
         if os.getenv("_CI_DD_DD_API_KEY"):
             raise Exception("_CI_DD_DD_API_KEY")

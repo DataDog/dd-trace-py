@@ -118,6 +118,7 @@ venv = Venv(
         "DD_PATCH_MODULES": "unittest:false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
         "CARGO_BUILD_JOBS": "12",
+        "DD_GIT_REPOSITORY_URL": "http://github.com/test-org/test-repo.git",
     },
     venvs=[
         Venv(
