@@ -47,7 +47,6 @@ static size_t
 unwind_frame(PyObject* frame_addr, FrameStack& stack)
 {
     if (frame_addr == NULL) {
-        // std::cerr << "! Unwinding NULL frame" << std::endl;
         return 0;
     }
 

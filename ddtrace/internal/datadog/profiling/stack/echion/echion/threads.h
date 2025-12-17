@@ -381,8 +381,7 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
     }
 
     for (auto& leaf_task : leaf_tasks) {
-        std::cerr << "==== Leaf task " << string_table.lookup(leaf_task.get().name)->get() << " is "
-                  << (leaf_task.get().is_on_cpu ? "on CPU" : "not on CPU") << std::endl;
+        std::cerr << "==== Leaf task " << string_table.lookup(leaf_task.get().name)->get() << " is on CPU" << std::endl;
         auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu);
         auto& stack = stack_info->stack;
 
