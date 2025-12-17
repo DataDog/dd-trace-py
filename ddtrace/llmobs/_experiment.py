@@ -450,6 +450,16 @@ class Experiment:
         }
         return experiment_result
 
+    async def run_async(
+        self,
+        jobs: int = 1,
+        raise_errors: bool = False,
+        sample_size: Optional[int] = None,
+    ) -> ExperimentResult:
+        import asyncio
+
+        return await asyncio.to_thread(self.run, jobs, raise_errors, sample_size)
+
     @property
     def url(self) -> str:
         # FIXME: will not work for subdomain orgs
