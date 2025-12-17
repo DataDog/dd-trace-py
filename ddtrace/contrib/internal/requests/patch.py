@@ -19,7 +19,6 @@ from .session import TracedSession
 config._add(
     "requests",
     {
-        "tracing_enabled": asbool(os.getenv("DD_TRACE_REQUESTS_ENABLED", True)),
         "distributed_tracing": asbool(os.getenv("DD_REQUESTS_DISTRIBUTED_TRACING", default=True)),
         "split_by_domain": asbool(os.getenv("DD_REQUESTS_SPLIT_BY_DOMAIN", default=False)),
         "default_http_tag_query_string": config._http_client_tag_query_string,
@@ -28,7 +27,7 @@ config._add(
 )
 
 # always patch our `TracedSession` when imported
-_w(TracedSession, "send", _wrap_send(requests))
+_w(TracedSession, "send", _wrap_send)
 Pin(_config=config.requests).onto(TracedSession)
 
 
@@ -46,7 +45,7 @@ def patch():
         return
     requests.__datadog_patch = True
 
-    _w("requests", "Session.send", _wrap_send(requests))
+    _w("requests", "Session.send", _wrap_send)
     # IAST needs to wrap this function because `Session.send` is too late
     if asm_config._load_modules:
         from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request

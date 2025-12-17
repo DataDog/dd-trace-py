@@ -6,6 +6,7 @@ from urllib import parse
 import requests
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import _sanitized_url
@@ -18,6 +19,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.opentelemetry.constants import OTLP_EXPORTER_HEADER_IDENTIFIER
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import get_argument_value
 
 
@@ -65,8 +67,7 @@ def _extract_query_string(uri):
     return uri[start:end]
 
 
-@trace_utils.with_traced_module
-def _wrap_send(_requests_mod, pin, func, instance, args, kwargs):
+def _wrap_send(func, instance, args, kwargs):
     """Trace the `Session.send` instance method"""
     request = get_argument_value(args, kwargs, 0, "request")
     if not request or is_otlp_export(request):
@@ -81,17 +82,11 @@ def _wrap_send(_requests_mod, pin, func, instance, args, kwargs):
 
     parsed_uri = parse.urlparse(url)
 
-    # Support legacy datadog_tracer attribute for backwards compatibility (used in tests)
-    # If not set, use ddtrace.tracer to respect override_global_tracer
-    tracer = getattr(instance, "datadog_tracer", None)
-    if tracer is None:
-        import ddtrace
-
-        tracer = ddtrace.tracer
+    # Get pin from instance to access integration config and tracer
+    pin = Pin.get_from(instance)
+    tracer = getattr(instance, "datadog_tracer", ddtrace.tracer)
 
     # Check if tracing is disabled on the tracer (for APM opt-out tests)
-    from ddtrace.internal.settings.asm import config as asm_config
-
     if not tracer.enabled and not asm_config._apm_opt_out:
         return func(*args, **kwargs)
 
@@ -122,6 +117,8 @@ def _wrap_send(_requests_mod, pin, func, instance, args, kwargs):
     except ImportError:
         # AppSec is not available, which is fine - not all users have it enabled
         pass
+
+        # the above should be handled by a asm event - dispatch the event and use the result somehow
 
     with core.context_with_data(
         "requests.send",
