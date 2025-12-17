@@ -173,7 +173,9 @@ def get_crash_ping(test_agent_client: TestAgentClient) -> TestAgentRequest:
 
 @contextmanager
 def with_test_agent() -> Generator[TestAgentClient, None, None]:
-    base_url = ddtrace.tracer.agent_trace_url or "http://localhost:9126"  # default to local test agent
+    from tests._test_agent_config import TEST_AGENT_URL
+
+    base_url = ddtrace.tracer.agent_trace_url or TEST_AGENT_URL
     client = TestAgentClient(base_url=base_url, token=None)
     try:
         # Reset state before starting the test

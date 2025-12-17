@@ -16,6 +16,7 @@ from ddtrace.trace import Span
 from tests.appsec.utils import asm_context
 from tests.utils import DummyTracer
 from tests.utils import override_env
+from tests._test_agent_config import AGENT_URL
 
 
 class DummyProcessor(TraceProcessor):
@@ -52,7 +53,7 @@ def test_aggregator_reset_with_args(writer_class):
         user_processors=[user_proc],
     )
 
-    aggr.writer = writer_class("http://localhost:8126", api_version="v0.5")
+    aggr.writer = writer_class(AGENT_URL, api_version="v0.5")
     span = Span("span", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(span)
 

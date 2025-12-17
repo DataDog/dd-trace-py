@@ -28,6 +28,7 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import Context
 from ddtrace.trace import Span
+from tests._test_agent_config import AGENT_URL
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_global_config
@@ -190,7 +191,7 @@ def test_aggregator_reset_with_args(writer_class):
         user_processors=[user_proc],
     )
 
-    aggr.writer = writer_class("http://localhost:8126", api_version="v0.5")
+    aggr.writer = writer_class(AGENT_URL, api_version="v0.5")
     span = Span("span", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(span)
 

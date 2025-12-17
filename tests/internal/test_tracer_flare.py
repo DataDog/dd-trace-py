@@ -24,11 +24,12 @@ from ddtrace.internal.flare.handler import _handle_tracer_flare
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from tests._test_agent_config import TEST_AGENT_URL
 from tests.utils import remote_config_build_payload as build_payload
 
 
 DEBUG_LEVEL_INT = logging.DEBUG
-TRACE_AGENT_URL = "http://localhost:9126"
+TRACE_AGENT_URL = TEST_AGENT_URL
 MOCK_FLARE_SEND_REQUEST = FlareSendRequest(
     case_id="1111111",
     hostname="myhostname",
@@ -524,8 +525,10 @@ class TracerFlareTests(TestCase):
         }
 
         # Create a new flare instance with problematic config
+        from tests._test_agent_config import AGENT_URL
+
         problematic_flare = Flare(
-            trace_agent_url="http://localhost:8126",
+            trace_agent_url=AGENT_URL,
             ddconfig=problematic_config,
             api_key="test_api_key",
             flare_dir="tracer_flare_problematic_test",

@@ -899,11 +899,19 @@ def test_telemetry_writer_is_using_agentless_by_default_if_api_key_is_available(
 
 @pytest.mark.subprocess(env={"DD_API_KEY": "", "DD_CIVISIBILITY_AGENTLESS_ENABLED": "false"})
 def test_telemetry_writer_is_using_agent_by_default_if_api_key_is_not_available():
+    import os
+
     from ddtrace.internal.telemetry import telemetry_writer
 
     assert telemetry_writer._enabled
     assert telemetry_writer._client._endpoint == "telemetry/proxy/api/v2/apmtelemetry"
-    assert telemetry_writer._client._telemetry_url in ("http://localhost:9126", "http://testagent:9126")
+    # Allow configured test agent URL or common defaults
+    expected_urls = {"http://localhost:9126", "http://testagent:9126"}
+    configured_url = os.environ.get("DD_TEST_AGENT_URL")
+    if configured_url:
+        expected_urls.add(configured_url)
+    telemetry_url = telemetry_writer._client._telemetry_url
+    assert telemetry_url in expected_urls or telemetry_url.startswith("unix://")
     assert "dd-api-key" not in telemetry_writer._client._headers
 
 

@@ -32,6 +32,7 @@ from tests.utils import AnyInt
 from tests.utils import BaseTestCase
 from tests.utils import override_env
 from tests.utils import override_global_config
+from tests._test_agent_config import TEST_AGENT_URL
 
 
 @contextlib.contextmanager
@@ -666,7 +667,7 @@ class CIVisibilityWriterTests(AgentWriterTests):
         pytest.skip()
 
     def test_metadata_included(self):
-        writer = CIVisibilityWriter("http://localhost:9126")
+        writer = CIVisibilityWriter(TEST_AGENT_URL)
         for client in writer._clients:
             client.encoder.put([Span("foobar")])
             encoded_traces = client.encoder.encode()
@@ -944,14 +945,14 @@ def test_racing_start(writer_class):
 def test_additional_headers():
     from ddtrace.internal.writer import AgentWriter
 
-    writer = AgentWriter("http://localhost:9126")
+    writer = AgentWriter(TEST_AGENT_URL)
     assert writer._headers["additional-header"] == "additional-value"
     assert writer._headers["header2"] == "value2"
 
 
 def test_additional_headers_constructor():
     writer = AgentWriter(
-        intake_url="http://localhost:9126", headers={"additional-header": "additional-value", "header2": "value2"}
+        intake_url=TEST_AGENT_URL, headers={"additional-header": "additional-value", "header2": "value2"}
     )
     assert writer._headers["additional-header"] == "additional-value"
     assert writer._headers["header2"] == "value2"
@@ -960,7 +961,7 @@ def test_additional_headers_constructor():
 @pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
 def test_bad_encoding(monkeypatch, writer_class):
     with override_global_config({"_trace_api": "foo"}):
-        writer = writer_class("http://localhost:9126")
+        writer = writer_class(TEST_AGENT_URL)
         assert writer._api_version == "v0.5"
 
 
@@ -1093,11 +1094,11 @@ def test_writer_api_version_selection(
 def test_writer_reuse_connections_envvar(monkeypatch, writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         with override_global_config({"_trace_writer_connection_reuse": False}):
-            writer = writer_class("http://localhost:9126")
+            writer = writer_class(TEST_AGENT_URL)
             assert not writer._reuse_connections
 
         with override_global_config({"_trace_writer_connection_reuse": True}):
-            writer = writer_class("http://localhost:9126")
+            writer = writer_class(TEST_AGENT_URL)
             assert writer._reuse_connections
 
 
@@ -1105,7 +1106,7 @@ def test_writer_reuse_connections_envvar(monkeypatch, writer_class):
 def test_writer_reuse_connections(writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         # Ensure connection is not reused
-        writer = writer_class("http://localhost:9126", reuse_connections=True)
+        writer = writer_class(TEST_AGENT_URL, reuse_connections=True)
         # Do an initial flush to get a connection
         writer.flush_queue()
         assert writer._conn is None
@@ -1117,7 +1118,7 @@ def test_writer_reuse_connections(writer_class):
 def test_writer_reuse_connections_false(writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         # Ensure connection is reused
-        writer = writer_class("http://localhost:9126", reuse_connections=False)
+        writer = writer_class(TEST_AGENT_URL, reuse_connections=False)
         # Do an initial flush to get a connection
         writer.flush_queue()
         conn = writer._conn
