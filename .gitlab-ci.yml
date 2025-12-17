@@ -187,14 +187,14 @@ detect_circular_imports:
       curl 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' \
         -H "$(./authanywhere-linux-amd64)" \
         -X PATCH -d "{ \
-          \"commit\": \"$CI_COMMIT_SHORT_\SHA\", \
+          \"commit\": \"$CI_COMMIT_SHORT_SHA\", \
           \"message\": \"My message\", \
           \"header\": \"Circular Import Analysis\", \
           \"org\": \"Datadog\", \
           \"repo\": \"dd-trace-py\" \
         }"
   stage: tests
-  needs: ["download_ddtrace_artifacts"]
+  #needs: ["download_ddtrace_artifacts"]
   extends: .testrunner
 
 
