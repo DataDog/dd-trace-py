@@ -21,23 +21,21 @@ RUN apt-get update \
     ninja-build \
     python3 \
     python3-dev \
-  && rm -rf /var/lib/apt/lists/*
+    python3-pip \
+    curl \
+    unzip \
+  && rm -rf /var/lib/apt/lists/* \
+  && python3 -m pip install requests --break-system-packages
+
+RUN VAULT_VERSION=1.21.1 && curl -fsSL "https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_amd64.zip" -o vault.zip && unzip vault.zip && mv vault /usr/local/bin/vault && rm vault.zip && chmod +x /usr/local/bin/vault
 
 WORKDIR /src
 COPY . /src
 
-# Build only the fuzz target; skip the Python extension (avoids libdd_wrapper dependency).
-RUN cmake -S ddtrace/internal/datadog/profiling/stack_v2 -B /build \
-      -DBUILD_FUZZING=ON -DBUILD_TESTING=OFF -DSTACKV2_USE_LIBFUZZER=ON \
-      -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-      -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-      -DCMAKE_C_FLAGS="-O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined" \
-      -DCMAKE_CXX_FLAGS="-O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined" \
-      -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
-  && cmake --build /build -j --target fuzz_echion_remote_read
+RUN /src/ddtrace/internal/datadog/profiling/stack/fuzz/build.sh
 
 # RUN mkdir -p /fuzz/corpus /fuzz/out
 
-CMD ["/build/fuzz/fuzz_echion_remote_read", "/fuzz/", "-artifact_prefix=/fuzz/"]
+CMD ["/tmp/fuzz/build/fuzz/fuzz_echion_remote_read", "/tmp/fuzz/", "-artifact_prefix=/tmp/fuzz/"]
 
 
