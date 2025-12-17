@@ -150,10 +150,8 @@ detect_circular_imports:
     - |
       curl 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' -H "$(authanywhere)" -X PATCH -d '{\"commit\": \"My commit\", \"message\": \"My message\", \"header\": \"My header\", \"org\": \"Datadog\", \"repo\": \"dd-trace-py\" }'
   stage: tests
-  needs: ["run-tests-trigger"]
+  needs: ["download_ddtrace_artifacts"]
   extends: .testrunner
-  rules:
-    - when: on_success
 
 
 package-oci:
