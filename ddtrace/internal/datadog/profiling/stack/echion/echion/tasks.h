@@ -333,7 +333,8 @@ TaskInfo::unwind(FrameStack& stack)
 
             // If the Task is on CPU, then we should have at least the asyncio runtime Frames on top of
             // the asynchronous Stack. If we do not have any Python Frames, then the execution state changed
-            // (race condition) and we cannot recover.
+            // (race condition) and we cannot recover (for on-CPU Tasks, we want to see the full execution
+            // Stack, which we won't if we have a non-running Python Stack).
             if (this->is_on_cpu && upper_python_stack_size == 0) {
                 return ErrorKind::TaskInfoError;
             }
