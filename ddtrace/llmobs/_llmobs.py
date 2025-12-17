@@ -70,6 +70,7 @@ from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
 from ddtrace.llmobs._constants import METADATA
@@ -84,6 +85,7 @@ from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
+from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
@@ -1644,6 +1646,9 @@ class LLMObs(Service):
                 try:
                     validated_prompt = _validate_prompt(prompt, strict_validation=False)
                     cls._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
+                    cls._set_dict_attribute(span, TAGS, {
+                        PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_ANNOTATED
+                    })
                 except (ValueError, TypeError) as e:
                     error = "invalid_prompt"
                     raise LLMObsAnnotateSpanError("Failed to validate prompt with error:", str(e))

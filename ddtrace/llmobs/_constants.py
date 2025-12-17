@@ -90,6 +90,7 @@ DEFAULT_PROMPT_NAME = "unnamed-prompt"
 PROMPT_TRACKING_INSTRUMENTATION_METHOD = "prompt_tracking_instrumentation_method"
 PROMPT_MULTIMODAL = "prompt_multimodal"
 INSTRUMENTATION_METHOD_AUTO = "auto"
+INSTRUMENTATION_METHOD_ANNOTATED = "annotated"
 
 DECORATOR = "_ml_obs.decorator"
 INTEGRATION = "_ml_obs.integration"

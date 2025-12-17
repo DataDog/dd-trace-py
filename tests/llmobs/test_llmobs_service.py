@@ -27,6 +27,7 @@ from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
+from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
@@ -791,6 +792,9 @@ def test_annotate_prompt_dict(llmobs):
             "_dd_context_variable_keys": ["context"],
             "_dd_query_variable_keys": ["question"],
         }
+        assert span._get_ctx_item(TAGS) == {
+            PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"
+        }
 
 
 def test_annotate_prompt_dict_with_context_var_keys(llmobs):
@@ -814,6 +818,9 @@ def test_annotate_prompt_dict_with_context_var_keys(llmobs):
             "_dd_context_variable_keys": ["var1", "var2"],
             "_dd_query_variable_keys": ["user_input"],
         }
+        assert span._get_ctx_item(TAGS) == {
+            PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"
+        }
 
 
 def test_annotate_prompt_typed_dict(llmobs):
@@ -836,6 +843,9 @@ def test_annotate_prompt_typed_dict(llmobs):
             "id": "test_prompt",
             "_dd_context_variable_keys": ["var1", "var2"],
             "_dd_query_variable_keys": ["user_input"],
+        }
+        assert span._get_ctx_item(TAGS) == {
+            PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"
         }
 
 
@@ -1322,6 +1332,9 @@ def test_annotation_context_modifies_prompt(llmobs):
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
             }
+            assert span._get_ctx_item(TAGS) == {
+                PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"
+            }
 
 
 def test_annotation_context_modifies_name(llmobs):
@@ -1468,6 +1481,9 @@ async def test_annotation_context_async_modifies_prompt(llmobs):
                 "template": "test_template",
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
+            }
+            assert span._get_ctx_item(TAGS) == {
+                PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"
             }
 
 
