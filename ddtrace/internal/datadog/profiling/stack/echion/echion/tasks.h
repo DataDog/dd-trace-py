@@ -307,6 +307,7 @@ TaskInfo::unwind(FrameStack& stack)
     std::unordered_set<size_t> pure_coro_frames;
     for (auto py_coro = this->coro.get(); py_coro != NULL; py_coro = py_coro->await.get()) {
         if (seen_coros.find(py_coro) != seen_coros.end()) {
+            std::cerr << "! Coro " << py_coro << " has a cycle" << std::endl;
             break;
         }
 
@@ -330,6 +331,7 @@ TaskInfo::unwind(FrameStack& stack)
         // If we failed to unwind the Frame, stop unwinding the coroutine chain; otherwise we could
         // end up with Stacks with missing Frames between two coroutines Frames.
         if (new_frames == 0) {
+            std::cerr << "! Failed to unwind coro frame " << frame << std::endl;
             break;
         }
 
