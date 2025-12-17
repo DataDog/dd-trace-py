@@ -159,6 +159,10 @@ ddup_start() // cppcheck-suppress unusedFunction
 Datadog::Sample*
 ddup_start_sample() // cppcheck-suppress unusedFunction
 {
+    // Ensure profile_state is initialized before creating Sample objects.
+    // ddup_start() uses std::call_once, so it's safe to call multiple times.
+    ddup_start();
+
     return Datadog::SampleManager::start_sample();
 }
 
