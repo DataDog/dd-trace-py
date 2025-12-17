@@ -2,8 +2,6 @@ from functools import partial
 from pathlib import Path
 import typing as t
 
-import pytest
-
 import ddtrace
 from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 from ddtrace.debugging._session import Session
@@ -36,6 +34,9 @@ class SpanProbeTestCase(TracerTestCase):
         ddtrace.tracer = self.tracer
 
         MockSpanCodeOriginProcessorEntry.enable()
+
+        if (uploader := MockSpanCodeOriginProcessorEntry.get_uploader()) is not None:
+            uploader.flush()
 
     def tearDown(self):
         ddtrace.tracer = self.backup_tracer
@@ -77,7 +78,6 @@ class SpanProbeTestCase(TracerTestCase):
         assert _exit.get_tag("_dd.code_origin.frames.0.file") is None
         assert _exit.get_tag("_dd.code_origin.frames.0.line") is None
 
-    @pytest.mark.skip(reason="Frequent unreliable failures")
     def test_span_origin_session(self):
         def entry_call():
             pass
@@ -94,7 +94,12 @@ class SpanProbeTestCase(TracerTestCase):
 
         self.assert_span_count(3)
         entry, middle, _exit = self.get_spans()
-        payloads = MockSpanCodeOriginProcessorEntry.get_uploader().wait_for_payloads()
+
+        snapshot_ids_from_span_tags = {
+            s.get_tag(f"_dd.code_origin.frames.{_}.snapshot_id") for s in (entry, middle, _exit) for _ in range(8)
+        } - {None}
+
+        payloads = MockSpanCodeOriginProcessorEntry.get_uploader().wait_for_payloads(len(snapshot_ids_from_span_tags))
         snapshot_ids = {p["debugger"]["snapshot"]["id"] for p in payloads}
 
         assert len(payloads) == len(snapshot_ids)
@@ -110,8 +115,7 @@ class SpanProbeTestCase(TracerTestCase):
         assert _exit.get_tag("_dd.code_origin.type") is None
         assert _exit.get_tag("_dd.code_origin.frames.0.snapshot_id") is None
 
-        # Check that we only have the entry snapshot
-        assert snapshot_ids == {entry_snapshot_id}
+        assert snapshot_ids_from_span_tags == snapshot_ids
 
     def test_span_origin_entry(self):
         def entry_call():
