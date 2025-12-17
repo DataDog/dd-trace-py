@@ -51,13 +51,13 @@ def _register_wrapt_pickle_reducers():
     global _WRAPT_REDUCERS_REGISTERED
     if _WRAPT_REDUCERS_REGISTERED:
         return
-    
+
     # Only register for Starlette >= 0.24.0 (lazy middleware initialization)
     # Required for copyreg.dispatch_table to work with wrapt types
     if parse_version(starlette.__version__) < parse_version("0.24.0"):
         _WRAPT_REDUCERS_REGISTERED = True  # Mark as "handled" to avoid re-checking
         return
-    
+
     for cls in [wrapt.ObjectProxy, wrapt.FunctionWrapper, wrapt.BoundFunctionWrapper]:
         if cls not in copyreg.dispatch_table:
             copyreg.dispatch_table[cls] = _reduce_wrapt_proxy

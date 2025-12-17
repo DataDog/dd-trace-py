@@ -983,6 +983,7 @@ def test_baggage_span_tagging_baggage_api(client, tracer, test_spans):
     assert request_span.get_tag("baggage.user.id") is None
     assert request_span.get_tag("baggage.session.id") is None
 
+
 @pytest.mark.skipif(
     parse_version(starlette.__version__) < parse_version("0.24.0"),
     reason="Starlette < 0.24.0 has middleware initialization incompatible with copyreg.dispatch_table fix",
