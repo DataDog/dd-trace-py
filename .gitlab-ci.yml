@@ -1,5 +1,4 @@
 stages:
-  - setup
   - package
   - tests
   - shared-pipeline
@@ -20,15 +19,22 @@ variables:
 default:
   interruptible: true
 
+
+.is_main: $CI_COMMIT_REF_NAME == "main"
+.is_release: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+.is_release_branch: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+.is_gh_merge_queue: $CI_COMMIT_BRANCH =~ /^gh-readonly-queue\/.*$/
+.is_devflow_merge_queue: $CI_COMMIT_BRANCH =~ /^mq-working-branch-.*$/
+
 # trigger new commit cancel
 workflow:
   auto_cancel:
     on_new_commit: interruptible
   rules:
-    - if: $CI_COMMIT_BRANCH == 'main'
+    - if: !reference [.is_main]
       auto_cancel:
         on_new_commit: none
-    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+    - if: !reference [.is_release_branch]
       auto_cancel:
         on_new_commit: none
     - when: always
@@ -42,50 +48,6 @@ include:
   - local: ".gitlab/multi-os-tests.yml"
   - local: ".gitlab/benchmarks/serverless.yml"
   - local: ".gitlab/native.yml"
-
-
-# Expose the following variables to the rest of the pipeline
-#   GH_PR_NUMBER: The GitHub PR number if there is an open PR for this commit, empty otherwise
-#   HAS_OPEN_PR: "true" if there is an open PR for this commit, "false" otherwise
-#   IS_MAIN_BRANCH: "true" if the current branch is main
-#   IS_RELEASE_BRANCH: "true" if the current branch is a release branch (e.g., "1.2"), "false" otherwise
-#   IS_RELEASE: "true" if the current commit is a release tag (e.g., "v1.2.3"), "false" otherwise
-#   IS_MERGE_QUEUE: "true" if the current branch is a merge queue branch (e.g., starts with "gh-readonly-queue/"), "false" otherwise
-pipeline variables:
-  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
-  tags: [ "arch:amd64" ]
-  stage: setup
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
-  variables:
-    GIT_STRATEGY: none
-    GH_REPO: DataDog/dd-trace-py
-  script:
-    - |
-      if [ -z ${GH_TOKEN} ]
-      then
-        # Use dd-octo-sts to get GitHub token
-        dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > token
-        gh auth login --with-token < token
-        rm token
-      fi
-    - |
-      # Prevent git operation errors:
-      #   failed to determine base repo: failed to run git: fatal: detected dubious ownership in repository at ...
-      git config --global --add safe.directory "${CI_PROJECT_DIR}"
-    - |
-      # Determine if we have an open GitHub PR for this commit
-      GH_PR_NUMBER=$(gh pr list --state open --search "${CI_COMMIT_SHA}" --json number --jq '.[0].number' || echo "")
-      echo "GH_PR_NUMBER=${GH_PR_NUMBER}" | tee -a workflow.env
-      echo "HAS_OPEN_PR=$(if [ -z "${GH_PR_NUMBER}" ]; then echo "false"; else echo "true"; fi)" | tee -a workflow.env
-      echo "IS_MAIN_BRANCH=$(if [ "${CI_COMMIT_BRANCH}" == "main" ]; then echo "true"; else echo "false"; fi)" | tee -a workflow.env
-      echo "IS_RELEASE_BRANCH=$(if [[ "${CI_COMMIT_BRANCH}" =~ ^[0-9]+\.[0-9]+$ ]]; then echo "true"; else echo "false"; fi)" | tee -a workflow.env
-      echo "IS_RELEASE=$(if [[ "${CI_COMMIT_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$ ]]; then echo "true"; else echo "false"; fi)" | tee -a workflow.env
-      echo "IS_MERGE_QUEUE=$(if [[ "${CI_COMMIT_BRANCH}" =~ ^gh-readonly-queue/.*$ ]]; then echo "true"; else echo "false"; fi)" | tee -a workflow.env
-  artifacts:
-    reports:
-      dotenv: workflow.env
 
 tests-gen:
   stage: tests
@@ -101,14 +63,14 @@ tests-gen:
         export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
       fi
     - scripts/gen_gitlab_config.py --verbose
-  needs: [ "pipeline variables" ]
+  needs: []
   artifacts:
     paths:
       - .gitlab/tests-gen.yml
 
 run-tests-trigger:
  stage: tests
- needs: [ tests-gen, "pipeline variables" ]
+ needs: [ tests-gen ]
  # Allow the child job to fail if explicitly asked
  rules:
    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
@@ -119,6 +81,26 @@ run-tests-trigger:
      - artifact: .gitlab/tests-gen.yml
        job: tests-gen
    strategy: depend
+
+serverless lambda tests:
+  stage: tests
+  trigger:
+    project: DataDog/datadog-lambda-python
+    strategy: depend
+    branch: main
+  needs:
+    - job: publish-wheels-to-s3
+  variables:
+    UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
+    UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
+    UPSTREAM_COMMIT_BRANCH: $CI_COMMIT_BRANCH
+    UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
+    UPSTREAM_COMMIT_TITLE: $CI_COMMIT_TITLE
+    UPSTREAM_COMMIT_TAG: $CI_COMMIT_TAG
+    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
+    UPSTREAM_GITLAB_USER_LOGIN: $GITLAB_USER_LOGIN
+    UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL
+    SKIP_E2E_TESTS: "true"
 
 # Validate the ast-grep rule's test suite in .sg/tests
 "ast-grep rules":
@@ -164,7 +146,7 @@ macrobenchmarks:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: always
-    - if: $IS_RELEASE == "true"
+    - if: !reference [.is_release]
       when: always
     - when: manual
 
@@ -178,13 +160,15 @@ check_new_flaky_tests:
     - export DD_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-app-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
     - datadog-ci gate evaluate
   rules:
-    - if: $IS_MAIN_BRANCH == "true"
+    - if: !reference [.is_main]
       when: never
-    - if: $IS_RELEASE == "true"
+    - if: !reference [.is_release]
       when: never
-    - if: $IS_RELEASE_BRANCH == "true"
+    - if: !reference [.is_release_branch]
       when: never
-    - if: $IS_MERGE_QUEUE == "true"
+    - if: !reference [.is_gh_merge_queue]
+      when: never
+    - if: !reference [.is_devflow_merge_queue]
       when: never
     - when: on_success
 
@@ -201,7 +185,7 @@ package-oci:
 promote-oci-to-prod:
   stage: release
   rules:
-    - if: $IS_RELEASE == "true"
+    - if: !reference [.is_release]
       when: on_success
     - when: never
   needs:
@@ -230,7 +214,7 @@ promote-oci-to-staging:
 publish-lib-init-pinned-tags:
   stage: release
   rules:
-    - if: $IS_RELEASE == "true"
+    - if: !reference [.is_release]
       when: on_success
     - when: never
   needs:
