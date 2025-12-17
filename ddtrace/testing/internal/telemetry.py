@@ -226,7 +226,7 @@ class TelemetryAPI:
             "is_retry": test_run.is_retry(),
             "is_rum": test_run.is_rum(),
             "browser_driver": test_run.get_browser_driver(),
-            "early_flake_detection_abort_reason": test_run.get_early_flake_detection_abort_reason(),
+            "early_flake_detection_abort_reason": test_run.test.get_early_flake_detection_abort_reason(),
             "is_quarantined": test_run.test.is_quarantined(),
             "is_disabled": test_run.test.is_disabled(),
             "is_attempt_to_fix": test_run.test.is_attempt_to_fix(),

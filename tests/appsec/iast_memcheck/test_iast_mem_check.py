@@ -22,7 +22,24 @@ FIXTURES_PATH = "tests/appsec/iast/fixtures/propagation_path.py"
 LOOPS = 5
 CWD = os.path.abspath(os.getcwd())
 ALLOW_LIST = ["iast_memcheck/test_iast_mem_check.py", "fixtures/stacktrace.py"]
-DISALLOW_LIST = ["_iast/_ast/visitor", "_pytest/assertion/rewrite", "coverage/", "internal/ci_visibility/"]
+DISALLOW_LIST = [
+    "_pytest/assertion/rewrite",
+    "coverage/",
+    "internal/ci_visibility/",
+    # Python 3.14+ standard library (regex compilation, etc.)
+    "lib/python3.",
+    ".pyenv/versions/",
+    # Python internal C code (instrumentation API, objects, etc.)
+    "Python/instrumentation.c",
+    "Python/ceval.c",
+    "Python/context.c",
+    "Objects/",
+    "Include/",
+    # Python standard library modules
+    "/re/__init__.py",
+    "/re/_compiler.py",
+    "/asyncio/",
+]
 
 mod = _iast_patched_module("tests.appsec.iast.fixtures.propagation_path")
 
@@ -58,7 +75,7 @@ class IASTFilter(LeaksFilterFunction):
         (b"taintsource1", bytearray(b"taintsource2")),
     ],
 )
-def test_propagation_memory_check(origin1, origin2, iast_context_defaults):
+def test_propagation_memory_check(iast_context_defaults, origin1, origin2):
     """Biggest allocating functions:
     - join_aspect: ddtrace/appsec/_iast/_taint_tracking/aspects.py:124 -> 8.0KiB
     - _prepare_report: ddtrace/appsec/_iast/taint_sinks/_base.py:111 -> 8.0KiB
@@ -114,7 +131,7 @@ def test_propagation_memory_check(origin1, origin2, iast_context_defaults):
         (b"taintsource1", bytearray(b"taintsource2")),
     ],
 )
-async def test_propagation_memory_check_async(origin1, origin2, iast_context_defaults):
+async def test_propagation_memory_check_async(iast_context_defaults, origin1, origin2):
     """Biggest allocating functions:
     - join_aspect: ddtrace/appsec/_iast/_taint_tracking/aspects.py:124 -> 8.0KiB
     - _prepare_report: ddtrace/appsec/_iast/taint_sinks/_base.py:111 -> 8.0KiB

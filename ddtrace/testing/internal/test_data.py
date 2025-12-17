@@ -73,7 +73,8 @@ class TestItem(t.Generic[TParentClass, TChildClass]):
     def seconds_so_far(self) -> float:
         if self.start_ns is None:
             raise ValueError("seconds_so_far() called before start")
-        return (time.time_ns() - self.start_ns) / 1e9
+        duration_ns = self.duration_ns if self.duration_ns is not None else (time.time_ns() - self.start_ns)
+        return duration_ns / 1e9
 
     def start(self, start_ns: t.Optional[int] = None) -> None:
         self.start_ns = start_ns if start_ns is not None else time.time_ns()
@@ -190,9 +191,6 @@ class TestRun(TestItem["Test", t.NoReturn]):
     def get_browser_driver(self) -> t.Optional[str]:
         return self.tags.get(TestTag.BROWSER_DRIVER)
 
-    def get_early_flake_detection_abort_reason(self) -> t.Optional[str]:
-        return self.tags.get(TestTag.EFD_ABORT_REASON)  # TODO: actually set this tag when relevant
-
 
 class Test(TestItem["TestSuite", "TestRun"]):
     __test__ = False
@@ -206,6 +204,8 @@ class Test(TestItem["TestSuite", "TestRun"]):
         self.suite = parent
         self.module = self.suite.parent
         self.session = self.module.parent
+
+        self._is_flaky_run = False
 
     def __str__(self) -> str:
         return f"{self.parent.parent.name}/{self.parent.name}::{self.name}"
@@ -289,6 +289,20 @@ class Test(TestItem["TestSuite", "TestRun"]):
     def is_skipped_by_itr(self) -> bool:
         return self.tags.get(TestTag.SKIPPED_BY_ITR) == TAG_TRUE
 
+    # Early Flake Detection.
+
+    def set_early_flake_detection_abort_reason(self, reason: str) -> None:
+        self.tags[TestTag.EFD_ABORT_REASON] = reason
+
+    def get_early_flake_detection_abort_reason(self) -> t.Optional[str]:
+        return self.tags.get(TestTag.EFD_ABORT_REASON)
+
+    def mark_flaky_run(self) -> None:
+        self._is_flaky_run = True
+
+    def is_flaky_run(self) -> bool:
+        return self._is_flaky_run
+
 
 class TestSuite(TestItem["TestModule", "Test"]):
     ChildClass = Test
@@ -333,6 +347,12 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
         self.test_command = test_command
         self.test_framework = test_framework
         self.test_framework_version = test_framework_version
+
+    def set_early_flake_detection_abort_reason(self, reason: str) -> None:
+        self.tags[TestTag.EFD_ABORT_REASON] = reason
+
+    def get_early_flake_detection_abort_reason(self) -> t.Optional[str]:
+        return self.tags.get(TestTag.EFD_ABORT_REASON)
 
     def set_final_tags(self) -> None:
         super().set_final_tags()
