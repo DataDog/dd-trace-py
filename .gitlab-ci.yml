@@ -190,18 +190,21 @@ detect_circular_imports:
     - mv cycles.py dd-trace-py/scripts/import-analysis/cycles.py
     - python dd-trace-py/scripts/import-analysis/cycles.py analyze cycles-base.json
     - python dd-trace-py/scripts/import-analysis/cycles.py compare cycles-base.json cycles-pr.json > cycles_report.txt
-    - wget binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64
-    - chmod +x authanywhere-linux-amd64
+    - CYCLES_REPORT=$(cat cycles_report.txt)
     - |
-      curl 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' \
-        -H "$(./authanywhere-linux-amd64)" \
-        -X PATCH -d "{ \
-          \"commit\": \"$CI_COMMIT_SHORT_SHA\", \
-          \"message\": \"$(cat cycles_report.txt)\", \
-          \"header\": \"Circular Import Analysis\", \
-          \"org\": \"Datadog\", \
-          \"repo\": \"dd-trace-py\" \
-        }"
+      if [ ! -z $CYCLES_REPORT ]; do
+        wget binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64
+        chmod +x authanywhere-linux-amd64
+        curl 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' \
+          -H "$(./authanywhere-linux-amd64)" \
+          -X PATCH -d "{ \
+            \"commit\": \"$CI_COMMIT_SHORT_SHA\", \
+            \"message\": \"$(cat cycles_report.txt)\", \
+            \"header\": \"Circular Import Analysis\", \
+            \"org\": \"Datadog\", \
+            \"repo\": \"dd-trace-py\" \
+          }"
+      fi
   stage: tests
   needs: []
   extends: .testrunner
