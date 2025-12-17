@@ -1787,6 +1787,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             venvs=[
                 Venv(
@@ -1844,6 +1845,7 @@ venv = Venv(
             env={
                 "DD_AGENT_PORT": "9126",
                 "DD_PYTEST_USE_NEW_PLUGIN": "true",
+                "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "0",
             },
             venvs=[
                 Venv(
@@ -1923,6 +1925,9 @@ venv = Venv(
                     ">=6.0,<6.1",
                 ],
             },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
+            },
             venvs=[
                 Venv(
                     pys="3.9",
@@ -1953,6 +1958,9 @@ venv = Venv(
                 "msgpack": latest,
                 "pytest-randomly": latest,
             },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
+            },
             venvs=[
                 Venv(
                     pkgs={
@@ -1970,6 +1978,9 @@ venv = Venv(
             pkgs={
                 "flaky": latest,
                 "pytest-randomly": latest,
+            },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
         ),
         Venv(
@@ -3212,6 +3223,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             venvs=[
                 Venv(
