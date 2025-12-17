@@ -328,7 +328,9 @@ TaskInfo::unwind(FrameStack& stack)
         PyObject* frame = coro_frames.top();
         coro_frames.pop();
 
+        std::cerr << "  unwinding frame " << frame << std::endl;
         auto new_frames = unwind_frame(frame, stack);
+        std::cerr << "  ... after call, frame = " << frame << std::endl;
 
         // If we failed to unwind the Frame, stop unwinding the coroutine chain; otherwise we could
         // end up with Stacks with missing Frames between two coroutines Frames.
