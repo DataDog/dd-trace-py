@@ -190,11 +190,12 @@ detect_circular_imports:
     - python dd-trace-py/scripts/import-analysis/cycles.py analyze cycles-base.json
     - cat cycles-base.json
     - python dd-trace-py/scripts/import-analysis/cycles.py compare cycles-base.json cycles-pr.json > cycles_report.txt || true
+    - sed -z 's/\\n/\n/g; s//..$/' cycles_report.txt
     - cat cycles_report.txt
     - CYCLES_REPORT="$(cat cycles_report.txt)"
     - |
       if [ ! -z "$CYCLES_REPORT" ]; then
-        wget binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64
+        wget -nv binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64
         chmod +x authanywhere-linux-amd64
         curl 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' \
           -H "$(./authanywhere-linux-amd64)" \
