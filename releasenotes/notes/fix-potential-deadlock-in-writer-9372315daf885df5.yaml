@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Resolves a potential deadlock when forking.
