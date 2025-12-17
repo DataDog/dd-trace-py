@@ -30,10 +30,12 @@ init_linenos(__file__)
 PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
 
 # Type aliases for supported classes
-LockTypeInst = Union[asyncio.Lock, asyncio.Semaphore, asyncio.BoundedSemaphore]
+LockTypeInst = Union[asyncio.Lock, asyncio.Semaphore, asyncio.BoundedSemaphore, asyncio.Condition]
 LockTypeClass = Type[LockTypeInst]
 
-CollectorTypeInst = Union[AsyncioLockCollector, AsyncioSemaphoreCollector, AsyncioBoundedSemaphoreCollector]
+CollectorTypeInst = Union[
+    AsyncioLockCollector, AsyncioSemaphoreCollector, AsyncioBoundedSemaphoreCollector, AsyncioConditionCollector
+]
 CollectorTypeClass = Type[CollectorTypeInst]
 
 
@@ -274,27 +276,27 @@ class TestAsyncioConditionCollector(BaseAsyncioLockCollectorTest):
     """Test asyncio.Condition profiling."""
 
     @property
-    def collector_class(self):
+    def collector_class(self) -> Type[AsyncioConditionCollector]:
         return AsyncioConditionCollector
 
     @property
-    def lock_class(self):
+    def lock_class(self) -> Type[asyncio.Condition]:
         return asyncio.Condition
 
-    async def test_condition_wait_notify(self):
+    async def test_condition_wait_notify(self) -> None:
         """Test that profiling wrapper preserves Condition's wait/notify behavior."""
         with self.collector_class(capture_pct=100):
             cond = asyncio.Condition()
 
             notified = False
 
-            async def waiter():
+            async def waiter() -> None:
                 nonlocal notified
                 async with cond:
                     await cond.wait()
                     notified = True
 
-            async def notifier():
+            async def notifier() -> None:
                 await asyncio.sleep(0.01)  # Give waiter time to start waiting
                 async with cond:
                     cond.notify()
