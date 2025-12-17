@@ -88,9 +88,9 @@ class VertexAIIntegration(BaseLLMIntegration):
                 if not token_counts:
                     continue
                 input_tokens = _get_attr(token_counts, "prompt_token_count", 0)
-                canadiates_tokens = _get_attr(token_counts, "candidates_token_count", 0)
+                candidates_tokens = _get_attr(token_counts, "candidates_token_count", 0)
                 thoughts_tokens = _get_attr(token_counts, "thoughts_token_count", 0)
-                output_tokens = canadiates_tokens + thoughts_tokens
+                output_tokens = candidates_tokens + thoughts_tokens
                 total_tokens = _get_attr(token_counts, "total_token_count", 0)
         else:
             generations_dict = response.to_dict()
@@ -100,9 +100,9 @@ class VertexAIIntegration(BaseLLMIntegration):
                 return
 
             input_tokens = _get_attr(token_counts, "prompt_token_count", 0)
-            canadiates_tokens = _get_attr(token_counts, "candidates_token_count", 0)
+            candidates_tokens = _get_attr(token_counts, "candidates_token_count", 0)
             thoughts_tokens = _get_attr(token_counts, "thoughts_token_count", 0)
-            output_tokens = canadiates_tokens + thoughts_tokens
+            output_tokens = candidates_tokens + thoughts_tokens
             total_tokens = _get_attr(token_counts, "total_token_count", 0)
 
         metrics = {}

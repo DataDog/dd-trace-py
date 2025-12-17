@@ -50,8 +50,7 @@ class TestLLMObsVertexai:
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
 
     @pytest.mark.skipif(
-        aiplatform_module is None
-        or parse_version(aiplatform_module.__version__) < (1, 94, 0),
+        aiplatform_module is None or parse_version(aiplatform_module.__version__) < (1, 94, 0),
         reason="reasoning_output_tokens only available in google-cloud-aiplatform SDK version >= 1.94.0",
     )
     def test_completion_reasoning_tokens(self, vertexai, mock_llmobs_writer, mock_tracer):
