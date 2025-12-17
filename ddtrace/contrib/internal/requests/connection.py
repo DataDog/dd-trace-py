@@ -72,6 +72,13 @@ def _wrap_send(func, instance, args, kwargs):
     if not request or is_otlp_export(request):
         return func(*args, **kwargs)
 
+    # Check if tracing is enabled (but allow if APM is opted out for ASM)
+    import ddtrace
+    from ddtrace.internal.settings.asm import config as asm_config
+
+    if not ddtrace.tracer.enabled and not asm_config._apm_opt_out:
+        return func(*args, **kwargs)
+
     url = _sanitized_url(request.url)
     method = ""
     if request.method is not None:

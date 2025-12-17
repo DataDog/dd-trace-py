@@ -42,6 +42,7 @@ class BaseRequestTestCase(object):
         # Override global tracer to use test tracer
         import ddtrace
         from ddtrace.internal import core as ddcore
+
         self._original_global_tracer = ddtrace.tracer
         self._original_core_tracer = ddcore.tracer
         ddtrace.tracer = self.tracer
@@ -56,6 +57,7 @@ class BaseRequestTestCase(object):
         # Restore original tracers
         import ddtrace
         from ddtrace.internal import core as ddcore
+
         ddtrace.tracer = self._original_global_tracer
         ddcore.tracer = self._original_core_tracer
 
@@ -504,87 +506,6 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert s.get_tag("out.host") == SOCKET
         assert s.service == HOST_AND_PORT
 
-    @pytest.mark.subprocess(env={"DD_REQUESTS_SERVICE": "override"})
-    def test_global_config_service_env_precedence(self):
-        out = self.session.get(URL_200)
-        assert out.status_code == 200
-        spans = self.pop_spans()
-        assert spans[0].service == "override"
-
-        cfg = {}
-        pin = Pin.get_from(self.session)
-        if pin:
-            cfg = pin._config
-
-        cfg["service"] = "override2"
-        out = self.session.get(URL_200)
-        assert out.status_code == 200
-        spans = self.pop_spans()
-        assert spans[0].service == "override2"
-
-    @pytest.mark.subprocess(env={"DD_REQUESTS_SERVICE": "override"})
-    def test_global_config_service_env(self):
-        out = self.session.get(URL_200)
-        assert out.status_code == 200
-        spans = self.pop_spans()
-        assert spans[0].service == "override"
-
-    @pytest.mark.subprocess(env={"DD_SERVICE": "mysvc"})
-    def test_schematization_service_name_default(self):
-        out = self.session.get(URL_200)
-        assert out.status_code == 200
-        spans = self.pop_spans()
-        assert spans[0].service == "requests"
-
-    @pytest.mark.subprocess(env={"DD_SERVICE": "mysvc", "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": "v0"})
-    def test_schematization_service_name_v0(self):
-        out = self.session.get(URL_200)
-        assert out.status_code == 200
-        spans = self.pop_spans()
-        assert spans[0].service == "requests"
-
-    @pytest.mark.subprocess(env={"DD_SERVICE": "mysvc", "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": "v1"})
-    def test_schematization_service_name_v1(self):
-        out = self.session.get(URL_200)
-        assert out.status_code == 200
-        spans = self.pop_spans()
-        assert spans[0].service == "mysvc"
-
-    @pytest.mark.subprocess
-    def test_schematization_unspecified_service_name_default(self):
-        out = self.session.get(URL_200)
-        assert out.status_code == 200
-        spans = self.pop_spans()
-        assert spans[0].service == "requests"
-
-    @pytest.mark.subprocess(env={"DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": "v0"})
-    def test_schematization_unspecified_service_name_v0(self):
-        out = self.session.get(URL_200)
-        assert out.status_code == 200
-        spans = self.pop_spans()
-        assert spans[0].service == "requests"
-
-    @pytest.mark.subprocess(env={"DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": "v1"})
-    def test_schematization_unspecified_service_name_v1(self):
-        out = self.session.get(URL_200)
-        assert out.status_code == 200
-        spans = self.pop_spans()
-        assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
-
-    @pytest.mark.subprocess(env={"DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": "v0"})
-    def test_schematization_operation_name_v0(self):
-        out = self.session.get(URL_200)
-        assert out.status_code == 200
-        spans = self.pop_spans()
-        assert spans[0].name == "requests.request"
-
-    @pytest.mark.subprocess(env={"DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": "v1"})
-    def test_schematization_operation_name_v1(self):
-        out = self.session.get(URL_200)
-        assert out.status_code == 200
-        spans = self.pop_spans()
-        assert spans[0].name == "http.client.request"
-
     def test_global_config_service(self):
         with self.override_config("requests", dict(service="override")):
             out = self.session.get(URL_200)
@@ -609,6 +530,289 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag("http.request.headers.my-header") == "my_value"
+
+
+@pytest.mark.subprocess(env={"DD_REQUESTS_SERVICE": "override"})
+def test_global_config_service_env_precedence():
+    from requests import Session
+
+    import ddtrace
+    from ddtrace._trace.pin import Pin
+    from ddtrace.contrib.internal.requests.patch import patch
+    from ddtrace.contrib.internal.requests.patch import unpatch
+    from ddtrace.internal import core as ddcore
+    from tests.utils import DummyTracer
+
+    URL_200 = "http://localhost:8001/status/200"
+
+    tracer = DummyTracer()
+    ddtrace.tracer = tracer
+    ddcore.tracer = tracer
+
+    patch()
+    session = Session()
+
+    out = session.get(URL_200)
+    assert out.status_code == 200
+    spans = tracer.pop()
+    assert spans[0].service == "override"
+
+    cfg = {}
+    pin = Pin.get_from(session)
+    if pin:
+        cfg = pin._config
+
+    cfg["service"] = "override2"
+    out = session.get(URL_200)
+    assert out.status_code == 200
+    spans = tracer.pop()
+    assert spans[0].service == "override2"
+
+    unpatch()
+
+
+@pytest.mark.subprocess(env={"DD_REQUESTS_SERVICE": "override"})
+def test_global_config_service_env():
+    from requests import Session
+
+    import ddtrace
+    from ddtrace.contrib.internal.requests.patch import patch
+    from ddtrace.contrib.internal.requests.patch import unpatch
+    from ddtrace.internal import core as ddcore
+    from tests.utils import DummyTracer
+
+    URL_200 = "http://localhost:8001/status/200"
+
+    tracer = DummyTracer()
+    ddtrace.tracer = tracer
+    ddcore.tracer = tracer
+
+    patch()
+    session = Session()
+
+    out = session.get(URL_200)
+    assert out.status_code == 200
+    spans = tracer.pop()
+    assert spans[0].service == "override"
+
+    unpatch()
+
+
+@pytest.mark.subprocess(env={"DD_SERVICE": "mysvc"})
+def test_schematization_service_name_default():
+    from requests import Session
+
+    import ddtrace
+    from ddtrace.contrib.internal.requests.patch import patch
+    from ddtrace.contrib.internal.requests.patch import unpatch
+    from ddtrace.internal import core as ddcore
+    from tests.utils import DummyTracer
+
+    URL_200 = "http://localhost:8001/status/200"
+
+    tracer = DummyTracer()
+    ddtrace.tracer = tracer
+    ddcore.tracer = tracer
+
+    patch()
+    session = Session()
+
+    out = session.get(URL_200)
+    assert out.status_code == 200
+    spans = tracer.pop()
+    assert spans[0].service == "requests"
+
+    unpatch()
+
+
+@pytest.mark.subprocess(env={"DD_SERVICE": "mysvc", "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": "v0"})
+def test_schematization_service_name_v0():
+    from requests import Session
+
+    import ddtrace
+    from ddtrace.contrib.internal.requests.patch import patch
+    from ddtrace.contrib.internal.requests.patch import unpatch
+    from ddtrace.internal import core as ddcore
+    from tests.utils import DummyTracer
+
+    URL_200 = "http://localhost:8001/status/200"
+
+    tracer = DummyTracer()
+    ddtrace.tracer = tracer
+    ddcore.tracer = tracer
+
+    patch()
+    session = Session()
+
+    out = session.get(URL_200)
+    assert out.status_code == 200
+    spans = tracer.pop()
+    assert spans[0].service == "requests"
+
+    unpatch()
+
+
+@pytest.mark.subprocess(env={"DD_SERVICE": "mysvc", "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": "v1"})
+def test_schematization_service_name_v1():
+    from requests import Session
+
+    import ddtrace
+    from ddtrace.contrib.internal.requests.patch import patch
+    from ddtrace.contrib.internal.requests.patch import unpatch
+    from ddtrace.internal import core as ddcore
+    from tests.utils import DummyTracer
+
+    URL_200 = "http://localhost:8001/status/200"
+
+    tracer = DummyTracer()
+    ddtrace.tracer = tracer
+    ddcore.tracer = tracer
+
+    patch()
+    session = Session()
+
+    out = session.get(URL_200)
+    assert out.status_code == 200
+    spans = tracer.pop()
+    assert spans[0].service == "mysvc"
+
+    unpatch()
+
+
+@pytest.mark.subprocess
+def test_schematization_unspecified_service_name_default():
+    from requests import Session
+
+    import ddtrace
+    from ddtrace.contrib.internal.requests.patch import patch
+    from ddtrace.contrib.internal.requests.patch import unpatch
+    from ddtrace.internal import core as ddcore
+    from tests.utils import DummyTracer
+
+    URL_200 = "http://localhost:8001/status/200"
+
+    tracer = DummyTracer()
+    ddtrace.tracer = tracer
+    ddcore.tracer = tracer
+
+    patch()
+    session = Session()
+
+    out = session.get(URL_200)
+    assert out.status_code == 200
+    spans = tracer.pop()
+    assert spans[0].service == "requests"
+
+    unpatch()
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": "v0"})
+def test_schematization_unspecified_service_name_v0():
+    from requests import Session
+
+    import ddtrace
+    from ddtrace.contrib.internal.requests.patch import patch
+    from ddtrace.contrib.internal.requests.patch import unpatch
+    from ddtrace.internal import core as ddcore
+    from tests.utils import DummyTracer
+
+    URL_200 = "http://localhost:8001/status/200"
+
+    tracer = DummyTracer()
+    ddtrace.tracer = tracer
+    ddcore.tracer = tracer
+
+    patch()
+    session = Session()
+
+    out = session.get(URL_200)
+    assert out.status_code == 200
+    spans = tracer.pop()
+    assert spans[0].service == "requests"
+
+    unpatch()
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": "v1"})
+def test_schematization_unspecified_service_name_v1():
+    from requests import Session
+
+    import ddtrace
+    from ddtrace.contrib.internal.requests.patch import patch
+    from ddtrace.contrib.internal.requests.patch import unpatch
+    from ddtrace.internal import core as ddcore
+    from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME  # noqa: F401
+    from tests.utils import DummyTracer
+
+    URL_200 = "http://localhost:8001/status/200"
+
+    tracer = DummyTracer()
+    ddtrace.tracer = tracer
+    ddcore.tracer = tracer
+
+    patch()
+    session = Session()
+
+    out = session.get(URL_200)
+    assert out.status_code == 200
+    spans = tracer.pop()
+    assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
+
+    unpatch()
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": "v0"})
+def test_schematization_operation_name_v0():
+    from requests import Session
+
+    import ddtrace
+    from ddtrace.contrib.internal.requests.patch import patch
+    from ddtrace.contrib.internal.requests.patch import unpatch
+    from ddtrace.internal import core as ddcore
+    from tests.utils import DummyTracer
+
+    URL_200 = "http://localhost:8001/status/200"
+
+    tracer = DummyTracer()
+    ddtrace.tracer = tracer
+    ddcore.tracer = tracer
+
+    patch()
+    session = Session()
+
+    out = session.get(URL_200)
+    assert out.status_code == 200
+    spans = tracer.pop()
+    assert spans[0].name == "requests.request"
+
+    unpatch()
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": "v1"})
+def test_schematization_operation_name_v1():
+    from requests import Session
+
+    import ddtrace
+    from ddtrace.contrib.internal.requests.patch import patch
+    from ddtrace.contrib.internal.requests.patch import unpatch
+    from ddtrace.internal import core as ddcore
+    from tests.utils import DummyTracer
+
+    URL_200 = "http://localhost:8001/status/200"
+
+    tracer = DummyTracer()
+    ddtrace.tracer = tracer
+    ddcore.tracer = tracer
+
+    patch()
+    session = Session()
+
+    out = session.get(URL_200)
+    assert out.status_code == 200
+    spans = tracer.pop()
+    assert spans[0].name == "http.client.request"
+
+    unpatch()
 
 
 def test_traced_session_no_patch_all(tmpdir):
