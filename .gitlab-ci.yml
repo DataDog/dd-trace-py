@@ -195,6 +195,7 @@ detect_circular_imports:
         }"
   stage: tests
   #needs: ["download_ddtrace_artifacts"]
+  needs: []
   extends: .testrunner
 
 
