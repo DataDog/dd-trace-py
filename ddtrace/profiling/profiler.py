@@ -222,7 +222,6 @@ class _ProfilerInstance(service.Service):
                 ("asyncio", lambda _: start_collector(asyncio.AsyncioLockCollector)),
                 ("asyncio", lambda _: start_collector(asyncio.AsyncioSemaphoreCollector)),
                 ("asyncio", lambda _: start_collector(asyncio.AsyncioBoundedSemaphoreCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioConditionCollector)),
             ]
 
             for module, hook in self._collectors_on_import:
