@@ -196,11 +196,11 @@ detect_circular_imports:
       if [ ! -z "$CYCLES_REPORT" ]; then
         wget -nv binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64
         chmod +x authanywhere-linux-amd64
-        curl -v 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' \
+        curl 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' \
           -H "$(./authanywhere-linux-amd64)" \
           -X PATCH -d "{ \
             \"commit\": \"$CI_COMMIT_SHORT_SHA\", \
-            \"message\": \"$(echo $CYCLES_REPORT | awk '{printf "%s\\n", $0}')\", \
+            \"message\": \""$(echo $CYCLES_REPORT | awk '{printf "%s\\n", $0}')"\", \
             \"header\": \"Circular Import Analysis\", \
             \"org\": \"Datadog\", \
             \"repo\": \"dd-trace-py\" \
