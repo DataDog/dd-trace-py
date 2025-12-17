@@ -209,9 +209,6 @@ class CIVisibility(Service):
 
         self._api_key = os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY"))
 
-        if os.getenv("_CI_DD_DD_API_KEY"):
-            raise Exception("_CI_DD_DD_API_KEY")
-
         self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
         self.config = config or ddconfig.test_visibility  # type: Optional[IntegrationConfig]
         self._itr_skipping_level: ITR_SKIPPING_LEVEL = ddconfig.test_visibility.itr_skipping_level
