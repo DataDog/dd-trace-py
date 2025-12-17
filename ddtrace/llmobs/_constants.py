@@ -24,6 +24,8 @@ OUTPUT_DOCUMENTS = "_ml_obs.meta.output.documents"
 OUTPUT_MESSAGES = "_ml_obs.meta.output.messages"
 OUTPUT_VALUE = "_ml_obs.meta.output.value"
 
+MCP_TOOL_CALL_INTENT = "_ml_obs.meta.intent"
+
 SPAN_START_WHILE_DISABLED_WARNING = (
     "Span started with LLMObs disabled."
     " If using ddtrace-run, ensure DD_LLMOBS_ENABLED is set to 1. Else, use LLMObs.enable()."
