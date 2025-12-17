@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    openai_agents: This fix resolves an issue where a missing active span caused an ``AttributeError`` when calling ``tag_agent_manifest``.
