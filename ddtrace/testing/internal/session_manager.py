@@ -281,7 +281,7 @@ class SessionManager:
             log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
             unshallow_successful = git.try_all_unshallow_repository_methods()
             if unshallow_successful:
-                log.debug("Unshallow successful, geting latest commits from backend based on unshallowed commits")
+                log.debug("Unshallow successful, getting latest commits from backend based on unshallowed commits")
                 latest_commits = git.get_latest_commits()
                 backend_commits = self.api_client.get_known_commits(latest_commits)
                 # TODO: ddtrace has a "backend_commits is None" logic here with early return (is it correct?).
