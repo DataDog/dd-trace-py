@@ -43,18 +43,18 @@ class RetryHandler(ABC):
         """
 
     @abstractmethod
-    def get_final_status(self, test: Test) -> t.Tuple[TestStatus, t.Dict[str, str]]:
+    def get_final_status(self, test: Test) -> TestStatus:
         """
-        Return the final status to assign to the test, and the tags to add to the final test run.
+        Return the final status to assign to the test, and set the final test run tags on the passed test.
 
         Final status and tags are calculated together because they typically depend on the same data (count of
         passed/failed/skipped test runs).
         """
 
     @abstractmethod
-    def get_tags_for_test_run(self, test_run: TestRun) -> t.Dict[str, str]:
+    def set_tags_for_test_run(self, test_run: TestRun) -> None:
         """
-        Return the tags to be added to a given retry test run.
+        Set the tags to be added to a given retry test run.
         """
 
     @abstractmethod
@@ -80,18 +80,20 @@ class AutoTestRetriesHandler(RetryHandler):
         retries_so_far = len(test.test_runs) - 1  # Initial attempt does not count.
         return test.last_test_run.get_status() == TestStatus.FAIL and retries_so_far < self.max_retries_per_test
 
-    def get_final_status(self, test: Test) -> t.Tuple[TestStatus, t.Dict[str, str]]:
+    def get_final_status(self, test: Test) -> TestStatus:
         self.max_tests_to_retry_per_session -= 1
-        return test.last_test_run.get_status(), {}
+        return test.last_test_run.get_status()
 
-    def get_tags_for_test_run(self, test_run: TestRun) -> t.Dict[str, str]:
+    def set_tags_for_test_run(self, test_run: TestRun) -> None:
         if test_run.attempt_number == 0:
-            return {}
+            return
 
-        return {
-            TestTag.IS_RETRY: TAG_TRUE,
-            TestTag.RETRY_REASON: "auto_test_retry",
-        }
+        test_run.set_tags(
+            {
+                TestTag.IS_RETRY: TAG_TRUE,
+                TestTag.RETRY_REASON: "auto_test_retry",
+            }
+        )
 
 
 class EarlyFlakeDetectionHandler(RetryHandler):
@@ -129,7 +131,7 @@ class EarlyFlakeDetectionHandler(RetryHandler):
         retries_so_far = len(test.test_runs) - 1  # Initial attempt does not count.
         return retries_so_far < target_number_of_retries
 
-    def get_final_status(self, test: Test) -> t.Tuple[TestStatus, t.Dict[str, str]]:
+    def get_final_status(self, test: Test) -> TestStatus:
         status_counts: t.Dict[TestStatus, int] = defaultdict(lambda: 0)
         total_count = 0
 
@@ -138,21 +140,25 @@ class EarlyFlakeDetectionHandler(RetryHandler):
             total_count += 1
 
         if status_counts[TestStatus.PASS] > 0:
-            return TestStatus.PASS, {}
+            if status_counts[TestStatus.PASS] != total_count:
+                test.mark_flaky_run()
+            return TestStatus.PASS
 
         if status_counts[TestStatus.FAIL] > 0:
-            return TestStatus.FAIL, {}
+            return TestStatus.FAIL
 
-        return TestStatus.SKIP, {}
+        return TestStatus.SKIP
 
-    def get_tags_for_test_run(self, test_run: TestRun) -> t.Dict[str, str]:
+    def set_tags_for_test_run(self, test_run: TestRun) -> None:
         if test_run.attempt_number == 0:
-            return {}
+            return
 
-        return {
-            TestTag.IS_RETRY: TAG_TRUE,
-            TestTag.RETRY_REASON: "early_flake_detection",
-        }
+        test_run.set_tags(
+            {
+                TestTag.IS_RETRY: TAG_TRUE,
+                TestTag.RETRY_REASON: "early_flake_detection",
+            }
+        )
 
 
 class AttemptToFixHandler(RetryHandler):
@@ -166,7 +172,7 @@ class AttemptToFixHandler(RetryHandler):
         retries_so_far = len(test.test_runs) - 1  # Initial attempt does not count.
         return retries_so_far < self.session_manager.settings.test_management.attempt_to_fix_retries
 
-    def get_final_status(self, test: Test) -> t.Tuple[TestStatus, t.Dict[str, str]]:
+    def get_final_status(self, test: Test) -> TestStatus:
         final_status: TestStatus
         final_tags: t.Dict[str, str] = {
             TestTag.ATTEMPT_TO_FIX_PASSED: TAG_FALSE,
@@ -191,13 +197,17 @@ class AttemptToFixHandler(RetryHandler):
         elif status_counts[TestStatus.FAIL] == total_count:
             final_tags[TestTag.HAS_FAILED_ALL_RETRIES] = TAG_TRUE
 
-        return final_status, final_tags
+        test.last_test_run.set_tags(final_tags)
 
-    def get_tags_for_test_run(self, test_run: TestRun) -> t.Dict[str, str]:
+        return final_status
+
+    def set_tags_for_test_run(self, test_run: TestRun) -> None:
         if test_run.attempt_number == 0:
-            return {}
+            return
 
-        return {
-            TestTag.IS_RETRY: TAG_TRUE,
-            TestTag.RETRY_REASON: "attempt_to_fix",
-        }
+        test_run.set_tags(
+            {
+                TestTag.IS_RETRY: TAG_TRUE,
+                TestTag.RETRY_REASON: "attempt_to_fix",
+            }
+        )
