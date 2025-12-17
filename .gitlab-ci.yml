@@ -204,7 +204,9 @@ detect_circular_imports:
             \"org\": \"Datadog\", \
             \"repo\": \"dd-trace-py\" \
           }"
+        exit 1
       fi
+      exit 1
   stage: tests
   needs: []
   extends: .testrunner
