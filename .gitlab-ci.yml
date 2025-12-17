@@ -189,7 +189,7 @@ detect_circular_imports:
     - cd dd-trace-py && git checkout main && cd ..
     - python dd-trace-py/scripts/import-analysis/cycles.py analyze cycles-base.json
     - cat cycles-base.json
-    - python dd-trace-py/scripts/import-analysis/cycles.py compare cycles-base.json cycles-pr.json > cycles_report.txt
+    - python dd-trace-py/scripts/import-analysis/cycles.py compare cycles-base.json cycles-pr.json > cycles_report.txt || true
     - cat cycles_report.txt
     - CYCLES_REPORT="$(cat cycles_report.txt)"
     - |
