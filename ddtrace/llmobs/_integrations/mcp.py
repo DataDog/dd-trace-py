@@ -95,8 +95,6 @@ class MCPIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_server(span, args, kwargs, response)
         elif operation == "initialize":
             self._llmobs_set_tags_initialize(span, args, kwargs, response)
-        elif operation == REQUEST_RESPONDER_ENTER_OPERATION_NAME:
-            self._llmobs_set_tags_request_responder_enter(span, args, kwargs, response)
         elif operation == REQUEST_RESPONDER_RESPOND_OPERATION_NAME:
             self._llmobs_set_tags_request_responder_respond(span, args, kwargs, response)
         elif operation == "list_tools":
@@ -192,11 +190,12 @@ class MCPIntegration(BaseLLMIntegration):
                 },
             )
 
-    def _llmobs_set_tags_request_responder_enter(
+    def _llmobs_set_tags_request_responder_respond(
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any
     ) -> None:
-        # The instance is passed as the first arg to llmobs_set_tags
         responder = args[0]
+        response = args[1]
+
         request = getattr(responder, "request", None)
         request_root = getattr(request, "root", None)
 
@@ -210,7 +209,7 @@ class MCPIntegration(BaseLLMIntegration):
                     _set_or_update_tags(
                         span,
                         {
-                            "client_name": client_name,
+                            "client_name": str(client_name),
                             "client_version": f"{client_name}_{client_version}",
                         },
                     )
@@ -225,15 +224,10 @@ class MCPIntegration(BaseLLMIntegration):
         if maybe_session_id:
             _set_or_update_tags(span, {"mcp_session_id": str(maybe_session_id)})
 
-        span._set_ctx_items({NAME: "mcp.{}".format(request_method), SPAN_KIND: "task", INPUT_VALUE: safe_json(request)})
-
-    def _llmobs_set_tags_request_responder_respond(
-        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any
-    ) -> None:
-        response = args[0]
         output_value = safe_json(response)
-        span._set_ctx_item(OUTPUT_VALUE, output_value)
 
+        span._set_ctx_items({NAME: "mcp.{}".format(request_method), SPAN_KIND: "task", INPUT_VALUE: safe_json(request), OUTPUT_VALUE: output_value})
+        
     def _llmobs_set_tags_list_tools(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         cursor = get_argument_value(args, kwargs, 0, "cursor", optional=True)
 

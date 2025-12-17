@@ -17,8 +17,7 @@ from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.llmobs._integrations.mcp import CLIENT_TOOL_CALL_OPERATION_NAME
-from ddtrace.llmobs._integrations.mcp import REQUEST_RESPONDER_ENTER_OPERATION_NAME
+from ddtrace.llmobs._integrations.mcp import CLIENT_TOOL_CALL_OPERATION_NAME, REQUEST_RESPONDER_ENTER_OPERATION_NAME
 from ddtrace.llmobs._integrations.mcp import REQUEST_RESPONDER_RESPOND_OPERATION_NAME
 from ddtrace.llmobs._integrations.mcp import SERVER_TOOL_CALL_OPERATION_NAME
 from ddtrace.llmobs._integrations.mcp import MCPIntegration
@@ -245,14 +244,8 @@ def traced_request_responder_enter(mcp, pin: Pin, func, instance, args: tuple, k
     span = integration.trace(
         pin, REQUEST_RESPONDER_ENTER_OPERATION_NAME, submit_to_llmobs=True, span_name="mcp.initialize"
     )
-    instance._dd_span = span
-    integration.llmobs_set_tags(
-        span,
-        args=[instance] + list(args),
-        kwargs=kwargs,
-        response=None,
-        operation=REQUEST_RESPONDER_ENTER_OPERATION_NAME,
-    )
+    setattr(instance, "_dd_span", span)
+
     return func(*args, **kwargs)
 
 
@@ -270,7 +263,7 @@ async def traced_request_responder_respond(mcp, pin: Pin, func, instance, args: 
     span: Optional[Span] = getattr(instance, "_dd_span", None)
     if span:
         integration.llmobs_set_tags(
-            span, args=args, kwargs=kwargs, response=None, operation=REQUEST_RESPONDER_RESPOND_OPERATION_NAME
+            span, args=[instance] + list(args), kwargs=kwargs, response=None, operation=REQUEST_RESPONDER_RESPOND_OPERATION_NAME
         )
     return await func(*args, **kwargs)
 
