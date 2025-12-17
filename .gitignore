@@ -203,3 +203,8 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 
 # Rust build artifacts
 src/native/target*
+
+# CI-only caches (do not commit)
+/vendor/
+/.cargo-home/
+/.ci-cache/
