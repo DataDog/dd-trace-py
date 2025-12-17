@@ -151,6 +151,9 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     if distributed_context and not call_trace:
         span_kwargs["child_of"] = distributed_context
 
+
+    ## can do a context.get_item("split_by_domain")
+
     if config._inferred_proxy_services_enabled:
         # dispatch event for checking headers and possibly making an inferred proxy span
         core.dispatch("inferred_proxy.start", (ctx, tracer, span_kwargs, call_trace))
@@ -595,7 +598,7 @@ def _on_django_cache(
         _finish_span(ctx, exc_info)
 
 
-def _on_requests_send_start(ctx: core.ExecutionContext) -> None:
+def _client_start_span(ctx: core.ExecutionContext) -> None:
     span = _start_span(ctx)
     if not span:
         return
@@ -623,7 +626,7 @@ def _on_requests_send_start(ctx: core.ExecutionContext) -> None:
         HTTPPropagator.inject(span.context, request.headers)
 
 
-def _on_requests_send_end(
+def _client_finish_span(
     ctx: core.ExecutionContext,
     exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
 ) -> None:
@@ -1605,9 +1608,9 @@ def listen():
     # Special/extra handling before calling _finish_span
     core.on("context.ended.django.cache", _on_django_cache)
 
-    # Requests handlers (also registered conditionally in patch.py)
-    core.on("context.started.requests.send", _on_requests_send_start)
-    core.on("context.ended.requests.send", _on_requests_send_end)
+    # request handlers for web frameworks
+    core.on("context.started.requests.send", _client_start_span)
+    core.on("context.ended.requests.send", _client_finish_span)
 
 
 listen()
