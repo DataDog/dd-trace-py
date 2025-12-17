@@ -351,6 +351,7 @@ TaskInfo::unwind(FrameStack& stack)
             // Remove the Python Frames from the Stack (they will be added back later)
             // We cannot push those Frames now because otherwise they would be added once per Task,
             // we only want to add them once per Leaf Task, and on top of all non-leaf Tasks.
+            std::cerr << "Removing " << upper_python_stack_size << " Python Frames from Stack" << std::endl;
             for (size_t i = 0; i < upper_python_stack_size; i++) {
                 stack.pop_back();
             }

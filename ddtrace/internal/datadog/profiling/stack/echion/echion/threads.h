@@ -382,6 +382,10 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
 
             auto maybe_task_stack_size = task.unwind(stack);
             if (!maybe_task_stack_size) {
+                auto current_task_name = string_table.lookup(task.name)->get();
+                auto leaf_task_name = string_table.lookup(leaf_task.get().name)->get();
+                std::cerr << "Failed to unwind task, giving up " << current_task_name
+                          << " (leaf task: " << leaf_task_name << ")" << std::endl;
                 // Skip the current Task Stack (Leaf Task to top)
                 break;
             }
@@ -436,7 +440,14 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
         // one we saw in TaskInfo::unwind. This is extremely unlikely, I believe, but failing to account for it would
         // cause an underflow, so let's be conservative.
         size_t start_index = 0;
+        std::cerr << "python_stack.size() = " << python_stack.size()
+                  << ", upper_python_stack_size = " << upper_python_stack_size << std::endl;
+        for (size_t i = 0; i < python_stack.size(); i++) {
+            const auto& python_frame = python_stack[i];
+            std::cerr << "python_frame[" << i << "] = " << python_frame.get().name << std::endl;
+        }
         if (expect_at_least_one_running_task && python_stack.size() >= upper_python_stack_size) {
+            std::cerr << "Adding " << upper_python_stack_size << " Python Frames to Stack" << std::endl;
             start_index = python_stack.size() - upper_python_stack_size;
         }
         for (size_t i = start_index; i < python_stack.size(); i++) {
