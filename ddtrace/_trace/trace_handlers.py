@@ -151,8 +151,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     if distributed_context and not call_trace:
         span_kwargs["child_of"] = distributed_context
 
-
-    ## can do a context.get_item("split_by_domain")
+    # can do a context.get_item("split_by_domain")
 
     if config._inferred_proxy_services_enabled:
         # dispatch event for checking headers and possibly making an inferred proxy span
