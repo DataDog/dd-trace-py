@@ -190,7 +190,7 @@ detect_circular_imports:
     - python dd-trace-py/scripts/import-analysis/cycles.py analyze cycles-base.json
     - cat cycles-base.json
     - python dd-trace-py/scripts/import-analysis/cycles.py compare cycles-base.json cycles-pr.json > cycles_report.txt || true
-    - CYCLES_REPORT="$(cat cycles_report.txt)"
+    - CYCLES_REPORT="$(cat cycles_report.txt | tr '\n' '. ')"
     - echo $CYCLES_REPORT
     - |
       if [ ! -z "$CYCLES_REPORT" ]; then
@@ -200,7 +200,7 @@ detect_circular_imports:
           -H "$(./authanywhere-linux-amd64)" \
           -X PATCH -d "{ \
             \"commit\": \"$CI_COMMIT_SHORT_SHA\", \
-            \"message\": \""$(printf "%s\n" "$CYCLES_REPORT")"\", \
+            \"message\": \"$CYCLES_REPORT\", \
             \"header\": \"Circular Import Analysis\", \
             \"org\": \"Datadog\", \
             \"repo\": \"dd-trace-py\" \
