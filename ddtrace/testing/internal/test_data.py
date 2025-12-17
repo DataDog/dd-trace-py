@@ -205,6 +205,8 @@ class Test(TestItem["TestSuite", "TestRun"]):
         self.module = self.suite.parent
         self.session = self.module.parent
 
+        self._is_flaky_run = False
+
     def __str__(self) -> str:
         return f"{self.parent.parent.name}/{self.parent.name}::{self.name}"
 
@@ -287,11 +289,19 @@ class Test(TestItem["TestSuite", "TestRun"]):
     def is_skipped_by_itr(self) -> bool:
         return self.tags.get(TestTag.SKIPPED_BY_ITR) == TAG_TRUE
 
+    # Early Flake Detection.
+
     def set_early_flake_detection_abort_reason(self, reason: str) -> None:
         self.tags[TestTag.EFD_ABORT_REASON] = reason
 
     def get_early_flake_detection_abort_reason(self) -> t.Optional[str]:
         return self.tags.get(TestTag.EFD_ABORT_REASON)
+
+    def mark_flaky_run(self) -> None:
+        self._is_flaky_run = True
+
+    def is_flaky_run(self) -> bool:
+        return self._is_flaky_run
 
 
 class TestSuite(TestItem["TestModule", "Test"]):
