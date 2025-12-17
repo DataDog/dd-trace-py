@@ -347,3 +347,5 @@ xfail
 yaaredis
 openai-agents
 validators
+jitter
+durations
