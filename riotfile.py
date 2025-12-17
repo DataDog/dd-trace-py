@@ -249,15 +249,15 @@ venv = Venv(
                     pkgs={"django": "~=2.2"},
                 ),
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(max_version="3.13"),
                     pkgs={"django": "~=3.2", "legacy-cgi": latest},
                 ),
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(max_version="3.13"),
                     pkgs={"django": "==4.0.10", "legacy-cgi": latest},
                 ),
                 Venv(
-                    pys=["3.13", "3.14"],
+                    pys=select_pys(min_version="3.13"),
                     pkgs={"django": "==4.0.10", "legacy-cgi": latest},
                 ),
                 Venv(
@@ -265,7 +265,7 @@ venv = Venv(
                     pkgs={"django": "~=4.2"},
                 ),
                 Venv(
-                    pys=["3.13", "3.14"],
+                    pys=select_pys(min_version="3.13"),
                     pkgs={"django": "~=4.2", "legacy-cgi": latest},
                 ),
                 Venv(
@@ -273,7 +273,7 @@ venv = Venv(
                     pkgs={"django": "~=5.1"},
                 ),
                 Venv(
-                    pys=["3.13", "3.14"],
+                    pys=select_pys(min_version="3.13"),
                     pkgs={"django": "~=5.1", "legacy-cgi": latest},
                 ),
             ],
