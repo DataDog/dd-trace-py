@@ -147,7 +147,8 @@ requirements_json_test:
 detect_circular_imports:
   script:
     - wget binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64
-    - curl 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' -H "$(authanywhere)" -X PATCH -d '{\"commit\": \"My commit\", \"message\": \"My message\", \"header\": \"My header\", \"org\": \"Datadog\", \"repo\": \"dd-trace-py\" }'
+    - |
+      curl 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' -H "$(authanywhere)" -X PATCH -d '{\"commit\": \"My commit\", \"message\": \"My message\", \"header\": \"My header\", \"org\": \"Datadog\", \"repo\": \"dd-trace-py\" }'
   stage: tests
   needs: ["run-tests-trigger"]
   extends: .testrunner
