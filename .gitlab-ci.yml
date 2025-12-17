@@ -19,15 +19,22 @@ variables:
 default:
   interruptible: true
 
+
+.is_main: $CI_COMMIT_REF_NAME == "main"
+.is_release: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+.is_release_branch: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+.is_gh_merge_queue: $CI_COMMIT_BRANCH =~ /^gh-readonly-queue\/.*$/
+.is_devflow_merge_queue: $CI_COMMIT_BRANCH =~ /^mq-working-branch-.*$/
+
 # trigger new commit cancel
 workflow:
   auto_cancel:
     on_new_commit: interruptible
   rules:
-    - if: $CI_COMMIT_BRANCH == 'main'
+    - if: !reference [.is_main]
       auto_cancel:
         on_new_commit: none
-    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+    - if: !reference [.is_release_branch]
       auto_cancel:
         on_new_commit: none
     - when: always
@@ -139,7 +146,7 @@ macrobenchmarks:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: always
-    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+/
+    - if: !reference [.is_release]
       when: always
     - when: manual
 
@@ -152,10 +159,18 @@ check_new_flaky_tests:
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-api-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
     - export DD_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-app-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
     - datadog-ci gate evaluate
-  except:
-    - main
-    - '[0-9].[0-9]*'
-    - 'mq-working-branch**'
+  rules:
+    - if: !reference [.is_main]
+      when: never
+    - if: !reference [.is_release]
+      when: never
+    - if: !reference [.is_release_branch]
+      when: never
+    - if: !reference [.is_gh_merge_queue]
+      when: never
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
 
 requirements_json_test:
   rules:
@@ -169,10 +184,10 @@ package-oci:
 
 promote-oci-to-prod:
   stage: release
-  rules: null
-  only:
-    # TODO: Support publishing rc releases
-    - /^v[0-9]+\.[0-9]+\.[0-9]+$/
+  rules:
+    - if: !reference [.is_release]
+      when: on_success
+    - when: never
   needs:
     - job: release_pypi_prod
     - job: package-oci
@@ -198,10 +213,10 @@ promote-oci-to-staging:
 
 publish-lib-init-pinned-tags:
   stage: release
-  rules: null
-  only:
-    # TODO: Support publishing rc releases
-    - /^v[0-9]+\.[0-9]+\.[0-9]+$/
+  rules:
+    - if: !reference [.is_release]
+      when: on_success
+    - when: never
   needs:
     - job: release_pypi_prod
     - job: create-multiarch-lib-injection-image
