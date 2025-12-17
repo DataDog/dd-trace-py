@@ -291,9 +291,21 @@ TaskInfo::unwind(FrameStack& stack, size_t& upper_python_stack_size)
     std::stack<PyObject*> coro_frames;
 
     // Unwind the coro chain
+    // Detect cycles in the await chain to prevent infinite loops.
+    // This can happen if the Profiler samples during as the Task is running,
+    // or due to memory corruption/race conditions when reading coroutine pointers.
+    std::unordered_set<GenInfo*> seen_coros;
+    std::unordered_set<size_t> pure_coro_frames;
     for (auto py_coro = this->coro.get(); py_coro != NULL; py_coro = py_coro->await.get()) {
-        if (py_coro->frame != NULL)
+        if (seen_coros.find(py_coro) != seen_coros.end()) {
+            break;
+        }
+
+        seen_coros.insert(py_coro);
+
+        if (py_coro->frame != NULL) {
             coro_frames.push(py_coro->frame);
+        }
     }
 
     // Total number of frames added to the Stack
