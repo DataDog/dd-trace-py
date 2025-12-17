@@ -6,6 +6,7 @@ import fastapi
 from fastapi.testclient import TestClient
 import httpx
 import pytest
+import starlette
 
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.starlette.patch import patch as patch_starlette
@@ -981,3 +982,25 @@ def test_baggage_span_tagging_baggage_api(client, tracer, test_spans):
     assert request_span.get_tag("baggage.account.id") is None
     assert request_span.get_tag("baggage.user.id") is None
     assert request_span.get_tag("baggage.session.id") is None
+
+@pytest.mark.skipif(
+    parse_version(starlette.__version__) < parse_version("0.24.0"),
+    reason="Starlette < 0.24.0 has middleware initialization incompatible with copyreg.dispatch_table fix",
+)
+def test_fastapi_app_is_picklable(tracer):
+    """Validate FastAPI apps remain picklable after ddtrace instrumentation."""
+    cloudpickle = pytest.importorskip("cloudpickle")
+
+    from fastapi import FastAPI
+
+    app = FastAPI()
+
+    @app.get("/test")
+    def test_endpoint():
+        return {"status": "ok"}
+
+    # Should not raise NotImplementedError from wrapt.FunctionWrapper
+    # This succeeds because _register_wrapt_pickle_reducers() was called during patch()
+    pickled = cloudpickle.dumps(app)
+    assert pickled is not None
+    assert len(pickled) > 0

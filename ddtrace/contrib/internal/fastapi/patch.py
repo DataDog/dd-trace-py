@@ -4,6 +4,7 @@ from typing import Dict
 
 import fastapi
 import fastapi.routing
+import starlette
 import wrapt
 from wrapt import wrap_function_wrapper as _w
 
@@ -19,6 +20,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
 
@@ -44,11 +46,18 @@ def _reduce_wrapt_proxy(proxy):
 def _register_wrapt_pickle_reducers():
     """Register pickle reducers for wrapt proxy types.
 
-    Must be called before FastAPI app is pickled (e.g., by Ray/vLLM).
+    Must be called before FastAPI app is pickled (e.g., by Ray Serve/vLLM).
     """
     global _WRAPT_REDUCERS_REGISTERED
     if _WRAPT_REDUCERS_REGISTERED:
         return
+    
+    # Only register for Starlette >= 0.24.0 (lazy middleware initialization)
+    # Required for copyreg.dispatch_table to work with wrapt types
+    if parse_version(starlette.__version__) < parse_version("0.24.0"):
+        _WRAPT_REDUCERS_REGISTERED = True  # Mark as "handled" to avoid re-checking
+        return
+    
     for cls in [wrapt.ObjectProxy, wrapt.FunctionWrapper, wrapt.BoundFunctionWrapper]:
         if cls not in copyreg.dispatch_table:
             copyreg.dispatch_table[cls] = _reduce_wrapt_proxy
