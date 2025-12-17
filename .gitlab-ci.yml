@@ -181,6 +181,14 @@ requirements_json_test:
 
 detect_circular_imports:
   script:
+    - python -m pip install -r dd-trace-py/scripts/import-analysis/requirements-cycles.txt
+    - cp dd-trace-py/scripts/import-analysis/cycles.py .
+    - python dd-trace-py/scripts/import-analysis/cycles.py analyze cycles-pr.json
+    - git checkout main
+    - mkdir -p dd-trace-py/scripts/import-analysis || true
+    - mv cycles.py dd-trace-py/scripts/import-analysis/cycles.py
+    - python dd-trace-py/scripts/import-analysis/cycles.py analyze cycles-base.json
+    - python dd-trace-py/scripts/import-analysis/cycles.py compare cycles-base.json cycles-pr.json > cycles_report.txt
     - wget binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64
     - chmod +x authanywhere-linux-amd64
     - |
@@ -188,13 +196,12 @@ detect_circular_imports:
         -H "$(./authanywhere-linux-amd64)" \
         -X PATCH -d "{ \
           \"commit\": \"$CI_COMMIT_SHORT_SHA\", \
-          \"message\": \"My message\", \
+          \"message\": \"$(cat cycles_report.txt)\", \
           \"header\": \"Circular Import Analysis\", \
           \"org\": \"Datadog\", \
           \"repo\": \"dd-trace-py\" \
         }"
   stage: tests
-  #needs: ["download_ddtrace_artifacts"]
   needs: []
   extends: .testrunner
 
