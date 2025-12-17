@@ -312,11 +312,13 @@ TaskInfo::unwind(FrameStack& stack)
         }
 
         seen_coros.insert(py_coro);
+        std::cerr << "  coro " << py_coro << " frame=" << py_coro->frame << std::endl;
 
         if (py_coro->frame != NULL) {
             coro_frames.push(py_coro->frame);
         }
     }
+    std::cerr << "  coro_frames.size()=" << coro_frames.size() << std::endl;
 
     // Total number of frames added to the Stack
     size_t count = 0;
