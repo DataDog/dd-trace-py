@@ -185,7 +185,7 @@ detect_circular_imports:
     - python -m pip install -r dd-trace-py/scripts/import-analysis/requirements-cycles.txt
     - cp dd-trace-py/scripts/import-analysis/cycles.py .
     - python dd-trace-py/scripts/import-analysis/cycles.py analyze cycles-pr.json
-    - cd dd-trace-py && git checkout main && cd ..
+    - cd dd-trace-py && git checkout main && git pull && cd ..
     - mkdir -p dd-trace-py/scripts/import-analysis || true
     - mv cycles.py dd-trace-py/scripts/import-analysis/cycles.py
     - python dd-trace-py/scripts/import-analysis/cycles.py analyze cycles-base.json
