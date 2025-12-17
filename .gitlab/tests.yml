@@ -102,9 +102,8 @@ include:
 
 .test_base_riot_gpu:
   extends: .test_base_riot
-  image:
-    name: ${TESTRUNNER_GPU_IMAGE}
-  tags: [ "gpu:a10-amd64" ]
+  image: !reference [.testrunner_gpu, image]
+  tags: !reference [.testrunner_gpu, tags]
   timeout: 40m
   parallel: 2
   variables:
@@ -113,9 +112,8 @@ include:
     KUBERNETES_CPU_REQUEST: "2"
     KUBERNETES_CPU_LIMIT: "2"
   before_script:
+    - !reference [.testrunner_gpu, before_script]
     - !reference [.test_base_riot, before_script]
-    - export NVIDIA_VISIBLE_DEVICES=all
-    - export NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
 .test_base_riot_gpu_snapshot:
   extends: .test_base_riot_gpu
