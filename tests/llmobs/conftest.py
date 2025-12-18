@@ -169,11 +169,6 @@ def mock_ragas_answer_relevancy_calculate_similarity():
 
 
 @pytest.fixture
-def tracer():
-    return DummyTracer()
-
-
-@pytest.fixture
 def llmobs_env():
     return {
         "DD_API_KEY": os.environ.get("DD_API_KEY", "<default-not-a-real-key>"),

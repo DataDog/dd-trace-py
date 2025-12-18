@@ -28,16 +28,6 @@ def llmobs_span_writer():
 
 
 @pytest.fixture
-def tracer(langchain_core):
-    tracer = DummyTracer()
-
-    pin = Pin.get_from(langchain_core)
-    pin._override(langchain_core, tracer=tracer)
-
-    yield tracer
-
-
-@pytest.fixture
 def llmobs(
     tracer,
     llmobs_span_writer,

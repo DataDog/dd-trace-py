@@ -13,11 +13,6 @@ from tests.utils import assert_is_measured
 
 
 @pytest.fixture
-def tracer():
-    return DummyTracer()
-
-
-@pytest.fixture
 def test_spans(tracer):
     container = TracerSpanContainer(tracer)
     yield container

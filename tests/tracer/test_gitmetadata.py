@@ -58,9 +58,7 @@ class GitMetadataTestCase(TracerTestCase):
         )
     )
     def test_gitmetadata_from_DD_TAGS(self):
-        tracer = DummyTracer()
-
-        with tracer.trace("span") as s:
+        with self.tracer.trace("span") as s:
             pass
 
         # must be from DD_TAGS

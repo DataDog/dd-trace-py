@@ -355,10 +355,52 @@ class Tracer(object):
         apm_opt_out: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
         reset_buffer: bool = True,
+        reset_state: bool = False,
     ) -> None:
-        """Re-initialize the tracer's processors and trace writer"""
-        # Stop the writer.
-        # This will stop the periodic thread in HTTPWriters, preventing memory leaks and unnecessary I/O.
+        """Re-initialize the tracer's processors and trace writer.
+
+        :param trace_processors: Optional list of trace processors to use.
+        :param compute_stats_enabled: Optional flag to enable/disable stats computation.
+        :param apm_opt_out: Optional flag for APM opt-out mode.
+        :param appsec_enabled: Optional flag to enable/disable AppSec.
+        :param reset_buffer: Whether to reset the trace buffer (default: True).
+        :param reset_state: Whether to reset all tracer state to defaults (default: False).
+            When True, this provides a clean slate for testing by resetting:
+            - Tracer tags to config.tags
+            - Enabled state to config._tracing_enabled
+            - Active context (cleared)
+            - start_span method (restored if changed after shutdown)
+            - forksafe/atexit hooks (re-registered if unregistered)
+            - _new_process flag
+            - Global span processors (SpanProcessor.__processors__)
+        """
+        if reset_state:
+            # Reset tracer tags to config defaults
+            self._tags = config.tags.copy()
+
+            # Reset enabled state
+            self.enabled = config._tracing_enabled
+            if asm_config._apm_opt_out:
+                self.enabled = False
+
+            # Clear the active context
+            self.context_provider.activate(None)
+
+            # Reset _new_process flag
+            self._new_process = False
+
+            # Restore start_span if it was changed after shutdown and re-register hooks
+            if self.start_span == self._start_span_after_shutdown:
+                self.start_span = self._start_span  # type: ignore[method-assign]
+                # Re-register forksafe and atexit hooks
+                forksafe.register_before_fork(self._sample_before_fork)
+                atexit.register(self._atexit)
+                forksafe.register(self._child_after_fork)
+
+            # Clear global span processors that may have been registered during tests
+            SpanProcessor.__processors__.clear()
+
+        # Reset the span aggregator (recreates writer, clears buffer)
         self._span_aggregator.reset(
             user_processors=trace_processors,
             compute_stats=compute_stats_enabled,

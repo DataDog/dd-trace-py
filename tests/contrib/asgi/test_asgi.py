@@ -60,12 +60,6 @@ def scope(request):
     return {k: v for (k, v) in s.items() if v is not None}
 
 
-@pytest.fixture
-def tracer():
-    tracer = DummyTracer()
-    yield tracer
-
-
 async def basic_app(scope, receive, send):
     assert scope["type"] == "http"
     message = await receive()

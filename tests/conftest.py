@@ -160,7 +160,7 @@ def pytest_configure(config):
 
 
 @pytest.fixture
-def use_global_tracer():
+def use_dummy_writer():
     yield False
 
 
@@ -180,11 +180,21 @@ def enable_crashtracking(auto_enable_crashtracking):
 
 
 @pytest.fixture
-def tracer(use_global_tracer):
-    if use_global_tracer:
-        return ddtrace.tracer
-    else:
-        return DummyTracer()
+def tracer(use_dummy_writer):
+    try:
+        tracer = ddtrace.tracer
+        if use_dummy_writer:
+            tracer._span_aggregator.writer = DummyWriter(trace_flush_enabled=check_test_agent_status())
+        yield tracer
+    finally:
+        ddtrace.tracer._recreate(
+            trace_processors=[],
+            compute_stats_enabled=False,
+            apm_opt_out=False,
+            appsec_enabled=False,
+            reset_buffer=True,
+            reset_state=True,
+        )
 
 
 @pytest.fixture

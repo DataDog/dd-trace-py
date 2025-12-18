@@ -43,12 +43,12 @@ async def test_template_rendering_snapshot(untraced_app_tracer_jinja, aiohttp_cl
         assert 200 == request.status
 
 
-@pytest.mark.parametrize("use_global_tracer", [True])
+@pytest.mark.parametrize("use_dummy_writer", [True])
 async def test_template_rendering_snapshot_patched_server(
     patched_app_tracer_jinja,
     aiohttp_client,
     snapshot_context,
-    use_global_tracer,
+    use_dummy_writer,
 ):
     app, _ = patched_app_tracer_jinja
     Pin._override(aiohttp_jinja2, tracer=tracer)

@@ -156,9 +156,7 @@ async def test_pipeline_command_stack_parity_when_visible(traced_redis_cluster):
 
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
 @pytest.mark.asyncio
-async def test_patch_unpatch(redis_cluster):
-    tracer = DummyTracer()
-
+async def test_patch_unpatch(tracer, redis_cluster):
     # Test patch idempotence
     patch()
     patch()

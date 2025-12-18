@@ -29,15 +29,6 @@ def patch_aiokafka():
 
 
 @pytest.fixture
-def tracer():
-    tracer = DummyTracer()
-    with override_global_tracer(tracer):
-        yield tracer
-        tracer.flush()
-    tracer.shutdown()
-
-
-@pytest.fixture
 def dsm_processor(tracer):
     processor = tracer.data_streams_processor
     # Clean up any existing context to prevent test pollution

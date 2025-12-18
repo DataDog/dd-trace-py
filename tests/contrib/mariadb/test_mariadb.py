@@ -26,17 +26,6 @@ SNAPSHOT_VARIANTS = {
 }
 
 
-@pytest.fixture
-def tracer():
-    tracer = DummyTracer()
-    patch()
-    try:
-        yield tracer
-        tracer.pop_traces()
-    finally:
-        unpatch()
-
-
 def get_connection(tracer):
     connection = mariadb.connect(**MARIADB_CONFIG)
     Pin._override(connection, tracer=tracer)

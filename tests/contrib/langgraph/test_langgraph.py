@@ -1,6 +1,7 @@
 from collections import Counter
 
 
+
 def assert_has_spans(spans, expected):
     resources = [span.resource for span in spans]
     assert len(resources) == len(expected)
