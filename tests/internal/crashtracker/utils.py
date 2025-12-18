@@ -132,9 +132,6 @@ def get_all_crash_messages(test_agent_client: TestAgentClient) -> List[TestAgent
                 seen_report_ids.add(report_id)
                 crash_messages.append(message)
 
-            # If we have both crash ping and crash report (2 reports), we can return early
-            # if len(crash_messages) >= 2:
-            #     return crash_messages
         time.sleep(0.2)
 
     return crash_messages
