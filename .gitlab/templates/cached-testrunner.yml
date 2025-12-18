@@ -33,4 +33,13 @@
     - key: v5-build_base_venvs-${{PYTHON_VERSION}}-download-cache-{current_month}
       paths:
         - .download_cache
-    - !reference [.cargo_cache]
+    - key:
+        files:
+          - src/native/Cargo.lock
+        prefix: v0-cargo-cache
+      paths:
+        - vendor/
+        - .cargo-home/config.toml
+        - .cargo-home/git/
+        - .cargo-home/registry/
+      policy: pull

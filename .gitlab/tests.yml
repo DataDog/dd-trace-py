@@ -10,7 +10,6 @@ variables:
   # CI_DEBUG_SERVICES: "true"
 
 include:
-  - local: ".gitlab/caches.yml"
   - local: ".gitlab/services.yml"
   - local: ".gitlab/testrunner.yml"
 

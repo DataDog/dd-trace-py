@@ -1,8 +1,7 @@
 include:
-  - local: .gitlab/caches.yml
   - local: .gitlab/testrunner.yml
 
-"prepare cargo cache":
+prepare cargo cache:
   extends: .testrunner
   stage: package
   tags: [ "arch:amd64" ]
@@ -15,8 +14,15 @@ include:
         scripts/prepare_cargo_cache.sh
       fi
   cache:
-    - <<: !reference [.cargo_cache]
-      policy: pull-push
+    - key:
+        files:
+          - src/native/Cargo.lock
+        prefix: v0-cargo-cache
+      paths:
+        - vendor/
+        - .cargo-home/config.toml
+        - .cargo-home/git/
+        - .cargo-home/registry/
 
 download_ddtrace_artifacts:
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
