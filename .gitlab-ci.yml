@@ -250,5 +250,5 @@ deploy_to_di_backend:manual:
 nk-test-multiproject-pipeline:
   stage: package
   trigger:
-    project: DataDog/dd-trace-py
+    project: DataDog/apm-reliability/dd-trace-py
     branch: main
