@@ -99,7 +99,7 @@ Where the EOL month is calculated thus: <this release line's start month> + <18 
 9. Share the link to the GitHub draft release with someone who can confirm it's correct
 
 10. Click the the green “Publish release” button on the draft release. Double check that you have the correct check boxes checked and unchecked
-   based on the release you’re about to publish. Wait for build and publish to succeed.
-   The GitHub release will trigger the GitLab workflow that builds wheels and publishes to PyPI.
+    based on the release you’re about to publish. Wait for build and publish to succeed.
+    The GitHub release will trigger the GitLab workflow that builds wheels and publishes to PyPI.
 
 11. Check PyPI for the release.
