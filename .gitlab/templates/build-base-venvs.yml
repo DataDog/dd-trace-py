@@ -20,7 +20,7 @@ build_base_venvs:
     set -e -o pipefail
     # Use the cargo cache, but keep using the local cargo binaries
     export PATH="$CARGO_HOME/bin:$PATH"
-    export CARGO_HOME="${CI_PROJECT_DIR}/.cargo-home"
+    export CARGO_HOME="$CI_PROJECT_DIR/.cargo-home"
     riot -P -v generate --python=$PYTHON_VERSION
     echo "Running smoke tests"
     riot -v run -s --python=$PYTHON_VERSION smoke_test
