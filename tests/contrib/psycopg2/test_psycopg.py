@@ -168,9 +168,9 @@ class PsycopgCore(TracerTestCase):
     def test_patch_closed_connection(self):
         """
         Patching a closed connection should not throw an error.
+        (psycopg2 handles this gracefully)
         """
-        from ddtrace.contrib.internal.psycopg.connection import patch_conn
-        from ddtrace.contrib.internal.psycopg.connection import Psycopg2TracedConnection
+        from ddtrace.contrib.internal.psycopg.connection import Psycopg2TracedConnection, patch_conn
 
         conn = psycopg2.connect(**POSTGRES_CONFIG)
         conn.close()
