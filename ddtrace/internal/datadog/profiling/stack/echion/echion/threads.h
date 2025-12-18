@@ -229,7 +229,7 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
     // of the cache key of the "_run" Frame.
     static std::optional<Frame::Key> frame_cache_key;
     bool expect_at_least_one_running_task = false;
-    if (!frame_cache_key || true) {
+    if (!frame_cache_key) {
         for (size_t i = 0; i < python_stack.size(); i++) {
             const auto& frame = python_stack[i].get();
             const auto& frame_name = string_table.lookup(frame.name)->get();
@@ -251,7 +251,6 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
                                                frame_name.rfind(_run) == frame_name.size() - _run.size());
 #endif
             if (is_run_frame) {
-                std::cerr << "Found _run frame: " << frame_name << " at index " << i << std::endl;
                 // Although Frames are stored in an LRUCache, the cache key is ALWAYS the same
                 // even if the Frame gets evicted from the cache.
                 // This means we can keep the cache key and re-use it to determine
@@ -266,8 +265,6 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
         for (size_t i = 0; i < python_stack.size(); i++) {
             const auto& frame = python_stack[i].get();
             if (frame.cache_key == *frame_cache_key) {
-                std::cerr << "Found _run frame: " << string_table.lookup(frame.name)->get() << " at index " << i
-                          << std::endl;
                 expect_at_least_one_running_task = true;
                 upper_python_stack_size = python_stack.size() - i;
                 break;
