@@ -163,7 +163,8 @@ class PsycopgCore(TracerTestCase):
         Patching a closed connection should not throw an OperationalError.
         (At the moment it does which is wrong because normally it doesn't throw errors)
         """
-        from ddtrace.contrib.internal.psycopg.connection import Psycopg3TracedConnection, patch_conn
+        from ddtrace.contrib.internal.psycopg.connection import Psycopg3TracedConnection
+        from ddtrace.contrib.internal.psycopg.connection import patch_conn
 
         # The normal closed connection has no errors
         conn = psycopg.connect(**POSTGRES_CONFIG)
