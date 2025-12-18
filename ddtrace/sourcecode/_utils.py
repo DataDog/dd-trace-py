@@ -70,7 +70,7 @@ def get_commit_sha():
 
 
 def get_repository_url():
-    repository_url = os.environ.get("DD_GIT_REPOSITORY_URL")
+    repository_url = os.environ.get("_CI_DD_GIT_REPOSITORY_URL") or os.environ.get("DD_GIT_REPOSITORY_URL")
     if repository_url:
         return repository_url
     return _query_git(["config", "--get", "remote.origin.url"])
