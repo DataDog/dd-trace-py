@@ -42,9 +42,9 @@ def test_coverage_py39_line_numbers():
         "tests/coverage/included_path/py39_line_numbers.py": {1, 3, 4, 7, 8, 9, 12, 13, 14, 17, 18, 19},
     }
 
-    assert executable == expected_executable, (
-        f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
-    )
+    assert (
+        executable == expected_executable
+    ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
     assert covered_with_imports == expected_covered_with_imports, (
         f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "

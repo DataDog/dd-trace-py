@@ -138,6 +138,7 @@ exclude = '''
   | dist/
   | tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py$
   | tests/profiling/collector/pprof_.*_pb2.py$
+  | tests/coverage/included_path/py39_line_numbers.py$
 )
 '''
 
