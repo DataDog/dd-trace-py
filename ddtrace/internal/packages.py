@@ -1,9 +1,9 @@
 import collections
 from functools import lru_cache as cached
 from functools import singledispatch
-import inspect
 import logging
 from pathlib import Path
+import re
 import sys
 import sysconfig
 from types import ModuleType
@@ -21,36 +21,208 @@ Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str)])
 
 _PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None
 
+# Optimized metadata reading - compiled regex patterns for better performance
+_DIST_INFO_PATTERN = re.compile(r"^(.+?)-([^-]+?)\.(dist-info|egg-info)$")
+_NAME_PATTERN = re.compile(r"^Name:\s*(.+?)\s*$", re.MULTILINE | re.IGNORECASE)
+_VERSION_PATTERN = re.compile(r"^Version:\s*(.+?)\s*$", re.MULTILINE | re.IGNORECASE)
+
+# Cache for optimized metadata reading
+_OPTIMIZED_CACHE: t.Dict[str, t.Any] = {}
+
+
+def _get_site_packages() -> t.List[Path]:
+    """Get all site-packages directories in the current Python environment."""
+    if "site_packages" in _OPTIMIZED_CACHE:
+        return _OPTIMIZED_CACHE["site_packages"]
+
+    site_packages = []
+
+    # Get standard library paths
+    try:
+        purelib = Path(sysconfig.get_path("purelib"))
+        if purelib.exists():
+            site_packages.append(purelib)
+    except Exception:
+        pass
+
+    try:
+        platlib = Path(sysconfig.get_path("platlib"))
+        if platlib.exists() and platlib not in site_packages:
+            site_packages.append(platlib)
+    except Exception:
+        pass
+
+    # Add paths from sys.path that look like site-packages
+    for path_str in sys.path:
+        if not path_str:
+            continue
+        path = Path(path_str)
+        if (
+            path.exists()
+            and (path.name == "site-packages" or "site-packages" in str(path))
+            and path not in site_packages
+        ):
+            site_packages.append(path)
+
+    _OPTIMIZED_CACHE["site_packages"] = site_packages
+    return site_packages
+
+
+def _parse_metadata_fast(metadata_content: str) -> t.Tuple[t.Optional[str], t.Optional[str]]:
+    """Fast parsing of METADATA/PKG-INFO content to extract name and version."""
+    name = version = None
+
+    # Use regex for faster parsing instead of email.parser
+    name_match = _NAME_PATTERN.search(metadata_content)
+    if name_match:
+        name = name_match.group(1).strip()
+
+    version_match = _VERSION_PATTERN.search(metadata_content)
+    if version_match:
+        version = version_match.group(1).strip()
+
+    return name, version
+
+
+def _find_distributions_optimized() -> t.Iterator[t.Tuple[str, str, Path]]:
+    """Find all .dist-info and .egg-info directories and extract package info."""
+    for site_pkg in _get_site_packages():
+        if not site_pkg.exists():
+            continue
+
+        try:
+            for item in site_pkg.iterdir():
+                if not item.is_dir():
+                    continue
+
+                # Check for .dist-info or .egg-info
+                match = _DIST_INFO_PATTERN.match(item.name)
+                if match:
+                    name, version, _ = match.groups()
+                    yield name, version, item
+
+        except (PermissionError, OSError):
+            # Skip directories we can't read
+            continue
+
+
+def _optimized_get_distributions() -> t.Dict[str, str]:
+    """Optimized version of getting all package distributions and versions."""
+    if "distributions" in _OPTIMIZED_CACHE:
+        return _OPTIMIZED_CACHE["distributions"]
+
+    distributions = {}
+
+    for name, version, dist_path in _find_distributions_optimized():
+        # Verify by reading METADATA if available
+        metadata_file = dist_path / "METADATA"
+        if not metadata_file.exists():
+            metadata_file = dist_path / "PKG-INFO"
+
+        if metadata_file.exists():
+            try:
+                with open(metadata_file, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+                parsed_name, parsed_version = _parse_metadata_fast(content)
+                if parsed_name and parsed_version:
+                    distributions[parsed_name.lower()] = parsed_version
+                    continue
+            except (OSError, UnicodeDecodeError):
+                pass
+
+        # Fallback to directory name parsing
+        if name and version:
+            distributions[name.lower()] = version
+
+    _OPTIMIZED_CACHE["distributions"] = distributions
+    return distributions
+
+
+def _optimized_packages_distributions() -> t.Mapping[str, t.List[str]]:
+    """Optimized version of packages_distributions()."""
+    if "packages_distributions" in _OPTIMIZED_CACHE:
+        return _OPTIMIZED_CACHE["packages_distributions"]
+
+    pkg_to_dist = collections.defaultdict(list)
+
+    for name, version, dist_path in _find_distributions_optimized():
+        # Get the actual distribution name
+        dist_name = name
+
+        # Read METADATA to get the canonical name
+        metadata_file = dist_path / "METADATA"
+        if not metadata_file.exists():
+            metadata_file = dist_path / "PKG-INFO"
+
+        if metadata_file.exists():
+            try:
+                with open(metadata_file, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+                parsed_name, _ = _parse_metadata_fast(content)
+                if parsed_name:
+                    dist_name = parsed_name
+            except (OSError, UnicodeDecodeError):
+                pass
+
+        # Get top-level packages from top_level.txt
+        top_level_file = dist_path / "top_level.txt"
+        top_level_packages = set()
+
+        if top_level_file.exists():
+            try:
+                with open(top_level_file, "r", encoding="utf-8", errors="ignore") as f:
+                    top_level_packages = {line.strip() for line in f if line.strip()}
+            except (OSError, UnicodeDecodeError):
+                pass
+
+        # If no top_level.txt, try to infer from RECORD or distribution name
+        if not top_level_packages:
+            record_file = dist_path / "RECORD"
+            if record_file.exists():
+                try:
+                    with open(record_file, "r", encoding="utf-8", errors="ignore") as f:
+                        for line in f:
+                            if not line.strip():
+                                continue
+                            # RECORD format: path,hash,size
+                            path_part = line.split(",")[0]
+                            if "/" in path_part:
+                                top_level = path_part.split("/")[0]
+                                # Skip .dist-info, .egg-info, and __pycache__
+                                if not (
+                                    top_level.endswith((".dist-info", ".egg-info"))
+                                    or top_level == "__pycache__"
+                                    or top_level.endswith(".py")
+                                ):
+                                    top_level_packages.add(top_level)
+                except (OSError, UnicodeDecodeError):
+                    pass
+
+            # Still no packages found? Use distribution name
+            if not top_level_packages:
+                pkg_name = dist_name.lower().replace("-", "_").replace(".", "_")
+                top_level_packages.add(pkg_name)
+
+        # Map each top-level package to this distribution
+        for pkg in top_level_packages:
+            pkg_to_dist[pkg].append(dist_name)
+
+    result = dict(pkg_to_dist)
+    _OPTIMIZED_CACHE["packages_distributions"] = result
+    return result
+
 
 @callonce
 def get_distributions() -> t.Mapping[str, str]:
     """returns the mapping from distribution name to version for all distributions in a python path"""
-    import importlib.metadata as importlib_metadata
-
-    pkgs = {}
-    for dist in importlib_metadata.distributions():
-        # PKG-INFO and/or METADATA files are parsed when dist.metadata is accessed
-        # Optimization: we should avoid accessing dist.metadata more than once
-        metadata = dist.metadata
-        name = metadata["name"]
-        version = metadata["version"]
-        if name and version:
-            pkgs[name.lower()] = version
-
-    return pkgs
+    return _optimized_get_distributions()
 
 
 def get_package_distributions() -> t.Mapping[str, t.List[str]]:
     """a mapping of importable package names to their distribution name(s)"""
     global _PACKAGE_DISTRIBUTIONS
     if _PACKAGE_DISTRIBUTIONS is None:
-        import importlib.metadata as importlib_metadata
-
-        # Prefer the official API if available, otherwise fallback to the vendored version
-        if hasattr(importlib_metadata, "packages_distributions"):
-            _PACKAGE_DISTRIBUTIONS = importlib_metadata.packages_distributions()
-        else:
-            _PACKAGE_DISTRIBUTIONS = _packages_distributions()
+        _PACKAGE_DISTRIBUTIONS = _optimized_packages_distributions()
     return _PACKAGE_DISTRIBUTIONS
 
 
@@ -85,10 +257,9 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
 @cached(maxsize=1024)
 def get_version_for_package(name: str) -> str:
     """returns the version of a package"""
-    import importlib.metadata as importlib_metadata
-
     try:
-        return importlib_metadata.version(name)
+        distributions = get_distributions()
+        return distributions.get(name.lower(), "")
     except Exception:
         return ""
 
@@ -154,46 +325,65 @@ def _root_module(path: Path) -> str:
 
 @callonce
 def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
-    import importlib.metadata as importlib_metadata
-
-    namespaces: t.Dict[str, bool] = {}
-
-    def is_namespace(f: importlib_metadata.PackagePath):
-        root = f.parts[0]
-        try:
-            return namespaces[root]
-        except KeyError:
-            pass
-
-        if len(f.parts) < 2:
-            namespaces[root] = False
-            return False
-
-        located_f = t.cast(Path, f.locate())
-        parent = located_f.parents[len(f.parts) - 2]
-        if parent.is_dir() and not (parent / "__init__.py").exists():
-            namespaces[root] = True
-            return True
-
-        namespaces[root] = False
-        return False
-
     try:
         mapping = {}
 
-        for dist in importlib_metadata.distributions():
-            if not (files := dist.files):
-                continue
-            metadata = dist.metadata
-            d = Distribution(name=metadata["name"], version=metadata["version"])
-            for f in files:
-                root = f.parts[0]
-                if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":
-                    continue
-                if is_namespace(f):
-                    root = "/".join(f.parts[:2])
-                if root not in mapping:
-                    mapping[root] = d
+        for name, version, dist_path in _find_distributions_optimized():
+            # Get the actual distribution name and version from metadata if available
+            dist_name, dist_version = name, version
+            metadata_file = dist_path / "METADATA"
+            if not metadata_file.exists():
+                metadata_file = dist_path / "PKG-INFO"
+
+            if metadata_file.exists():
+                try:
+                    with open(metadata_file, "r", encoding="utf-8", errors="ignore") as f:
+                        content = f.read()
+                    parsed_name, parsed_version = _parse_metadata_fast(content)
+                    if parsed_name and parsed_version:
+                        dist_name, dist_version = parsed_name, parsed_version
+                except (OSError, UnicodeDecodeError):
+                    pass
+
+            d = Distribution(name=dist_name, version=dist_version)
+
+            # Try to read RECORD file to get file mappings
+            record_file = dist_path / "RECORD"
+            if record_file.exists():
+                try:
+                    with open(record_file, "r", encoding="utf-8", errors="ignore") as f:
+                        for line in f:
+                            if not line.strip():
+                                continue
+                            # RECORD format: path,hash,size
+                            path_part = line.split(",")[0]
+                            if not path_part or "/" not in path_part:
+                                continue
+
+                            parts = Path(path_part).parts
+                            root = parts[0]
+                            if root.endswith((".dist-info", ".egg-info")) or root == "..":
+                                continue
+
+                            # Check for namespace packages (no __init__.py in parent)
+                            if len(parts) >= 2:
+                                # This is a simplified namespace check
+                                # If we can't find an __init__.py in site-packages/root/, assume namespace
+                                for site_pkg in _get_site_packages():
+                                    root_path = site_pkg / root
+                                    if root_path.is_dir() and not (root_path / "__init__.py").exists():
+                                        root = "/".join(parts[:2])
+                                        break
+
+                            if root not in mapping:
+                                mapping[root] = d
+                except (OSError, UnicodeDecodeError):
+                    pass
+            else:
+                # No RECORD file, use distribution name as fallback
+                pkg_name = dist_name.lower().replace("-", "_").replace(".", "_")
+                if pkg_name not in mapping:
+                    mapping[pkg_name] = d
 
         return mapping
 
@@ -294,121 +484,11 @@ def _(path: str) -> bool:
 @cached(maxsize=256)
 def is_distribution_available(name: str) -> bool:
     """Determine if a distribution is available in the current environment."""
-    import importlib.metadata as importlib_metadata
-
     try:
-        importlib_metadata.distribution(name)
-    except importlib_metadata.PackageNotFoundError:
+        distributions = get_distributions()
+        return name.lower() in distributions
+    except Exception:
         return False
 
-    return True
 
-
-# ----
-# the below helpers are copied from importlib_metadata
-# ----
-
-
-def _packages_distributions() -> t.Mapping[str, t.List[str]]:
-    """
-    Return a mapping of top-level packages to their
-    distributions.
-    >>> import collections.abc
-    >>> pkgs = packages_distributions()
-    >>> all(isinstance(dist, collections.abc.Sequence) for dist in pkgs.values())
-    True
-    """
-    import importlib.metadata as importlib_metadata
-
-    pkg_to_dist = collections.defaultdict(list)
-    for dist in importlib_metadata.distributions():
-        for pkg in _top_level_declared(dist) or _top_level_inferred(dist):
-            pkg_to_dist[pkg].append(dist.metadata["Name"])
-    return dict(pkg_to_dist)
-
-
-def _top_level_declared(dist):
-    return (dist.read_text("top_level.txt") or "").split()
-
-
-def _topmost(name) -> t.Optional[str]:
-    """
-    Return the top-most parent as long as there is a parent.
-    """
-    top, *rest = name.parts
-    return top if rest else None
-
-
-def _get_toplevel_name(name) -> str:
-    """
-    Infer a possibly importable module name from a name presumed on
-    sys.path.
-    >>> _get_toplevel_name(PackagePath('foo.py'))
-    'foo'
-    >>> _get_toplevel_name(PackagePath('foo'))
-    'foo'
-    >>> _get_toplevel_name(PackagePath('foo.pyc'))
-    'foo'
-    >>> _get_toplevel_name(PackagePath('foo/__init__.py'))
-    'foo'
-    >>> _get_toplevel_name(PackagePath('foo.pth'))
-    'foo.pth'
-    >>> _get_toplevel_name(PackagePath('foo.dist-info'))
-    'foo.dist-info'
-    """
-    return _topmost(name) or (
-        # python/typeshed#10328
-        inspect.getmodulename(name) or str(name)
-    )
-
-
-def _top_level_inferred(dist):
-    opt_names = set(map(_get_toplevel_name, _always_iterable(dist.files)))
-
-    def importable_name(name):
-        return "." not in name
-
-    return filter(importable_name, opt_names)
-
-
-# copied from more_itertools 8.8
-def _always_iterable(obj, base_type=(str, bytes)):
-    """If *obj* is iterable, return an iterator over its items::
-        >>> obj = (1, 2, 3)
-        >>> list(always_iterable(obj))
-        [1, 2, 3]
-    If *obj* is not iterable, return a one-item iterable containing *obj*::
-        >>> obj = 1
-        >>> list(always_iterable(obj))
-        [1]
-    If *obj* is ``None``, return an empty iterable:
-        >>> obj = None
-        >>> list(always_iterable(None))
-        []
-    By default, binary and text strings are not considered iterable::
-        >>> obj = 'foo'
-        >>> list(always_iterable(obj))
-        ['foo']
-    If *base_type* is set, objects for which ``isinstance(obj, base_type)``
-    returns ``True`` won't be considered iterable.
-        >>> obj = {'a': 1}
-        >>> list(always_iterable(obj))  # Iterate over the dict's keys
-        ['a']
-        >>> list(always_iterable(obj, base_type=dict))  # Treat dicts as a unit
-        [{'a': 1}]
-    Set *base_type* to ``None`` to avoid any special handling and treat objects
-    Python considers iterable as iterable:
-        >>> obj = 'foo'
-        >>> list(always_iterable(obj, base_type=None))
-        ['f', 'o', 'o']
-    """
-    if obj is None:
-        return iter(())
-
-    if (base_type is not None) and isinstance(obj, base_type):
-        return iter((obj,))
-
-    try:
-        return iter(obj)
-    except TypeError:
-        return iter((obj,))
+# Note: Old importlib_metadata helper functions removed - we now use optimized implementations above
