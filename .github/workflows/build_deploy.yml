@@ -10,7 +10,7 @@ on:
       # before merging/releasing
       - build_deploy*
       - 'upgrade-latest-*'
-      - 'mq-working-branch**'
+      - 'mq-working-branch-*'
       # TODO: Remove this after 3.x work is done
       - 3.x-staging
   pull_request:

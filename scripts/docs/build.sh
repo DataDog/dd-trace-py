@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -eux
 
-if [[ "${READTHEDOCS:-}" = "True" ]]; then
+# Normalize READTHEDOCS: lowercase and strip whitespace to match "true" or "1"
+rtd_val="${READTHEDOCS:-}"; rtd_val="${rtd_val,,}"; rtd_val="${rtd_val// /}"
+if [[ "$rtd_val" == "true" || "$rtd_val" == "1" ]]; then
   echo "Skipping spelling check in RTD"
 else
   if [[ "$(uname)" == "Darwin" ]]; then
