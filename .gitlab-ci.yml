@@ -252,3 +252,4 @@ nk-test-multiproject-pipeline:
   trigger:
     project: DataDog/apm-reliability/dd-trace-py
     branch: main
+    strategy: depend
