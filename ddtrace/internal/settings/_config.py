@@ -23,7 +23,6 @@ from ddtrace.internal.constants import DEFAULT_REUSE_CONNECTIONS
 from ddtrace.internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.constants import PROPAGATION_STYLE_ALL
-from ddtrace.internal.core import event_hub
 from ddtrace.internal.logger import get_log_injection_state
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
