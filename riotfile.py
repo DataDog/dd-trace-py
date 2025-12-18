@@ -249,32 +249,36 @@ venv = Venv(
                     pkgs={"django": "~=2.2"},
                 ),
                 Venv(
-                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pys=select_pys(max_version="3.13"),
                     pkgs={"django": "~=3.2", "legacy-cgi": latest},
                 ),
                 Venv(
-                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pys=select_pys(max_version="3.13"),
                     pkgs={"django": "==4.0.10", "legacy-cgi": latest},
                 ),
                 Venv(
-                    pys=["3.13"],
+                    pys=select_pys(max_version="3.13"),
                     pkgs={"django": "==4.0.10", "legacy-cgi": latest},
                 ),
                 Venv(
-                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pys=select_pys(max_version="3.13"),
                     pkgs={"django": "~=4.2"},
                 ),
                 Venv(
-                    pys=["3.13"],
+                    pys=select_pys(max_version="3.13"),
                     pkgs={"django": "~=4.2", "legacy-cgi": latest},
                 ),
                 Venv(
-                    pys=["3.10"],
-                    pkgs={"django": "~=5.1"},
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"django": "~=5.2"},
                 ),
                 Venv(
-                    pys=["3.13"],
-                    pkgs={"django": "~=5.1", "legacy-cgi": latest},
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"django": latest},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"django": latest, "legacy-cgi": latest},
                 ),
             ],
         ),
@@ -307,8 +311,12 @@ venv = Venv(
                     pkgs={"fastapi": "==0.94.1"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.13"),
-                    pkgs={"fastapi": ["~=0.114.2", latest], "mcp": "==1.20.0"},
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"fastapi": "~=0.114.2", "mcp": "==1.20.0"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"fastapi": latest, "pydantic": "~=2.12.1", "mcp": "==1.20.0"},
                 ),
             ],
         ),
@@ -3515,19 +3523,19 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(max_version="3.13"),
+                    pys=select_pys(),
                     pkgs={
                         "flask": "~=2.2",
                     },
                 ),
                 Venv(
-                    pys=select_pys(max_version="3.13"),
+                    pys=select_pys(),
                     pkgs={
                         "flask": "~=3.0",
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.11", max_version="3.13"),
+                    pys=select_pys(min_version="3.11"),
                     pkgs={
                         "flask": "~=3.1",
                         "Werkzeug": "~=3.1",
