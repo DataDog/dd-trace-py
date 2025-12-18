@@ -104,8 +104,7 @@ jobs:
         env:
           CI_PROJECT_DIR: ${{ github.workspace }}
         run: |
-          chmod +x scripts/prepare_cargo_cache.sh
-          bash scripts/prepare_cargo_cache.sh
+          scripts/prepare_cargo_cache.sh
 
   build:
     needs: ["compute_version", "build-wheels-matrix", "cache-dependencies"]
