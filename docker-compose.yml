@@ -187,6 +187,8 @@ services:
         #  dockerfile: Dockerfile
         image: ghcr.io/datadog/dd-trace-py/testrunner:1802bf8a83c7826f8414f7dcc18cb29067f7e690@sha256:8ca2c0c6b34db4e0ef7f5ab55f717908ed2b9ae197b2c11b48b7359a1549a202
         command: bash
+        cpus: "${DD_TEST_CPUS}"
+        mem_limit: "${DD_TEST_MEMORY}"
         environment:
           DD_FAST_BUILD: "1"
           CMAKE_BUILD_PARALLEL_LEVEL: "12"
