@@ -2,7 +2,7 @@ include:
   - local: .gitlab/caches.yml
   - local: .gitlab/testrunner.yml
 
-prepare cargo cache:
+"prepare cargo cache":
   extends: .testrunner
   stage: package
   tags: [ "arch:amd64" ]
