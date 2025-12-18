@@ -367,13 +367,11 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
     }
 
     for (auto& leaf_task : leaf_tasks) {
-        std::cerr << "==== Leaf task " << string_table.lookup(leaf_task.get().name)->get() << " is on CPU" << std::endl;
         auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu);
         auto& stack = stack_info->stack;
 
         std::unordered_set<PyObject*> seen_task_origins;
         for (auto current_task = leaf_task;;) {
-            std::cerr << "== Current task " << string_table.lookup(current_task.get().name)->get() << std::endl;
             auto& task = current_task.get();
 
             // Check for cycle in task chain
@@ -386,12 +384,13 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
 
             auto maybe_task_stack_size = task.unwind(stack);
             if (!maybe_task_stack_size) {
-                auto current_task_name = string_table.lookup(task.name)->get();
-                auto leaf_task_name = string_table.lookup(leaf_task.get().name)->get();
-                std::cerr << "Failed to unwind task, giving up " << current_task_name
-                          << " (leaf task: " << leaf_task_name << ")" << std::endl;
-                // Skip the current Task Stack (Leaf Task to top)
-                break;
+                return ErrorKind::TaskInfoError;
+                // auto current_task_name = string_table.lookup(task.name)->get();
+                // auto leaf_task_name = string_table.lookup(leaf_task.get().name)->get();
+                // std::cerr << "Failed to unwind task, giving up " << current_task_name
+                //           << " (leaf task: " << leaf_task_name << ")" << std::endl;
+                // // Skip the current Task Stack (Leaf Task to top)
+                // break;
             }
 
             // The task_stack_size includes both the coroutines frames and the "upper" Python synchronous frames
@@ -444,15 +443,7 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
         // one we saw in TaskInfo::unwind. This is extremely unlikely, I believe, but failing to account for it would
         // cause an underflow, so let's be conservative.
         size_t start_index = 0;
-        std::cerr << "python_stack.size() = " << python_stack.size()
-                  << ", upper_python_stack_size = " << upper_python_stack_size << std::endl;
-        for (size_t i = 0; i < python_stack.size(); i++) {
-            const auto& python_frame = python_stack[i];
-            std::cerr << "python_frame[" << i << "] = " << string_table.lookup(python_frame.get().name)->get()
-                      << std::endl;
-        }
         if (expect_at_least_one_running_task && python_stack.size() >= upper_python_stack_size) {
-            std::cerr << "Adding " << upper_python_stack_size << " Python Frames to Stack" << std::endl;
             start_index = python_stack.size() - upper_python_stack_size;
         }
         for (size_t i = start_index; i < python_stack.size(); i++) {
