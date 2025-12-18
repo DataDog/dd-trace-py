@@ -285,27 +285,25 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
 
     auto all_tasks = std::move(*maybe_all_tasks);
 
-    // Guard against the critical case where a Task is marked as running (on-CPU) but the Python Stack
-    // doesn't show the asyncio runtime frames. This would cause incorrect frame popping.
-    // The opposite case (Stack shows runtime frames but no task is marked as running) is less critical
-    // and can happen when the frame detection doesn't match the specific asyncio implementation,
-    // especially in Python 3.10 where we look for "_run" in "asyncio/events.py" but the actual
-    // stack may show "_run_once" instead.
-    // bool at_least_one_running_task_seen = false;
-    // for (const auto& task_ref : all_tasks) {
-    //     const auto& task = task_ref.get();
-    //     if (task->is_on_cpu) {
-    //         // at_least_one_running_task_seen = true;
-    //         break;
-    //     }
-    // }
+    // TODO: Is that really necessary?
+    // Determine what really is the consequence of the Python Stack being in "running state" but
+    // no Task actually being running as far as we know *at this point* (it could be different when
+    // we actually unwind the Task).
+    // I do think we need to guard against the opposite case though, where the Python Stack is in "select state"
+    // and a Task is actually running (in which case we would not properly pop the asyncio runtime Frames).
+    // Leaving this the way it is for the time being, but definitely planning to revisit soon.
+    bool at_least_one_running_task_seen = false;
+    for (const auto& task_ref : all_tasks) {
+        const auto& task = task_ref.get();
+        if (task->is_on_cpu) {
+            at_least_one_running_task_seen = true;
+            break;
+        }
+    }
 
-    // Only error if a task is running but the stack doesn't show it (critical case)
-    // if (at_least_one_running_task_seen && !expect_at_least_one_running_task) {
-    //     std::cerr << "Giving up on Sample because a task is running but the stack doesn't show it (critical case)"
-    //               << std::endl;
-    //     return ErrorKind::TaskInfoError;
-    // }
+    if (at_least_one_running_task_seen != expect_at_least_one_running_task) {
+        return ErrorKind::TaskInfoError;
+    }
 
     {
         std::lock_guard<std::mutex> lock(task_link_map_lock);
