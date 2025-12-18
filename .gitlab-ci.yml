@@ -200,7 +200,7 @@ detect_circular_imports:
           -H "$(./authanywhere-linux-amd64)" \
           -X PATCH -d "{ \
             \"commit\": \"$CI_COMMIT_SHORT_SHA\", \
-            \"message\": \""$(echo $CYCLES_REPORT | awk '{printf "%s\\n", $0}')"\", \
+            \"message\": \"$(awk '{printf "%s\\n", $0}' foo.txt | sed \'s/\"/\\"/g\')\", \
             \"header\": \"Circular Import Analysis\", \
             \"org\": \"Datadog\", \
             \"repo\": \"dd-trace-py\" \
