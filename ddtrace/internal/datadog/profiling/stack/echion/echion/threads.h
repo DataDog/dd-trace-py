@@ -374,21 +374,14 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
 
             // Check for cycle in task chain
             if (seen_task_origins.find(task.origin) != seen_task_origins.end()) {
-                std::cerr << "! Current task " << string_table.lookup(current_task.get().name)->get() << " has a cycle"
-                          << std::endl;
                 break;
             }
             seen_task_origins.insert(task.origin);
 
             auto maybe_task_stack_size = task.unwind(stack);
             if (!maybe_task_stack_size) {
-                return ErrorKind::TaskInfoError;
-                // auto current_task_name = string_table.lookup(task.name)->get();
-                // auto leaf_task_name = string_table.lookup(leaf_task.get().name)->get();
-                // std::cerr << "Failed to unwind task, giving up " << current_task_name
-                //           << " (leaf task: " << leaf_task_name << ")" << std::endl;
-                // // Skip the current Task Stack (Leaf Task to top)
-                // break;
+                // Skip the current Task Stack (Leaf Task to top)
+                break;
             }
 
             // The task_stack_size includes both the coroutines frames and the "upper" Python synchronous frames
