@@ -34,13 +34,22 @@ cd "${NATIVE_CRATE}"
 # Vendor registry crates and generate config
 # This creates vendor/ and outputs config to stdout, which we redirect to CARGO_HOME/config.toml
 echo "Vendoring registry crates..."
-cargo vendor "${VENDOR_DIR}" > /tmp/vendor_output.txt 2>&1
-# Extract the config section from the output (everything after "To use vendored sources...")
-tail -n +$(grep -n "To use vendored sources" /tmp/vendor_output.txt | cut -d: -f1) /tmp/vendor_output.txt | tail -n +2 > "${CARGO_HOME}/config.toml"
+cargo vendor "${VENDOR_DIR}"
 
-echo ""
+cat << EOF > ${CARGO_HOME}/config.toml
+[source.crates-io]
+replace-with = "vendored-sources"
+
+[source."git+https://github.com/DataDog/libdatadog?rev=v24.0.0"]
+git = "https://github.com/DataDog/libdatadog"
+rev = "v24.0.0"
+replace-with = "vendored-sources"
+
+[source.vendored-sources]
+directory = "${CI_PROJECT_DIR}/vendor"
+EOF
+
 echo "Generated cargo config at: ${CARGO_HOME}/config.toml"
-cat "${CARGO_HOME}/config.toml"
 echo ""
 
 # Fetch all dependencies (including git deps) to populate CARGO_HOME
@@ -54,12 +63,4 @@ cargo fetch --locked
 
 echo ""
 echo "=== Cargo cache preparation complete ==="
-echo ""
-echo "Cached directories:"
-ls -lh "${VENDOR_DIR}" | head -5
-echo "..."
-echo ""
-echo "CARGO_HOME contents:"
-find "${CARGO_HOME}" -maxdepth 2 -type d
-echo ""
-echo "Cache is ready for upload!"
+echo "Set CARGO_HOME=\"${CARGO_HOME}\" to use the cache"

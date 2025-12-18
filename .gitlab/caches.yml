@@ -1,0 +1,11 @@
+.cargo_cache:
+  key:
+    files:
+      - src/native/Cargo.lock
+    prefix: v0-cargo-cache
+  paths:
+    - vendor/
+    - .cargo-home/config.toml
+    - .cargo-home/git/
+    - .cargo-home/registry/
+  policy: pull

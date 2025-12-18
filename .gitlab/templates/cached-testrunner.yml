@@ -33,3 +33,4 @@
     - key: v5-build_base_venvs-${{PYTHON_VERSION}}-download-cache-{current_month}
       paths:
         - .download_cache
+    - !reference [.cargo_cache]

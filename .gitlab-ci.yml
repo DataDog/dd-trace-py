@@ -70,7 +70,7 @@ tests-gen:
 
 run-tests-trigger:
  stage: tests
- needs: [ tests-gen ]
+ needs: [ tests-gen, "prepare cargo cache" ]
  # Allow the child job to fail if explicitly asked
  rules:
    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
