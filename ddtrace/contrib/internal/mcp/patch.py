@@ -5,7 +5,6 @@ from typing import Dict
 from typing import Optional
 
 import mcp
-from mcp.types import InitializeRequest
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
@@ -235,11 +234,14 @@ async def traced_client_session_aexit(mcp, pin: Pin, func, instance, args: tuple
 
 @with_traced_module
 def traced_request_responder_enter(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
+    from mcp.types import InitializeRequest
+
     integration: MCPIntegration = mcp._datadog_integration
-    request = instance.request.root
+    request_wrapper = _get_attr(instance, "request", None)
+    request_root = _get_attr(request_wrapper, "root", None)
 
     # While this patch can trace all requests, we only trace this type right now
-    if not isinstance(request, InitializeRequest):
+    if not request_root or not isinstance(request_root, InitializeRequest):
         return func(*args, **kwargs)
 
     span = integration.trace(
@@ -265,8 +267,8 @@ async def traced_request_responder_respond(mcp, pin: Pin, func, instance, args: 
     if span:
         integration.llmobs_set_tags(
             span,
-            args=[instance] + list(args),
-            kwargs=kwargs,
+            args=args,
+            kwargs=dict(**kwargs, request_responder=instance),
             response=None,
             operation=REQUEST_RESPONDER_RESPOND_OPERATION_NAME,
         )

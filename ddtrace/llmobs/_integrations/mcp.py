@@ -3,14 +3,6 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-
-try:
-    from mcp import InitializeRequest
-    from mcp.server.streamable_http import MCP_SESSION_ID_HEADER
-except ImportError:
-    InitializeRequest = None
-    MCP_SESSION_ID_HEADER = None
-
 from ddtrace._trace.pin import Pin
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
@@ -194,8 +186,15 @@ class MCPIntegration(BaseLLMIntegration):
     def _llmobs_set_tags_request_responder_respond(
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any
     ) -> None:
-        responder = args[0]
-        response = args[1]
+        try:
+            from mcp.server.streamable_http import MCP_SESSION_ID_HEADER
+            from mcp.types import InitializeRequest
+        except ImportError:
+            InitializeRequest = None
+            MCP_SESSION_ID_HEADER = None
+
+        responder = get_argument_value(args, kwargs, 0, "request_responder", optional=True)
+        response = get_argument_value(args, kwargs, 0, "response", optional=True)
 
         request = getattr(responder, "request", None)
         request_root = getattr(request, "root", None)
@@ -229,14 +228,12 @@ class MCPIntegration(BaseLLMIntegration):
         if maybe_session_id:
             _set_or_update_tags(span, {"mcp_session_id": str(maybe_session_id)})
 
-        output_value = safe_json(response)
-
         span._set_ctx_items(
             {
                 NAME: "mcp.{}".format(request_method),
                 SPAN_KIND: "task",
                 INPUT_VALUE: safe_json(request),
-                OUTPUT_VALUE: output_value,
+                OUTPUT_VALUE: safe_json(response),
             }
         )
 

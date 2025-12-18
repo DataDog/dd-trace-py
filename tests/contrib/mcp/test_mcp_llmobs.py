@@ -163,27 +163,30 @@ def test_llmobs_client_server_tool_error(mcp_setup, mock_tracer, llmobs_events, 
 
 def test_server_initialization_span_created(mcp_setup, mock_tracer, llmobs_events, mcp_server_initialized):
     """Test that server initialization creates a span and LLMObs event with custom client info."""
-
     traces = mock_tracer.pop_traces()
     all_spans = [span for trace in traces for span in trace]
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
     initialize_spans = [span for span in all_spans if span.name == "mcp.initialize"]
     assert len(initialize_spans) == 1
-
     initialize_span = initialize_spans[0]
-    assert initialize_span.name == "mcp.initialize"
 
     initialize_events = [event for event in llmobs_events if event["name"] == "mcp.initialize"]
     assert len(initialize_events) == 1, f"Expected 1 LLMObs event, got {len(initialize_events)}"
-
     initialize_event = initialize_events[0]
-    assert initialize_event["span_id"] == str(initialize_span.span_id)
-    assert initialize_event["meta"]["span"]["kind"] == "task"
 
-    # tags is a list of strings like "key:value"
-    assert "client_name:test-client" in initialize_event["tags"]
-    assert "client_version:test-client_1.2.3" in initialize_event["tags"]
+    assert initialize_event == _expected_llmobs_non_llm_span_event(
+        initialize_span,
+        span_kind="task",
+        input_value=mock.ANY,
+        output_value=mock.ANY,
+        tags={
+            "service": "mcptest",
+            "ml_app": "<ml-app-name>",
+            "client_name": "test-client",
+            "client_version": "test-client_1.2.3",
+        },
+    )
 
     input_data = json.loads(initialize_event["meta"]["input"]["value"])
     assert input_data["method"] == "initialize"
