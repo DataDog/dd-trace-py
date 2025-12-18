@@ -102,7 +102,7 @@ class TestExposureReporting:
         assert exposure_event["subject"]["id"] == "user-123"
         assert "timestamp" in exposure_event
 
-    @mock.patch("ddtrace.internal.openfeature.writer.get_exposure_writer")
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
     def test_no_exposure_on_flag_not_found(self, mock_get_writer, provider, evaluation_context):
         """Test that no exposure event is reported when flag is not found."""
         mock_writer = mock.Mock()
@@ -116,10 +116,10 @@ class TestExposureReporting:
         # Verify default value returned
         assert result.value is False
 
-        # Verify no exposure event was reported
+        # Verify no exposure event was reported (variant_key and allocation_key are None)
         mock_writer.enqueue.assert_not_called()
 
-    @mock.patch("ddtrace.internal.openfeature.writer.get_exposure_writer")
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
     def test_no_exposure_on_disabled_flag(self, mock_get_writer, provider, evaluation_context):
         """Test that no exposure event is reported when flag is disabled."""
         mock_writer = mock.Mock()
@@ -136,7 +136,7 @@ class TestExposureReporting:
         # Verify no exposure event was reported
         mock_writer.enqueue.assert_not_called()
 
-    @mock.patch("ddtrace.internal.openfeature.writer.get_exposure_writer")
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
     def test_no_exposure_on_type_mismatch(self, mock_get_writer, provider, evaluation_context):
         """Test that no exposure event is reported on type mismatch error."""
         mock_writer = mock.Mock()
@@ -153,9 +153,9 @@ class TestExposureReporting:
         # Verify no exposure event was reported
         mock_writer.enqueue.assert_not_called()
 
-    @mock.patch("ddtrace.internal.openfeature.writer.get_exposure_writer")
-    def test_no_exposure_without_targeting_key(self, mock_get_writer, provider):
-        """Test that no exposure event is reported without targeting_key in context."""
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_exposure_with_empty_targeting_key(self, mock_get_writer, provider):
+        """Test that exposure event is reported even without targeting_key in context."""
         mock_writer = mock.Mock()
         mock_get_writer.return_value = mock_writer
 
@@ -170,8 +170,10 @@ class TestExposureReporting:
         # Verify flag resolved successfully
         assert result.value is True
 
-        # Verify no exposure event was reported (missing targeting_key)
-        mock_writer.enqueue.assert_not_called()
+        # Verify exposure event was reported with empty targeting_key
+        mock_writer.enqueue.assert_called_once()
+        exposure_event = mock_writer.enqueue.call_args[0][0]
+        assert exposure_event["subject"]["id"] == ""
 
     @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
     def test_exposure_with_different_flag_types(self, mock_get_writer, provider, evaluation_context):
@@ -238,7 +240,91 @@ class TestExposureReporting:
         provider.resolve_boolean_details("clear-test-flag", False, evaluation_context)
         assert mock_writer.enqueue.call_count == 2
 
-    @mock.patch("ddtrace.internal.openfeature.writer.get_exposure_writer")
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_exposure_variant_allocation_cycling(self, mock_get_writer, provider, evaluation_context):
+        """Test that changing variant/allocation for same flag reports new exposures: A->B->B->A logs 3 events."""
+        mock_writer = mock.Mock()
+        mock_get_writer.return_value = mock_writer
+
+        # Create mock resolution details objects to control what the native resolver returns
+        from unittest.mock import patch
+
+        from ddtrace.internal.native._native import ffe
+
+        # Evaluation 1: variant=A, allocation=A
+        with patch("ddtrace.internal.openfeature._provider.resolve_flag") as mock_resolve:
+            mock_details_a = mock.Mock()
+            mock_details_a.value = True
+            mock_details_a.variant = "variant-a"
+            mock_details_a.allocation_key = "allocation-a"
+            mock_details_a.reason = ffe.Reason.Static
+            mock_details_a.error_code = None
+            mock_details_a.error_message = None
+            mock_details_a.do_log = True  # Enable exposure logging
+            mock_resolve.return_value = mock_details_a
+
+            result = provider.resolve_boolean_details("cycling-flag", False, evaluation_context)
+            assert result.value is True
+            assert mock_writer.enqueue.call_count == 1
+            exposure_1 = mock_writer.enqueue.call_args[0][0]
+            assert exposure_1["variant"]["key"] == "variant-a"
+            assert exposure_1["allocation"]["key"] == "allocation-a"
+
+        # Evaluation 2: variant=B, allocation=B (should report - different from A)
+        with patch("ddtrace.internal.openfeature._provider.resolve_flag") as mock_resolve:
+            mock_details_b = mock.Mock()
+            mock_details_b.value = True
+            mock_details_b.variant = "variant-b"
+            mock_details_b.allocation_key = "allocation-b"
+            mock_details_b.reason = ffe.Reason.Static
+            mock_details_b.error_code = None
+            mock_details_b.error_message = None
+            mock_details_b.do_log = True  # Enable exposure logging
+            mock_resolve.return_value = mock_details_b
+
+            result = provider.resolve_boolean_details("cycling-flag", False, evaluation_context)
+            assert result.value is True
+            assert mock_writer.enqueue.call_count == 2
+            exposure_2 = mock_writer.enqueue.call_args[0][0]
+            assert exposure_2["variant"]["key"] == "variant-b"
+            assert exposure_2["allocation"]["key"] == "allocation-b"
+
+        # Evaluation 3: variant=B, allocation=B (should NOT report - cached)
+        with patch("ddtrace.internal.openfeature._provider.resolve_flag") as mock_resolve:
+            mock_details_b2 = mock.Mock()
+            mock_details_b2.value = True
+            mock_details_b2.variant = "variant-b"
+            mock_details_b2.allocation_key = "allocation-b"
+            mock_details_b2.reason = ffe.Reason.Static
+            mock_details_b2.error_code = None
+            mock_details_b2.error_message = None
+            mock_details_b2.do_log = True  # Enable exposure logging
+            mock_resolve.return_value = mock_details_b2
+
+            result = provider.resolve_boolean_details("cycling-flag", False, evaluation_context)
+            assert result.value is True
+            assert mock_writer.enqueue.call_count == 2  # Still 2, not 3
+
+        # Evaluation 4: variant=A, allocation=A (should report - different from B)
+        with patch("ddtrace.internal.openfeature._provider.resolve_flag") as mock_resolve:
+            mock_details_a2 = mock.Mock()
+            mock_details_a2.value = True
+            mock_details_a2.variant = "variant-a"
+            mock_details_a2.allocation_key = "allocation-a"
+            mock_details_a2.reason = ffe.Reason.Static
+            mock_details_a2.error_code = None
+            mock_details_a2.error_message = None
+            mock_details_a2.do_log = True  # Enable exposure logging
+            mock_resolve.return_value = mock_details_a2
+
+            result = provider.resolve_boolean_details("cycling-flag", False, evaluation_context)
+            assert result.value is True
+            assert mock_writer.enqueue.call_count == 3  # Now 3 - cycled back to A
+            exposure_4 = mock_writer.enqueue.call_args[0][0]
+            assert exposure_4["variant"]["key"] == "variant-a"
+            assert exposure_4["allocation"]["key"] == "allocation-a"
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
     def test_exposure_reporting_failure_does_not_affect_resolution(self, mock_get_writer, provider, evaluation_context):
         """Test that exposure reporting failure doesn't break flag resolution."""
         # Make writer raise an exception
@@ -254,6 +340,103 @@ class TestExposureReporting:
 
         # Verify flag still resolved successfully
         assert result.value is True
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_no_exposure_when_do_log_is_false(self, mock_get_writer, provider, evaluation_context):
+        """Test that no exposure event is reported when do_log flag is False."""
+        mock_writer = mock.Mock()
+        mock_get_writer.return_value = mock_writer
+
+        # Mock resolve_flag to return details with do_log=False
+        from unittest.mock import patch
+
+        from ddtrace.internal.native._native import ffe
+
+        with patch("ddtrace.internal.openfeature._provider.resolve_flag") as mock_resolve:
+            mock_details = mock.Mock()
+            mock_details.value = True
+            mock_details.variant = "variant-a"
+            mock_details.allocation_key = "allocation-a"
+            mock_details.reason = ffe.Reason.Static
+            mock_details.error_code = None
+            mock_details.error_message = None
+            mock_details.do_log = False  # Exposure logging disabled
+            mock_resolve.return_value = mock_details
+
+            result = provider.resolve_boolean_details("no-log-flag", False, evaluation_context)
+
+            # Verify flag resolved successfully
+            assert result.value is True
+
+            # Verify NO exposure event was reported (do_log=False)
+            mock_writer.enqueue.assert_not_called()
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_exposure_reported_when_do_log_is_true(self, mock_get_writer, provider, evaluation_context):
+        """Test that exposure event is reported when do_log flag is True."""
+        mock_writer = mock.Mock()
+        mock_get_writer.return_value = mock_writer
+
+        # Mock resolve_flag to return details with do_log=True
+        from unittest.mock import patch
+
+        from ddtrace.internal.native._native import ffe
+
+        with patch("ddtrace.internal.openfeature._provider.resolve_flag") as mock_resolve:
+            mock_details = mock.Mock()
+            mock_details.value = True
+            mock_details.variant = "variant-a"
+            mock_details.allocation_key = "allocation-a"
+            mock_details.reason = ffe.Reason.Static
+            mock_details.error_code = None
+            mock_details.error_message = None
+            mock_details.do_log = True  # Exposure logging enabled
+            mock_resolve.return_value = mock_details
+
+            result = provider.resolve_boolean_details("log-flag", False, evaluation_context)
+
+            # Verify flag resolved successfully
+            assert result.value is True
+
+            # Verify exposure event WAS reported (do_log=True)
+            mock_writer.enqueue.assert_called_once()
+            exposure_event = mock_writer.enqueue.call_args[0][0]
+            assert exposure_event["flag"]["key"] == "log-flag"
+            assert exposure_event["variant"]["key"] == "variant-a"
+            assert exposure_event["allocation"]["key"] == "allocation-a"
+
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_different_subjects_log_separate_exposures(self, mock_get_writer, provider):
+        """Test that different subject IDs with same flag/variant/allocation log separate exposure events."""
+        mock_writer = mock.Mock()
+        mock_get_writer.return_value = mock_writer
+
+        config = create_config(create_boolean_flag("multi-subject-flag", enabled=True, default_value=True))
+        process_ffe_configuration(config)
+
+        # First evaluation with subject "user-1"
+        context1 = EvaluationContext(targeting_key="user-1", attributes={"tier": "premium"})
+        result1 = provider.resolve_boolean_details("multi-subject-flag", False, context1)
+        assert result1.value is True
+        assert mock_writer.enqueue.call_count == 1
+
+        # Verify first exposure event
+        exposure_1 = mock_writer.enqueue.call_args_list[0][0][0]
+        assert exposure_1["flag"]["key"] == "multi-subject-flag"
+        assert exposure_1["subject"]["id"] == "user-1"
+        assert exposure_1["variant"]["key"] == "true"
+
+        # Second evaluation with subject "user-2" (same flag, same variant, same allocation)
+        context2 = EvaluationContext(targeting_key="user-2", attributes={"tier": "premium"})
+        result2 = provider.resolve_boolean_details("multi-subject-flag", False, context2)
+        assert result2.value is True
+        assert mock_writer.enqueue.call_count == 2  # Second event logged
+
+        # Verify second exposure event
+        exposure_2 = mock_writer.enqueue.call_args_list[1][0][0]
+        assert exposure_2["flag"]["key"] == "multi-subject-flag"
+        assert exposure_2["subject"]["id"] == "user-2"
+        assert exposure_2["variant"]["key"] == "true"
 
 
 class TestExposureConnectionErrors:
@@ -356,22 +539,24 @@ class TestExposureConnectionErrors:
             assert result.value == "stable"
 
     @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
-    def test_exposure_build_event_returns_none(self, mock_get_writer, provider):
-        """Test when build_exposure_event returns None (e.g., missing targeting_key)."""
+    def test_exposure_with_none_context(self, mock_get_writer, provider):
+        """Test that exposure event is reported with empty subject when context is None."""
         mock_writer = mock.Mock()
         mock_get_writer.return_value = mock_writer
 
         config = create_config(create_boolean_flag("no-context-flag", enabled=True, default_value=True))
         process_ffe_configuration(config)
 
-        # Resolve without evaluation context (no targeting_key)
+        # Resolve without evaluation context
         result = provider.resolve_boolean_details("no-context-flag", False, None)
 
         # Flag should still resolve
         assert result.value is True
 
-        # No exposure should be enqueued
-        mock_writer.enqueue.assert_not_called()
+        # Exposure should be enqueued with empty targeting_key
+        mock_writer.enqueue.assert_called_once()
+        exposure_event = mock_writer.enqueue.call_args[0][0]
+        assert exposure_event["subject"]["id"] == ""
 
     @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
     def test_exposure_writer_generic_exception(self, mock_get_writer, provider, evaluation_context):
