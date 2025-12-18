@@ -64,6 +64,15 @@ def patch_conn(conn, traced_conn_cls, pin=None):
 
     c = traced_conn_cls(conn)
 
+    tags = {
+        db.SYSTEM: "postgresql",
+    }
+
+    # Return the current traced connection without dsn if it is closed
+    if hasattr(conn, "closed") and conn.closed:
+        Pin(tags=tags, _config=_config).onto(c)
+        return c
+
     try:
         # if the connection has an info attr, we are using psycopg3
         if hasattr(conn, "dsn"):
@@ -71,12 +80,8 @@ def patch_conn(conn, traced_conn_cls, pin=None):
         else:
             dsn = sql.parse_pg_dsn(conn.info.dsn)
     except Exception:
-        # This can occur if the connection is closed
+        # If for any reason we fail to parse the dsn, use an empty placeholder
         dsn = {}
-
-    tags = {
-        db.SYSTEM: "postgresql",
-    }
 
     if dsn:
         # Only add the dsn related tags if available
