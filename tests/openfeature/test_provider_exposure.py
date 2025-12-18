@@ -405,6 +405,39 @@ class TestExposureReporting:
             assert exposure_event["variant"]["key"] == "variant-a"
             assert exposure_event["allocation"]["key"] == "allocation-a"
 
+    @mock.patch("ddtrace.internal.openfeature._provider.get_exposure_writer")
+    def test_different_subjects_log_separate_exposures(self, mock_get_writer, provider):
+        """Test that different subject IDs with same flag/variant/allocation log separate exposure events."""
+        mock_writer = mock.Mock()
+        mock_get_writer.return_value = mock_writer
+
+        config = create_config(create_boolean_flag("multi-subject-flag", enabled=True, default_value=True))
+        process_ffe_configuration(config)
+
+        # First evaluation with subject "user-1"
+        context1 = EvaluationContext(targeting_key="user-1", attributes={"tier": "premium"})
+        result1 = provider.resolve_boolean_details("multi-subject-flag", False, context1)
+        assert result1.value is True
+        assert mock_writer.enqueue.call_count == 1
+
+        # Verify first exposure event
+        exposure_1 = mock_writer.enqueue.call_args_list[0][0][0]
+        assert exposure_1["flag"]["key"] == "multi-subject-flag"
+        assert exposure_1["subject"]["id"] == "user-1"
+        assert exposure_1["variant"]["key"] == "true"
+
+        # Second evaluation with subject "user-2" (same flag, same variant, same allocation)
+        context2 = EvaluationContext(targeting_key="user-2", attributes={"tier": "premium"})
+        result2 = provider.resolve_boolean_details("multi-subject-flag", False, context2)
+        assert result2.value is True
+        assert mock_writer.enqueue.call_count == 2  # Second event logged
+
+        # Verify second exposure event
+        exposure_2 = mock_writer.enqueue.call_args_list[1][0][0]
+        assert exposure_2["flag"]["key"] == "multi-subject-flag"
+        assert exposure_2["subject"]["id"] == "user-2"
+        assert exposure_2["variant"]["key"] == "true"
+
 
 class TestExposureConnectionErrors:
     """Test exposure reporting with various connection errors."""
