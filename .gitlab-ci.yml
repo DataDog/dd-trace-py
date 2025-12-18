@@ -204,7 +204,7 @@ detect_circular_imports:
             \"header\": \"Circular Import Analysis\", \
             \"org\": \"Datadog\", \
             \"repo\": \"dd-trace-py\" \
-          }"
+          }" --trace-ascii /dev/stdout
         exit 1
       fi
   stage: tests
