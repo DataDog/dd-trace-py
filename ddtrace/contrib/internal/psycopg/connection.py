@@ -64,21 +64,33 @@ def patch_conn(conn, traced_conn_cls, pin=None):
 
     c = traced_conn_cls(conn)
 
-    # if the connection has an info attr, we are using psycopg3
-    if hasattr(conn, "dsn"):
-        dsn = sql.parse_pg_dsn(conn.dsn)
-    else:
-        dsn = sql.parse_pg_dsn(conn.info.dsn)
+    try:
+        # if the connection has an info attr, we are using psycopg3
+        if hasattr(conn, "dsn"):
+            dsn = sql.parse_pg_dsn(conn.dsn)
+        else:
+            dsn = sql.parse_pg_dsn(conn.info.dsn)
+    except Exception:
+        # This can occur if the connection is closed
+        dsn = {}
 
     tags = {
-        net.TARGET_HOST: dsn.get("host"),
-        net.TARGET_PORT: dsn.get("port", 5432),
-        net.SERVER_ADDRESS: dsn.get("host"),
-        db.NAME: dsn.get("dbname"),
-        db.USER: dsn.get("user"),
-        "db.application": dsn.get("application_name"),
         db.SYSTEM: "postgresql",
     }
+
+    if dsn:
+        # Only add the dsn related tags if available
+        tags.update(
+            {
+                net.TARGET_HOST: dsn.get("host"),
+                net.TARGET_PORT: dsn.get("port", 5432),
+                net.SERVER_ADDRESS: dsn.get("host"),
+                db.NAME: dsn.get("dbname"),
+                db.USER: dsn.get("user"),
+                "db.application": dsn.get("application_name"),
+            }
+        )
+
     Pin(tags=tags, _config=_config).onto(c)
     return c
 
