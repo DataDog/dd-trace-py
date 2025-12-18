@@ -2,10 +2,6 @@ stages:
   - discover
   - trigger
 
-variables:
-  GIT_STRATEGY: none
-
-# Job 1: Discover branches and output as variables
 discover_branches:
   stage: discover
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
@@ -24,6 +20,7 @@ discover_branches:
 
       REPO="datadog/dd-trace-py"
 
+      # Discover branches using existing sophisticated jq logic
       readarray -t VERSIONS < <(
         gh api repos/$REPO/tags --paginate \
         | jq -r '
@@ -64,44 +61,24 @@ discover_branches:
       dotenv: branches.env
     expire_in: 1 day
 
-# Job 2: Trigger CI for main branch
+.trigger_base:
+  stage: trigger
+  tags: ["arch:amd64"]
+  needs:
+    - job: discover_branches
+      artifacts: true
+
 main:
-  stage: trigger
-  image: registry.ddbuild.io/images/ddr-ci:3.8.x
-  tags: ["arch:amd64"]
-  needs:
-    - job: discover_branches
-      artifacts: true
-  script:
-    - |
-      echo "Triggering CI for branch: ${BRANCH_MAIN}"
-      ddr devflow gitlab trigger-ci --repository dd-trace-py --ref "${BRANCH_MAIN}"
-      echo "✓ Triggered pipeline for ${BRANCH_MAIN}"
+  extends: .trigger_base
+  script: |
+    ./trigger-pipeline.sh "${BRANCH_MAIN}"
 
-# Job 3: Trigger CI for latest minor from current major (e.g., 4.0)
 current minor:
-  stage: trigger
-  image: registry.ddbuild.io/images/ddr-ci:3.8.x
-  tags: ["arch:amd64"]
-  needs:
-    - job: discover_branches
-      artifacts: true
-  script:
-    - |
-      echo "Triggering CI for branch: ${BRANCH_CURRENT_MINOR}"
-      ddr devflow gitlab trigger-ci --repository dd-trace-py --ref "${BRANCH_CURRENT_MINOR}"
-      echo "✓ Triggered pipeline for ${BRANCH_CURRENT_MINOR}"
+  extends: .trigger_base
+  script: |
+    ./trigger-pipeline.sh "${BRANCH_CURRENT_MINOR}"
 
-# Job 4: Trigger CI for latest minor from previous major (e.g., 3.19)
 previous major:
-  stage: trigger
-  image: registry.ddbuild.io/images/ddr-ci:3.8.x
-  tags: ["arch:amd64"]
-  needs:
-    - job: discover_branches
-      artifacts: true
-  script:
-    - |
-      echo "Triggering CI for branch: ${BRANCH_PREV_MAJOR}"
-      ddr devflow gitlab trigger-ci --repository dd-trace-py --ref "${BRANCH_PREV_MAJOR}"
-      echo "✓ Triggered pipeline for ${BRANCH_PREV_MAJOR}"
+  extends: .trigger_base
+  script: |
+    ./trigger-pipeline.sh "${BRANCH_PREV_MAJOR}"
