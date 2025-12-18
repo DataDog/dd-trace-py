@@ -18,6 +18,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations import LangChainIntegration
+from ddtrace.llmobs._integrations.model_providers import get_provider_from_model_name
+from ddtrace.llmobs._integrations.model_providers import normalize_model_name
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
 
@@ -37,35 +39,22 @@ config._add("langchain", {})
 
 
 def _extract_model_name(instance: Any) -> Optional[str]:
-    """Extract model name or ID from llm instance."""
     for attr in ("model", "model_name", "model_id", "model_key", "repo_id"):
         if hasattr(instance, attr):
             model_value = getattr(instance, attr)
             if model_value and isinstance(model_value, str):
-                return model_value.split("/")[-1] if "/" in model_value else model_value
+                return normalize_model_name(model_value)
             return model_value
     return None
 
 
-# Known model prefixes that map to Google provider
-GOOGLE_MODEL_PREFIXES = ("gemini", "imagen", "veo", "text-embedding")
-
-
 def _extract_provider(instance: Any, model_name: Optional[str] = None) -> str:
-    module = getattr(instance, "__module__", "") or ""
-    if module.startswith("langchain_google_genai"):
-        return "google"
-
     if model_name:
-        model_lower = model_name.lower()
-        for prefix in GOOGLE_MODEL_PREFIXES:
-            if model_lower.startswith(prefix):
-                return "google"
+        provider = get_provider_from_model_name(model_name)
+        if provider:
+            return provider
 
-    llm_type = getattr(instance, "_llm_type", "")
-    if isinstance(llm_type, str) and "-" in llm_type:
-        return llm_type.split("-")[0]
-    return llm_type or "custom"
+    return instance._llm_type
 
 
 def _raising_dispatch(event_id: str, args: Tuple[Any, ...] = ()):
