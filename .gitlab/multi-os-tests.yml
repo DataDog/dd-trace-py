@@ -24,7 +24,8 @@ os tests ubuntu:
 
 os tests macos:
   extends: .multi_os_test_base
-  tags: ["macos:sonoma-amd64"]
+  # "specific:true" ensures that the job runs on dd-trace-py dedicated macOS runner pool
+  tags: ["macos:sonoma-amd64", "specific:true"]
   variables:
     WHEEL_PATTERN: "macosx*x86_64.whl"
     PLATFORM: "macOS"
