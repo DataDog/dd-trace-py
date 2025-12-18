@@ -3268,7 +3268,7 @@ venv = Venv(
                 "torch": latest,
                 "vllm": latest,
             },
-            pys=select_pys(min_version="3.10", max_version="3.12"),
+            pys=select_pys(min_version="3.10", max_version="3.13"),
         ),
         Venv(
             name="valkey",
