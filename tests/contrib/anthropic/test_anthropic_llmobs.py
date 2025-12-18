@@ -61,6 +61,13 @@ EXPECTED_TOOL_DEFINITIONS = [
     ],
 )
 class TestLLMObsAnthropic:
+    def test_content_block_stop_without_content_does_not_crash(self):
+        """Regression test for beta streaming: content_block_stop can arrive without any content blocks."""
+        from ddtrace.contrib.internal.anthropic._streaming import _on_content_block_stop_chunk
+
+        message = {"content": []}
+        assert _on_content_block_stop_chunk(chunk=None, message=message) == message
+
     @patch("anthropic._base_client.SyncAPIClient.post")
     def test_completion_proxy(
         self,
