@@ -133,8 +133,8 @@ def get_all_crash_messages(test_agent_client: TestAgentClient) -> List[TestAgent
                 crash_messages.append(message)
 
             # If we have both crash ping and crash report (2 reports), we can return early
-            if len(crash_messages) >= 2:
-                return crash_messages
+            # if len(crash_messages) >= 2:
+            #     return crash_messages
         time.sleep(0.2)
 
     return crash_messages
@@ -143,8 +143,8 @@ def get_all_crash_messages(test_agent_client: TestAgentClient) -> List[TestAgent
 def get_crash_report(test_agent_client: TestAgentClient) -> TestAgentRequest:
     """Wait for a crash report from the crashtracker listener socket."""
     crash_messages = get_all_crash_messages(test_agent_client)
-    # We want at least the crash report
-    assert len(crash_messages) == 2, f"Expected at least 2 messages; got {len(crash_messages)}"
+
+    assert len(crash_messages) >= 2, f"Expected at least 2 messages; got {len(crash_messages)}"
 
     crash_report = None
     for message in crash_messages:
@@ -159,7 +159,7 @@ def get_crash_report(test_agent_client: TestAgentClient) -> TestAgentRequest:
 def get_crash_ping(test_agent_client: TestAgentClient) -> TestAgentRequest:
     """Wait for a crash report from the crashtracker listener socket."""
     crash_messages = get_all_crash_messages(test_agent_client)
-    assert len(crash_messages) == 2, f"Expected at least 2 messages; got {len(crash_messages)}"
+    assert len(crash_messages) >= 2, f"Expected at least 2 messages; got {len(crash_messages)}"
 
     crash_ping = None
     for message in crash_messages:
