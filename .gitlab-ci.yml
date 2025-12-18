@@ -192,11 +192,12 @@ detect_circular_imports:
     - python dd-trace-py/scripts/import-analysis/cycles.py compare cycles-base.json cycles-pr.json > cycles_report.txt || true
     - CYCLES_REPORT="$(cat cycles_report.txt)"
     - echo $CYCLES_REPORT
+    - if [ ! -z "$CYCLES_REPORT" ]
+    - then
+    - wget -nv binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64
+    - chmod +x authanywhere-linux-amd64
     - |
-      if [ ! -z "$CYCLES_REPORT" ]; then
-        wget -nv binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64
-        chmod +x authanywhere-linux-amd64
-        curl 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' \
+      curl 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' \
           -H "$(./authanywhere-linux-amd64)" \
           -X PATCH -d "{ \
             \"commit\": \"$CI_COMMIT_SHORT_SHA\", \
@@ -206,7 +207,7 @@ detect_circular_imports:
             \"repo\": \"dd-trace-py\" \
           }" --trace-ascii /dev/stdout
         exit 1
-      fi
+    - fi
   stage: tests
   needs: []
   extends: .testrunner
