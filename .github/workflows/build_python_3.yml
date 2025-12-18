@@ -101,6 +101,8 @@ jobs:
 
       - name: Prepare Cargo cache
         if: steps.cache-cargo.outputs.cache-hit != 'true'
+        env:
+          CI_PROJECT_DIR: ${{ github.workspace }}
         run: |
           chmod +x scripts/prepare_cargo_cache.sh
           bash scripts/prepare_cargo_cache.sh
@@ -126,6 +128,8 @@ jobs:
         if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]]; then
           curl -sSf https://sh.rustup.rs | sh -s -- -y;
         fi
+        # Replace ${{ github.workspace }} with /host${{ github.workspace }} in /project/.cargo-home/config.toml
+        sed -i'' "s|${{ github.workspace }}|/project|g" /project/.cargo-home/config.toml
       CIBW_ENVIRONMENT_LINUX: |
         PATH=$HOME/.cargo/bin:$PATH
         CMAKE_BUILD_PARALLEL_LEVEL=24
