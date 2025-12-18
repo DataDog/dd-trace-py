@@ -101,7 +101,7 @@ Datadog::Uploader::upload()
       ddog_prof_Exporter_Slice_File_empty(), // files_to_export_unmodified
       nullptr,                               // optional_additional_tags
       &internal_metadata_json_slice,
-      nullptr // optional_info_json
+      nullptr, // optional_info_json
       nullptr // optional_process_tags
     );
 
