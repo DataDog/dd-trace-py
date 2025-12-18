@@ -324,6 +324,11 @@ TaskInfo::unwind(FrameStack& stack)
         PyObject* frame = coro_frames.top();
         coro_frames.pop();
 
+        if (frame == nullptr) {
+            std::cerr << "Received a nullptr frame from the coroutine chain. This should not happen." << std::endl;
+            std::abort();
+        }
+
         auto new_frames = unwind_frame(frame, stack);
 
         // If we failed to unwind the Frame, stop unwinding the coroutine chain; otherwise we could
