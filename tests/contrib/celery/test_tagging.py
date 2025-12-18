@@ -9,6 +9,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.celery.patch import patch
 from ddtrace.contrib.internal.celery.patch import unpatch
 from tests.utils import DummyTracer
+from tests.utils import TracerSpanContainer
 
 from .base import AMQP_BROKER_URL
 from .base import BACKEND_URL
@@ -111,7 +112,7 @@ def test_amqp_task(instrument_celery, traced_amqp_celery_app):
 
 
 def assert_traces(tracer, task_name, task, port):
-    traces = tracer.pop_traces()
+    traces = TracerSpanContainer(tracer).pop_traces()
 
     assert 2 == len(traces)
     assert 1 == len(traces[0])

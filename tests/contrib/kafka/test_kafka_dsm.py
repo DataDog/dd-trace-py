@@ -12,6 +12,7 @@ from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.native import DDSketch
 from tests.datastreams.test_public_api import MockedTracer
+from tests.utils import TracerSpanContainer
 
 
 DSM_TEST_PATH_HEADER_SIZE = 28
@@ -291,7 +292,7 @@ def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, kafka_topic
     # message comes back with expected test string
     assert message.value() == b"payload hash test"
 
-    traces = dummy_tracer.pop_traces()
+    traces = TracerSpanContainer(dummy_tracer).pop_traces()
     produce_span = traces[0][0]
     consume_span = traces[len(traces) - 1][0]
 

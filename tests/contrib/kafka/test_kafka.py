@@ -15,6 +15,7 @@ from ddtrace.contrib.internal.kafka.patch import TracedProducer
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace.contrib.internal.kafka.patch import unpatch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from tests.utils import TracerSpanContainer
 from tests.utils import override_config
 
 from .conftest import BOOTSTRAP_SERVERS
@@ -119,7 +120,7 @@ def test_produce_single_server(dummy_tracer, producer, kafka_topic):
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
     producer.flush()
 
-    traces = dummy_tracer.pop_traces()
+    traces = TracerSpanContainer(dummy_tracer).pop_traces()
     assert 1 == len(traces)
     produce_span = traces[0][0]
     assert produce_span.get_tag("messaging.kafka.bootstrap.servers") == BOOTSTRAP_SERVERS
@@ -130,7 +131,7 @@ def test_produce_none_key(dummy_tracer, producer, kafka_topic):
     producer.produce(kafka_topic, PAYLOAD, key=None)
     producer.flush()
 
-    traces = dummy_tracer.pop_traces()
+    traces = TracerSpanContainer(dummy_tracer).pop_traces()
     assert 1 == len(traces), "key=None does not cause produce() call to raise an exception"
     Pin._override(producer, tracer=None)
 
@@ -141,7 +142,7 @@ def test_produce_multiple_servers(dummy_tracer, kafka_topic):
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
     producer.flush()
 
-    traces = dummy_tracer.pop_traces()
+    traces = TracerSpanContainer(dummy_tracer).pop_traces()
     assert 1 == len(traces)
     produce_span = traces[0][0]
     assert produce_span.get_tag("messaging.kafka.bootstrap.servers") == ",".join([BOOTSTRAP_SERVERS] * 3)
@@ -153,7 +154,7 @@ def test_produce_topicname(dummy_tracer, producer, kafka_topic):
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
     producer.flush()
 
-    traces = dummy_tracer.pop_traces()
+    traces = TracerSpanContainer(dummy_tracer).pop_traces()
     assert 1 == len(traces)
     produce_span = traces[0][0]
     assert produce_span.get_tag("messaging.destination.name") == kafka_topic
@@ -358,7 +359,7 @@ def test_tracing_context_is_not_propagated_by_default(dummy_tracer, consumer, pr
     assert message.value() == b"context test no propagation"
 
     consume_span = None
-    traces = dummy_tracer.pop_traces()
+    traces = TracerSpanContainer(dummy_tracer).pop_traces()
     produce_span = traces[0][0]
     for trace in traces:
         for span in trace:
@@ -419,7 +420,7 @@ def test(consumer, producer, kafka_topic):
         message = consumer.poll()
 
     consume_span = None
-    traces = dummy_tracer.pop_traces()
+    traces = TracerSpanContainer(dummy_tracer).pop_traces()
     produce_span = traces[0][0]
     for trace in traces:
         for span in trace:
@@ -495,7 +496,7 @@ def test_consumer_uses_active_context_when_no_valid_distributed_context_exists(
             while message is None or str(message.value()) != str(PAYLOAD):
                 message = consumer.poll()
 
-    traces = dummy_tracer.pop_traces()
+    traces = TracerSpanContainer(dummy_tracer).pop_traces()
     consume_span = traces[len(traces) - 1][-1]
 
     # assert consumer_span parent is our custom span
@@ -552,7 +553,7 @@ def test_tracing_with_serialization_works(dummy_tracer, kafka_topic):
     # message comes back with expected test string
     assert message.value() == PAYLOAD
 
-    traces = dummy_tracer.pop_traces()
+    traces = TracerSpanContainer(dummy_tracer).pop_traces()
     produce_span = traces[0][0]
     consume_span = traces[len(traces) - 1][0]
 
@@ -573,7 +574,7 @@ def test_traces_empty_poll_by_default(dummy_tracer, consumer, kafka_topic):
     while message is not None:
         message = consumer.poll(1.0)
 
-    traces = dummy_tracer.pop_traces()
+    traces = TracerSpanContainer(dummy_tracer).pop_traces()
 
     empty_poll_span_created = False
     for trace in traces:
@@ -621,7 +622,7 @@ def test(consumer, producer, kafka_topic):
     while message is not None:
         message = consumer.poll(1.0)
 
-    traces = dummy_tracer.pop_traces()
+    traces = TracerSpanContainer(dummy_tracer).pop_traces()
 
     empty_poll_span_created = False
     for trace in traces:
@@ -646,7 +647,7 @@ def test(consumer, producer, kafka_topic):
     while message is None or str(message.value()) != str(PAYLOAD):
         message = consumer.poll()
 
-    traces = dummy_tracer.pop_traces()
+    traces = TracerSpanContainer(dummy_tracer).pop_traces()
 
     non_empty_poll_span_created = False
     for trace in traces:

@@ -3,13 +3,11 @@ import os
 
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.langchain.patch import patch as langchain_core_patch
 from ddtrace.contrib.internal.langchain.patch import unpatch as langchain_core_unpatch
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs as llmobs_service
 from tests.llmobs._utils import TestLLMObsSpanWriter
-from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
 

@@ -9,6 +9,7 @@ import pytest
 from tests.llmobs._utils import _assert_span_link
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.utils import TracerSpanContainer
 
 
 COMMON_RESPONSE_LLM_METADATA = {
@@ -201,7 +202,7 @@ async def test_llmobs_single_agent(agents, mock_tracer, request_vcr, llmobs_even
     with request_vcr.use_cassette("test_simple_agent.yaml"):
         result = await agents.Runner.run(simple_agent, "What is the capital of France?")
 
-    spans = mock_tracer.pop_traces()[0]
+    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
@@ -248,7 +249,7 @@ async def test_llmobs_streamed_single_agent(agents, mock_tracer, request_vcr, ll
             if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
                 final_output += event.data.delta
 
-    spans = mock_tracer.pop_traces()[0]
+    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
@@ -288,7 +289,7 @@ def test_llmobs_single_agent_sync(agents, mock_tracer, request_vcr, llmobs_event
     with request_vcr.use_cassette("test_simple_agent.yaml"):
         result = agents.Runner.run_sync(simple_agent, "What is the capital of France?")
 
-    spans = mock_tracer.pop_traces()[0]
+    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
@@ -335,7 +336,7 @@ async def test_llmobs_manual_tracing_llmobs(agents, mock_tracer, request_vcr, ll
             cspan.finish()
             result = await agents.Runner.run(simple_agent, "What is the capital of France?")
 
-    spans = mock_tracer.pop_traces()[0]
+    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
@@ -383,7 +384,7 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
     with request_vcr.use_cassette("test_single_agent_with_tool_calls.yaml"):
         result = await agents.Runner.run(addition_agent, "What is the sum of 1 and 2?")
 
-    spans = mock_tracer.pop_traces()[0]
+    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
@@ -455,7 +456,7 @@ async def test_llmobs_single_agent_with_ootb_tools(agents, mock_tracer, request_
     with request_vcr.use_cassette("test_single_agent_with_ootb_tools.yaml"):
         result = await agents.Runner.run(weather_agent, "What is the weather like in New York right now?")
 
-    spans = mock_tracer.pop_traces()[0]
+    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
@@ -500,7 +501,7 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
             research_workflow, "What is a brief summary of what happened yesterday in the soccer world??"
         )
 
-    spans = mock_tracer.pop_traces()[0]
+    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
@@ -618,7 +619,7 @@ async def test_llmobs_single_agent_with_tool_errors(
 ):
     with request_vcr.use_cassette("test_agent_with_tool_errors.yaml"):
         result = await agents.Runner.run(addition_agent_with_tool_errors, "What is the sum of 1 and 2?")
-    spans = mock_tracer.pop_traces()[0]
+    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 

@@ -51,7 +51,7 @@ def tracer():
     # Yield to our test
     with override_config("django", dict(_tracer=tracer)):
         yield tracer
-    tracer.pop()
+    TracerSpanContainer(tracer).pop()
 
     # Reset the tracer pinned to Django and unpatch
     # DEV: unable to properly unpatch and reload django app with each test

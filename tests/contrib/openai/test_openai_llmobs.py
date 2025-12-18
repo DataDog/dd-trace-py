@@ -21,6 +21,7 @@ from tests.contrib.openai.utils import response_tool_function_expected_output_st
 from tests.contrib.openai.utils import tool_call_expected_output
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.utils import TracerSpanContainer
 
 
 EXPECTED_TOOL_DEFINITIONS = [
@@ -74,7 +75,7 @@ class TestLLMObsOpenaiV1:
             max_tokens=10,
             user="ddtrace-test",
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_non_llm_span_event(
@@ -110,7 +111,7 @@ class TestLLMObsOpenaiV1:
             max_tokens=10,
             user="ddtrace-test",
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
 
@@ -131,7 +132,7 @@ class TestLLMObsOpenaiV1:
                 max_tokens=10,
                 user="ddtrace-test",
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -164,7 +165,7 @@ class TestLLMObsOpenaiV1:
         azure_client.completions.create(
             model="gpt-3.5-turbo", prompt=prompt, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_non_llm_span_event(
@@ -197,7 +198,7 @@ class TestLLMObsOpenaiV1:
         azure_client.completions.create(
             model="gpt-3.5-turbo", prompt=prompt, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
 
@@ -222,7 +223,7 @@ class TestLLMObsOpenaiV1:
             resp = azure_client.completions.create(
                 model="gpt-35-turbo", prompt=prompt, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -258,7 +259,7 @@ class TestLLMObsOpenaiV1:
             resp = await azure_client.completions.create(
                 model="gpt-35-turbo", prompt=prompt, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -283,7 +284,7 @@ class TestLLMObsOpenaiV1:
                 resp = client.completions.create(model=model, prompt="Hello world", stream=True)
                 for _ in resp:
                     pass
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -307,7 +308,7 @@ class TestLLMObsOpenaiV1:
         input_messages = multi_message_input
         client = openai.OpenAI(base_url="http://localhost:4000")
         client.chat.completions.create(model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test")
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_non_llm_span_event(
@@ -339,7 +340,7 @@ class TestLLMObsOpenaiV1:
         # span created from request with non-proxy URL should result in an LLM span
         client = openai.OpenAI(base_url="http://localhost:8000")
         client.chat.completions.create(model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test")
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
 
@@ -355,7 +356,7 @@ class TestLLMObsOpenaiV1:
             resp = client.chat.completions.create(
                 model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test"
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -390,7 +391,7 @@ class TestLLMObsOpenaiV1:
         azure_client.chat.completions.create(
             model="gpt-3.5-turbo", messages=input_messages, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         expected_event = _expected_llmobs_non_llm_span_event(
             span,
@@ -428,7 +429,7 @@ class TestLLMObsOpenaiV1:
         azure_client.chat.completions.create(
             model="gpt-3.5-turbo", messages=input_messages, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
 
@@ -451,7 +452,7 @@ class TestLLMObsOpenaiV1:
             resp = azure_client.chat.completions.create(
                 model="gpt-35-turbo", messages=input_messages, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -496,7 +497,7 @@ class TestLLMObsOpenaiV1:
             )
             for chunk in resp:
                 pass
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
 
         expected_metadata = {
@@ -542,7 +543,7 @@ class TestLLMObsOpenaiV1:
             resp = await azure_client.chat.completions.create(
                 model="gpt-35-turbo", messages=input_messages, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -585,7 +586,7 @@ class TestLLMObsOpenaiV1:
                 )
                 for chunk in resp:
                     resp_model = chunk.model
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -614,7 +615,7 @@ class TestLLMObsOpenaiV1:
             resp = client.chat.completions.create(model=model, messages=input_messages, stream=True)
             for chunk in resp:
                 resp_model = chunk.model
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -645,7 +646,7 @@ class TestLLMObsOpenaiV1:
                 for chunk in stream:
                     if hasattr(chunk, "chunk") and hasattr(chunk.chunk, "model"):
                         resp_model = chunk.chunk.model
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         llmobs_span_event = mock_llmobs_writer.enqueue.call_args_list[0][0][0]
         assert llmobs_span_event["meta"]["metadata"]["stream_options"]["include_usage"] is True
@@ -690,7 +691,7 @@ class TestLLMObsOpenaiV1:
                 }
             ],
         }
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -720,7 +721,7 @@ class TestLLMObsOpenaiV1:
                 messages=[{"role": "user", "content": chat_completion_input_description}],
                 user="ddtrace-test",
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -774,7 +775,7 @@ class TestLLMObsOpenaiV1:
                 user="ddtrace-test",
             )
 
-        spans = mock_tracer.pop_traces()
+        spans = TracerSpanContainer(mock_tracer).pop_traces()
         span1, span2 = spans[0][0], spans[1][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
 
@@ -919,7 +920,7 @@ class TestLLMObsOpenaiV1:
                 ],
             )
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1011,7 +1012,7 @@ MUL: "*"
                 ],
             )
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1068,7 +1069,7 @@ MUL: "*"
             )
             for chunk in resp:
                 resp_model = chunk.model
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1099,7 +1100,7 @@ MUL: "*"
                     max_tokens=10,
                     user="ddtrace-test",
                 )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1127,7 +1128,7 @@ MUL: "*"
                 client.chat.completions.create(
                     model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test"
                 )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1164,7 +1165,7 @@ MUL: "*"
                 max_tokens=100,
                 temperature=0.1,
             )
-        spans = mock_tracer.pop_traces()
+        spans = TracerSpanContainer(mock_tracer).pop_traces()
         span1, span2 = spans[0][0], spans[1][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
 
@@ -1215,7 +1216,7 @@ MUL: "*"
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding.yaml"):
             client = openai.OpenAI()
             resp = client.embeddings.create(input="hello world", model="text-embedding-ada-002")
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1235,7 +1236,7 @@ MUL: "*"
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_string_array.yaml"):
             client = openai.OpenAI()
             resp = client.embeddings.create(input=["hello world", "hello again"], model="text-embedding-ada-002")
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1255,7 +1256,7 @@ MUL: "*"
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_token_array.yaml"):
             client = openai.OpenAI()
             resp = client.embeddings.create(input=[1111, 2222, 3333], model="text-embedding-ada-002")
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1277,7 +1278,7 @@ MUL: "*"
             resp = client.embeddings.create(
                 input=[[1111, 2222, 3333], [4444, 5555, 6666], [7777, 8888, 9999]], model="text-embedding-ada-002"
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1306,7 +1307,7 @@ MUL: "*"
             resp = client.embeddings.create(
                 input="hello world", model="text-embedding-3-small", encoding_format="base64", dimensions=512
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1352,7 +1353,7 @@ MUL: "*"
             resp_model = model
             resp = client.completions.create(model=model, prompt="Hello world", stream=True)
             assert resp is None
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1408,7 +1409,7 @@ MUL: "*"
                 if hasattr(chunk, "model"):
                     resp_model = chunk.model
 
-        spans = mock_tracer.pop_traces()
+        spans = TracerSpanContainer(mock_tracer).pop_traces()
         span1, span2 = spans[0][0], spans[1][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         mock_llmobs_writer.enqueue.assert_has_calls(
@@ -1482,7 +1483,7 @@ MUL: "*"
                 stream_options={"include_usage": False},
             )
             assert resp is None
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1511,7 +1512,7 @@ MUL: "*"
             resp = client.responses.create(
                 model=model, input=input_messages, top_p=0.9, max_output_tokens=100, user="ddtrace-test"
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1555,7 +1556,7 @@ MUL: "*"
             for chunk in resp:
                 resp_response = getattr(chunk, "response", {})
                 resp_model = getattr(resp_response, "model", "")
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1602,7 +1603,7 @@ MUL: "*"
             for chunk in resp1:
                 if hasattr(chunk, "response") and hasattr(chunk.response, "model"):
                     resp_model = chunk.response.model
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1650,7 +1651,7 @@ MUL: "*"
             resp = client.responses.create(
                 tools=response_tool_function, model=model, input=input_messages, tool_choice="auto"
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1713,7 +1714,7 @@ MUL: "*"
             for chunk in resp:
                 if hasattr(chunk, "response") and hasattr(chunk.response, "model"):
                     resp_model = chunk.response.model
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1770,7 +1771,7 @@ MUL: "*"
                 client = openai.OpenAI()
                 input_messages = "Hello world"
                 client.responses.create(model=model, input=input_messages, user="ddtrace-test")
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1799,7 +1800,7 @@ MUL: "*"
             client = openai.AsyncOpenAI()
             resp = await client.responses.create(model=model, input=input_messages, top_p=0.9, max_output_tokens=100)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1852,7 +1853,7 @@ MUL: "*"
                 temperature=0.1,
                 user="ddtrace-test",
             )
-        spans = mock_tracer.pop_traces()
+        spans = TracerSpanContainer(mock_tracer).pop_traces()
         span1, span2 = spans[0][0], spans[1][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
 
@@ -1943,7 +1944,7 @@ MUL: "*"
                 if hasattr(chunk, "response") and hasattr(chunk.response, "model"):
                     resp_model = chunk.response.model
 
-        spans = mock_tracer.pop_traces()
+        spans = TracerSpanContainer(mock_tracer).pop_traces()
         span1, span2 = spans[0][0], spans[1][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         mock_llmobs_writer.enqueue.assert_has_calls(
@@ -2084,7 +2085,7 @@ MUL: "*"
                 ],
                 response_format=MathResponse,
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -2131,7 +2132,7 @@ MUL: "*"
                 input="solve 8x + 31 = 2",
                 text_format=MathResponse,
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -2193,7 +2194,7 @@ MUL: "*"
             input="Roll 2d4+1",
         )
 
-        traces = mock_tracer.pop_traces()
+        traces = TracerSpanContainer(mock_tracer).pop_traces()
         assert len(traces[0]) == 2
 
         response_span = traces[0][0]
@@ -2312,7 +2313,7 @@ MUL: "*"
                     "variables": {"question": "What is machine learning?"},
                 }
             )
-        mock_tracer.pop_traces()
+        TracerSpanContainer(mock_tracer).pop_traces()
         assert mock_llmobs_writer.enqueue.call_count == 1
 
         assert_prompt_tracking(
@@ -2368,7 +2369,7 @@ MUL: "*"
                     },
                 },
             )
-        mock_tracer.pop_traces()
+        TracerSpanContainer(mock_tracer).pop_traces()
         assert mock_llmobs_writer.enqueue.call_count == 1
 
         assert_prompt_tracking(
@@ -2445,7 +2446,7 @@ MUL: "*"
                     },
                 },
             )
-        mock_tracer.pop_traces()
+        TracerSpanContainer(mock_tracer).pop_traces()
         assert mock_llmobs_writer.enqueue.call_count == 1
 
         assert_prompt_tracking(
@@ -2499,7 +2500,7 @@ MUL: "*"
             resp = client.responses.create(
                 model=model, input=input_messages, max_output_tokens=500, user="ddtrace-test"
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
 
         # Extract output messages including reasoning items

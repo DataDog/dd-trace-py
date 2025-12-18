@@ -41,9 +41,10 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import TelemetryWriter
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from tests import utils
-from tests.utils import DummyTracer
+from tests.utils import DummyWriter
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
+from tests.utils import check_test_agent_status
 from tests.utils import request_token
 from tests.utils import snapshot_context as _snapshot_context
 
@@ -161,7 +162,7 @@ def pytest_configure(config):
 
 @pytest.fixture
 def use_dummy_writer():
-    yield False
+    yield True
 
 
 @pytest.fixture

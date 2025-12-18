@@ -20,6 +20,7 @@ from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.http import _format_template
 import tests.appsec.rules as rules
 from tests.utils import DummyTracer
+from tests.utils import TracerSpanContainer
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -2090,7 +2091,7 @@ def test_tracer():
 
     # Yield to our test
     yield tracer
-    tracer.pop()
+    TracerSpanContainer(tracer).pop()
     ddtrace.tracer = original_tracer
     core.tracer = original_tracer
 

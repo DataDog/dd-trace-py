@@ -7,6 +7,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.dramatiq.patch import patch
 from ddtrace.contrib.internal.dramatiq.patch import unpatch
 from tests.utils import DummyTracer
+from tests.utils import TracerSpanContainer
 from tests.utils import snapshot
 
 
@@ -46,7 +47,7 @@ class DramatiqSnapshotTests(unittest.TestCase):
         fn_task.send()
         fn_task.send_with_options(options={"max_retries": 1})
 
-        spans = tracer.pop()
+        spans = TracerSpanContainer(tracer).pop()
         assert len(spans) == 0
 
     def test_fn_task_synchronous(self):
@@ -63,7 +64,7 @@ class DramatiqSnapshotTests(unittest.TestCase):
 
         fn_task()
 
-        spans = tracer.pop()
+        spans = TracerSpanContainer(tracer).pop()
         assert len(spans) == 0
 
     @snapshot(wait_for_num_traces=2)

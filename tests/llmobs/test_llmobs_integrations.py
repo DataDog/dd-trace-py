@@ -3,6 +3,7 @@ import pytest
 
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 from tests.utils import DummyTracer
+from tests.utils import TracerSpanContainer
 
 
 @pytest.fixture(scope="function")
@@ -58,7 +59,7 @@ def test_integration_trace(mock_integration_config, mock_pin):
     integration.pin = mock_pin
     with integration.trace(mock_pin, "dummy_operation_id"):
         pass
-    span = mock_pin.tracer.pop()
+    span = TracerSpanContainer(mock_pin.tracer).pop()
     assert span is not None
     assert span[0].resource == "dummy_operation_id"
     assert span[0].service == "dummy_service"

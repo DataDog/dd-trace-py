@@ -28,7 +28,6 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import Context
 from ddtrace.trace import Span
-from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_global_config
 
@@ -609,8 +608,8 @@ def test_single_span_sampling_processor_rule_order_keep(tracer):
         (1, None, None, USER_KEEP),
     ],
 )
-def test_single_span_sampling_processor_w_tracer_sampling(tracer,
-    span_sample_rate_rule, expected_span_sample_rate_tag, mechanism, trace_sampling_priority
+def test_single_span_sampling_processor_w_tracer_sampling(
+    tracer, span_sample_rate_rule, expected_span_sample_rate_tag, mechanism, trace_sampling_priority
 ):
     """Test how the single span sampler interacts with the trace sampler"""
 

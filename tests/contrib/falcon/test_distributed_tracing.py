@@ -35,7 +35,7 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
         out = self.make_test_call("/200", headers=headers, expected_status_code=200)
         assert out.content.decode("utf-8") == "Success"
 
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
 
         assert len(traces) == 1
         assert len(traces[0]) == 1
@@ -56,7 +56,7 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
         out = self.make_test_call("/200", headers=headers, expected_status_code=200)
         assert out.content.decode("utf-8") == "Success"
 
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
 
         assert len(traces) == 1
         assert len(traces[0]) == 1
@@ -78,7 +78,7 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
         out = self.make_test_call("/200", headers=headers, expected_status_code=200)
         assert out.content.decode("utf-8") == "Success"
 
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
 
@@ -103,7 +103,7 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
         out = self.make_test_call("/200", headers=distributed_headers, expected_status_code=200)
         assert out.content.decode("utf-8") == "Success"
 
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
 
         aws_gateway_span = traces[0][0]
         web_span = traces[0][1]
@@ -149,7 +149,7 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
         out = self.make_test_call("/200", headers=distributed_headers, expected_status_code=200)
         assert out.content.decode("utf-8") == "Success"
 
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
 
         web_span = traces[0][0]
         assert web_span._parent is None

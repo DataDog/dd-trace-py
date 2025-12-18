@@ -70,7 +70,7 @@ def tracer():
     core.tracer = tracer
     with override_config("django", dict(_tracer=tracer)):
         yield tracer
-    tracer.pop()
+    TracerSpanContainer(tracer).pop()
     core.tracer = original_tracer
     # Reset the tracer pinned to Django and unpatch
     # DEV: unable to properly unpatch and reload django app with each test

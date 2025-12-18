@@ -1174,6 +1174,7 @@ def test_trace_with_128bit_trace_ids():
     """Ensure 128bit trace ids are correctly encoded"""
     from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
     from tests.utils import DummyTracer
+    from tests.utils import TracerSpanContainer
 
     tracer = DummyTracer()
 
@@ -1183,7 +1184,7 @@ def test_trace_with_128bit_trace_ids():
         with tracer.trace("child2"):
             pass
 
-    spans = tracer.pop()
+    spans = TracerSpanContainer(tracer).pop()
     chunk_root = spans[0]
     assert chunk_root.trace_id >= 2**64
     assert chunk_root._meta[HIGHER_ORDER_TRACE_ID_BITS] == "{:016x}".format(parent.trace_id >> 64)

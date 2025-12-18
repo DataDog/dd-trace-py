@@ -18,6 +18,7 @@ import sys
 from falcon import testing
 from ddtrace.contrib.internal.falcon.patch import FALCON_VERSION
 from tests.contrib.falcon.test_suite import FalconTestMixin
+from tests.utils import TracerSpanContainer
 from tests.utils import TracerTestCase
 
 from tests.contrib.falcon.app import get_app
@@ -34,7 +35,7 @@ class TestCase(TracerTestCase, testing.TestCase, FalconTestMixin):
 
     def test(self, query_string="", trace_query_string=False):
         out = self.make_test_call("/200", expected_status_code=200, query_string=query_string)
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
         span = traces[0][0]
         assert span.service == "{}"
 
@@ -64,6 +65,7 @@ import sys
 from falcon import testing
 from ddtrace.contrib.internal.falcon.patch import FALCON_VERSION
 from tests.contrib.falcon.test_suite import FalconTestMixin
+from tests.utils import TracerSpanContainer
 from tests.utils import TracerTestCase
 
 from tests.contrib.falcon.app import get_app
@@ -80,7 +82,7 @@ class TestCase(TracerTestCase, testing.TestCase, FalconTestMixin):
 
     def test(self, query_string="", trace_query_string=False):
         out = self.make_test_call("/200", expected_status_code=200, query_string=query_string)
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
         span = traces[0][0]
         assert span.name == "{}"
 

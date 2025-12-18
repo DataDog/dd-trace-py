@@ -17,6 +17,7 @@ from tests.llmobs._utils import aiterate_stream
 from tests.llmobs._utils import anext_stream
 from tests.llmobs._utils import iterate_stream
 from tests.llmobs._utils import next_stream
+from tests.utils import TracerSpanContainer
 
 
 @pytest.mark.parametrize(
@@ -32,7 +33,7 @@ class TestLLMObsVertexai:
                 stop_sequences=["x"], max_output_tokens=30, temperature=1.0
             ),
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
 
@@ -50,7 +51,7 @@ class TestLLMObsVertexai:
                 ),
                 candidate_count=2,  # candidate_count is not a valid keyword argument
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
 
@@ -64,7 +65,7 @@ class TestLLMObsVertexai:
             ),
             tools=[weather_tool],
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
 
@@ -88,7 +89,7 @@ class TestLLMObsVertexai:
         )
 
         # Validate second call (tool result)
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_result_span_event(span))
 
@@ -106,7 +107,7 @@ class TestLLMObsVertexai:
             ),
         )
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_history_span_event(span))
 
@@ -124,7 +125,7 @@ class TestLLMObsVertexai:
                 stop_sequences=["x"], max_output_tokens=50, temperature=1.0
             ),
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_system_prompt_span_event(span))
 
@@ -137,7 +138,7 @@ class TestLLMObsVertexai:
                 stop_sequences=["x"], max_output_tokens=30, temperature=1.0
             ),
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
 
@@ -147,7 +148,7 @@ class TestLLMObsVertexai:
         llm.generate_content(
             "Why do bears hibernate?",
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_no_generation_config_span_event(span))
 
@@ -166,7 +167,7 @@ class TestLLMObsVertexai:
         )
         consume_stream(response)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_span_event(span))
 
@@ -187,7 +188,7 @@ class TestLLMObsVertexai:
             )
             consume_stream(response)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_error_span_event(span))
 
@@ -206,7 +207,7 @@ class TestLLMObsVertexai:
         )
         consume_stream(response)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
 
@@ -239,7 +240,7 @@ class TestLLMObsVertexai:
         for _ in response2:
             pass
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_result_span_event(span))
 
@@ -255,7 +256,7 @@ class TestLLMObsVertexai:
             ),
         )
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
 
@@ -273,7 +274,7 @@ class TestLLMObsVertexai:
                 candidate_count=2,  # candidate_count is not a valid keyword argument
             )
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
 
@@ -289,7 +290,7 @@ class TestLLMObsVertexai:
             ),
         )
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
 
@@ -308,7 +309,7 @@ class TestLLMObsVertexai:
         )
         await consume_stream(response)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_span_event(span))
 
@@ -329,7 +330,7 @@ class TestLLMObsVertexai:
             )
             await consume_stream(response)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_error_span_event(span))
 
@@ -348,7 +349,7 @@ class TestLLMObsVertexai:
         )
         await consume_stream(response)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
 
@@ -380,7 +381,7 @@ class TestLLMObsVertexai:
         async for _ in response2:
             pass
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_result_span_event(span))
 
@@ -395,7 +396,7 @@ class TestLLMObsVertexai:
             ),
         )
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
 
@@ -422,7 +423,7 @@ class TestLLMObsVertexai:
             ),
         )
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_history_span_event(span))
 
@@ -439,7 +440,7 @@ class TestLLMObsVertexai:
                 candidate_count=2,  # candidate_count is not a valid keyword argument
             )
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
 
@@ -455,7 +456,7 @@ class TestLLMObsVertexai:
             tools=[weather_tool],
         )
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
 
@@ -475,7 +476,7 @@ class TestLLMObsVertexai:
             ),
         )
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_system_prompt_span_event(span))
 
@@ -495,7 +496,7 @@ class TestLLMObsVertexai:
         )
         consume_stream(response)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_span_event(span))
 
@@ -517,7 +518,7 @@ class TestLLMObsVertexai:
             )
             consume_stream(response)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_error_span_event(span))
 
@@ -537,7 +538,7 @@ class TestLLMObsVertexai:
         )
         consume_stream(response)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
 
@@ -554,7 +555,7 @@ class TestLLMObsVertexai:
             ),
         )
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
 
@@ -573,7 +574,7 @@ class TestLLMObsVertexai:
                 candidate_count=2,
             )
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
 
@@ -590,7 +591,7 @@ class TestLLMObsVertexai:
             ),
         )
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
 
@@ -610,7 +611,7 @@ class TestLLMObsVertexai:
         )
         await consume_stream(response)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_span_event(span))
 
@@ -632,7 +633,7 @@ class TestLLMObsVertexai:
             )
             await consume_stream(response)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_error_span_event(span))
 
@@ -653,7 +654,7 @@ class TestLLMObsVertexai:
         )
         await consume_stream(response)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
 

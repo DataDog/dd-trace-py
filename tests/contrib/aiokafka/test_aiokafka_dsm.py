@@ -9,8 +9,6 @@ from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.native import DDSketch
-from tests.utils import DummyTracer
-from tests.utils import override_global_tracer
 
 from .utils import BOOTSTRAP_SERVERS
 from .utils import GROUP_ID

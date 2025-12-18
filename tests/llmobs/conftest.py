@@ -13,7 +13,6 @@ from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import logs_vcr
-from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import request_token

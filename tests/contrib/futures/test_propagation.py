@@ -442,7 +442,7 @@ def test_concurrent_futures_with_gevent():
     os.waitpid(pid, 0)
 
 
-def test_submit_no_wait(tracer: DummyTracer):
+def test_submit_no_wait(tracer: DummyTracer, test_spans):
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
     futures = []
@@ -475,7 +475,7 @@ def test_submit_no_wait(tracer: DummyTracer):
         assert future.exception() is None
         assert future.result() is None
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 4
 
     assert len(traces[0]) == 3

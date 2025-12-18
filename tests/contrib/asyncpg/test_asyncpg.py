@@ -421,10 +421,10 @@ class AsyncPgTestCase(AsyncioTestCase):
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     async def test_asyncpg_dbm_propagation_enabled(self):
-        conn, tracer = await self._get_conn_tracer()
+        conn, _ = await self._get_conn_tracer()
 
         await conn.execute("SELECT 1")
-        spans = tracer.get_spans()
+        spans = self.get_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.name == "postgres.query"

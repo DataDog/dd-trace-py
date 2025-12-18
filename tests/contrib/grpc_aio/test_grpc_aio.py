@@ -27,7 +27,6 @@ from tests.contrib.grpc_aio.hellostreamingworld_pb2 import HelloRequest as Hello
 from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import MultiGreeterServicer
 from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import MultiGreeterStub
 from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import add_MultiGreeterServicer_to_server
-from tests.utils import DummyTracer
 from tests.utils import assert_is_measured
 
 
@@ -222,7 +221,7 @@ def _create_server(servicer, target):
     return _server
 
 
-def _tracer.get_spans():
+def _get_spans(tracer):
     return tracer._span_aggregator.writer.spans
 
 
@@ -268,7 +267,7 @@ async def test_insecure_channel(server_info, tracer):
         stub = HelloStub(channel)
         await stub.SayHello(HelloRequest(name="test"))
 
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 2
     client_span, server_span = spans
 
@@ -283,7 +282,7 @@ async def test_secure_channel(server_info, tracer):
         stub = HelloStub(channel)
         await stub.SayHello(HelloRequest(name="test"))
 
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 2
     client_span, server_span = spans
 
@@ -299,7 +298,7 @@ async def test_secure_channel_with_interceptor_in_args(server_info, tracer):
         stub = HelloStub(channel)
         await stub.SayHello(HelloRequest(name="test"))
 
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 2
     client_span, server_span = spans
 
@@ -308,7 +307,7 @@ async def test_secure_channel_with_interceptor_in_args(server_info, tracer):
 
 
 @pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
-async def test_invalid_target(server_info, tracer):
+async def test_invalid_target(server_info, tracer, test_spans):
     target = "localhost:50051"
     async with aio.insecure_channel(target) as channel:
         stub = HelloStub(channel)
@@ -316,7 +315,7 @@ async def test_invalid_target(server_info, tracer):
             await stub.SayHello(HelloRequest(name="test"))
 
     await asyncio.sleep(0.5)  # wait for executor pool of AioServer to handle exception
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 1
     client_span = spans[0]
 
@@ -336,7 +335,7 @@ async def test_pin_not_activated(server_info, tracer):
         stub = HelloStub(channel)
         await stub.SayHello(HelloRequest(name="test"))
 
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 0
 
 
@@ -358,7 +357,7 @@ async def test_pin_tags_put_in_span(servicer, tracer):
 
     await _server.stop(grace=None)
 
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 2
     client_span, server_span = spans
 
@@ -385,14 +384,14 @@ async def test_pin_can_be_defined_per_channel(server_info, tracer):
     await channel1.close()
 
     # DEV: make sure we have two spans before proceeding
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 2
 
     stub2 = HelloStub(channel2)
     await stub2.SayHello(HelloRequest(name="test"))
     await channel2.close()
 
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 4
     client_span1, server_span1, client_span2, server_span2 = spans
 
@@ -416,7 +415,7 @@ async def test_unary_exception(server_info, tracer):
             await stub.SayHello(HelloRequest(name="exception"))
 
     await asyncio.sleep(0.5)  # wait for executor pool of AioServer to handle exception
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 2
     client_span, server_span = spans
 
@@ -456,7 +455,7 @@ async def test_unary_cancellation(server_info, tracer):
         call.cancel()
 
     # No span because the call is cancelled before execution.
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 0
 
 
@@ -475,7 +474,7 @@ async def test_server_streaming(server_info, tracer):
             response_counts += 1
         assert response_counts == 2
 
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 2
     client_span, server_span = spans
 
@@ -502,7 +501,7 @@ async def test_server_streaming_exception(server_info, tracer):
                 pass
 
     await asyncio.sleep(0.5)  # wait for executor pool of AioServer to handle exception
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 2
     client_span, server_span = spans
 
@@ -542,7 +541,7 @@ async def test_server_streaming_cancelled_before_rpc(server_info, tracer):
                 pass
 
     # No span because the call is cancelled before execution
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 0
 
 
@@ -566,7 +565,7 @@ async def test_server_streaming_cancelled_during_rpc(server_info, tracer):
                 assert call.cancel()
 
     await asyncio.sleep(0.5)  # wait for executor pool of AioServer to handle exception
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 2
     client_span, server_span = spans
 
@@ -599,7 +598,7 @@ async def test_server_streaming_cancelled_after_rpc(server_info, tracer):
         assert response_counts == 2
         assert not call.cancel()
 
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 2
     client_span, server_span = spans
 
@@ -616,7 +615,7 @@ async def test_client_streaming(server_info, tracer):
         response = await stub.SayHelloLast(request_iterator)
         assert response.message == "first;second"
 
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 2
     client_span, server_span = spans
 
@@ -637,7 +636,7 @@ async def test_client_streaming_exception(server_info, tracer):
             await stub.SayHelloLast(request_iterator)
 
     await asyncio.sleep(0.5)  # wait for executor pool of AioServer to handle exception
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 2
     client_span, server_span = spans
 
@@ -677,7 +676,7 @@ async def test_client_streaming_cancelled_before_rpc(server_info, tracer):
             await call
 
     # No span because the call is cancelled before execution
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 0
 
 
@@ -690,7 +689,7 @@ async def test_client_streaming_cancelled_after_rpc(server_info, tracer):
         await call
         assert not call.cancel()
 
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 2
     client_span, server_span = spans
 
@@ -716,7 +715,7 @@ async def test_bidi_streaming(server_info, tracer):
             response_counts += 1
         assert response_counts == len(names) + 1
 
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 2
     client_span, server_span = spans
 
@@ -741,7 +740,7 @@ async def test_bidi_streaming_exception(server_info, tracer):
                 pass
 
     await asyncio.sleep(0.5)  # wait for executor pool of AioServer to handle exception
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 2
     client_span, server_span = spans
 
@@ -786,7 +785,7 @@ async def test_bidi_streaming_cancelled_before_rpc(server_info, tracer):
                 pass
 
     # No span because the call is cancelled before execution
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 0
 
 
@@ -816,7 +815,7 @@ async def test_bidi_streaming_cancelled_during_rpc(server_info, tracer):
                 await asyncio.sleep(0.5)
 
     await asyncio.sleep(0.5)  # wait for executor pool of AioServer to handle exception
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 2
     client_span, server_span = spans
 
@@ -853,7 +852,7 @@ async def test_bidi_streaming_cancelled_after_rpc(server_info, tracer):
         assert response_counts == len(names) + 1
         assert not call.cancel()
 
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 2
     client_span, server_span = spans
 
@@ -905,7 +904,7 @@ async def test_client_streaming(server_info, tracer):
         response = await stub.SayHelloLast(request_iterator)
         assert response.message == "first;second"
 
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 2
     client_span, server_span = spans
 
@@ -962,7 +961,7 @@ async def run_streaming_example(server_info, use_generator=False):
 async def test_async_streaming_direct_read(async_server_info, tracer):
     await run_streaming_example(async_server_info)
 
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 2
     client_span, server_span = spans
 
@@ -975,7 +974,7 @@ async def test_async_streaming_direct_read(async_server_info, tracer):
 async def test_async_streaming_generator(async_server_info, tracer):
     await run_streaming_example(async_server_info, use_generator=True)
 
-    spans = _tracer.get_spans()
+    spans = _get_spans(tracer)
     assert len(spans) == 2
     client_span, server_span = spans
 

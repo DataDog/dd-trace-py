@@ -302,7 +302,7 @@ def test_stop_iteration_in_wsgi_app_py3():
     token="tests.contrib.wsgi.test_wsgi.test_wsgi_base_middleware",
     wait_for_num_traces=1,
 )
-@pytest.mark.parametrize("use_dummy_writer", [True])
+@pytest.mark.parametrize("use_dummy_writer", [False])
 def test_wsgi_base_middleware(use_dummy_writer, tracer):
     app = TestApp(WsgiCustomMiddleware(application, tracer, config.wsgi, None))
     resp = app.get("/")
@@ -315,7 +315,7 @@ def test_wsgi_base_middleware(use_dummy_writer, tracer):
     ignores=["meta.error.stack", "meta.error.type"],
     wait_for_num_traces=1,
 )
-@pytest.mark.parametrize("use_dummy_writer", [True])
+@pytest.mark.parametrize("use_dummy_writer", [False])
 def test_wsgi_base_middleware_500(use_dummy_writer, tracer):
     # Note - span modifiers are not called
     app = TestApp(WsgiCustomMiddleware(application, tracer, config.wsgi, None))
