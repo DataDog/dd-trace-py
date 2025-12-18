@@ -40,8 +40,36 @@ def _extract_model_name(instance: Any) -> Optional[str]:
     """Extract model name or ID from llm instance."""
     for attr in ("model", "model_name", "model_id", "model_key", "repo_id"):
         if hasattr(instance, attr):
-            return getattr(instance, attr)
+            model_value = getattr(instance, attr)
+            if model_value and isinstance(model_value, str):
+                # Strip path prefix if present (e.g., "models/gemini-2.0-flash" -> "gemini-2.0-flash")
+                return model_value.split("/")[-1] if "/" in model_value else model_value
+            return model_value
     return None
+
+
+# Known model prefixes that map to Google provider
+GOOGLE_MODEL_PREFIXES = ("gemini", "imagen", "veo", "text-embedding")
+
+
+def _extract_provider(instance: Any, model_name: Optional[str] = None) -> str:
+    # Check module name for Google GenAI
+    module = getattr(instance, "__module__", "") or ""
+    if module.startswith("langchain_google_genai"):
+        return "google"
+    
+    # Check model name for known Google prefixes
+    if model_name:
+        model_lower = model_name.lower()
+        for prefix in GOOGLE_MODEL_PREFIXES:
+            if model_lower.startswith(prefix):
+                return "google"
+    
+    # Fallback to existing logic using _llm_type
+    llm_type = getattr(instance, "_llm_type", "")
+    if isinstance(llm_type, str) and "-" in llm_type:
+        return llm_type.split("-")[0]
+    return llm_type or "custom"
 
 
 def _raising_dispatch(event_id: str, args: Tuple[Any, ...] = ()):
@@ -55,9 +83,9 @@ def _raising_dispatch(event_id: str, args: Tuple[Any, ...] = ()):
 
 @with_traced_module
 def traced_llm_generate(langchain_core, pin, func, instance, args, kwargs):
-    llm_provider = instance._llm_type
-    integration: LangChainIntegration = langchain_core._datadog_integration
     model = _extract_model_name(instance)
+    llm_provider = _extract_provider(instance, model)
+    integration: LangChainIntegration = langchain_core._datadog_integration
     prompts = get_argument_value(args, kwargs, 0, "prompts")
     span = integration.trace(
         pin,
@@ -89,10 +117,10 @@ def traced_llm_generate(langchain_core, pin, func, instance, args, kwargs):
 
 @with_traced_module
 async def traced_llm_agenerate(langchain_core, pin, func, instance, args, kwargs):
-    llm_provider = instance._llm_type
+    model = _extract_model_name(instance)
+    llm_provider = _extract_provider(instance, model)
     prompts = get_argument_value(args, kwargs, 0, "prompts")
     integration: LangChainIntegration = langchain_core._datadog_integration
-    model = _extract_model_name(instance)
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
@@ -123,7 +151,8 @@ async def traced_llm_agenerate(langchain_core, pin, func, instance, args, kwargs
 
 @with_traced_module
 def traced_chat_model_generate(langchain_core, pin, func, instance, args, kwargs):
-    llm_provider = instance._llm_type.split("-")[0]
+    model = _extract_model_name(instance)
+    llm_provider = _extract_provider(instance, model)
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration: LangChainIntegration = langchain_core._datadog_integration
     span = integration.trace(
@@ -132,7 +161,7 @@ def traced_chat_model_generate(langchain_core, pin, func, instance, args, kwargs
         submit_to_llmobs=True,
         interface_type="chat_model",
         provider=llm_provider,
-        model=_extract_model_name(instance),
+        model=model,
         instance=instance,
     )
 
@@ -156,7 +185,8 @@ def traced_chat_model_generate(langchain_core, pin, func, instance, args, kwargs
 
 @with_traced_module
 async def traced_chat_model_agenerate(langchain_core, pin, func, instance, args, kwargs):
-    llm_provider = instance._llm_type.split("-")[0]
+    model = _extract_model_name(instance)
+    llm_provider = _extract_provider(instance, model)
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration: LangChainIntegration = langchain_core._datadog_integration
     span = integration.trace(
@@ -165,7 +195,7 @@ async def traced_chat_model_agenerate(langchain_core, pin, func, instance, args,
         submit_to_llmobs=True,
         interface_type="chat_model",
         provider=llm_provider,
-        model=_extract_model_name(instance),
+        model=model,
         instance=instance,
     )
 
@@ -311,8 +341,8 @@ def traced_chain_stream(langchain_core, pin, func, instance, args, kwargs):
 @with_traced_module
 def traced_chat_stream(langchain_core, pin, func, instance, args, kwargs):
     integration: LangChainIntegration = langchain_core._datadog_integration
-    llm_provider = instance._llm_type
     model = _extract_model_name(instance)
+    llm_provider = _extract_provider(instance, model)
 
     _raising_dispatch("langchain.chatmodel.stream.before", (instance, args, kwargs))
 
@@ -347,8 +377,8 @@ def traced_chat_stream(langchain_core, pin, func, instance, args, kwargs):
 @with_traced_module
 def traced_llm_stream(langchain_core, pin, func, instance, args, kwargs):
     integration: LangChainIntegration = langchain_core._datadog_integration
-    llm_provider = instance._llm_type
     model = _extract_model_name(instance)
+    llm_provider = _extract_provider(instance, model)
 
     _raising_dispatch(
         "langchain.llm.stream.before",

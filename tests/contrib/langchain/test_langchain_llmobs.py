@@ -627,6 +627,44 @@ def test_llmobs_anthropic_chat_model(langchain_anthropic, llmobs_events, tracer,
     )
 
 
+def test_llmobs_google_genai_chat_model(
+    langchain_core, langchain_google_genai, llmobs_events, tracer, google_genai_url
+):
+    chat = langchain_google_genai.ChatGoogleGenerativeAI(
+        model="gemini-2.0-flash",
+        temperature=0.7,
+        base_url=google_genai_url,
+    )
+    chat.invoke([langchain_core.messages.HumanMessage(content="What is the capital of France?")])
+
+    span = tracer.pop_traces()[0][0]
+    assert span.get_tag("langchain.request.provider") == "google"
+    assert span.get_tag("langchain.request.model") == "gemini-2.0-flash"
+
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["meta"]["model_provider"] == "google"
+    assert llmobs_events[0]["meta"]["model_name"] == "gemini-2.0-flash"
+
+
+def test_llmobs_google_genai_chat_model_with_path(
+    langchain_core, langchain_google_genai, llmobs_events, tracer, google_genai_url
+):
+    chat = langchain_google_genai.ChatGoogleGenerativeAI(
+        model="models/gemini-2.5-flash",
+        temperature=0.5,
+        base_url=google_genai_url,
+    )
+    chat.invoke([langchain_core.messages.HumanMessage(content="What is 2+2?")])
+
+    span = tracer.pop_traces()[0][0]
+    assert span.get_tag("langchain.request.provider") == "google"
+    assert span.get_tag("langchain.request.model") == "gemini-2.5-flash"
+
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["meta"]["model_provider"] == "google"
+    assert llmobs_events[0]["meta"]["model_name"] == "gemini-2.5-flash"
+
+
 def test_llmobs_embedding_documents(langchain_openai, llmobs_events, tracer, openai_url):
     embedding_model = langchain_openai.embeddings.OpenAIEmbeddings(base_url=openai_url)
     embedding_model.embed_documents(["hello world", "goodbye world"])
