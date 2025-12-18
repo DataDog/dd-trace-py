@@ -164,6 +164,10 @@ ddup_start() // cppcheck-suppress unusedFunction
 Datadog::Sample*
 ddup_start_sample() // cppcheck-suppress unusedFunction
 {
+    // Ensure profile_state is initialized before creating Sample objects.
+    // ddup_start() uses std::call_once, so it's safe to call multiple times.
+    ddup_start();
+
     return Datadog::SampleManager::start_sample();
 }
 
@@ -310,29 +314,8 @@ ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns) // cppchec
 }
 
 void
-ddup_increment_sampling_event_count() // cppcheck-suppress unusedFunction
-{
-    auto borrowed = Datadog::Sample::profile_borrow();
-    borrowed.stats().increment_sampling_event_count();
-}
-
-void
-ddup_increment_sample_count() // cppcheck-suppress unusedFunction
-{
-    auto borrowed = Datadog::Sample::profile_borrow();
-    borrowed.stats().increment_sample_count();
-}
-
-void
 ddup_flush_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
 {
-    sample->flush_sample();
-}
-
-void
-ddup_flush_sample_v2(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
-{
-    sample->set_reverse_locations(true);
     sample->flush_sample();
 }
 

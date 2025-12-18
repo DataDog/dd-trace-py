@@ -3,7 +3,8 @@ on:
   push:
     branches:
       - main
-      - 'mq-working-branch**'
+      - mq-working-branch-*
+  merge_group:
   pull_request:
     paths:
       - 'ddtrace/**'

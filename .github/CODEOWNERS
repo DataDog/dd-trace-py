@@ -142,7 +142,9 @@ ddtrace/profiling                   @DataDog/profiling-python
 ddtrace/internal/settings/profiling.py       @DataDog/profiling-python
 ddtrace/internal/datadog/profiling  @DataDog/profiling-python
 tests/profiling                     @DataDog/profiling-python
+.github/workflows/profiling-native.yml       @DataDog/profiling-python
 .gitlab/tests/profiling.yml         @DataDog/profiling-python
+.github/workflows/pytorch_gpu_tests.yml @DataDog/profiling-python
 
 # Crashtracker
 ddtrace/internal/core/crashtracking.py       @DataDog/profiling-python @DataDog/apm-core-python
@@ -263,8 +265,10 @@ tests/snapshots/tests.contrib.azure_functions_servicebus.*  @DataDog/serverless 
 tests/snapshots/tests.contrib.azure_servicebus.*            @DataDog/serverless @DataDog/apm-serverless
 
 # Data Streams Monitoring
-ddtrace/internal/datastreams        @DataDog/data-streams-monitoring
-tests/datastreams                   @DataDog/data-streams-monitoring
+ddtrace/data_streams.py                                   @DataDog/data-streams-monitoring
+ddtrace/internal/datastreams                              @DataDog/data-streams-monitoring
+tests/datastreams                                         @DataDog/data-streams-monitoring
+tests/contrib/**/test_*dsm.py                             @DataDog/data-streams-monitoring
 
 # ASM (order matters)
 tests/**/*appsec*               @DataDog/asm-python

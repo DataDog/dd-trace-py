@@ -98,7 +98,7 @@ class BackendConnectorSetup:
         Detect settings for agentless backend connection mode.
         """
         site = os.environ.get("DD_SITE") or DEFAULT_SITE
-        api_key = os.environ.get("DD_API_KEY")
+        api_key = os.environ.get("_CI_DD_API_KEY") or os.environ.get("DD_API_KEY")
 
         if not api_key:
             raise SetupError("DD_API_KEY environment variable is not set")
@@ -110,7 +110,7 @@ class BackendConnectorSetup:
         """
         Detect settings for EVP proxy mode backend connection mode.
         """
-        agent_url = os.environ.get("DD_TRACE_AGENT_URL")
+        agent_url = os.environ.get("_CI_DD_AGENT_URL") or os.environ.get("DD_TRACE_AGENT_URL")
         if not agent_url:
             user_provided_host = os.environ.get("DD_TRACE_AGENT_HOSTNAME") or os.environ.get("DD_AGENT_HOST")
             user_provided_port = os.environ.get("DD_TRACE_AGENT_PORT") or os.environ.get("DD_AGENT_PORT")

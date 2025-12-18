@@ -11,6 +11,7 @@ from typing import List
 from typing import Optional
 from typing import Type
 from typing import Union
+from typing import cast
 import uuid
 
 import mock
@@ -20,6 +21,7 @@ from ddtrace import ext
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.profiling.collector._lock import _ProfiledLock
 from ddtrace.profiling.collector.threading import ThreadingBoundedSemaphoreCollector
 from ddtrace.profiling.collector.threading import ThreadingLockCollector
 from ddtrace.profiling.collector.threading import ThreadingRLockCollector
@@ -286,7 +288,7 @@ def test_lock_gevent_tasks() -> None:
                     filename=expected_filename,
                     linenos=linenos,
                     lock_name="lock",
-                    # TODO: With stack_v2, the way we trace gevent greenlets has
+                    # TODO: With stack, the way we trace gevent greenlets has
                     # changed, and we'd need to expose an API to get the task_id,
                     # task_name, and task_frame.
                     # task_id=t.ident,
@@ -299,7 +301,7 @@ def test_lock_gevent_tasks() -> None:
                     filename=expected_filename,
                     linenos=linenos,
                     lock_name="lock",
-                    # TODO: With stack_v2, the way we trace gevent greenlets has
+                    # TODO: With stack, the way we trace gevent greenlets has
                     # changed, and we'd need to expose an API to get the task_id,
                     # task_name, and task_frame.
                     # task_id=t.ident,
@@ -379,7 +381,7 @@ def test_rlock_gevent_tasks() -> None:
                     filename=expected_filename,
                     linenos=linenos,
                     lock_name="lock",
-                    # TODO: With stack_v2, the way we trace gevent greenlets has
+                    # TODO: With stack, the way we trace gevent greenlets has
                     # changed, and we'd need to expose an API to get the task_id,
                     # task_name, and task_frame.
                     # task_id=t.ident,
@@ -392,7 +394,7 @@ def test_rlock_gevent_tasks() -> None:
                     filename=expected_filename,
                     linenos=linenos,
                     lock_name="lock",
-                    # TODO: With stack_v2, the way we trace gevent greenlets has
+                    # TODO: With stack, the way we trace gevent greenlets has
                     # changed, and we'd need to expose an API to get the task_id,
                     # task_name, and task_frame.
                     # task_id=t.ident,
@@ -538,7 +540,15 @@ class BaseThreadingLockCollectorTest:
         )  # pyright: ignore[reportCallIssue]
         ddup.start()
 
-    def teardown_method(self, method: Callable[..., None]) -> None:
+        # Clear any accumulated samples that have been created by other unrelated tests
+        # and that may interfere with our tests.
+        ddup.upload()
+
+    def teardown_method(self) -> None:
+        # Clear any accumulated samples that have not been uploaded and may interfere
+        # with subsequent tests.
+        ddup.upload()
+
         # might be unnecessary but this will ensure that the file is removed
         # after each successful test, and when a test fails it's easier to
         # pinpoint and debug.
@@ -1281,7 +1291,7 @@ class BaseThreadingLockCollectorTest:
         assert overhead_multiplier < 50, (
             f"Overhead too high: {overhead_multiplier}x (regular: {regular_time:.6f}s, "
             f"profiled: {profiled_time_zero:.6f}s)"
-        )  # noqa: E501
+        )
 
     def test_release_not_sampled_when_acquire_not_sampled(self) -> None:
         """Test that lock release events are NOT sampled if their corresponding acquire was not sampled."""
@@ -1291,6 +1301,7 @@ class BaseThreadingLockCollectorTest:
             # Do multiple acquire/release cycles
             for _ in range(10):
                 lock.acquire()
+                assert cast(_ProfiledLock, lock).acquired_time is None
                 time.sleep(0.001)
                 lock.release()
 

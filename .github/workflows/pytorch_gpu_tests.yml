@@ -1,16 +1,19 @@
-name: Pytorch Unit Tests (with GPU) 
+name: Pytorch Unit Tests (with GPU)
 
 on:
   push:
     branches:
       - 'main'
-      - 'mq-working-branch**'
     paths:
-      - 'ddtrace/profiling/collector/pytorch.py'
+      - ddtrace/internal/datadog/profiling/**
+      - ddtrace/profiling/**
+      - .github/workflows/pytorch_gpu_tests.yml
   pull_request:
     paths:
-      - 'ddtrace/profiling/collector/pytorch.py'
-  workflow_dispatch: 
+      - ddtrace/internal/datadog/profiling/**
+      - ddtrace/profiling/**
+      - .github/workflows/pytorch_gpu_tests.yml
+  workflow_dispatch:
 
 jobs:
    unit-tests:
@@ -38,4 +41,4 @@ jobs:
         run: pip install torch
 
       - name: Run tests
-        run: hatch run profiling_pytorch:test 
+        run: hatch run profiling_pytorch:test

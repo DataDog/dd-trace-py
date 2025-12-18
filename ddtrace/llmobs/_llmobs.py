@@ -1069,15 +1069,22 @@ class LLMObs(Service):
         """
         # id to track an annotation for registering / de-registering
         annotation_id = rand64bits()
+        # Track context we create so we can clean up _reactivate on exit.
+        # Using a dict as a mutable container to share state between closures.
+        state = {"created_context": None}
 
         def get_annotations_context_id():
             current_ctx = cls._instance.tracer.current_trace_context()
             # default the context id to the annotation id
             ctx_id = annotation_id
             if current_ctx is None:
+                # No context exists - create one and enable reactivation so spans finishing
+                # within this annotation_context don't clear the context for subsequent operations
                 current_ctx = Context(is_remote=False)
                 current_ctx.set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
+                current_ctx._reactivate = True
                 cls._instance.tracer.context_provider.activate(current_ctx)
+                state["created_context"] = current_ctx
             elif not current_ctx.get_baggage_item(ANNOTATIONS_CONTEXT_ID):
                 current_ctx.set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
             else:
@@ -1100,9 +1107,13 @@ class LLMObs(Service):
                 for i, (key, _, _) in enumerate(cls._instance._annotations):
                     if key == annotation_id:
                         cls._instance._annotations.pop(i)
-                        return
+                        break
                 else:
                     log.debug("Failed to pop annotation context")
+            # Disable reactivation on context we created to prevent it from being
+            # restored after exiting the annotation_context block
+            if state["created_context"] is not None:
+                state["created_context"]._reactivate = False
 
         return AnnotationContext(register_annotation, deregister_annotation)
 
