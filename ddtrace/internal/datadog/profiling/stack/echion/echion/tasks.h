@@ -297,7 +297,7 @@ inline Result<size_t>
 TaskInfo::unwind(FrameStack& stack)
 {
     // TODO: Check for running task.
-    std::vector<PyObject*> coro_frames;
+    std::stack<PyObject*> coro_frames;
 
     // Unwind the coro chain
     // Detect cycles in the await chain to prevent infinite loops.
@@ -312,7 +312,7 @@ TaskInfo::unwind(FrameStack& stack)
         seen_coros.insert(py_coro);
 
         if (py_coro->frame != NULL) {
-            coro_frames.push_back(py_coro->frame);
+            coro_frames.push(py_coro->frame);
         }
     }
 
@@ -320,8 +320,9 @@ TaskInfo::unwind(FrameStack& stack)
     size_t count = 0;
 
     // Unwind the coro frames (iterate in reverse since we pushed in await-chain order)
-    for (auto it = coro_frames.rbegin(); it != coro_frames.rend(); ++it) {
-        PyObject* frame = *it;
+    while (!coro_frames.empty()) {
+        PyObject* frame = coro_frames.top();
+        coro_frames.pop();
 
         auto new_frames = unwind_frame(frame, stack);
 
