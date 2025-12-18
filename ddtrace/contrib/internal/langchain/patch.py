@@ -57,14 +57,14 @@ def _extract_provider(instance: Any, model_name: Optional[str] = None) -> str:
     module = getattr(instance, "__module__", "") or ""
     if module.startswith("langchain_google_genai"):
         return "google"
-    
+
     # Check model name for known Google prefixes
     if model_name:
         model_lower = model_name.lower()
         for prefix in GOOGLE_MODEL_PREFIXES:
             if model_lower.startswith(prefix):
                 return "google"
-    
+
     # Fallback to existing logic using _llm_type
     llm_type = getattr(instance, "_llm_type", "")
     if isinstance(llm_type, str) and "-" in llm_type:
