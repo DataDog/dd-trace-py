@@ -289,7 +289,7 @@ init_safe_copy()
 }
 #elif defined PL_DARWIN
 /**
- * Initialize the safe copy operation on Linux
+ * Initialize the safe copy operation on macOS
  *
  * This occurs at static init
  */
@@ -322,6 +322,11 @@ static inline int
 copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf)
 {
     ssize_t result = -1;
+
+    // Early exit on zero length
+    if (len <= 0) {
+        return 0;
+    }
 
     // Early exit on zero page
     if (reinterpret_cast<uintptr_t>(addr) < 4096) {
