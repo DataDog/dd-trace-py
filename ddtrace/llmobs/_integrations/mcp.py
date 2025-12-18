@@ -3,10 +3,11 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+
 try:
     from mcp import InitializeRequest
     from mcp.server.streamable_http import MCP_SESSION_ID_HEADER
-except:
+except ImportError:
     InitializeRequest = None
     MCP_SESSION_ID_HEADER = None
 
@@ -219,15 +220,26 @@ class MCPIntegration(BaseLLMIntegration):
         # This only exists for existing sessions using the streamable HTTP transport
         message_metadata = _get_attr(responder, "message_metadata", None)
         http_request = message_metadata and _get_attr(message_metadata, "request_context", None)
-        maybe_session_id = http_request and getattr(http_request, "headers", {}).get(MCP_SESSION_ID_HEADER) if MCP_SESSION_ID_HEADER else None
+        maybe_session_id = (
+            http_request and getattr(http_request, "headers", {}).get(MCP_SESSION_ID_HEADER)
+            if MCP_SESSION_ID_HEADER
+            else None
+        )
 
         if maybe_session_id:
             _set_or_update_tags(span, {"mcp_session_id": str(maybe_session_id)})
 
         output_value = safe_json(response)
 
-        span._set_ctx_items({NAME: "mcp.{}".format(request_method), SPAN_KIND: "task", INPUT_VALUE: safe_json(request), OUTPUT_VALUE: output_value})
-        
+        span._set_ctx_items(
+            {
+                NAME: "mcp.{}".format(request_method),
+                SPAN_KIND: "task",
+                INPUT_VALUE: safe_json(request),
+                OUTPUT_VALUE: output_value,
+            }
+        )
+
     def _llmobs_set_tags_list_tools(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         cursor = get_argument_value(args, kwargs, 0, "cursor", optional=True)
 
