@@ -145,7 +145,7 @@ if sys.version_info < (3, 10):
                 new_data.append(line_delta)
 
                 # Also add the current trap size to the accumulated offset
-                accumulated_new_offset = trap_map[current_orig_offset] << 1
+                accumulated_new_offset = trap_map.get(current_orig_offset, 0) << 1
                 current_new_offset += accumulated_new_offset
 
         return bytes(new_data)
