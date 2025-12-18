@@ -221,12 +221,6 @@ ThreadInfo::unwind(PyThreadState* tstate)
 inline Result<void>
 ThreadInfo::unwind_tasks(PyThreadState* tstate)
 {
-    std::cerr << "Unwinding tasks for thread " << thread_id << std::endl;
-    for (size_t i = 0; i < python_stack.size(); i++) {
-        const auto& frame = python_stack[i].get();
-        std::cerr << "python_frame[" << i << "] = " << string_table.lookup(frame.name)->get() << std::endl;
-    }
-
     // The size of the "pure Python" stack (before asyncio Frames), computed later by walking the Python Stack
     size_t upper_python_stack_size = 0;
 
@@ -293,11 +287,6 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
     }
 
     auto all_tasks = std::move(*maybe_all_tasks);
-    std::cerr << "Found " << all_tasks.size() << " tasks" << std::endl;
-    for (size_t i = 0; i < all_tasks.size(); i++) {
-        const auto& task = all_tasks[i].get();
-        std::cerr << "task[" << i << "] = " << string_table.lookup(task->name)->get() << std::endl;
-    }
 
     // Guard against the critical case where a Task is marked as running (on-CPU) but the Python Stack
     // doesn't show the asyncio runtime frames. This would cause incorrect frame popping.

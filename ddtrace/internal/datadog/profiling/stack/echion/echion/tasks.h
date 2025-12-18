@@ -343,15 +343,13 @@ TaskInfo::unwind(FrameStack& stack)
             // the asynchronous Stack. If we do not have any Python Frames, then the execution state changed
             // (race condition) and we cannot recover (for on-CPU Tasks, we want to see the full execution
             // Stack, which we won't if we have a non-running Python Stack).
-            // TODO: COMMENTED OUT TO TRY TO FIX TESTS
-            // if (this->is_on_cpu && upper_python_stack_size == 0) {
-            //     return ErrorKind::TaskInfoError;
-            // }
+            if (this->is_on_cpu && upper_python_stack_size == 0) {
+                return ErrorKind::TaskInfoError;
+            }
 
             // Remove the Python Frames from the Stack (they will be added back later)
             // We cannot push those Frames now because otherwise they would be added once per Task,
             // we only want to add them once per Leaf Task, and on top of all non-leaf Tasks.
-            std::cerr << "Removing " << upper_python_stack_size << " Python Frames from Stack" << std::endl;
             for (size_t i = 0; i < upper_python_stack_size; i++) {
                 stack.pop_back();
             }
