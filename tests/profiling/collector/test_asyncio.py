@@ -17,6 +17,7 @@ from ddtrace import ext
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
 from ddtrace.profiling.collector.asyncio import AsyncioBoundedSemaphoreCollector
+from ddtrace.profiling.collector.asyncio import AsyncioConditionCollector
 from ddtrace.profiling.collector.asyncio import AsyncioLockCollector
 from ddtrace.profiling.collector.asyncio import AsyncioSemaphoreCollector
 from tests.profiling.collector import pprof_utils
@@ -30,10 +31,12 @@ init_linenos(__file__)
 PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
 
 # Type aliases for supported classes
-LockTypeInst = Union[asyncio.Lock, asyncio.Semaphore, asyncio.BoundedSemaphore]
+LockTypeInst = Union[asyncio.Lock, asyncio.Semaphore, asyncio.BoundedSemaphore, asyncio.Condition]
 LockTypeClass = Type[LockTypeInst]
 
-CollectorTypeInst = Union[AsyncioLockCollector, AsyncioSemaphoreCollector, AsyncioBoundedSemaphoreCollector]
+CollectorTypeInst = Union[
+    AsyncioLockCollector, AsyncioSemaphoreCollector, AsyncioBoundedSemaphoreCollector, AsyncioConditionCollector
+]
 CollectorTypeClass = Type[CollectorTypeInst]
 
 
@@ -51,6 +54,10 @@ CollectorTypeClass = Type[CollectorTypeInst]
         (
             AsyncioBoundedSemaphoreCollector,
             "AsyncioBoundedSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+        ),
+        (
+            AsyncioConditionCollector,
+            "AsyncioConditionCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
         ),
     ],
 )
@@ -281,3 +288,15 @@ class TestAsyncioBoundedSemaphoreCollector(BaseAsyncioLockCollectorTest):
             # BoundedSemaphore should raise ValueError when releasing more than initial value
             with pytest.raises(ValueError, match="BoundedSemaphore released too many times"):
                 bs.release()
+
+
+class TestAsyncioConditionCollector(BaseAsyncioLockCollectorTest):
+    """Test asyncio.Condition profiling."""
+
+    @property
+    def collector_class(self) -> Type[AsyncioConditionCollector]:
+        return AsyncioConditionCollector
+
+    @property
+    def lock_class(self) -> Type[asyncio.Condition]:
+        return asyncio.Condition
