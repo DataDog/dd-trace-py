@@ -730,6 +730,26 @@ using PyThreadStateCallback = std::function<void(PyThreadState*, ThreadInfo&)>;
 static void
 for_each_thread(InterpreterInfo& interp, PyThreadStateCallback callback)
 {
+    {
+        if constexpr (false) {
+            // This should trigger UBSan
+            volatile int x = INT_MAX;
+            int y = x + 1; // signed integer overflow — undefined
+            fprintf(stderr, "y: %d\n", y);
+        }
+
+        if constexpr (false) {
+            // This should trigger ASan (but not crash most of the time)
+            char buf[8];
+            // create a relatively small overflow that usually doesn't crash immediately
+            for (int i = 0; i < 12; ++i) { // writing 4 bytes past end
+                buf[i] = 'A' + i;
+            }
+            buf[7] = '\0';
+            printf("stack_overflow: buf = %s\n", buf);
+        }
+    }
+
     std::unordered_set<PyThreadState*> threads;
     std::unordered_set<PyThreadState*> seen_threads;
 

@@ -1171,6 +1171,11 @@ if not IS_PYSTON:
                 "ddtrace.profiling.collector._memalloc",
                 source_dir=MEMALLOC_DIR,
                 optional=False,
+                cmake_args=[
+                    "-DCMAKE_C_FLAGS=-fsanitize=address -O1 -fno-omit-frame-pointer -g",
+                    "-DCMAKE_CXX_FLAGS=-fsanitize=address -O1 -fno-omit-frame-pointer -g",
+                    "-DCMAKE_LDFLAGS=-fsanitize=address -g",
+                ],
             )
         )
 
@@ -1181,6 +1186,11 @@ if not IS_PYSTON:
                 extra_source_dirs=[
                     DDUP_DIR / ".." / "cmake",
                     DDUP_DIR / ".." / "dd_wrapper",
+                ],
+                cmake_args=[
+                    "-DCMAKE_C_FLAGS=-fsanitize=address -O1 -fno-omit-frame-pointer -g",
+                    "-DCMAKE_CXX_FLAGS=-fsanitize=address -O1 -fno-omit-frame-pointer -g",
+                    "-DCMAKE_LDFLAGS=-fsanitize=address -g",
                 ],
                 optional=False,
             )
@@ -1193,6 +1203,11 @@ if not IS_PYSTON:
                 extra_source_dirs=[
                     STACK_DIR / ".." / "cmake",
                     STACK_DIR / ".." / "dd_wrapper",
+                ],
+                cmake_args=[
+                    "-DCMAKE_C_FLAGS=-fsanitize=address -O1 -fno-omit-frame-pointer -g",
+                    "-DCMAKE_CXX_FLAGS=-fsanitize=address -O1 -fno-omit-frame-pointer -g",
+                    "-DCMAKE_LDFLAGS=-fsanitize=address -g",
                 ],
                 optional=False,
             ),
