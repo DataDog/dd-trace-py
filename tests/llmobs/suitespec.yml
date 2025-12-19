@@ -200,7 +200,7 @@ suites:
     snapshot: true
     venvs_per_job: 2
   vllm:
-    parallelism: 1
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
