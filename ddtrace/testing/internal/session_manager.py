@@ -143,11 +143,12 @@ class SessionManager:
                 total_tests = len(new_tests) + len(self.known_tests)
                 new_tests_percentage = len(new_tests) / total_tests * 100
                 is_faulty_session = (
-                    len(self.known_tests) > self.settings.early_flake_detection.faulty_session_threshold
+                    len(new_tests) > self.settings.early_flake_detection.faulty_session_threshold
                     and new_tests_percentage > self.settings.early_flake_detection.faulty_session_threshold
                 )
                 if is_faulty_session:
                     log.info("Not enabling Early Flake Detection: too many new tests")
+                    self.session.set_early_flake_detection_abort_reason("faulty")
                 else:
                     self.retry_handlers.append(EarlyFlakeDetectionHandler(self))
             else:
@@ -280,7 +281,7 @@ class SessionManager:
             log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
             unshallow_successful = git.try_all_unshallow_repository_methods()
             if unshallow_successful:
-                log.debug("Unshallow successful, geting latest commits from backend based on unshallowed commits")
+                log.debug("Unshallow successful, getting latest commits from backend based on unshallowed commits")
                 latest_commits = git.get_latest_commits()
                 backend_commits = self.api_client.get_known_commits(latest_commits)
                 # TODO: ddtrace has a "backend_commits is None" logic here with early return (is it correct?).

@@ -50,9 +50,6 @@ def undecorated(f: FunctionType, name: str, path: Path) -> FunctionType:
     def match(g):
         return g.__code__.co_name == name and resolved_code_origin(g.__code__) == path
 
-    if _isinstance(f, FunctionType) and match(f):
-        return f
-
     seen_functions = {f}
     q = deque([f])  # FIFO: use popleft and append
 
@@ -100,6 +97,15 @@ def undecorated(f: FunctionType, name: str, path: Path) -> FunctionType:
                         return c
                     q.append(c)
                     seen_functions.add(c)
+
+        # If the function has bytecode wrapping we return the function itself.
+        # We don't want to return the temporary wrapped function from the
+        # __dd_wrapped__ attribute.
+        try:
+            object.__getattribute__(g, "__dd_wrapped__")
+            return g
+        except AttributeError:
+            pass
 
         # Look for a function attribute (method decoration)
         # DEV: We don't recurse over arbitrary objects. We stop at the first

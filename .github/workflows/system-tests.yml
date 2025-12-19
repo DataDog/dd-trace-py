@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - mq-working-branch-*
   merge_group:
   pull_request:
   workflow_dispatch: {}
@@ -360,10 +361,40 @@ jobs:
       scenarios_groups: lambda_end_to_end
       skip_empty_scenarios: true
 
+  integration-frameworks-combine-wheels:
+    runs-on: ubuntu-latest
+    needs: [build-wheels]
+    steps:
+      - name: Download wheels to binaries directory
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: wheels-*
+          path: binaries/
+          merge-multiple: true
+      
+      - name: Upload combined wheels
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: integration-frameworks-wheels
+          path: binaries/
+
+  integration-frameworks-system-tests:
+    needs: [integration-frameworks-combine-wheels]
+    # Automatically managed, use scripts/update-system-tests-version to update
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@2eb26336ed43c2db1b7f90fff17ce4f5fc36a12b
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+    with:
+      library: python
+      scenarios: INTEGRATION_FRAMEWORKS
+      binaries_artifact: integration-frameworks-wheels
+
   finished:
     name: system-tests finished
     runs-on: ubuntu-latest
-    needs: [parametric, system-tests, serverless-system-tests]
+    needs: [parametric, system-tests, serverless-system-tests, integration-frameworks-system-tests]
     if: success() || failure()
     steps:
       - name: True when everything else succeeded

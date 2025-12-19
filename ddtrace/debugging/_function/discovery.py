@@ -25,6 +25,7 @@ from ddtrace.internal.utils.inspection import functions_for_code
 from ddtrace.internal.utils.inspection import linenos
 from ddtrace.internal.utils.inspection import resolved_code_origin
 from ddtrace.internal.utils.inspection import undecorated
+from ddtrace.internal.wrapping import get_function_code
 
 
 log = get_logger(__name__)
@@ -135,12 +136,12 @@ class _FunctionCodePair:
         self.code = function.__code__ if function is not None else code
 
     def resolve(self) -> FullyNamedFunction:
+        if self.function is not None:
+            return cast(FullyNamedFunction, self.function)
+
         if self.code is None:
             msg = "Cannot resolve pair with no code object"
             raise ValueError(msg)
-
-        if self.function is not None:
-            return cast(FullyNamedFunction, self.function)
 
         code = self.code
         functions = functions_for_code(code)
@@ -285,11 +286,11 @@ class FunctionDiscovery(defaultdict):
 
                 if (
                     function not in seen_functions
-                    and resolved_code_origin(cast(FunctionType, function).__code__) == module_path
+                    and resolved_code_origin(code := get_function_code(cast(FunctionType, function))) == module_path
                 ):
                     # We only map line numbers for functions that actually belong to
                     # the module.
-                    for lineno in linenos(cast(FunctionType, function)):
+                    for lineno in linenos(cast(FunctionType, code)):
                         self[lineno].append(_FunctionCodePair(function=cast(FunctionType, function)))
                 seen_functions.add(function)
 
@@ -299,6 +300,8 @@ class FunctionDiscovery(defaultdict):
         Note that, in general, there can be multiple copies of the same
         functions. This can happen as a result, e.g., of using decorators.
         """
+        fcp: _FunctionCodePair
+
         if line in self._cached:
             return self._cached[line]
 
