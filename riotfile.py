@@ -166,7 +166,7 @@ venv = Venv(
         Venv(
             name="appsec_integrations_packages",
             pys=select_pys(),
-            command="python -m pytest -v tests/appsec/integrations/packages_tests/",
+            command="pytest -v tests/appsec/integrations/packages_tests/",
             pkgs={
                 "gevent": latest,
                 "pytest-xdist": latest,
@@ -284,7 +284,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_integrations_fastapi",
-            command="pytest {cmdargs} tests/appsec/integrations/fastapi_tests/",
+            command="pytest -vvv {cmdargs} tests/appsec/integrations/fastapi_tests/",
             pkgs={
                 "requests": latest,
                 "python-multipart": latest,
