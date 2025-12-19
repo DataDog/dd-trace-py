@@ -20,7 +20,7 @@ def process_info_headers(resp):
         if container_tags_hash:
             compute_base_hash(container_tags_hash)
     except Exception as e:
-        log.debug("Could not retrieve info response headers: %s", e)
+        log.debug("Could not compute base hash: %s", e)
 
 
 def info(url=None):
