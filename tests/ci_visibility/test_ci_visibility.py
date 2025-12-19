@@ -943,17 +943,6 @@ class TestUploadGitMetadata:
             mock_build_packfiles.return_value.__enter__.return_value = "myprefix", _GitSubprocessDetails("", "", 10, 0)
             yield
 
-    # @pytest.fixture(scope="function", autouse=True)
-    # def mock_process(self):
-    #     """Run subprocess routine synchronously within current process to avoid test flakiness."""
-
-    #     def _process(target, args, kwargs):
-    #         target(*args, **kwargs)
-    #         return mock.Mock(exitcode=0)
-
-    #     with mock.patch("ddtrace.internal.ci_visibility.git_client.Process", side_effect=_process):
-    #         yield
-
     @pytest.fixture(scope="function", autouse=True)
     def _test_context_manager(self):
         with mock.patch(
