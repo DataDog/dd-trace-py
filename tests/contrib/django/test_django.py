@@ -3,6 +3,7 @@ import itertools
 import os
 import subprocess
 import types
+import uuid
 
 import django
 from django.core.signals import request_started
@@ -2229,6 +2230,10 @@ def test_user_name_included(client, test_spans, pk_type):
         assert root.get_tag(user.ID) == "1"
     else:
         assert root.get_tag(user.ID) is not None
+        try:
+            uuid.UUID(root.get_tag(user.ID))
+        except ValueError:
+            assert False, "User ID span tag was not a valid UUID"
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
@@ -2251,6 +2256,10 @@ def test_user_name_excluded(client, test_spans, pk_type):
         assert root.get_tag(user.ID) == "1"
     else:
         assert root.get_tag(user.ID) is not None
+        try:
+            uuid.UUID(root.get_tag(user.ID))
+        except ValueError:
+            assert False, "User ID span tag was not a valid UUID"
 
 
 def test_django_use_handler_resource_format(client, test_spans):
