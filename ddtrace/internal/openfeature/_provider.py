@@ -24,8 +24,6 @@ from ddtrace.internal.openfeature._config import _get_ffe_config
 from ddtrace.internal.openfeature._exposure import build_exposure_event
 from ddtrace.internal.openfeature._native import VariationType
 from ddtrace.internal.openfeature._native import resolve_flag
-from ddtrace.internal.openfeature._remoteconfiguration import disable_featureflags_rc
-from ddtrace.internal.openfeature._remoteconfiguration import enable_featureflags_rc
 from ddtrace.internal.openfeature.writer import get_exposure_writer
 from ddtrace.internal.openfeature.writer import start_exposure_writer
 from ddtrace.internal.openfeature.writer import stop_exposure_writer
@@ -119,7 +117,7 @@ class DataDogProvider(AbstractProvider):
 
     def initialize(self, evaluation_context: EvaluationContext) -> None:
         """
-        Initialize the provider and enable remote configuration.
+        Initialize the provider.
 
         Called by the OpenFeature SDK when the provider is set.
         Provider Creation → NOT_READY
@@ -134,8 +132,6 @@ class DataDogProvider(AbstractProvider):
         """
         if not self._enabled:
             return
-
-        enable_featureflags_rc()
 
         try:
             # Start the exposure writer for reporting
@@ -152,14 +148,13 @@ class DataDogProvider(AbstractProvider):
 
     def shutdown(self) -> None:
         """
-        Shutdown the provider and disable remote configuration.
+        Shutdown the provider.
 
         Called by the OpenFeature SDK when the provider is being replaced or shutdown.
         """
         if not self._enabled:
             return
 
-        disable_featureflags_rc()
         try:
             # Stop the exposure writer
             stop_exposure_writer()
