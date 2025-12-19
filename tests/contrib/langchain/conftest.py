@@ -68,7 +68,6 @@ def langchain_core():
         dict(
             OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
             ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
-            GOOGLE_API_KEY=os.getenv("GOOGLE_API_KEY", "<not-a-real-key>"),
         )
     ):
         langchain_core_patch()
