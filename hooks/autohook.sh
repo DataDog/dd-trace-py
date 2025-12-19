@@ -36,6 +36,8 @@ echo() {
 install() {
     hook_types=(
         "pre-commit"
+        "post-merge"
+        "post-checkout"
     )
 
     repo_root=$(git rev-parse --show-toplevel)
