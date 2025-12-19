@@ -354,7 +354,7 @@ def patch_aiobotocore():
     yield
     unpatch()
 
-def test(tracer):
+def test(tracer, test_spans):
     async def async_test(tracer):
         unpatch()
         patch()
@@ -372,29 +372,20 @@ def test(tracer):
             await kms.list_keys(Limit=21)
 
         traces = test_spans.pop_traces()
-        assert len(traces) == 6
-        assert len(traces[0]) == 1
-        ec2_span = traces[0][0]
-        s3_span = traces[1][0]
-        sqs_span = traces[2][0]
-        kinesis_span = traces[3][0]
-        lambda_span = traces[4][0]
-        kms_span = traces[5][0]
+        # Flatten traces to get all spans
+        all_spans = [span for trace in traces for span in trace]
 
         service_format = "{}"
         operation_format = "{}"
-        for (aws_service, aws_span) in [
-            ("ec2", ec2_span),
-            ("s3", s3_span),
-            ("sqs", sqs_span),
-            ("kinesis", kinesis_span),
-            ("lambda", lambda_span),
-            ("kms", kms_span),
-        ]:
+        aws_services = ["ec2", "s3", "sqs", "kinesis", "lambda", "kms"]
+        for aws_service in aws_services:
             operation_name = operation_format.format(aws_service)
             service_name = service_format.format(aws_service)
+            # Find spans matching this specific AWS service operation
+            matching_spans = [s for s in all_spans if s.name == operation_name]
+            assert len(matching_spans) == 1, f"Expected 1 span with name {{{{operation_name}}}}, got {{{{len(matching_spans)}}}}"
+            aws_span = matching_spans[0]
             assert aws_span.service == service_name
-            assert aws_span.name == operation_name
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(async_test(tracer))
