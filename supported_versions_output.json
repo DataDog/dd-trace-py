@@ -32,7 +32,7 @@
         "integration": "aiokafka",
         "minimum_tracer_supported": "0.9.0",
         "max_tracer_supported": "0.12.0",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "aiomysql",
@@ -284,7 +284,7 @@
         "dependency": "fastapi",
         "integration": "fastapi",
         "minimum_tracer_supported": "0.64.0",
-        "max_tracer_supported": "0.118.0",
+        "max_tracer_supported": "0.124.4",
         "auto-instrumented": true
     },
     {
@@ -697,7 +697,7 @@
         "dependency": "vllm",
         "integration": "vllm",
         "minimum_tracer_supported": "0.10.2",
-        "max_tracer_supported": "0.10.2",
+        "max_tracer_supported": "0.13.0",
         "auto-instrumented": true
     },
     {

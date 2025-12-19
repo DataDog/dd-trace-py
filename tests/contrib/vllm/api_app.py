@@ -27,7 +27,6 @@ EMBED_PARAMS = {
     "model": "intfloat/e5-small-v2",
     "enforce_eager": True,
     "max_model_len": 256,
-    "compilation_config": {"use_inductor": False},
     "trust_remote_code": True,
     "gpu_memory_utilization": 0.1,
     "runner": "pooling",
@@ -37,7 +36,6 @@ GEN_PARAMS = {
     "model": "facebook/opt-125m",
     "enforce_eager": True,
     "max_model_len": 256,
-    "compilation_config": {"use_inductor": False},
     "trust_remote_code": True,
     "gpu_memory_utilization": 0.1,
 }

@@ -90,7 +90,6 @@ def opt_125m_llm():
         model="facebook/opt-125m",
         max_model_len=256,
         enforce_eager=True,
-        compilation_config={"use_inductor": False},
         gpu_memory_utilization=0.1,
     )
     yield weakref.proxy(llm)
@@ -114,7 +113,6 @@ def e5_small_llm():
         runner="pooling",
         max_model_len=256,
         enforce_eager=True,
-        compilation_config={"use_inductor": False},
         trust_remote_code=True,
         gpu_memory_utilization=0.1,
     )
@@ -139,7 +137,6 @@ def bge_reranker_llm():
         runner="pooling",
         max_model_len=256,
         enforce_eager=True,
-        compilation_config={"use_inductor": False},
         trust_remote_code=True,
         gpu_memory_utilization=0.1,
     )
