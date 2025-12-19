@@ -223,7 +223,6 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
     assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0)] > 0
 
     def _wait_for_auto_commit(timeout=5.0):
-        import time
         start_time = time.time()
 
         while time.time() - start_time < timeout:
