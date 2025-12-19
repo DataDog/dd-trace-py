@@ -115,7 +115,8 @@ class CIVisibilityGitClient(object):
     def upload_git_metadata(self, cwd=None):
         # type: (Optional[str]) -> None
         if not self._get_git_dir(cwd=cwd):
-            log.debug("Missing .git directory; skipping git metadata upload")
+            log.warning("Missing .git directory; skipping git metadata upload")
+            print("Missing .git directory; skipping git metadata upload")
             self._metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
             return
 
@@ -127,28 +128,38 @@ class CIVisibilityGitClient(object):
                 kwargs={"_tags": self._tags, "_response": self._response, "cwd": cwd, "log_level": log.level},
             )
             self._worker.start()
-            log.debug("Upload git metadata to URL %s started with PID %s", self._base_url, self._worker.pid)
+            log.warning("Upload git metadata to URL %s started with PID %s", self._base_url, self._worker.pid)
+            print("Upload git metadata to URL %s started with PID %s", self._base_url, self._worker.pid)
         else:
-            log.debug("git metadata upload worker already started: %s", self._worker)
+            log.warning("git metadata upload worker already started: %s", self._worker)
+            print("git metadata upload worker already started: %s", self._worker)
 
     def metadata_upload_finished(self):
         return self._metadata_upload_status.value in FINISHED_METADATA_UPLOAD_STATUSES
 
     def _wait_for_metadata_upload(self, timeout=DEFAULT_METADATA_UPLOAD_TIMEOUT):
-        log.debug("Waiting up to %s seconds for git metadata upload to finish", timeout)
+        log.warning("Waiting up to %s seconds for git metadata upload to finish", timeout)
+        print("Waiting up to %s seconds for git metadata upload to finish", timeout)
         if self._worker is None:
-            log.debug("No git metadata upload worker started")
+            log.warning("No git metadata upload worker started")
+            print("No git metadata upload worker started")
             return
         with StopWatch() as stopwatch:
             while not self.metadata_upload_finished():
-                log.debug("Waited %s so far, status is %s", stopwatch.elapsed(), self._metadata_upload_status.value)
+                log.warning("Waited %s so far, status is %s", stopwatch.elapsed(), self._metadata_upload_status.value)
+                print("Waited %s so far, status is %s", stopwatch.elapsed(), self._metadata_upload_status.value)
                 if stopwatch.elapsed() >= timeout:
                     raise TimeoutError(
                         "Timed out waiting for git metadata upload to complete after %s seconds" % timeout
                     )
 
                 if self._worker.exitcode is not None:
-                    log.debug(
+                    log.warning(
+                        "git metadata process exited with exitcode %s but upload status is %s",
+                        self._worker.exitcode,
+                        self._metadata_upload_status.value,
+                    )
+                    print(
                         "git metadata process exited with exitcode %s but upload status is %s",
                         self._worker.exitcode,
                         self._metadata_upload_status.value,
@@ -157,7 +168,8 @@ class CIVisibilityGitClient(object):
 
                 self._worker.join(timeout=1)
                 time.sleep(1)
-        log.debug("git metadata upload completed, waited %s seconds", stopwatch.elapsed())
+        log.warning("git metadata upload completed, waited %s seconds", stopwatch.elapsed())
+        print("git metadata upload completed, waited %s seconds", stopwatch.elapsed())
 
     def wait_for_metadata_upload_status(self):
         # type: () -> METADATA_UPLOAD_STATUS
@@ -191,30 +203,35 @@ class CIVisibilityGitClient(object):
             )
 
             if backend_commits is None:
-                log.debug("No initial backend commits found, returning early.")
+                log.warning("No initial backend commits found, returning early.")
+                print("No initial backend commits found, returning early.")
                 _metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
                 return
 
             commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
 
             if len(commits_not_in_backend) == 0:
-                log.debug("All latest commits found in backend, skipping metadata upload")
+                log.warning("All latest commits found in backend, skipping metadata upload")
+                print("All latest commits found in backend, skipping metadata upload")
                 _metadata_upload_status.value = METADATA_UPLOAD_STATUS.UNNECESSARY
                 return
 
             if cls._is_shallow_repository(cwd=cwd) and extract_git_version(cwd=cwd) >= (2, 27, 0):
-                log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
+                log.warning("Shallow repository detected on git > 2.27 detected, unshallowing")
+                print("Shallow repository detected on git > 2.27 detected, unshallowing")
                 try:
                     cls._unshallow_repository(cwd=cwd)
                 except ValueError:
                     log.warning("Failed to unshallow repository, continuing to send pack data", exc_info=True)
+                    print("Failed to unshallow repository, continuing to send pack data")
 
             latest_commits = cls._get_latest_commits(cwd=cwd)
             backend_commits = cls._search_commits(
                 requests_mode, base_url, repo_url, latest_commits, serializer, _response
             )
             if backend_commits is None:
-                log.debug("No backend commits found, returning early.")
+                log.warning("No backend commits found, returning early.")
+                print("No backend commits found, returning early.")
                 _metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
                 return
 
@@ -224,7 +241,8 @@ class CIVisibilityGitClient(object):
                 excluded_commits=backend_commits, included_commits=commits_not_in_backend, cwd=cwd
             )
             if rev_list:
-                log.debug("Building and uploading packfiles for revision list: %s", rev_list)
+                log.warning("Building and uploading packfiles for revision list: %s", rev_list)
+                print("Building and uploading packfiles for revision list: %s", rev_list)
                 with _build_git_packfiles_with_details(rev_list, cwd=cwd) as (packfiles_prefix, packfiles_details):
                     record_git_command(
                         GIT_TELEMETRY_COMMANDS.PACK_OBJECTS, packfiles_details.duration, packfiles_details.returncode
@@ -237,8 +255,10 @@ class CIVisibilityGitClient(object):
                             return
                     _metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
                     log.warning("Failed to upload git metadata packfiles")
+                    print("Failed to upload git metadata packfiles")
             else:
-                log.debug("Revision list empty, no packfiles to build and upload")
+                log.warning("Revision list empty, no packfiles to build and upload")
+                print("Revision list empty, no packfiles to build and upload")
                 _metadata_upload_status.value = METADATA_UPLOAD_STATUS.SUCCESS
                 record_objects_pack_data(0, 0)
         finally:
@@ -278,16 +298,23 @@ class CIVisibilityGitClient(object):
                 except TimeoutError:
                     request_error = ERROR_TYPES.TIMEOUT
                     log.warning("Timeout searching commits")
+                    print("Timeout searching commits")
                     return None
 
                 if response.status >= 400:
                     request_error = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
-                    log.debug(
+                    log.warning(
                         "Error searching commits, response status code: %s , response body: %s",
                         response.status,
                         response.body,
                     )
-                    log.debug("Response body: %s", response.body)
+                    print(
+                        "Error searching commits, response status code: %s , response body: %s",
+                        response.status,
+                        response.body,
+                    )
+                    log.warning("Response body: %s", response.body)
+                    print("Response body: %s", response.body)
                     return None
 
                 try:
@@ -296,6 +323,7 @@ class CIVisibilityGitClient(object):
                 except json.JSONDecodeError:
                     request_error = ERROR_TYPES.BAD_JSON
                     log.warning("Error searching commits, response not parsable: %s", response.body)
+                    print("Error searching commits, response not parsable: %s", response.body)
                     return None
             finally:
                 record_search_commits(stopwatch.elapsed() * 1000, error=request_error)
@@ -318,10 +346,12 @@ class CIVisibilityGitClient(object):
             parsed_url = verify_url(url)
             url_path = parsed_url.path
             conn = get_connection(url, timeout=timeout)
-            log.debug("Sending request: %s %s %s %s", "POST", url_path, payload, _headers)
+            log.warning("Sending request: %s %s %s %s", "POST", url_path, payload, _headers)
+            print("Sending request: %s %s %s %s", "POST", url_path, payload, _headers)
             conn.request("POST", url_path, payload, _headers)
             resp = conn.getresponse()
-            log.debug("Response status: %s", resp.status)
+            log.warning("Response status: %s", resp.status)
+            print("Response status: %s", resp.status)
             result = Response.from_http_response(resp)
         finally:
             conn.close()
@@ -362,7 +392,13 @@ class CIVisibilityGitClient(object):
                         packfiles_uploaded_count += 1
                         packfiles_uploaded_bytes += len(payload)
                     elif response.status >= 400:
-                        log.debug(
+                        log.warning(
+                            "Git packfile upload request for file %s (sizee: %s) failed with status: %s",
+                            filename,
+                            len(payload),
+                            response.status,
+                        )
+                        print(
                             "Git packfile upload request for file %s (sizee: %s) failed with status: %s",
                             filename,
                             len(payload),
@@ -371,16 +407,23 @@ class CIVisibilityGitClient(object):
                         error_type = ERROR_TYPES.CODE_4XX if response.status < 500 else ERROR_TYPES.CODE_5XX
                 except ConnectionRefusedError:
                     error_type = ERROR_TYPES.NETWORK
-                    log.debug("Git packfile upload request for file %s failed: connection refused", filename)
+                    log.warning("Git packfile upload request for file %s failed: connection refused", filename)
+                    print("Git packfile upload request for file %s failed: connection refused", filename)
                 except TimeoutError:
                     error_type = ERROR_TYPES.TIMEOUT
-                    log.debug("Git packfile upload request for file %s (size: %s) timed out", filename, len(payload))
+                    log.warning("Git packfile upload request for file %s (size: %s) timed out", filename, len(payload))
+                    print("Git packfile upload request for file %s (size: %s) timed out", filename, len(payload))
                 finally:
                     duration = stopwatch.elapsed() * 1000  # StopWatch is in seconds
                     record_objects_pack_request(duration, error_type)
 
         record_objects_pack_data(packfiles_uploaded_count, packfiles_uploaded_bytes)
-        log.debug(
+        log.warning(
+            "Git packfiles upload succeeded, file count: %s, total size: %s",
+            packfiles_uploaded_count,
+            packfiles_uploaded_bytes,
+        )
+        print(
             "Git packfiles upload succeeded, file count: %s, total size: %s",
             packfiles_uploaded_count,
             packfiles_uploaded_bytes,
@@ -404,27 +447,33 @@ class CIVisibilityGitClient(object):
                 remote, stderr, _, exit_code = _extract_clone_defaultremotename_with_details(cwd=cwd)
                 if exit_code != 0:
                     error_exit_code = exit_code
-                    log.debug("Failed to get default remote: %s", stderr)
+                    log.warning("Failed to get default remote: %s", stderr)
+                    print("Failed to get default remote: %s", stderr)
                     return
 
                 try:
                     CIVisibilityGitClient._unshallow_repository_to_local_head(remote, cwd=cwd)
                     return
                 except ValueError as e:
-                    log.debug("Could not unshallow repository to local head: %s", e)
+                    log.warning("Could not unshallow repository to local head: %s", e)
+                    print("Could not unshallow repository to local head: %s", e)
 
                 try:
                     CIVisibilityGitClient._unshallow_repository_to_upstream(remote, cwd=cwd)
                     return
                 except ValueError as e:
-                    log.debug("Could not unshallow to upstream: %s", e)
+                    log.warning("Could not unshallow to upstream: %s", e)
+                    print("Could not unshallow to upstream: %s", e)
 
-                log.debug("Unshallowing to default")
+                log.warning("Unshallowing to default")
+                print("Unshallowing to default")
                 _, unshallow_error, _, exit_code = _unshallow_repository_with_details(cwd=cwd, repo=remote)
                 if exit_code == 0:
-                    log.debug("Unshallowing to default successful")
+                    log.warning("Unshallowing to default successful")
+                    print("Unshallowing to default successful")
                     return
-                log.debug("Unshallowing failed: %s", unshallow_error)
+                log.warning("Unshallowing failed: %s", unshallow_error)
+                print("Unshallowing failed: %s", unshallow_error)
                 error_exit_code = exit_code
                 return
             finally:
@@ -435,17 +484,21 @@ class CIVisibilityGitClient(object):
     def _unshallow_repository_to_local_head(cls, remote, cwd=None):
         # type (str, Optional[str) -> None
         head = extract_commit_sha(cwd=cwd)
-        log.debug("Unshallowing to local head %s", head)
+        log.warning("Unshallowing to local head %s", head)
+        print("Unshallowing to local head %s", head)
         _unshallow_repository(cwd=cwd, repo=remote, refspec=head)
-        log.debug("Unshallowing to local head successful")
+        log.warning("Unshallowing to local head successful")
+        print("Unshallowing to local head successful")
 
     @classmethod
     def _unshallow_repository_to_upstream(cls, remote, cwd=None):
         # type (str, Optional[str) -> None
         upstream = _extract_upstream_sha(cwd=cwd)
-        log.debug("Unshallowing to upstream %s", upstream)
+        log.warning("Unshallowing to upstream %s", upstream)
+        print("Unshallowing to upstream %s", upstream)
         _unshallow_repository(cwd=cwd, repo=remote, refspec=upstream)
-        log.debug("Unshallowing to upstream")
+        log.warning("Unshallowing to upstream")
+        print("Unshallowing to upstream")
 
 
 class CIVisibilityGitClientSerializerV1(object):
@@ -470,8 +523,10 @@ class CIVisibilityGitClientSerializerV1(object):
             return [item["id"] for item in parsed["data"] if item["type"] == "commit"]
         except KeyError:
             log.warning("Expected information not found in search_commits response", exc_info=True)
+            print("Expected information not found in search_commits response")
         except json.JSONDecodeError:
             log.warning("Unexpected decode error in search_commits response", exc_info=True)
+            print("Unexpected decode error in search_commits response")
 
         return res
 
