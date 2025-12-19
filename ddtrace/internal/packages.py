@@ -42,14 +42,14 @@ def _get_site_packages() -> t.List[Path]:
         purelib = Path(sysconfig.get_path("purelib"))
         if purelib.exists():
             site_packages.append(purelib)
-    except Exception:
+    except Exception:  # nosec
         pass
 
     try:
         platlib = Path(sysconfig.get_path("platlib"))
         if platlib.exists() and platlib not in site_packages:
             site_packages.append(platlib)
-    except Exception:
+    except Exception:  # nosec
         pass
 
     # Add paths from sys.path that look like site-packages
