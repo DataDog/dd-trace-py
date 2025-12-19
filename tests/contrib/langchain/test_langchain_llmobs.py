@@ -629,9 +629,7 @@ def test_llmobs_anthropic_chat_model(langchain_anthropic, llmobs_events, tracer,
 
 
 @mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
-def test_llmobs_google_genai_chat_model(
-    mock_generate, langchain_core, langchain_google_genai, llmobs_events, tracer
-):
+def test_llmobs_google_genai_chat_model(mock_generate, langchain_core, langchain_google_genai, llmobs_events, tracer):
     mock_generate.return_value = mock_google_genai_chat_generate_response
     chat = langchain_google_genai.ChatGoogleGenerativeAI(
         model="gemini-2.0-flash",

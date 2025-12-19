@@ -51,7 +51,7 @@ def _extract_model_name(instance: Any) -> Optional[str]:
 
 def _extract_provider(instance: Any, model_name: Optional[str] = None, split_llm_type: bool = False) -> str:
     """Extract provider from LangChain instance.
-    
+
     Args:
         instance: The LangChain model instance
         model_name: Optional model name to check for known provider prefixes
