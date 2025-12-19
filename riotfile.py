@@ -872,7 +872,7 @@ venv = Venv(
                 # To get full test coverage we must test all these version ranges
                 Venv(
                     pys=["3.9"],
-                    pkgs={"pymongo": ["~=3.8.0", "~=3.9.0", "~=3.11", "~=4.1", latest]},
+                    pkgs={"pymongo": ["~=3.8.0", "~=3.9.0", "~=3.11", "~=4.0", latest]},
                 ),
                 Venv(
                     # pymongo added support for Python 3.10 in 3.12.1
