@@ -8,7 +8,6 @@ from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.valkey.patch import patch
 from ddtrace.contrib.internal.valkey.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
@@ -202,17 +201,15 @@ class TestValkeyPatch(TracerTestCase):
         assert "cheese" in span.get_tags() and span.get_tag("cheese") == "camembert"
 
     def test_patch_unpatch(self):
-        tracer = DummyTracer()
-
         # Test patch idempotence
         patch()
         patch()
 
         r = valkey.Valkey(port=VALKEY_CONFIG["port"])
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
 
@@ -222,17 +219,17 @@ class TestValkeyPatch(TracerTestCase):
         r = valkey.Valkey(port=VALKEY_CONFIG["port"])
         r.get("key")
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert not spans, spans
 
         # Test patch again
         patch()
 
         r = valkey.Valkey(port=VALKEY_CONFIG["port"])
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
 
@@ -471,17 +468,15 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         r.get("cheese")
 
     def test_patch_unpatch(self):
-        tracer = DummyTracer()
-
         # Test patch idempotence
         patch()
         patch()
 
         r = valkey.Valkey(port=VALKEY_CONFIG["port"])
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
 
@@ -491,17 +486,17 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         r = valkey.Valkey(port=VALKEY_CONFIG["port"])
         r.get("key")
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert not spans, spans
 
         # Test patch again
         patch()
 
         r = valkey.Valkey(port=VALKEY_CONFIG["port"])
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
 

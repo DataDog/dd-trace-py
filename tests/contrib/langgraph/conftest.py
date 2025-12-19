@@ -20,13 +20,12 @@ from ddtrace.contrib.internal.openai.patch import patch as patch_openai
 from ddtrace.contrib.internal.openai.patch import unpatch as unpatch_openai
 from ddtrace.llmobs import LLMObs as llmobs_service
 from tests.llmobs._utils import TestLLMObsSpanWriter
-from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 
 @pytest.fixture
-def mock_tracer():
-    yield DummyTracer()
+def mock_tracer(tracer):
+    yield tracer
 
 
 @pytest.fixture

@@ -392,18 +392,18 @@ import sys
 
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.kafka.patch import patch
+from tests.utils import scoped_tracer
 from tests.contrib.kafka.conftest import consumer
 from tests.contrib.kafka.conftest import kafka_topic
 from tests.contrib.kafka.conftest import producer
 from tests.contrib.kafka.conftest import tracer
 from tests.contrib.kafka.conftest import should_filter_empty_polls
 
-from tests.utils import DummyTracer
+from tests.utils import TracerSpanContainer
 
 def test(consumer, producer, kafka_topic):
     patch()
-    dummy_tracer = DummyTracer()
-    dummy_tracer.flush()
+    dummy_tracer = next(scoped_tracer())
     Pin._override(producer, tracer=dummy_tracer)
     Pin._override(consumer, tracer=dummy_tracer)
 
@@ -602,17 +602,17 @@ from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace import config
 
+from tests.utils import scoped_tracer
 from tests.contrib.kafka.conftest import consumer
 from tests.contrib.kafka.conftest import kafka_topic
 from tests.contrib.kafka.conftest import producer
 from tests.contrib.kafka.conftest import tracer
 from tests.contrib.kafka.conftest import should_filter_empty_polls
-from tests.utils import DummyTracer
+from tests.utils import TracerSpanContainer
 
 def test(consumer, producer, kafka_topic):
     patch()
-    dummy_tracer = DummyTracer()
-    dummy_tracer.flush()
+    dummy_tracer = next(scoped_tracer())
     Pin._override(producer, tracer=dummy_tracer)
     Pin._override(consumer, tracer=dummy_tracer)
 

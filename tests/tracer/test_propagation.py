@@ -91,9 +91,7 @@ def test_inject_128bit_trace_id_datadog():
     from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.propagation.http import HTTPPropagator
     from ddtrace.trace import Context
-    from tests.utils import DummyTracer
-
-    tracer = DummyTracer()  # noqa: F811
+    from ddtrace.trace import tracer  # noqa:F811  # noqa:F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         # Get the hex representation of the 64 most signicant bits
@@ -119,9 +117,7 @@ def test_inject_128bit_trace_id_datadog():
 def test_inject_128bit_trace_id_b3multi():
     from ddtrace.propagation.http import HTTPPropagator
     from ddtrace.trace import Context
-    from tests.utils import DummyTracer
-
-    tracer = DummyTracer()  # noqa: F811
+    from ddtrace.trace import tracer  # noqa:F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         ctx = Context(trace_id=trace_id)
@@ -141,9 +137,7 @@ def test_inject_128bit_trace_id_b3multi():
 def test_inject_128bit_trace_id_b3_single_header():
     from ddtrace.propagation.http import HTTPPropagator
     from ddtrace.trace import Context
-    from tests.utils import DummyTracer
-
-    tracer = DummyTracer()  # noqa: F811
+    from ddtrace.trace import tracer  # noqa:F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         ctx = Context(trace_id=trace_id)
@@ -163,9 +157,7 @@ def test_inject_128bit_trace_id_b3_single_header():
 def test_inject_128bit_trace_id_tracecontext():
     from ddtrace.propagation.http import HTTPPropagator
     from ddtrace.trace import Context
-    from tests.utils import DummyTracer
-
-    tracer = DummyTracer()  # noqa: F811
+    from ddtrace.trace import tracer  # noqa:F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         ctx = Context(trace_id=trace_id)
@@ -722,9 +714,7 @@ def test_extract_128bit_trace_ids_datadog():
     from ddtrace import config
     from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS  # noqa:F401
     from ddtrace.propagation.http import HTTPPropagator
-    from tests.utils import DummyTracer
-
-    tracer = DummyTracer()  # noqa: F811
+    from ddtrace.trace import tracer  # noqa:F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         trace_id_hex = "{:032x}".format(trace_id)
@@ -756,9 +746,7 @@ def test_extract_128bit_trace_ids_datadog():
 )
 def test_extract_128bit_trace_ids_b3multi():
     from ddtrace.propagation.http import HTTPPropagator
-    from tests.utils import DummyTracer
-
-    tracer = DummyTracer()  # noqa: F811
+    from ddtrace.trace import tracer  # noqa:F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         trace_id_hex = "{:032x}".format(trace_id)
@@ -783,9 +771,7 @@ def test_extract_128bit_trace_ids_b3multi():
 )
 def test_extract_128bit_trace_ids_b3_single_header():
     from ddtrace.propagation.http import HTTPPropagator
-    from tests.utils import DummyTracer
-
-    tracer = DummyTracer()  # noqa: F811
+    from ddtrace.trace import tracer  # noqa:F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         trace_id_hex = "{:032x}".format(trace_id)
@@ -809,9 +795,7 @@ def test_extract_128bit_trace_ids_b3_single_header():
 )
 def test_extract_128bit_trace_ids_tracecontext():
     from ddtrace.propagation.http import HTTPPropagator
-    from tests.utils import DummyTracer
-
-    tracer = DummyTracer()  # noqa: F811
+    from ddtrace.trace import tracer  # noqa:F811
 
     for trace_id in [2**128 - 1, 2**127 + 1, 2**65 - 1, 2**64 + 1, 2**127 + 2**63]:
         trace_id_hex = "{:032x}".format(trace_id)

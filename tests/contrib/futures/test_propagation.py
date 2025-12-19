@@ -6,7 +6,6 @@ import pytest
 
 from ddtrace.contrib.internal.futures.patch import patch
 from ddtrace.contrib.internal.futures.patch import unpatch
-from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 
 
@@ -442,7 +441,7 @@ def test_concurrent_futures_with_gevent():
     os.waitpid(pid, 0)
 
 
-def test_submit_no_wait(tracer: DummyTracer, test_spans):
+def test_submit_no_wait(tracer, test_spans):
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
     futures = []

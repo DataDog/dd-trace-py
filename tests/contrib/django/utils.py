@@ -29,10 +29,11 @@ def setup_django_test_spans():
     setup_django()
 
     from ddtrace.internal.settings._config import config
-    from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
-    config.django._tracer = DummyTracer()
+    tracer = next(scoped_tracer())
+    config.django._tracer = tracer
     return TracerSpanContainer(config.django._tracer)
 
 

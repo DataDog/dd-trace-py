@@ -12,7 +12,6 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_native_writer
 from tests.integration.utils import skip_if_testagent
-from tests.utils import DummyTracer
 from tests.utils import call_program
 
 
@@ -21,9 +20,8 @@ FOUR_KB = 1 << 12
 
 @mock.patch("signal.signal")
 @mock.patch("signal.getsignal")
-def test_shutdown_on_exit_signal(mock_get_signal, mock_signal):
+def test_shutdown_on_exit_signal(mock_get_signal, mock_signal, tracer):
     mock_get_signal.return_value = None
-    tracer = DummyTracer()
     register_on_exit_signal(tracer._atexit)
     assert mock_signal.call_count == 2
     assert mock_signal.call_args_list[0][0][0] == signal.SIGTERM

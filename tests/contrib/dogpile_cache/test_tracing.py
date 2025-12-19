@@ -7,15 +7,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.dogpile_cache.patch import patch
 from ddtrace.contrib.internal.dogpile_cache.patch import unpatch
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
-from tests.utils import TracerSpanContainer
 from tests.utils import assert_is_measured
-
-
-@pytest.fixture
-def test_spans(tracer):
-    container = TracerSpanContainer(tracer)
-    yield container
-    container.reset()
 
 
 @pytest.fixture

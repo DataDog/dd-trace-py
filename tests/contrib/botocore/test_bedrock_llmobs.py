@@ -17,7 +17,6 @@ from tests.contrib.botocore.bedrock_utils import get_mock_response_data
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
-from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import override_global_config
 
@@ -217,14 +216,13 @@ class TestLLMObsBedrock:
     def test_llmobs_meta_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_tracer, llmobs_events):
         self._test_llmobs_invoke_stream("meta", bedrock_client, mock_tracer, llmobs_events)
 
-    def test_llmobs_only_patches_bedrock(self, ddtrace_global_config, llmobs_span_writer):
+    def test_llmobs_only_patches_bedrock(self, ddtrace_global_config, llmobs_span_writer, tracer, test_spans):
         llmobs_service.disable()
 
         with override_global_config(
             {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "tests.llmobs"}
         ):
             llmobs_service.enable(integrations_enabled=True)
-            mock_tracer = DummyTracer()
             # ensure we don't get spans for non-bedrock services
             from botocore.exceptions import ClientError
             import botocore.session
@@ -232,12 +230,12 @@ class TestLLMObsBedrock:
             session = botocore.session.get_session()
             sqs_client = session.create_client("sqs", region_name="us-east-1")
             pin = Pin.get_from(sqs_client)
-            pin._override(sqs_client, tracer=mock_tracer)
+            pin._override(sqs_client, tracer=tracer)
             try:
                 sqs_client.list_queues()
             except ClientError:
                 pass
-            assert TracerSpanContainer(mock_tracer).pop_traces() == []
+            assert test_spans.pop_traces() == []
 
         llmobs_service.disable()
 

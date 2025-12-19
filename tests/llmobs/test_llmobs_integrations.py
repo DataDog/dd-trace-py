@@ -68,8 +68,8 @@ def test_integration_trace(mock_integration_config, mock_pin):
 
 @mock.patch("ddtrace.llmobs._integrations.base.log")
 @mock.patch("ddtrace.llmobs._integrations.base.LLMObs")
-def test_llmobs_set_tags(mock_llmobs, mock_log, mock_integration_config):
-    span = DummyTracer().trace("Dummy span", service="dummy_service")
+def test_llmobs_set_tags(tracer, mock_llmobs, mock_log, mock_integration_config):
+    span = tracer.trace("Dummy span", service="dummy_service")
     integration = BaseLLMIntegration(mock_integration_config)
     integration._llmobs_set_tags = mock.Mock()
     integration.llmobs_set_tags(span, args=[], kwargs={}, response="response", operation="operation")

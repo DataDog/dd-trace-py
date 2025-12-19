@@ -5,12 +5,14 @@ from typing import Generator  # noqa:F401
 import mock
 import pytest
 
+import ddtrace
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import skip_if_native_writer
-from tests.utils import DummyTracer
+from tests.utils import DummyWriter
+from tests.utils import check_test_agent_status
 from tests.utils import override_global_config
 
 
@@ -20,9 +22,10 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
 @pytest.fixture
 def stats_tracer():
     with override_global_config(dict(_trace_compute_stats=True)):
-        tracer = DummyTracer()
+        tracer = ddtrace.tracer
+        tracer._span_aggregator.writer = DummyWriter(trace_flush_enabled=check_test_agent_status())
         yield tracer
-        tracer.shutdown()
+        tracer._recreate(reset_state=True)
 
 
 class consistent_end_trace(object):

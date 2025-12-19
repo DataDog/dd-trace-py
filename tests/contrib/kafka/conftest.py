@@ -12,7 +12,8 @@ from ddtrace.contrib.internal.kafka.patch import unpatch
 from ddtrace.trace import tracer as ddtracer
 from tests.conftest import get_original_test_name
 from tests.contrib.config import KAFKA_CONFIG
-from tests.utils import DummyTracer
+from tests.utils import DummyWriter
+from tests.utils import check_test_agent_status
 
 
 GROUP_ID = "test_group"
@@ -73,12 +74,13 @@ def empty_kafka_topic(request):
 @pytest.fixture
 def dummy_tracer():
     patch()
-    t = DummyTracer()
+    ddtracer._span_aggregator.writer = DummyWriter(trace_flush_enabled=check_test_agent_status())
     # disable backoff because it makes these tests less reliable
     if not config._trace_writer_native:
-        t._span_aggregator.writer._send_payload_with_backoff = t._span_aggregator.writer._send_payload
-    yield t
+        ddtracer._span_aggregator.writer._send_payload_with_backoff = ddtracer._span_aggregator.writer._send_payload
+    yield ddtracer
     unpatch()
+    ddtracer._recreate(reset_state=True)
 
 
 @pytest.fixture

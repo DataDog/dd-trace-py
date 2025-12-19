@@ -41,11 +41,10 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import TelemetryWriter
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from tests import utils
-from tests.utils import DummyWriter
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
-from tests.utils import check_test_agent_status
 from tests.utils import request_token
+from tests.utils import scoped_tracer
 from tests.utils import snapshot_context as _snapshot_context
 
 
@@ -182,20 +181,8 @@ def enable_crashtracking(auto_enable_crashtracking):
 
 @pytest.fixture
 def tracer(use_dummy_writer):
-    try:
-        tracer = ddtrace.tracer
-        if use_dummy_writer:
-            tracer._span_aggregator.writer = DummyWriter(trace_flush_enabled=check_test_agent_status())
+    with scoped_tracer(use_dummy_writer) as tracer:
         yield tracer
-    finally:
-        ddtrace.tracer._recreate(
-            trace_processors=[],
-            compute_stats_enabled=False,
-            apm_opt_out=False,
-            appsec_enabled=False,
-            reset_buffer=True,
-            reset_state=True,
-        )
 
 
 @pytest.fixture

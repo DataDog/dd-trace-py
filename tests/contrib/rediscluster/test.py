@@ -8,7 +8,6 @@ from ddtrace.contrib.internal.rediscluster.patch import patch
 from ddtrace.contrib.internal.rediscluster.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib.config import REDISCLUSTER_CONFIG
-from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import override_config
@@ -108,17 +107,15 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         assert span.get_metric("redis.pipeline_length") == 3
 
     def test_patch_unpatch(self):
-        tracer = DummyTracer()
-
         # Test patch idempotence
         patch()
         patch()
 
         r = _get_test_client()
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
 
@@ -128,17 +125,17 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         r = _get_test_client()
         r.get("key")
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert not spans, spans
 
         # Test patch again
         patch()
 
         r = _get_test_client()
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
 

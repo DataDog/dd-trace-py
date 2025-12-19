@@ -288,6 +288,23 @@ def override_http_config(integration, values):
 
 
 @contextlib.contextmanager
+def scoped_tracer(use_dummy_writer=True):
+    try:
+        if use_dummy_writer:
+            ddtrace.tracer._span_aggregator.writer = DummyWriter(trace_flush_enabled=check_test_agent_status())
+        yield ddtrace.tracer
+    finally:
+        ddtrace.tracer._recreate(
+            trace_processors=[],
+            compute_stats_enabled=False,
+            apm_opt_out=False,
+            appsec_enabled=False,
+            reset_buffer=True,
+            reset_state=True,
+        )
+
+
+@contextlib.contextmanager
 def override_dbm_config(values):
     config_keys = ["propagation_mode"]
     originals = dict((key, getattr(dbm_config, key)) for key in config_keys)
@@ -523,11 +540,8 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
     def setUp(self):
         """Before each test case, configure the global tracer with a DummyWriter"""
         self.tracer = ddtrace.tracer
-        # Reset tracer to a clean state before each test
-        self.reset()
-        # Configure DummyWriter to capture spans (must be after _recreate which recreates the writer)
-        self.tracer._span_aggregator.writer = DummyWriter(trace_flush_enabled=check_test_agent_status())
-
+        self.scoped_tracer = scoped_tracer()
+        self.tracer = self.scoped_tracer.__enter__()
         super(TracerTestCase, self).setUp()
 
     def tearDown(self):
@@ -535,7 +549,7 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
         try:
             super(TracerTestCase, self).tearDown()
         finally:
-            # Reset tracer to clean state after each test
+            self.scoped_tracer.__exit__(None, None, None)
             self.reset()
 
     def get_spans(self):

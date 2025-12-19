@@ -7,7 +7,6 @@ from ddtrace.contrib.internal.redis.patch import patch
 from ddtrace.contrib.internal.redis.patch import unpatch
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.contrib.config import REDISCLUSTER_CONFIG
-from tests.utils import DummyTracer
 from tests.utils import assert_is_measured
 
 
@@ -206,6 +205,7 @@ def test_default_service_name_v1():
     from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
     patch()
 
@@ -215,7 +215,7 @@ def test_default_service_name_v1():
             for port in REDISCLUSTER_CONFIG["ports"].split(",")
         ]
         r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
+        tracer = next(scoped_tracer())
         test_spans = TracerSpanContainer(tracer)
 
         Pin.get_from(r)._clone(tracer=tracer).onto(r)
@@ -251,6 +251,7 @@ def test_user_specified_service_v0():
     from ddtrace.contrib.internal.redis.patch import patch
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
     patch()
 
@@ -263,7 +264,7 @@ def test_user_specified_service_v0():
             for port in REDISCLUSTER_CONFIG["ports"].split(",")
         ]
         r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
+        tracer = next(scoped_tracer())
         test_spans = TracerSpanContainer(tracer)
 
         Pin.get_from(r)._clone(tracer=tracer).onto(r)
@@ -299,6 +300,7 @@ def test_user_specified_service_v1():
     from ddtrace.contrib.internal.redis.patch import patch
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
     patch()
 
@@ -311,7 +313,7 @@ def test_user_specified_service_v1():
             for port in REDISCLUSTER_CONFIG["ports"].split(",")
         ]
         r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
+        tracer = next(scoped_tracer())
         test_spans = TracerSpanContainer(tracer)
 
         Pin.get_from(r)._clone(tracer=tracer).onto(r)
@@ -342,6 +344,7 @@ def test_env_user_specified_rediscluster_service_v0():
     from ddtrace.contrib.internal.redis.patch import patch
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
     patch()
 
@@ -351,7 +354,7 @@ def test_env_user_specified_rediscluster_service_v0():
             for port in REDISCLUSTER_CONFIG["ports"].split(",")
         ]
         r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
+        tracer = next(scoped_tracer())
         test_spans = TracerSpanContainer(tracer)
 
         Pin.get_from(r)._clone(tracer=tracer).onto(r)
@@ -382,6 +385,7 @@ def test_env_user_specified_rediscluster_service_v1():
     from ddtrace.contrib.internal.redis.patch import patch
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
     patch()
 
@@ -391,7 +395,7 @@ def test_env_user_specified_rediscluster_service_v1():
             for port in REDISCLUSTER_CONFIG["ports"].split(",")
         ]
         r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
+        tracer = next(scoped_tracer())
         test_spans = TracerSpanContainer(tracer)
 
         Pin.get_from(r)._clone(tracer=tracer).onto(r)
@@ -427,6 +431,7 @@ def test_service_precedence_v0():
     from ddtrace.contrib.internal.redis.patch import patch
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
     patch()
 
@@ -439,7 +444,7 @@ def test_service_precedence_v0():
             for port in REDISCLUSTER_CONFIG["ports"].split(",")
         ]
         r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
+        tracer = next(scoped_tracer())
         test_spans = TracerSpanContainer(tracer)
 
         Pin.get_from(r)._clone(tracer=tracer).onto(r)
@@ -471,6 +476,7 @@ def test_service_precedence_v1():
     from ddtrace.contrib.internal.redis.patch import patch
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
     patch()
 
@@ -483,7 +489,7 @@ def test_service_precedence_v1():
             for port in REDISCLUSTER_CONFIG["ports"].split(",")
         ]
         r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
+        tracer = next(scoped_tracer())
         test_spans = TracerSpanContainer(tracer)
 
         Pin.get_from(r)._clone(tracer=tracer).onto(r)
