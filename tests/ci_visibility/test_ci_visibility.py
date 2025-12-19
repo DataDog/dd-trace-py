@@ -315,7 +315,8 @@ def test_agent_evp_proxy_base_url_logic(mock_agent_info, agent_info_response, ex
     mock_agent_info.return_value = agent_info_response
     # Create a minimal CIVisibility instance for testing the method
     tracer = DummyTracer()
-    visibility = CIVisibility(tracer=tracer, service="test")
+    with _dummy_noop_git_client():
+        visibility = CIVisibility(tracer=tracer, service="test")
     assert visibility._agent_evp_proxy_base_url() == expected_path
 
 
@@ -323,7 +324,8 @@ def test_agent_evp_proxy_base_url_logic(mock_agent_info, agent_info_response, ex
 def test_agent_evp_proxy_base_url_agent_error(mock_agent_info):
     """Tests _agent_evp_proxy_base_url when agent.info() raises an exception"""
     tracer = DummyTracer()
-    visibility = CIVisibility(tracer=tracer, service="test")
+    with _dummy_noop_git_client():
+        visibility = CIVisibility(tracer=tracer, service="test")
     assert visibility._agent_evp_proxy_base_url() is None
 
 
@@ -1741,16 +1743,17 @@ class TestCIVisibilityLibraryCapabilities(TracerTestCase):
 class TestCIVisibilityGzipSupport:
     @pytest.fixture(autouse=True)
     def _setup_mocks(self):
-        self.dummy_tracer = DummyTracer()
-        self.dummy_tracer._agent_url = "http://agent:8126"
-        self.civisibility = CIVisibility()
-        self.civisibility.tracer = self.dummy_tracer
-        self.civisibility._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
-        self.civisibility._git_client = mock.Mock()
-        self.civisibility._codeowner_patterns = []
-        self.civisibility._suite_skipping_mode = False
-        self.civisibility._api_settings = TestVisibilityAPISettings(False, False, False, False)
-        self.civisibility._config = Config()
+        with _dummy_noop_git_client():
+            self.dummy_tracer = DummyTracer()
+            self.dummy_tracer._agent_url = "http://agent:8126"
+            self.civisibility = CIVisibility()
+            self.civisibility.tracer = self.dummy_tracer
+            self.civisibility._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
+            self.civisibility._git_client = mock.Mock()
+            self.civisibility._codeowner_patterns = []
+            self.civisibility._suite_skipping_mode = False
+            self.civisibility._api_settings = TestVisibilityAPISettings(False, False, False, False)
+            self.civisibility._config = Config()
 
     @mock.patch("ddtrace.internal.ci_visibility.recorder.agent.info")
     def test_is_gzip_supported_by_agent_no_info(self, mock_agent_info):
