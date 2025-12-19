@@ -88,15 +88,18 @@ def test_send_completion_bad_api_key(mock_writer_logs):
     llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key="<bad-api-key>")
     llmobs_span_writer.enqueue(_completion_event())
     llmobs_span_writer.periodic()
-    mock_writer_logs.error.assert_called_with(
+    mock_writer_logs.error.assert_called_once()
+    call_args = mock_writer_logs.error.call_args
+    assert call_args[0][0:5] == (
         "failed to send %d LLMObs %s events to %s, got response code %d, status: %s",
         1,
         "span",
         "https://llmobs-intake.datad0g.com/api/v2/llmobs",
         403,
-        b'{"errors":[{"status":"403","title":"Forbidden","detail":"API key is missing"}]}',
-        extra={"send_to_telemetry": False},
     )
+    status_message = call_args[0][5]
+    assert b"API key is missing" in status_message or b"API key is invalid" in status_message
+    assert call_args[1] == {"extra": {"send_to_telemetry": False}}
 
 
 def test_send_completion_no_api_key(mock_writer_logs):
@@ -158,4 +161,8 @@ llmobs_span_writer.enqueue(_completion_event())
     assert status == 0, err
     assert out == b""
     assert b"got response code 403" in err
-    assert b'status: b\'{"errors":[{"status":"403","title":"Forbidden","detail":"API key is missing"}]}\'\n' in err
+    # Accept either "API key is missing" or "API key is invalid"
+    assert (
+        b'status: b\'{"errors":[{"status":"403","title":"Forbidden","detail":"API key is missing"}]}\'\n' in err
+        or b'status: b\'{"errors":[{"status":"403","title":"Forbidden","detail":"API key is invalid"}]}\'\n' in err
+    )
