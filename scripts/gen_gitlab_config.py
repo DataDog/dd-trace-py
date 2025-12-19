@@ -42,6 +42,7 @@ class JobSpec:
     allow_failure: bool = False
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
+    save_artifacts: t.Optional[bool] = True
 
     def __str__(self) -> str:
         lines = []
@@ -126,6 +127,11 @@ class JobSpec:
 
         if self.allow_failure:
             lines.append("  allow_failure: true")
+
+        if self.save_artifacts:
+            lines.append("  artifacts:")
+            lines.append("    paths:")
+            lines.append("      - ${CI_PROJECT_DIR}/")
 
         return "\n".join(lines)
 

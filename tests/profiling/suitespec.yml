@@ -93,3 +93,4 @@ suites:
     pattern: profile
     retry: 2
     runner: riot
+    save_artifacts: true
