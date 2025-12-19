@@ -43,3 +43,22 @@ mock_langchain_chat_generate_response = ChatResult(
         "model_name": "gpt-3.5-turbo-0125",
     },
 )
+
+mock_google_genai_chat_generate_response = ChatResult(
+    generations=[
+        ChatGeneration(
+            generation_info={"finish_reason": "STOP"},
+            message=AIMessage(
+                content="The capital of France is Paris.",
+                additional_kwargs={},
+                response_metadata={
+                    "prompt_feedback": {"block_reason": 0, "safety_ratings": []},
+                    "finish_reason": "STOP",
+                },
+                usage_metadata={"input_tokens": 7, "output_tokens": 8, "total_tokens": 15},
+            ),
+            text="The capital of France is Paris.",
+        )
+    ],
+    llm_output={},
+)

@@ -11,6 +11,7 @@ from ddtrace import patch
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from ddtrace.trace import Span
+from tests.contrib.langchain.utils import mock_google_genai_chat_generate_response
 from tests.contrib.langchain.utils import mock_langchain_chat_generate_response
 from tests.contrib.langchain.utils import mock_langchain_llm_generate_response
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
@@ -627,13 +628,14 @@ def test_llmobs_anthropic_chat_model(langchain_anthropic, llmobs_events, tracer,
     )
 
 
+@mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
 def test_llmobs_google_genai_chat_model(
-    langchain_core, langchain_google_genai, llmobs_events, tracer, google_genai_url
+    mock_generate, langchain_core, langchain_google_genai, llmobs_events, tracer
 ):
+    mock_generate.return_value = mock_google_genai_chat_generate_response
     chat = langchain_google_genai.ChatGoogleGenerativeAI(
         model="gemini-2.0-flash",
         temperature=0.7,
-        base_url=google_genai_url,
     )
     chat.invoke([langchain_core.messages.HumanMessage(content="What is the capital of France?")])
 
@@ -646,13 +648,14 @@ def test_llmobs_google_genai_chat_model(
     assert llmobs_events[0]["meta"]["model_name"] == "gemini-2.0-flash"
 
 
+@mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
 def test_llmobs_google_genai_chat_model_with_path(
-    langchain_core, langchain_google_genai, llmobs_events, tracer, google_genai_url
+    mock_generate, langchain_core, langchain_google_genai, llmobs_events, tracer
 ):
+    mock_generate.return_value = mock_google_genai_chat_generate_response
     chat = langchain_google_genai.ChatGoogleGenerativeAI(
         model="models/gemini-2.5-flash",
         temperature=0.5,
-        base_url=google_genai_url,
     )
     chat.invoke([langchain_core.messages.HumanMessage(content="What is 2+2?")])
 

@@ -49,13 +49,23 @@ def _extract_model_name(instance: Any) -> Optional[str]:
     return None
 
 
-def _extract_provider(instance: Any, model_name: Optional[str] = None) -> str:
+def _extract_provider(instance: Any, model_name: Optional[str] = None, split_llm_type: bool = False) -> str:
+    """Extract provider from LangChain instance.
+    
+    Args:
+        instance: The LangChain model instance
+        model_name: Optional model name to check for known provider prefixes
+        split_llm_type: If True, split _llm_type on "-" (e.g., "openai-chat" -> "openai")
+    """
     if model_name:
         provider = get_provider_from_model_name(model_name)
         if provider:
             return provider
 
-    return instance._llm_type
+    llm_type = getattr(instance, "_llm_type", "")
+    if split_llm_type and isinstance(llm_type, str) and "-" in llm_type:
+        return llm_type.split("-")[0]
+    return llm_type
 
 
 def _raising_dispatch(event_id: str, args: Tuple[Any, ...] = ()):
@@ -138,7 +148,7 @@ async def traced_llm_agenerate(langchain_core, pin, func, instance, args, kwargs
 @with_traced_module
 def traced_chat_model_generate(langchain_core, pin, func, instance, args, kwargs):
     model = _extract_model_name(instance)
-    llm_provider = _extract_provider(instance, model)
+    llm_provider = _extract_provider(instance, model, split_llm_type=True)
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration: LangChainIntegration = langchain_core._datadog_integration
     span = integration.trace(
@@ -172,7 +182,7 @@ def traced_chat_model_generate(langchain_core, pin, func, instance, args, kwargs
 @with_traced_module
 async def traced_chat_model_agenerate(langchain_core, pin, func, instance, args, kwargs):
     model = _extract_model_name(instance)
-    llm_provider = _extract_provider(instance, model)
+    llm_provider = _extract_provider(instance, model, split_llm_type=True)
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration: LangChainIntegration = langchain_core._datadog_integration
     span = integration.trace(

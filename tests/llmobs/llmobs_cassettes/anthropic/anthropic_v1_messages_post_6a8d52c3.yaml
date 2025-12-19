@@ -1,0 +1,90 @@
+interactions:
+- request:
+    body: '{"max_tokens":4096,"messages":[{"role":"user","content":"What is the sum
+      of 1 and 2?"}],"model":"claude-3-opus-20240229","temperature":1.0,"tools":[{"name":"add","input_schema":{"properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"type":"object"},"description":"Adds
+      a and b.\n\n        Args:\n            a: first int\n            b: second int"}]}'
+    headers:
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - gzip, deflate, zstd
+      ? !!python/object/apply:multidict._multidict.istr
+      - Connection
+      : - keep-alive
+      Content-Length:
+      - '379'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - User-Agent
+      : - Anthropic/Python 0.75.0
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Arch
+      : - x64
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Async
+      : - 'false'
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Lang
+      : - python
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-OS
+      : - Linux
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Package-Version
+      : - 0.75.0
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime
+      : - CPython
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime-Version
+      : - 3.10.18
+      ? !!python/object/apply:multidict._multidict.istr
+      - anthropic-version
+      : - '2023-06-01'
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-retry-count
+      : - '0'
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-timeout
+      : - NOT_GIVEN
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: '{"type":"error","error":{"type":"authentication_error","message":"invalid
+        x-api-key"},"request_id":"req_011CWELpAgNskzFF7c1PvjpR"}'
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 9aff7c793f551412-MRS
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '130'
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 18 Dec 2025 14:52:49 GMT
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Vary:
+      - accept-encoding
+      X-Robots-Tag:
+      - none
+      request-id:
+      - req_011CWELpAgNskzFF7c1PvjpR
+      x-envoy-upstream-service-time:
+      - '113'
+      x-should-retry:
+      - 'false'
+    status:
+      code: 401
+      message: Unauthorized
+version: 1
