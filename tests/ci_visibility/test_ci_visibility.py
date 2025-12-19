@@ -947,7 +947,7 @@ class TestUploadGitMetadata:
 
         def _process(target, args, kwargs):
             target(*args, **kwargs)
-            return mock.Mock(exit_code=0)
+            return mock.Mock(exitcode=0)
 
         with mock.patch("ddtrace.internal.ci_visibility.git_client.Process", side_effect=_process):
             yield
