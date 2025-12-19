@@ -180,6 +180,18 @@ requirements_json_test:
     REQUIREMENTS_BLOCK_JSON_PATH: ".gitlab/requirements_block.json"
     REQUIREMENTS_ALLOW_JSON_PATH: ".gitlab/requirements_allow.json"
 
+check_requirements_lockfiles:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  script:
+    - pyenv global 3.10 3.9 3.11 3.12 3.13 3.14
+    - pip install --upgrade "pip<25.3" && pip install riot==0.20.1 && pip install toml==0.10.2
+    - scripts/compile-and-prune-test-requirements
+    - scripts/check-diff '.riot/requirements/' 'Mismatches found between .riot/requirements/*.txt and riotfile.py. Run scripts/compile-and-prune-test-requirements and commit the result.'
+    - python scripts/requirements_to_csv.py
+    - scripts/check-diff 'requirements.csv' 'Tracer dependency requirements in requirements.csv is out of date. Run `python scripts/requirements_to_csv.py` and commit the result.'
+
 detect_circular_imports:
   stage: tests
   needs: []
