@@ -53,6 +53,11 @@ class Psycopg2TracedConnection(dbapi.TracedConnection):
 
 def patch_conn(conn, traced_conn_cls, pin=None):
     """Wrap will patch the instance so that its queries are traced."""
+
+    # Return the plain connection if it has already been closed
+    if hasattr(conn, "closed") and conn.closed:
+        return conn
+
     # ensure we've patched extensions (this is idempotent) in
     # case we're only tracing some connections.
     _config = None
@@ -67,11 +72,6 @@ def patch_conn(conn, traced_conn_cls, pin=None):
     tags = {
         db.SYSTEM: "postgresql",
     }
-
-    # Return the current traced connection without dsn if it is closed
-    if hasattr(conn, "closed") and conn.closed:
-        Pin(tags=tags, _config=_config).onto(c)
-        return c
 
     try:
         # if the connection has an info attr, we are using psycopg3

@@ -174,7 +174,8 @@ class PsycopgCore(TracerTestCase):
         except psycopg.OperationalError as e:
             self.fail(f"patched_connection has ran into an OperationalError: {e}")
 
-        self.assertIsInstance(patched_connection, Psycopg3TracedConnection)
+        # When the connection is closed, we return the plain connection
+        self.assertIs(patched_connection, conn)
 
     def test_disabled_execute(self):
         conn = self._get_conn()
