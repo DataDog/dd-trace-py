@@ -185,8 +185,7 @@ check_requirements_lockfiles:
   needs: []
   extends: .testrunner
   script:
-    - pyenv global 3.10 3.9 3.11 3.12 3.13 3.14
-    - pip install --upgrade "pip<25.3" && pip install riot==0.20.1 && pip install toml==0.10.2
+    - pip install toml==0.10.2
     - scripts/compile-and-prune-test-requirements
     - scripts/check-diff '.riot/requirements/' 'Mismatches found between .riot/requirements/*.txt and riotfile.py. Run scripts/compile-and-prune-test-requirements and commit the result.'
     - python scripts/requirements_to_csv.py
