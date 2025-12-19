@@ -696,7 +696,7 @@
     {
         "dependency": "vllm",
         "integration": "vllm",
-        "minimum_tracer_supported": "0.10.2",
+        "minimum_tracer_supported": "0.13.0",
         "max_tracer_supported": "0.13.0",
         "auto-instrumented": true
     },

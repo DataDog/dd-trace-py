@@ -22,7 +22,6 @@ class RagRequest(BaseModel):
 
 app = FastAPI()
 
-# Common engine parameters (V1 only)
 EMBED_PARAMS = {
     "model": "intfloat/e5-small-v2",
     "enforce_eager": True,
@@ -43,7 +42,7 @@ GEN_PARAMS = {
 
 async def embed_texts(engine, texts: List[str], base_request_id: str) -> List[torch.Tensor]:
     """Embed a list of texts and return their vector representations."""
-    pooling_params = vllm.PoolingParams(task="encode")
+    pooling_params = vllm.PoolingParams(task="embed")
     vectors: List[torch.Tensor] = []
 
     for i, text in enumerate(texts):

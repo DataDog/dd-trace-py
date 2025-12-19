@@ -214,8 +214,8 @@ def test_llmobs_reward(llmobs_events, mock_tracer, bge_reranker_llm):
             model_name="BAAI/bge-reranker-v2-m3",
             model_provider="vllm",
             input_documents=[{"text": prompt}],
-            output_value="[7 embedding(s) returned with size 1024]",
-            metadata={"embedding_dim": 1024, "num_cached_tokens": 0},
+            output_value="[1 embedding(s) returned with size 7]",
+            metadata={"embedding_dim": 7, "num_cached_tokens": 0},
             token_metrics={
                 "input_tokens": 7,
                 "output_tokens": 0,
