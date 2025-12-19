@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from __future__ import annotations
 
 import _thread
 import glob
@@ -36,26 +36,16 @@ from tests.profiling.collector.pprof_utils import pprof_pb2
 
 PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
 
-
-# Type aliases for supported classes
-LockTypeClass = Union[
-    Type[threading.Lock], Type[threading.RLock], Type[threading.Semaphore], Type[threading.BoundedSemaphore]
-]
 # threading.Lock and threading.RLock are factory functions that return _thread types.
 # We reference the underlying _thread types directly to avoid creating instances at import time.
-# threading.Semaphore and threading.BoundedSemaphore are Python classes, not factory functions.
 LockTypeInst = Union[_thread.LockType, _thread.RLock, threading.Semaphore, threading.BoundedSemaphore]
+LockTypeClass = Type[LockTypeInst]
 
-CollectorTypeClass = Union[
-    Type[ThreadingLockCollector],
-    Type[ThreadingRLockCollector],
-    Type[ThreadingSemaphoreCollector],
-    Type[ThreadingBoundedSemaphoreCollector],
-]
 # Type alias for collector instances
 CollectorTypeInst = Union[
     ThreadingLockCollector, ThreadingRLockCollector, ThreadingSemaphoreCollector, ThreadingBoundedSemaphoreCollector
 ]
+CollectorTypeClass = Type[CollectorTypeInst]
 
 
 # Module-level globals for testing global lock profiling
