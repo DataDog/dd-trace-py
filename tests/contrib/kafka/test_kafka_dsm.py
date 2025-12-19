@@ -222,10 +222,24 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
     assert len(buckets) == 1
     assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0)] > 0
 
-    # Auto commit is enabled so we want to wait for the commit event to fire
-    time.sleep(1)
-    first_offset = consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset
-    if first_offset:
+    def _wait_for_auto_commit(timeout=5.0):
+        import time
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            tp = TopicPartition(kafka_topic, 0)
+            committed = consumer.committed([tp], timeout=1.0)
+
+            # Check for valid committed offset (>= 0, not -1001/_NO_OFFSET)
+            if committed and committed[0].offset >= 0:
+                return committed[0].offset
+
+            time.sleep(0.1)
+
+        return None
+
+    first_offset = _wait_for_auto_commit()
+    if first_offset is not None:
         assert (
             list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)]
             == first_offset
