@@ -64,7 +64,7 @@ Ensure you have followed the prerequisite steps above.
 
 2. If you're releasing an X.Y.0 version, update the ``version`` attribute in ``pyproject.toml`` to the dev
    version of the next minor release line.
-   For example if you're releasing 5.2.0, update the version attibute to ``5.3.0.dev0``.
+   For example if you're releasing 5.2.0, update the version attribute to ``5.3.0.dev0``.
    Commit and push this change to a branch off of main and open a pull request.
 
 3. Update the ``version`` attribute in ``pyproject.toml`` to match the version you're releasing.
