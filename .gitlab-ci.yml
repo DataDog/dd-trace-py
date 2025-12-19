@@ -180,6 +180,12 @@ requirements_json_test:
     REQUIREMENTS_ALLOW_JSON_PATH: ".gitlab/requirements_allow.json"
 
 detect_circular_imports:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  rules:
+    - if: !reference [.is_main]
+      when: never
   script:
     - cd ..
     - python -m pip install -r dd-trace-py/scripts/import-analysis/requirements-cycles.txt
@@ -208,9 +214,6 @@ detect_circular_imports:
           }"
         exit 1
       fi
-  stage: tests
-  needs: []
-  extends: .testrunner
 
 
 package-oci:
