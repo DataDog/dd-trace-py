@@ -15,6 +15,7 @@ import pytest
 
 from ddtrace import ext
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
 from ddtrace.profiling.collector.asyncio import AsyncioBoundedSemaphoreCollector
 from ddtrace.profiling.collector.asyncio import AsyncioLockCollector
 from ddtrace.profiling.collector.asyncio import AsyncioSemaphoreCollector
@@ -213,6 +214,23 @@ class BaseAsyncioLockCollectorTest:
                 ),
             ],
         )
+
+    async def test_subclassing_wrapped_lock(self) -> None:
+        """Test that subclassing of a wrapped lock type when profiling is active."""
+        with self.collector_class(capture_pct=100):
+            assert isinstance(self.lock_class, LockAllocatorWrapper)
+
+            # This should NOT raise TypeError
+            class CustomLock(self.lock_class):  # type: ignore[misc]
+                def __init__(self) -> None:
+                    super().__init__()
+
+            # Verify subclassing and functionality
+            custom_lock: CustomLock = CustomLock()
+            await custom_lock.acquire()
+            assert custom_lock.locked()
+            custom_lock.release()
+            assert not custom_lock.locked()
 
 
 class TestAsyncioLockCollector(BaseAsyncioLockCollectorTest):
