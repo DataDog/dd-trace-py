@@ -39,6 +39,7 @@ set_target_properties(
 include(FetchContent)
 include(AnalysisFunc)
 include(FindCppcheck)
+include(FindClangtidy)
 
 find_package(Python3 COMPONENTS Interpreter Development)
 
@@ -70,6 +71,9 @@ add_cppcheck_target(
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+# Static analysis
+add_clangtidy_target(${EXTENSION_NAME})
 
 # Never build with native unwinding, since this is not currently used
 target_compile_definitions(${EXTENSION_NAME} PRIVATE UNWIND_NATIVE_DISABLE)
