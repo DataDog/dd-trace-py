@@ -32,7 +32,7 @@
         "integration": "aiokafka",
         "minimum_tracer_supported": "0.9.0",
         "max_tracer_supported": "0.12.0",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "aiomysql",
@@ -675,14 +675,14 @@
         "dependency": "google-cloud-aiplatform",
         "integration": "vertexai",
         "minimum_tracer_supported": "1.71.1",
-        "max_tracer_supported": "1.71.1",
+        "max_tracer_supported": "1.130.0",
         "auto-instrumented": true
     },
     {
         "dependency": "vertexai",
         "integration": "vertexai",
         "minimum_tracer_supported": "1.71.1",
-        "max_tracer_supported": "1.71.1",
+        "max_tracer_supported": "1.130.0",
         "auto-instrumented": true
     },
     {
