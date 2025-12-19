@@ -1,4 +1,5 @@
 import tempfile
+import uuid
 
 import django
 from django.contrib.auth import login
@@ -37,16 +38,24 @@ def send_file(request):
     return FileResponse(f, content_type="text/plain")
 
 
-def authenticated_view(request):
+def authenticated_view(request, pk_type="int"):
     """
     This view can be used to test requests with an authenticated user. Create a
     user with a default username, save it and then use this user to log in.
     Always returns a 200.
     """
 
-    user = User(username="Jane Doe")
-    user.save()
-    login(request, user)
+    if pk_type == "uuid":
+        from tests.contrib.django.django_app.models import UUIDUser
+
+        user = UUIDUser(username="Jane Doe", pk=uuid.uuid4())
+        user.save()
+        request.user = user
+    else:
+        user = User(username="Jane Doe")
+        user.save()
+        login(request, user)
+
     return HttpResponse(status=200)
 
 
@@ -64,7 +73,7 @@ urlpatterns = [
     handler(r"^safe-template/$", views.SafeTemplateUserList.as_view(), name="safe-template-list"),
     handler(r"^cached-users/$", cache_page(60)(views.UserList.as_view()), name="cached-users-list"),
     handler(r"^fail-view/$", views.ForbiddenView.as_view(), name="forbidden-view"),
-    handler(r"^authenticated/$", authenticated_view, name="authenticated-view"),
+    handler(r"^authenticated/(?P<pk_type>int|uuid)/$", authenticated_view, name="authenticated-view"),
     handler(r"^static-method-view/$", views.StaticMethodView.as_view(), name="static-method-view"),
     handler(r"^fn-view/$", views.function_view, name="fn-view"),
     handler(r"^feed-view/$", views.FeedView(), name="feed-view"),
