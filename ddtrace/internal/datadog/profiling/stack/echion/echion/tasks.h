@@ -315,10 +315,10 @@ TaskInfo::unwind(FrameStack& stack)
         if (py_coro_frame != NULL) {
             // Inserting only non-NULL frames
             coro_frames.push(py_coro_frame);
-            // if (coro_frames.top() == nullptr) {
-            //     std::cerr << "Pushed a non-null frame to the stack, but the top is null." << std::endl;
-            //     std::abort();
-            // }
+            if (coro_frames.top() == nullptr) {
+                std::cerr << "Pushed a non-null frame to the stack, but the top is null." << std::endl;
+                std::abort();
+            }
         }
     }
 
