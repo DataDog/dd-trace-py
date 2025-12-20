@@ -339,31 +339,6 @@ def appsec_application_server(
     if use_multiprocess:
         # Run the server command by replacing the child Python process with the target binary (exec),
         # ensuring signals/termination behave like the subprocess.Popen path.
-        def _mp_target(_cmd: _t.List[str], _env: dict) -> None:
-            """Child process entrypoint that prepares the session and execs the server command.
-
-            This makes the child PID equal to the server PID, so signals from the parent terminate the server cleanly.
-            """
-            try:
-                # Mirror start_new_session behavior
-                if os.name == "posix":
-                    try:
-                        os.setsid()
-                    except Exception:
-                        pass
-                # Apply optional resource/affinity limits
-                preexec = _make_preexec()
-                if preexec is not None:
-                    try:
-                        preexec()
-                    except Exception:
-                        pass
-                # Replace the process image with the target command
-                os.execvpe(_cmd[0], _cmd, _env)
-            except Exception:
-                # If exec fails for any reason, exit non-zero
-                os._exit(1)
-
         # Build the environment for the child exec
         mp_env = dict(subprocess_kwargs["env"]) if "env" in subprocess_kwargs else os.environ.copy()
         server_process: _t.Union[subprocess.Popen, multiprocessing.Process]
@@ -457,6 +432,33 @@ def appsec_application_server(
                     assert "Tainted arguments:" in process_output
         finally:
             pass
+
+
+def _mp_target(_cmd: _t.List[str], _env: dict) -> None:
+    """Child process entrypoint that prepares the session and execs the server command.
+
+    This makes the child PID equal to the server PID, so signals from the parent terminate the server cleanly.
+    This function must be at module level to be picklable for multiprocessing on Python 3.14+.
+    """
+    try:
+        # Mirror start_new_session behavior
+        if os.name == "posix":
+            try:
+                os.setsid()
+            except Exception:
+                pass
+        # Apply optional resource/affinity limits
+        preexec = _make_preexec()
+        if preexec is not None:
+            try:
+                preexec()
+            except Exception:
+                pass
+        # Replace the process image with the target command
+        os.execvpe(_cmd[0], _cmd, _env)
+    except Exception:
+        # If exec fails for any reason, exit non-zero
+        os._exit(1)
 
 
 def _make_preexec() -> _t.Optional[_t.Callable[[], None]]:

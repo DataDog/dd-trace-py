@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    openfeature: Fix exposure event deduplication to use (flag_key, subject_id) as cache key
+    instead of (flag_key, variant_key, allocation_key). This ensures different users each
+    receive their own exposure event while still deduplicating repeated evaluations for the
+    same user. Also adds LRU eviction to prevent unbounded memory growth and respects the
+    do_log flag from flag metadata.
