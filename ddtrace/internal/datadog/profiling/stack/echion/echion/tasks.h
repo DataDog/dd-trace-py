@@ -329,12 +329,12 @@ TaskInfo::unwind(FrameStack& stack)
     while (!coro_frames.empty()) {
         PyObject* frame = coro_frames.top();
 
-        // if (frame == nullptr) {
-        //     // THIS ACTUALLY HAPPENS, IT SHOULD NOT.
-        //     std::cerr << "Received a nullptr frame from the coroutine chain (before pop). This should not happen."
-        //               << std::endl;
-        //     std::abort();
-        // }
+        if (frame == nullptr) {
+            // THIS ACTUALLY HAPPENS, IT SHOULD NOT.
+            std::cerr << "Received a nullptr frame from the coroutine chain (before pop). This should not happen."
+                      << std::endl;
+            std::abort();
+        }
 
         coro_frames.pop();
 
