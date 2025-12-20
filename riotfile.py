@@ -119,7 +119,7 @@ venv = Venv(
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
         "CARGO_BUILD_JOBS": "12",
         "_CI_DD_GIT_REPOSITORY_URL": "http://github.com/test-org/test-repo.git",
-        #"DD_PYTEST_USE_NEW_PLUGIN": "true",
+        # "DD_PYTEST_USE_NEW_PLUGIN": "true",
     },
     venvs=[
         Venv(
