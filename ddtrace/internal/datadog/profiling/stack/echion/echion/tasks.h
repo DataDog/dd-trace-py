@@ -315,10 +315,10 @@ TaskInfo::unwind(FrameStack& stack)
         if (py_coro_frame != NULL) {
             // Inserting only non-NULL frames
             coro_frames.push(py_coro_frame);
-            if (coro_frames.top() == nullptr) {
-                std::cerr << "Pushed a non-null frame to the stack, but the top is null." << std::endl;
-                std::abort();
-            }
+            // if (coro_frames.top() == nullptr) {
+            //     std::cerr << "Pushed a non-null frame to the stack, but the top is null." << std::endl;
+            //     std::abort();
+            // }
         }
     }
 
@@ -326,6 +326,7 @@ TaskInfo::unwind(FrameStack& stack)
     size_t count = 0;
 
     // Unwind the coro frames (iterate in reverse since we pushed in await-chain order)
+    size_t stack_index = 0;
     while (!coro_frames.empty()) {
         PyObject* frame = coro_frames.top();
 
@@ -343,6 +344,13 @@ TaskInfo::unwind(FrameStack& stack)
         //     std::cerr << "Received a nullptr frame from the coroutine chain. This should not happen." << std::endl;
         //     std::abort();
         // }
+
+        if (frame == nullptr) {
+            std::cerr << "Received a nullptr frame from the coroutine chain at index " << stack_index
+                      << ". This should not happen." << std::endl;
+            std::abort();
+        }
+        stack_index++;
 
         auto new_frames = unwind_frame(frame, stack);
 
