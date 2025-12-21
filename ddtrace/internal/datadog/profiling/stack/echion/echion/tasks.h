@@ -297,7 +297,9 @@ inline Result<size_t>
 TaskInfo::unwind(FrameStack& stack)
 {
     // TODO: Check for running task.
-    std::stack<PyObject*, std::vector<PyObject*>> coro_frames;
+    uint64_t c1 = 0x1111111111111111ULL;
+    std::stack<PyObject*> coro_frames;
+    uint64_t c2 = 0x2222222222222222ULL;
 
     // Unwind the coro chain
     // Detect cycles in the await chain to prevent infinite loops.
@@ -320,6 +322,15 @@ TaskInfo::unwind(FrameStack& stack)
             //     std::abort();
             // }
         }
+    }
+
+    if (c1 != 0x1111111111111111ULL) {
+        std::cerr << "c1 is not 0x1111111111111111ULL. This should not happen." << std::endl;
+        std::abort();
+    }
+    if (c2 != 0x2222222222222222ULL) {
+        std::cerr << "c2 is not 0x2222222222222222ULL. This should not happen." << std::endl;
+        std::abort();
     }
 
     // Total number of frames added to the Stack
