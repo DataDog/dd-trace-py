@@ -89,11 +89,11 @@ snowflake-connector-python,snowflake,2.4.6,3.17.2,False
 sqlalchemy,sqlalchemy,1.3.24,2.0.43,False
 pysqlite3-binary,sqlite3,0.5.2.post3,0.5.2.post3,True
 starlette,starlette,0.14.2,0.48.0,True
-structlog,structlog,20.2.0,25.4.0,True
+structlog,structlog,20.2.0,25.5.0,True
 tornado,tornado *,6.1,6.5.1,False
 urllib3,urllib3,1.25.8,2.5.0,False
 valkey,valkey,6.0.2,6.1.1,True
-google-cloud-aiplatform,vertexai,1.71.1,1.130.0,True
-vertexai,vertexai,1.71.1,1.130.0,True
+google-cloud-aiplatform,vertexai,1.71.1,1.71.1,True
+vertexai,vertexai,1.71.1,1.71.1,True
 vertica-python,vertica *,0.6.14,0.7.4,True
 yaaredis,yaaredis,2.0.4,3.0.0,True
