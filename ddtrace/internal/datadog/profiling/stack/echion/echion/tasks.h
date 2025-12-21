@@ -297,7 +297,7 @@ inline Result<size_t>
 TaskInfo::unwind(FrameStack& stack)
 {
     // TODO: Check for running task.
-    std::stack<PyObject*> coro_frames;
+    std::stack<PyObject*, std::vector<PyObject*>> coro_frames;
 
     // Unwind the coro chain
     // Detect cycles in the await chain to prevent infinite loops.
