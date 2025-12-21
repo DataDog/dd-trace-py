@@ -1194,6 +1194,10 @@ if not IS_PYSTON:
                     STACK_DIR / ".." / "cmake",
                     STACK_DIR / ".." / "dd_wrapper",
                 ],
+                cmake_args=[
+                    "-DCMAKE_C_FLAGS=-fno-strict-aliasing",
+                    "-DCMAKE_CXX_FLAGS=-fno-strict-aliasing",
+                ],
                 optional=False,
             ),
         )
