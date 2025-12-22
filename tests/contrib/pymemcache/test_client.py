@@ -342,9 +342,11 @@ class PymemcacheClientConfiguration(TracerTestCase):
     """Ensure that pymemache can be configured properly."""
 
     def setUp(self):
+        super().setUp()
         patch()
 
     def tearDown(self):
+        super().tearDown()
         unpatch()
 
     def make_client(self, mock_socket_values, **kwargs):
@@ -366,10 +368,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
         client.set(b"key", b"value", noreply=False)
 
-        pin = Pin.get_from(pymemcache)
-        tracer = pin.tracer
-        spans = tracer.pop()
-
+        spans = self.pop_spans()
         self.assertEqual(spans[0].service, "mysvc")
 
     def test_override_client_pin(self):
@@ -379,10 +378,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
 
         client.set(b"key", b"value", noreply=False)
 
-        pin = Pin.get_from(pymemcache)
-        tracer = pin.tracer
-        spans = tracer.pop()
-
+        spans = self.pop_spans()
         self.assertEqual(spans[0].service, "mysvc2")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
@@ -400,9 +396,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
         client.set(b"key", b"value", noreply=False)
 
-        pin = Pin.get_from(pymemcache)
-        tracer = pin.tracer
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service != "mysvc"
 
@@ -421,9 +415,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
         client.set(b"key", b"value", noreply=False)
 
-        pin = Pin.get_from(pymemcache)
-        tracer = pin.tracer
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service != "mysvc"
 
@@ -442,9 +434,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
         client.set(b"key", b"value", noreply=False)
 
-        pin = Pin.get_from(pymemcache)
-        tracer = pin.tracer
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service == "mysvc"
 
@@ -458,9 +448,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
         client.set(b"key", b"value", noreply=False)
 
-        pin = Pin.get_from(pymemcache)
-        tracer = pin.tracer
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
@@ -472,9 +460,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
         client.set(b"key", b"value", noreply=False)
 
-        pin = Pin.get_from(pymemcache)
-        tracer = pin.tracer
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].name == "memcached.command"
 
@@ -486,8 +472,6 @@ class PymemcacheClientConfiguration(TracerTestCase):
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
         client.set(b"key", b"value", noreply=False)
 
-        pin = Pin.get_from(pymemcache)
-        tracer = pin.tracer
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].name == "memcached.command"

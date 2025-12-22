@@ -179,7 +179,7 @@ class TestVertica(TracerTestCase):
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
 
         # check all the metadata
@@ -210,7 +210,7 @@ class TestVertica(TracerTestCase):
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
 
         # check all the metadata
@@ -238,7 +238,7 @@ class TestVertica(TracerTestCase):
         with conn, pytest.raises(VerticaSyntaxError):
             cur.execute("INVALID QUERY")
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
 
         # check all the metadata
@@ -287,7 +287,7 @@ class TestVertica(TracerTestCase):
             cur.fetchall()
             assert cur.rowcount == 5
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 9
 
         # check all the rowcounts
@@ -325,7 +325,7 @@ class TestVertica(TracerTestCase):
             cur.execute("SELECT * FROM {0}; SELECT * FROM {0}".format(TEST_TABLE))
             cur.nextset()
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 3
 
         # check all the rowcounts
@@ -346,7 +346,7 @@ class TestVertica(TracerTestCase):
                 "1,foo\n2,bar",
             )
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
 
         # check all the rowcounts
@@ -373,7 +373,7 @@ class TestVertica(TracerTestCase):
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         span = spans[0]
         assert span.service != "mysvc"
@@ -397,7 +397,7 @@ class TestVertica(TracerTestCase):
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         span = spans[0]
         assert span.service == "vertica"
@@ -421,7 +421,7 @@ class TestVertica(TracerTestCase):
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         span = spans[0]
         assert span.service == "mysvc"
@@ -439,7 +439,7 @@ class TestVertica(TracerTestCase):
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         span = spans[0]
         assert span.service == "vertica"
@@ -457,7 +457,7 @@ class TestVertica(TracerTestCase):
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         span = spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
@@ -496,7 +496,7 @@ class TestVertica(TracerTestCase):
             cur.fetchall()
             assert cur.rowcount == 5
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 9
 
         # check all the rowcounts
@@ -540,7 +540,7 @@ class TestVertica(TracerTestCase):
             cur.fetchall()
             assert cur.rowcount == 5
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 9
 
         # check all the rowcounts

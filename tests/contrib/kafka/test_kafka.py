@@ -403,7 +403,8 @@ from tests.utils import TracerSpanContainer
 
 def test(consumer, producer, kafka_topic):
     patch()
-    dummy_tracer = next(scoped_tracer())
+    tracer_scope = scoped_tracer()
+    dummy_tracer = tracer_scope.__enter__()
     Pin._override(producer, tracer=dummy_tracer)
     Pin._override(consumer, tracer=dummy_tracer)
 
@@ -444,6 +445,7 @@ def test(consumer, producer, kafka_topic):
 
     Pin._override(consumer, tracer=None)
     Pin._override(producer, tracer=None)
+    tracer_scope.__exit__(None, None, None)
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
@@ -612,7 +614,8 @@ from tests.utils import TracerSpanContainer
 
 def test(consumer, producer, kafka_topic):
     patch()
-    dummy_tracer = next(scoped_tracer())
+    tracer_scope = scoped_tracer()
+    dummy_tracer = tracer_scope.__enter__()
     Pin._override(producer, tracer=dummy_tracer)
     Pin._override(consumer, tracer=dummy_tracer)
 
@@ -663,6 +666,7 @@ def test(consumer, producer, kafka_topic):
 
     Pin._override(consumer, tracer=None)
     Pin._override(producer, tracer=None)
+    tracer_scope.__exit__(None, None, None)
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))

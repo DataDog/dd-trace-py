@@ -117,7 +117,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
 
         spans = self.pop_spans()
         assert spans, spans
-        assert len(spans) == 1
+        assert len(spans) == 2, f"Expected 2 spans, got {spans}"
 
         # Test unpatch
         unpatch()

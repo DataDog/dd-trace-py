@@ -16,7 +16,8 @@ if __name__ == "__main__":
     pin = Pin.get_from(r)
     assert pin
 
-    pin._tracer = next(scoped_tracer())
+    tracer_scope = scoped_tracer()
+    pin._tracer = tracer_scope.__enter__()
     r.flushall()
     spans = TracerSpanContainer(pin._tracer).pop()
 
@@ -40,4 +41,5 @@ if __name__ == "__main__":
     assert span.get_tag("redis.raw_command").startswith("mget 0 1 2 3")
     assert span.get_tag("redis.raw_command").endswith("...")
 
+    tracer_scope.__exit__(None, None, None)
     print("Test success")

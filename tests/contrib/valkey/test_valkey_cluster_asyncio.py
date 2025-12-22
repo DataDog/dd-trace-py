@@ -164,12 +164,13 @@ def test_default_service_name_v1():
     patch()
 
     async def test():
+        tracer_scope = scoped_tracer()
+        tracer = tracer_scope.__enter__()
         startup_nodes = [
             valkey.asyncio.cluster.ClusterNode(VALKEY_CLUSTER_CONFIG["host"], int(port))
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
         ]
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
-        tracer = next(scoped_tracer())
         test_spans = TracerSpanContainer(tracer)
 
         Pin.get_from(r)._clone(tracer=tracer).onto(r)
@@ -182,6 +183,7 @@ def test_default_service_name_v1():
         assert len(spans) == 1
         span = spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
+        tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())
 
@@ -209,6 +211,8 @@ def test_user_specified_service_v0():
     patch()
 
     async def test():
+        tracer_scope = scoped_tracer()
+        tracer = tracer_scope.__enter__()
         # # Ensure that the service name was configured
         assert config.service == "mysvc"
 
@@ -217,7 +221,6 @@ def test_user_specified_service_v0():
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
         ]
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
-        tracer = next(scoped_tracer())
         test_spans = TracerSpanContainer(tracer)
 
         Pin.get_from(r)._clone(tracer=tracer).onto(r)
@@ -230,6 +233,7 @@ def test_user_specified_service_v0():
         assert len(spans) == 1
         span = spans[0]
         assert span.service != "mysvc"
+        tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())
 
@@ -257,6 +261,8 @@ def test_user_specified_service_v1():
     patch()
 
     async def test():
+        tracer_scope = scoped_tracer()
+        tracer = tracer_scope.__enter__()
         # # Ensure that the service name was configured
         assert config.service == "mysvc"
 
@@ -265,7 +271,6 @@ def test_user_specified_service_v1():
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
         ]
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
-        tracer = next(scoped_tracer())
         test_spans = TracerSpanContainer(tracer)
 
         Pin.get_from(r)._clone(tracer=tracer).onto(r)
@@ -278,6 +283,7 @@ def test_user_specified_service_v1():
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "mysvc"
+        tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())
 
@@ -300,12 +306,13 @@ def test_env_user_specified_valkeycluster_service_v0():
     patch()
 
     async def test():
+        tracer_scope = scoped_tracer()
+        tracer = tracer_scope.__enter__()
         startup_nodes = [
             valkey.asyncio.cluster.ClusterNode(VALKEY_CLUSTER_CONFIG["host"], int(port))
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
         ]
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
-        tracer = next(scoped_tracer())
         test_spans = TracerSpanContainer(tracer)
 
         Pin.get_from(r)._clone(tracer=tracer).onto(r)
@@ -318,6 +325,7 @@ def test_env_user_specified_valkeycluster_service_v0():
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "myvalkeycluster"
+        tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())
 
@@ -340,12 +348,13 @@ def test_env_user_specified_valkeycluster_service_v1():
     patch()
 
     async def test():
+        tracer_scope = scoped_tracer()
+        tracer = tracer_scope.__enter__()
         startup_nodes = [
             valkey.asyncio.cluster.ClusterNode(VALKEY_CLUSTER_CONFIG["host"], int(port))
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
         ]
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
-        tracer = next(scoped_tracer())
         test_spans = TracerSpanContainer(tracer)
 
         Pin.get_from(r)._clone(tracer=tracer).onto(r)
@@ -358,6 +367,7 @@ def test_env_user_specified_valkeycluster_service_v1():
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "myvalkeycluster"
+        tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())
 
@@ -385,6 +395,8 @@ def test_service_precedence_v0():
     patch()
 
     async def test():
+        tracer_scope = scoped_tracer()
+        tracer = tracer_scope.__enter__()
         # # Ensure that the service name was configured
         assert config.service == "mysvc"
 
@@ -393,7 +405,6 @@ def test_service_precedence_v0():
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
         ]
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
-        tracer = next(scoped_tracer())
         test_spans = TracerSpanContainer(tracer)
 
         Pin.get_from(r)._clone(tracer=tracer).onto(r)
@@ -406,6 +417,7 @@ def test_service_precedence_v0():
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "myvalkeycluster"
+        tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())
 
@@ -429,6 +441,8 @@ def test_service_precedence_v1():
     patch()
 
     async def test():
+        tracer_scope = scoped_tracer()
+        tracer = tracer_scope.__enter__()
         # # Ensure that the service name was configured
         assert config.service == "mysvc"
 
@@ -437,7 +451,6 @@ def test_service_precedence_v1():
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
         ]
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
-        tracer = next(scoped_tracer())
         test_spans = TracerSpanContainer(tracer)
 
         Pin.get_from(r)._clone(tracer=tracer).onto(r)
@@ -450,5 +463,6 @@ def test_service_precedence_v1():
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "myvalkeycluster"
+        tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())

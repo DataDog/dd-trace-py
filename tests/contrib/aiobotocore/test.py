@@ -375,15 +375,17 @@ def test(tracer, test_spans):
         # Flatten traces to get all spans
         all_spans = [span for trace in traces for span in trace]
 
-        service_format = "{}"
-        operation_format = "{}"
+        service_format = "{0}"
+        operation_format = "{1}"
         aws_services = ["ec2", "s3", "sqs", "kinesis", "lambda", "kms"]
         for aws_service in aws_services:
             operation_name = operation_format.format(aws_service)
             service_name = service_format.format(aws_service)
             # Find spans matching this specific AWS service operation
             matching_spans = [s for s in all_spans if s.name == operation_name]
-            assert len(matching_spans) == 1, f"Expected 1 span with name {{{{operation_name}}}}, got {{{{len(matching_spans)}}}}"
+            assert len(matching_spans) == 1, (
+                f"Expected 1 span with name {{operation_name}}, got {{len(matching_spans)}}"
+            )
             aws_span = matching_spans[0]
             assert aws_span.service == service_name
     loop = asyncio.new_event_loop()

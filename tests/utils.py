@@ -288,8 +288,10 @@ def override_http_config(integration, values):
 
 
 @contextlib.contextmanager
-def scoped_tracer(use_dummy_writer=True):
+def scoped_tracer(use_dummy_writer=True, compute_stats_enabled=None):
     try:
+        if compute_stats_enabled is not None:
+            ddtrace.tracer._recreate(compute_stats_enabled=compute_stats_enabled)
         if use_dummy_writer:
             ddtrace.tracer._span_aggregator.writer = DummyWriter(trace_flush_enabled=check_test_agent_status())
         yield ddtrace.tracer
@@ -537,10 +539,12 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
     Uses the global ddtrace.tracer with a DummyWriter to capture spans.
     """
 
+    USE_DUMMY_WRITER = True
+
     def setUp(self):
         """Before each test case, configure the global tracer with a DummyWriter"""
         self.tracer = ddtrace.tracer
-        self.scoped_tracer = scoped_tracer()
+        self.scoped_tracer = scoped_tracer(use_dummy_writer=self.USE_DUMMY_WRITER)
         self.tracer = self.scoped_tracer.__enter__()
         super(TracerTestCase, self).setUp()
 

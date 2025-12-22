@@ -56,10 +56,12 @@ class PymemcacheClientTestCaseMixin(TracerTestCase):
         return spans
 
     def setUp(self):
+        super().setUp()
         patch()
 
     def tearDown(self):
         unpatch()
+        super().tearDown()
 
     def make_client(self, mock_socket_values, **kwargs):
         Pin._override(pymemcache, tracer=self.tracer)

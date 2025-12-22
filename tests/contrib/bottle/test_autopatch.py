@@ -15,6 +15,7 @@ class TraceBottleTest(TracerTestCase):
 
     def setUp(self):
         # provide a Bottle app
+        super().setUp()
         self.app = bottle.Bottle()
 
     def _trace_app(self):

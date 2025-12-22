@@ -97,6 +97,9 @@ class TestRedisClusterPatch(TracerTestCase):
         assert span.get_metric("redis.pipeline_length") == 3
 
     def test_patch_unpatch(self):
+        # Clear any spans from setUp (cluster discovery + flushall)
+        self.pop_spans()
+
         # Test patch idempotence
         patch()
         patch()
@@ -105,7 +108,8 @@ class TestRedisClusterPatch(TracerTestCase):
         Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = self.pop_spans()
+        # Filter to only GET spans (ignore cluster discovery spans)
+        spans = [s for s in self.pop_spans() if s.resource == "GET"]
         assert spans, spans
         assert len(spans) == 1
 
@@ -125,7 +129,8 @@ class TestRedisClusterPatch(TracerTestCase):
         Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = self.pop_spans()
+        # Filter to only GET spans (ignore cluster discovery spans)
+        spans = [s for s in self.pop_spans() if s.resource == "GET"]
         assert spans, spans
         assert len(spans) == 1
 

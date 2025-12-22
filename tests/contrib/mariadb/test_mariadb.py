@@ -48,12 +48,12 @@ def test_connection_no_port_or_user_does_not_raise():
             raise exc
 
 
-def test_simple_query(connection, tracer):
+def test_simple_query(connection, tracer, test_spans):
     cursor = connection.cursor()
     cursor.execute("SELECT 1")
     rows = cursor.fetchall()
     assert len(rows) == 1
-    spans = tracer.pop()
+    spans = test_spans.pop()
     assert len(spans) == 1
     span = spans[0]
     assert_is_measured(span)
@@ -77,7 +77,7 @@ def test_simple_query(connection, tracer):
     )
 
 
-def test_query_executemany(connection, tracer):
+def test_query_executemany(connection, tracer, test_spans):
     tracer.enabled = False
     cursor = connection.cursor()
 
@@ -105,16 +105,16 @@ def test_query_executemany(connection, tracer):
     assert rows[1][0] == "foo"
     assert rows[1][1] == "this is foo"
 
-    spans = tracer.pop()
+    spans = test_spans.pop()
     assert len(spans) == 2
     span = spans[-1]
     assert span.get_tag("mariadb.query") is None
     cursor.execute("drop table if exists dummy")
 
 
-def test_rollback(connection, tracer):
+def test_rollback(connection, tracer, test_spans):
     connection.rollback()
-    spans = tracer.pop()
+    spans = test_spans.pop()
     assert len(spans) == 1
     span = spans[0]
     assert span.service == "mariadb"
