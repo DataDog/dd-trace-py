@@ -8,6 +8,7 @@
 #include <Python.h>
 
 #include <algorithm>
+#include <cassert>
 #include <optional>
 #include <unordered_set>
 #include <vector>
@@ -161,16 +162,16 @@ class FrameStack
 
     void pop_back()
     {
-        if (!empty()) {
-            --end_;
-        }
+        // UB to pop from empty, like std::deque
+        assert(!empty() && "pop_back on empty FrameStack");
+        --end_;
     }
 
     void pop_front()
     {
-        if (!empty()) {
-            ++start_;
-        }
+        // UB to pop from empty, like std::deque
+        assert(!empty() && "pop_front on empty FrameStack");
+        ++start_;
     }
 
     Frame::Ref operator[](size_t index) { return *buffer_[start_ + index]; }
