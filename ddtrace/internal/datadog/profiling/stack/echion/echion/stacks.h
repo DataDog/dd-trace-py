@@ -174,8 +174,18 @@ class FrameStack
         ++start_;
     }
 
-    Frame::Ref operator[](size_t index) { return *buffer_[start_ + index]; }
-    Frame::Ref operator[](size_t index) const { return *buffer_[start_ + index]; }
+    Frame::Ref operator[](size_t index)
+    {
+        // UB to access out of bounds, like std::deque
+        assert(index < size() && "operator[] index out of bounds");
+        return *buffer_[start_ + index];
+    }
+    Frame::Ref operator[](size_t index) const
+    {
+        // UB to access out of bounds, like std::deque
+        assert(index < size() && "operator[] index out of bounds");
+        return *buffer_[start_ + index];
+    }
 
     iterator begin() { return iterator(buffer_.begin() + start_); }
     iterator end() { return iterator(buffer_.begin() + end_); }

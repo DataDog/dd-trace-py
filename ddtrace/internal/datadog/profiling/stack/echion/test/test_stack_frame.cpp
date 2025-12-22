@@ -430,16 +430,13 @@ TEST(FrameStack, PopBackEmpty)
     EXPECT_TRUE(stack.empty());
 
     // pop_back on empty stack is UB (like std::deque)
-    // In debug builds with assertions, this would assert
-    // We don't test UB, just document expected state
-#ifdef NDEBUG
-    // In release builds, behavior is undefined - we just verify it doesn't crash
-    // but we acknowledge this is technically UB
-    stack.pop_back();
-    // State after UB is undefined, don't make assertions
-#else
-    // In debug builds, would assert - we can test with death test
+#ifndef NDEBUG
+    // In debug builds, verify assertion fires
     EXPECT_DEATH(stack.pop_back(), "pop_back on empty FrameStack");
+#else
+    // In release builds, we don't trigger UB - just verify empty state
+    EXPECT_TRUE(stack.empty());
+    EXPECT_EQ(stack.size(), 0);
 #endif
 }
 
@@ -449,14 +446,13 @@ TEST(FrameStack, PopFrontEmpty)
     EXPECT_TRUE(stack.empty());
 
     // pop_front on empty stack is UB (like std::deque)
-    // In debug builds with assertions, this would assert
-#ifdef NDEBUG
-    // In release builds, behavior is undefined - we just verify it doesn't crash
-    stack.pop_front();
-    // State after UB is undefined, don't make assertions
-#else
-    // In debug builds, would assert - we can test with death test
+#ifndef NDEBUG
+    // In debug builds, verify assertion fires
     EXPECT_DEATH(stack.pop_front(), "pop_front on empty FrameStack");
+#else
+    // In release builds, we don't trigger UB - just verify empty state
+    EXPECT_TRUE(stack.empty());
+    EXPECT_EQ(stack.size(), 0);
 #endif
 }
 
@@ -889,6 +885,7 @@ TEST(FrameStack, PopUntilEmptyFromBothEnds)
     std::vector<Frame> frames;
 
     const size_t num_frames = 100;
+    frames.reserve(num_frames); // Reserve to prevent reallocation that would invalidate references
     for (size_t i = 0; i < num_frames; ++i) {
         frames.emplace_back(i);
         stack.push_back(std::ref(frames[i]));
@@ -1127,24 +1124,17 @@ TEST(FrameStack, GrowBothEndsWithIntermediateClears)
 
 TEST(FrameStack, MultiplePopBackOnEmpty)
 {
-    // Test multiple consecutive pop_back calls on empty stack
+    // Test that popping from empty triggers assertion in debug builds
     FrameStack stack;
     EXPECT_TRUE(stack.empty());
     EXPECT_EQ(stack.size(), 0);
 
-#ifdef NDEBUG
-    // In release builds, popping from empty is UB - we test it doesn't crash
-    // but acknowledge this is undefined behavior
-    stack.pop_back();
-    stack.pop_back();
-    stack.pop_back();
-    // Don't make assertions about state after UB
-
-    // Clear and start fresh for the usability check
-    stack.clear();
-#else
+#ifndef NDEBUG
     // In debug builds, first pop should assert
     EXPECT_DEATH(stack.pop_back(), "pop_back on empty FrameStack");
+#else
+    // In release builds, we don't trigger UB - just verify empty state persists
+    EXPECT_TRUE(stack.empty());
 #endif
 
     // Stack should still be usable with valid operations
@@ -1156,24 +1146,17 @@ TEST(FrameStack, MultiplePopBackOnEmpty)
 
 TEST(FrameStack, MultiplePopFrontOnEmpty)
 {
-    // Test multiple consecutive pop_front calls on empty stack
+    // Test that popping from empty triggers assertion in debug builds
     FrameStack stack;
     EXPECT_TRUE(stack.empty());
     EXPECT_EQ(stack.size(), 0);
 
-#ifdef NDEBUG
-    // In release builds, popping from empty is UB - we test it doesn't crash
-    // but acknowledge this is undefined behavior
-    stack.pop_front();
-    stack.pop_front();
-    stack.pop_front();
-    // Don't make assertions about state after UB
-
-    // Clear and start fresh for the usability check
-    stack.clear();
-#else
+#ifndef NDEBUG
     // In debug builds, first pop should assert
     EXPECT_DEATH(stack.pop_front(), "pop_front on empty FrameStack");
+#else
+    // In release builds, we don't trigger UB - just verify empty state persists
+    EXPECT_TRUE(stack.empty());
 #endif
 
     // Stack should still be usable with valid operations
@@ -1185,7 +1168,7 @@ TEST(FrameStack, MultiplePopFrontOnEmpty)
 
 TEST(FrameStack, PopUntilEmptyThenPopMore)
 {
-    // Pop until empty, then try to pop more (UB like std::deque)
+    // Pop until empty, verify we can't pop more (UB like std::deque)
     FrameStack stack;
     Frame frame1(1);
     Frame frame2(2);
@@ -1202,18 +1185,13 @@ TEST(FrameStack, PopUntilEmptyThenPopMore)
     stack.pop_back();
     EXPECT_TRUE(stack.empty());
 
-#ifdef NDEBUG
-    // In release builds, popping from empty is UB
-    stack.pop_back();
-    stack.pop_front();
-    // State after UB is undefined
-
-    // Clear and start fresh
-    stack.clear();
-#else
+#ifndef NDEBUG
     // In debug builds, should assert
     EXPECT_DEATH(stack.pop_back(), "pop_back on empty FrameStack");
     // Note: can't test pop_front after death test, would need separate test
+#else
+    // In release builds, we don't trigger UB - just verify empty state
+    EXPECT_TRUE(stack.empty());
 #endif
 
     // Verify stack is still functional with valid operations
@@ -1361,6 +1339,9 @@ TEST(FrameStack, AccessAtBoundaries)
     const size_t num_frames = 100;
     for (size_t i = 0; i < num_frames; ++i) {
         frames.emplace_back(i);
+    }
+
+    for (size_t i = 0; i < num_frames; ++i) {
         stack.push_back(std::ref(frames[i]));
     }
 
@@ -1413,6 +1394,7 @@ TEST(FrameStack, GrowThenPopAllThenPopMore)
     std::vector<Frame> frames;
 
     const size_t num_frames = initial_capacity + 200;
+    frames.reserve(num_frames); // Reserve to prevent reallocation that would invalidate references
     for (size_t i = 0; i < num_frames; ++i) {
         frames.emplace_back(i);
         stack.push_back(std::ref(frames[i]));
@@ -1425,19 +1407,12 @@ TEST(FrameStack, GrowThenPopAllThenPopMore)
     }
     EXPECT_TRUE(stack.empty());
 
-#ifdef NDEBUG
-    // In release builds, test UB doesn't crash (but it's still UB)
-    for (int i = 0; i < 10; ++i) {
-        stack.pop_back();
-        stack.pop_front();
-    }
-    // State after UB is undefined
-
-    // Clear and start fresh
-    stack.clear();
-#else
+#ifndef NDEBUG
     // In debug builds, first pop should assert
     EXPECT_DEATH(stack.pop_back(), "pop_back on empty FrameStack");
+#else
+    // In release builds, we don't trigger UB - just verify empty state
+    EXPECT_TRUE(stack.empty());
 #endif
 
     // Verify stack still works with valid operations
@@ -1453,6 +1428,7 @@ TEST(FrameStack, MixedPopFromBothEndsToEmpty)
     FrameStack stack;
     std::vector<Frame> frames;
 
+    frames.reserve(20); // Reserve to prevent reallocation that would invalidate references
     for (size_t i = 0; i < 20; ++i) {
         frames.emplace_back(i);
         stack.push_back(std::ref(frames[i]));
