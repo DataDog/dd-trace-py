@@ -308,6 +308,7 @@ lib_injection_tests:
   script:
     - export PYENV_ROOT="${HOME}/.pyenv"
     - export PATH="${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PATH}"
+    - apt install curl
     - PYENV_GIT_TAG=v2.6.17 curl https://pyenv.run | bash
     - pyenv --version
     - pyenv install ${PYTHON} && pyenv global ${PYTHON}
