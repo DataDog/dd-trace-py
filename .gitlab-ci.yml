@@ -178,7 +178,7 @@ run-codeql-scan:
   stage: tests
   needs: []
   image:
-    name: registry.ddbuild.io/images/code-scanning
+    name: registry.ddbuild.io/images/code-scanning:v69854462-2f7cc81-default
   tags: [ "arch:amd64" ]
   variables:
     AWS_REGION: us-east-1
