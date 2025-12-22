@@ -175,7 +175,7 @@ check_new_flaky_tests:
 
 run-codeql-scan:
   timeout: 8h
-  stage: test
+  stage: tests
   image: registry.ddbuild.io/images/code-scanning:v69854462-2f7cc81-dd-source
   tags:
     - arch:amd64
