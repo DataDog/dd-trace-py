@@ -307,6 +307,6 @@ lib_injection_tests:
   script:
     - which pyenv
     - pyenv --version
-    - pyenv install '$[[ matrix.PYTHON ]]' && pyenv global '$[[ matrix.PYTHON ]]'
+    - pyenv install ${PYTHON} && pyenv global ${PYTHON}
     - python --version
     - python lib-injection/sources/sitecustomize.py
