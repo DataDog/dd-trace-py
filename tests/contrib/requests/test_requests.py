@@ -741,7 +741,6 @@ def test_schematization_unspecified_service_name_v1():
     from ddtrace.contrib.internal.requests.patch import patch
     from ddtrace.contrib.internal.requests.patch import unpatch
     from ddtrace.internal import core as ddcore
-    from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME  # noqa: F401
     from tests.utils import DummyTracer
 
     URL_200 = "http://localhost:8001/status/200"
