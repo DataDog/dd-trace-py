@@ -295,3 +295,18 @@ deploy_to_di_backend:manual:
     UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
     UPSTREAM_TAG: $CI_COMMIT_TAG
     UPSTREAM_PACKAGE_JOB: build
+
+lib_injection_tests:
+  needs: []
+  stage: tests
+  script:
+    - export PYENV_ROOT="${HOME}/.pyenv"
+    - export PATH="${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PATH}"
+    - PYENV_GIT_TAG=main curl https://pyenv.run | bash
+    - echo "PYENV_ROOT=${PYENV_ROOT}" >> $GITHUB_ENV
+    - echo "PATH=${PATH}" >> $GITHUB_ENV
+    - which pyenv
+    - pyenv --version
+    - pyenv install "${{ matrix.python }}" && pyenv global "${{ matrix.python }}"
+    - python --version
+    - python lib-injection/sources/sitecustomize.py
