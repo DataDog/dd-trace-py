@@ -173,6 +173,33 @@ check_new_flaky_tests:
       when: never
     - when: on_success
 
+run-codeql-scan:
+  timeout: 8h
+  stage: build
+  image: registry.ddbuild.io/images/code-scanning:v69854462-2f7cc81-dd-source
+  tags:
+    - arch:amd64
+    - specific:true
+  variables:
+    AWS_REGION: us-east-1
+    BASE_REF: main
+    GOMAXPROCS: 10
+    KUBERNETES_CPU_REQUEST: 10
+    KUBERNETES_CPU_LIMIT: 10
+    KUBERNETES_MEMORY_REQUEST: 96Gi
+    KUBERNETES_MEMORY_LIMIT: 96Gi
+    GITHUB_APP_PRIVATE_KEY_NAME: csec.codescanning.githubapp.privatekey
+    GITHUB_APP_ID: 209967
+    GITHUB_INSTALLATION_ID: 26442897
+    CODEQL: /usr/local/codeql/codeql
+    CODEQL_DB: /tmp/dd-source.codeql
+    PYTHON_CUSTOM_QLPACK: /tmp/codescanning/qlpacks/python/codeql-suites/custom.qls
+    DB_CONFIGS: --threads 8 --ram 96000 --db-cluster --language=go,python,javascript --quiet
+    SCAN_CONFIGS: --format sarifv2.1.0 --threads 8 --ram 96000 --no-tuple-counting --quiet
+    UPLOAD_CONFIGS: -upload_sarif=true
+  script:
+    - ./scripts/codeql_scan.sh
+
 requirements_json_test:
   rules:
     - when: on_success
