@@ -47,17 +47,19 @@ mock_langchain_chat_generate_response = ChatResult(
 mock_google_genai_chat_generate_response = ChatResult(
     generations=[
         ChatGeneration(
-            generation_info={"finish_reason": "STOP"},
+            generation_info={"finish_reason": "STOP", "model_name": "gemini-2.0-flash", "safety_ratings": []},
             message=AIMessage(
-                content="The capital of France is Paris.",
+                content="The capital of France is **Paris**.",
                 additional_kwargs={},
-                response_metadata={
-                    "prompt_feedback": {"block_reason": 0, "safety_ratings": []},
-                    "finish_reason": "STOP",
+                response_metadata={"model_provider": "google_genai", "model_name": "gemini-2.0-flash"},
+                usage_metadata={
+                    "input_tokens": 7,
+                    "output_tokens": 9,
+                    "total_tokens": 16,
+                    "input_token_details": {"cache_read": 0},
                 },
-                usage_metadata={"input_tokens": 7, "output_tokens": 8, "total_tokens": 15},
             ),
-            text="The capital of France is Paris.",
+            text="The capital of France is **Paris**.",
         )
     ],
     llm_output={},
