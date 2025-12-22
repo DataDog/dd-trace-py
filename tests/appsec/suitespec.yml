@@ -127,13 +127,11 @@ suites:
       - postgres
       - mysql
   appsec_integrations_stripe:
-    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
       - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
       - tests/appsec/integrations/stripe_tests/*
     retry: 2
     runner: riot

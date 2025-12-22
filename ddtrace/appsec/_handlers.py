@@ -418,49 +418,52 @@ def _on_telemetry_periodic():
 
 
 def _on_checkout_session_create(session):
-    mode = session.mode
-    if mode != "payment":
-        return
+    try:
+        mode = session.mode
+        if mode != "payment":
+            return
 
-    discounts_coupon = None
-    discounts_promotion_code = None
-    if session.discounts:
-        discount = session.discounts[0]
-        coupon = discount.coupon
-        if coupon:
-            if isinstance(coupon, str):
-                discounts_coupon = coupon
-            else:
-                discounts_coupon = coupon.id
+        discounts_coupon = None
+        discounts_promotion_code = None
+        if session.discounts:
+            discount = session.discounts[0]
+            coupon = discount.coupon
+            if coupon:
+                if isinstance(coupon, str):
+                    discounts_coupon = coupon
+                else:
+                    discounts_coupon = coupon.id
 
-        promotion_code = discount.promotion_code
-        if promotion_code:
-            if isinstance(promotion_code, str):
-                discounts_promotion_code = promotion_code
-            else:
-                discounts_promotion_code = promotion_code.id
+            promotion_code = discount.promotion_code
+            if promotion_code:
+                if isinstance(promotion_code, str):
+                    discounts_promotion_code = promotion_code
+                else:
+                    discounts_promotion_code = promotion_code.id
 
-    total_details_amount_discount = None
-    total_details_amount_shipping = None
-    if session.total_details:
-        total_details_amount_discount = session.total_details.amount_discount
-        total_details_amount_shipping = session.total_details.amount_shipping
+        total_details_amount_discount = None
+        total_details_amount_shipping = None
+        if session.total_details:
+            total_details_amount_discount = session.total_details.amount_discount
+            total_details_amount_shipping = session.total_details.amount_shipping
 
-    payment_creation_data = {
-        "integration": "stripe",
-        "id": session.id,
-        "amount_total": session.amount_total,
-        "client_reference_id": session.client_reference_id,
-        "currency": session.currency,
-        "customer_email": session.customer_email,
-        "discounts.coupon": discounts_coupon,
-        "discounts.promotion_code": discounts_promotion_code,
-        "livemode": session.livemode,
-        "total_details.amount_discount": total_details_amount_discount,
-        "total_details.amount_shipping": total_details_amount_shipping,
-    }
+        payment_creation_data = {
+            "integration": "stripe",
+            "id": session.id,
+            "amount_total": session.amount_total,
+            "client_reference_id": session.client_reference_id,
+            "currency": session.currency,
+            "customer_email": session.customer_email,
+            "discounts.coupon": discounts_coupon,
+            "discounts.promotion_code": discounts_promotion_code,
+            "livemode": session.livemode,
+            "total_details.amount_discount": total_details_amount_discount,
+            "total_details.amount_shipping": total_details_amount_shipping,
+        }
 
-    call_waf_callback({"PAYMENT_CREATION": payment_creation_data})
+        call_waf_callback({"PAYMENT_CREATION": payment_creation_data})
+    except AttributeError:
+        log.debug("can't extract payment creation data from Session object", exc_info=True)
 
 
 def _on_payment_intent_create(payment_intent):
@@ -481,7 +484,7 @@ def _on_payment_intent_create(payment_intent):
 
         call_waf_callback({"PAYMENT_CREATION": payment_creation_data})
     except AttributeError:
-        pass
+        log.debug("can't extract payment creation data from PaymentIntent object", exc_info=True)
 
 
 def _on_payment_intent_event(event):
@@ -525,7 +528,7 @@ def _on_payment_intent_event(event):
 
         call_waf_callback({waf_data_name: payment_intent_webhook_data})
     except AttributeError:
-        pass
+        log.debug("can't extract payment_intent event data from Event object", exc_info=True)
 
 
 def listen():
