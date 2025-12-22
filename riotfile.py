@@ -1745,6 +1745,7 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "requests": latest,
                 "aiofiles": latest,
+                "cloudpickle": latest,
             },
             venvs=[
                 Venv(
@@ -3258,6 +3259,17 @@ venv = Venv(
                 "pandas": latest,
             },
             pys=select_pys(min_version="3.9", max_version="3.13"),
+        ),
+        Venv(
+            name="vllm",
+            command="pytest {cmdargs} tests/contrib/vllm",
+            pkgs={
+                "pytest-asyncio": "==0.21.1",
+                "pytest-randomly": latest,
+                "torch": latest,
+                "vllm": ">=0.10.2",
+            },
+            pys=select_pys(min_version="3.10", max_version="3.13"),
         ),
         Venv(
             name="valkey",
