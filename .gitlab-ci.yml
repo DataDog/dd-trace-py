@@ -197,8 +197,9 @@ codeowners:
   tags: ["arch:amd64"]
   image: registry.ddbuild.io/images/mirror/ubuntu:25.04
   script:
-    - apt-get update && apt install golang ca-certificates git wget curl -y
-    - go install github.com/hmarr/codeowners/cmd/codeowners@latest
+    - apt-get update && apt install ca-certificates git wget curl -y
+    - wget https://github.com/hmarr/codeowners/releases/download/v1.2.1/codeowners_1.2.1_linux_amd64.tar.gz
+    - tar -xvzf codeowners_1.2.1_linux_amd64.tar.gz
     - codeowners $(git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA)
     - echo "$(codeowners $(git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA))" >> codeowners.txt
     - wget -nv binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64
