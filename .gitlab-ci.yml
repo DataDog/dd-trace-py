@@ -197,12 +197,13 @@ codeowners:
   tags: ["arch:amd64"]
   image: registry.ddbuild.io/images/mirror/ubuntu:25.04
   script:
-    - apt-get update && apt install golang -y
+    - apt-get update && apt install golang build-essential -y
     - go install github.com/hmarr/codeowners/cmd/codeowners@latest
     - echo "$(codeowners $(git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA))" >> codeowners.txt
     - wget -nv binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64
     - chmod +x authanywhere-linux-amd64
-    - export MESSAGE="$(awk '{printf "%s\\n", $0}' codeowners.txt | sed 's/\"/\\"/g')"
+    - |
+      export MESSAGE="$(awk '{printf "%s\\n", $0}' codeowners.txt | sed 's/\"/\\"/g')"
     - |
       curl 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' \
         -H "$(./authanywhere-linux-amd64)" \
