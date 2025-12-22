@@ -48,7 +48,14 @@ def dsm_processor(tracer):
 
     with mock.patch("ddtrace.internal.datastreams.data_streams_processor", return_value=processor):
         yield processor
-        processor.shutdown(timeout=5)
+        from ddtrace.internal.service import ServiceStatusError
+
+        try:
+            processor.shutdown(timeout=5)
+        except ServiceStatusError as e:
+            # Expected: processor already stopped by tracer shutdown during test teardown
+            if "already in status stopped" not in str(e):
+                raise
 
 
 @pytest.mark.asyncio

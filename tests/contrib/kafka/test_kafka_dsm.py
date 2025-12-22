@@ -28,6 +28,14 @@ def dsm_processor(tracer):
         yield processor
         # flush buckets for the next test run
         processor.periodic()
+        from ddtrace.internal.service import ServiceStatusError
+
+        try:
+            processor.shutdown(timeout=5)
+        except ServiceStatusError as e:
+            # Expected: processor already stopped by tracer shutdown during test teardown
+            if "already in status stopped" not in str(e):
+                raise
 
 
 @pytest.mark.parametrize("payload_and_length", [("test", 4), ("你".encode("utf-8"), 3), (b"test2", 5)])
