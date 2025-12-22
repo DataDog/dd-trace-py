@@ -352,10 +352,8 @@ class SessionManager:
         log.info(
             "Test Optimization settings: Early Flake Detection enabled: %s", self.settings.early_flake_detection.enabled
         )
-        log.info("Test Optimization settings: Known Tests enabled: %s", self._api_settings.known_tests_enabled)
-        log.info(
-            "Test Optimization settings: Auto Test Retries enabled: %s", self.api_settings.auto_test_retries.enabled
-        )
+        log.info("Test Optimization settings: Known Tests enabled: %s", self.settings.known_tests_enabled)
+        log.info("Test Optimization settings: Auto Test Retries enabled: %s", self.settings.auto_test_retries.enabled)
 
 
 def _get_service_name_from_git_repo(env_tags: t.Dict[str, str]) -> t.Optional[str]:
