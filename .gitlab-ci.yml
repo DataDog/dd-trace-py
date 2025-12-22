@@ -1,0 +1,123 @@
+# Only allow manual triggering via UI or API
+# Prevent cancelling pipeline on new commits (manual release should not be interrupted)
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api"'
+      when: always
+    - when: never
+  auto_cancel:
+    on_new_commit: none
+
+stages:
+  - verify
+  - download
+  - test
+  - release
+
+# Configuration
+variables:
+  GITHUB_REPO: "DataDog/dd-trace-py"
+  GITLAB_REPO: "DataDog/apm-reliability/dd-trace-py"
+  GITLAB_PROJECT_ID: "358"
+  TARGET_SHA:
+    value: ""
+    description: "REQUIRED: The full git SHA to be released (e.g. fa5ce134fe59644c8906604eec2f023f4c1d4129)"
+  PACKAGE_VERSION:
+    value: ""
+    description: "OPTIONAL: Override the package version (for testing only). If not set, version is extracted from pyproject.toml at TARGET_SHA"
+
+"Validate inputs":
+  image: registry.ddbuild.io/images/mirror/python:3.14.0
+  stage: verify
+  tags: [ "arch:amd64" ]
+  artifacts:
+    reports:
+      dotenv: build.env
+  script:
+    - PACKAGE_VERSION=$(scripts/validate-release-inputs.sh | tail -1)
+    - echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> build.env
+
+"Test version ordering script":
+  stage: verify
+  image: registry.ddbuild.io/images/mirror/python:3.14.0
+  tags: [ "arch:amd64" ]
+  needs: []
+  script:
+    - pip install packaging
+    - python3 -m doctest scripts/verify-version-ordering.py -v
+
+"Verify version ordering":
+  stage: verify
+  image: registry.ddbuild.io/images/mirror/python:3.14.0
+  tags: [ "arch:amd64" ]
+  needs: ["Validate inputs", "Test version ordering script"]
+  script:
+    - pip install packaging
+    - scripts/verify-version-ordering.sh
+
+"Verify GitHub Workflows":
+  stage: verify
+  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
+  tags: [ "arch:amd64" ]
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  needs: ["Validate inputs"]
+  script:
+    - |
+      if [ -z "${GH_TOKEN}" ]
+      then
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
+      fi
+    - scripts/verify-github-workflows.sh
+
+"Verify GitLab Pipeline":
+  stage: verify
+  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
+  tags: [ "arch:amd64" ]
+  needs: ["Validate inputs", "Test version ordering script"]
+  script:
+    - |
+      # Install authanywhere for getting short-lived GitLab token
+      wget -nv https://binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64 -O authanywhere-linux-amd64
+      chmod +x authanywhere-linux-amd64
+
+      # Get short-lived GitLab token from BTI
+      export GITLAB_TOKEN=$(curl -s \
+        -H "$(./authanywhere-linux-amd64 --audience rapid-devex-ci)" \
+        "https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository=apm-reliability/dd-trace-py" | jq -r '.token')
+
+      if [ -z "$GITLAB_TOKEN" ] || [ "$GITLAB_TOKEN" = "null" ]; then
+        echo "❌ ERROR: Failed to obtain GitLab token from BTI"
+        exit 1
+      fi
+    - scripts/verify-gitlab-pipeline.sh
+
+"Verify version available":
+  stage: verify
+  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
+  tags: [ "arch:amd64" ]
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  needs: ["Validate inputs"]
+  script:
+    - |
+      if [ -z ${GH_TOKEN} ]
+      then
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
+      fi
+    - scripts/verify-version-available.sh
+
+"Download artifacts":
+  stage: download
+  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
+  tags: [ "arch:amd64" ]
+  script:
+    - bash scripts/download-release-artifacts.sh
+  artifacts:
+    paths:
+      - "release-artifacts/wheels/*.whl"
+      - "release-artifacts/wheels/*.tar.gz"
+    expire_in: 90 days
+  allow_failure: false
