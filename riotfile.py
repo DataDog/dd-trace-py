@@ -166,7 +166,7 @@ venv = Venv(
         Venv(
             name="appsec_integrations_packages",
             pys=select_pys(),
-            command="python -m pytest -v tests/appsec/integrations/packages_tests/",
+            command="pytest -v tests/appsec/integrations/packages_tests/",
             pkgs={
                 "gevent": latest,
                 "pytest-xdist": latest,
@@ -249,38 +249,42 @@ venv = Venv(
                     pkgs={"django": "~=2.2"},
                 ),
                 Venv(
-                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pys=select_pys(max_version="3.13"),
                     pkgs={"django": "~=3.2", "legacy-cgi": latest},
                 ),
                 Venv(
-                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pys=select_pys(max_version="3.13"),
                     pkgs={"django": "==4.0.10", "legacy-cgi": latest},
                 ),
                 Venv(
-                    pys=["3.13"],
+                    pys=select_pys(max_version="3.13"),
                     pkgs={"django": "==4.0.10", "legacy-cgi": latest},
                 ),
                 Venv(
-                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pys=select_pys(max_version="3.13"),
                     pkgs={"django": "~=4.2"},
                 ),
                 Venv(
-                    pys=["3.13"],
+                    pys=select_pys(max_version="3.13"),
                     pkgs={"django": "~=4.2", "legacy-cgi": latest},
                 ),
                 Venv(
-                    pys=["3.10"],
-                    pkgs={"django": "~=5.1"},
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"django": "~=5.2"},
                 ),
                 Venv(
-                    pys=["3.13"],
-                    pkgs={"django": "~=5.1", "legacy-cgi": latest},
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"django": latest},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"django": latest, "legacy-cgi": latest},
                 ),
             ],
         ),
         Venv(
             name="appsec_integrations_fastapi",
-            command="pytest {cmdargs} tests/appsec/integrations/fastapi_tests/",
+            command="pytest -vvv {cmdargs} tests/appsec/integrations/fastapi_tests/",
             pkgs={
                 "requests": latest,
                 "python-multipart": latest,
@@ -307,8 +311,12 @@ venv = Venv(
                     pkgs={"fastapi": "==0.94.1"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.13"),
-                    pkgs={"fastapi": ["~=0.114.2", latest], "mcp": "==1.20.0"},
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"fastapi": "~=0.114.2", "mcp": "==1.20.0"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"fastapi": latest, "pydantic": "~=2.12.1", "mcp": "==1.20.0"},
                 ),
             ],
         ),
@@ -1737,6 +1745,7 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "requests": latest,
                 "aiofiles": latest,
+                "cloudpickle": latest,
             },
             venvs=[
                 Venv(
@@ -2982,6 +2991,7 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "vertexai": [latest],
                 "google-ai-generativelanguage": [latest],
+                "google-cloud-aiplatform": [latest],
             },
         ),
         Venv(
@@ -3219,7 +3229,7 @@ venv = Venv(
         ),
         Venv(
             name="subprocess",
-            command="pytest {cmdargs} --no-cov tests/contrib/subprocess",
+            command="pytest -vvvv {cmdargs} --no-cov tests/contrib/subprocess",
             pkgs={
                 "pytest-randomly": latest,
             },
@@ -3249,6 +3259,17 @@ venv = Venv(
                 "pandas": latest,
             },
             pys=select_pys(min_version="3.9", max_version="3.13"),
+        ),
+        Venv(
+            name="vllm",
+            command="pytest {cmdargs} tests/contrib/vllm",
+            pkgs={
+                "pytest-asyncio": "==0.21.1",
+                "pytest-randomly": latest,
+                "torch": latest,
+                "vllm": ">=0.10.2",
+            },
+            pys=select_pys(min_version="3.10", max_version="3.13"),
         ),
         Venv(
             name="valkey",
@@ -3515,19 +3536,19 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(max_version="3.13"),
+                    pys=select_pys(),
                     pkgs={
                         "flask": "~=2.2",
                     },
                 ),
                 Venv(
-                    pys=select_pys(max_version="3.13"),
+                    pys=select_pys(),
                     pkgs={
                         "flask": "~=3.0",
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.11", max_version="3.13"),
+                    pys=select_pys(min_version="3.11"),
                     pkgs={
                         "flask": "~=3.1",
                         "Werkzeug": "~=3.1",

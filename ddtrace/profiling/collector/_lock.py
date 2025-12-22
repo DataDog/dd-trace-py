@@ -313,6 +313,17 @@ class _LockAllocatorWrapper:
             return getattr(original_class, name)
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
+    def __mro_entries__(self, bases: Tuple[Any, ...]) -> Tuple[Type[Any], ...]:
+        """Support subclassing the wrapped lock type (PEP 560).
+
+        When custom lock types inherit from a wrapped lock
+        (e.g. neo4j's AsyncRLock that inherits from asyncio.Lock), program error with:
+        > TypeError: _LockAllocatorWrapper.__init__() takes 2 positional arguments but 4 were given
+
+        This method returns the actual object type to be used as the base class.
+        """
+        return (self._original_class,)  # type: ignore[return-value]
+
 
 class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
@@ -320,6 +331,9 @@ class LockCollector(collector.CaptureSamplerCollector):
     PROFILED_LOCK_CLASS: Type[Any]
     MODULE: ModuleType  # e.g., threading module
     PATCHED_LOCK_NAME: str  # e.g., "Lock", "RLock", "Semaphore"
+    # Module file to check for internal lock detection (e.g., threading.__file__ or asyncio.locks.__file__)
+    # If None, defaults to threading.__file__ for backward compatibility
+    INTERNAL_MODULE_FILE: Optional[str] = None
 
     def __init__(
         self,
@@ -354,27 +368,32 @@ class LockCollector(collector.CaptureSamplerCollector):
         self._original_lock = self._get_patch_target()
         original_lock: Any = self._original_lock  # Capture non-None value
 
+        # Determine which module file to check for internal lock detection
+        internal_module_file: Optional[str] = self.INTERNAL_MODULE_FILE
+        if internal_module_file is None:
+            # Default to threading.__file__ for backward compatibility
+            import threading as threading_module
+
+            internal_module_file = threading_module.__file__
+
         def _profiled_allocate_lock(*args: Any, **kwargs: Any) -> _ProfiledLock:
             """Simple wrapper that returns profiled locks.
 
-            Detects if the lock is being created from within threading.py stdlib
+            Detects if the lock is being created from within the stdlib module
             (i.e., internal to Semaphore/Condition) to avoid double-counting.
             """
-            import threading as threading_module
-
-            # Check if caller is from threading.py (internal lock)
+            # Check if caller is from the internal module (internal lock)
             is_internal: bool = False
             try:
                 # Frame 0: _profiled_allocate_lock
                 # Frame 1: _LockAllocatorWrapper.__call__
-                # Frame 2: actual caller (threading.Lock() call site)
+                # Frame 2: actual caller (Lock() call site)
                 caller_filename = sys._getframe(2).f_code.co_filename
-                threading_module_file = threading_module.__file__
-                if threading_module_file and caller_filename:
+                if internal_module_file and caller_filename:
                     # Normalize paths to handle symlinks and different path formats
-                    caller_filename_normalized = os.path.normpath(os.path.realpath(caller_filename))
-                    threading_file_normalized = os.path.normpath(os.path.realpath(threading_module_file))
-                    is_internal = caller_filename_normalized == threading_file_normalized
+                    caller_filename = os.path.normpath(os.path.realpath(caller_filename))
+                    internal_file = os.path.normpath(os.path.realpath(internal_module_file))
+                    is_internal = caller_filename == internal_file
             except (ValueError, AttributeError, OSError):
                 pass
 
