@@ -214,7 +214,7 @@ codeowners:
         -X PATCH -d "{ \
           \"commit\": \"$CI_COMMIT_SHORT_SHA\", \
           \"message\": \"$MESSAGE\", \
-          \"header\": \"Changed Files Codeowners\", \
+          \"header\": \"Codeowners resolved as\", \
           \"org\": \"Datadog\", \
           \"repo\": \"dd-trace-py\" \
         }"
