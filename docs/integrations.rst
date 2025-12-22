@@ -612,6 +612,13 @@ Vertica
 
 .. _webbrowser:
 
+vLLM
+^^^^
+.. automodule:: ddtrace.contrib.internal.vllm
+
+
+.. _vllm:
+
 Webbrowser
 ^^^^^^^^^^
 .. automodule:: ddtrace.contrib.internal.webbrowser

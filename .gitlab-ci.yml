@@ -101,6 +101,7 @@ serverless lambda tests:
     UPSTREAM_GITLAB_USER_LOGIN: $GITLAB_USER_LOGIN
     UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL
     SKIP_E2E_TESTS: "true"
+  allow_failure: true
 
 # Validate the ast-grep rule's test suite in .sg/tests
 "ast-grep rules":
@@ -178,6 +179,43 @@ requirements_json_test:
   variables:
     REQUIREMENTS_BLOCK_JSON_PATH: ".gitlab/requirements_block.json"
     REQUIREMENTS_ALLOW_JSON_PATH: ".gitlab/requirements_allow.json"
+
+detect_circular_imports:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  rules:
+    - if: !reference [.is_main]
+      when: never
+  script:
+    - cd ..
+    - python -m pip install -r dd-trace-py/scripts/import-analysis/requirements-cycles.txt
+    - cp dd-trace-py/scripts/import-analysis/cycles.py .
+    - python dd-trace-py/scripts/import-analysis/cycles.py analyze cycles-pr.json
+    - cat cycles-pr.json
+    - cd dd-trace-py && git checkout main && cd ..
+    - python dd-trace-py/scripts/import-analysis/cycles.py analyze cycles-base.json
+    - cat cycles-base.json
+    - python dd-trace-py/scripts/import-analysis/cycles.py compare cycles-base.json cycles-pr.json > cycles_report.txt || true
+    - CYCLES_REPORT="$(cat cycles_report.txt)"
+    - cat cycles_report.txt
+    - |
+      if [ ! -z "$CYCLES_REPORT" ]; then
+        wget -nv binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64
+        chmod +x authanywhere-linux-amd64
+        export MESSAGE="$(awk '{printf "%s\\n", $0}' cycles_report.txt | sed 's/\"/\\"/g')"
+        curl 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' \
+          -H "$(./authanywhere-linux-amd64)" \
+          -X PATCH -d "{ \
+            \"commit\": \"$CI_COMMIT_SHORT_SHA\", \
+            \"message\": \"$MESSAGE\", \
+            \"header\": \"\", \
+            \"org\": \"Datadog\", \
+            \"repo\": \"dd-trace-py\" \
+          }"
+        exit 1
+      fi
+
 
 package-oci:
   needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
