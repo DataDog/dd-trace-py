@@ -1,29 +1,123 @@
-# `ddtrace`
+# codeowners
 
-[![CircleCI](https://circleci.com/gh/DataDog/dd-trace-py/tree/main.svg?style=svg)](https://circleci.com/gh/DataDog/dd-trace-py/tree/main)
-[![PypiVersions](https://img.shields.io/pypi/v/ddtrace.svg)](https://pypi.org/project/ddtrace/)
-[![Pyversions](https://img.shields.io/pypi/pyversions/ddtrace.svg?style=flat)](https://pypi.org/project/ddtrace/)
+![build](https://github.com/hmarr/codeowners/workflows/build/badge.svg)
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/hmarr/codeowners)](https://pkg.go.dev/github.com/hmarr/codeowners)
 
-<img align="right" src="https://user-images.githubusercontent.com/6321485/167082083-53f6e48f-1843-4708-9b98-587c94f7ddb3.png" alt="bits python" width="200px"/>
+A CLI and Go library for GitHub's [CODEOWNERS file](https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/about-code-owners#codeowners-syntax).
 
-This library powers [Distributed Tracing](https://docs.datadoghq.com/tracing/),
- [Continuous Profiling](https://docs.datadoghq.com/tracing/profiler/),
- [Error Tracking](https://docs.datadoghq.com/tracing/error_tracking/),
- [Test Optimization](https://docs.datadoghq.com/tests/),
- [Deployment Tracking](https://docs.datadoghq.com/tracing/deployment_tracking/),
- [Code Hotspots](https://docs.datadoghq.com/tracing/profiler/connect_traces_and_profiles/),
- [Dynamic Instrumentation](https://docs.datadoghq.com/dynamic_instrumentation/),
- and more.
+## Command line tool
 
-To get started with tracing, check out the [product documentation][setup docs] or the [glossary][visualization docs].
+The `codeowners` CLI identifies the owners for files in a local repository or directory.
 
-For advanced usage and configuration information, check out the [library documentation][api docs].
+### Installation
 
-To get started as a contributor, see [the contributing docs](https://ddtrace.readthedocs.io/en/stable/contributing.html) first.
+If you're on macOS, you can install the CLI from the [homebrew tap](https://github.com/hmarr/homebrew-tap#codeowners).
 
-For information about the bug/security fix and maintenance policy, see the [versioning docs][versioning docs].
+```console
+$ brew tap hmarr/tap
+$ brew install codeowners
+```
 
-[setup docs]: https://docs.datadoghq.com/tracing/setup/python/
-[api docs]: https://ddtrace.readthedocs.io/
-[visualization docs]: https://docs.datadoghq.com/tracing/visualization/
-[versioning docs]: https://github.com/DataDog/dd-trace-py/blob/main/docs/versioning.rst#release-support
+Otherwise, grab a binary from the [releases page](https://github.com/hmarr/codeowners/releases) or install from source with `go install`:
+
+```console
+$ go install github.com/hmarr/codeowners/cmd/codeowners@latest
+```
+
+### Usage
+
+By default, the command line tool will walk the directory tree, printing the code owners of any files that are found.
+
+```console
+$ codeowners --help
+usage: codeowners <path>...
+  -f, --file string     CODEOWNERS file path
+  -h, --help            show this help message
+  -o, --owner strings   filter results by owner
+  -u, --unowned         only show unowned files (can be combined with -o)
+
+$ ls
+CODEOWNERS       DOCUMENTATION.md README.md        example.go       example_test.go
+
+$ cat CODEOWNERS
+*.go       @example/go-engineers
+*.md       @example/docs-writers
+README.md  product-manager@example.com
+
+$ codeowners
+CODEOWNERS                           (unowned)
+README.md                            product-manager@example.com
+example_test.go                      @example/go-engineers
+example.go                           @example/go-engineers
+DOCUMENTATION.md                     @example/docs-writers
+```
+
+To limit the files the tool looks at, provide one or more paths as arguments.
+
+```console
+$ codeowners *.md
+README.md                            product-manager@example.com
+DOCUMENTATION.md                     @example/docs-writers
+```
+
+Pass the `--owner` flag to filter results by a specific owner.
+
+```console
+$ codeowners -o @example/go-engineers
+example_test.go                      @example/go-engineers
+example.go                           @example/go-engineers
+```
+
+Pass the `--unowned` flag to only show unowned files.
+
+```console
+$ codeowners -u
+CODEOWNERS                           (unowned)
+```
+
+## Go library
+
+A package for parsing CODEOWNERS files and matching files to owners.
+
+### Installation
+
+```console
+$ go get github.com/hmarr/codeowners
+```
+
+### Usage
+
+Full documentation is available at [pkg.go.dev](https://pkg.go.dev/github.com/hmarr/codeowners).
+
+Here's a quick example to get you started:
+
+```go
+package main
+
+import (
+	"fmt"
+	"log"
+	"os"
+
+	"github.com/hmarr/codeowners"
+)
+
+func main() {
+	file, err := os.Open("CODEOWNERS")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	ruleset, err := codeowners.ParseFile(file)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	rule, err := ruleset.Match("path/to/file")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf("Owners: %v\n", rule.Owners)
+}
+```
