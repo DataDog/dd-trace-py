@@ -7,8 +7,10 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include <deque>
+#include <algorithm>
+#include <optional>
 #include <unordered_set>
+#include <vector>
 
 #include <echion/config.h>
 #include <echion/frame.h>
@@ -19,10 +21,170 @@
 
 // ----------------------------------------------------------------------------
 
-class FrameStack : public std::deque<Frame::Ref>
+class FrameStack
 {
+    // initial_capacity for the stack, shared between "front" and "back"
+    static constexpr size_t initial_capacity = 2048;
+
+  private:
+    std::vector<std::optional<Frame::Ref>> buffer_;
+    size_t start_; // Index of the first element
+    size_t end_;   // Index one past the last element
+
+    void grow()
+    {
+        size_t current_size = end_ - start_;
+        size_t new_capacity = std::max(buffer_.capacity() * 2, FrameStack::initial_capacity);
+
+        std::vector<std::optional<Frame::Ref>> new_buffer;
+        new_buffer.reserve(new_capacity);
+        new_buffer.resize(new_capacity);
+
+        // Center elements in the new buffer with equal space at front and back
+        size_t new_start = (new_capacity - current_size) / 2;
+        for (size_t i = 0; i < current_size; ++i) {
+            new_buffer[new_start + i] = std::move(buffer_[start_ + i]);
+        }
+
+        buffer_ = std::move(new_buffer);
+        start_ = new_start;
+        end_ = new_start + current_size;
+    }
+
+    // Helper iterator adapter to unwrap optionals
+    template<typename Iter>
+    class unwrap_iterator
+    {
+      private:
+        Iter it_;
+
+      public:
+        using iterator_category = typename std::iterator_traits<Iter>::iterator_category;
+        using value_type = Frame::Ref;
+        using difference_type = typename std::iterator_traits<Iter>::difference_type;
+        using pointer = Frame*;
+        using reference = Frame::Ref;
+
+        unwrap_iterator(Iter it)
+          : it_(it)
+        {
+        }
+
+        Frame::Ref operator*() const { return **it_; }
+        Frame* operator->() const { return &((**it_).get()); }
+
+        unwrap_iterator& operator++()
+        {
+            ++it_;
+            return *this;
+        }
+        unwrap_iterator operator++(int)
+        {
+            auto tmp = *this;
+            ++(*this);
+            return tmp;
+        }
+        unwrap_iterator& operator--()
+        {
+            --it_;
+            return *this;
+        }
+        unwrap_iterator operator--(int)
+        {
+            auto tmp = *this;
+            --(*this);
+            return tmp;
+        }
+
+        unwrap_iterator operator+(difference_type n) const { return unwrap_iterator(it_ + n); }
+        unwrap_iterator operator-(difference_type n) const { return unwrap_iterator(it_ - n); }
+        difference_type operator-(const unwrap_iterator& other) const { return it_ - other.it_; }
+
+        bool operator==(const unwrap_iterator& other) const { return it_ == other.it_; }
+        bool operator!=(const unwrap_iterator& other) const { return it_ != other.it_; }
+        bool operator<(const unwrap_iterator& other) const { return it_ < other.it_; }
+        bool operator<=(const unwrap_iterator& other) const { return it_ <= other.it_; }
+        bool operator>(const unwrap_iterator& other) const { return it_ > other.it_; }
+        bool operator>=(const unwrap_iterator& other) const { return it_ >= other.it_; }
+
+        friend unwrap_iterator operator+(difference_type n, const unwrap_iterator& it) { return it + n; }
+    };
+
   public:
     using Key = Frame::Key;
+    using value_type = Frame::Ref;
+    using reference = Frame::Ref;
+    using const_reference = Frame::Ref;
+    using iterator = unwrap_iterator<typename std::vector<std::optional<Frame::Ref>>::iterator>;
+    using const_iterator = unwrap_iterator<typename std::vector<std::optional<Frame::Ref>>::const_iterator>;
+    using reverse_iterator = std::reverse_iterator<iterator>;
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+
+    FrameStack()
+      : start_(initial_capacity / 2)
+      , end_(initial_capacity / 2)
+    {
+        buffer_.reserve(initial_capacity);
+        buffer_.resize(initial_capacity);
+    }
+
+    size_t size() const { return end_ - start_; }
+    bool empty() const { return start_ == end_; }
+
+    void clear()
+    {
+        buffer_.clear();
+        buffer_.reserve(initial_capacity);
+        buffer_.resize(initial_capacity);
+        start_ = initial_capacity / 2;
+        end_ = initial_capacity / 2;
+    }
+
+    void push_back(const Frame::Ref& value)
+    {
+        if (end_ >= buffer_.capacity()) {
+            grow();
+        }
+        if (end_ >= buffer_.size()) {
+            buffer_.resize(end_ + 1);
+        }
+        buffer_[end_++] = value;
+    }
+
+    void push_front(const Frame::Ref& value)
+    {
+        if (start_ == 0) {
+            grow();
+        }
+        buffer_[--start_] = value;
+    }
+
+    void pop_back()
+    {
+        if (!empty()) {
+            --end_;
+        }
+    }
+
+    void pop_front()
+    {
+        if (!empty()) {
+            ++start_;
+        }
+    }
+
+    Frame::Ref operator[](size_t index) { return *buffer_[start_ + index]; }
+    Frame::Ref operator[](size_t index) const { return *buffer_[start_ + index]; }
+
+    iterator begin() { return iterator(buffer_.begin() + start_); }
+    iterator end() { return iterator(buffer_.begin() + end_); }
+    const_iterator begin() const { return const_iterator(buffer_.begin() + start_); }
+    const_iterator end() const { return const_iterator(buffer_.begin() + end_); }
+
+    reverse_iterator rbegin() { return reverse_iterator(end()); }
+    reverse_iterator rend() { return reverse_iterator(begin()); }
+    const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }
+    const_reverse_iterator rend() const { return const_reverse_iterator(begin()); }
 
     // ------------------------------------------------------------------------
     void render()
