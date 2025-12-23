@@ -177,11 +177,8 @@ codeql-scan:
   timeout: 8h
   stage: tests
   needs: []
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
   image:
-    name: registry.ddbuild.io/images/code-scanning:v9970864-abaa42b-default
+    name: registry.ddbuild.io/images/code-scanning:v76675231-865a08a-default
   tags: [ "arch:amd64" ]
   variables:
     AWS_REGION: us-east-1

@@ -12,7 +12,7 @@ set +x # Disable command echoing to prevent token leakage
 git clone https://github.com/DataDog/codescanning.git --depth 1 --single-branch --branch=main /tmp/codescanning
 set -x # Re-enable command echoing
 
-dd-octo-sts debug --scope DataDog/dd-source --policy codeql || true
+dd-octo-sts debug --scope DataDog/dd-trace-py --policy codeql || true
 
 # Create CodeQL databases.
 $CODEQL database create "$CODEQL_DB" $DB_CONFIGS
