@@ -7,8 +7,9 @@ set -euo pipefail
 export PATH=$PATH:/usr/local/go/bin
 
 # Clone Code Scanning repository to download custom CodeQL packs from.
+export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
 set +x # Disable command echoing to prevent token leakage
-git clone https://gitlab-ci:${GITHUB_ACCESS_TOKEN}@github.com/DataDog/codescanning.git --depth 1 --single-branch --branch=main /tmp/codescanning
+git clone https://gitlab-ci:${GH_TOKEN}@github.com/DataDog/codescanning.git --depth 1 --single-branch --branch=main /tmp/codescanning
 set -x # Re-enable command echoing
 
 dd-octo-sts debug --scope DataDog/dd-source --policy codeql || true
@@ -20,7 +21,7 @@ $CODEQL database create "$CODEQL_DB" $DB_CONFIGS
 $CODEQL database analyze "$CODEQL_DB"/python "$PYTHON_CUSTOM_QLPACK" $SCAN_CONFIGS --sarif-category="python" --output="/tmp/python.sarif"
 
 # Obtain short-lived GitHub token via DD Octo STS for SARIF upload
-GITHUB_TOKEN="$(DD_TRACE_ENABLED=false dd-octo-sts token --scope DataDog/dd-source --policy codeql)"
+GITHUB_TOKEN="$(DD_TRACE_ENABLED=false dd-octo-sts token --scope DataDog/dd-trace-py --policy codeql)"
 export GITHUB_TOKEN
 
 # Upload results using custom Go command.
