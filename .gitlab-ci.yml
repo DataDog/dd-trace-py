@@ -205,7 +205,7 @@ codeowners:
       if [! -z "$CHANGED_FILES"]; then
         ./codeowners "$CHANGED_FILES"
         echo '```' > codeowners.txt
-        echo "$(./codeowners $CHANGED_FILES" >> codeowners.txt
+        echo "$(./codeowners $CHANGED_FILES)" >> codeowners.txt
         echo '```' >> codeowners.txt
       fi
     - |
