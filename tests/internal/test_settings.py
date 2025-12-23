@@ -10,7 +10,7 @@ from ddtrace.internal.settings._config import Config
 from tests.utils import remote_config_build_payload as build_payload
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def config():
     import ddtrace
 
@@ -19,6 +19,10 @@ def config():
     yield ddtrace.config
     # Reset the config to its original state
     ddtrace.config = original_config
+    # Clear any sampling rules that were set during the test
+    ddtrace.tracer._sampler.set_sampling_rules("")
+    # Reset the state of the tracer
+    ddtrace.tracer._recreate(reset_state=True)
 
 
 def _base_rc_config(cfg):
