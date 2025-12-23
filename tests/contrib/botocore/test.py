@@ -880,6 +880,7 @@ class BotocoreTest(TracerTestCase):
                         AttributeName="RawMessageDelivery",
                         AttributeValue="true",
                     )
+                self.reset()  # Clear spans from setup operations
 
                 Pin.get_from(sns)._clone(tracer=self.tracer).onto(sns)
                 Pin.get_from(self.sqs_client)._clone(tracer=self.tracer).onto(self.sqs_client)
@@ -895,7 +896,7 @@ class BotocoreTest(TracerTestCase):
                 spans = self.get_spans()
                 assert spans
                 publish_span = spans[0]
-                assert len(spans) == 3
+                assert len(spans) == 2  # publish + receive_message
                 assert publish_span.get_tag("aws.region") == "us-east-1"
                 assert publish_span.get_tag("region") == "us-east-1"
                 assert publish_span.get_tag("aws.operation") == "Publish"
@@ -1742,6 +1743,7 @@ class BotocoreTest(TracerTestCase):
             Rule="a-test-bus-rule",
             Targets=[{"Id": "a-test-bus-rule-target", "Arn": "arn:aws:sqs:us-east-1:000000000000:Test"}],
         )
+        self.reset()  # Clear spans from setup operations
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
@@ -1806,6 +1808,7 @@ class BotocoreTest(TracerTestCase):
             Rule="a-test-bus-rule",
             Targets=[{"Id": "a-test-bus-rule-target", "Arn": "arn:aws:sqs:us-east-1:000000000000:Test"}],
         )
+        self.reset()  # Clear spans from setup operations
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
@@ -2073,8 +2076,8 @@ class BotocoreTest(TracerTestCase):
         # clean up resources
         sns.delete_topic(TopicArn=topic_arn)
 
-        # check if the appropriate span was generated
-        assert len(spans) == 2, "Expected 2 spans, found {}".format(len(spans))
+        # check if the appropriate span was generated (SNS publish span only, urllib3 is filtered)
+        assert len(spans) == 1, "Expected 1 span, found {}".format(len(spans))
         return spans[0]
 
     @mock_sns
@@ -2160,6 +2163,7 @@ class BotocoreTest(TracerTestCase):
         url_parts = sqs_url.split("/")
         sqs_arn = "arn:aws:sqs:{}:{}:{}".format("us-east-1", url_parts[-2], url_parts[-1])
         sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+        self.reset()  # Clear spans from setup operations
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
@@ -2221,6 +2225,7 @@ class BotocoreTest(TracerTestCase):
         url_parts = sqs_url.split("/")
         sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
         sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+        self.reset()  # Clear spans from setup operations
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
@@ -2298,6 +2303,7 @@ class BotocoreTest(TracerTestCase):
         url_parts = sqs_url.split("/")
         sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
         sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+        self.reset()  # Clear spans from setup operations
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
@@ -2462,6 +2468,7 @@ class BotocoreTest(TracerTestCase):
         url_parts = sqs_url.split("/")
         sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
         sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+        self.reset()  # Clear spans from setup operations
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
@@ -2535,6 +2542,7 @@ class BotocoreTest(TracerTestCase):
         url_parts = sqs_url.split("/")
         sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
         sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+        self.reset()  # Clear spans from setup operations
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
@@ -2762,6 +2770,7 @@ class BotocoreTest(TracerTestCase):
 
         stream_name = "kinesis_put_record_" + test_name
         shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
+        self.reset()  # Clear spans from setup operations (create_stream, describe_stream)
 
         partition_key = "1234"
 
@@ -2801,6 +2810,7 @@ class BotocoreTest(TracerTestCase):
 
         stream_name = "kinesis_put_records_" + test_name
         shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
+        self.reset()  # Clear spans from setup operations (create_stream, describe_stream)
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
@@ -3421,7 +3431,9 @@ class BotocoreTest(TracerTestCase):
         with self.override_config(
             "botocore",
             dict(
-                payload_tagging_request="$..PublishBatchRequestEntries.[*].Message,$..PublishBatchRequestEntries.[*].Id",
+                payload_tagging_request=(
+                    "$..PublishBatchRequestEntries.[*].Message,$..PublishBatchRequestEntries.[*].Id"
+                ),
                 payload_tagging_response="$..HTTPHeaders.*",
             ),
         ):
