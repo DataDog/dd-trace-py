@@ -195,9 +195,9 @@ codeql-scan:
     GITHUB_APP_ID: 209967
     GITHUB_INSTALLATION_ID: 26442897
     CODEQL: /usr/local/codeql/codeql
-    CODEQL_DB: /tmp/dd-source.codeql
+    CODEQL_DB: /tmp/dd-trace-py.codeql
     PYTHON_CUSTOM_QLPACK: /tmp/codescanning/qlpacks/python/codeql-suites/custom.qls
-    DB_CONFIGS: --threads 8 --ram 96000 --db-cluster --language=go,python,javascript --quiet
+    DB_CONFIGS: --threads 8 --ram 96000 --db-cluster --language=python --quiet
     SCAN_CONFIGS: --format sarifv2.1.0 --threads 8 --ram 96000 --no-tuple-counting --quiet
     UPLOAD_CONFIGS: -upload_sarif=true
   script:
