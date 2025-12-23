@@ -97,6 +97,8 @@ class DDWaf_result:
                 self.api_security[k] = v
             elif isinstance(v, str):
                 self.meta_tags[k] = v
+            elif isinstance(v, bool):
+                self.metrics[k] = int(v)
             else:
                 self.metrics[k] = v
         self.keep = keep
