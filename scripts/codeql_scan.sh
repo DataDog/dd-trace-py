@@ -22,4 +22,4 @@ set +x # Disable command echoing to prevent token leakage
 export GITHUB_TOKEN="$(DD_TRACE_ENABLED=false dd-octo-sts token --scope DataDog/dd-trace-py --policy codeql)"
 set -x # Re-enable command echoing
 cd /tmp/codescanning && go build -o codescanning_binary && chmod +x codescanning_binary
-./codescanning_binary -upload_sarif=true -scan_started_time="${CI_JOB_STARTED_AT}"
+CODEQL_SARIF="/tmp/python.sarif" ./codescanning_binary -upload_sarif=true -scan_started_time="${CI_JOB_STARTED_AT}"
