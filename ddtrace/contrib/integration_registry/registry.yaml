@@ -347,7 +347,7 @@ integrations:
   tested_versions_by_dependency:
     fastapi:
       min: 0.64.0
-      max: 0.118.0
+      max: 0.124.4
 
 - integration_name: flask
   is_external_package: true
@@ -928,6 +928,16 @@ integrations:
     vertica-python:
       min: 0.6.14
       max: 0.7.4
+
+- integration_name: vllm
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - vllm
+  tested_versions_by_dependency:
+    vllm:
+      min: 0.10.2
+      max: 0.13.0
 
 - integration_name: webbrowser
   is_external_package: false

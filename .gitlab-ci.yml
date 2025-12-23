@@ -14,7 +14,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "30e17ba7009b84998c0ada3b3a17f39c0037faba"
+  SYSTEM_TESTS_REF: "9417552bee3dd45313249fc8bf889a008c88ebb4"
 
 default:
   interruptible: true
@@ -179,6 +179,17 @@ requirements_json_test:
   variables:
     REQUIREMENTS_BLOCK_JSON_PATH: ".gitlab/requirements_block.json"
     REQUIREMENTS_ALLOW_JSON_PATH: ".gitlab/requirements_allow.json"
+
+check_requirements_lockfiles:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  script:
+    - pip install toml==0.10.2
+    - scripts/compile-and-prune-test-requirements
+    - scripts/check-diff '.riot/requirements/' 'Mismatches found between .riot/requirements/*.txt and riotfile.py. Run scripts/compile-and-prune-test-requirements and commit the result.'
+    - python scripts/requirements_to_csv.py
+    - scripts/check-diff 'requirements.csv' 'Tracer dependency requirements in requirements.csv is out of date. Run `python scripts/requirements_to_csv.py` and commit the result.'
 
 detect_circular_imports:
   stage: tests

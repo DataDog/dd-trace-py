@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Fixes a bug where code that sub-classes our wrapped locks crashes with ``TypeError`` during profiling.
+    One example of this is neo4j's ``AsyncRLock``, which inherits from ``asyncio.Lock``:
+    https://github.com/neo4j/neo4j-python-driver/blob/6.x/src/neo4j/_async_compat/concurrency.py#L45
