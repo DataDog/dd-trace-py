@@ -271,7 +271,7 @@ class BackendConnector(threading.local):
         except (TimeoutError, socket.timeout) as e:
             result.error_type = ErrorType.TIMEOUT
             result.error_description = str(e)
-        except (ConnectionRefusedError, http.client.HTTPException) as e:
+        except (ConnectionError, http.client.HTTPException) as e:
             result.error_type = ErrorType.NETWORK
             result.error_description = str(e)
         except Exception as e:

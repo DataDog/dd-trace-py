@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import _thread
 import asyncio
 import glob
@@ -13,6 +15,9 @@ import pytest
 
 from ddtrace import ext
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
+from ddtrace.profiling.collector.asyncio import AsyncioBoundedSemaphoreCollector
+from ddtrace.profiling.collector.asyncio import AsyncioConditionCollector
 from ddtrace.profiling.collector.asyncio import AsyncioLockCollector
 from ddtrace.profiling.collector.asyncio import AsyncioSemaphoreCollector
 from tests.profiling.collector import pprof_utils
@@ -25,12 +30,14 @@ init_linenos(__file__)
 
 PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
 
-# Type aliases for collector and lock types
-CollectorType = Union[
-    Type[AsyncioLockCollector],
-    Type[AsyncioSemaphoreCollector],
+# Type aliases for supported classes
+LockTypeInst = Union[asyncio.Lock, asyncio.Semaphore, asyncio.BoundedSemaphore, asyncio.Condition]
+LockTypeClass = Type[LockTypeInst]
+
+CollectorTypeInst = Union[
+    AsyncioLockCollector, AsyncioSemaphoreCollector, AsyncioBoundedSemaphoreCollector, AsyncioConditionCollector
 ]
-LockType = Union[Type[asyncio.Lock], Type[asyncio.Semaphore]]
+CollectorTypeClass = Type[CollectorTypeInst]
 
 
 @pytest.mark.parametrize(
@@ -44,9 +51,17 @@ LockType = Union[Type[asyncio.Lock], Type[asyncio.Semaphore]]
             AsyncioSemaphoreCollector,
             "AsyncioSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
         ),
+        (
+            AsyncioBoundedSemaphoreCollector,
+            "AsyncioBoundedSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+        ),
+        (
+            AsyncioConditionCollector,
+            "AsyncioConditionCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+        ),
     ],
 )
-def test_collector_repr(collector_class: CollectorType, expected_repr: str) -> None:
+def test_collector_repr(collector_class: CollectorTypeClass, expected_repr: str) -> None:
     test_collector._test_repr(collector_class, expected_repr)
 
 
@@ -57,15 +72,14 @@ class BaseAsyncioLockCollectorTest:
     Child classes must implement:
         - collector_class: The collector class to test
         - lock_class: The asyncio lock class to test
-        - lock_init_args: Arguments to pass to lock constructor (default: ())
     """
 
     @property
-    def collector_class(self) -> CollectorType:
+    def collector_class(self) -> CollectorTypeClass:
         raise NotImplementedError("Child classes must implement collector_class")
 
     @property
-    def lock_class(self) -> LockType:
+    def lock_class(self) -> LockTypeClass:
         raise NotImplementedError("Child classes must implement lock_class")
 
     def setup_method(self, method: Callable[..., Any]) -> None:
@@ -208,6 +222,23 @@ class BaseAsyncioLockCollectorTest:
             ],
         )
 
+    async def test_subclassing_wrapped_lock(self) -> None:
+        """Test that subclassing of a wrapped lock type when profiling is active."""
+        with self.collector_class(capture_pct=100):
+            assert isinstance(self.lock_class, LockAllocatorWrapper)
+
+            # This should NOT raise TypeError
+            class CustomLock(self.lock_class):  # type: ignore[misc]
+                def __init__(self) -> None:
+                    super().__init__()
+
+            # Verify subclassing and functionality
+            custom_lock: CustomLock = CustomLock()
+            await custom_lock.acquire()
+            assert custom_lock.locked()
+            custom_lock.release()
+            assert not custom_lock.locked()
+
 
 class TestAsyncioLockCollector(BaseAsyncioLockCollectorTest):
     """Test asyncio.Lock profiling."""
@@ -231,3 +262,41 @@ class TestAsyncioSemaphoreCollector(BaseAsyncioLockCollectorTest):
     @property
     def lock_class(self) -> Type[asyncio.Semaphore]:
         return asyncio.Semaphore
+
+
+class TestAsyncioBoundedSemaphoreCollector(BaseAsyncioLockCollectorTest):
+    """Test asyncio.BoundedSemaphore profiling."""
+
+    @property
+    def collector_class(self) -> Type[AsyncioBoundedSemaphoreCollector]:
+        return AsyncioBoundedSemaphoreCollector
+
+    @property
+    def lock_class(self) -> Type[asyncio.BoundedSemaphore]:
+        return asyncio.BoundedSemaphore
+
+    async def test_bounded_behavior_preserved(self) -> None:
+        """Test that profiling wrapper preserves BoundedSemaphore's bounded behavior.
+
+        This verifies the wrapper doesn't interfere with BoundedSemaphore's unique characteristic:
+        raising ValueError when releasing beyond the initial value.
+        """
+        with self.collector_class(capture_pct=100):
+            bs = asyncio.BoundedSemaphore(1)
+            await bs.acquire()
+            bs.release()
+            # BoundedSemaphore should raise ValueError when releasing more than initial value
+            with pytest.raises(ValueError, match="BoundedSemaphore released too many times"):
+                bs.release()
+
+
+class TestAsyncioConditionCollector(BaseAsyncioLockCollectorTest):
+    """Test asyncio.Condition profiling."""
+
+    @property
+    def collector_class(self) -> Type[AsyncioConditionCollector]:
+        return AsyncioConditionCollector
+
+    @property
+    def lock_class(self) -> Type[asyncio.Condition]:
+        return asyncio.Condition
