@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Adds tracing of ``initialize`` requests and their responses on modelcontextprotocol/python-sdk servers.
