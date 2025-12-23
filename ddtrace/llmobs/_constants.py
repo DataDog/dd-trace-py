@@ -91,6 +91,9 @@ EVALUATION_SPAN_METADATA = "_dd.evaluation_span"
 SPAN_LINKS = "_ml_obs.span_links"
 NAME = "_ml_obs.name"
 
+ROUTING_API_KEY = "_dd.llmobs.routing.api_key"
+ROUTING_SITE = "_dd.llmobs.routing.site"
+
 # Prompt constants
 DEFAULT_PROMPT_NAME = "unnamed-prompt"
 

@@ -87,6 +87,8 @@ from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._constants import ROUTING_API_KEY
+from ddtrace.llmobs._constants import ROUTING_SITE
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
@@ -102,6 +104,8 @@ from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentConfigType
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
+from ddtrace.llmobs._routing import RoutingContext
+from ddtrace.llmobs._routing import _get_current_routing
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _get_ml_app
@@ -117,6 +121,7 @@ from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
+from ddtrace.llmobs._writer import RoutingInfo
 from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
@@ -285,7 +290,13 @@ class LLMObs(Service):
             span_event = self._llmobs_span_event(span)
             if span_event is None:
                 return
-            self._llmobs_span_writer.enqueue(span_event)
+
+            routing: Optional[RoutingInfo] = None
+            api_key = span._get_ctx_item(ROUTING_API_KEY)
+            if api_key:
+                routing = {"dd_api_key": api_key, "dd_site": span._get_ctx_item(ROUTING_SITE)}
+
+            self._llmobs_span_writer.enqueue(span_event, routing)
         except (KeyError, TypeError, ValueError):
             log.error(
                 "Error generating LLMObs span event for span %s, likely due to malformed span",
@@ -1118,6 +1129,29 @@ class LLMObs(Service):
         return AnnotationContext(register_annotation, deregister_annotation)
 
     @classmethod
+    def routing_context(cls, dd_api_key: str, dd_site: Optional[str] = None) -> RoutingContext:
+        """
+        Context manager for routing LLMObs spans to a specific Datadog organization.
+
+        All LLMObs spans created within this context will be routed to the
+        organization associated with the provided API key.
+
+        :param str dd_api_key: The Datadog API key for the target organization.
+        :param str dd_site: Optional. The Datadog site (e.g., 'datadoghq.eu').
+                           If not provided, uses the default site.
+
+        :returns: A context manager that sets routing for all spans created within it.
+
+        Example::
+
+            async with LLMObs.routing_context(dd_api_key=customer_api_key):
+                with LLMObs.workflow(name="process"):
+                    # spans go to customer's org
+                    pass
+        """
+        return RoutingContext(dd_api_key, dd_site)
+
+    @classmethod
     def flush(cls) -> None:
         """
         Flushes any remaining spans and evaluation metrics to the LLMObs backend.
@@ -1266,6 +1300,13 @@ class LLMObs(Service):
                 "before running your application."
             )
         span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})
+
+        routing = _get_current_routing()
+        if routing and routing.get("dd_api_key"):
+            span._set_ctx_item(ROUTING_API_KEY, routing["dd_api_key"])
+            if routing.get("dd_site"):
+                span._set_ctx_item(ROUTING_SITE, routing["dd_site"])
+
         log.debug(
             "Starting LLMObs span: %s, span_kind: %s, ml_app: %s",
             name,

@@ -924,9 +924,9 @@ class TestLLMObsSpanWriter(LLMObsSpanWriter):
         super().__init__(*args, **kwargs)
         self.events = []
 
-    def enqueue(self, event):
+    def enqueue(self, event, routing=None):
         self.events.append(event)
-        super().enqueue(event)
+        super().enqueue(event, routing)
 
 
 def _assert_span_link(from_span_event, to_span_event, from_io, to_io):
