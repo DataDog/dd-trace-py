@@ -235,7 +235,11 @@ class TestLLMObsBedrock:
                 sqs_client.list_queues()
             except ClientError:
                 pass
-            assert test_spans.pop_traces() == []
+            # Filter out urllib3 spans - we only care that SQS/botocore spans aren't generated
+            traces = test_spans.pop_traces()
+            non_urllib3_traces = [[s for s in t if s.name != "urllib3.request"] for t in traces]
+            non_urllib3_traces = [t for t in non_urllib3_traces if t]  # Remove empty traces
+            assert non_urllib3_traces == []
 
         llmobs_service.disable()
 
@@ -1045,7 +1049,7 @@ class TestLLMObsBedrockProxy:
             "_llmobs_instrumented_proxy_urls" in ddtrace_global_config
             and ddtrace_global_config["_llmobs_instrumented_proxy_urls"]
         ):
-            span = mock_tracer_proxy.pop_traces()[0][0]
+            span = TracerSpanContainer(mock_tracer_proxy).pop_traces()[0][0]
             assert len(llmobs_events) == 1
             assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
                 span,

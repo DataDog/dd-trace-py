@@ -104,6 +104,8 @@ class BotocoreTest(TracerTestCase):
         self.sqs_test_queue = self.sqs_client.create_queue(QueueName=self.queue_name)
 
         super(BotocoreTest, self).setUp()
+        # Clear any spans that might have been generated during setUp before DummyWriter was active
+        self.reset()
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
@@ -120,6 +122,11 @@ class BotocoreTest(TracerTestCase):
 
         unpatch()
         self.sqs_client.delete_queue(QueueUrl=self.queue_name)
+
+    def get_spans(self):
+        """Override to filter out urllib3 spans that are captured alongside botocore spans."""
+        spans = super(BotocoreTest, self).get_spans()
+        return [s for s in spans if s.name != "urllib3.request"]
 
     @mock_ec2
     @mock_s3
@@ -706,6 +713,7 @@ class BotocoreTest(TracerTestCase):
 
     def _test_sqs_client(self):
         self.sqs_client.delete_queue(QueueUrl=self.queue_name)  # Delete so we can test create_queue spans
+        self.reset()  # Clear spans from delete_queue
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
@@ -1309,9 +1317,15 @@ class BotocoreTest(TracerTestCase):
         client.put_records(StreamName=stream_name, Records=data)
 
         spans = self.get_spans()
-        assert spans
-        span = spans[0]
-        assert len(spans) == 1
+        assert len(spans) == 2
+        # First span is CreateStream, second is PutRecords
+        create_span = spans[0]
+        span = spans[1]
+        assert create_span.get_tag("aws.operation") == "CreateStream"
+        assert create_span.resource == "kinesis.createstream"
+        assert create_span.parent_id is None  # root span
+        assert span.get_tag("aws.operation") == "PutRecords"
+        assert span.parent_id is None  # root span (sibling, not child)
         assert span.get_tag("aws.region") == "us-east-1"
         assert span.get_tag("region") == "us-east-1"
         assert span.get_tag("aws.operation") == "PutRecords"
@@ -1453,10 +1467,12 @@ class BotocoreTest(TracerTestCase):
             )
 
             spans = self.get_spans()
-            assert spans
-            span = spans[0]
-
-            assert len(spans) == 1
+            assert len(spans) == 2
+            # First span is CreateFunction, second is Invoke
+            create_span = spans[0]
+            span = spans[1]
+            assert create_span.get_tag("aws.operation") == "CreateFunction"
+            assert create_span.resource == "lambda.createfunction"
             assert span.get_tag("aws.region") == "us-west-2"
             assert span.get_tag("region") == "us-west-2"
             assert span.get_tag("aws.operation") == "Invoke"
@@ -1496,9 +1512,12 @@ class BotocoreTest(TracerTestCase):
         )
 
         spans = self.get_spans()
-        assert spans
-        span = spans[0]
-        assert len(spans) == 1
+        assert len(spans) == 2
+        # First span is CreateFunction, second is Invoke
+        create_span = spans[0]
+        span = spans[1]
+        assert create_span.get_tag("aws.operation") == "CreateFunction"
+        assert create_span.resource == "lambda.createfunction"
         assert span.get_tag("aws.region") == "us-west-2"
         assert span.get_tag("region") == "us-west-2"
         assert span.get_tag("aws.operation") == "Invoke"
@@ -2036,6 +2055,7 @@ class BotocoreTest(TracerTestCase):
         url_parts = sqs_url.split("/")
         sqs_arn = "arn:aws:sqs:{}:{}:{}".format("us-east-1", url_parts[-2], url_parts[-1])
         sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+        self.reset()  # Clear spans from setup operations (create_topic, subscribe)
 
         if use_default_tracer:
             Pin.get_from(sns)._clone(tracer=self.tracer).onto(sns)
