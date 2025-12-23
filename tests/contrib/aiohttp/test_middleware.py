@@ -75,7 +75,7 @@ from tests.conftest import *
 from tests.contrib.aiohttp.conftest import *
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 
-def test(app_tracer, loop, aiohttp_client):
+def test(app_tracer, loop, aiohttp_client, test_spans):
     async def async_test(app_tracer, aiohttp_client):
         app, tracer = None, None
         if asyncio.iscoroutine(app_tracer):
