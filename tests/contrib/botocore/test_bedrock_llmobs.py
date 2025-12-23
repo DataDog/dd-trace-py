@@ -1034,6 +1034,7 @@ class TestLLMObsBedrockProxy:
         llmobs_events,
         mock_invoke_model_http_error,
         mock_invoke_model_response_error,
+        test_spans,
     ):
         import botocore
 
@@ -1049,7 +1050,7 @@ class TestLLMObsBedrockProxy:
             "_llmobs_instrumented_proxy_urls" in ddtrace_global_config
             and ddtrace_global_config["_llmobs_instrumented_proxy_urls"]
         ):
-            span = TracerSpanContainer(mock_tracer_proxy).pop_traces()[0][0]
+            span = test_spans.pop_traces()[0][0]
             assert len(llmobs_events) == 1
             assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
                 span,
