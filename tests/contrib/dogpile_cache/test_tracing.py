@@ -241,8 +241,7 @@ except AttributeError:
     from dogpile import lock as dogpile_lock
 
 # Required fixtures
-from tests.contrib.dogpile_cache.test_tracing import tracer
-from tests.contrib.dogpile_cache.test_tracing import test_spans
+from tests.conftest import *
 from tests.contrib.dogpile_cache.test_tracing import region
 from tests.contrib.dogpile_cache.test_tracing import cleanup
 from tests.contrib.dogpile_cache.test_tracing import single_cache
