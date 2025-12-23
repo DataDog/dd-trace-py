@@ -894,7 +894,7 @@ from tests.contrib.grpc_aio.test_grpc_aio import _SyncHelloServicer
 from tests.contrib.grpc_aio.test_grpc_aio import _get_spans
 from tests.contrib.grpc_aio.test_grpc_aio import patch_grpc_aio
 from tests.contrib.grpc_aio.test_grpc_aio import server_info
-from tests.contrib.grpc_aio.test_grpc_aio import tracer
+from tests.conftest import *
 
 @pytest.mark.parametrize("server_info",[_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_client_streaming(server_info, tracer):
