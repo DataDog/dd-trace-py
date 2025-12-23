@@ -202,7 +202,7 @@ codeowners:
     - tar -xvzf codeowners_1.2.1_linux_amd64.tar.gz
     - export CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA)
     - |
-      if [! -z "$CHANGED_FILES"]; then
+      if [ ! -z "$CHANGED_FILES" ]; then
         ./codeowners "$CHANGED_FILES"
         echo '```' > codeowners.txt
         echo "$(./codeowners $CHANGED_FILES)" >> codeowners.txt
