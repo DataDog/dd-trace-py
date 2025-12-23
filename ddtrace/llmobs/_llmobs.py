@@ -1686,7 +1686,7 @@ class LLMObs(Service):
                     cls._tag_text_io(span, input_value=input_data, output_value=output_data)
             if _linked_spans and isinstance(_linked_spans, list):
                 for linked_span in _linked_spans:
-                    add_span_link(span, linked_span.get("span_id"), linked_span.get("trace_id"), "output", "input")
+                    add_span_link(span, linked_span.get("span_id", ""), linked_span.get("trace_id", ""), "output", "input")
             if annotation_error_message:
                 raise LLMObsAnnotateSpanError(annotation_error_message)
         finally:
