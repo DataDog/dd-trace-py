@@ -925,6 +925,8 @@ class EnvTracerTestCase(TracerTestCase):
         )
     )
     def test_detect_agentless_env_with_lambda(self):
+        # Re-initialize tracer to detect Lambda environment after TracerTestCase.setUp() modified it
+        ddtrace.tracer._recreate()
         assert in_aws_lambda()
         assert not has_aws_lambda_agent_extension()
         assert isinstance(ddtrace.tracer._span_aggregator.writer, LogWriter)

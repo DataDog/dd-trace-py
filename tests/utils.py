@@ -49,6 +49,8 @@ from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import NativeWriter
+from ddtrace.internal.writer import TraceWriter
+from ddtrace.internal.writer import create_trace_writer
 from ddtrace.propagation._database_monitoring import listen as dbm_config_listen
 from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unlisten
 from ddtrace.propagation.http import _DatadogMultiHeader
@@ -683,8 +685,10 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
             self._inner_writer._exporter.stop_worker()
         return spans
 
-    def recreate(self, appsec_enabled: Optional[bool] = None) -> "DummyWriter":
-        return self.__class__()
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "TraceWriter":
+        # Return a real writer, not a DummyWriter, to properly reset the tracer.
+        # Use create_trace_writer() to properly detect the environment (e.g., Lambda)
+        return create_trace_writer()
 
     def flush_queue(self, raise_exc: bool = False) -> None:
         return self._inner_writer.flush_queue(raise_exc)
