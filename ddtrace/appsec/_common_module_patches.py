@@ -167,7 +167,7 @@ def _build_headers(lst: Iterable[Tuple[str, str]]) -> Dict[str, Union[str, List[
 def wrapped_request(original_request_callable, instance, args, kwargs):
     from ddtrace.appsec._asm_request_context import call_waf_callback
 
-    full_url = core.get_item("full_url")
+    full_url = core.find_item("full_url")
     env = _get_asm_context()
     if _get_rasp_capability("ssrf") and full_url is not None and env is not None:
         use_body = core.get_item("use_body", False)
@@ -292,7 +292,7 @@ def _parse_headers_urllib3(headers):
 def wrapped_urllib3_make_request(original_request_callable, instance, args, kwargs):
     from ddtrace.appsec._asm_request_context import call_waf_callback
 
-    full_url = core.get_item("full_url")
+    full_url = core.find_item("full_url")
     env = _get_asm_context()
     do_rasp = _get_rasp_capability("ssrf") and full_url is not None and env is not None
     if do_rasp:
@@ -332,7 +332,7 @@ def wrapped_urllib3_make_request(original_request_callable, instance, args, kwar
 
 def wrapped_urllib3_urlopen(original_open_callable, instance, args, kwargs):
     full_url = args[2] if len(args) > 2 else kwargs.get("url", None)
-    if core.get_item("full_url") is None:
+    if core.find_item("full_url") is None:
         core.set_item("full_url", full_url)
     try:
         return original_open_callable(*args, **kwargs)
