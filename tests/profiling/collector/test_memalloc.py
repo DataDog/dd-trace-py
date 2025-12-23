@@ -550,7 +550,7 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path):
         tmp_path, "test_memory_collector_python_interface_with_allocation_tracking"
     )
 
-    mc = memalloc.MemoryCollector(heap_sample_size=128)
+    mc = memalloc.MemoryCollector(heap_sample_size=32)
 
     with mc:
         first_batch = []
@@ -623,7 +623,7 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
         tmp_path, "test_memory_collector_python_interface_with_allocation_tracking_no_deletion"
     )
 
-    mc = memalloc.MemoryCollector(heap_sample_size=128)
+    mc = memalloc.MemoryCollector(heap_sample_size=32)
 
     with mc:
         # Take initial snapshot to reset allocation tracking
