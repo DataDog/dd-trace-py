@@ -190,6 +190,15 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_integrations_stripe",
+            pys=select_pys(),
+            command="pytest {cmdargs} -v tests/appsec/integrations/stripe_tests/ ",
+            pkgs={
+                "stripe": [latest, "~=11.0", "~=12.0", "~=13.0"],
+                "vcrpy": latest,
+            },
+        ),
+        Venv(
             name="appsec_iast_packages",
             pys=["3.11", "3.12", "3.13", "3.14"],
             command="pytest {cmdargs}  -vvv -rxf tests/appsec/iast_packages/",
