@@ -3,23 +3,17 @@ import unittest
 import dramatiq
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.dramatiq.patch import patch
 from ddtrace.contrib.internal.dramatiq.patch import unpatch
-from tests.utils import TracerSpanContainer
-from tests.utils import scoped_tracer
 from tests.utils import snapshot
 
 
 class DramatiqSnapshotTests(unittest.TestCase):
     def setUp(self):
         patch()
-        self.scoped_tracer = scoped_tracer()
-        self.tracer = self.scoped_tracer.__enter__()
 
     def tearDown(self):
         unpatch()
-        self.scoped_tracer.__exit__(None, None, None)
 
     @snapshot(wait_for_num_traces=2)
     def test_idempotent_patch(self):
@@ -33,14 +27,11 @@ class DramatiqSnapshotTests(unittest.TestCase):
         fn_task.send()
         fn_task.send_with_options(options={"max_retries": 1})
 
+    @snapshot(wait_for_num_traces=0)
     def test_idempotent_unpatch(self):
         # calling unpatch() multiple times doesn't have side effects
         unpatch()
         unpatch()
-
-        pin = Pin()
-        pin._tracer = self.tracer
-        pin.onto(dramatiq)
 
         @dramatiq.actor
         def fn_task():
@@ -49,24 +40,15 @@ class DramatiqSnapshotTests(unittest.TestCase):
         fn_task.send()
         fn_task.send_with_options(options={"max_retries": 1})
 
-        spans = TracerSpanContainer(self.tracer).pop()
-        assert len(spans) == 0
-
+    @snapshot(wait_for_num_traces=0)
     def test_fn_task_synchronous(self):
         # the body of the function is not instrumented so calling it
         # directly doesn't create a trace
-        pin = Pin()
-        pin._tracer = self.tracer
-        pin.onto(dramatiq)
-
         @dramatiq.actor
         def fn_task():
             return "synchronous task"
 
         fn_task()
-
-        spans = TracerSpanContainer(self.tracer).pop()
-        assert len(spans) == 0
 
     @snapshot(wait_for_num_traces=2)
     def test_fn_task_send(self):
