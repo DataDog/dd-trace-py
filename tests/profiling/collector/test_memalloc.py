@@ -626,8 +626,8 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
     mc = memalloc.MemoryCollector(heap_sample_size=32)
 
     with mc:
-        # Take initial snapshot to reset allocation tracking
-        mc.snapshot_and_parse_pprof(output_filename)
+        # Take initial snapshot to reset allocation tracking (may have no samples)
+        mc.snapshot_and_parse_pprof(output_filename, assert_samples=False)
 
         first_batch = []
         for i in range(20):
