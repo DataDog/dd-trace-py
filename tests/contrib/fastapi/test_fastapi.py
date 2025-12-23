@@ -675,7 +675,7 @@ def test_websocket_tracing_not_separate_traces(test_spans, snapshot_app):
 
 
 @pytest.mark.snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
-def test_long_running_websocket_session(test_spans, snapshot_app):
+def test_long_running_websocket_session(snapshot_app):
     client = TestClient(snapshot_app)
 
     with override_config("fastapi", dict(trace_asgi_websocket_messages=True)):
