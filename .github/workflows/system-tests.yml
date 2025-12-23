@@ -45,7 +45,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '8a7e882da2fac43eb7352acfb2bc41e3457ec4e3'
+          ref: '9417552bee3dd45313249fc8bf889a008c88ebb4'
 
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -90,7 +90,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '8a7e882da2fac43eb7352acfb2bc41e3457ec4e3'
+          ref: '9417552bee3dd45313249fc8bf889a008c88ebb4'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -275,7 +275,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '8a7e882da2fac43eb7352acfb2bc41e3457ec4e3'
+          ref: '9417552bee3dd45313249fc8bf889a008c88ebb4'
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -312,5 +312,5 @@ jobs:
         if: needs.parametric.result == 'success' && needs.system-tests.result == 'success'
         run: exit 0
       - name: Fails if anything else failed
-        if: needs.parametric.result != 'success' || needs.system-tests.result != 'success'
+        if: needs.parametric.result != 'success' || needs.system-tests.result != 'success' || needs.serverless-system-tests.result != 'success'
         run: exit 1
