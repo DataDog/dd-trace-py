@@ -1695,6 +1695,7 @@ import sys
 
 import django
 
+from tests.conftest import *
 from tests.contrib.django.conftest import *
 from tests.utils import override_config
 
@@ -1788,6 +1789,7 @@ import sys
 
 import django
 
+from tests.conftest import *
 from tests.contrib.django.conftest import *
 from tests.utils import override_config
 
@@ -2669,7 +2671,8 @@ def test_connections_patched():
     from ddtrace.internal import wrapping
     from tests.contrib.django.utils import setup_django_test_spans
 
-    setup_django_test_spans()
+    setup = setup_django_test_spans()
+    setup.__enter__()
 
     from django.db import connection
     from django.db import connections
@@ -2679,6 +2682,7 @@ def test_connections_patched():
         assert wrapping.is_wrapped(conn.cursor)
 
     assert wrapping.is_wrapped(connection.cursor)
+    setup.__exit__(None, None, None)
 
 
 def test_django_get_user(client, test_spans):
