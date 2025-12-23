@@ -6,16 +6,16 @@ use std::time::Duration;
 
 use libdd_common::Endpoint;
 use libdd_crashtracker::{
-    // register_runtime_frame_callback, register_runtime_stacktrace_string_callback,
+    register_runtime_frame_callback, register_runtime_stacktrace_string_callback,
     CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, StacktraceCollection,
 };
 use pyo3::prelude::*;
 
-// mod crashtracker_runtime_stacks;
-// use crashtracker_runtime_stacks::{
-//     get_cached_dump_traceback_fn, init_dump_traceback_fn, native_runtime_stack_frame_callback,
-//     native_runtime_stack_string_callback,
-// };
+mod crashtracker_runtime_stacks;
+use crashtracker_runtime_stacks::{
+    get_cached_dump_traceback_fn, init_dump_traceback_fn, native_runtime_stack_frame_callback,
+    native_runtime_stack_string_callback,
+};
 
 pub trait RustWrapper {
     type Inner;
@@ -242,34 +242,34 @@ pub fn crashtracker_init<'py>(
         if let (Some(config), Some(receiver_config), Some(metadata)) =
             (config_opt, receiver_config_opt, metadata_opt)
         {
-            // let should_emit_runtime_stacks = std::env::var("DD_CRASHTRACKING_EMIT_RUNTIME_STACKS")
-            //     .ok()
-            //     .is_some_and(|v| {
-            //         matches!(
-            //             v.to_ascii_lowercase().as_str(),
-            //             "true" | "yes" | "1"
-            //         )
-            //     });
+            let should_emit_runtime_stacks = std::env::var("DD_CRASHTRACKING_EMIT_RUNTIME_STACKS")
+                .ok()
+                .is_some_and(|v| {
+                    matches!(
+                        v.to_ascii_lowercase().as_str(),
+                        "true" | "yes" | "1"
+                    )
+                });
 
-            // if should_emit_runtime_stacks {
-            //     unsafe {
-            //         init_dump_traceback_fn();
-            //     }
-            //     let dump_fn_available = unsafe { get_cached_dump_traceback_fn().is_some() };
-            //     if dump_fn_available {
-            //         if let Err(e) =
-            //             register_runtime_stacktrace_string_callback(
-            //                 native_runtime_stack_string_callback,
-            //             )
-            //         {
-            //             eprintln!("Failed to register runtime stacktrace callback: {}", e);
-            //         }
-            //     } else if let Err(e) =
-            //         register_runtime_frame_callback(native_runtime_stack_frame_callback)
-            //     {
-            //         eprintln!("Failed to register runtime frame callback: {}", e);
-            //     }
-            // }
+            if should_emit_runtime_stacks {
+                unsafe {
+                    init_dump_traceback_fn();
+                }
+                let dump_fn_available = unsafe { get_cached_dump_traceback_fn().is_some() };
+                if dump_fn_available {
+                    if let Err(e) =
+                        register_runtime_stacktrace_string_callback(
+                            native_runtime_stack_string_callback,
+                        )
+                    {
+                        eprintln!("Failed to register runtime stacktrace callback: {}", e);
+                    }
+                } else if let Err(e) =
+                    register_runtime_frame_callback(native_runtime_stack_frame_callback)
+                {
+                    eprintln!("Failed to register runtime frame callback: {}", e);
+                }
+            }
             match libdd_crashtracker::init(config, receiver_config, metadata) {
                 Ok(_) =>
                     CRASHTRACKER_STATUS.store(CrashtrackerStatus::Initialized as u8, Ordering::SeqCst),

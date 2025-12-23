@@ -124,7 +124,8 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
     # all env vars since it's spawned using execve() and not fork()
     receiver_config = CrashtrackerReceiverConfig(
         [],  # args
-        dict(os.environ),  # env - pass all environment variables
+        # only take DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED if it is set
+        {k: v for k, v in os.environ.items() if k == "DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED"},
         dd_crashtracker_receiver,  # path_to_receiver_binary
         crashtracker_config.stderr_filename,
         crashtracker_config.stdout_filename,

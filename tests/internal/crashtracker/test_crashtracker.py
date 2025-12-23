@@ -456,32 +456,32 @@ def test_crashtracker_tags_required():
         assert "process_tags".encode() not in report["body"]
 
 
-# @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-# @pytest.mark.skipif(sys.version_info < (3, 10), reason="Runtime stacks are only supported on CPython >= 3.10")
-# def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess):
-#     import json
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Runtime stacks are only supported on CPython >= 3.10")
+def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess):
+    import json
 
-#     with utils.with_test_agent() as client:
-#         env = os.environ.copy()
-#         env["DD_CRASHTRACKING_EMIT_RUNTIME_STACKS"] = "true"
-#         stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
+    with utils.with_test_agent() as client:
+        env = os.environ.copy()
+        env["DD_CRASHTRACKING_EMIT_RUNTIME_STACKS"] = "true"
+        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
-#         # Check for expected exit condition
-#         assert not stdout
-#         assert not stderr
-#         assert exitcode == -11
+        # Check for expected exit condition
+        assert not stdout
+        assert not stderr
+        assert exitcode == -11
 
-#         # Check for crash ping
-#         _ping = utils.get_crash_ping(client)
+        # Check for crash ping
+        _ping = utils.get_crash_ping(client)
 
-#         # Check for crash report
-#         report = utils.get_crash_report(client)
+        # Check for crash report
+        report = utils.get_crash_report(client)
 
-#         # We should get the experimental field because `string_at` is in both the
-#         # native frames stacktrace and experimental runtime_stacks field
-#         body = json.loads(report["body"])
-#         message = json.loads(body["payload"][0]["message"])
-#         assert "string_at" in json.dumps(message["experimental"])
+        # We should get the experimental field because `string_at` is in both the
+        # native frames stacktrace and experimental runtime_stacks field
+        body = json.loads(report["body"])
+        message = json.loads(body["payload"][0]["message"])
+        assert "string_at" in json.dumps(message["experimental"])
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
@@ -806,8 +806,8 @@ def test_crashtracker_receiver_env_inheritance():
 
     import tests.internal.crashtracker.utils as utils
 
-    test_env_key = "MY_TEST_ENV_VAR"
-    test_env_value = "my_test_value"
+    test_env_key = "DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED"
+    test_env_value = "true"
     os.environ[test_env_key] = test_env_value
 
     with utils.with_test_agent() as client:
