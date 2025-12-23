@@ -246,6 +246,7 @@ def test_server_initialization_span_created(mcp_setup, mock_tracer, llmobs_event
         tags={
             "service": "mcptest",
             "ml_app": "<ml-app-name>",
+            "mcp_method": "initialize",
             "client_name": "test-client",
             "client_version": "test-client_1.2.3",
         },

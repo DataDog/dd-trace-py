@@ -1,7 +1,14 @@
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+
+
+if TYPE_CHECKING:
+    from mcp.types import CallToolRequest
+    from mcp.types import CallToolResult
+    from mcp.types import InitializeRequest
 
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
@@ -161,59 +168,65 @@ class MCPIntegration(BaseLLMIntegration):
                 },
             )
 
+    def _set_initialize_request_overrides(self, span: Span, request: "InitializeRequest") -> None:
+        """Update span for initialize request specific tags"""
+        request_params = _get_attr(request, "params", None)
+        client_info = _get_attr(request_params, "clientInfo", None)
+        client_name = _get_attr(client_info, "name", None)
+        client_version = _get_attr(client_info, "version", None)
+        if client_name and client_version:
+            _set_or_update_tags(
+                span,
+                {
+                    "client_name": str(client_name),
+                    "client_version": f"{client_name}_{client_version}",
+                },
+            )
+
+    def _set_call_tool_request_overrides(
+        self, span: Span, request: "CallToolRequest", response: Optional["CallToolResult"]
+    ) -> None:
+        """Update span for call tool-specific tags, span name, and span type"""
+        override_tags = {}
+        params = _get_attr(request, "params", None)
+        tool_name = "unknown_tool"
+
+        if params:
+            tool_name = str(_get_attr(params, "name", tool_name))
+            override_tags["mcp_tool"] = tool_name
+            override_tags["mcp_tool_kind"] = "server"
+
+        is_error = _get_attr(response, "isError", False) if response else False
+        if is_error:
+            span.error = 1
+            span.set_tag(ERROR_TYPE, "ToolError")
+            span.set_tag(ERROR_MSG, "tool resulted in an error")
+        _set_or_update_tags(span, override_tags)
+        span._set_ctx_items({NAME: tool_name, SPAN_KIND: "tool"})
+
     def _llmobs_set_tags_request_responder_respond(
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any
     ) -> None:
         try:
             from mcp.server.streamable_http import MCP_SESSION_ID_HEADER
             from mcp.types import CallToolRequest
-            from mcp.types import CallToolResult
             from mcp.types import InitializeRequest
         except ImportError:
             InitializeRequest = None
             MCP_SESSION_ID_HEADER = None
             CallToolRequest = None
-            CallToolResult = None
 
         responder = get_argument_value(args, kwargs, 0, "request_responder", optional=True)
         response_value = get_argument_value(args, kwargs, 0, "response", optional=True)
 
         request = getattr(responder, "request", None)
         request_root = getattr(request, "root", None)
-
         response_root = getattr(response_value, "root", response_value)
 
         request_method = str(_get_attr(request_root, "method", "unknown"))
-        span_kind = "task"
-        span_name = "mcp.{}".format(request_method)
-        custom_tags = {
-            "mcp_method": request_method,
-        }
+        common_tags = {"mcp_method": request_method}
 
-        if InitializeRequest and request_root and isinstance(request_root, InitializeRequest):
-            request_params = _get_attr(request_root, "params", None)
-            client_info = _get_attr(request_params, "clientInfo", None)
-            client_name = _get_attr(client_info, "name", None)
-            client_version = _get_attr(client_info, "version", None)
-            if isinstance(client_name, str) and isinstance(client_version, str):
-                custom_tags["client_name"] = client_name
-                custom_tags["client_version"] = f"{client_name}_{client_version}"
-
-        if CallToolRequest and request_root and isinstance(request_root, CallToolRequest):
-            params = _get_attr(request_root, "params", None)
-            if params:
-                tool_name = str(_get_attr(params, "name", "unknown_tool"))
-                custom_tags["mcp_tool"] = tool_name
-                custom_tags["mcp_tool_kind"] = "server"
-                span_name = tool_name
-            span_kind = "tool"
-
-        if CallToolResult and isinstance(response_root, CallToolResult) and response_root.isError:
-            span.error = 1
-            span.set_tag(ERROR_TYPE, "ToolError")
-            span.set_tag(ERROR_MSG, "tool resulted in an error")
-
-        # This only exists for existing sessions using the streamable HTTP transport
+        # Session ID from streamable HTTP transport
         message_metadata = _get_attr(responder, "message_metadata", None)
         http_request = message_metadata and _get_attr(message_metadata, "request_context", None)
         maybe_session_id = (
@@ -221,9 +234,8 @@ class MCPIntegration(BaseLLMIntegration):
             if MCP_SESSION_ID_HEADER
             else None
         )
-
         if maybe_session_id:
-            custom_tags["mcp_session_id"] = str(maybe_session_id)
+            common_tags["mcp_session_id"] = str(maybe_session_id)
 
         # Exclude tracing context metadata from the recorded input
         if request_root and hasattr(request_root, "model_dump"):
@@ -231,16 +243,20 @@ class MCPIntegration(BaseLLMIntegration):
         else:
             input_obj = request_root
 
+        # Set defaults. Type-specific methods below may override.
         span._set_ctx_items(
             {
-                NAME: span_name,
-                SPAN_KIND: span_kind,
+                SPAN_KIND: "task",
                 INPUT_VALUE: safe_json(input_obj),
                 OUTPUT_VALUE: safe_json(response_root),
+                TAGS: common_tags,
             }
         )
-        if custom_tags:
-            _set_or_update_tags(span, custom_tags)
+
+        if InitializeRequest and request_root and isinstance(request_root, InitializeRequest):
+            self._set_initialize_request_overrides(span, request_root)
+        if CallToolRequest and request_root and isinstance(request_root, CallToolRequest):
+            self._set_call_tool_request_overrides(span, request_root, response_root)
 
     def _llmobs_set_tags_list_tools(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         cursor = get_argument_value(args, kwargs, 0, "cursor", optional=True)

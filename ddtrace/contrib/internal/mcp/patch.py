@@ -1,10 +1,15 @@
 import os
 import sys
-from typing import Any
+from typing import TYPE_CHECKING
 from typing import Dict
 from typing import Optional
 
 import mcp
+
+
+if TYPE_CHECKING:
+    from mcp.types import ClientRequest
+    from mcp.types import Request
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
@@ -44,7 +49,7 @@ def _supported_versions() -> Dict[str, str]:
     return {"mcp": ">=1.10.0"}
 
 
-def _set_distributed_headers_into_mcp_request(pin: Pin, request):
+def _set_distributed_headers_into_mcp_request(pin: Pin, request: "ClientRequest") -> "ClientRequest":
     """Inject distributed tracing headers into MCP request metadata."""
     span = pin.tracer.current_span()
     if span is None:
@@ -84,19 +89,13 @@ def _set_distributed_headers_into_mcp_request(pin: Pin, request):
         return request
 
 
-def _extract_distributed_headers_from_mcp_request(kwargs: Dict[str, Any]) -> Optional[Dict[str, str]]:
-    if "context" not in kwargs:
-        return
-    context = kwargs.get("context")
-    if not context or not _get_attr(context, "request_context", None):
-        return
-    request_context = _get_attr(context, "request_context", None)
-    meta = _get_attr(request_context, "meta", None)
-    if not meta:
-        return
-    headers = _get_attr(meta, "_dd_trace_context", None)
-    if headers:
-        return headers
+def _extract_distributed_headers_from_mcp_request(request_root: "Request") -> Optional[Dict[str, str]]:
+    """Extract distributed tracing headers from MCP request params.meta field."""
+    request_params = _get_attr(request_root, "params", None)
+    meta = _get_attr(request_params, "meta", None) if request_params else None
+    meta_dict = meta.model_dump() if meta and hasattr(meta, "model_dump") else {}
+    headers = meta_dict.get("_dd_trace_context", {})
+    return headers if headers else None
 
 
 @with_traced_module
@@ -222,14 +221,13 @@ def traced_request_responder_enter(mcp, pin: Pin, func, instance, args: tuple, k
     ):
         return func(*args, **kwargs)
 
-    # Activate distributed tracing if enabled
-    if isinstance(request_root, CallToolRequest) and config.mcp.distributed_tracing:
-        request_params = _get_attr(request_root, "params", None)
-        meta = _get_attr(request_params, "meta", None) if request_params else None
-        meta_dict = meta.model_dump() if meta else {}
-        headers = meta_dict.get("_dd_trace_context", {})
-        if headers:
-            activate_distributed_headers(pin.tracer, config.mcp, headers)
+    # Activate distributed tracing if enabled for tool calls
+    if (
+        isinstance(request_root, CallToolRequest)
+        and config.mcp.distributed_tracing
+        and (headers := _extract_distributed_headers_from_mcp_request(request_root))
+    ):
+        activate_distributed_headers(pin.tracer, config.mcp, headers)
 
     operation_name = (
         SERVER_TOOL_CALL_OPERATION_NAME if isinstance(request_root, CallToolRequest) else SERVER_REQUEST_OPERATION_NAME
