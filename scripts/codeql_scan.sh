@@ -18,7 +18,7 @@ dd-octo-sts debug --scope DataDog/dd-trace-py --policy codeql || true
 $CODEQL database create "$CODEQL_DB" $DB_CONFIGS
 
 # Run queries for each supported ecosystem and save results to intermediate SARIF files.
-$CODEQL database analyze "$CODEQL_DB"/python "$PYTHON_CUSTOM_QLPACK" $SCAN_CONFIGS --sarif-category="python" --output="/tmp/python.sarif"
+$CODEQL database analyze "$CODEQL" "$PYTHON_CUSTOM_QLPACK" $SCAN_CONFIGS --sarif-category="python" --output="/tmp/python.sarif"
 
 # Obtain short-lived GitHub token via DD Octo STS for SARIF upload
 GITHUB_TOKEN="$(DD_TRACE_ENABLED=false dd-octo-sts token --scope DataDog/dd-trace-py --policy codeql)"
