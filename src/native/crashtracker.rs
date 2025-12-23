@@ -6,16 +6,16 @@ use std::time::Duration;
 
 use libdd_common::Endpoint;
 use libdd_crashtracker::{
-    register_runtime_frame_callback, register_runtime_stacktrace_string_callback,
+    // register_runtime_frame_callback, register_runtime_stacktrace_string_callback,
     CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, StacktraceCollection,
 };
 use pyo3::prelude::*;
 
-mod crashtracker_runtime_stacks;
-use crashtracker_runtime_stacks::{
-    get_cached_dump_traceback_fn, init_dump_traceback_fn, native_runtime_stack_frame_callback,
-    native_runtime_stack_string_callback,
-};
+// mod crashtracker_runtime_stacks;
+// use crashtracker_runtime_stacks::{
+//     get_cached_dump_traceback_fn, init_dump_traceback_fn, native_runtime_stack_frame_callback,
+//     native_runtime_stack_string_callback,
+// };
 
 pub trait RustWrapper {
     type Inner;
@@ -231,8 +231,6 @@ pub fn crashtracker_init<'py>(
     mut config: PyRefMut<'py, CrashtrackerConfigurationPy>,
     mut receiver_config: PyRefMut<'py, CrashtrackerReceiverConfigPy>,
     mut metadata: PyRefMut<'py, CrashtrackerMetadataPy>,
-    // TODO: Add this back in post Code Freeze (need to update config registry)
-    // emit_runtime_stacks: bool,
 ) -> anyhow::Result<()> {
     INIT.call_once(|| {
         let (config_opt, receiver_config_opt, metadata_opt) = (
