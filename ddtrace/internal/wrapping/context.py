@@ -17,9 +17,7 @@ from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.utils.inspection import link_function_to_code
 from ddtrace.internal.wrapping import WrappedFunction
 from ddtrace.internal.wrapping import Wrapper
-from ddtrace.internal.wrapping import get_function_code
 from ddtrace.internal.wrapping import is_wrapped_with
-from ddtrace.internal.wrapping import set_function_code
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 
@@ -396,30 +394,11 @@ class LazyWrappingContext(WrappingContext):
             if self._trampoline is not None:
                 return
 
-            # If the function is already universally wrapped so it's less expensive
-            # to do the normal wrapping.
-            if _UniversalWrappingContext.is_wrapped(self.__wrapped__):
-                super().wrap()
-                return
-
             def trampoline(_, args, kwargs):
                 with tl:
                     f = t.cast(WrappedFunction, self.__wrapped__)
                     if is_wrapped_with(self.__wrapped__, trampoline):
-                        # If the wrapped function was instrumented with a
-                        # wrapping context before the first invocation we need
-                        # to carry that over to the original function when we
-                        # remove the trampoline.
-                        try:
-                            inner = f.__dd_wrapped__
-                        except AttributeError:
-                            inner = None
                         f = unwrap(f, trampoline)
-                        self._trampoline = None
-                        try:
-                            f.__dd_context_wrapped__ = inner.__dd_context_wrapped__
-                        except AttributeError:
-                            pass
                         super(LazyWrappingContext, self).wrap()
                 return f(*args, **kwargs)
 
@@ -429,12 +408,15 @@ class LazyWrappingContext(WrappingContext):
 
     def unwrap(self) -> None:
         with self._trampoline_lock:
+            if self._trampoline is None:
+                return
+
             if self.is_wrapped(self.__wrapped__):
-                assert self._trampoline is None  # nosec
                 super().unwrap()
-            elif self._trampoline is not None:
+            else:
                 unwrap(t.cast(WrappedFunction, self.__wrapped__), self._trampoline)
-                self._trampoline = None
+
+            self._trampoline = None
 
 
 class ContextWrappedFunction(Protocol):
@@ -516,9 +498,9 @@ class _UniversalWrappingContext(BaseWrappingContext):
             # __dd_context_wrapped__ attribute is not enough, as this could be
             # copied over from an object state cloning.
             if sys.version_info >= (3, 11):
-                return f.__dd_context_wrapped__.__enter__ in get_function_code(f).co_consts  # type: ignore
+                return f.__dd_context_wrapped__.__enter__ in f.__code__.co_consts  # type: ignore
             else:
-                return f.__dd_context_wrapped__ in get_function_code(f).co_consts  # type: ignore
+                return f.__dd_context_wrapped__ in f.__code__.co_consts  # type: ignore
         except AttributeError:
             return False
 
@@ -536,7 +518,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
             if self.is_wrapped(f):
                 raise ValueError("Function already wrapped")
 
-            bc = Bytecode.from_code(code := get_function_code(f))
+            bc = Bytecode.from_code(f.__code__)
 
             # Prefix every return
             i = 0
@@ -570,7 +552,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
             else:
                 i = 0
 
-            bc[i:i] = CONTEXT_HEAD.bind({"context_enter": self.__enter__}, lineno=code.co_firstlineno)
+            bc[i:i] = CONTEXT_HEAD.bind({"context_enter": self.__enter__}, lineno=f.__code__.co_firstlineno)
 
             # Wrap every line outside a try block
             except_label = bytecode.Label()
@@ -606,9 +588,8 @@ class _UniversalWrappingContext(BaseWrappingContext):
             # Replace the function code with the wrapped code. We also link
             # the function to its original code object so that we can retrieve
             # it later if required.
-            link_function_to_code(code, f)
-
-            set_function_code(f, bc.to_code())
+            link_function_to_code(f.__code__, f)
+            f.__code__ = bc.to_code()
 
         def unwrap(self) -> None:
             f = self.__wrapped__
@@ -618,7 +599,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
 
             wrapped = t.cast(ContextWrappedFunction, f)
 
-            bc = Bytecode.from_code(get_function_code(f))
+            bc = Bytecode.from_code(f.__code__)
 
             # Remove the exception handling code
             bc[-len(CONTEXT_FOOT) :] = []
@@ -682,7 +663,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
                 i += 1
 
             # Recreate the code object
-            set_function_code(f, bc.to_code())
+            f.__code__ = bc.to_code()
 
             # Remove the wrapping context marker
             del wrapped.__dd_context_wrapped__
@@ -695,7 +676,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
             if self.is_wrapped(f):
                 raise ValueError("Function already wrapped")
 
-            bc = Bytecode.from_code(code := get_function_code(f))
+            bc = Bytecode.from_code(f.__code__)
 
             # Prefix every return
             i = 0
@@ -725,7 +706,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
                         # Not an instruction
                         pass
 
-            *bc[i:i], except_label = CONTEXT_HEAD.bind({"context": self}, lineno=code.co_firstlineno)
+            *bc[i:i], except_label = CONTEXT_HEAD.bind({"context": self}, lineno=f.__code__.co_firstlineno)
 
             bc.append(except_label)
             bc.extend(CONTEXT_FOOT.bind())
@@ -736,8 +717,8 @@ class _UniversalWrappingContext(BaseWrappingContext):
             # Replace the function code with the wrapped code. We also link
             # the function to its original code object so that we can retrieve
             # it later if required.
-            link_function_to_code(code, f)
-            set_function_code(f, bc.to_code())
+            link_function_to_code(f.__code__, f)
+            f.__code__ = bc.to_code()
 
         def unwrap(self) -> None:
             f = self.__wrapped__
@@ -747,7 +728,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
 
             wrapped = t.cast(ContextWrappedFunction, f)
 
-            bc = Bytecode.from_code(get_function_code(f))
+            bc = Bytecode.from_code(f.__code__)
 
             # Remove the exception handling code
             bc[-len(CONTEXT_FOOT) :] = []
@@ -779,7 +760,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
                 i += 1
 
             # Recreate the code object
-            set_function_code(f, bc.to_code())
+            f.__code__ = bc.to_code()
 
             # Remove the wrapping context marker
             del wrapped.__dd_context_wrapped__
