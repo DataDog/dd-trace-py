@@ -7,7 +7,9 @@ set -euo pipefail
 export PATH=$PATH:/usr/local/go/bin
 
 # Clone Code Scanning repository to download custom CodeQL packs from.
-git clone https://github.com/DataDog/codescanning.git --depth 1 --single-branch --branch=main /tmp/codescanning
+set +x # Disable command echoing to prevent token leakage
+git clone https://gitlab-ci:${GITHUB_ACCESS_TOKEN}@github.com/DataDog/codescanning.git --depth 1 --single-branch --branch=main /tmp/codescanning
+set -x # Re-enable command echoing
 
 dd-octo-sts debug --scope DataDog/dd-source --policy codeql || true
 
