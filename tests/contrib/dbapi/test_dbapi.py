@@ -486,12 +486,12 @@ class TestFetchTracedCursor(TracerTestCase):
         traced_cursor = TracedCursor(cursor, pin, {})
 
         traced_cursor.callproc("proc_name", "arg_1")
-        spans = self.self.pop_spans()
+        spans = self.pop_spans()
         assert len(spans) == 1
         self.reset()
 
         traced_cursor.callproc("proc_name", "arg_1", "arg_2")
-        spans = self.self.pop_spans()
+        spans = self.pop_spans()
         assert len(spans) == 1
         self.reset()
 

@@ -587,13 +587,13 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
     def test_trace_connect(self):
         # No span when trace_connect is False (the default)
         self._connect_with_kwargs().close()
-        spans = self.self.pop_spans()
+        spans = self.pop_spans()
         assert not spans
 
         with self.override_config("mysqldb", dict(trace_connect=True)):
             self._connect_with_kwargs().close()
 
-            spans = self.self.pop_spans()
+            spans = self.pop_spans()
 
             self.assertEqual(len(spans), 1)
             span = spans[0]
@@ -607,7 +607,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
     def test_trace_connect_env_var_config(self):
         self._connect_with_kwargs().close()
 
-        spans = self.self.pop_spans()
+        spans = self.pop_spans()
 
         self.assertEqual(len(spans), 1)
         span = spans[0]
