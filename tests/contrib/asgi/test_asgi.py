@@ -190,7 +190,7 @@ import pytest
 from tests.conftest import *
 from tests.contrib.asgi.test_asgi import basic_app
 from tests.contrib.asgi.test_asgi import scope
-from tests.contrib.asgi.test_asgi import tracer
+from tests.utils import tracer
 from asgiref.testing import ApplicationCommunicator
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
@@ -247,7 +247,7 @@ import pytest
 from tests.conftest import *
 from tests.contrib.asgi.test_asgi import basic_app
 from tests.contrib.asgi.test_asgi import scope
-from tests.contrib.asgi.test_asgi import tracer
+from tests.utils import tracer
 from asgiref.testing import ApplicationCommunicator
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
