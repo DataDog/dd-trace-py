@@ -914,7 +914,7 @@ def test_inferred_spans_api_gateway(client, tracer, test_spans, test, inferred_p
                 api_gateway_resource="GET /",
                 method="GET",
                 status_code=test["status_code"],
-                url="local/",
+                url="https://local/",
                 start=1736973768,
                 is_distributed=test_headers["type"] == "distributed",
                 distributed_trace_id=1,
