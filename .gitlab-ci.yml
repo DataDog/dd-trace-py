@@ -180,6 +180,9 @@ codeql-scan:
   image:
     name: registry.ddbuild.io/images/code-scanning:v76675231-865a08a-default
   tags: [ "arch:amd64" ]
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   variables:
     AWS_REGION: us-east-1
     BASE_REF: main
@@ -188,9 +191,6 @@ codeql-scan:
     KUBERNETES_CPU_LIMIT: 10
     KUBERNETES_MEMORY_REQUEST: 96Gi
     KUBERNETES_MEMORY_LIMIT: 96Gi
-    GITHUB_APP_PRIVATE_KEY_NAME: csec.codescanning.githubapp.privatekey
-    GITHUB_APP_ID: 209967
-    GITHUB_INSTALLATION_ID: 26442897
     CODEQL: /usr/local/codeql/codeql
     CODEQL_DB: /tmp/dd-trace-py.codeql
     PYTHON_CUSTOM_QLPACK: /tmp/codescanning/qlpacks/python/codeql-suites/python-code-scanning.qls
