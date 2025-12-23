@@ -19,11 +19,3 @@ $CODEQL database create "$CODEQL_DB" $DB_CONFIGS
 
 # Run queries for each supported ecosystem and save results to intermediate SARIF files.
 $CODEQL database analyze "$CODEQL_DB" "$PYTHON_CUSTOM_QLPACK" $SCAN_CONFIGS --sarif-category="python" --output="/tmp/python.sarif"
-
-# Obtain short-lived GitHub token via DD Octo STS for SARIF upload
-GITHUB_TOKEN="$(DD_TRACE_ENABLED=false dd-octo-sts token --scope DataDog/dd-trace-py --policy codeql)"
-export GITHUB_TOKEN
-
-# Upload results using custom Go command.
-GOPRIVATE=github.com/DataDog GOBIN=/usr/local/go/bin go install github.com/DataDog/codescanning@main
-CODEQL_SARIF="/tmp/python.sarif" codescanning $UPLOAD_CONFIGS -scan_started_time="$CI_JOB_STARTED_AT"
