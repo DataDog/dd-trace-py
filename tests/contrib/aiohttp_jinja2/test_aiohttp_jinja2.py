@@ -34,7 +34,10 @@ async def test_template_rendering(untraced_app_tracer_jinja, aiohttp_client):
     assert 0 == span.error
 
 
-async def test_template_rendering_snapshot(untraced_app_tracer_jinja, aiohttp_client, snapshot_context):
+@pytest.mark.parametrize("use_dummy_writer", [False])
+async def test_template_rendering_snapshot(
+    untraced_app_tracer_jinja, aiohttp_client, snapshot_context, use_dummy_writer
+):
     app, _ = untraced_app_tracer_jinja
     Pin._override(aiohttp_jinja2, tracer=tracer)
     with snapshot_context():
