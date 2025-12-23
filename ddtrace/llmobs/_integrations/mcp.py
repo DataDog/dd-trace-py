@@ -23,6 +23,8 @@ MCP_SPAN_TYPE = "_ml_obs.mcp_span_type"
 
 SERVER_TOOL_CALL_OPERATION_NAME = "server_tool_call"
 CLIENT_TOOL_CALL_OPERATION_NAME = "client_tool_call"
+REQUEST_RESPONDER_ENTER_OPERATION_NAME = "request_responder"
+REQUEST_RESPONDER_RESPOND_OPERATION_NAME = "request_responder_respond"
 
 
 def _find_client_session_root(span: Optional[Span]) -> Optional[Span]:
@@ -86,6 +88,8 @@ class MCPIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_server(span, args, kwargs, response)
         elif operation == "initialize":
             self._llmobs_set_tags_initialize(span, args, kwargs, response)
+        elif operation == REQUEST_RESPONDER_RESPOND_OPERATION_NAME:
+            self._llmobs_set_tags_request_responder_respond(span, args, kwargs, response)
         elif operation == "list_tools":
             self._llmobs_set_tags_list_tools(span, args, kwargs, response)
         elif operation == "session":
@@ -178,6 +182,60 @@ class MCPIntegration(BaseLLMIntegration):
                     "mcp_server_title": getattr(server_info, "title", ""),
                 },
             )
+
+    def _llmobs_set_tags_request_responder_respond(
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any
+    ) -> None:
+        try:
+            from mcp.server.streamable_http import MCP_SESSION_ID_HEADER
+            from mcp.types import InitializeRequest
+        except ImportError:
+            InitializeRequest = None
+            MCP_SESSION_ID_HEADER = None
+
+        responder = get_argument_value(args, kwargs, 0, "request_responder", optional=True)
+        response = get_argument_value(args, kwargs, 0, "response", optional=True)
+
+        request = getattr(responder, "request", None)
+        request_root = getattr(request, "root", None)
+
+        if request_root is not None:
+            if InitializeRequest and request_root and isinstance(request_root, InitializeRequest):
+                request_params = _get_attr(request_root, "params", None)
+                client_info = _get_attr(request_params, "clientInfo", None)
+                client_name = _get_attr(client_info, "name", None)
+                client_version = _get_attr(client_info, "version", None)
+                if client_name and client_version:
+                    _set_or_update_tags(
+                        span,
+                        {
+                            "client_name": str(client_name),
+                            "client_version": f"{client_name}_{client_version}",
+                        },
+                    )
+
+        request_method = _get_attr(request_root, "method", "unknown")
+
+        # This only exists for existing sessions using the streamable HTTP transport
+        message_metadata = _get_attr(responder, "message_metadata", None)
+        http_request = message_metadata and _get_attr(message_metadata, "request_context", None)
+        maybe_session_id = (
+            http_request and getattr(http_request, "headers", {}).get(MCP_SESSION_ID_HEADER)
+            if MCP_SESSION_ID_HEADER
+            else None
+        )
+
+        if maybe_session_id:
+            _set_or_update_tags(span, {"mcp_session_id": str(maybe_session_id)})
+
+        span._set_ctx_items(
+            {
+                NAME: "mcp.{}".format(request_method),
+                SPAN_KIND: "task",
+                INPUT_VALUE: safe_json(request),
+                OUTPUT_VALUE: safe_json(response),
+            }
+        )
 
     def _llmobs_set_tags_list_tools(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         cursor = get_argument_value(args, kwargs, 0, "cursor", optional=True)
