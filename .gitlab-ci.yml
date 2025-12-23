@@ -191,6 +191,7 @@ codeql-scan:
     KUBERNETES_CPU_LIMIT: 10
     KUBERNETES_MEMORY_REQUEST: 96Gi
     KUBERNETES_MEMORY_LIMIT: 96Gi
+    CI_PROJECT_NAMESPACE: DataDog
     CODEQL: /usr/local/codeql/codeql
     CODEQL_DB: /tmp/dd-trace-py.codeql
     PYTHON_CUSTOM_QLPACK: /tmp/codescanning/qlpacks/python/codeql-suites/python-code-scanning.qls
