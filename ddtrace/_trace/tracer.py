@@ -146,13 +146,7 @@ class Tracer(object):
             partial_flush_min_spans=config._partial_flush_min_spans,
             dd_processors=[PeerServiceProcessor(_ps_config), BaseServiceProcessor()],
         )
-        if config._data_streams_enabled:
-            # Inline the import to avoid pulling in ddsketch or protobuf
-            # when importing ddtrace.
-            from ddtrace.internal.datastreams.processor import DataStreamsProcessor
-
-            self.data_streams_processor = DataStreamsProcessor()
-            register_on_exit_signal(self._atexit)
+        self._set_datastreams_processor(self._atexit)
 
         # Ensure that tracer exit hooks are registered and unregistered once per instance
         forksafe.register_before_fork(self._sample_before_fork)
@@ -399,6 +393,7 @@ class Tracer(object):
 
             # Clear global span processors that may have been registered during tests
             SpanProcessor.__processors__.clear()
+            self._set_datastreams_processor()
 
         # Reset the span aggregator (recreates writer, clears buffer)
         self._span_aggregator.reset(
@@ -892,6 +887,18 @@ class Tracer(object):
         :param dict tags: dict of tags to set at tracer level
         """
         self._tags.update(tags)
+
+    def _set_datastreams_processor(self, atexit_callback=None):
+        """Set the data streams processor and register the atexit callback if provided."""
+        if config._data_streams_enabled:
+            # Inline the import to avoid pulling in ddsketch or protobuf
+            # when importing ddtrace.
+            from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+
+            self.data_streams_processor = DataStreamsProcessor()
+
+            if atexit_callback:
+                register_on_exit_signal(atexit_callback)
 
     def shutdown(self, timeout: Optional[float] = None) -> None:
         """Shutdown the tracer and flush finished traces. Avoid calling shutdown multiple times.

@@ -139,12 +139,11 @@ async def test_send_and_wait_with_distributed_tracing():
             result = await consumer.getone()
             await consumer.commit()
 
-            assert has_header(result.headers, "x-datadog-trace-id")
-            assert has_header(result.headers, "some_header")
+        assert has_header(result.headers, "x-datadog-trace-id")
+        assert has_header(result.headers, "some_header")
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["meta._dd.span_links", "meta.messaging.destination.name", "meta.kafka.topic"])
 async def test_getmany_multiple_messages_multiple_topics_with_distributed_tracing(tracer, test_spans):
     topic = await create_topic("getmany_distributed_tracing")
     topic_2 = await create_topic("getmany_distributed_tracing_2")
