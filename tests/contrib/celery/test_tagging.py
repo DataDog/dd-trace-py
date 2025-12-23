@@ -138,7 +138,7 @@ def assert_traces(tracer, task_name, task, port):
 
 
 @pytest.fixture(autouse=False)
-def list_broker_celery_app(instrument_celery, dummy_tracer):
+def list_broker_celery_app(instrument_celery, tracer):
     app = Celery("list_broker_celery", broker=BROKER_URL, backend=BACKEND_URL)
     # Set the broker URL to a list where the first URL is used for parsing
     app.conf.broker_url = [BROKER_URL, "memory://"]
@@ -149,7 +149,7 @@ def list_broker_celery_app(instrument_celery, dummy_tracer):
 
     # Ensure the app is instrumented with the dummy tracer
     Pin.get_from(app)
-    Pin._override(app, tracer=dummy_tracer)
+    Pin._override(app, tracer=tracer)
     patch()
     yield app
     unpatch()
