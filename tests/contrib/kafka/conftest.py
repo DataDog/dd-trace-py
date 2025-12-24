@@ -80,7 +80,7 @@ def dummy_tracer():
         ddtracer._span_aggregator.writer._send_payload_with_backoff = ddtracer._span_aggregator.writer._send_payload
     yield ddtracer
     unpatch()
-    ddtracer._recreate(reset_state=True)
+    ddtracer._recreate(re_init=True)
 
 
 @pytest.fixture

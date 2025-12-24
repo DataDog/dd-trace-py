@@ -19,10 +19,8 @@ def config():
     yield ddtrace.config
     # Reset the config to its original state
     ddtrace.config = original_config
-    # Clear any sampling rules that were set during the test
-    ddtrace.tracer._sampler.set_sampling_rules("")
     # Reset the state of the tracer
-    ddtrace.tracer._recreate(reset_state=True)
+    ddtrace.tracer._recreate(re_init=True)
 
 
 def _base_rc_config(cfg):

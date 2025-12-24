@@ -146,7 +146,13 @@ class Tracer(object):
             partial_flush_min_spans=config._partial_flush_min_spans,
             dd_processors=[PeerServiceProcessor(_ps_config), BaseServiceProcessor()],
         )
-        self._set_datastreams_processor(self._atexit)
+        if config._data_streams_enabled:
+            # Inline the import to avoid pulling in ddsketch or protobuf
+            # when importing ddtrace.
+            from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+
+            self.data_streams_processor = DataStreamsProcessor()
+            register_on_exit_signal(self._atexit)
 
         # Ensure that tracer exit hooks are registered and unregistered once per instance
         forksafe.register_before_fork(self._sample_before_fork)
@@ -349,7 +355,7 @@ class Tracer(object):
         apm_opt_out: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
         reset_buffer: bool = True,
-        reset_state: bool = False,
+        re_init: bool = False,
     ) -> None:
         """Re-initialize the tracer's processors and trace writer.
 
@@ -358,42 +364,12 @@ class Tracer(object):
         :param apm_opt_out: Optional flag for APM opt-out mode.
         :param appsec_enabled: Optional flag to enable/disable AppSec.
         :param reset_buffer: Whether to reset the trace buffer (default: True).
-        :param reset_state: Whether to reset all tracer state to defaults (default: False).
-            When True, this provides a clean slate for testing by resetting:
-            - Tracer tags to config.tags
-            - Enabled state to config._tracing_enabled
-            - Active context (cleared)
-            - start_span method (restored if changed after shutdown)
-            - forksafe/atexit hooks (re-registered if unregistered)
-            - _new_process flag
-            - Global span processors (SpanProcessor.__processors__)
+        :param re_init: Whether to re-initialize the tracer (default: False).
         """
-        if reset_state:
-            # Reset tracer tags to config defaults
-            self._tags = config.tags.copy()
-
-            # Reset enabled state
-            self.enabled = config._tracing_enabled
-            if asm_config._apm_opt_out:
-                self.enabled = False
-
-            # Clear the active context
-            self.context_provider.activate(None)
-
-            # Reset _new_process flag
-            self._new_process = False
-
-            # Restore start_span if it was changed after shutdown and re-register hooks
-            if self.start_span == self._start_span_after_shutdown:
-                self.start_span = self._start_span  # type: ignore[method-assign]
-                # Re-register forksafe and atexit hooks
-                forksafe.register_before_fork(self._sample_before_fork)
-                atexit.register(self._atexit)
-                forksafe.register(self._child_after_fork)
-
-            # Clear global span processors that may have been registered during tests
-            SpanProcessor.__processors__.clear()
-            self._set_datastreams_processor()
+        if re_init:
+            self.shutdown()
+            self.__class__._instance = None
+            self.__class__.__init__(self)
 
         # Reset the span aggregator (recreates writer, clears buffer)
         self._span_aggregator.reset(
@@ -887,18 +863,6 @@ class Tracer(object):
         :param dict tags: dict of tags to set at tracer level
         """
         self._tags.update(tags)
-
-    def _set_datastreams_processor(self, atexit_callback=None):
-        """Set the data streams processor and register the atexit callback if provided."""
-        if config._data_streams_enabled:
-            # Inline the import to avoid pulling in ddsketch or protobuf
-            # when importing ddtrace.
-            from ddtrace.internal.datastreams.processor import DataStreamsProcessor
-
-            self.data_streams_processor = DataStreamsProcessor()
-
-            if atexit_callback:
-                register_on_exit_signal(atexit_callback)
 
     def shutdown(self, timeout: Optional[float] = None) -> None:
         """Shutdown the tracer and flush finished traces. Avoid calling shutdown multiple times.
