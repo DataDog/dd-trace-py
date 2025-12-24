@@ -81,7 +81,8 @@ def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
 
 
 def _get_args(additional_tags: Optional[Dict[str, str]]):
-    dd_crashtracker_receiver = shutil.which("_dd_crashtracker_receiver")
+    # dd_crashtracker_receiver = shutil.which("_dd_crashtracker_receiver")
+    dd_crashtracker_receiver = None
 
     # If not found in PATH, try ddtrace installation directory. This can happen
     # in an injected environment
