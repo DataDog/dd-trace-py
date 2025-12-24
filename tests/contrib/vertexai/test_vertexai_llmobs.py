@@ -47,7 +47,7 @@ class TestLLMObsVertexai:
         )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span), None)
 
     @pytest.mark.skipif(
         aiplatform_module is None or parse_version(aiplatform_module.__version__) < (1, 94, 0),
@@ -64,7 +64,7 @@ class TestLLMObsVertexai:
         )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_reasoning_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_reasoning_span_event(span), None)
 
     def test_completion_error(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -82,7 +82,7 @@ class TestLLMObsVertexai:
             )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span), None)
 
     def test_completion_tool(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -96,7 +96,7 @@ class TestLLMObsVertexai:
         )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span), None)
 
         # Execute the weather function with the tool call arguments
         tool_call = response.candidates[0].content.parts[0].function_call
@@ -120,7 +120,7 @@ class TestLLMObsVertexai:
         # Validate second call (tool result)
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_result_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_result_span_event(span), None)
 
     def test_completion_multiple_messages(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -138,7 +138,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_history_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_history_span_event(span), None)
 
     def test_completion_system_prompt(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel(
@@ -156,7 +156,7 @@ class TestLLMObsVertexai:
         )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_system_prompt_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_system_prompt_span_event(span), None)
 
     def test_completion_model_generation_config(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -169,7 +169,7 @@ class TestLLMObsVertexai:
         )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span), None)
 
     def test_completion_no_generation_config(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -179,7 +179,7 @@ class TestLLMObsVertexai:
         )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_no_generation_config_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_no_generation_config_span_event(span), None)
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
     def test_completion_stream(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
@@ -198,7 +198,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_span_event(span), None)
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
     def test_completion_stream_error(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
@@ -219,7 +219,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_error_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_error_span_event(span), None)
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
     def test_completion_stream_tool(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
@@ -238,7 +238,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span), None)
 
         tool_call = MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS[0]["function_call"]
         weather_result = get_current_weather(tool_call["args"]["location"])
@@ -271,7 +271,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_result_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_result_span_event(span), None)
 
     async def test_completion_async(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -287,7 +287,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span), None)
 
     async def test_completion_async_error(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -305,7 +305,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span), None)
 
     async def test_completion_async_tool(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
@@ -321,7 +321,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span), None)
 
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
     async def test_completion_async_stream(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
@@ -340,7 +340,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_span_event(span), None)
 
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
     async def test_completion_async_stream_error(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
@@ -361,7 +361,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_error_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_error_span_event(span), None)
 
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
     async def test_completion_async_stream_tool(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
@@ -380,7 +380,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span), None)
 
         tool_call = MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS[0]["function_call"]
         weather_result = get_current_weather(tool_call["args"]["location"])
@@ -412,7 +412,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_result_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_result_span_event(span), None)
 
     def test_chat(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -427,7 +427,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span), None)
 
     def test_chat_history(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -454,7 +454,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_history_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_history_span_event(span), None)
 
     def test_vertexai_chat_error(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -471,7 +471,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span), None)
 
     def test_chat_tool(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -487,7 +487,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span), None)
 
     def test_chat_system_prompt(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel(
@@ -507,7 +507,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_system_prompt_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_system_prompt_span_event(span), None)
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
     def test_chat_stream(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
@@ -527,7 +527,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_span_event(span), None)
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
     def test_chat_stream_error(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
@@ -549,7 +549,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_error_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_error_span_event(span), None)
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
     def test_chat_stream_tool(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
@@ -569,7 +569,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span), None)
 
     async def test_chat_async(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -586,7 +586,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span), None)
 
     async def test_chat_async_error(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -605,7 +605,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span), None)
 
     async def test_chat_async_tool(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
@@ -622,7 +622,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span), None)
 
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
     async def test_chat_async_stream(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
@@ -642,7 +642,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_span_event(span), None)
 
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
     async def test_chat_async_stream_error(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
@@ -664,7 +664,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_error_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_error_span_event(span), None)
 
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
     async def test_chat_async_stream_tool(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
@@ -685,7 +685,7 @@ class TestLLMObsVertexai:
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span), None)
 
 
 def expected_llmobs_span_event(span):

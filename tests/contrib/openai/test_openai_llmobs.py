@@ -96,7 +96,8 @@ class TestLLMObsOpenaiV1:
                     "user": "ddtrace-test",
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
         # span created from request with non-proxy URL should result in an LLM span
@@ -143,7 +144,8 @@ class TestLLMObsOpenaiV1:
                 metadata={"temperature": 0.8, "max_tokens": 10, "n": 2, "stop": ".", "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 2, "output_tokens": 12, "total_tokens": 14},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -185,7 +187,8 @@ class TestLLMObsOpenaiV1:
                     "user": "ddtrace-test",
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
         # span created from request with non-proxy URL should result in an LLM span
@@ -234,7 +237,8 @@ class TestLLMObsOpenaiV1:
                 metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 16, "output_tokens": 20, "total_tokens": 36},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -270,7 +274,8 @@ class TestLLMObsOpenaiV1:
                 metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 16, "output_tokens": 20, "total_tokens": 36},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     def test_completion_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
@@ -296,6 +301,7 @@ class TestLLMObsOpenaiV1:
                 token_metrics={"input_tokens": 2, "output_tokens": 2, "total_tokens": 4},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             ),
+            None,
         )
 
     @mock.patch("openai._base_client.SyncAPIClient.post")
@@ -333,7 +339,8 @@ class TestLLMObsOpenaiV1:
                     "user": "ddtrace-test",
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
         # span created from request with non-proxy URL should result in an LLM span
@@ -367,7 +374,8 @@ class TestLLMObsOpenaiV1:
                 metadata={"top_p": 0.9, "n": 2, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 57, "output_tokens": 34, "total_tokens": 91},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -417,7 +425,7 @@ class TestLLMObsOpenaiV1:
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
         )
-        mock_llmobs_writer.enqueue.assert_called_with(expected_event)
+        mock_llmobs_writer.enqueue.assert_called_with(expected_event, None)
 
         # span created from request with non-proxy URL should result in an LLM span
         azure_client = openai.AzureOpenAI(
@@ -463,7 +471,8 @@ class TestLLMObsOpenaiV1:
                 metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 18, "output_tokens": 20, "total_tokens": 38},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -520,7 +529,8 @@ class TestLLMObsOpenaiV1:
                 metadata=expected_metadata,
                 token_metrics={"input_tokens": 9, "output_tokens": 45, "total_tokens": 54},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -554,7 +564,8 @@ class TestLLMObsOpenaiV1:
                 metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 18, "output_tokens": 20, "total_tokens": 38},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -597,7 +608,8 @@ class TestLLMObsOpenaiV1:
                 metadata={"stream": True, "stream_options": {"include_usage": False}, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 8, "output_tokens": 8, "total_tokens": 16},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -626,7 +638,8 @@ class TestLLMObsOpenaiV1:
                 metadata={"stream": True, "stream_options": {"include_usage": True}},
                 token_metrics={"input_tokens": 17, "output_tokens": 19, "total_tokens": 36},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -659,7 +672,8 @@ class TestLLMObsOpenaiV1:
                 metadata=mock.ANY,
                 token_metrics={"input_tokens": 17, "output_tokens": 19, "total_tokens": 36},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     def test_chat_completion_function_call(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
@@ -703,7 +717,8 @@ class TestLLMObsOpenaiV1:
                 token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -733,7 +748,8 @@ class TestLLMObsOpenaiV1:
                 token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -970,7 +986,8 @@ class TestLLMObsOpenaiV1:
                     "text": {"format": {"type": "text"}, "verbosity": "medium"},
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -1048,7 +1065,8 @@ MUL: "*"
                     }
                 ],
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -1081,7 +1099,8 @@ MUL: "*"
                 token_metrics={"input_tokens": 166, "output_tokens": 43, "total_tokens": 209},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     def test_completion_error(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
@@ -1114,7 +1133,8 @@ MUL: "*"
                 error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
                 error_stack=span.get_tag("error.stack"),
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     def test_chat_completion_error(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
@@ -1142,7 +1162,8 @@ MUL: "*"
                 error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
                 error_stack=span.get_tag("error.stack"),
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     def test_chat_completion_prompt_caching(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
@@ -1228,7 +1249,8 @@ MUL: "*"
                 output_value="[1 embedding(s) returned with size 1536]",
                 token_metrics={"input_tokens": 2, "output_tokens": 0, "total_tokens": 2},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     def test_embedding_string_array(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
@@ -1248,7 +1270,8 @@ MUL: "*"
                 output_value="[2 embedding(s) returned with size 1536]",
                 token_metrics={"input_tokens": 4, "output_tokens": 0, "total_tokens": 4},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     def test_embedding_token_array(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
@@ -1268,7 +1291,8 @@ MUL: "*"
                 output_value="[1 embedding(s) returned with size 1536]",
                 token_metrics={"input_tokens": 3, "output_tokens": 0, "total_tokens": 3},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     def test_embedding_array_of_token_arrays(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
@@ -1294,7 +1318,8 @@ MUL: "*"
                 output_value="[3 embedding(s) returned with size 1536]",
                 token_metrics={"input_tokens": 9, "output_tokens": 0, "total_tokens": 9},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -1319,7 +1344,8 @@ MUL: "*"
                 output_value="[1 embedding(s) returned]",
                 token_metrics={"input_tokens": 2, "output_tokens": 0, "total_tokens": 2},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     def test_deepseek_as_provider(self, openai, mock_llmobs_writer, mock_tracer):
@@ -1363,7 +1389,8 @@ MUL: "*"
                 output_messages=[{"content": ""}],
                 metadata={"stream": True},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -1493,7 +1520,8 @@ MUL: "*"
                 output_messages=[{"content": ""}],
                 metadata={"stream": True, "stream_options": {"include_usage": False}, "user": "ddtrace-test"},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -1537,7 +1565,8 @@ MUL: "*"
                     "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -1580,7 +1609,8 @@ MUL: "*"
                     "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -1635,7 +1665,8 @@ MUL: "*"
                     "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -1691,7 +1722,8 @@ MUL: "*"
                     }
                 ],
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -1756,7 +1788,8 @@ MUL: "*"
                     "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -1785,7 +1818,8 @@ MUL: "*"
                 error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
                 error_stack=span.get_tag("error.stack"),
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -1825,7 +1859,8 @@ MUL: "*"
                     "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -2105,7 +2140,8 @@ MUL: "*"
                     "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -2165,7 +2201,8 @@ MUL: "*"
                     "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(
@@ -2542,7 +2579,8 @@ MUL: "*"
                     "reasoning_output_tokens": 128,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
+            ),
+            None,
         )
 
 

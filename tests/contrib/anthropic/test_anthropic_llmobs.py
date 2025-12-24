@@ -108,7 +108,8 @@ class TestLLMObsAnthropic:
                 ),
                 metadata={"temperature": 0.8, "max_tokens": 15.0},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
-            )
+            ),
+            None,
         )
 
         # span created from request with non-proxy URL should result in an LLM span
@@ -162,7 +163,8 @@ class TestLLMObsAnthropic:
                 metadata={"temperature": 0.8, "max_tokens": 15.0},
                 token_metrics={"input_tokens": 32, "output_tokens": 15, "total_tokens": 47},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
-            )
+            ),
+            None,
         )
 
     def test_completion_with_multiple_system_prompts(
@@ -221,7 +223,8 @@ class TestLLMObsAnthropic:
                     "cache_read_input_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
-            )
+            ),
+            None,
         )
 
     def test_error(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
@@ -266,7 +269,8 @@ class TestLLMObsAnthropic:
                         error_stack=span.get_tag("error.stack"),
                         metadata={"temperature": 0.8, "max_tokens": 15.0},
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
-                    )
+                    ),
+                    None,
                 )
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
@@ -320,7 +324,8 @@ class TestLLMObsAnthropic:
                     metadata={"temperature": 0.8, "max_tokens": 15.0},
                     token_metrics={"input_tokens": 27, "output_tokens": 15, "total_tokens": 42},
                     tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
-                )
+                ),
+                None,
             )
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
@@ -379,7 +384,8 @@ class TestLLMObsAnthropic:
                     metadata={"temperature": 0.8, "max_tokens": 15.0},
                     token_metrics={"input_tokens": 27, "output_tokens": 15, "total_tokens": 42},
                     tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
-                )
+                ),
+                None,
             )
 
     def test_image(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
@@ -434,7 +440,8 @@ class TestLLMObsAnthropic:
                     metadata={"temperature": 0.8, "max_tokens": 15.0},
                     token_metrics={"input_tokens": 246, "output_tokens": 15, "total_tokens": 261},
                     tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
-                )
+                ),
+                None,
             )
 
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
@@ -477,7 +484,8 @@ class TestLLMObsAnthropic:
                 token_metrics={"input_tokens": 599, "output_tokens": 152, "total_tokens": 751},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
-            )
+            ),
+            None,
         )
 
         tool = next(c for c in message.content if c.type == "tool_use")
@@ -535,7 +543,8 @@ class TestLLMObsAnthropic:
                 token_metrics={"input_tokens": 768, "output_tokens": 29, "total_tokens": 797},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
-            )
+            ),
+            None,
         )
 
     @pytest.mark.asyncio
@@ -579,7 +588,8 @@ class TestLLMObsAnthropic:
                 token_metrics={"input_tokens": 599, "output_tokens": 152, "total_tokens": 751},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
-            )
+            ),
+            None,
         )
 
         tool = next(c for c in message.content if c.type == "tool_use")
@@ -633,7 +643,8 @@ class TestLLMObsAnthropic:
                 token_metrics={"input_tokens": 768, "output_tokens": 29, "total_tokens": 797},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
-            )
+            ),
+            None,
         )
 
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
@@ -701,7 +712,8 @@ class TestLLMObsAnthropic:
                 token_metrics={"input_tokens": 599, "output_tokens": 135, "total_tokens": 734},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
-            )
+            ),
+            None,
         )
 
         with request_vcr.use_cassette("anthropic_completion_tools_call_with_tool_result_stream.yaml"):
@@ -752,7 +764,8 @@ class TestLLMObsAnthropic:
                 token_metrics={"input_tokens": 762, "output_tokens": 33, "total_tokens": 795},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
-            )
+            ),
+            None,
         )
 
     @pytest.mark.asyncio
@@ -808,7 +821,8 @@ class TestLLMObsAnthropic:
                 token_metrics={"input_tokens": 599, "output_tokens": 146, "total_tokens": 745},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
-            )
+            ),
+            None,
         )
 
         with request_vcr.use_cassette("anthropic_completion_tools_call_with_tool_result_stream_helper.yaml"):
@@ -863,7 +877,8 @@ class TestLLMObsAnthropic:
                 token_metrics={"input_tokens": 762, "output_tokens": 18, "total_tokens": 780},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
-            )
+            ),
+            None,
         )
 
     def test_completion_prompt_caching(
@@ -926,7 +941,8 @@ class TestLLMObsAnthropic:
                             "cache_read_input_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
-                    )
+                    ),
+                    None,
                 ),
                 mock.call(
                     _expected_llmobs_llm_span_event(
@@ -956,7 +972,8 @@ class TestLLMObsAnthropic:
                             "cache_read_input_tokens": 2055,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
-                    )
+                    ),
+                    None,
                 ),
             ]
         )
@@ -1027,7 +1044,8 @@ class TestLLMObsAnthropic:
                             "cache_read_input_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
-                    )
+                    ),
+                    None,
                 ),
                 mock.call(
                     _expected_llmobs_llm_span_event(
@@ -1057,7 +1075,8 @@ class TestLLMObsAnthropic:
                             "cache_read_input_tokens": 1031,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
-                    )
+                    ),
+                    None,
                 ),
             ]
         )
@@ -1087,5 +1106,6 @@ class TestLLMObsAnthropic:
                     "total_tokens": response.usage.input_tokens + response.usage.output_tokens,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
-            )
+            ),
+            None,
         )
