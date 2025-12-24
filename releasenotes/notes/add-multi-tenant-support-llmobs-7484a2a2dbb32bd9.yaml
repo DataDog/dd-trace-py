@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: This introduces multi-tenant routing support, enabling platforms to route LLMObs telemetry 
+    to different Datadog organizations from a single process. Use ``with LLMObs.routing_context(dd_api_key, dd_site)`` 
+    to direct all spans created within the context to a specific Datadog organization.

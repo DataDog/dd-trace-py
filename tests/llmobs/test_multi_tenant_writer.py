@@ -1,7 +1,7 @@
 import mock
 
+from ddtrace.llmobs._routing import RoutingConfig
 from ddtrace.llmobs._writer import LLMObsSpanWriter
-from ddtrace.llmobs._writer import RoutingInfo
 from tests.utils import override_global_config
 
 
@@ -23,7 +23,7 @@ class TestMultiBufferWriter:
         with override_global_config(dict(_dd_api_key="default-key", _dd_site="default-site")):
             writer = LLMObsSpanWriter(interval=1.0, timeout=5.0, is_agentless=True)
             event = _mock_span_event()
-            routing: RoutingInfo = {"dd_api_key": "tenant-key", "dd_site": "tenant-site"}
+            routing: RoutingConfig = {"dd_api_key": "tenant-key", "dd_site": "tenant-site"}
 
             writer.enqueue(event, routing)
 
@@ -43,8 +43,8 @@ class TestMultiBufferWriter:
             event2 = _mock_span_event()
             event3 = _mock_span_event()
 
-            routing_a: RoutingInfo = {"dd_api_key": "key-a", "dd_site": "site-a"}
-            routing_b: RoutingInfo = {"dd_api_key": "key-b", "dd_site": "site-b"}
+            routing_a: RoutingConfig = {"dd_api_key": "key-a", "dd_site": "site-a"}
+            routing_b: RoutingConfig = {"dd_api_key": "key-b", "dd_site": "site-b"}
 
             writer.enqueue(event1, routing_a)
             writer.enqueue(event2, routing_b)
@@ -64,8 +64,8 @@ class TestMultiBufferWriter:
         with override_global_config(dict(_dd_api_key="default-key", _dd_site="default-site")):
             writer = LLMObsSpanWriter(interval=1.0, timeout=5.0, is_agentless=True)
 
-            routing_a: RoutingInfo = {"dd_api_key": "key-a", "dd_site": "site-a"}
-            routing_b: RoutingInfo = {"dd_api_key": "key-b", "dd_site": "site-b"}
+            routing_a: RoutingConfig = {"dd_api_key": "key-a", "dd_site": "site-a"}
+            routing_b: RoutingConfig = {"dd_api_key": "key-b", "dd_site": "site-b"}
 
             writer.enqueue(_mock_span_event(), routing_a)
             writer.enqueue(_mock_span_event(), routing_b)
@@ -80,7 +80,7 @@ class TestMultiBufferWriter:
         with override_global_config(dict(_dd_api_key="default-key", _dd_site="default-site")):
             writer = LLMObsSpanWriter(interval=1.0, timeout=5.0, is_agentless=True)
 
-            routing: RoutingInfo = {"dd_api_key": "tenant-key", "dd_site": "tenant-site"}
+            routing: RoutingConfig = {"dd_api_key": "tenant-key", "dd_site": "tenant-site"}
             headers = writer._get_headers_for_routing(routing)
 
             assert headers["DD-API-KEY"] == "tenant-key"
@@ -97,7 +97,7 @@ class TestMultiBufferWriter:
         with override_global_config(dict(_dd_api_key="default-key", _dd_site="datadoghq.com")):
             writer = LLMObsSpanWriter(interval=1.0, timeout=5.0, is_agentless=True)
 
-            routing: RoutingInfo = {"dd_api_key": "tenant-key", "dd_site": "datadoghq.eu"}
+            routing: RoutingConfig = {"dd_api_key": "tenant-key", "dd_site": "datadoghq.eu"}
             intake = writer._get_intake_for_routing(routing)
 
             assert "datadoghq.eu" in intake
@@ -107,7 +107,7 @@ class TestMultiBufferWriter:
             writer = LLMObsSpanWriter(interval=1.0, timeout=5.0, is_agentless=True)
             writer.BUFFER_LIMIT = 2
 
-            routing: RoutingInfo = {"dd_api_key": "tenant-key", "dd_site": "tenant-site"}
+            routing: RoutingConfig = {"dd_api_key": "tenant-key", "dd_site": "tenant-site"}
 
             writer.enqueue(_mock_span_event(), routing)
             writer.enqueue(_mock_span_event(), routing)
@@ -121,7 +121,7 @@ class TestMultiBufferWriter:
             writer = LLMObsSpanWriter(interval=1.0, timeout=5.0, is_agentless=True)
 
             event = _mock_span_event()
-            routing: RoutingInfo = {"dd_api_key": "secret-key", "dd_site": "tenant-site"}
+            routing: RoutingConfig = {"dd_api_key": "secret-key", "dd_site": "tenant-site"}
 
             writer.enqueue(event, routing)
 
