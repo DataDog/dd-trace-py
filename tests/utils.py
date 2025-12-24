@@ -289,13 +289,17 @@ def override_http_config(integration, values):
 
 @contextlib.contextmanager
 def scoped_tracer(use_dummy_writer=True, compute_stats_enabled=None):
+    original_writer = None
     try:
         if compute_stats_enabled is not None:
             ddtrace.tracer._recreate(compute_stats_enabled=compute_stats_enabled)
         if use_dummy_writer:
+            original_writer = ddtrace.tracer._span_aggregator.writer
             ddtrace.tracer._span_aggregator.writer = DummyWriter(trace_flush_enabled=check_test_agent_status())
         yield ddtrace.tracer
     finally:
+        if original_writer is not None:
+            ddtrace.tracer._span_aggregator.writer = original_writer
         ddtrace.tracer._recreate(
             trace_processors=[],
             compute_stats_enabled=False,
