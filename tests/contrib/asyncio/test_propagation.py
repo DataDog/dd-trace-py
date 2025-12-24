@@ -21,12 +21,12 @@ def test_event_loop_unpatch(tracer):
 
 
 @pytest.mark.asyncio
-async def test_event_loop_double_patch(tracer):
+async def test_event_loop_double_patch(tracer, test_spans):
     # ensures that double patching will not double instrument
     # the event loop
     patch()
     patch()
-    await test_tasks_chaining(tracer)
+    await test_tasks_chaining(tracer, test_spans)
 
 
 @pytest.mark.asyncio
