@@ -798,8 +798,7 @@ def test_crashtracker_no_zombies():
 def test_crashtracker_receiver_env_inheritance():
     """
     The receiver is spawned using execve() and doesn't automatically inherit the
-    env, so we need to ensure all env variables are explicitly passed
-    when building the receiver config.
+    env, so we need to ensure specific env variables are explicitly passed
     """
     import ctypes
     import os
