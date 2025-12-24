@@ -1,6 +1,7 @@
 import asyncio
 import json
 from unittest import mock
+from urllib.parse import urlparse
 
 import pytest
 
@@ -211,8 +212,9 @@ class TestMultiTenantFlushBehavior:
                 intakes = [call[0][2] for call in calls]
                 headers_list = [call[0][3] for call in calls]
 
-                assert "site-a.com" in intakes[0] or "site-a.com" in intakes[1]
-                assert "site-b.com" in intakes[0] or "site-b.com" in intakes[1]
+                hostnames = {urlparse(url).hostname for url in intakes}
+                assert "llmobs-intake.site-a.com" in hostnames
+                assert "llmobs-intake.site-b.com" in hostnames
 
                 api_keys = [h["DD-API-KEY"] for h in headers_list]
                 assert "key-a" in api_keys
