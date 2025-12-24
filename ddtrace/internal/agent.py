@@ -2,14 +2,25 @@ import abc
 import json
 import typing as t
 
+from ddtrace.internal.constants import CONTAINER_TAGS_HASH
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
+from ddtrace.internal.process_tags import compute_base_hash
 from ddtrace.internal.settings._agent import config
 
 from .utils.http import get_connection
 
 
 log = get_logger(__name__)
+
+
+def process_info_headers(resp):
+    try:
+        container_tags_hash = resp.getheader(CONTAINER_TAGS_HASH)
+        if container_tags_hash:
+            compute_base_hash(container_tags_hash)
+    except Exception as e:
+        log.debug("Could not compute base hash: %s", e)
 
 
 def info(url=None):
@@ -19,6 +30,7 @@ def info(url=None):
     try:
         _conn.request("GET", "info", headers={"content-type": "application/json"})
         resp = _conn.getresponse()
+        process_info_headers(resp)
         data = resp.read()
     finally:
         _conn.close()
