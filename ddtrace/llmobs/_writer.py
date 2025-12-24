@@ -29,6 +29,7 @@ from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENTLESS_EVAL_BASE_URL
+from ddtrace.llmobs._routing import RoutingConfig
 from ddtrace.llmobs._constants import AGENTLESS_EXP_BASE_URL
 from ddtrace.llmobs._constants import AGENTLESS_SPAN_BASE_URL
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
@@ -54,15 +55,10 @@ from ddtrace.version import __version__
 logger = get_logger(__name__)
 
 
-class RoutingInfo(TypedDict, total=False):
-    dd_api_key: str
-    dd_site: Optional[str]
-
-
 class BufferEntry(TypedDict):
     events: List[Union["LLMObsSpanEvent", "LLMObsEvaluationMetricEvent"]]
     size: int
-    routing: Optional[RoutingInfo]
+    routing: Optional[RoutingConfig]
 
 
 class _LLMObsSpanEventOptional(TypedDict, total=False):
@@ -194,12 +190,12 @@ class BaseLLMObsWriter(PeriodicService):
             until=lambda result: isinstance(result, Response),
         )(self._send_payload)
 
-    def _get_routing_key(self, routing: Optional[RoutingInfo] = None) -> str:
+    def _get_routing_key(self, routing: Optional[RoutingConfig] = None) -> str:
         api_key = (routing.get("dd_api_key") if routing else None) or self._api_key or ""
         site = (routing.get("dd_site") if routing else None) or self._site or ""
         return f"{api_key}:{site}"
 
-    def _get_or_create_buffer(self, routing_key: str, routing: Optional[RoutingInfo] = None) -> BufferEntry:
+    def _get_or_create_buffer(self, routing_key: str, routing: Optional[RoutingConfig] = None) -> BufferEntry:
         if routing_key not in self._buffers:
             self._buffers[routing_key] = {
                 "events": [],
@@ -252,7 +248,7 @@ class BaseLLMObsWriter(PeriodicService):
         self,
         event: Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent],
         event_size: int,
-        routing: Optional[RoutingInfo] = None,
+        routing: Optional[RoutingConfig] = None,
     ) -> None:
         """Internal shared logic of enqueuing events to be submitted to LLM Observability."""
         with self._lock:
@@ -306,7 +302,7 @@ class BaseLLMObsWriter(PeriodicService):
     def _flush_buffer(
         self,
         events: List[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]],
-        routing: Optional[RoutingInfo],
+        routing: Optional[RoutingConfig],
     ) -> None:
         has_custom_routing = routing is not None and (
             routing.get("dd_api_key") != self._api_key or routing.get("dd_site") != self._site
@@ -347,8 +343,16 @@ class BaseLLMObsWriter(PeriodicService):
                 self._send_payload_with_retry(enc_llm_events, len(events))
             except Exception:
                 telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error="connection_error")
+                logger.error(
+                    "failed to send %d LLMObs %s events to %s",
+                    len(events),
+                    self.EVENT_TYPE,
+                    self._intake,
+                    exc_info=True,
+                    extra={"send_to_telemetry": False},
+                )
 
-    def _get_intake_for_routing(self, routing: Optional[RoutingInfo]) -> str:
+    def _get_intake_for_routing(self, routing: Optional[RoutingConfig]) -> str:
         if self._override_url:
             return self._override_url
         if not self._agentless:
@@ -356,7 +360,7 @@ class BaseLLMObsWriter(PeriodicService):
         site = (routing.get("dd_site") if routing else None) or self._site
         return f"{self.AGENTLESS_BASE_URL}.{site}"
 
-    def _get_headers_for_routing(self, routing: Optional[RoutingInfo]) -> Dict[str, str]:
+    def _get_headers_for_routing(self, routing: Optional[RoutingConfig]) -> Dict[str, str]:
         headers = {"Content-Type": "application/json"}
         if self._agentless:
             api_key = (routing.get("dd_api_key") if routing else None) or self._api_key
@@ -862,7 +866,7 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
     AGENTLESS_BASE_URL = AGENTLESS_SPAN_BASE_URL
     ENDPOINT = SPAN_ENDPOINT
 
-    def enqueue(self, event: LLMObsSpanEvent, routing: Optional[RoutingInfo] = None) -> None:
+    def enqueue(self, event: LLMObsSpanEvent, routing: Optional[RoutingConfig] = None) -> None:
         raw_event_size = len(safe_json(event))
         truncated_event_size = None
         should_truncate = raw_event_size >= EVP_EVENT_SIZE_LIMIT

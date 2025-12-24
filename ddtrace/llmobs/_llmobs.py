@@ -121,7 +121,7 @@ from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
-from ddtrace.llmobs._writer import RoutingInfo
+from ddtrace.llmobs._routing import RoutingConfig
 from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
@@ -291,7 +291,7 @@ class LLMObs(Service):
             if span_event is None:
                 return
 
-            routing: Optional[RoutingInfo] = None
+            routing: Optional[RoutingConfig] = None
             api_key = span._get_ctx_item(ROUTING_API_KEY)
             if api_key:
                 routing = {"dd_api_key": api_key, "dd_site": span._get_ctx_item(ROUTING_SITE)}
