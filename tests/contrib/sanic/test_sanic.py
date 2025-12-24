@@ -458,17 +458,15 @@ from tests.contrib.sanic.test_sanic import integration_http_config
 from tests.contrib.sanic.test_sanic import patch_sanic
 from tests.contrib.sanic.test_sanic import _response_status
 
-from ddtrace.propagation import http as http_propagation
-
 async def test(patch_sanic, client, integration_config, integration_http_config, test_spans):
     response = await client.get("/hello", params=[("foo", "bar")])
     assert _response_status(response) == 200
 
     spans = test_spans.pop_traces()
-    assert len(spans) == 1
-    assert len(spans[0]) == 2
-    request_span = spans[0][0]
-    assert request_span.service == "{}"
+    # Filter by component tag to get only sanic spans (ex: ignore aiohttp client spans)
+    sanic_spans = [s for trace in spans for s in trace if s.get_tag("component") == "sanic"]
+    assert len(sanic_spans) == 1
+    assert sanic_spans[0].service == "{}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
@@ -508,17 +506,15 @@ from tests.contrib.sanic.test_sanic import integration_http_config
 from tests.contrib.sanic.test_sanic import patch_sanic
 from tests.contrib.sanic.test_sanic import _response_status
 
-from ddtrace.propagation import http as http_propagation
-
 async def test(patch_sanic, client, integration_config, integration_http_config, test_spans):
     response = await client.get("/hello", params=[("foo", "bar")])
     assert _response_status(response) == 200
 
     spans = test_spans.pop_traces()
-    assert len(spans) == 1
-    assert len(spans[0]) == 2
-    request_span = spans[0][0]
-    assert request_span.name == "{}"
+    # Filter by component tag to get only sanic spans (ex: ignore aiohttp client spans)
+    sanic_spans = [s for trace in spans for s in trace if s.get_tag("component") == "sanic"]
+    assert len(sanic_spans) == 1
+    assert  sanic_spans[0].name == "{}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
