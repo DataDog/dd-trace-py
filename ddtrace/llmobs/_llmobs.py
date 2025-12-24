@@ -104,6 +104,7 @@ from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentConfigType
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
+from ddtrace.llmobs._routing import RoutingConfig
 from ddtrace.llmobs._routing import RoutingContext
 from ddtrace.llmobs._routing import _get_current_routing
 from ddtrace.llmobs._utils import AnnotationContext
@@ -121,7 +122,6 @@ from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
-from ddtrace.llmobs._routing import RoutingConfig
 from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
