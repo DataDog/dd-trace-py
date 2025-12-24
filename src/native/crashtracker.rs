@@ -231,6 +231,8 @@ pub fn crashtracker_init<'py>(
     mut config: PyRefMut<'py, CrashtrackerConfigurationPy>,
     mut receiver_config: PyRefMut<'py, CrashtrackerReceiverConfigPy>,
     mut metadata: PyRefMut<'py, CrashtrackerMetadataPy>,
+    // TODO: Add this back in post Code Freeze (need to update config registry)
+    // emit_runtime_stacks: bool,
 ) -> anyhow::Result<()> {
     INIT.call_once(|| {
         let (config_opt, receiver_config_opt, metadata_opt) = (
