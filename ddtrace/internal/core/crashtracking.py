@@ -119,13 +119,17 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
         None,  # unix_socket_path
     )
 
-    # Create crashtracker receiver configuration
-    # Pass all environment variables to the receiver process so it can access
-    # all env vars since it's spawned using execve() and not fork()
+    receiver_env = {}
+
+    # Don't pass all env vars to the receiver process, because there are
+    # conflicts with export location derivation
+    crashtracking_enabled = os.environ.get("DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED")
+    if crashtracking_enabled is not None:
+        receiver_env["DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED"] = crashtracking_enabled
+
     receiver_config = CrashtrackerReceiverConfig(
         [],  # args
-        # only take DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED if it is set
-        {k: v for k, v in os.environ.items() if k == "DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED"},
+        receiver_env,
         dd_crashtracker_receiver,  # path_to_receiver_binary
         crashtracker_config.stderr_filename,
         crashtracker_config.stdout_filename,
