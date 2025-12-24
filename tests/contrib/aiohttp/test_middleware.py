@@ -76,7 +76,7 @@ from tests.contrib.aiohttp.conftest import *
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 
 def test(app_tracer, loop, aiohttp_client, test_spans):
-    async def async_test(app_tracer, aiohttp_client):
+    async def async_test(app_tracer, aiohttp_client, test_spans):
         app, tracer = None, None
         if asyncio.iscoroutine(app_tracer):
             app, tracer = await app_tracer
@@ -91,7 +91,7 @@ def test(app_tracer, loop, aiohttp_client, test_spans):
         assert span.service == "{}" or DEFAULT_SPAN_SERVICE_NAME
         assert span.name == "{}"
     asyncio.set_event_loop(asyncio.new_event_loop())
-    loop.run_until_complete(async_test(app_tracer, aiohttp_client))
+    loop.run_until_complete(async_test(app_tracer, aiohttp_client, test_spans))
 
 
 if __name__ == "__main__":
