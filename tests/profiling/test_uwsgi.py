@@ -153,8 +153,29 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypat
     worker_pids = _get_worker_pids(proc.stdout, 2, 2)
     assert len(worker_pids) == 2
 
-    # Give some time to child to actually startup and output a profile
-    time.sleep(3)
+    # Wait for profiles with samples to be generated
+    # The upload interval is 1s, but we need to wait for at least one full
+    # profiling cycle plus buffer for slow CI environments
+    max_wait = 10
+    wait_interval = 0.5
+    waited = 0
+    all_have_samples = False
+    while waited < max_wait:
+        time.sleep(wait_interval)
+        waited += wait_interval
+        # Check if profiles with samples exist for all workers
+        try:
+            all_have_samples = all(
+                pprof_utils.parse_newest_profile("%s.%d" % (filename, pid), assert_samples=False).sample
+                for pid in worker_pids
+            )
+            if all_have_samples:
+                break
+        except (IndexError, FileNotFoundError):
+            # Profile files don't exist yet
+            pass
+
+    assert all_have_samples, f"Timed out waiting for profiles with samples after {max_wait}s"
 
     # Kill master process
     parent_pid: int = worker_pids[0]
