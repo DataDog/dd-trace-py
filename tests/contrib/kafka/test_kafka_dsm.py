@@ -12,7 +12,6 @@ from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.native import DDSketch
 from tests.datastreams.test_public_api import MockedTracer
-from tests.utils import TracerSpanContainer
 
 
 DSM_TEST_PATH_HEADER_SIZE = 28
@@ -275,9 +274,9 @@ def test_data_streams_default_context_propagation(consumer, producer, kafka_topi
     assert message.headers()[0][1] is not None
 
 
-def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, kafka_topic):
-    Pin._override(producer, tracer=dummy_tracer)
-    Pin._override(consumer, tracer=dummy_tracer)
+def test_span_has_dsm_payload_hash(kafka_tracer, test_spans, consumer, producer, kafka_topic):
+    Pin._override(producer, tracer=kafka_tracer)
+    Pin._override(consumer, tracer=kafka_tracer)
 
     test_string = "payload hash test"
     PAYLOAD = bytes(test_string, encoding="utf-8")
@@ -292,7 +291,7 @@ def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, kafka_topic
     # message comes back with expected test string
     assert message.value() == b"payload hash test"
 
-    traces = TracerSpanContainer(dummy_tracer).pop_traces()
+    traces = test_spans.pop_traces()
     produce_span = traces[0][0]
     consume_span = traces[len(traces) - 1][0]
 
