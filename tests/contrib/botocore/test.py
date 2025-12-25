@@ -895,8 +895,11 @@ class BotocoreTest(TracerTestCase):
 
                 spans = self.get_spans()
                 assert spans
+                assert len(spans) == 3
+                assert spans[0].resource == "sns.publish"
+                assert spans[1].resource == "sqs.receivemessage"
+                assert spans[2].resource == "sns.deletetopic"
                 publish_span = spans[0]
-                assert len(spans) == 2  # publish + receive_message
                 assert publish_span.get_tag("aws.region") == "us-east-1"
                 assert publish_span.get_tag("region") == "us-east-1"
                 assert publish_span.get_tag("aws.operation") == "Publish"
@@ -1756,13 +1759,16 @@ class BotocoreTest(TracerTestCase):
 
         spans = self.get_spans()
         assert spans
-        assert len(spans) == 2
+        assert len(spans) == 3
+        assert spans[0].resource == "events.putevents"
+        assert spans[1].resource == "sqs.receivemessage"
+        assert spans[2].resource == "events.deleteeventbus"
         span = spans[0]
         str_entries = span.get_tag("params.Entries")
-        put_rule_span = spans[1]
-        assert put_rule_span.get_tag("rulename") == "a-test-bus"
-        assert put_rule_span.get_tag("aws_service") == "events"
-        assert put_rule_span.get_tag("region") == "us-east-1"
+        delete_bus_span = spans[2]
+        assert delete_bus_span.get_tag("rulename") == "a-test-bus"
+        assert delete_bus_span.get_tag("aws_service") == "events"
+        assert delete_bus_span.get_tag("region") == "us-east-1"
         assert str_entries is None
 
         message = messages["Messages"][0]
@@ -1821,7 +1827,10 @@ class BotocoreTest(TracerTestCase):
 
         spans = self.get_spans()
         assert spans
-        assert len(spans) == 2
+        assert len(spans) == 3
+        assert spans[0].resource == "events.putevents"
+        assert spans[1].resource == "sqs.receivemessage"
+        assert spans[2].resource == "events.deleteeventbus"
         span = spans[0]
         str_entries = span.get_tag("params.Entries")
         assert str_entries is None
@@ -2181,7 +2190,8 @@ class BotocoreTest(TracerTestCase):
         # check if the appropriate span was generated
         assert spans
         span = spans[0]
-        assert len(spans) == 2
+        assert len(spans) == 1
+        assert spans[0].resource == "sns.publish"
         assert span.get_tag("aws.region") == "us-east-1"
         assert span.get_tag("region") == "us-east-1"
         assert span.get_tag("aws.operation") == "Publish"
@@ -2259,7 +2269,8 @@ class BotocoreTest(TracerTestCase):
         # check if the appropriate span was generated
         assert spans
         span = spans[0]
-        assert len(spans) == 2
+        assert len(spans) == 1
+        assert spans[0].resource == "sns.publish"
         assert span.get_tag("aws.region") == "us-east-1"
         assert span.get_tag("region") == "us-east-1"
         assert span.get_tag("aws.operation") == "Publish"
@@ -2334,7 +2345,8 @@ class BotocoreTest(TracerTestCase):
         # check if the appropriate span was generated
         assert spans
         span = spans[0]
-        assert len(spans) == 2
+        assert len(spans) == 1
+        assert spans[0].resource == "sns.publish"
         assert span.get_tag("aws.region") == "us-east-1"
         assert span.get_tag("region") == "us-east-1"
         assert span.get_tag("aws.operation") == "Publish"
@@ -2372,6 +2384,7 @@ class BotocoreTest(TracerTestCase):
             url_parts = sqs_url.split("/")
             sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
             sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+            self.reset()
 
             pin = Pin(service=self.TEST_SERVICE)
             pin._tracer = self.tracer
@@ -2404,6 +2417,8 @@ class BotocoreTest(TracerTestCase):
             assert spans
             span = spans[0]
             assert len(spans) == 2
+            assert spans[0].resource == "sns.publishbatch"
+            assert spans[1].resource == "sqs.receivemessage"
             assert span.get_tag("aws.region") == region
             assert span.get_tag("region") == region
             assert span.get_tag("aws.operation") == "PublishBatch"
@@ -2505,7 +2520,8 @@ class BotocoreTest(TracerTestCase):
         # check if the appropriate span was generated
         assert spans
         span = spans[0]
-        assert len(spans) == 2
+        assert len(spans) == 1
+        assert spans[0].resource == "sns.publishbatch"
         assert span.get_tag("aws.region") == region
         assert span.get_tag("region") == region
         assert span.get_tag("aws.operation") == "PublishBatch"
@@ -2580,7 +2596,8 @@ class BotocoreTest(TracerTestCase):
         # check if the appropriate span was generated
         assert spans
         span = spans[0]
-        assert len(spans) == 2
+        assert len(spans) == 1
+        assert spans[0].resource == "sns.publishbatch"
         assert span.get_tag("aws.region") == region
         assert span.get_tag("region") == region
         assert span.get_tag("aws.operation") == "PublishBatch"
