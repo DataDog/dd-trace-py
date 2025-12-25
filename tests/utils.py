@@ -668,6 +668,8 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
             self.json_encoder.encode_traces(traces)
             self.msgpack_encoder.put(spans)
             self.msgpack_encoder.encode()
+            if self.trace_flush_enabled:
+                self._inner_writer.write(spans)
 
     def pop(self):
         spans = DummyWriterMixin.pop(self)
