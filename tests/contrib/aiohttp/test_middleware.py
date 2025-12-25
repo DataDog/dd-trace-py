@@ -87,7 +87,10 @@ def test(app_tracer, loop, aiohttp_client, test_spans):
         assert 200 == request.status
         text = await request.text()
         traces = test_spans.pop_traces()
-        span = traces[0][0]
+        # Filter by span kind to get only aiohttp server spans (ignore client spans)
+        aiohttp_spans = [s for trace in traces for s in trace if s.get_tag("span.kind") == "server"]
+        assert len(aiohttp_spans) == 1
+        span = aiohttp_spans[0]
         assert span.service == "{}" or DEFAULT_SPAN_SERVICE_NAME
         assert span.name == "{}"
     asyncio.set_event_loop(asyncio.new_event_loop())
