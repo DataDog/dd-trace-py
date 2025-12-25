@@ -542,7 +542,7 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         encoded_traces = ci_agentless_encoder.encode()
         assert encoded_traces, "Expected encoded traces but got empty list"
         [(event_payload, _)] = encoded_traces
-        decoded_event_payload = self._span_aggregator.writer.msgpack_encoder._decode(event_payload)
+        decoded_event_payload = self.tracer._span_aggregator.writer.msgpack_encoder._decode(event_payload)
         given_test_suite_span = spans[3]
         assert given_test_suite_span.get_tag("type") == "test_suite_end"
         given_test_suite_event = decoded_event_payload[b"events"][3]
