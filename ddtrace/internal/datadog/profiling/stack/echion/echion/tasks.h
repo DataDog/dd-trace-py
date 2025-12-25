@@ -321,29 +321,20 @@ TaskInfo::unwind(FrameStack& stack)
         PyObject* frame = coro_frames.top();
         coro_frames.pop();
 
-        auto new_frames = unwind_frame(frame, stack);
+        // We only need the single Task frame from each coroutine, not the full Python stack (which we already have
+        // from the Thread Stack).
+        // For a running Task, unwind_frame would also yield the asyncio runtime frames "on top"
+        // of the Task frame, but we would discard those anyway. Limiting to 1 frame avoids walking
+        // the Frame chain unnecessarily.
+        auto new_frames = unwind_frame(frame, stack, 1);
+        assert(new_frames <= 1 && "expected exactly 1 frame to be unwound (or 0 in case of an error)");
 
         // If we failed to unwind the Frame, stop unwinding the coroutine chain; otherwise we could
         // end up with Stacks with missing Frames between two coroutines Frames.
         if (new_frames == 0) {
             break;
         }
-
-        // If this is the first Frame being unwound (we have not added any Frames to the Stack yet),
-        // use the number of Frames added to the Stack to determine the size of the upper Python stack.
-        if (count == 0) {
-            // The first Frame is the coroutine Frame, so the Python stack size is the number of Frames - 1
-            auto upper_python_stack_size = new_frames - 1;
-
-            // Remove the Python Frames from the Stack (they will be added back later)
-            // We cannot push those Frames now because otherwise they would be added once per Task,
-            // we only want to add them once per Leaf Task, and on top of all non-leaf Tasks.
-            for (size_t i = 0; i < upper_python_stack_size; i++) {
-                stack.pop_back();
-            }
-        }
-
-        count += new_frames;
+        count += 1;
     }
 
     return count;
