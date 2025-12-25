@@ -5,6 +5,8 @@ import mariadb
 import pytest
 
 from ddtrace._trace.pin import Pin
+from ddtrace.contrib.internal.mariadb.patch import patch
+from ddtrace.contrib.internal.mariadb.patch import unpatch
 from tests.contrib.config import MARIADB_CONFIG
 from tests.utils import assert_dict_issuperset
 from tests.utils import assert_is_measured
@@ -28,6 +30,13 @@ def get_connection(tracer):
     Pin._override(connection, tracer=tracer)
 
     return connection
+
+
+@pytest.fixture(autouse=True)
+def patch_mariadb():
+    patch()
+    yield
+    unpatch()
 
 
 @pytest.fixture
