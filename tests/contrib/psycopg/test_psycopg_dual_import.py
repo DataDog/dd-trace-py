@@ -1,18 +1,21 @@
 import sys
 from unittest.mock import Mock
 
-from ddtrace.contrib.internal.psycopg.connection import patch_conn
-from ddtrace.contrib.internal.psycopg.connection import Psycopg3TracedConnection
-from ddtrace.contrib.internal.psycopg.patch import unpatch
 from psycopg2 import ProgrammingError
+
+from ddtrace.contrib.internal.psycopg.connection import Psycopg3TracedConnection
+from ddtrace.contrib.internal.psycopg.connection import patch_conn
+from ddtrace.contrib.internal.psycopg.patch import unpatch
 from tests.utils import TracerTestCase
 
+
 PSYCOPG_DSN_WITH_SSLCERTMODE = "dbname=test user=test host=localhost sslcertmode=allow"
-MODULES_TO_CLEANUP = ['psycopg', 'psycopg2']
+MODULES_TO_CLEANUP = ["psycopg", "psycopg2"]
 
 
 class MockPsycopg3Connection:
     """Mocking a psycopg connection because it's hard to set up a riot config that reproduces the real bug"""
+
     def __init__(self, dsn=PSYCOPG_DSN_WITH_SSLCERTMODE):
         self.info = Mock()
         self.info.dsn = dsn
@@ -20,11 +23,12 @@ class MockPsycopg3Connection:
 
 def _create_mock_parser(original_parser):
     """Older libpq don't support sslcertmode so this mocks that"""
+
     def side_effect(dsn_string):
-        if 'sslcertmode' in dsn_string:
+        if "sslcertmode" in dsn_string:
             raise ProgrammingError('invalid dsn: invalid connection option "sslcertmode"')
         return original_parser(dsn_string)
-    
+
     mock = Mock(side_effect=side_effect)
     return mock
 
@@ -37,15 +41,16 @@ def _cleanup_modules():
 
 class TestPsycopgDualImport(TracerTestCase):
     """
-        The purpose of these tests is to test the impact of importing psycopg2 and psycopg in different orders
-        See https://github.com/DataDog/dd-trace-py/issues/9414
+    The purpose of these tests is to test the impact of importing psycopg2 and psycopg in different orders
+    See https://github.com/DataDog/dd-trace-py/issues/9414
     """
 
     def setUp(self):
         super(TestPsycopgDualImport, self).setUp()
         unpatch()
         # Requires ddtrace.auto here to activate ModuleWatchdog and to patch all modules to trigger the erro
-        import ddtrace.auto
+        import ddtrace.auto  # noqa: F401
+
         _cleanup_modules()
 
     def tearDown(self):
@@ -55,33 +60,37 @@ class TestPsycopgDualImport(TracerTestCase):
 
     def test_dsn_parser_import_psycopg_first(self):
         """
-        Current bug: 
+        Current bug:
         If psycopg is imported, then psycopg2, the global parser is overwritten by psycopg2's parser.
+        We need to test the scenario where psycopg2's parser is used on a psycopg3 DSN.
         """
-        import psycopg
-        import psycopg2
-        
-        from ddtrace.ext import sql
+        import psycopg  # noqa: F401
+        import psycopg2  # noqa: F401
 
-        original_parser = sql.parse_pg_dsn
-        sql.parse_pg_dsn = _create_mock_parser(original_parser)
+        from ddtrace.ext import sql
+        from psycopg2.extensions import parse_dsn as psycopg2_parse_dsn
+
+        mocked_psycopg2_parser = _create_mock_parser(psycopg2_parse_dsn)
+        sql.parse_pg_dsn = mocked_psycopg2_parser
 
         mock_conn = MockPsycopg3Connection()
 
         patch_conn(mock_conn, Psycopg3TracedConnection)
-    
+
     def test_dsn_parser_import_psycopg2_first(self):
         """
-        Current bug: 
+        Current bug:
         If psycopg2 is imported, then psycopg, the global parser is overwritten by psycopg's parser.
+        But we need to test the scenario where psycopg2's parser is used on a psycopg3 DSN.
         """
-        import psycopg2
-        import psycopg
-        
-        from ddtrace.ext import sql
+        import psycopg2  # noqa: F401
+        import psycopg  # noqa: F401
 
-        original_parser = sql.parse_pg_dsn
-        sql.parse_pg_dsn = _create_mock_parser(original_parser)
+        from ddtrace.ext import sql
+        from psycopg2.extensions import parse_dsn as psycopg2_parse_dsn
+
+        mocked_psycopg2_parser = _create_mock_parser(psycopg2_parse_dsn)
+        sql.parse_pg_dsn = mocked_psycopg2_parser
 
         mock_conn = MockPsycopg3Connection()
 
