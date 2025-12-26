@@ -380,6 +380,13 @@ Sampler::link_tasks(PyObject* parent, PyObject* child)
 }
 
 void
+Sampler::weak_link_tasks(PyObject* parent, PyObject* child)
+{
+    std::lock_guard<std::mutex> guard(task_link_map_lock);
+    weak_task_link_map[child] = parent;
+}
+
+void
 Sampler::track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* frame)
 {
     const std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
