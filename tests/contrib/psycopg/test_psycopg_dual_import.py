@@ -66,9 +66,9 @@ class TestPsycopgDualImport(TracerTestCase):
         """
         import psycopg  # noqa: F401
         import psycopg2  # noqa: F401
+        from psycopg2.extensions import parse_dsn as psycopg2_parse_dsn
 
         from ddtrace.ext import sql
-        from psycopg2.extensions import parse_dsn as psycopg2_parse_dsn
 
         mocked_psycopg2_parser = _create_mock_parser(psycopg2_parse_dsn)
         sql.parse_pg_dsn = mocked_psycopg2_parser
@@ -83,11 +83,11 @@ class TestPsycopgDualImport(TracerTestCase):
         If psycopg2 is imported, then psycopg, the global parser is overwritten by psycopg's parser.
         But we need to test the scenario where psycopg2's parser is used on a psycopg3 DSN.
         """
-        import psycopg2  # noqa: F401
+        import psycopg2  # noqa: F401, I001
         import psycopg  # noqa: F401
+        from psycopg2.extensions import parse_dsn as psycopg2_parse_dsn
 
         from ddtrace.ext import sql
-        from psycopg2.extensions import parse_dsn as psycopg2_parse_dsn
 
         mocked_psycopg2_parser = _create_mock_parser(psycopg2_parse_dsn)
         sql.parse_pg_dsn = mocked_psycopg2_parser
