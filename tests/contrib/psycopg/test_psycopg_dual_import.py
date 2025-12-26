@@ -1,8 +1,6 @@
 import sys
 from unittest.mock import Mock
 
-from psycopg2 import ProgrammingError
-
 from ddtrace.contrib.internal.psycopg.connection import Psycopg3TracedConnection
 from ddtrace.contrib.internal.psycopg.connection import patch_conn
 from ddtrace.contrib.internal.psycopg.patch import unpatch
@@ -26,6 +24,8 @@ def _create_mock_parser(original_parser):
 
     def side_effect(dsn_string):
         if "sslcertmode" in dsn_string:
+            from psycopg2 import ProgrammingError
+
             raise ProgrammingError('invalid dsn: invalid connection option "sslcertmode"')
         return original_parser(dsn_string)
 
