@@ -16,22 +16,19 @@ from tests.utils import override_config
 from tests.utils import override_global_config
 
 
-BASE_CONFIG = dict(_is_testing_instrumentation_for_waf=True)
-
 PATCH_ENABLED_CONFIGURATIONS = (
-    dict(BASE_CONFIG, **dict(_asm_enabled=True)),
-    dict(BASE_CONFIG, **dict(_asm_enabled=True, _iast_enabled=True)),
-    dict(BASE_CONFIG, **dict(_asm_enabled=True, _iast_enabled=False)),
-    dict(BASE_CONFIG, **dict(_bypass_instrumentation_for_waf=False, _asm_enabled=True, _iast_enabled=True)),
-    dict(BASE_CONFIG, **dict(_bypass_instrumentation_for_waf=False, _asm_enabled=True, _iast_enabled=False)),
+    dict(_asm_enabled=True),
+    dict(_asm_enabled=True, _iast_enabled=True),
+    dict(_asm_enabled=True, _iast_enabled=False),
+    dict(_bypass_instrumentation_for_waf=False, _asm_enabled=True, _iast_enabled=True),
+    dict(_bypass_instrumentation_for_waf=False, _asm_enabled=True, _iast_enabled=False),
 )
 
 PATCH_DISABLED_CONFIGURATIONS = (
-    dict(BASE_CONFIG, **dict(_bypass_instrumentation_for_waf=True, _asm_enabled=False, _iast_enabled=False)),
-    dict(BASE_CONFIG, **dict(_bypass_instrumentation_for_waf=True, _asm_enabled=True)),
-    dict(BASE_CONFIG, **dict(_bypass_instrumentation_for_waf=True, _asm_enabled=None)),
-    dict(BASE_CONFIG, **dict(_bypass_instrumentation_for_waf=True, _asm_enabled=False, _iast_enabled=True)),
-    dict(BASE_CONFIG, **dict(_bypass_instrumentation_for_waf=False, _asm_enabled=False, _iast_enabled=True)),
+    dict(_bypass_instrumentation_for_waf=True, _asm_enabled=False, _iast_enabled=False),
+    dict(_bypass_instrumentation_for_waf=True),
+    dict(_bypass_instrumentation_for_waf=True, _asm_enabled=False, _iast_enabled=True),
+    dict(_bypass_instrumentation_for_waf=False, _asm_enabled=False, _iast_enabled=True),
 )
 
 CONFIGURATIONS = PATCH_ENABLED_CONFIGURATIONS + PATCH_DISABLED_CONFIGURATIONS
@@ -39,31 +36,14 @@ CONFIGURATIONS = PATCH_ENABLED_CONFIGURATIONS + PATCH_DISABLED_CONFIGURATIONS
 
 @pytest.fixture(autouse=True)
 def auto_unpatch():
-    from ddtrace.appsec._processor import AppSecSpanProcessor
-    from ddtrace.internal.settings.asm import config as asm_config
-
     SubprocessCmdLine._clear_cache()
-    # Aggressively clean up before the test to ensure no state pollution
-    try:
-        unpatch()
-    except AttributeError:
-        pass
-    # Disable AppSec and reset config to ensure clean state
-    AppSecSpanProcessor.disable()
-    # Reset ASM config to defaults to prevent config leakage
-    asm_config._bypass_instrumentation_for_waf = False
-
     yield
-
     SubprocessCmdLine._clear_cache()
-    # Clean up after the test
     try:
         unpatch()
     except AttributeError:
+        # Tests with appsec disabled or that didn't patch
         pass
-    AppSecSpanProcessor.disable()
-    # Reset bypass flag to default
-    asm_config._bypass_instrumentation_for_waf = False
 
 
 allowed_envvars_fixture_list = []
@@ -263,18 +243,16 @@ def test_ossystem_disabled(tracer, config):
     with override_global_config(config):
         patch()
         pin = Pin.get_from(os)
-        # Pin may be None if _load_modules is False (patch returns early)
-        # Pin will be set if _load_modules is True but instrumentation is disabled
-        if pin is not None:
-            pin._clone(tracer=tracer).onto(os)
+        pin._clone(tracer=tracer).onto(os)
         with tracer.trace("ossystem_test"):
             ret = os.system("dir -l /")
             assert ret == 0
 
         spans = tracer.pop()
         assert spans
+        num_spans = 1
 
-        assert len(spans) == 1
+        assert len(spans) == num_spans
         _assert_root_span_empty_system_data(spans[0])
 
 
@@ -322,9 +300,6 @@ def test_unpatch(tracer):
 
     unpatch()
     with override_global_config(dict(_ep_enabled=False)):
-        # After unpatch, Pin is removed, so we need to create a new one
-        # to verify that even with a Pin set, no subprocess spans are created
-        Pin().onto(os)
         Pin.get_from(os)._clone(tracer=tracer).onto(os)
         with tracer.trace("os.system_unpatch"):
             ret = os.system("dir -l /")
