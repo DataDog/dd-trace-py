@@ -24,6 +24,11 @@ class MockPsycopg3Connection:
     def __init__(self, dsn=PSYCOPG_DSN_WITH_SSLCERTMODE):
         self.info = Mock()
         self.info.dsn = dsn
+        self.info.host = "localhost"
+        self.info.port = 5432
+        self.info.dbname = "test"
+        self.info.user = "test"
+        self.info.application_name = "test"
 
 
 def _create_mock_parser(original_parser):
@@ -67,9 +72,8 @@ class TestPsycopgDualImport(TracerTestCase):
 
     def test_dsn_parser_import_psycopg_first(self):
         """
-        Current bug:
-        If psycopg is imported, then psycopg2, the global parser is overwritten by psycopg2's parser.
-        We need to test the scenario where psycopg2's parser is used on a psycopg3 DSN.
+        Regression test for the case where we used the wrong DSN parser if psycopg was imported first,
+        then psycopg2.
         """
         import psycopg  # noqa: F401
         import psycopg2  # noqa: F401
@@ -94,9 +98,8 @@ class TestPsycopgDualImport(TracerTestCase):
 
     def test_dsn_parser_import_psycopg2_first(self):
         """
-        Current bug:
-        If psycopg2 is imported, then psycopg, the global parser is overwritten by psycopg's parser.
-        But we need to test the scenario where psycopg2's parser is used on a psycopg3 DSN.
+        Regression test for the case where we used the wrong DSN parser if psycopg2 was imported first,
+        then psycopg.
         """
         import psycopg2  # noqa: F401, I001
         import psycopg  # noqa: F401

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    psycopg: fix missing DSN information in cases where psycopg2 was imported after psycopg.

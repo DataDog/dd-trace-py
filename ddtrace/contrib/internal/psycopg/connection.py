@@ -12,7 +12,6 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import net
-from ddtrace.ext import sql
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 
@@ -73,28 +72,42 @@ def patch_conn(conn, traced_conn_cls, pin=None):
         db.SYSTEM: "postgresql",
     }
 
-    try:
-        # if the connection has an info attr, we are using psycopg3
-        if hasattr(conn, "dsn"):
-            dsn = sql.parse_pg_dsn(conn.dsn)
-        else:
-            dsn = sql.parse_pg_dsn(conn.info.dsn)
-    except Exception:
-        # If for any reason we fail to parse the dsn, use an empty placeholder
-        dsn = {}
-
-    if dsn:
-        # Only add the dsn related tags if available
+    if traced_conn_cls == Psycopg3TracedConnection:
         tags.update(
             {
-                net.TARGET_HOST: dsn.get("host"),
-                net.TARGET_PORT: dsn.get("port", 5432),
-                net.SERVER_ADDRESS: dsn.get("host"),
-                db.NAME: dsn.get("dbname"),
-                db.USER: dsn.get("user"),
-                "db.application": dsn.get("application_name"),
+                dsn_key: val
+                for dsn_key, val in {
+                    net.TARGET_HOST: getattr(conn.info, "host", None),
+                    net.TARGET_PORT: getattr(conn.info, "port", None),
+                    net.SERVER_ADDRESS: getattr(conn.info, "host", None),
+                    db.NAME: getattr(conn.info, "dbname", None),
+                    db.USER: getattr(conn.info, "user", None),
+                    "db.application": getattr(conn.info, "application_name", None),
+                }.items()
+                if val is not None
             }
         )
+    elif traced_conn_cls == Psycopg2TracedConnection:
+        try:
+            from psycopg2.extensions import parse_dsn
+
+            dsn = parse_dsn(conn.dsn)
+            tags.update(
+                {
+                    dsn_key: val
+                    for dsn_key, val in {
+                        net.TARGET_HOST: dsn.get("host", None),
+                        net.TARGET_PORT: dsn.get("port", None),
+                        net.SERVER_ADDRESS: dsn.get("host", None),
+                        db.NAME: dsn.get("dbname", None),
+                        db.USER: dsn.get("user", None),
+                        "db.application": dsn.get("application_name", None),
+                    }.items()
+                    if val is not None
+                }
+            )
+        except Exception:
+            pass
 
     Pin(tags=tags, _config=_config).onto(c)
     return c
