@@ -418,8 +418,9 @@ def test_iast_code_injection_with_stacktrace(server, iast_test_token):
     assert metastruct
 
 
-def test_iast_unvalidated_redirect(iast_test_token):
-    with gunicorn_flask_server(iast_enabled="true", token=iast_test_token, port=8050) as context:
+@pytest.mark.parametrize("server", (gunicorn_flask_server, flask_server))
+def test_iast_unvalidated_redirect(server, iast_test_token):
+    with server(iast_enabled="true", token=iast_test_token, port=8050) as context:
         _, flask_client, pid = context
 
         response = flask_client.get("/iast-unvalidated_redirect-header?location=malicious_url")

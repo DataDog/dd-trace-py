@@ -3,7 +3,7 @@ aiobotocore,aiobotocore,1.0.7,2.24.1,False
 aiohttp,aiohttp,3.7.4.post0,3.13.2,True
 aiohttp-jinja2,aiohttp_jinja2,1.5.1,1.6,True
 aiohttp_jinja2,aiohttp_jinja2,1.5.1,1.6,True
-aiokafka,aiokafka,0.9.0,0.12.0,False
+aiokafka,aiokafka,0.9.0,0.12.0,True
 aiomysql,aiomysql,0.1.1,0.2.0,True
 aiopg,aiopg *,0.16.0,1.4.0,True
 algoliasearch,algoliasearch *,2.6.3,2.6.3,True
@@ -38,7 +38,7 @@ elasticsearch6,elasticsearch,6.8.2,6.8.2,True
 elasticsearch7,elasticsearch,7.13.4,7.17.12,True
 opensearch-py,elasticsearch,1.1.0,3.0.0,True
 falcon,falcon,3.0.1,4.1.0,True
-fastapi,fastapi,0.64.0,0.118.0,True
+fastapi,fastapi,0.64.0,0.124.4,True
 flask,flask,1.1.4,3.1.2,True
 flask-cache,flask_cache,0.13.1,0.13.1,False
 flask-caching,flask_cache,1.10.1,2.3.0,False
@@ -93,7 +93,8 @@ structlog,structlog,20.2.0,25.4.0,True
 tornado,tornado *,6.1,6.5.1,False
 urllib3,urllib3,1.25.8,2.5.0,False
 valkey,valkey,6.0.2,6.1.1,True
-google-cloud-aiplatform,vertexai,1.71.1,1.71.1,True
-vertexai,vertexai,1.71.1,1.71.1,True
+google-cloud-aiplatform,vertexai,1.71.1,1.130.0,True
+vertexai,vertexai,1.71.1,1.130.0,True
 vertica-python,vertica *,0.6.14,0.7.4,True
+vllm,vllm,0.10.2,0.13.0,True
 yaaredis,yaaredis,2.0.4,3.0.0,True
