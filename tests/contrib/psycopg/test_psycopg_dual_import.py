@@ -3,6 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.psycopg.connection import Psycopg3TracedConnection
 from ddtrace.contrib.internal.psycopg.connection import patch_conn
 from ddtrace.contrib.internal.psycopg.patch import unpatch
@@ -80,6 +81,14 @@ class TestPsycopgDualImport(TracerTestCase):
         sql.parse_pg_dsn = mocked_psycopg2_parser
 
         mock_conn = MockPsycopg3Connection()
+        traced_conn = patch_conn(mock_conn, Psycopg3TracedConnection, pin=Pin.get_from(psycopg))
+
+        span = Pin.get_from(traced_conn)
+        assert span is not None
+        assert span.tags.get("out.host") == "localhost"
+        assert span.tags.get("network.destination.port") == 5432
+        assert span.tags.get("db.name") == "test"
+        assert span.tags.get("db.user") == "test"
 
         patch_conn(mock_conn, Psycopg3TracedConnection)
 
@@ -101,3 +110,11 @@ class TestPsycopgDualImport(TracerTestCase):
         mock_conn = MockPsycopg3Connection()
 
         patch_conn(mock_conn, Psycopg3TracedConnection)
+        traced_conn = patch_conn(mock_conn, Psycopg3TracedConnection, pin=Pin.get_from(psycopg))
+        span = Pin.get_from(traced_conn)
+
+        assert span is not None
+        assert span.tags.get("out.host") == "localhost"
+        assert span.tags.get("network.destination.port") == 5432
+        assert span.tags.get("db.name") == "test"
+        assert span.tags.get("db.user") == "test"
