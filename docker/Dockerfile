@@ -29,6 +29,7 @@ RUN apt-get update \
       apt-transport-https \
       build-essential \
       clang-format \
+      clang-tidy \
       gdb \
       git \
       jq \
@@ -80,6 +81,8 @@ RUN apt-get update \
     # Cleaning up apt cache space
     && rm -rf /var/lib/apt/lists/*
 
+RUN apt-get update && apt-get install -y --no-install-recommends bc
+
 
 USER bits
 WORKDIR /home/bits/
@@ -105,6 +108,7 @@ RUN npm install -g @datadog/datadog-ci
 RUN git clone --depth 1 --branch "v2.6.9" https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
   && pyenv local | xargs -L 1 pyenv install \
   && cd -
+
 
 RUN pip install --no-cache-dir -U "riot==${RIOT_VERSION}" "hatch==${HATCH_VERSION}" "uv==${UV_VERSION}"
 
