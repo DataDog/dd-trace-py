@@ -1,10 +1,16 @@
 import sys
 from unittest.mock import Mock
 
+import pytest
+
 from ddtrace.contrib.internal.psycopg.connection import Psycopg3TracedConnection
 from ddtrace.contrib.internal.psycopg.connection import patch_conn
 from ddtrace.contrib.internal.psycopg.patch import unpatch
 from tests.utils import TracerTestCase
+
+
+pytest.importorskip("psycopg")  # type: ignore[attr-defined]
+pytest.importorskip("psycopg2")  # type: ignore[attr-defined]
 
 
 PSYCOPG_DSN_WITH_SSLCERTMODE = "dbname=test user=test host=localhost sslcertmode=allow"
