@@ -382,21 +382,21 @@
         "dependency": "langgraph",
         "integration": "langgraph",
         "minimum_tracer_supported": "0.2.23",
-        "max_tracer_supported": "0.6.10",
+        "max_tracer_supported": "1.0.5",
         "auto-instrumented": true
     },
     {
         "dependency": "langgraph-checkpoint",
         "integration": "langgraph",
         "minimum_tracer_supported": "1.0.12",
-        "max_tracer_supported": "2.1.2",
+        "max_tracer_supported": "3.0.1",
         "auto-instrumented": true
     },
     {
         "dependency": "langgraph-prebuilt",
         "integration": "langgraph",
         "minimum_tracer_supported": "0.1.8",
-        "max_tracer_supported": "0.6.4",
+        "max_tracer_supported": "1.0.5",
         "auto-instrumented": true
     },
     {
@@ -675,14 +675,14 @@
         "dependency": "google-cloud-aiplatform",
         "integration": "vertexai",
         "minimum_tracer_supported": "1.71.1",
-        "max_tracer_supported": "1.130.0",
+        "max_tracer_supported": "1.71.1",
         "auto-instrumented": true
     },
     {
         "dependency": "vertexai",
         "integration": "vertexai",
         "minimum_tracer_supported": "1.71.1",
-        "max_tracer_supported": "1.130.0",
+        "max_tracer_supported": "1.71.1",
         "auto-instrumented": true
     },
     {
@@ -698,7 +698,8 @@
         "integration": "vllm",
         "minimum_tracer_supported": "0.13.0",
         "max_tracer_supported": "0.13.0",
-        "auto-instrumented": true
+        "pinned": "true",
+        "auto-instrumented": false
     },
     {
         "dependency": "yaaredis",

@@ -52,9 +52,9 @@ jinja2,jinja2,2.10.3,3.1.6,True
 confluent-kafka,kafka,1.9.2,2.6.2,True
 kombu,kombu,4.6.11,5.5.4,False
 langchain-core,langchain,0.1.53,0.3.76,True
-langgraph,langgraph,0.2.23,0.6.10,True
-langgraph-checkpoint,langgraph,1.0.12,2.1.2,True
-langgraph-prebuilt,langgraph,0.1.8,0.6.4,True
+langgraph,langgraph,0.2.23,1.0.5,True
+langgraph-checkpoint,langgraph,1.0.12,3.0.1,True
+langgraph-prebuilt,langgraph,0.1.8,1.0.5,True
 litellm,litellm *,1.65.4,1.65.4,True
 logbook,logbook,1.0.0,1.8.2,True
 loguru,loguru,0.4.1,0.7.3,True
@@ -93,8 +93,8 @@ structlog,structlog,20.2.0,25.4.0,True
 tornado,tornado *,6.1,6.5.1,False
 urllib3,urllib3,1.25.8,2.5.0,False
 valkey,valkey,6.0.2,6.1.1,True
-google-cloud-aiplatform,vertexai,1.71.1,1.130.0,True
-vertexai,vertexai,1.71.1,1.130.0,True
+google-cloud-aiplatform,vertexai,1.71.1,1.71.1,True
+vertexai,vertexai,1.71.1,1.71.1,True
 vertica-python,vertica *,0.6.14,0.7.4,True
-vllm,vllm,0.10.2,0.13.0,True
+vllm,vllm *,0.13.0,0.13.0,False
 yaaredis,yaaredis,2.0.4,3.0.0,True
