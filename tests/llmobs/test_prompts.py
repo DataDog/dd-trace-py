@@ -29,7 +29,6 @@ class TestManagedPrompt:
             label="prod",
             source="registry",
             template="Hello {{name}}!",
-            template_type="text",
             variables=["name"],
         )
 
@@ -43,7 +42,6 @@ class TestManagedPrompt:
             label="prod",
             source="registry",
             template="Hello {{name}}, welcome to {{company}}!",
-            template_type="text",
             variables=["name", "company"],
         )
 
@@ -64,7 +62,6 @@ class TestManagedPrompt:
                 {"role": "system", "content": "You are {{persona}}."},
                 {"role": "user", "content": "{{question}}"},
             ],
-            template_type="chat",
             variables=["persona", "question"],
         )
 
@@ -82,7 +79,6 @@ class TestManagedPrompt:
             label="prod",
             source="registry",
             template="Hello {{name}}!",
-            template_type="text",
         )
 
         messages = prompt.to_messages(name="Alice")
@@ -99,7 +95,6 @@ class TestManagedPrompt:
                 {"role": "system", "content": "Be helpful."},
                 {"role": "user", "content": "Hi"},
             ],
-            template_type="chat",
         )
 
         system, messages = prompt.to_anthropic()
@@ -118,7 +113,6 @@ class TestManagedPrompt:
                 {"role": "system", "content": "Always be concise."},
                 {"role": "user", "content": "Hi"},
             ],
-            template_type="chat",
         )
 
         system, messages = prompt.to_anthropic()
@@ -133,7 +127,6 @@ class TestManagedPrompt:
             label="prod",
             source="registry",
             template="Hello!",
-            template_type="text",
         )
 
         with pytest.raises(AttributeError, match="immutable"):
@@ -147,15 +140,34 @@ class TestManagedPrompt:
             label="prod",
             source="registry",
             template="Hello {{user}}!",
-            template_type="text",
         )
 
         result = prompt.to_annotation_dict()
         assert result["id"] == "greeting"
         assert result["version"] == "abc123"
         assert result["template"] == "Hello {{user}}!"
+        assert result["variables"] == {}  # Empty when not provided
         assert result["tags"]["dd.prompt.source"] == "registry"
         assert result["tags"]["dd.prompt.label"] == "prod"
+
+    def test_to_annotation_dict_variables_are_empty(self):
+        """Test that to_annotation_dict() returns empty variables.
+
+        Variables should be passed separately via prompt_variables= in annotation_context(),
+        not through to_annotation_dict(). This keeps the Prompt object immutable.
+        """
+        prompt = ManagedPrompt(
+            prompt_id="greeting",
+            version="abc123",
+            label="prod",
+            source="registry",
+            template="Hello {{user}}, welcome to {{place}}!",
+        )
+
+        result = prompt.to_annotation_dict()
+
+        assert result["id"] == "greeting"
+        assert result["variables"] == {}  # Empty - variables come from prompt_variables param
 
 
 class TestHotCache:
@@ -170,7 +182,6 @@ class TestHotCache:
             label="prod",
             source="registry",
             template="Hello!",
-            template_type="text",
         )
 
         cache.set("key", prompt)
@@ -189,7 +200,6 @@ class TestHotCache:
             label="prod",
             source="registry",
             template="Hello!",
-            template_type="text",
         )
 
         cache.set("key", prompt)
@@ -210,7 +220,6 @@ class TestHotCache:
                 label="prod",
                 source="registry",
                 template=f"Template {i}",
-                template_type="text",
             )
             cache.set(f"key-{i}", prompt)
 
@@ -233,7 +242,6 @@ class TestWarmCache:
                 label="prod",
                 source="registry",
                 template="Hello!",
-                template_type="text",
             )
             cache1.set("key", prompt)
 
@@ -254,7 +262,6 @@ class TestWarmCache:
                 label="prod",
                 source="registry",
                 template="Hello!",
-                template_type="text",
             )
             cache.set("key", prompt)
             assert cache.get("key") is not None
@@ -269,7 +276,6 @@ class TestWarmCache:
                 label="prod",
                 source="registry",
                 template="Hello!",
-                template_type="text",
             )
             cache.set("key", prompt)
             assert cache.get("key") is None
@@ -286,7 +292,6 @@ class TestValidatePromptIntegration:
             label="prod",
             source="registry",
             template="Hello {{user}}!",
-            template_type="text",
         )
 
         validated = _validate_prompt(prompt, strict_validation=False)
