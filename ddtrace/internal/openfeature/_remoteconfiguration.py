@@ -76,8 +76,12 @@ def featureflag_rc_callback(payloads: t.Sequence[Payload]) -> None:
             log.debug("Error processing FFE config payload: %s", e, exc_info=True)
 
 
+def _forksafe_featureflags_rc() -> None:
+    remoteconfig_poller.start_subscribers_by_product({FFE_FLAGS_PRODUCT})
+
+
 def enable_featureflags_rc() -> None:
-    log.debug("[%s][P: %s] Register ASM Remote Config Callback", os.getpid(), os.getppid())
+    log.debug("[%s][P: %s] Register FFE Remote Config Callback", os.getpid(), os.getppid())
     feature_flag_rc = FFEAdapter(featureflag_rc_callback)
     remoteconfig_poller.register(
         FFE_FLAGS_PRODUCT,
