@@ -919,18 +919,6 @@ class EnvTracerTestCase(TracerTestCase):
                     assert child2.service == "django"
                     assert VERSION_KEY in child2.get_tags() and child2.get_tag(VERSION_KEY) == "0.1.2"
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="", DD_TRACE_AGENT_URL="", DATADOG_TRACE_AGENT_HOSTNAME=""
-        )
-    )
-    def test_detect_agentless_env_with_lambda(self):
-        # Re-initialize tracer to detect Lambda environment after TracerTestCase.setUp() modified it
-        ddtrace.tracer._recreate()
-        assert in_aws_lambda()
-        assert not has_aws_lambda_agent_extension()
-        assert isinstance(ddtrace.tracer._span_aggregator.writer, LogWriter)
-
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):
         assert isinstance(global_tracer._span_aggregator.writer, AgentWriterInterface)
@@ -976,6 +964,19 @@ class EnvTracerTestCase(TracerTestCase):
             assert s.service == "service"
             assert s.get_tag("env") == "env"
             assert s.get_tag("version") == "0.123"
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="", DD_TRACE_AGENT_URL="", DATADOG_TRACE_AGENT_HOSTNAME=""
+    )
+)
+def test_detect_agentless_env_with_lambda():
+    import ddtrace
+
+    assert in_aws_lambda()
+    assert not has_aws_lambda_agent_extension()
+    assert isinstance(ddtrace.tracer._span_aggregator.writer, LogWriter)
 
 
 def test_tracer_set_runtime_tags():
