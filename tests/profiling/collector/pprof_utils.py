@@ -359,7 +359,7 @@ def assert_stack_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, exp
 
 def assert_profile_has_sample(
     profile: pprof_pb2.Profile,
-    samples: List[pprof_pb2.Sample],
+    samples: Sequence[pprof_pb2.Sample],
     expected_sample: StackEvent,
     print_samples_on_failure: bool = False,
 ) -> None:
