@@ -31,11 +31,8 @@ from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import user
 import ddtrace.internal  # noqa: F401
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
-from ddtrace.internal.serverless import has_aws_lambda_agent_extension
-from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.writer import AgentWriterInterface
-from ddtrace.internal.writer import LogWriter
 from ddtrace.trace import Context
 from ddtrace.trace import tracer as global_tracer
 from tests.subprocesstest import run_in_subprocess
@@ -973,10 +970,15 @@ class EnvTracerTestCase(TracerTestCase):
 )
 def test_detect_agentless_env_with_lambda():
     import ddtrace
+    from ddtrace.internal.serverless import has_aws_lambda_agent_extension
+    from ddtrace.internal.serverless import in_aws_lambda
+    from ddtrace.internal.writer import LogWriter
 
     assert in_aws_lambda()
     assert not has_aws_lambda_agent_extension()
-    assert isinstance(ddtrace.tracer._span_aggregator.writer, LogWriter)
+    assert isinstance(ddtrace.tracer._span_aggregator.writer, LogWriter), (
+        f"Expected LogWriter, got {ddtrace.tracer._span_aggregator.writer}"
+    )
 
 
 def test_tracer_set_runtime_tags():
