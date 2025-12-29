@@ -1,0 +1,91 @@
+interactions:
+- request:
+    body: code=APPSEC_CHRISTMAS_2025&promotion[type]=coupon&promotion[coupon]=gN7nSKKV
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '76'
+      Content-Type:
+      - application/x-www-form-urlencoded
+      Idempotency-Key:
+      - fdd57f24-6b06-45ca-9350-269ccfd4f1f9
+      Stripe-Version:
+      - 2025-11-17.clover
+      User-Agent:
+      - Stripe/v1 PythonBindings/14.0.1
+      X-Stripe-Client-Telemetry:
+      - '{"last_request_metrics": {"request_id": "req_iXyGRxq7vVKUKh", "request_duration_ms":
+        437}}'
+      X-Stripe-Client-User-Agent:
+      - '{"bindings_version": "14.0.1", "lang": "python", "publisher": "stripe", "httplib":
+        "requests", "lang_version": "3.13.9", "platform": "macOS-15.7.1-arm64-arm-64bit-Mach-O",
+        "uname": "Darwin COMP-L0DW2Y27YN 24.6.0 Darwin Kernel Version 24.6.0: Mon
+        Aug 11 21:15:09 PDT 2025; root:xnu-11417.140.69.701.11~1/RELEASE_ARM64_T6041
+        arm64 arm"}'
+    method: POST
+    uri: https://api.stripe.com/v1/promotion_codes
+  response:
+    body:
+      string: '{"id": "promo_1SfKFhAiRiHgXZJiEvfweRJd", "object": "promotion_code",
+        "active": true, "code": "APPSEC_CHRISTMAS_2025", "created": 1765976089, "customer":
+        null, "customer_account": null, "expires_at": null, "livemode": false, "max_redemptions":
+        null, "metadata": {}, "promotion": {"coupon": "gN7nSKKV", "type": "coupon"},
+        "restrictions": {"first_time_transaction": false, "minimum_amount": null,
+        "minimum_amount_currency": null}, "times_redeemed": 0}'
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Methods:
+      - GET, HEAD, PUT, PATCH, POST, DELETE
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Request-Id, Stripe-Manage-Version, Stripe-Should-Retry, X-Stripe-External-Auth-Required,
+        X-Stripe-Privileged-Session-Required
+      Access-Control-Max-Age:
+      - '300'
+      Cache-Control:
+      - no-cache, no-store
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '506'
+      Content-Security-Policy:
+      - base-uri 'none'; default-src 'none'; form-action 'none'; frame-ancestors 'none';
+        img-src 'self'; script-src 'self' 'report-sample'; style-src 'self'; worker-src
+        'none'; upgrade-insecure-requests; report-uri https://q.stripe.com/csp-violation?q=W1ZN3hAn-qezhP3VGlqRLOTqIfN6Hmm83WJz7PWoVlFoMOMxkvmkyMdO_v-aqKUrA09qZ8TB83BOo_65
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 17 Dec 2025 12:54:49 GMT
+      Idempotency-Key:
+      - fdd57f24-6b06-45ca-9350-269ccfd4f1f9
+      Original-Request:
+      - req_omRbSoJVySqZJh
+      Request-Id:
+      - req_omRbSoJVySqZJh
+      Server:
+      - nginx
+      Strict-Transport-Security:
+      - max-age=63072000; includeSubDomains; preload
+      Stripe-Should-Retry:
+      - 'false'
+      Stripe-Version:
+      - 2025-11-17.clover
+      Vary:
+      - Origin
+      X-Stripe-Priority-Routing-Enabled:
+      - 'true'
+      X-Stripe-Routing-Context-Priority-Tier:
+      - api-testmode
+      X-Wc:
+      - ABGHIJ
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    vllm: Introduces tracing and LLM Observability support for vLLM V1 engine.
+      Requires vLLM >= 0.10.2. See `the docs <https://ddtrace.readthedocs.io/en/stable/integrations.html#vllm>`_
+      for more information.
