@@ -26,7 +26,6 @@ class ManagedPrompt:
     _label: str
     _source: Literal["registry", "cache", "fallback"]
     _template: Union[str, List[Dict[str, str]]]
-    _template_type: Literal["text", "chat"]
     _variables: List[str]
 
     def __init__(
@@ -36,7 +35,6 @@ class ManagedPrompt:
         label: str,
         source: Literal["registry", "cache", "fallback"],
         template: Union[str, List[Dict[str, str]]],
-        template_type: Literal["text", "chat"],
         variables: Optional[List[str]] = None,
     ) -> None:
         # Use object.__setattr__ to bypass our immutability guard
@@ -45,7 +43,6 @@ class ManagedPrompt:
         object.__setattr__(self, "_label", label)
         object.__setattr__(self, "_source", source)
         object.__setattr__(self, "_template", template)
-        object.__setattr__(self, "_template_type", template_type)
         object.__setattr__(self, "_variables", variables or [])
 
     def __setattr__(self, name: str, value: Any) -> None:
@@ -76,7 +73,8 @@ class ManagedPrompt:
 
     @property
     def template_type(self) -> Literal["text", "chat"]:
-        return self._template_type
+        """Computed from template - 'text' for string, 'chat' for list."""
+        return "text" if isinstance(self._template, str) else "chat"
 
     @property
     def variables(self) -> List[str]:
@@ -142,19 +140,22 @@ class ManagedPrompt:
         """
         Convert to the format expected by annotation_context.
 
+        Note: Variables are NOT included here. They should be passed separately
+        via the prompt_variables= parameter in annotation_context().
+
         This matches the existing Prompt TypedDict in ddtrace/llmobs/types.py
         """
         result: Dict[str, Any] = {
             "id": self._id,
             "version": self._version,
-            "variables": {},
+            "variables": {},  # Variables come from prompt_variables= param
             "tags": {
                 "dd.prompt.source": self._source,
                 "dd.prompt.label": self._label,
             },
         }
 
-        if self._template_type == "text":
+        if isinstance(self._template, str):
             result["template"] = self._template
         else:
             result["chat_template"] = self._template
@@ -190,7 +191,6 @@ class ManagedPrompt:
             label=self._label,
             source=source,
             template=self._template,
-            template_type=self._template_type,
             variables=list(self._variables),
         )
 
