@@ -229,8 +229,8 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
             tp = TopicPartition(kafka_topic, 0)
             committed = consumer.committed([tp], timeout=1.0)
 
-            # Check for valid committed offset (>= 0, not -1001/_NO_OFFSET)
-            if committed and committed[0].offset >= 0:
+            # Check for valid committed offset (> 0, not -1001/_NO_OFFSET)
+            if committed and committed[0].offset > 0:
                 return committed[0].offset
 
             time.sleep(0.1)
