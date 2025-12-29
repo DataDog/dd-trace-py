@@ -106,6 +106,25 @@ class TestManagedPrompt:
         assert system == "Be helpful."
         assert messages == [{"role": "user", "content": "Hi"}]
 
+    def test_to_anthropic_concatenates_multiple_system_messages(self):
+        """Test that multiple system messages are concatenated, not silently dropped."""
+        prompt = ManagedPrompt(
+            prompt_id="chat",
+            version="v1",
+            label="prod",
+            source="registry",
+            template=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "system", "content": "Always be concise."},
+                {"role": "user", "content": "Hi"},
+            ],
+            template_type="chat",
+        )
+
+        system, messages = prompt.to_anthropic()
+        assert system == "You are a helpful assistant.\nAlways be concise."
+        assert messages == [{"role": "user", "content": "Hi"}]
+
     def test_immutability(self):
         """Test that ManagedPrompt objects cannot be modified."""
         prompt = ManagedPrompt(
