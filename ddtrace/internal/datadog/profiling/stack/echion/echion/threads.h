@@ -300,11 +300,18 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
         auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu);
         auto& stack = stack_info->stack;
 
+        std::unordered_set<PyObject*> seen_task_origins;
         for (auto current_task = leaf_task;;) {
             auto& task = current_task.get();
 
+            // Check for cycle in task chain
+            if (seen_task_origins.find(task.origin) != seen_task_origins.end()) {
+                break;
+            }
+            seen_task_origins.insert(task.origin);
+
             // The task_stack_size includes both the coroutines frames and the "upper" Python synchronous frames
-            size_t task_stack_size = task.unwind(stack, task.is_on_cpu ? upper_python_stack_size : unused);
+            auto task_stack_size = task.unwind(stack, task.is_on_cpu ? upper_python_stack_size : unused);
             if (task.is_on_cpu) {
                 // Get the "bottom" part of the Python synchronous Stack, that is to say the
                 // synchronous functions and coroutines called by the Task's outermost coroutine
