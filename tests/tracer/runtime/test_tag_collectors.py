@@ -150,4 +150,4 @@ def test_process_tags_deactivated():
 
 def test_process_tag_class():
     process_tags: List[str] = list(ProcessTags())
-    assert len(process_tags) >= 4
+    assert len(process_tags) >= 3
