@@ -9,10 +9,10 @@ from ddtrace._trace.filters import TraceFilter
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace.contrib.internal.kafka.patch import unpatch
-from ddtrace.trace import tracer as ddtracer
 from tests.conftest import get_original_test_name
 from tests.contrib.config import KAFKA_CONFIG
 from tests.utils import DummyTracer
+from tests.utils import override_global_tracer
 
 
 GROUP_ID = "test_group"
@@ -89,19 +89,17 @@ def should_filter_empty_polls():
 @pytest.fixture
 def tracer(should_filter_empty_polls):
     patch()
+    tracer = DummyTracer()
     if should_filter_empty_polls:
-        ddtracer.configure(trace_processors=[KafkaConsumerPollFilter()])
+        tracer.configure(trace_processors=[KafkaConsumerPollFilter()])
     # disable backoff because it makes these tests less reliable
     if not config._trace_writer_native:
-        previous_backoff = ddtracer._span_aggregator.writer._send_payload_with_backoff
-        ddtracer._span_aggregator.writer._send_payload_with_backoff = ddtracer._span_aggregator.writer._send_payload
-    try:
-        yield ddtracer
-    finally:
-        ddtracer.flush()
-        if not config._trace_writer_native:
-            ddtracer._span_aggregator.writer._send_payload_with_backoff = previous_backoff
-        unpatch()
+        tracer._span_aggregator.writer._send_payload_with_backoff = tracer._span_aggregator.writer._send_payload
+    with override_global_tracer(tracer):
+        yield tracer
+        tracer.flush()
+    tracer.shutdown()
+    unpatch()
 
 
 @pytest.fixture
