@@ -12,6 +12,8 @@ from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import override_config
 
+from ..redis.utils import find_redis_span
+
 
 @pytest.fixture()
 def redis_client():
@@ -52,9 +54,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
     def test_basics(self):
         us = self.r.get("cheese")
         assert us is None
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        span = find_redis_span(self.get_spans(), resource="GET", raw_command="GET cheese", component="rediscluster")
         assert_is_measured(span)
         assert span.service == "rediscluster"
         assert span.name == "redis.command"
@@ -70,9 +70,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
     def test_unicode(self):
         us = self.r.get("😐")
         assert us is None
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        span = find_redis_span(self.get_spans(), resource="GET", raw_command="GET 😐", component="rediscluster")
         assert_is_measured(span)
         assert span.service == "rediscluster"
         assert span.name == "redis.command"
@@ -92,9 +90,9 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
             p.hgetall("xxx")
             p.execute()
 
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        span = find_redis_span(
+            self.get_spans(), resource="SET blah 32\nRPUSH foo éé\nHGETALL xxx", component="rediscluster"
+        )
         assert_is_measured(span)
         assert span.service == "rediscluster"
         assert span.name == "redis.command"
@@ -154,9 +152,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        span = find_redis_span(self.get_spans(), resource="GET", component="rediscluster")
         assert span.service != "mysvc"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
@@ -174,9 +170,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        span = find_redis_span(self.get_spans(), resource="GET", component="rediscluster")
         assert span.service == "mysvc", span.service
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
@@ -189,15 +183,13 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        span = find_redis_span(self.get_spans(), resource="GET", component="rediscluster")
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDISCLUSTER_SERVICE="myrediscluster"))
     def test_env_user_specified_rediscluster_service(self):
         self.r.get("cheese")
-        span = self.get_spans()[0]
+        span = find_redis_span(self.get_spans(), resource="GET", component="rediscluster")
         assert span.service == "myrediscluster", span.service
 
     @TracerTestCase.run_in_subprocess(
@@ -205,7 +197,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
     )
     def test_service_precedence(self):
         self.r.get("cheese")
-        span = self.get_spans()[0]
+        span = find_redis_span(self.get_spans(), resource="GET", component="rediscluster")
         assert span.service == "myrediscluster"
 
         self.reset()
@@ -220,9 +212,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        span = find_redis_span(self.get_spans(), resource="GET", component="rediscluster")
         assert span.name == "redis.command"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
@@ -235,9 +225,7 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        span = find_redis_span(self.get_spans(), resource="GET", component="rediscluster")
         assert span.name == "redis.command"
 
 

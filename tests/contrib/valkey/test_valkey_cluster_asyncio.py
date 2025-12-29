@@ -42,11 +42,21 @@ async def test_basics(traced_valkey_cluster):
     assert us is None
 
     traces = test_spans.pop_traces()
-    assert len(traces) == 1
-    spans = traces[0]
-    assert len(spans) == 1
-
-    span = spans[0]
+    # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+    all_spans = [span for trace in traces for span in trace]
+    # Find the GET span
+    get_spans = [
+        s
+        for s in all_spans
+        if s.get_tag("component") == "valkey"
+        and s.resource == "GET"
+        and s.get_tag("valkey.raw_command") == "GET cheese"
+    ]
+    assert len(get_spans) == 1, (
+        f"Expected exactly 1 GET cheese span, got {len(get_spans)}. "
+        f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+    )
+    span = get_spans[0]
     assert_is_measured(span)
     assert span.service == "valkey"
     assert span.name == "valkey.command"
@@ -66,11 +76,19 @@ async def test_unicode(traced_valkey_cluster):
     assert us is None
 
     traces = test_spans.pop_traces()
-    assert len(traces) == 1
-    spans = traces[0]
-    assert len(spans) == 1
-
-    span = spans[0]
+    # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+    all_spans = [span for trace in traces for span in trace]
+    # Find the GET span
+    get_spans = [
+        s
+        for s in all_spans
+        if s.get_tag("component") == "valkey" and s.resource == "GET" and s.get_tag("valkey.raw_command") == "GET 😐"
+    ]
+    assert len(get_spans) == 1, (
+        f"Expected exactly 1 GET 😐 span, got {len(get_spans)}. "
+        f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+    )
+    span = get_spans[0]
     assert_is_measured(span)
     assert span.service == "valkey"
     assert span.name == "valkey.command"
@@ -93,11 +111,17 @@ async def test_pipeline(traced_valkey_cluster):
         await p.execute()
 
     traces = test_spans.pop_traces()
-    assert len(traces) == 1
-    spans = traces[0]
-    assert len(spans) == 1
-
-    span = spans[0]
+    # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+    all_spans = [span for trace in traces for span in trace]
+    # Find the pipeline span
+    pipeline_spans = [
+        s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "SET\nRPUSH\nHGETALL"
+    ]
+    assert len(pipeline_spans) == 1, (
+        f"Expected exactly 1 pipeline span, got {len(pipeline_spans)}. "
+        f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+    )
+    span = pipeline_spans[0]
     assert_is_measured(span)
     assert span.service == "valkey"
     assert span.name == "valkey.command"
@@ -178,10 +202,15 @@ def test_default_service_name_v1():
         await r.close()
 
         traces = test_spans.pop_traces()
-        assert len(traces) == 1
-        spans = traces[0]
-        assert len(spans) == 1
-        span = spans[0]
+        # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+        all_spans = [span for trace in traces for span in trace]
+        # Find the GET span
+        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+        assert len(get_spans) == 1, (
+            f"Expected exactly 1 GET span, got {len(get_spans)}. "
+            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+        )
+        span = get_spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
         tracer_scope.__exit__(None, None, None)
 
@@ -228,10 +257,15 @@ def test_user_specified_service_v0():
         await r.close()
 
         traces = test_spans.pop_traces()
-        assert len(traces) == 1
-        spans = traces[0]
-        assert len(spans) == 1
-        span = spans[0]
+        # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+        all_spans = [span for trace in traces for span in trace]
+        # Find the GET span
+        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+        assert len(get_spans) == 1, (
+            f"Expected exactly 1 GET span, got {len(get_spans)}. "
+            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+        )
+        span = get_spans[0]
         assert span.service != "mysvc"
         tracer_scope.__exit__(None, None, None)
 
@@ -278,10 +312,15 @@ def test_user_specified_service_v1():
         await r.close()
 
         traces = test_spans.pop_traces()
-        assert len(traces) == 1
-        spans = traces[0]
-        assert len(spans) == 1
-        span = spans[0]
+        # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+        all_spans = [span for trace in traces for span in trace]
+        # Find the GET span
+        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+        assert len(get_spans) == 1, (
+            f"Expected exactly 1 GET span, got {len(get_spans)}. "
+            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+        )
+        span = get_spans[0]
         assert span.service == "mysvc"
         tracer_scope.__exit__(None, None, None)
 
@@ -320,10 +359,15 @@ def test_env_user_specified_valkeycluster_service_v0():
         await r.close()
 
         traces = test_spans.pop_traces()
-        assert len(traces) == 1
-        spans = traces[0]
-        assert len(spans) == 1
-        span = spans[0]
+        # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+        all_spans = [span for trace in traces for span in trace]
+        # Find the GET span
+        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+        assert len(get_spans) == 1, (
+            f"Expected exactly 1 GET span, got {len(get_spans)}. "
+            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+        )
+        span = get_spans[0]
         assert span.service == "myvalkeycluster"
         tracer_scope.__exit__(None, None, None)
 
@@ -362,10 +406,15 @@ def test_env_user_specified_valkeycluster_service_v1():
         await r.close()
 
         traces = test_spans.pop_traces()
-        assert len(traces) == 1
-        spans = traces[0]
-        assert len(spans) == 1
-        span = spans[0]
+        # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+        all_spans = [span for trace in traces for span in trace]
+        # Find the GET span
+        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+        assert len(get_spans) == 1, (
+            f"Expected exactly 1 GET span, got {len(get_spans)}. "
+            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+        )
+        span = get_spans[0]
         assert span.service == "myvalkeycluster"
         tracer_scope.__exit__(None, None, None)
 
@@ -412,10 +461,15 @@ def test_service_precedence_v0():
         await r.close()
 
         traces = test_spans.pop_traces()
-        assert len(traces) == 1
-        spans = traces[0]
-        assert len(spans) == 1
-        span = spans[0]
+        # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+        all_spans = [span for trace in traces for span in trace]
+        # Find the GET span
+        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+        assert len(get_spans) == 1, (
+            f"Expected exactly 1 GET span, got {len(get_spans)}. "
+            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+        )
+        span = get_spans[0]
         assert span.service == "myvalkeycluster"
         tracer_scope.__exit__(None, None, None)
 
@@ -458,10 +512,15 @@ def test_service_precedence_v1():
         await r.close()
 
         traces = test_spans.pop_traces()
-        assert len(traces) == 1
-        spans = traces[0]
-        assert len(spans) == 1
-        span = spans[0]
+        # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+        all_spans = [span for trace in traces for span in trace]
+        # Find the GET span
+        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+        assert len(get_spans) == 1, (
+            f"Expected exactly 1 GET span, got {len(get_spans)}. "
+            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+        )
+        span = get_spans[0]
         assert span.service == "myvalkeycluster"
         tracer_scope.__exit__(None, None, None)
 

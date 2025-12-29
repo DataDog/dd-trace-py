@@ -12,6 +12,7 @@ from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
 from ..config import REDIS_CONFIG
+from .utils import find_redis_span
 
 
 class TestRedisPatch(TracerTestCase):
@@ -24,24 +25,6 @@ class TestRedisPatch(TracerTestCase):
         r.flushall()
         Pin._override(r, tracer=self.tracer)
         self.r = r
-
-    def find_span(self, resource=None, raw_command=None, component="redis"):
-        """
-        Helper to find a specific span from captured spans.
-        Filters by component="redis" by default, and optionally by resource and raw_command.
-        Returns the first matching span, or raises AssertionError if not found.
-        """
-        spans = self.get_spans()
-        filtered = [s for s in spans if s.get_tag("component") == component]
-        if resource:
-            filtered = [s for s in filtered if s.resource == resource]
-        if raw_command:
-            filtered = [s for s in filtered if s.get_tag("redis.raw_command") == raw_command]
-        assert len(filtered) == 1, (
-            f"Expected exactly 1 matching span, got {len(filtered)}. "
-            f"All spans: {[(s.resource, s.get_tag('component')) for s in spans]}"
-        )
-        return filtered[0]
 
     def tearDown(self):
         unpatch()
@@ -122,27 +105,27 @@ class TestRedisPatch(TracerTestCase):
     def test_service_name_v1(self):
         us = self.r.get("cheese")
         assert us is None
-        span = self.find_span(resource="GET")
+        span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_operation_name_v0_schema(self):
         us = self.r.get("cheese")
         assert us is None
-        span = self.find_span(resource="GET")
+        span = find_redis_span(self.get_spans(), resource="GET")
         assert span.name == "redis.command"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_operation_name_v1_schema(self):
         us = self.r.get("cheese")
         assert us is None
-        span = self.find_span(resource="GET")
+        span = find_redis_span(self.get_spans(), resource="GET")
         assert span.name == "redis.command"
 
     def test_basics(self):
         us = self.r.get("cheese")
         assert us is None
-        span = self.find_span(resource="GET", raw_command="GET cheese")
+        span = find_redis_span(self.get_spans(), resource="GET", raw_command="GET cheese")
         self.assert_is_measured(span)
         assert span.service == "redis"
         assert span.name == "redis.command"
@@ -173,7 +156,7 @@ class TestRedisPatch(TracerTestCase):
             p.hgetall("xxx")
             p.execute()
 
-        span = self.find_span(resource="SET\nRPUSH\nHGETALL")
+        span = find_redis_span(self.get_spans(), resource="SET\nRPUSH\nHGETALL")
         self.assert_is_measured(span)
         assert span.service == "redis"
         assert span.name == "redis.command"
@@ -219,7 +202,7 @@ class TestRedisPatch(TracerTestCase):
             pin._clone(tags={"cheese": "camembert"}).onto(r)
 
         r.get("cheese")
-        span = self.find_span(resource="GET", raw_command="GET cheese")
+        span = find_redis_span(self.get_spans(), resource="GET", raw_command="GET cheese")
         assert span.service == "redis"
         assert "cheese" in span.get_tags() and span.get_tag("cheese") == "camembert"
 
@@ -263,7 +246,7 @@ class TestRedisPatch(TracerTestCase):
 
         assert get1 == b"value1"
 
-        get_valid_key_span = self.find_span(resource="GET", raw_command="GET key1")
+        get_valid_key_span = find_redis_span(self.get_spans(), resource="GET", raw_command="GET key1")
 
         assert get_valid_key_span.name == "redis.command"
         assert get_valid_key_span.get_tag("redis.raw_command") == "GET key1"
@@ -350,7 +333,7 @@ class TestRedisPatch(TracerTestCase):
 
         assert get_missing is None
 
-        get_missing_key_span = self.find_span(resource="GET", raw_command="GET missing_key")
+        get_missing_key_span = find_redis_span(self.get_spans(), resource="GET", raw_command="GET missing_key")
 
         assert get_missing_key_span.name == "redis.command"
         assert get_missing_key_span.get_tag("redis.raw_command") == "GET missing_key"
@@ -386,7 +369,7 @@ class TestRedisPatch(TracerTestCase):
         assert config.service == "mysvc"
 
         self.r.get("cheese")
-        span = self.find_span(resource="GET")
+        span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "redis"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
@@ -396,7 +379,7 @@ class TestRedisPatch(TracerTestCase):
         assert config.service == "mysvc"
 
         self.r.get("cheese")
-        span = self.find_span(resource="GET")
+        span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "redis"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
@@ -406,7 +389,7 @@ class TestRedisPatch(TracerTestCase):
         assert config.service == "mysvc"
 
         self.r.get("cheese")
-        span = self.find_span(resource="GET")
+        span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "mysvc"
 
     @TracerTestCase.run_in_subprocess(
@@ -414,7 +397,7 @@ class TestRedisPatch(TracerTestCase):
     )
     def test_env_user_specified_redis_service_v0(self):
         self.r.get("cheese")
-        span = self.find_span(resource="GET")
+        span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "myredis", span.service
 
         self.reset()
@@ -422,7 +405,7 @@ class TestRedisPatch(TracerTestCase):
         # Global config
         with self.override_config("redis", dict(service="cfg-redis")):
             self.r.get("cheese")
-            span = self.find_span(resource="GET")
+            span = find_redis_span(self.get_spans(), resource="GET")
             assert span.service == "cfg-redis", span.service
 
         self.reset()
@@ -430,7 +413,7 @@ class TestRedisPatch(TracerTestCase):
         # Manual override
         Pin._override(self.r, service="mysvc", tracer=self.tracer)
         self.r.get("cheese")
-        span = self.find_span(resource="GET")
+        span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "mysvc", span.service
 
     @TracerTestCase.run_in_subprocess(
@@ -440,7 +423,7 @@ class TestRedisPatch(TracerTestCase):
     )
     def test_service_precedence_v0(self):
         self.r.get("cheese")
-        span = self.find_span(resource="GET")
+        span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "env-specified-redis-svc", span.service
 
         self.reset()
@@ -448,7 +431,7 @@ class TestRedisPatch(TracerTestCase):
         # Do a manual override
         Pin._override(self.r, service="override-redis", tracer=self.tracer)
         self.r.get("cheese")
-        span = self.find_span(resource="GET")
+        span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "override-redis", span.service
 
 
