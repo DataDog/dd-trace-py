@@ -39,7 +39,7 @@ def test_periodic_payload_tags():
         assert decoded["TracerVersion"] == processor._version
         assert decoded["Lang"] == "python"
         assert decoded["Hostname"] == processor._hostname
-        assert "ProcessTags" not in decoded
+        assert "ProcessTags" in decoded
     finally:
         processor.stop()
         processor.join()
@@ -47,7 +47,7 @@ def test_periodic_payload_tags():
 
 @pytest.mark.subprocess(
     env=dict(
-        DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="true",
+        DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="False",
     )
 )
 def test_periodic_payload_process_tags():
@@ -65,11 +65,7 @@ def test_periodic_payload_process_tags():
 
         assert captured_payloads, "expected periodic to send a payload"
         decoded = _decode_datastreams_payload(captured_payloads[0])
-        assert decoded["Service"] == processor._service
-        assert decoded["TracerVersion"] == processor._version
-        assert decoded["Lang"] == "python"
-        assert decoded["Hostname"] == processor._hostname
-        assert "ProcessTags" in decoded
+        assert "ProcessTags" not in decoded
     finally:
         processor.stop()
         processor.join()
