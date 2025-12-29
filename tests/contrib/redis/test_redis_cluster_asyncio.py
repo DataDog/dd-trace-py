@@ -44,11 +44,19 @@ async def test_basics(traced_redis_cluster):
     assert us is None
 
     traces = test_spans.pop_traces()
-    assert len(traces) == 1
-    spans = traces[0]
-    assert len(spans) == 1
-
-    span = spans[0]
+    # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+    all_spans = [span for trace in traces for span in trace]
+    # Find the GET span
+    get_spans = [
+        s
+        for s in all_spans
+        if s.get_tag("component") == "redis" and s.resource == "GET" and s.get_tag("redis.raw_command") == "GET cheese"
+    ]
+    assert len(get_spans) == 1, (
+        f"Expected exactly 1 GET cheese span, got {len(get_spans)}. "
+        f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+    )
+    span = get_spans[0]
     assert_is_measured(span)
     assert span.service == "redis"
     assert span.name == "redis.command"
@@ -69,11 +77,19 @@ async def test_unicode(traced_redis_cluster):
     assert us is None
 
     traces = test_spans.pop_traces()
-    assert len(traces) == 1
-    spans = traces[0]
-    assert len(spans) == 1
-
-    span = spans[0]
+    # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+    all_spans = [span for trace in traces for span in trace]
+    # Find the GET span
+    get_spans = [
+        s
+        for s in all_spans
+        if s.get_tag("component") == "redis" and s.resource == "GET" and s.get_tag("redis.raw_command") == "GET 😐"
+    ]
+    assert len(get_spans) == 1, (
+        f"Expected exactly 1 GET 😐 span, got {len(get_spans)}. "
+        f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+    )
+    span = get_spans[0]
     assert_is_measured(span)
     assert span.service == "redis"
     assert span.name == "redis.command"
@@ -100,11 +116,15 @@ async def test_pipeline(traced_redis_cluster):
         await p.execute()
 
     traces = test_spans.pop_traces()
-    assert len(traces) == 1
-    spans = traces[0]
-    assert len(spans) == 1
-
-    span = spans[0]
+    # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+    all_spans = [span for trace in traces for span in trace]
+    # Find the pipeline span
+    pipeline_spans = [s for s in all_spans if s.get_tag("component") == "redis" and s.resource == "SET\nRPUSH\nHGETALL"]
+    assert len(pipeline_spans) == 1, (
+        f"Expected exactly 1 pipeline span, got {len(pipeline_spans)}. "
+        f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+    )
+    span = pipeline_spans[0]
     assert_is_measured(span)
     assert span.service == "redis"
     assert span.name == "redis.command"
@@ -145,8 +165,15 @@ async def test_pipeline_command_stack_parity_when_visible(traced_redis_cluster):
         await p.execute()
 
     traces = test_spans.pop_traces()
-    spans = traces[0]
-    span = spans[0]
+    # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+    all_spans = [span for trace in traces for span in trace]
+    # Find the pipeline span
+    pipeline_spans = [s for s in all_spans if s.get_tag("component") == "redis" and s.resource == "SET\nGET"]
+    assert len(pipeline_spans) == 1, (
+        f"Expected exactly 1 pipeline span, got {len(pipeline_spans)}. "
+        f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+    )
+    span = pipeline_spans[0]
     assert span.resource == "SET\nGET"
     assert span.get_metric("redis.pipeline_length") == 2
     if queued is not None:

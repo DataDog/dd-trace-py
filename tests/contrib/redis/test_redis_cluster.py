@@ -29,6 +29,24 @@ class TestRedisClusterPatch(TracerTestCase):
         Pin._override(r, tracer=self.tracer)
         self.r = r
 
+    def find_span(self, resource=None, raw_command=None, component="redis"):
+        """
+        Helper to find a specific span from captured spans.
+        Filters by component="redis" by default, and optionally by resource and raw_command.
+        Returns the first matching span, or raises AssertionError if not found.
+        """
+        spans = self.get_spans()
+        filtered = [s for s in spans if s.get_tag("component") == component]
+        if resource:
+            filtered = [s for s in filtered if s.resource == resource]
+        if raw_command:
+            filtered = [s for s in filtered if s.get_tag("redis.raw_command") == raw_command]
+        assert len(filtered) == 1, (
+            f"Expected exactly 1 matching span, got {len(filtered)}. "
+            f"All spans: {[(s.resource, s.get_tag('component')) for s in spans]}"
+        )
+        return filtered[0]
+
     def tearDown(self):
         unpatch()
         super(TestRedisClusterPatch, self).tearDown()
@@ -37,16 +55,13 @@ class TestRedisClusterPatch(TracerTestCase):
     def test_span_service_name_v1(self):
         us = self.r.get("cheese")
         assert us is None
-        spans = self.get_spans()
-        span = spans[0]
+        span = self.find_span(resource="GET")
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
     def test_basics(self):
         us = self.r.get("cheese")
         assert us is None
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        span = self.find_span(resource="GET", raw_command="GET cheese")
         assert_is_measured(span)
         assert span.service == "redis"
         assert span.name == "redis.command"
@@ -61,9 +76,7 @@ class TestRedisClusterPatch(TracerTestCase):
     def test_unicode(self):
         us = self.r.get("😐")
         assert us is None
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        span = self.find_span(resource="GET", raw_command="GET 😐")
         assert_is_measured(span)
         assert span.service == "redis"
         assert span.name == "redis.command"
@@ -83,9 +96,7 @@ class TestRedisClusterPatch(TracerTestCase):
             p.hgetall("xxx")
             p.execute()
 
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        span = self.find_span(resource="SET\nRPUSH\nHGETALL")
         assert_is_measured(span)
         assert span.service == "redis"
         assert span.name == "redis.command"
@@ -149,9 +160,7 @@ class TestRedisClusterPatch(TracerTestCase):
         Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        span = self.find_span(resource="GET")
         assert span.service != "mysvc"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
@@ -169,9 +178,7 @@ class TestRedisClusterPatch(TracerTestCase):
         Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        span = self.find_span(resource="GET")
         assert span.service == "mysvc"
 
     @TracerTestCase.run_in_subprocess(
@@ -179,7 +186,7 @@ class TestRedisClusterPatch(TracerTestCase):
     )
     def test_env_user_specified_rediscluster_service_v0(self):
         self.r.get("cheese")
-        span = self.get_spans()[0]
+        span = self.find_span(resource="GET", raw_command="GET cheese")
         assert span.service == "myrediscluster", span.service
 
     @TracerTestCase.run_in_subprocess(
@@ -187,7 +194,7 @@ class TestRedisClusterPatch(TracerTestCase):
     )
     def test_env_user_specified_rediscluster_service_v1(self):
         self.r.get("cheese")
-        span = self.get_spans()[0]
+        span = self.find_span(resource="GET")
         assert span.service == "myrediscluster", span.service
 
     @TracerTestCase.run_in_subprocess(
@@ -195,7 +202,7 @@ class TestRedisClusterPatch(TracerTestCase):
     )
     def test_service_precedence_v0(self):
         self.r.get("cheese")
-        span = self.get_spans()[0]
+        span = self.find_span(resource="GET", raw_command="GET cheese")
         assert span.service == "myrediscluster"
 
         self.reset()
@@ -205,7 +212,7 @@ class TestRedisClusterPatch(TracerTestCase):
     )
     def test_service_precedence_v1(self):
         self.r.get("cheese")
-        span = self.get_spans()[0]
+        span = self.find_span(resource="GET")
         assert span.service == "myrediscluster"
 
         self.reset()
