@@ -1,7 +1,6 @@
 import threading
 from typing import Dict
 from typing import List
-from typing import Literal
 from typing import Optional
 from typing import Union
 
@@ -219,7 +218,6 @@ class PromptManager:
         try:
             data = json.loads(body)
             template = data.get("template") or data.get("chat_template", [])
-            template_type: Literal["text", "chat"] = "text" if isinstance(template, str) else "chat"
 
             return ManagedPrompt(
                 prompt_id=data.get("prompt_id", prompt_id),
@@ -227,7 +225,6 @@ class PromptManager:
                 label=data.get("label", label),
                 source="registry",
                 template=template,
-                template_type=template_type,
                 variables=data.get("variables", []),
             )
         except (json.JSONDecodeError, KeyError, TypeError) as e:
@@ -241,15 +238,12 @@ class PromptManager:
         fallback: Optional[Union[str, List[Dict[str, str]]]] = None,
     ) -> ManagedPrompt:
         """Create a fallback prompt when fetch fails."""
-        template_type: Literal["text", "chat"]
         if fallback is not None:
             log.warning("Using user-provided fallback for prompt %s (label=%s)", prompt_id, label)
-            template = fallback
-            template_type = "text" if isinstance(fallback, str) else "chat"
+            template: Union[str, List[Dict[str, str]]] = fallback
         else:
             log.warning("Using empty fallback for prompt %s (label=%s)", prompt_id, label)
             template = ""
-            template_type = "text"
 
         return ManagedPrompt(
             prompt_id=prompt_id,
@@ -257,6 +251,5 @@ class PromptManager:
             label=label,
             source="fallback",
             template=template,
-            template_type=template_type,
             variables=[],
         )
