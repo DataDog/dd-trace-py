@@ -14,6 +14,14 @@ class SimpleEvaluator(BaseEvaluator):
         return {"passed": passed, "score": 1.0 if passed else 0.0}
 
 
+class PrimitiveEvaluator(BaseEvaluator):
+    """An evaluator that returns primitive types (like function-based evaluators)."""
+
+    def evaluate(self, context: EvaluatorContext):
+        # Return int like function-based evaluators can do
+        return int(context.output_data == context.expected_output)
+
+
 class StatefulEvaluator(BaseEvaluator):
     """An evaluator with internal state."""
 
@@ -118,6 +126,25 @@ class TestBaseEvaluator:
         """Test that valid names are accepted."""
         evaluator = SimpleEvaluator(name="my_evaluator_123")
         assert evaluator.name == "my_evaluator_123"
+
+    def test_evaluator_primitive_return_type(self):
+        """Test that evaluators can return primitive types like function-based evaluators."""
+        evaluator = PrimitiveEvaluator()
+        ctx = EvaluatorContext(
+            input_data={"query": "test"},
+            output_data="response",
+            expected_output="response",
+        )
+        result = evaluator.evaluate(ctx)
+        assert result == 1  # Returns int directly
+
+        ctx2 = EvaluatorContext(
+            input_data={"query": "test"},
+            output_data="response",
+            expected_output="different",
+        )
+        result2 = evaluator.evaluate(ctx2)
+        assert result2 == 0
 
     def test_stateful_evaluator(self):
         evaluator = StatefulEvaluator(threshold=0.8)

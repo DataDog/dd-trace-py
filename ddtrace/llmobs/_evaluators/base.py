@@ -7,7 +7,13 @@ from dataclasses import field
 import re
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Union
+
+
+# JSONType matches the type used in _experiment.py for evaluator return values
+JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
 
 
 def _validate_evaluator_name(name: str) -> None:
@@ -100,28 +106,28 @@ class BaseEvaluator(ABC):
         return evaluator_name
 
     @abstractmethod
-    def evaluate(self, context: EvaluatorContext) -> Dict[str, Any]:
+    def evaluate(self, context: EvaluatorContext) -> JSONType:
         """Perform synchronous evaluation.
 
         This method must be implemented by all subclasses.
 
         :param context: The evaluation context containing input, output, and metadata
-        :return: A dictionary containing the evaluation results
+        :return: Evaluation results - can be a dict, primitive (str/int/float/bool), list, or None
         """
         raise NotImplementedError("Subclasses must implement the evaluate method")
 
-    async def evaluate_async(self, context: EvaluatorContext) -> Dict[str, Any]:
+    async def evaluate_async(self, context: EvaluatorContext) -> JSONType:
         """Perform asynchronous evaluation.
 
         Default implementation falls back to synchronous evaluation.
         Override this method to provide native async support.
 
         :param context: The evaluation context containing input, output, and metadata
-        :return: A dictionary containing the evaluation results
+        :return: Evaluation results - can be a dict, primitive (str/int/float/bool), list, or None
         """
         return self.evaluate(context)
 
-    def __call__(self, input_data: Dict[str, Any], output_data: Any, expected_output: Any) -> Dict[str, Any]:
+    def __call__(self, input_data: Dict[str, Any], output_data: Any, expected_output: Any) -> JSONType:
         """Legacy compatibility shim for functional interface.
 
         This allows class-based evaluators to be used in contexts expecting
