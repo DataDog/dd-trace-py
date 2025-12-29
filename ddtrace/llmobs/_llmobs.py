@@ -1144,6 +1144,7 @@ class LLMObs(Service):
         return AnnotationContext(register_annotation, deregister_annotation)
 
     _prompt_manager = None
+    _prompt_manager_lock = forksafe.Lock()
 
     @classmethod
     def get_prompt(
@@ -1182,8 +1183,11 @@ class LLMObs(Service):
                     messages=prompt.to_messages(user="Alice")
                 )
         """
+        # Double-checked locking for thread-safe initialization
         if cls._prompt_manager is None:
-            cls._prompt_manager = cls._initialize_prompt_manager()
+            with cls._prompt_manager_lock:
+                if cls._prompt_manager is None:
+                    cls._prompt_manager = cls._initialize_prompt_manager()
 
         if cls._prompt_manager is None:
             log.warning("Prompt manager not initialized. Returning fallback prompt.")
