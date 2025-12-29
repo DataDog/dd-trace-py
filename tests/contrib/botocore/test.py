@@ -3363,6 +3363,12 @@ class BotocoreTest(TracerTestCase):
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_sqs
     def test_aws_payload_tagging_sqs_invalid_config(self):
+        # Recreate setUp operations to ensure spans are captured by snapshot test
+        # (setUp spans are sent before snapshot context starts)
+        for queue_url in self.sqs_client.list_queues().get("QueueUrls", []):
+            self.sqs_client.delete_queue(QueueUrl=queue_url)
+        self.sqs_test_queue = self.sqs_client.create_queue(QueueName=self.queue_name)
+
         with self.override_config(
             "botocore",
             dict(payload_tagging_request="non_json_path", payload_tagging_response="$..Attr ibutes.PlatformCredential"),
