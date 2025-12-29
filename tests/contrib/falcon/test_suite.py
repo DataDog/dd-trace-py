@@ -280,7 +280,7 @@ class FalconTestCase(FalconTestMixin):
                                 api_gateway_resource="GET /",
                                 method="GET",
                                 status_code=test_endpoint["status"],
-                                url="local/",
+                                url="https://local/",
                                 start=1736973768.0,
                                 is_distributed=False,
                                 distributed_trace_id=1,

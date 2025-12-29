@@ -1,8 +1,10 @@
 import sys
+from typing import cast
 
 import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.trace import Span
 
 
 class MockSpan:
@@ -96,30 +98,30 @@ def test_push_span_without_span_id():
     handle = ddup.SampleHandle()
 
     # Test 1: Span without span_id attribute
-    span_no_id = MockSpan()
+    span_no_id = cast(Span, MockSpan())
     # Should not raise AttributeError
     handle.push_span(span_no_id)
 
     # Test 2: Span without _local_root attribute
-    span_no_local_root = MockSpan(span_id=12345)
+    span_no_local_root = cast(Span, MockSpan(span_id=12345))
     # Should not raise AttributeError
-    handle.push_span(span_no_local_root)
+    handle.push_span(cast(Span, span_no_local_root))
 
     # Test 3: Span with _local_root but local_root without span_id
     local_root_no_id = MockLocalRoot()
-    span_with_incomplete_root = MockSpan(span_id=12345, local_root=local_root_no_id)
+    span_with_incomplete_root = cast(Span, MockSpan(span_id=12345, local_root=local_root_no_id))
     # Should not raise AttributeError
     handle.push_span(span_with_incomplete_root)
 
     # Test 4: Span with _local_root but local_root without span_type
     local_root_no_type = MockLocalRoot(span_id=67890)
-    span_with_root_no_type = MockSpan(span_id=12345, local_root=local_root_no_type)
+    span_with_root_no_type = cast(Span, MockSpan(span_id=12345, local_root=local_root_no_type))
     # Should not raise AttributeError
     handle.push_span(span_with_root_no_type)
 
     # Test 5: Complete span (should work as before)
     complete_local_root = MockLocalRoot(span_id=67890, span_type="web")
-    complete_span = MockSpan(span_id=12345, local_root=complete_local_root)
+    complete_span = cast(Span, MockSpan(span_id=12345, local_root=complete_local_root))
     # Should not raise AttributeError
     handle.push_span(complete_span)
 

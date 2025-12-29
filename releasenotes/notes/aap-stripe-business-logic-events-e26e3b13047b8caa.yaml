@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    AAP: Add business logic event detection for Stripe.
+    This feature instruments the payment intent and checkout session creation actions as well as
+    the payment_intent.succeeded, payment_intent.payment_failed and payment_intent.canceled events.

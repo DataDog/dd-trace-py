@@ -14,6 +14,7 @@ from wrapt import FunctionWrapper
 from wrapt import resolve_path
 
 from ddtrace.appsec._asm_request_context import _get_asm_context
+from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
@@ -60,6 +61,9 @@ def patch_common_modules():
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
     try_wrap_function_wrapper("http.client", "HTTPConnection.request", wrapped_request)
     try_wrap_function_wrapper("http.client", "HTTPConnection.getresponse", wrapped_response)
+
+    patch_stripe_for_appsec()
+
     core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
     log.debug("Patching common modules: builtins and urllib.request")
     _is_patched = True
@@ -79,6 +83,9 @@ def unpatch_common_modules():
     try_unwrap("http.client", "HTTPConnection.getresponse")
     try_unwrap("_io", "BytesIO.read")
     try_unwrap("_io", "StringIO.read")
+
+    unpatch_stripe_for_appsec()
+
     subprocess_patch.unpatch()
     subprocess_patch.del_str_callback(_RASP_SYSTEM)
     subprocess_patch.del_lst_callback(_RASP_POPEN)
@@ -165,8 +172,6 @@ def _build_headers(lst: Iterable[Tuple[str, str]]) -> Dict[str, Union[str, List[
 
 
 def wrapped_request(original_request_callable, instance, args, kwargs):
-    from ddtrace.appsec._asm_request_context import call_waf_callback
-
     full_url = core.get_item("full_url")
     env = _get_asm_context()
     if _get_rasp_capability("ssrf") and full_url is not None and env is not None:
@@ -194,8 +199,6 @@ def wrapped_request(original_request_callable, instance, args, kwargs):
 
 
 def wrapped_response(original_response_callable, instance, args, kwargs):
-    from ddtrace.appsec._asm_request_context import call_waf_callback
-
     response = original_response_callable(*args, *kwargs)
     env = _get_asm_context()
     try:
@@ -290,8 +293,6 @@ def _parse_headers_urllib3(headers):
 
 
 def wrapped_urllib3_make_request(original_request_callable, instance, args, kwargs):
-    from ddtrace.appsec._asm_request_context import call_waf_callback
-
     full_url = core.get_item("full_url")
     env = _get_asm_context()
     do_rasp = _get_rasp_capability("ssrf") and full_url is not None and env is not None
@@ -580,3 +581,75 @@ def patch_builtins(klass, attr, value):
             pass
 
     ctypes.pythonapi.PyType_Modified(ctypes.py_object(klass))
+
+
+def _wrap_checkout_session_create(original_callable, instance, args, kwargs):
+    session = original_callable(*args, **kwargs)
+    core.dispatch("appsec.stripe.checkout.session.create", (session,))
+    return session
+
+
+def _wrap_payment_intent_create(original_callable, instance, args, kwargs):
+    payment_intent = original_callable(*args, **kwargs)
+    core.dispatch("appsec.stripe.payment_intent.create", (payment_intent,))
+    return payment_intent
+
+
+def _wrap_webhook_construct_event(original_callable, instance, args, kwargs):
+    event = original_callable(*args, **kwargs)
+    core.dispatch("appsec.stripe.webhook.construct_event", (event,))
+    return event
+
+
+def _wrap_stripe_client_construct_event(original_callable, instance, args, kwargs):
+    event = original_callable(*args, **kwargs)
+    core.dispatch("appsec.stripe.stripe_client.construct_event", (event,))
+    return event
+
+
+def patch_stripe_for_appsec():
+    try_wrap_function_wrapper(
+        "stripe.checkout",
+        "Session.create",
+        _wrap_checkout_session_create,
+    )
+    try_wrap_function_wrapper(
+        "stripe.checkout._session_service",
+        "SessionService.create",
+        _wrap_checkout_session_create,
+    )
+    try_wrap_function_wrapper(
+        "stripe",
+        "PaymentIntent.create",
+        _wrap_payment_intent_create,
+    )
+    try_wrap_function_wrapper(
+        "stripe._payment_intent_service",
+        "PaymentIntentService.create",
+        _wrap_payment_intent_create,
+    )
+    try_wrap_function_wrapper(
+        "stripe.webhook",
+        "construct_event",
+        _wrap_webhook_construct_event,
+    )
+    try_wrap_function_wrapper(
+        "stripe._webhook",
+        "Webhook.construct_event",
+        _wrap_webhook_construct_event,
+    )
+    try_wrap_function_wrapper(
+        "stripe._stripe_client",
+        "StripeClient.construct_event",
+        _wrap_stripe_client_construct_event,
+    )
+
+
+def unpatch_stripe_for_appsec():
+    try_unwrap("stripe.checkout", "Session.create")
+    try_unwrap("stripe.checkout._session_service", "SessionService.create")
+    try_unwrap("stripe", "PaymentIntent.create")
+    try_unwrap("stripe._payment_intent_service", "PaymentIntentService.create")
+    try_unwrap("stripe.webhook", "construct_event")
+    try_unwrap("stripe._webhook", "Webhook.construct_event")
+    try_unwrap("stripe._stripe_client", "StripeClient.construct_event")

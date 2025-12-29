@@ -22,6 +22,7 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
+from ddtrace.internal.utils.fnv import fnv1_64
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
 
@@ -34,7 +35,6 @@ from ..periodic import PeriodicService
 from ..writer import _human_size
 from .encoding import decode_var_int_64
 from .encoding import encode_var_int_64
-from .fnv import fnv1_64
 from .schemas.schema_builder import SchemaBuilder
 from .schemas.schema_sampler import SchemaSampler
 
@@ -420,7 +420,8 @@ class DataStreamsCtx:
         def get_bytes(s):
             return bytes(s, encoding="utf-8")
 
-        b = get_bytes(self.service) + get_bytes(self.env)
+        b = get_bytes(self.service) + get_bytes(self.env) + process_tags.base_hash_bytes
+
         for t in tags:
             b += get_bytes(t)
         node_hash = fnv1_64(b)

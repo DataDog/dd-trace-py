@@ -53,6 +53,11 @@ class Psycopg2TracedConnection(dbapi.TracedConnection):
 
 def patch_conn(conn, traced_conn_cls, pin=None):
     """Wrap will patch the instance so that its queries are traced."""
+
+    # Return the plain connection if it has already been closed
+    if hasattr(conn, "closed") and conn.closed:
+        return conn
+
     # ensure we've patched extensions (this is idempotent) in
     # case we're only tracing some connections.
     _config = None
@@ -64,21 +69,33 @@ def patch_conn(conn, traced_conn_cls, pin=None):
 
     c = traced_conn_cls(conn)
 
-    # if the connection has an info attr, we are using psycopg3
-    if hasattr(conn, "dsn"):
-        dsn = sql.parse_pg_dsn(conn.dsn)
-    else:
-        dsn = sql.parse_pg_dsn(conn.info.dsn)
-
     tags = {
-        net.TARGET_HOST: dsn.get("host"),
-        net.TARGET_PORT: dsn.get("port", 5432),
-        net.SERVER_ADDRESS: dsn.get("host"),
-        db.NAME: dsn.get("dbname"),
-        db.USER: dsn.get("user"),
-        "db.application": dsn.get("application_name"),
         db.SYSTEM: "postgresql",
     }
+
+    try:
+        # if the connection has an info attr, we are using psycopg3
+        if hasattr(conn, "dsn"):
+            dsn = sql.parse_pg_dsn(conn.dsn)
+        else:
+            dsn = sql.parse_pg_dsn(conn.info.dsn)
+    except Exception:
+        # If for any reason we fail to parse the dsn, use an empty placeholder
+        dsn = {}
+
+    if dsn:
+        # Only add the dsn related tags if available
+        tags.update(
+            {
+                net.TARGET_HOST: dsn.get("host"),
+                net.TARGET_PORT: dsn.get("port", 5432),
+                net.SERVER_ADDRESS: dsn.get("host"),
+                db.NAME: dsn.get("dbname"),
+                db.USER: dsn.get("user"),
+                "db.application": dsn.get("application_name"),
+            }
+        )
+
     Pin(tags=tags, _config=_config).onto(c)
     return c
 

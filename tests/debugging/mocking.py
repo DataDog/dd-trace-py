@@ -110,10 +110,7 @@ class MockSignalUploader(SignalUploader):
                 raise PayloadWaitTimeout(_cond, timeout)
             sleep(0.05)
 
-        try:
-            return self.payloads
-        finally:
-            self.flush()
+        return self.payloads
 
     def flush(self) -> None:
         self.queue.clear()
@@ -180,7 +177,7 @@ class TestDebugger(Debugger):
 
         assert len(self.test_queue) == 1
 
-        yield self.test_queue.pop(0)
+        yield self.test_queue[0]
 
 
 @contextmanager

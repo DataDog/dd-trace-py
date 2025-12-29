@@ -1,0 +1,64 @@
+[[
+  {
+    "name": "vllm.request",
+    "service": "tests.contrib.vllm",
+    "resource": "vllm.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "llm",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6936a29a00000000",
+      "language": "python",
+      "runtime-id": "3ba78b6a59db4075ba8116247bfff62c",
+      "vllm.request.model": "intfloat/e5-small",
+      "vllm.request.provider": "vllm"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 573.0,
+      "vllm.latency.inference": 0.21128384995972738,
+      "vllm.latency.prefill": 0.21128384995972738,
+      "vllm.latency.queue": 9.00209997780621e-05,
+      "vllm.latency.ttft": 0.21466588973999023
+    },
+    "duration": 215546539,
+    "start": 1765188249802107904
+  }],
+[
+  {
+    "name": "vllm.request",
+    "service": "tests.contrib.vllm",
+    "resource": "vllm.request",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "llm",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6936a29a00000000",
+      "language": "python",
+      "runtime-id": "3ba78b6a59db4075ba8116247bfff62c",
+      "vllm.request.model": "intfloat/e5-small",
+      "vllm.request.provider": "vllm"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 573.0,
+      "vllm.latency.inference": 0.00829247699584812,
+      "vllm.latency.prefill": 0.00829247699584812,
+      "vllm.latency.queue": 8.840986993163824e-06,
+      "vllm.latency.ttft": 0.22136187553405762
+    },
+    "duration": 221856576,
+    "start": 1765188249802959360
+  }]]

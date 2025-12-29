@@ -18,3 +18,14 @@ variables:
   artifacts:
     reports:
       junit: test-results/junit*.xml
+
+.testrunner_gpu:
+  extends: .testrunner
+  image:
+    name: ${TESTRUNNER_IMAGE}
+  tags: [ "gpu:a10-amd64" ]
+  timeout: 40m
+  before_script:
+    - !reference [.testrunner, before_script]
+    - export NVIDIA_VISIBLE_DEVICES=all
+    - export NVIDIA_DRIVER_CAPABILITIES=compute,utility

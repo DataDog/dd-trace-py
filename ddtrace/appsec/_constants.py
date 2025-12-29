@@ -213,6 +213,12 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     RESPONSE_STATUS: Literal["server.response.status"] = "server.response.status"
     RESPONSE_HEADERS_NO_COOKIES: Literal["server.response.headers.no_cookies"] = "server.response.headers.no_cookies"
     RESPONSE_BODY: Literal["server.response.body"] = "server.response.body"
+    PAYMENT_CREATION: Literal["server.business_logic.payment.creation"] = "server.business_logic.payment.creation"
+    PAYMENT_SUCCESS: Literal["server.business_logic.payment.success"] = "server.business_logic.payment.success"
+    PAYMENT_FAILURE: Literal["server.business_logic.payment.failure"] = "server.business_logic.payment.failure"
+    PAYMENT_CANCELLATION: Literal["server.business_logic.payment.cancellation"] = (
+        "server.business_logic.payment.cancellation"
+    )
     PERSISTENT_ADDRESSES = frozenset(
         (
             REQUEST_BODY,
@@ -229,6 +235,10 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
             RESPONSE_STATUS,
             RESPONSE_HEADERS_NO_COOKIES,
             RESPONSE_BODY,
+            PAYMENT_CREATION,
+            PAYMENT_SUCCESS,
+            PAYMENT_FAILURE,
+            PAYMENT_CANCELLATION,
         )
     )
 
@@ -366,7 +376,8 @@ class DEFAULT(metaclass=Constant_Class):
         r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:[_-]?phrase)?|secret(?:[_-]?key)?|(?:(?:api|private|public|access)[_-]?)"
         r"key(?:[_-]?id)?|(?:(?:auth|access|id|refresh)[_-]?)?token|consumer[_-]?(?:id|key|secret)|sign(?:ed|ature)?"
         r"|auth(?:entication|orization)?|jsessionid|phpsessid|asp\.net(?:[_-]|-)sessionid|sid|jwt)"
-        r'(?:\s*=([^;&]+)|"\s*:\s*("[^"]+"|\d+))|bearer\s+([a-z0-9\._\-]+)|token\s*:\s*([a-z0-9]{13})|gh[opsu]_([0-9a-zA-Z]{36})'
+        r'(?:\s*=([^;&]+)|"\s*:\s*("[^"]+"|\d+))|bearer\s+([a-z0-9\._\-]+)|token\s*:\s*([a-z0-9]{13})'
+        r"|gh[opsu]_([0-9a-zA-Z]{36})"
         r"|ey[I-L][\w=-]+\.(ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?)|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}([^\-]+)[\-]"
         r"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*([a-z0-9\/\.+]{100,})"
     )

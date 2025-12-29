@@ -455,7 +455,18 @@ def unpatch() -> None:
     import os  # nosec
     import subprocess  # nosec
 
-    for obj, attr in [(os, "system"), (os, "_spawnvef"), (subprocess.Popen, "__init__"), (subprocess.Popen, "wait")]:
+    # Remove Pin objects
+    Pin().remove_from(os)
+    Pin().remove_from(subprocess)
+
+    # Unwrap all patched functions
+    for obj, attr in [
+        (os, "system"),
+        (os, "fork"),
+        (os, "_spawnvef"),
+        (subprocess.Popen, "__init__"),
+        (subprocess.Popen, "wait"),
+    ]:
         try:
             trace_utils.unwrap(obj, attr)
         except AttributeError:

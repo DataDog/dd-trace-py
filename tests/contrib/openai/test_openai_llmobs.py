@@ -2407,6 +2407,7 @@ MUL: "*"
                     ),
                 }
             ],
+            prompt_multimodal=True,
         )
 
     @pytest.mark.skipif(
@@ -2485,6 +2486,7 @@ MUL: "*"
                     ),
                 }
             ],
+            prompt_multimodal=True,
         )
 
     @pytest.mark.skipif(

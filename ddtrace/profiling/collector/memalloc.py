@@ -94,7 +94,7 @@ class MemoryCollector:
             # DEV: This can happen if either _memalloc has not been started or has been stopped.
             LOG.debug("Unable to collect heap events from process %d", os.getpid(), exc_info=True)
 
-    def snapshot_and_parse_pprof(self, output_filename: str) -> Any:
+    def snapshot_and_parse_pprof(self, output_filename: str, assert_samples: bool = True) -> Any:
         """Export samples to profile, upload, and parse the pprof profile.
 
         This is similar to test_snapshot() but exports to the profile and returns
@@ -102,6 +102,7 @@ class MemoryCollector:
 
         Args:
             output_filename: The pprof output filename prefix (without .pid.counter suffix)
+            assert_samples: Whether to assert that the profile contains samples
 
         Returns:
             Parsed pprof profile object (pprof_pb2.Profile)
@@ -123,4 +124,4 @@ class MemoryCollector:
                 "pprof_utils is not available. snapshot_and_parse_pprof() is only available in test environment."
             )
 
-        return pprof_utils.parse_newest_profile(output_filename)
+        return pprof_utils.parse_newest_profile(output_filename, assert_samples=assert_samples)

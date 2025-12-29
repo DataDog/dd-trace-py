@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: This introduces automatic ``source:otel`` tagging for evaluations when OpenTelemetry (OTel) 
+    tracing is enabled when ``DD_TRACE_OTEL_ENABLED=true`` is set. This tag allows the backend to wait for OTel span 
+    conversion before processing evaluations.

@@ -714,6 +714,27 @@ CUSTOM_RULE_METHOD = [
                     "tags": {"category": "attack_attempt", "custom": "1", "type": "custom"},
                     "transformers": [],
                 },
+                {
+                    "conditions": [
+                        {
+                            "operator": "equals",
+                            "parameters": {
+                                "inputs": [
+                                    {"address": "server.business_logic.payment.creation", "key_path": ["id"]},
+                                    {"address": "server.business_logic.payment.cancellation", "key_path": ["id"]},
+                                    {"address": "server.business_logic.payment.failure", "key_path": ["id"]},
+                                    {"address": "server.business_logic.payment.success", "key_path": ["id"]},
+                                ],
+                                "type": "string",
+                                "value": "stripe",
+                            },
+                        }
+                    ],
+                    "id": "stripe",
+                    "name": "required to test payment addresses",
+                    "tags": {"category": "attack_attempt", "custom": "2", "type": "custom"},
+                    "transformers": [],
+                },
             ]
         },
     )
@@ -749,6 +770,10 @@ def test_required_addresses():
         "server.request.path_params",
         "server.request.query",
         "server.response.headers.no_cookies",
+        "server.business_logic.payment.cancellation",
+        "server.business_logic.payment.creation",
+        "server.business_logic.payment.success",
+        "server.business_logic.payment.failure",
         "usr.id",
         "usr.login",
     }

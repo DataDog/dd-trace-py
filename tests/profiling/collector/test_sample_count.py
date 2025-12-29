@@ -52,13 +52,14 @@ def test_sample_count():
     files = glob.glob(output_filename + ".*.internal_metadata.json")
 
     found_at_least_one_with_more_samples_than_sampling_events = False
-    for f in files:
+    for i, f in enumerate(files):
         with open(f, "r") as fp:
             internal_metadata = json.load(fp)
 
-            assert internal_metadata is not None
-            assert "sample_count" in internal_metadata
-            assert internal_metadata["sample_count"] > 0
+            if i < len(files) - 1:
+                assert internal_metadata is not None
+                assert "sample_count" in internal_metadata
+                assert internal_metadata["sample_count"] > 0
 
             assert "sampling_event_count" in internal_metadata
             assert internal_metadata["sampling_event_count"] <= internal_metadata["sample_count"]

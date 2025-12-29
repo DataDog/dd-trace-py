@@ -4,7 +4,6 @@ import pytest
 
 from ddtrace.llmobs._evaluators.base import BaseEvaluator
 from ddtrace.llmobs._evaluators.base import EvaluatorContext
-from ddtrace.llmobs._evaluators.llm_judge import LLMJudge
 
 
 class SimpleEvaluator(BaseEvaluator):
@@ -165,57 +164,6 @@ class TestAsyncEvaluator:
         # Should fall back to sync evaluate
         result = asyncio.run(evaluator.evaluate_async(ctx))
         assert result == {"passed": True, "score": 1.0}
-
-
-class TestLLMJudge:
-    def test_llm_judge_creation(self):
-        judge = LLMJudge(
-            system_prompt="You are a grader.",
-            model_config={"model": "gpt-4o", "temperature": 0.0},
-        )
-        assert judge.system_prompt == "You are a grader."
-        assert judge.model_config["model"] == "gpt-4o"
-        assert judge.model_config["temperature"] == 0.0
-        assert judge.name == "LLMJudge"
-
-    def test_llm_judge_custom_name(self):
-        judge = LLMJudge(
-            system_prompt="You are a grader.",
-            name="quality_judge",
-        )
-        assert judge.name == "quality_judge"
-
-    def test_llm_judge_default_temperature(self):
-        judge = LLMJudge(
-            system_prompt="You are a grader.",
-            model_config={"model": "gpt-4o"},
-        )
-        assert judge.model_config["temperature"] == 0.0
-
-    def test_llm_judge_evaluate(self):
-        """Test basic evaluation (with placeholder LLM)."""
-        judge = LLMJudge(system_prompt="You are a grader.")
-        ctx = EvaluatorContext(
-            input_data={"query": "test"},
-            output_data="response",
-            expected_output="response",
-        )
-        result = judge.evaluate(ctx)
-        assert "score" in result
-        assert isinstance(result["score"], float)
-
-    @pytest.mark.asyncio
-    async def test_llm_judge_evaluate_async(self):
-        """Test async evaluation (with placeholder LLM)."""
-        judge = LLMJudge(system_prompt="You are a grader.")
-        ctx = EvaluatorContext(
-            input_data={"query": "test"},
-            output_data="response",
-            expected_output="response",
-        )
-        result = await judge.evaluate_async(ctx)
-        assert "score" in result
-        assert isinstance(result["score"], float)
 
 
 class TestEvaluatorIntegration:
