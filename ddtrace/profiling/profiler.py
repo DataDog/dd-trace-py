@@ -280,7 +280,7 @@ class _ProfilerInstance(service.Service):
             except Exception:
                 LOG.error("Error while snapshotting collector %r", c, exc_info=True)
 
-    _COPY_IGNORE_ATTRIBUTES = {"status"}
+    _COPY_IGNORE_ATTRIBUTES = {"status", "process_tags"}
 
     def copy(self) -> "_ProfilerInstance":
         return self.__class__(
