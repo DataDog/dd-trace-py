@@ -123,15 +123,19 @@ class ManagedPrompt:
             Tuple of (system_message, messages)
         """
         messages = self.to_messages(**variables)
-        system_message = None
-        filtered_messages = []
+        system_messages: List[str] = []
+        filtered_messages: List[Dict[str, str]] = []
 
         for msg in messages:
             if msg.get("role") == "system":
-                system_message = msg.get("content")
+                content = msg.get("content", "")
+                if content:
+                    system_messages.append(content)
             else:
                 filtered_messages.append(msg)
 
+        # Concatenate multiple system messages with newlines
+        system_message = "\n".join(system_messages) if system_messages else None
         return system_message, filtered_messages
 
     def to_annotation_dict(self) -> Dict[str, Any]:
