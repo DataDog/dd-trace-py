@@ -2,6 +2,7 @@ from collections import OrderedDict
 import json
 import os
 from pathlib import Path
+import tempfile
 from threading import RLock
 from time import time
 from typing import TYPE_CHECKING
@@ -98,7 +99,7 @@ class WarmCache:
         except RuntimeError:
             # Path.home() raises RuntimeError when HOME is unset and user ID
             # is not in passwd (common in containerized environments)
-            return Path("/tmp/datadog/llmobs/prompts")
+            return Path(tempfile.gettempdir()) / "datadog" / "llmobs" / "prompts"
 
     def __init__(
         self,
