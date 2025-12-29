@@ -150,6 +150,7 @@ class PromptManager:
                 self._warm_cache.set(key, cached_prompt)
         except Exception as e:
             log.debug("Background refresh failed for prompt %s: %s", prompt_id, e)
+            telemetry.record_prompt_fetch_error(prompt_id, type(e).__name__)
         finally:
             with self._refresh_lock:
                 self._refresh_in_progress.discard(key)
@@ -197,7 +198,12 @@ class PromptManager:
         TODO: Update path structure when the Prompt Registry API endpoint is created.
         Current placeholder follows Datadog API conventions.
         """
-        return f"{PROMPTS_ENDPOINT}/{prompt_id}?label={label}&ml_app={self._ml_app}"
+        from urllib.parse import quote
+        from urllib.parse import urlencode
+
+        encoded_prompt_id = quote(prompt_id, safe="")
+        query_params = urlencode({"label": label, "ml_app": self._ml_app})
+        return f"{PROMPTS_ENDPOINT}/{encoded_prompt_id}?{query_params}"
 
     def _build_headers(self) -> Dict[str, str]:
         return {
