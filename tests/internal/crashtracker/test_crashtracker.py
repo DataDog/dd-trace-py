@@ -622,7 +622,7 @@ def test_crashtracker_user_tags_core():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess(env={"DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": "True"})
+@pytest.mark.subprocess()
 def test_crashtracker_process_tags():
     # Tests process_tag ingestion in the core API
     import ctypes
@@ -652,6 +652,43 @@ def test_crashtracker_process_tags():
 
         # Verify process_tags are present in crash report
         assert "process_tags".encode() in report["body"]
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="false",
+    )
+)
+def test_crashtracker_process_tags_deactivated():
+    # Tests process_tag ingestion in the core API
+    import ctypes
+    import os
+    import sys
+
+    import tests.internal.crashtracker.utils as utils
+
+    with utils.with_test_agent() as client:
+        pid = os.fork()
+        if pid == 0:
+            ct = utils.CrashtrackerWrapper(base_name="tags_required")
+            assert ct.start()
+            stdout_msg, stderr_msg = ct.logs()
+            assert not stdout_msg
+            assert not stderr_msg
+
+            ctypes.string_at(0)
+            sys.exit(-1)
+
+        # Check for crash ping
+        _ping = utils.get_crash_ping(client)
+
+        # Check for crash report
+        report = utils.get_crash_report(client)
+        assert b"string_at" in report["body"]
+
+        # Verify process_tags are not present in crash report
+        assert "process_tags".encode() not in report["body"]
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
