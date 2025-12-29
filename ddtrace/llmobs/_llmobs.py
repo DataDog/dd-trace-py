@@ -569,6 +569,7 @@ class LLMObs(Service):
         self._llmobs_span_writer = self._llmobs_span_writer.recreate()
         self._llmobs_eval_metric_writer = self._llmobs_eval_metric_writer.recreate()
         self._evaluator_runner = self._evaluator_runner.recreate()
+        LLMObs._prompt_manager = None  # Reset class-level prompt manager to avoid broken locks and stale state after fork
         if self.enabled:
             self._start_service()
 
