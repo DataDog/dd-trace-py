@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import time
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -16,6 +17,11 @@ from typing import Set
 from typing import Tuple
 from typing import Union
 from typing import cast
+
+
+if TYPE_CHECKING:
+    from ddtrace.llmobs._prompts import ManagedPrompt
+    from ddtrace.llmobs._prompts.manager import PromptManager
 
 import ddtrace
 from ddtrace import config
@@ -49,6 +55,10 @@ from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
+from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_MAX_SIZE
+from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
+from ddtrace.llmobs._constants import DEFAULT_PROMPTS_FETCH_TIMEOUT
+from ddtrace.llmobs._constants import DEFAULT_PROMPTS_SYNC_TIMEOUT
 from ddtrace.llmobs._constants import DISPATCH_ON_GUARDRAIL_SPAN_START
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_SPAN_FINISH
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
@@ -1217,7 +1227,7 @@ class LLMObs(Service):
     def annotation_context(
         cls,
         tags: Optional[Dict[str, Any]] = None,
-        prompt: Optional[Union[dict, Prompt]] = None,
+        prompt: Optional[Union[dict, Prompt, "ManagedPrompt"]] = None,
         name: Optional[str] = None,
         _linked_spans: Optional[List[ExportedLLMObsSpan]] = None,
     ) -> AnnotationContext:
@@ -1235,7 +1245,9 @@ class LLMObs(Service):
                             "variables": {"variable_1": "...", ...}}`.
                             "tags": {"key1": "value1", "key2": "value2"},
                         }`
-                        Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
+                        Can also be set using:
+                        - A `ManagedPrompt` object returned by `LLMObs.get_prompt()` (recommended for managed prompts)
+                        - The `ddtrace.llmobs.utils.Prompt` constructor class
                         - This argument is only applicable to LLM spans.
                         - The dictionary may contain optional keys relevant to Templates and RAG applications:
                             `rag_context_variables` - a list of variable key names that contain ground
@@ -1299,6 +1311,113 @@ class LLMObs(Service):
                     cls._instance.tracer.context_provider.activate(None)
 
         return AnnotationContext(register_annotation, deregister_annotation)
+
+    _prompt_manager = None
+
+    @classmethod
+    def get_prompt(
+        cls,
+        prompt_id: str,
+        label: Optional[str] = None,
+        fallback: Optional[Union[str, List[Dict[str, str]]]] = None,
+    ) -> "ManagedPrompt":
+        """
+        Retrieve a prompt template from the Datadog Prompt Registry.
+
+        :param prompt_id: The unique identifier of the prompt in the registry
+        :param label: Deployment label (e.g., "prod", "dev"). Defaults to "latest"
+        :param fallback: Template string or message list to use if prompt cannot be
+                         fetched (cold start + API failure). If None, returns empty prompt.
+
+        :returns: A ManagedPrompt object with template and rendering methods
+
+        Example::
+
+            # Simple usage
+            prompt = LLMObs.get_prompt("greeting")
+            messages = prompt.format(user="Alice")
+
+            # With label and fallback
+            prompt = LLMObs.get_prompt(
+                "greeting",
+                label="prod",
+                fallback="Hello {{user}}, how can I help?"
+            )
+
+            # Use with annotation_context for observability
+            prompt = LLMObs.get_prompt("greeting")
+            with LLMObs.annotation_context(prompt=prompt):
+                openai.chat.completions.create(
+                    messages=prompt.to_messages(user="Alice")
+                )
+        """
+        if cls._prompt_manager is None:
+            cls._prompt_manager = cls._initialize_prompt_manager()
+
+        if cls._prompt_manager is None:
+            log.warning("Prompt manager not initialized. Returning fallback prompt.")
+            return cls._create_fallback_prompt(prompt_id, label, fallback)
+
+        return cls._prompt_manager.get_prompt(prompt_id, label, fallback)
+
+    @classmethod
+    def _initialize_prompt_manager(cls) -> Optional["PromptManager"]:
+        """Initialize the prompt manager with configuration."""
+        from ddtrace.llmobs._prompts.manager import PromptManager
+
+        api_key = config._dd_api_key
+        site = config._dd_site or "datadoghq.com"
+        ml_app = config._llmobs_ml_app
+
+        if not api_key:
+            log.warning("DD_API_KEY not set. Prompt registry will not be available.")
+            return None
+
+        if not ml_app:
+            log.warning("DD_LLMOBS_ML_APP not set. Prompt registry will not be available.")
+            return None
+
+        cache_ttl = float(os.getenv("DD_LLMOBS_PROMPTS_CACHE_TTL", str(DEFAULT_PROMPTS_CACHE_TTL)))
+        cache_max_size = int(os.getenv("DD_LLMOBS_PROMPTS_CACHE_MAX_SIZE", str(DEFAULT_PROMPTS_CACHE_MAX_SIZE)))
+        file_cache_enabled = asbool(os.getenv("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", "true"))
+        cache_dir = os.getenv("DD_LLMOBS_PROMPTS_CACHE_DIR")
+        sync_timeout = float(os.getenv("DD_LLMOBS_PROMPTS_SYNC_TIMEOUT", str(DEFAULT_PROMPTS_SYNC_TIMEOUT)))
+        fetch_timeout = float(os.getenv("DD_LLMOBS_PROMPTS_FETCH_TIMEOUT", str(DEFAULT_PROMPTS_FETCH_TIMEOUT)))
+
+        return PromptManager(
+            api_key=api_key,
+            site=site,
+            ml_app=ml_app,
+            cache_ttl=cache_ttl,
+            cache_max_size=cache_max_size,
+            file_cache_enabled=file_cache_enabled,
+            cache_dir=cache_dir,
+            sync_timeout=sync_timeout,
+            fetch_timeout=fetch_timeout,
+        )
+
+    @classmethod
+    def _create_fallback_prompt(
+        cls,
+        prompt_id: str,
+        label: Optional[str],
+        fallback: Optional[Union[str, List[Dict[str, str]]]],
+    ) -> "ManagedPrompt":
+        """Create a fallback prompt when manager is not available."""
+        from ddtrace.llmobs._prompts import ManagedPrompt
+
+        template = fallback if fallback is not None else ""
+        template_type = "text" if isinstance(template, str) else "chat"
+
+        return ManagedPrompt(
+            prompt_id=prompt_id,
+            version="fallback",
+            label=label or "latest",
+            source="fallback",
+            template=template,
+            template_type=template_type,
+            variables=[],
+        )
 
     @classmethod
     def flush(cls) -> None:
