@@ -90,7 +90,15 @@ class WarmCache:
     Can be disabled via environment variable or constructor.
     """
 
-    DEFAULT_CACHE_DIR = Path.home() / ".cache" / "datadog" / "llmobs" / "prompts"
+    @staticmethod
+    def _get_default_cache_dir() -> Path:
+        """Get the default cache directory, with fallback for environments without HOME."""
+        try:
+            return Path.home() / ".cache" / "datadog" / "llmobs" / "prompts"
+        except RuntimeError:
+            # Path.home() raises RuntimeError when HOME is unset and user ID
+            # is not in passwd (common in containerized environments)
+            return Path("/tmp/datadog/llmobs/prompts")
 
     def __init__(
         self,
@@ -98,7 +106,7 @@ class WarmCache:
         enabled: bool = True,
     ) -> None:
         if cache_dir is None:
-            self._cache_dir = self.DEFAULT_CACHE_DIR
+            self._cache_dir = self._get_default_cache_dir()
         elif isinstance(cache_dir, str):
             self._cache_dir = Path(cache_dir).expanduser()
         else:
