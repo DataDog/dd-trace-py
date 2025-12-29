@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    LLM Observability: This introduces ``LLMObs.get_prompt()`` to retrieve managed prompts from Datadog's Prompt Registry.
+    The method returns a ``ManagedPrompt`` object with a ``format()`` method for variable substitution.
+    Use with ``annotation_context`` to correlate prompts with LLM spans::
+
+        prompt = LLMObs.get_prompt("greeting", label="prod", fallback="Hello {{user}}!")
+        with LLMObs.annotation_context(prompt=prompt):
+            openai.chat.completions.create(messages=prompt.format(user="Alice"))
