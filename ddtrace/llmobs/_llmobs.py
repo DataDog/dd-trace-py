@@ -569,6 +569,7 @@ class LLMObs(Service):
         self._llmobs_eval_metric_writer = self._llmobs_eval_metric_writer.recreate()
         self._evaluator_runner = self._evaluator_runner.recreate()
         LLMObs._prompt_manager = None
+        LLMObs._prompt_manager_initialized = False
         if self.enabled:
             self._start_service()
 
@@ -1149,6 +1150,7 @@ class LLMObs(Service):
         return AnnotationContext(register_annotation, deregister_annotation)
 
     _prompt_manager = None
+    _prompt_manager_initialized = False
     _prompt_manager_lock = forksafe.Lock()
 
     @classmethod
@@ -1189,13 +1191,13 @@ class LLMObs(Service):
                 )
         """
         # Double-checked locking for thread-safe initialization
-        if cls._prompt_manager is None:
+        if not cls._prompt_manager_initialized:
             with cls._prompt_manager_lock:
-                if cls._prompt_manager is None:
+                if not cls._prompt_manager_initialized:
                     cls._prompt_manager = cls._initialize_prompt_manager()
+                    cls._prompt_manager_initialized = True
 
         if cls._prompt_manager is None:
-            log.warning("Prompt manager not initialized. Returning fallback prompt.")
             return cls._create_fallback_prompt(prompt_id, label, fallback)
 
         return cls._prompt_manager.get_prompt(prompt_id, label, fallback)
