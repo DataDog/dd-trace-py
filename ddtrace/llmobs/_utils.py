@@ -2,6 +2,7 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
 from typing import List
@@ -11,6 +12,10 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace import config
+
+
+if TYPE_CHECKING:
+    from ddtrace.llmobs._prompts.prompt import ManagedPrompt
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
@@ -48,7 +53,14 @@ STANDARD_INTEGRATION_SPAN_NAMES = (
 )
 
 
-def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: bool) -> ValidatedPromptDict:
+def _validate_prompt(
+    prompt: Union[Dict[str, Any], Prompt, "ManagedPrompt"], strict_validation: bool
+) -> ValidatedPromptDict:
+    from ddtrace.llmobs._prompts.prompt import ManagedPrompt
+
+    if isinstance(prompt, ManagedPrompt):
+        prompt = prompt.to_annotation_dict()
+
     if not isinstance(prompt, dict):
         raise TypeError(f"Prompt must be a dictionary, received {type(prompt).__name__}.")
 
