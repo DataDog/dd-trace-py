@@ -157,6 +157,7 @@ DEFAULT_PROMPTS_CACHE_TTL = 60  # seconds before stale
 DEFAULT_PROMPTS_CACHE_MAX_SIZE = 500  # max prompts in memory
 DEFAULT_PROMPTS_FETCH_TIMEOUT = 5.0  # seconds for background fetch
 DEFAULT_PROMPTS_SYNC_TIMEOUT = 3.0  # seconds for first-call sync fetch
+DEFAULT_PROMPTS_LABEL = "prod"  # default label when not specified
 
 # Prompt Registry API
 PROMPTS_ENDPOINT = "/api/v1/llmobs/prompts"

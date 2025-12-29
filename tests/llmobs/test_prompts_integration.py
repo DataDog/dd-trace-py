@@ -80,6 +80,10 @@ class MockConnection:
             response.read.return_value = b"Not Found"
         return response
 
+    def close(self):
+        """Close the connection (no-op for mock)."""
+        pass
+
 
 class TestPromptLifecycle:
     """

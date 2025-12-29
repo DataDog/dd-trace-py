@@ -9,6 +9,7 @@ from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_MAX_SIZE
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_FETCH_TIMEOUT
+from ddtrace.llmobs._constants import DEFAULT_PROMPTS_LABEL
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_SYNC_TIMEOUT
 from ddtrace.llmobs._constants import PROMPTS_ENDPOINT
 from ddtrace.llmobs._constants import PROMPTS_SUBDOMAIN
@@ -75,7 +76,7 @@ class PromptManager:
         - L2 hit: return, populate L1
         - All miss: sync fetch with timeout, then fallback
         """
-        label = label or "prod"
+        label = label or DEFAULT_PROMPTS_LABEL
         key = self._cache_key(prompt_id, label)
 
         # Try L1 cache (hot cache)
@@ -155,12 +156,14 @@ class PromptManager:
 
     def _fetch_from_registry(self, prompt_id: str, label: str, timeout: float) -> Optional[ManagedPrompt]:
         """Fetch a prompt from the Datadog Prompt Registry."""
+        conn = None
         try:
-            url = self._build_url(prompt_id, label)
+            intake_url = self._get_intake_url()
+            path = self._build_path(prompt_id, label)
             headers = self._build_headers()
 
-            conn = get_connection(url, timeout=timeout)
-            conn.request("GET", url, headers=headers)
+            conn = get_connection(intake_url, timeout=timeout)
+            conn.request("GET", path, headers=headers)
             response = conn.getresponse()
             body = response.read().decode("utf-8")
 
@@ -180,16 +183,21 @@ class PromptManager:
         except Exception as e:
             log.debug("Error fetching prompt %s: %s", prompt_id, e)
             raise
+        finally:
+            if conn is not None:
+                conn.close()
 
-    def _build_url(self, prompt_id: str, label: str) -> str:
-        """Build the API URL for fetching a prompt.
+    def _get_intake_url(self) -> str:
+        """Get the base intake URL for the Prompt Registry."""
+        return f"https://{PROMPTS_SUBDOMAIN}.{self._site}"
 
-        TODO: Update URL structure when the Prompt Registry API endpoint is created.
+    def _build_path(self, prompt_id: str, label: str) -> str:
+        """Build the request path for fetching a prompt.
+
+        TODO: Update path structure when the Prompt Registry API endpoint is created.
         Current placeholder follows Datadog API conventions.
         """
-        base = f"https://{PROMPTS_SUBDOMAIN}.{self._site}"
-        params = f"?label={label}&ml_app={self._ml_app}"
-        return f"{base}{PROMPTS_ENDPOINT}/{prompt_id}{params}"
+        return f"{PROMPTS_ENDPOINT}/{prompt_id}?label={label}&ml_app={self._ml_app}"
 
     def _build_headers(self) -> Dict[str, str]:
         return {
