@@ -72,6 +72,13 @@ bool
 Datadog::Uploader::upload()
 {
     if (!output_filename.empty()) {
+        // Do not write empty profiles to disk. This helps avoiding flaky tests that
+        // expect Profiles to have certain data (that they do not always have in the
+        // "last Profile before process exit" case).
+        if (profiler_stats.get_sample_count() == 0) {
+            return true;
+        }
+
         return export_to_file(encoded_profile, profiler_stats.get_internal_metadata_json());
     }
 
