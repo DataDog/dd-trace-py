@@ -59,6 +59,7 @@ from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_MAX_SIZE
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_FETCH_TIMEOUT
+from ddtrace.llmobs._constants import DEFAULT_PROMPTS_LABEL
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_SYNC_TIMEOUT
 from ddtrace.llmobs._constants import DISPATCH_ON_GUARDRAIL_SPAN_START
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_SPAN_FINISH
@@ -1466,7 +1467,7 @@ class LLMObs(Service):
         return ManagedPrompt(
             prompt_id=prompt_id,
             version="fallback",
-            label=label or "latest",
+            label=label or DEFAULT_PROMPTS_LABEL,
             source="fallback",
             template=template,
             template_type=template_type,
