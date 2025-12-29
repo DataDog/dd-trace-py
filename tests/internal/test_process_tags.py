@@ -10,7 +10,6 @@ from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_TAG
 from ddtrace.internal.process_tags import ENTRYPOINT_WORKDIR_TAG
 from ddtrace.internal.process_tags import _compute_process_tag
 from ddtrace.internal.process_tags import normalize_tag_value
-from ddtrace.internal.settings.process_tags import process_tags_config as config
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import process_tag_reload
@@ -86,28 +85,39 @@ def test_compute_process_tag_excluded_values(excluded_value):
 class TestProcessTags(TracerTestCase):
     def setUp(self):
         super(TestProcessTags, self).setUp()
-        self._original_process_tags_enabled = config.enabled
         self._original_process_tags = process_tags.process_tags
         self._original_process_tags_list = process_tags.process_tags_list
 
     def tearDown(self):
-        config.enabled = self._original_process_tags_enabled
         process_tags.process_tags = self._original_process_tags
         process_tags.process_tags_list = self._original_process_tags_list
         super().tearDown()
 
     @pytest.mark.snapshot
+    @run_in_subprocess(env_overrides=dict(DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="False"))
     def test_process_tags_deactivated(self):
-        config.enabled = False  # type: ignore[assignment]
-        process_tag_reload()
-
         with self.tracer.trace("test"):
             pass
+
+    @run_in_subprocess
+    def test_process_tags_enabled_by_default(self):
+        with self.tracer.trace("test"):
+            pass
+
+        span = self.get_spans()[0]
+
+        assert span is not None
+        assert PROCESS_TAGS in span._meta
+
+        process_tags = span._meta[PROCESS_TAGS]
+        assert ENTRYPOINT_BASEDIR_TAG in process_tags
+        assert ENTRYPOINT_NAME_TAG in process_tags
+        assert ENTRYPOINT_TYPE_TAG in process_tags
+        assert ENTRYPOINT_WORKDIR_TAG in process_tags
 
     @pytest.mark.snapshot
     def test_process_tags_activated(self):
         with patch("sys.argv", [TEST_SCRIPT_PATH]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
-            config.enabled = True  # type: ignore[assignment]
             process_tag_reload()
 
             with self.tracer.trace("parent"):
@@ -117,7 +127,6 @@ class TestProcessTags(TracerTestCase):
     @pytest.mark.snapshot
     def test_process_tags_edge_case(self):
         with patch("sys.argv", ["/test_script"]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
-            config.enabled = True  # type: ignore[assignment]
             process_tag_reload()
 
             with self.tracer.trace("span"):
@@ -126,8 +135,6 @@ class TestProcessTags(TracerTestCase):
     @pytest.mark.snapshot
     def test_process_tags_error(self):
         with patch("sys.argv", []), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
-            config.enabled = True  # type: ignore[assignment]
-
             with self.override_global_config(dict(_telemetry_enabled=False)):
                 with patch("ddtrace.internal.process_tags.log") as mock_log:
                     process_tag_reload()
@@ -154,28 +161,10 @@ class TestProcessTags(TracerTestCase):
     @run_in_subprocess(env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="2"))
     def test_process_tags_partial_flush(self):
         with patch("sys.argv", [TEST_SCRIPT_PATH]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
-            config.enabled = True  # type: ignore[assignment]
             process_tag_reload()
 
-            with self.override_global_config(dict(_partial_flush_enabled=True, _partial_flush_min_spans=2)):
-                with self.tracer.trace("parent"):
-                    with self.tracer.trace("child1"):
-                        pass
-                    with self.tracer.trace("child2"):
-                        pass
-
-    @run_in_subprocess(env_overrides=dict(DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="True"))
-    def test_process_tags_activated_with_env(self):
-        with self.tracer.trace("test"):
-            pass
-
-        span = self.get_spans()[0]
-
-        assert span is not None
-        assert PROCESS_TAGS in span._meta
-
-        process_tags = span._meta[PROCESS_TAGS]
-        assert ENTRYPOINT_BASEDIR_TAG in process_tags
-        assert ENTRYPOINT_NAME_TAG in process_tags
-        assert ENTRYPOINT_TYPE_TAG in process_tags
-        assert ENTRYPOINT_WORKDIR_TAG in process_tags
+            with self.tracer.trace("parent"):
+                with self.tracer.trace("child1"):
+                    pass
+                with self.tracer.trace("child2"):
+                    pass

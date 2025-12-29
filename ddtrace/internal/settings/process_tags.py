@@ -7,7 +7,7 @@ class ProcessTagsConfig(DDConfig):
     enabled = DDConfig.v(
         bool,
         "experimental.propagate.process.tags.enabled",
-        default=False,
+        default=True,
         help="Enables process tags in products payload",
     )
 
