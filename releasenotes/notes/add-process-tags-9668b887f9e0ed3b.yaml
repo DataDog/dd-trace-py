@@ -1,0 +1,17 @@
+features:
+  - |
+    tracing: Adds process tags to APM payload (enabled by default)
+  - |
+    DSM: Adds process tags to DSM payload (enabled by default)
+  - |
+    profiling: Adds process tags to profiling payload (enabled by default)
+  - |
+    crashtracker: Adds process tags to crashtracker payload (enabled by default)
+  - |
+    runtime metrics: Adds process tags to runtime metrics payload (enabled by default)
+  - |
+    dynamic instrumentation: Adds process tags to dynamic instrumentation (enabled
+    by default)
+  - |
+    remote configuration: Adds process tags to remote configuration (enabled by
+    default)
