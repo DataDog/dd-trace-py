@@ -237,6 +237,7 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
 
         return None
 
+    # Auto commit is enabled so we want to wait for the commit event to fire
     first_offset = _wait_for_auto_commit()
     if first_offset is not None:
         assert (
