@@ -173,7 +173,6 @@ def _serialize_prompt(prompt: "ManagedPrompt") -> Dict[str, Any]:
         "label": prompt.label,
         "source": prompt.source,
         "template": prompt.template,
-        "template_type": prompt.template_type,
         "variables": prompt.variables,
     }
 
@@ -188,6 +187,5 @@ def _deserialize_prompt(data: Dict[str, Any]) -> "ManagedPrompt":
         label=data["label"],
         source="cache",
         template=data["template"],
-        template_type=data["template_type"],
         variables=data.get("variables", []),
     )
