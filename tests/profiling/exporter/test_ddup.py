@@ -86,6 +86,24 @@ def test_tags_propagated():
         assert tags[k] == v
 
 
+@pytest.mark.subprocess(env=dict(DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="True"))
+def test_process_tags_propagated():
+    import sys
+    from unittest.mock import Mock
+
+    sys.modules["ddtrace.internal.datadog.profiling.ddup"] = Mock()
+
+    from ddtrace.profiling.profiler import Profiler  # noqa: I001
+    from ddtrace.internal.datadog.profiling import ddup
+
+    # When Profiler is instantiated and libdd is enabled, it should call ddup.config
+    Profiler()
+
+    ddup.config.assert_called()
+
+    assert "process_tags" in ddup.config.call_args.kwargs
+
+
 @pytest.mark.skipif(not ddup.is_available, reason="ddup not available")
 def test_push_span_without_span_id():
     """
