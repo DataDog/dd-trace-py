@@ -1,6 +1,7 @@
 import threading
 from typing import Dict
 from typing import List
+from typing import Literal
 from typing import Optional
 from typing import Union
 
@@ -82,25 +83,25 @@ class PromptManager:
         # Try L1 cache (hot cache)
         result = self._hot_cache.get(key)
         if result is not None:
-            prompt, is_stale = result
+            cached_prompt, is_stale = result
             if is_stale:
                 self._trigger_background_refresh(key, prompt_id, label)
             telemetry.record_prompt_source("l1_cache", prompt_id)
-            return prompt
+            return cached_prompt
 
         # Try L2 cache (warm cache)
-        prompt = self._warm_cache.get(key)
-        if prompt is not None:
-            self._hot_cache.set(key, prompt)
+        warm_prompt = self._warm_cache.get(key)
+        if warm_prompt is not None:
+            self._hot_cache.set(key, warm_prompt)
             self._trigger_background_refresh(key, prompt_id, label)
             telemetry.record_prompt_source("l2_cache", prompt_id)
-            return prompt
+            return warm_prompt
 
         # Try sync fetch from registry
-        prompt = self._sync_fetch(prompt_id, label, key)
-        if prompt is not None:
+        fetched_prompt = self._sync_fetch(prompt_id, label, key)
+        if fetched_prompt is not None:
             telemetry.record_prompt_source("registry", prompt_id)
-            return prompt
+            return fetched_prompt
 
         # Fall back to user-provided or empty prompt
         telemetry.record_prompt_source("fallback", prompt_id)
@@ -218,7 +219,7 @@ class PromptManager:
         try:
             data = json.loads(body)
             template = data.get("template") or data.get("chat_template", [])
-            template_type = "text" if isinstance(template, str) else "chat"
+            template_type: Literal["text", "chat"] = "text" if isinstance(template, str) else "chat"
 
             return ManagedPrompt(
                 prompt_id=data.get("prompt_id", prompt_id),
@@ -240,6 +241,7 @@ class PromptManager:
         fallback: Optional[Union[str, List[Dict[str, str]]]] = None,
     ) -> ManagedPrompt:
         """Create a fallback prompt when fetch fails."""
+        template_type: Literal["text", "chat"]
         if fallback is not None:
             log.warning("Using user-provided fallback for prompt %s (label=%s)", prompt_id, label)
             template = fallback
