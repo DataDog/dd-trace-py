@@ -1325,7 +1325,7 @@ class LLMObs(Service):
         Retrieve a prompt template from the Datadog Prompt Registry.
 
         :param prompt_id: The unique identifier of the prompt in the registry
-        :param label: Deployment label (e.g., "prod", "dev"). Defaults to "latest"
+        :param label: Deployment label (e.g., "prod", "dev"). Defaults to "prod"
         :param fallback: Template string or message list to use if prompt cannot be
                          fetched (cold start + API failure). If None, returns empty prompt.
 
