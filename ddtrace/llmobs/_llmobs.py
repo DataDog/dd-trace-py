@@ -150,6 +150,30 @@ from ddtrace.version import __version__
 log = get_logger(__name__)
 
 
+def _safe_float_env(name: str, default: float) -> float:
+    """Safely parse a float from an environment variable, returning default on error."""
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        log.warning("Invalid value for %s: %r, using default %s", name, value, default)
+        return default
+
+
+def _safe_int_env(name: str, default: int) -> int:
+    """Safely parse an int from an environment variable, returning default on error."""
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        log.warning("Invalid value for %s: %r, using default %s", name, value, default)
+        return default
+
+
 SUPPORTED_LLMOBS_INTEGRATIONS = {
     "anthropic": "anthropic",
     "bedrock": "botocore",
@@ -1390,12 +1414,12 @@ class LLMObs(Service):
             log.warning("DD_LLMOBS_ML_APP not set. Prompt registry will not be available.")
             return None
 
-        cache_ttl = float(os.getenv("DD_LLMOBS_PROMPTS_CACHE_TTL", str(DEFAULT_PROMPTS_CACHE_TTL)))
-        cache_max_size = int(os.getenv("DD_LLMOBS_PROMPTS_CACHE_MAX_SIZE", str(DEFAULT_PROMPTS_CACHE_MAX_SIZE)))
+        cache_ttl = _safe_float_env("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL)
+        cache_max_size = _safe_int_env("DD_LLMOBS_PROMPTS_CACHE_MAX_SIZE", DEFAULT_PROMPTS_CACHE_MAX_SIZE)
         file_cache_enabled = asbool(os.getenv("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", "true"))
         cache_dir = os.getenv("DD_LLMOBS_PROMPTS_CACHE_DIR")
-        sync_timeout = float(os.getenv("DD_LLMOBS_PROMPTS_SYNC_TIMEOUT", str(DEFAULT_PROMPTS_SYNC_TIMEOUT)))
-        fetch_timeout = float(os.getenv("DD_LLMOBS_PROMPTS_FETCH_TIMEOUT", str(DEFAULT_PROMPTS_FETCH_TIMEOUT)))
+        sync_timeout = _safe_float_env("DD_LLMOBS_PROMPTS_SYNC_TIMEOUT", DEFAULT_PROMPTS_SYNC_TIMEOUT)
+        fetch_timeout = _safe_float_env("DD_LLMOBS_PROMPTS_FETCH_TIMEOUT", DEFAULT_PROMPTS_FETCH_TIMEOUT)
 
         return PromptManager(
             api_key=api_key,

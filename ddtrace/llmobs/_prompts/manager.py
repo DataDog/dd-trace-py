@@ -137,7 +137,14 @@ class PromptManager:
             args=(key, prompt_id, label),
             daemon=True,
         )
-        thread.start()
+        try:
+            thread.start()
+        except RuntimeError:
+            # Thread creation can fail in resource-constrained environments.
+            # Remove the key so future refresh attempts can retry.
+            with self._refresh_lock:
+                self._refresh_in_progress.discard(key)
+            log.debug("Failed to start background refresh thread for prompt %s", prompt_id)
 
     def _background_refresh(self, key: str, prompt_id: str, label: str) -> None:
         """Refresh a prompt in the background."""
