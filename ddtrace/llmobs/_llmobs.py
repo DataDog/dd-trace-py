@@ -1467,7 +1467,7 @@ class LLMObs(Service):
         from ddtrace.llmobs._prompts import ManagedPrompt
 
         template = fallback if fallback is not None else ""
-        template_type = "text" if isinstance(template, str) else "chat"
+        template_type: Literal["text", "chat"] = "text" if isinstance(template, str) else "chat"
 
         return ManagedPrompt(
             prompt_id=prompt_id,

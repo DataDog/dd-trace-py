@@ -20,15 +20,14 @@ class ManagedPrompt:
         - Convenience methods (to_messages, to_anthropic)
     """
 
-    __slots__ = (
-        "_id",
-        "_version",
-        "_label",
-        "_source",
-        "_template",
-        "_template_type",
-        "_variables",
-    )
+    # Private attributes (type hints for mypy)
+    _id: str
+    _version: str
+    _label: str
+    _source: Literal["registry", "cache", "fallback"]
+    _template: Union[str, List[Dict[str, str]]]
+    _template_type: Literal["text", "chat"]
+    _variables: List[str]
 
     def __init__(
         self,
@@ -40,6 +39,7 @@ class ManagedPrompt:
         template_type: Literal["text", "chat"],
         variables: Optional[List[str]] = None,
     ) -> None:
+        # Use object.__setattr__ to bypass our immutability guard
         object.__setattr__(self, "_id", prompt_id)
         object.__setattr__(self, "_version", version)
         object.__setattr__(self, "_label", label)
@@ -97,10 +97,10 @@ class ManagedPrompt:
         Returns:
             str (for text templates) or List[Dict[str, str]] (for chat templates)
         """
-        if self._template_type == "text":
-            return self._render_text(str(self._template), variables)
+        if isinstance(self._template, str):
+            return self._render_text(self._template, variables)
         else:
-            return self._render_chat(list(self._template), variables)
+            return self._render_chat(self._template, variables)
 
     def to_messages(self, **variables: str) -> List[Dict[str, str]]:
         """
@@ -109,11 +109,11 @@ class ManagedPrompt:
         For text templates, wraps in a single user message.
         For chat templates, returns the rendered message list.
         """
-        if self._template_type == "text":
-            rendered = self._render_text(str(self._template), variables)
+        if isinstance(self._template, str):
+            rendered = self._render_text(self._template, variables)
             return [{"role": "user", "content": rendered}]
         else:
-            return self._render_chat(list(self._template), variables)
+            return self._render_chat(self._template, variables)
 
     def to_anthropic(self, **variables: str) -> Tuple[Optional[str], List[Dict[str, str]]]:
         """
