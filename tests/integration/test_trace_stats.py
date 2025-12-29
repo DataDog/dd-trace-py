@@ -10,8 +10,8 @@ from ddtrace.ext import http
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import skip_if_native_writer
+from tests.utils import DummyTracer
 from tests.utils import override_global_config
-from tests.utils import scoped_tracer
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -19,8 +19,10 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
 
 @pytest.fixture
 def stats_tracer():
-    with scoped_tracer(use_dummy_writer=False, compute_stats_enabled=True) as tracer:
+    with override_global_config(dict(_trace_compute_stats=True)):
+        tracer = DummyTracer()
         yield tracer
+        tracer.shutdown()
 
 
 class consistent_end_trace(object):
@@ -48,8 +50,7 @@ def send_once_stats_tracer(stats_tracer):
     This is a variation on the tracer that has the SpanStatsProcessor disabled until we leave the tracer context.
     """
 
-    original_trace = stats_tracer.trace
-    stats_tracer.trace = functools.partial(consistent_end_trace, original_trace)
+    stats_tracer.trace = functools.partial(consistent_end_trace, stats_tracer.trace)
 
     # Stop the stats processor while running the function, to prevent flushing
     stats_processor = None
@@ -63,7 +64,6 @@ def send_once_stats_tracer(stats_tracer):
     # Restart the stats processor; it will be flushed during shutdown
     if stats_processor:
         stats_processor.start()
-    stats_tracer.trace = original_trace
 
 
 @skip_if_native_writer

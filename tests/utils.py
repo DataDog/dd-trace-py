@@ -756,7 +756,7 @@ class DummyTracer(Tracer):
     def __init__(self, *args, **kwargs):
         super(DummyTracer, self).__init__()
         # Ensure DummyTracer is always initialized with a DummyWriter
-        self._span_aggregator.writer = DummyWriter()
+        self._span_aggregator.writer = DummyWriter(trace_flush_enabled=check_test_agent_status())
 
     @property
     def agent_url(self):
