@@ -1230,6 +1230,7 @@ class LLMObs(Service):
         cls,
         tags: Optional[Dict[str, Any]] = None,
         prompt: Optional[Union[dict, Prompt, "ManagedPrompt"]] = None,
+        prompt_variables: Optional[Dict[str, Any]] = None,
         name: Optional[str] = None,
         _linked_spans: Optional[List[ExportedLLMObsSpan]] = None,
     ) -> AnnotationContext:
@@ -1256,6 +1257,10 @@ class LLMObs(Service):
                                                         truth context information
                             `rag_query_variables` - a list of variable key names that contains query
                                                         information for an LLM call
+        :param prompt_variables: Dictionary of variable names to values used when rendering the prompt template.
+                                 When using a `ManagedPrompt`, pass the same variables here that you pass to
+                                 `prompt.format()` to ensure they are captured for observability.
+                                 Example: `prompt_variables={"user": "Alice", "topic": "weather"}`
         :param name: Set to override the span name for any spans annotated within the returned context.
         """
         # id to track an annotation for registering / de-registering
@@ -1289,7 +1294,7 @@ class LLMObs(Service):
                     (
                         annotation_id,
                         ctx_id,
-                        {"tags": tags, "prompt": prompt, "_name": name, "_linked_spans": _linked_spans},
+                        {"tags": tags, "prompt": prompt, "prompt_variables": prompt_variables, "_name": name, "_linked_spans": _linked_spans},
                     )
                 )
 
@@ -1412,8 +1417,7 @@ class LLMObs(Service):
         """Create a fallback prompt when manager is not available."""
         from ddtrace.llmobs._prompts import ManagedPrompt
 
-        template = fallback if fallback is not None else ""
-        template_type: Literal["text", "chat"] = "text" if isinstance(template, str) else "chat"
+        template: Union[str, List[Dict[str, str]]] = fallback if fallback is not None else ""
 
         return ManagedPrompt(
             prompt_id=prompt_id,
@@ -1421,7 +1425,6 @@ class LLMObs(Service):
             label=label or DEFAULT_PROMPTS_LABEL,
             source="fallback",
             template=template,
-            template_type=template_type,
             variables=[],
         )
 
@@ -1857,6 +1860,7 @@ class LLMObs(Service):
         cls,
         span: Optional[Span] = None,
         prompt: Optional[dict] = None,
+        prompt_variables: Optional[Dict[str, Any]] = None,
         input_data: Optional[Any] = None,
         output_data: Optional[Any] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -1889,6 +1893,10 @@ class LLMObs(Service):
                                                         truth context information
                             `rag_query_variables` - a list of variable key names that contains query
                                                         information for an LLM call
+        :param prompt_variables: Dictionary of variable names to values used when rendering the prompt template.
+                                 When using a `ManagedPrompt`, pass the same variables here that you pass to
+                                 `prompt.format()` to ensure they are captured for observability.
+                                 Example: `prompt_variables={"user": "Alice", "topic": "weather"}`
         :param input_data: A single input string, dictionary, or a list of dictionaries based on the span kind:
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "...",
                                         "tool_calls": ..., "tool_results": ...}, where "tool_calls" are an optional
@@ -1964,7 +1972,9 @@ class LLMObs(Service):
                 span.name = _name
             if prompt is not None:
                 try:
-                    validated_prompt = _validate_prompt(prompt, strict_validation=False)
+                    validated_prompt = _validate_prompt(
+                        prompt, strict_validation=False, prompt_variables=prompt_variables
+                    )
                     cls._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
                     cls._set_dict_attribute(
                         span, TAGS, {PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_ANNOTATED}

@@ -183,7 +183,6 @@ class TestAnnotationContextIntegration:
                     label="prod",
                     source="registry",
                     template="Hello {{user}}!",
-                    template_type="text",
                     variables=["user"],
                 )
 
@@ -216,7 +215,6 @@ class TestAnnotationContextIntegration:
                         {"role": "system", "content": "You are {{persona}}."},
                         {"role": "user", "content": "{{question}}"},
                     ],
-                    template_type="chat",
                     variables=["persona", "question"],
                 )
 
@@ -226,6 +224,66 @@ class TestAnnotationContextIntegration:
                         assert prompt_data is not None
                         assert prompt_data["id"] == "chat-assistant"
                         assert "chat_template" in prompt_data
+            finally:
+                LLMObs.disable()
+
+    def test_annotation_context_with_prompt_variables(self):
+        """Test that prompt_variables are captured in span metadata.
+
+        This is the recommended pattern for managed prompts:
+        - Pass the ManagedPrompt object as `prompt`
+        - Pass the same variables used in format() as `prompt_variables`
+        """
+        with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="test-app")):
+            dummy_tracer = DummyTracer()
+            LLMObs.enable(_tracer=dummy_tracer, agentless_enabled=False)
+
+            try:
+                prompt = ManagedPrompt(
+                    prompt_id="greeting",
+                    version="abc123",
+                    label="prod",
+                    source="registry",
+                    template="Hello {{user}}, welcome to {{city}}!",
+                    variables=["user", "city"],
+                )
+
+                # The pattern: pass same variables to format() and prompt_variables
+                template_vars = {"user": "Alice", "city": "Paris"}
+
+                with LLMObs.annotation_context(prompt=prompt, prompt_variables=template_vars):
+                    with LLMObs.llm(model_name="test-model", name="test-llm") as span:
+                        prompt_data = span._get_ctx_item(INPUT_PROMPT)
+                        assert prompt_data is not None
+                        assert prompt_data["id"] == "greeting"
+                        # Verify variables are captured
+                        assert prompt_data["variables"] == {"user": "Alice", "city": "Paris"}
+            finally:
+                LLMObs.disable()
+
+    def test_prompt_variables_override_existing(self):
+        """Test that prompt_variables override any variables in the dict prompt."""
+        with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="test-app")):
+            dummy_tracer = DummyTracer()
+            LLMObs.enable(_tracer=dummy_tracer, agentless_enabled=False)
+
+            try:
+                # Dict prompt with some variables already set
+                prompt_dict = {
+                    "id": "greeting",
+                    "version": "1.0",
+                    "template": "Hello {{user}}!",
+                    "variables": {"user": "Bob", "extra": "value"},
+                }
+
+                # prompt_variables should override "user" but keep "extra"
+                with LLMObs.annotation_context(prompt=prompt_dict, prompt_variables={"user": "Alice"}):
+                    with LLMObs.llm(model_name="test-model", name="test-llm") as span:
+                        prompt_data = span._get_ctx_item(INPUT_PROMPT)
+                        assert prompt_data is not None
+                        # "user" should be overridden, "extra" should be preserved
+                        assert prompt_data["variables"]["user"] == "Alice"
+                        assert prompt_data["variables"]["extra"] == "value"
             finally:
                 LLMObs.disable()
 
