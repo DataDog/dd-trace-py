@@ -107,7 +107,7 @@ class DogStatsd(object):
     def __init__(
         self,
         host=_DEFAULT_HOST,                     # type: Text
-        port=_DEFAULT_PORT,                     # type: int
+        port=_DEFAULT_PORT,                     # type: Union[str, int]
         max_buffer_size=None,                   # type: None
         flush_interval=DEFAULT_FLUSH_INTERVAL,  # type: float
         disable_buffering=True,                 # type: bool
@@ -315,6 +315,7 @@ class DogStatsd(object):
                     )
             else:
                 port = DEFAULT_PORT
+        port = int(port)
 
         # Assuming environment variables always override
         telemetry_host = os.environ.get("DD_TELEMETRY_HOST", telemetry_host)
