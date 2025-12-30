@@ -78,6 +78,9 @@ def _assert_response(mock_send_request, expected_response):
     assert response["client"]["client_tracer"]["tags"]
     del response["client"]["client_tracer"]["tags"]
 
+    assert response["client"]["client_tracer"]["process_tags"]
+    del response["client"]["client_tracer"]["process_tags"]
+
     assert response == expected_response
 
 
