@@ -7,6 +7,13 @@ from tests.contrib.integration_registry.registry_update_helpers.integration_regi
 from tests.contrib.integration_registry.registry_update_helpers.integration_update_orchestrator import (
     IntegrationUpdateOrchestrator,
 )
+from tests.utils import scoped_tracer
+
+
+@pytest.fixture
+def tracer(use_dummy_writer):
+    with scoped_tracer(use_dummy_writer) as tracer:
+        yield tracer
 
 
 @pytest.fixture(scope="function", autouse=True)

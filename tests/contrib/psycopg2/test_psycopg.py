@@ -293,24 +293,6 @@ class PsycopgCore(TracerTestCase):
                 dict(name="postgres.query", resource=query.as_string(db)),
             )
 
-    @snapshot()
-    @skipIf(PSYCOPG2_VERSION < (2, 7), "SQL string composition not available in psycopg2<2.7")
-    def test_composed_query_encoding(self):
-        """Checks whether execution of composed SQL string is traced"""
-        import logging
-
-        logger = logging.getLogger()
-        logger.level = logging.DEBUG
-        query = SQL(" union all ").join([SQL("""select 'one' as x"""), SQL("""select 'two' as x""")])
-        conn = psycopg2.connect(**POSTGRES_CONFIG)
-
-        with conn.cursor() as cur:
-            cur.execute(query=query)
-            rows = cur.fetchall()
-            assert len(rows) == 2, rows
-            assert rows[0][0] == "one"
-            assert rows[1][0] == "two"
-
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_app_service_v0(self):
         """
@@ -412,19 +394,6 @@ class PsycopgCore(TracerTestCase):
             conn.cursor().execute("""select 'blah'""")
             self.assert_structure(dict(name="postgres.query", service=service))
 
-    @snapshot()
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
-    def test_postgres_dbm_propagation_tag(self):
-        """generates snapshot to check whether execution of SQL string sets dbm propagation tag"""
-        conn = psycopg2.connect(**POSTGRES_CONFIG)
-        cursor = conn.cursor()
-        # test string queries
-        cursor.execute("select 'str blah'")
-        cursor.executemany("select %s", (("str_foo",), ("str_bar",)))
-        # test composed queries
-        cursor.execute(SQL("select 'composed_blah'"))
-        cursor.executemany(SQL("select %s"), (("composed_foo",), ("composed_bar",)))
-
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(
             DD_DBM_PROPAGATION_MODE="service",
@@ -482,3 +451,46 @@ def test_manual_wrap_extension_quote_ident_standalone():
     #   TypeError: argument 2 must be a connection or a cursor
     conn = psycopg2.connect(**POSTGRES_CONFIG)
     quote_ident("foo", conn)
+
+
+class PsycopgSnapshot(TracerTestCase):
+    USE_DUMMY_WRITER = False
+
+    def setUp(self):
+        super(PsycopgSnapshot, self).setUp()
+        patch()
+
+    def tearDown(self):
+        super(PsycopgSnapshot, self).tearDown()
+        unpatch()
+
+    @snapshot()
+    @skipIf(PSYCOPG2_VERSION < (2, 7), "SQL string composition not available in psycopg2<2.7")
+    def test_composed_query_encoding(self):
+        """Checks whether execution of composed SQL string is traced"""
+        import logging
+
+        logger = logging.getLogger()
+        logger.level = logging.DEBUG
+        query = SQL(" union all ").join([SQL("""select 'one' as x"""), SQL("""select 'two' as x""")])
+        conn = psycopg2.connect(**POSTGRES_CONFIG)
+
+        with conn.cursor() as cur:
+            cur.execute(query=query)
+            rows = cur.fetchall()
+            assert len(rows) == 2, rows
+            assert rows[0][0] == "one"
+            assert rows[1][0] == "two"
+
+    @snapshot()
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
+    def test_postgres_dbm_propagation_tag(self):
+        """generates snapshot to check whether execution of SQL string sets dbm propagation tag"""
+        conn = psycopg2.connect(**POSTGRES_CONFIG)
+        cursor = conn.cursor()
+        # test string queries
+        cursor.execute("select 'str blah'")
+        cursor.executemany("select %s", (("str_foo",), ("str_bar",)))
+        # test composed queries
+        cursor.execute(SQL("select 'composed_blah'"))
+        cursor.executemany(SQL("select %s"), (("composed_foo",), ("composed_bar",)))

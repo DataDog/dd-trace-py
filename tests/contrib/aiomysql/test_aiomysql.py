@@ -43,6 +43,7 @@ async def snapshot_conn(tracer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("use_dummy_writer", [False])
 @pytest.mark.snapshot(ignores=["meta.error.stack"])
 async def test_queries(snapshot_conn):
     db = snapshot_conn
@@ -61,6 +62,7 @@ async def test_queries(snapshot_conn):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
+@pytest.mark.parametrize("use_dummy_writer", [False])
 async def test_pin_override(patched_conn, tracer):
     Pin._override(patched_conn, service="db")
     cursor = await patched_conn.cursor()
@@ -262,7 +264,7 @@ class AioMySQLTestCase(AsyncioTestCase):
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "mysvc"
@@ -276,7 +278,7 @@ class AioMySQLTestCase(AsyncioTestCase):
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "mysvc"
@@ -288,7 +290,7 @@ class AioMySQLTestCase(AsyncioTestCase):
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "mysql"
@@ -300,7 +302,7 @@ class AioMySQLTestCase(AsyncioTestCase):
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "mysvc"
@@ -312,7 +314,7 @@ class AioMySQLTestCase(AsyncioTestCase):
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
@@ -324,7 +326,7 @@ class AioMySQLTestCase(AsyncioTestCase):
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.name == "mysql.query"
@@ -336,7 +338,7 @@ class AioMySQLTestCase(AsyncioTestCase):
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.name == "mysql.query"

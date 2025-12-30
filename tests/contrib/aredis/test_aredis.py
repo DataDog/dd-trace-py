@@ -207,7 +207,7 @@ def test_full_command_in_resource_env():
 
 @pytest.mark.snapshot
 @pytest.mark.asyncio
-@pytest.mark.parametrize("use_global_tracer", [True])
+@pytest.mark.parametrize("use_dummy_writer", [False])
 async def test_full_command_in_resource_config(tracer, traced_aredis):
     with override_config("aredis", dict(resource_only_command=False)):
         with tracer.trace("web-request", service="test"):

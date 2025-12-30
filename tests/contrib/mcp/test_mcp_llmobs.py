@@ -7,11 +7,12 @@ from textwrap import dedent
 import mock
 
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.utils import TracerSpanContainer
 
 
 def _assert_distributed_trace(mock_tracer, llmobs_events, expected_tool_name):
     """Assert that client and server spans have the same trace ID and return client/server spans and LLM Obs events."""
-    traces = mock_tracer.pop_traces()
+    traces = TracerSpanContainer(mock_tracer).pop_traces()
     assert len(traces) >= 1
 
     all_spans = [span for trace in traces for span in trace]

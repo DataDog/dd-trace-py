@@ -49,9 +49,7 @@ def patch():
 
 def traced_init(wrapped, instance, args, kwargs):
     mw = kwargs.pop("middleware", [])
-    service = config._get_service(default="falcon")
-
-    mw.insert(0, TraceMiddleware(tracer, service))
+    mw.insert(0, TraceMiddleware(tracer))
     kwargs["middleware"] = mw
 
     wrapped(*args, **kwargs)

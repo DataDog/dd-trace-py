@@ -160,8 +160,8 @@ def pytest_configure(config):
 
 
 @pytest.fixture
-def use_global_tracer():
-    yield False
+def use_dummy_writer():
+    yield True
 
 
 @pytest.fixture

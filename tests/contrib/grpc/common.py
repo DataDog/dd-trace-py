@@ -27,7 +27,7 @@ class GrpcBaseTestCase(TracerTestCase):
     def tearDown(self):
         self._stop_server()
         # Remove any remaining spans
-        self.tracer.pop()
+        self.pop_spans()
         # Unpatch grpc
         unpatch()
         super(GrpcBaseTestCase, self).tearDown()

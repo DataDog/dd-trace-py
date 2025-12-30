@@ -15,6 +15,7 @@ from tests.llmobs._utils import aiterate_stream
 from tests.llmobs._utils import anext_stream
 from tests.llmobs._utils import iterate_stream
 from tests.llmobs._utils import next_stream
+from tests.utils import TracerSpanContainer
 
 
 WEATHER_PROMPT = "What is the weather in San Francisco, CA?"
@@ -89,7 +90,7 @@ class TestLLMObsAnthropic:
             temperature=0.8,
             messages=messages,
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_non_llm_span_event(
@@ -120,7 +121,7 @@ class TestLLMObsAnthropic:
             temperature=0.8,
             messages=messages,
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
 
@@ -146,7 +147,7 @@ class TestLLMObsAnthropic:
                     }
                 ],
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -195,7 +196,7 @@ class TestLLMObsAnthropic:
                     }
                 ],
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -248,7 +249,7 @@ class TestLLMObsAnthropic:
                     ],
                 )
 
-                span = mock_tracer.pop_traces()[0][0]
+                span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
                 assert mock_llmobs_writer.enqueue.call_count == 1
                 mock_llmobs_writer.enqueue.assert_called_with(
                     _expected_llmobs_llm_span_event(
@@ -298,7 +299,7 @@ class TestLLMObsAnthropic:
             )
             consume_stream(stream)
 
-            span = mock_tracer.pop_traces()[0][0]
+            span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
             assert mock_llmobs_writer.enqueue.call_count == 1
             mock_llmobs_writer.enqueue.assert_called_with(
                 _expected_llmobs_llm_span_event(
@@ -357,7 +358,7 @@ class TestLLMObsAnthropic:
             message = stream.get_final_text()
             assert message is not None
 
-            span = mock_tracer.pop_traces()[0][0]
+            span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
             assert mock_llmobs_writer.enqueue.call_count == 1
             mock_llmobs_writer.enqueue.assert_called_with(
                 _expected_llmobs_llm_span_event(
@@ -414,7 +415,7 @@ class TestLLMObsAnthropic:
                 ],
             )
 
-            span = mock_tracer.pop_traces()[0][0]
+            span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
             assert mock_llmobs_writer.enqueue.call_count == 1
             mock_llmobs_writer.enqueue.assert_called_with(
                 _expected_llmobs_llm_span_event(
@@ -454,7 +455,7 @@ class TestLLMObsAnthropic:
             )
             assert message is not None
 
-        traces = mock_tracer.pop_traces()
+        traces = TracerSpanContainer(mock_tracer).pop_traces()
         span_1 = traces[0][0]
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -504,7 +505,7 @@ class TestLLMObsAnthropic:
                 )
                 assert response is not None
 
-        traces = mock_tracer.pop_traces()
+        traces = TracerSpanContainer(mock_tracer).pop_traces()
         span_2 = traces[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -556,7 +557,7 @@ class TestLLMObsAnthropic:
             )
             assert message is not None
 
-        traces = mock_tracer.pop_traces()
+        traces = TracerSpanContainer(mock_tracer).pop_traces()
         span_1 = traces[0][0]
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -606,7 +607,7 @@ class TestLLMObsAnthropic:
                 )
                 assert response is not None
 
-        traces = mock_tracer.pop_traces()
+        traces = TracerSpanContainer(mock_tracer).pop_traces()
         span_2 = traces[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -674,7 +675,7 @@ class TestLLMObsAnthropic:
             },
         ]
 
-        traces = mock_tracer.pop_traces()
+        traces = TracerSpanContainer(mock_tracer).pop_traces()
         span_1 = traces[0][0]
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -728,7 +729,7 @@ class TestLLMObsAnthropic:
             for _ in response:
                 pass
 
-        traces = mock_tracer.pop_traces()
+        traces = TracerSpanContainer(mock_tracer).pop_traces()
         span_2 = traces[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -781,7 +782,7 @@ class TestLLMObsAnthropic:
             raw_message = await stream.get_final_text()
             assert raw_message is not None
 
-        traces = mock_tracer.pop_traces()
+        traces = TracerSpanContainer(mock_tracer).pop_traces()
         span_1 = traces[0][0]
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -839,7 +840,7 @@ class TestLLMObsAnthropic:
             raw_message = await stream.get_final_text()
             assert raw_message is not None
 
-        traces = mock_tracer.pop_traces()
+        traces = TracerSpanContainer(mock_tracer).pop_traces()
         span_2 = traces[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -892,7 +893,7 @@ class TestLLMObsAnthropic:
             )
         with request_vcr.use_cassette("anthropic_completion_cache_read.yaml"):
             llm.messages.create(**inference_args, messages=[{"role": "user", "content": "What is a system"}])
-        spans = mock_tracer.pop_traces()
+        spans = TracerSpanContainer(mock_tracer).pop_traces()
         span1, span2 = spans[0][0], spans[1][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
 
@@ -993,7 +994,7 @@ class TestLLMObsAnthropic:
             for _ in stream2:
                 pass
 
-        spans = mock_tracer.pop_traces()
+        spans = TracerSpanContainer(mock_tracer).pop_traces()
         span1, span2 = spans[0][0], spans[1][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
 
@@ -1072,7 +1073,7 @@ class TestLLMObsAnthropic:
                 max_tokens=15,
                 messages=[{"role": "user", "content": "What does Nietzsche mean by 'God is dead'?"}],
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,

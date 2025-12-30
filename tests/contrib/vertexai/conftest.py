@@ -8,8 +8,6 @@ from ddtrace.contrib.internal.vertexai.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from tests.contrib.vertexai.utils import MockAsyncPredictionServiceClient
 from tests.contrib.vertexai.utils import MockPredictionServiceClient
-from tests.utils import DummyTracer
-from tests.utils import DummyWriter
 from tests.utils import override_config
 from tests.utils import override_global_config
 
@@ -39,17 +37,16 @@ def mock_async_client():
 
 
 @pytest.fixture
-def mock_tracer(ddtrace_global_config, vertexai):
+def mock_tracer(ddtrace_global_config, vertexai, tracer):
     try:
         pin = Pin.get_from(vertexai)
-        mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-        pin._override(vertexai, tracer=mock_tracer)
+        pin._override(vertexai, tracer=tracer)
         pin.tracer.configure()
         if ddtrace_global_config.get("_llmobs_enabled", False):
             # Have to disable and re-enable LLMObs to use the mock tracer.
             LLMObs.disable()
-            LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False, agentless_enabled=False)
-        yield mock_tracer
+            LLMObs.enable(_tracer=tracer, integrations_enabled=False, agentless_enabled=False)
+        yield tracer
     except Exception:
         yield
 
