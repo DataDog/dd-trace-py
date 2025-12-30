@@ -34,7 +34,7 @@ class TestCase(TracerTestCase, testing.TestCase, FalconTestMixin):
 
     def test(self, query_string="", trace_query_string=False):
         out = self.make_test_call("/200", expected_status_code=200, query_string=query_string)
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
         span = traces[0][0]
         assert span.service == "{}"
 
@@ -80,7 +80,7 @@ class TestCase(TracerTestCase, testing.TestCase, FalconTestMixin):
 
     def test(self, query_string="", trace_query_string=False):
         out = self.make_test_call("/200", expected_status_code=200, query_string=query_string)
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
         span = traces[0][0]
         assert span.name == "{}"
 
