@@ -357,15 +357,6 @@ class Tracer(object):
         reset_buffer: bool = True,
         re_init: bool = False,
     ) -> None:
-        """Re-initialize the tracer's processors and trace writer.
-
-        :param trace_processors: Optional list of trace processors to use.
-        :param compute_stats_enabled: Optional flag to enable/disable stats computation.
-        :param apm_opt_out: Optional flag for APM opt-out mode.
-        :param appsec_enabled: Optional flag to enable/disable AppSec.
-        :param reset_buffer: Whether to reset the trace buffer (default: True).
-        :param re_init: Whether to re-initialize the tracer (default: False).
-        """
         if re_init:
             self.shutdown()
             self.__class__._instance = None
