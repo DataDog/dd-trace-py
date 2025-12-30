@@ -26,7 +26,7 @@ dependencies = [
 
 [envs.lint.scripts]
 format_check = [
-    "ruff format --check {args:.}",
+    "ruff format --check --no-cache {args:.}",
 ]
 cmakeformat_check = [
     "bash scripts/cmake-format.sh"
@@ -36,14 +36,14 @@ cformat_check = [
 ]
 style = [
     "format_check",
-    "ruff check {args:.}",
+    "ruff check --no-cache {args:.}",
     "cython-lint {args:.}",
     "cformat_check",
     "cmakeformat_check",
 ]
 fmt = [
-    "ruff format {args:.}",
-    "ruff check --fix {args:.}",
+    "ruff format --no-cache {args:.}",
+    "ruff check --fix --no-cache {args:.}",
     "style",
 ]
 # checks should encapsulate all rules used in pre-check
