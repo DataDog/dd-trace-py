@@ -259,9 +259,9 @@ def test_data_streams_default_context_propagation(consumer, producer, kafka_topi
     assert message.headers()[0][1] is not None
 
 
-def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, kafka_topic):
-    Pin._override(producer, tracer=dummy_tracer)
-    Pin._override(consumer, tracer=dummy_tracer)
+def test_span_has_dsm_payload_hash(tracer, consumer, producer, kafka_topic):
+    Pin._override(producer, tracer=tracer)
+    Pin._override(consumer, tracer=tracer)
 
     test_string = "payload hash test"
     PAYLOAD = bytes(test_string, encoding="utf-8")
@@ -276,7 +276,7 @@ def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, kafka_topic
     # message comes back with expected test string
     assert message.value() == b"payload hash test"
 
-    traces = dummy_tracer.pop_traces()
+    traces = tracer.pop_traces()
     produce_span = traces[0][0]
     consume_span = traces[len(traces) - 1][0]
 

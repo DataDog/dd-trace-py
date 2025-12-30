@@ -71,17 +71,6 @@ def empty_kafka_topic(request):
 
 
 @pytest.fixture
-def dummy_tracer():
-    patch()
-    t = DummyTracer()
-    # disable backoff because it makes these tests less reliable
-    if not config._trace_writer_native:
-        t._span_aggregator.writer._send_payload_with_backoff = t._span_aggregator.writer._send_payload
-    yield t
-    unpatch()
-
-
-@pytest.fixture
 def should_filter_empty_polls():
     yield True
 
