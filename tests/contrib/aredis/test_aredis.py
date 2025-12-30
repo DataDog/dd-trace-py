@@ -151,6 +151,7 @@ import asyncio
 import pytest
 import sys
 from tests.conftest import *
+from tests.contrib.conftest import * # must be imported after tests.conftest
 from ddtrace._trace.pin import Pin
 import aredis
 from tests.contrib.config import REDIS_CONFIG
@@ -207,7 +208,6 @@ def test_full_command_in_resource_env():
 
 @pytest.mark.snapshot
 @pytest.mark.asyncio
-@pytest.mark.parametrize("use_dummy_writer", [False])
 async def test_full_command_in_resource_config(tracer, traced_aredis):
     with override_config("aredis", dict(resource_only_command=False)):
         with tracer.trace("web-request", service="test"):

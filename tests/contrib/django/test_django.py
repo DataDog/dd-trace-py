@@ -1696,6 +1696,7 @@ import sys
 import django
 
 from tests.conftest import *
+from tests.contrib.conftest import * # must be imported after tests.conftest
 from tests.contrib.django.conftest import *
 from tests.utils import override_config
 
@@ -1790,6 +1791,7 @@ import sys
 import django
 
 from tests.conftest import *
+from tests.contrib.conftest import * # must be imported after tests.conftest
 from tests.contrib.django.conftest import *
 from tests.utils import override_config
 

@@ -72,6 +72,7 @@ def test_service_operation_schema(ddtrace_run_python_code_in_subprocess, schema_
 import pytest
 import asyncio
 from tests.conftest import *
+from tests.contrib.conftest import * # must be imported after tests.conftest
 from tests.contrib.aiohttp.conftest import *
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 

@@ -347,6 +347,7 @@ from ddtrace.contrib.internal.aiobotocore.patch import patch
 from ddtrace.contrib.internal.aiobotocore.patch import unpatch
 from tests.contrib.aiobotocore.utils import *
 from tests.conftest import *
+from tests.contrib.conftest import * # must be imported after tests.conftest
 
 @pytest.fixture(autouse=True)
 def patch_aiobotocore():

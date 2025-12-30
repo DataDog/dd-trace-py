@@ -451,6 +451,7 @@ import sanic
 
 # import fixtures
 from tests.conftest import *
+from tests.contrib.conftest import * # must be imported after tests.conftest
 from tests.contrib.sanic.test_sanic import app
 from tests.contrib.sanic.test_sanic import client
 from tests.contrib.sanic.test_sanic import integration_config
@@ -499,6 +500,7 @@ import sanic
 
 # import fixtures
 from tests.conftest import *
+from tests.contrib.conftest import * # must be imported after tests.conftest
 from tests.contrib.sanic.test_sanic import app
 from tests.contrib.sanic.test_sanic import client
 from tests.contrib.sanic.test_sanic import integration_config

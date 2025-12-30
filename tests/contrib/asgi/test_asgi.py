@@ -188,6 +188,7 @@ def test_span_attribute_schema_operation_name(ddtrace_run_python_code_in_subproc
     code = """
 import pytest
 from tests.conftest import *
+from tests.contrib.conftest import * # must be imported after tests.conftest
 from tests.contrib.asgi.test_asgi import basic_app
 from tests.contrib.asgi.test_asgi import scope
 from asgiref.testing import ApplicationCommunicator
@@ -244,6 +245,7 @@ def test_span_attribute_schema_service_name(ddtrace_run_python_code_in_subproces
     code = """
 import pytest
 from tests.conftest import *
+from tests.contrib.conftest import * # must be imported after tests.conftest
 from tests.contrib.asgi.test_asgi import basic_app
 from tests.contrib.asgi.test_asgi import scope
 from asgiref.testing import ApplicationCommunicator

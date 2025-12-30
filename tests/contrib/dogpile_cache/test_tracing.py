@@ -242,6 +242,7 @@ except AttributeError:
 
 # Required fixtures
 from tests.conftest import *
+from tests.contrib.conftest import * # must be imported after tests.conftest
 from tests.contrib.dogpile_cache.test_tracing import region
 from tests.contrib.dogpile_cache.test_tracing import cleanup
 from tests.contrib.dogpile_cache.test_tracing import single_cache
