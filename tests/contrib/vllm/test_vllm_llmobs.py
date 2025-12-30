@@ -3,6 +3,7 @@ import pytest
 
 from ddtrace.llmobs.types import Message
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.utils import TracerSpanContainer
 
 from ._utils import get_simple_chat_template
 
@@ -158,7 +159,7 @@ def test_llmobs_embed(llmobs_events, mock_tracer, e5_small_llm):
     ]
 
     llm.embed(prompts)
-    traces = mock_tracer.pop_traces()
+    traces = TracerSpanContainer(mock_tracer).pop_traces()
     spans = [s for t in traces for s in t]
 
     # Expect one event per input prompt

@@ -227,7 +227,7 @@ def test_llmobs_client_server_tool_error(mcp_setup, mock_tracer, llmobs_events, 
 
 def test_server_initialization_span_created(mcp_setup, mock_tracer, llmobs_events, mcp_server_initialized):
     """Test that server initialization creates a span and LLMObs event with custom client info."""
-    traces = mock_tracer.pop_traces()
+    traces = TracerSpanContainer(mock_tracer).pop_traces()
     all_spans = [span for trace in traces for span in trace]
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
