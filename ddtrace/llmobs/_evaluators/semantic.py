@@ -61,7 +61,7 @@ class SemanticSimilarity(BaseEvaluator):
             threshold=0.8
         )
         result = evaluator.evaluate(context)
-        # Returns: {"score": 0.92, "passed": True, "similarity": 0.92}
+        # Returns: 0.92 (similarity score between 0.0 and 1.0)
 
     Example with sentence-transformers::
 
@@ -102,101 +102,57 @@ class SemanticSimilarity(BaseEvaluator):
         self.embedding_fn = embedding_fn
         self.threshold = threshold
 
-    def evaluate(self, context: EvaluatorContext) -> Dict[str, Any]:
+    def evaluate(self, context: EvaluatorContext) -> float:
         """Perform semantic similarity evaluation.
 
         :param context: The evaluation context
-        :return: Dictionary with 'score', 'passed', 'similarity', and 'details'
+        :return: Similarity score between 0.0 and 1.0
         """
         output = context.output_data
         expected = context.expected_output
 
-        # Handle None values
         if output is None and expected is None:
-            return {
-                "score": 1.0,
-                "passed": True,
-                "similarity": 1.0,
-                "details": "Both values are None",
-            }
+            return 1.0
         if output is None or expected is None:
-            return {
-                "score": 0.0,
-                "passed": False,
-                "similarity": 0.0,
-                "details": f"One value is None: output={output}, expected={expected}",
-            }
+            return 0.0
 
-        # Convert to strings
         output_str = str(output)
         expected_str = str(expected)
 
         try:
-            # Get embeddings
             output_embedding = self.embedding_fn(output_str)
             expected_embedding = self.embedding_fn(expected_str)
 
-            # Calculate cosine similarity
             similarity = _cosine_similarity(output_embedding, expected_embedding)
-
-            # Normalize to 0-1 range (cosine similarity is -1 to 1)
             normalized_similarity = (similarity + 1) / 2
 
-            passed = normalized_similarity >= self.threshold
-
-            return {
-                "score": normalized_similarity,
-                "passed": passed,
-                "similarity": normalized_similarity,
-                "details": {
-                    "threshold": self.threshold,
-                    "raw_cosine_similarity": similarity,
-                },
-            }
+            return normalized_similarity
         except Exception as e:
             logger.error("Error calculating semantic similarity: %s", str(e))
-            return {
-                "score": 0.0,
-                "passed": False,
-                "similarity": 0.0,
-                "details": f"Error: {str(e)}",
-            }
+            return 0.0
 
-    async def evaluate_async(self, context: EvaluatorContext) -> Dict[str, Any]:
+    async def evaluate_async(self, context: EvaluatorContext) -> float:
         """Perform async semantic similarity evaluation.
 
         If the embedding_fn is async, this will await it. Otherwise falls back to sync.
 
         :param context: The evaluation context
-        :return: Dictionary with evaluation results
+        :return: Similarity score between 0.0 and 1.0
         """
         import inspect
 
         output = context.output_data
         expected = context.expected_output
 
-        # Handle None values
         if output is None and expected is None:
-            return {
-                "score": 1.0,
-                "passed": True,
-                "similarity": 1.0,
-                "details": "Both values are None",
-            }
+            return 1.0
         if output is None or expected is None:
-            return {
-                "score": 0.0,
-                "passed": False,
-                "similarity": 0.0,
-                "details": f"One value is None: output={output}, expected={expected}",
-            }
+            return 0.0
 
-        # Convert to strings
         output_str = str(output)
         expected_str = str(expected)
 
         try:
-            # Get embeddings (async if supported)
             if inspect.iscoroutinefunction(self.embedding_fn):
                 output_embedding = await self.embedding_fn(output_str)
                 expected_embedding = await self.embedding_fn(expected_str)
@@ -204,31 +160,13 @@ class SemanticSimilarity(BaseEvaluator):
                 output_embedding = self.embedding_fn(output_str)
                 expected_embedding = self.embedding_fn(expected_str)
 
-            # Calculate cosine similarity
             similarity = _cosine_similarity(output_embedding, expected_embedding)
-
-            # Normalize to 0-1 range
             normalized_similarity = (similarity + 1) / 2
 
-            passed = normalized_similarity >= self.threshold
-
-            return {
-                "score": normalized_similarity,
-                "passed": passed,
-                "similarity": normalized_similarity,
-                "details": {
-                    "threshold": self.threshold,
-                    "raw_cosine_similarity": similarity,
-                },
-            }
+            return normalized_similarity
         except Exception as e:
             logger.error("Error calculating semantic similarity: %s", str(e))
-            return {
-                "score": 0.0,
-                "passed": False,
-                "similarity": 0.0,
-                "details": f"Error: {str(e)}",
-            }
+            return 0.0
 
 
 class AnswerRelevancy(BaseEvaluator):
@@ -259,7 +197,7 @@ class AnswerRelevancy(BaseEvaluator):
             threshold=0.7
         )
         result = evaluator.evaluate(context)
-        # Returns: {"score": 0.85, "passed": True, "relevancy": 0.85}
+        # Returns: 0.85 (relevancy score between 0.0 and 1.0)
 
     :param embedding_fn: Function that takes text string and returns embedding vector (list of floats)
     :param threshold: Minimum relevancy score (0-1) required to pass (default: 0.7)
@@ -305,107 +243,63 @@ class AnswerRelevancy(BaseEvaluator):
                 raise KeyError(f"input_key '{self.input_key}' not found in input_data")
             return str(input_data[self.input_key])
         else:
-            # Use entire input_data as string
             return str(input_data)
 
-    def evaluate(self, context: EvaluatorContext) -> Dict[str, Any]:
+    def evaluate(self, context: EvaluatorContext) -> float:
         """Perform answer relevancy evaluation.
 
         :param context: The evaluation context
-        :return: Dictionary with 'score', 'passed', 'relevancy', and 'details'
+        :return: Relevancy score between 0.0 and 1.0
         """
         output = context.output_data
         input_data = context.input_data
 
-        # Handle None output
         if output is None:
-            return {
-                "score": 0.0,
-                "passed": False,
-                "relevancy": 0.0,
-                "details": "Output is None",
-            }
+            return 0.0
 
-        # Extract input text
         try:
             input_str = self._extract_input_text(input_data)
         except KeyError as e:
-            return {
-                "score": 0.0,
-                "passed": False,
-                "relevancy": 0.0,
-                "details": str(e),
-            }
+            logger.error("Error extracting input text: %s", str(e))
+            return 0.0
 
         output_str = str(output)
 
         try:
-            # Get embeddings
             input_embedding = self.embedding_fn(input_str)
             output_embedding = self.embedding_fn(output_str)
 
-            # Calculate cosine similarity
             similarity = _cosine_similarity(input_embedding, output_embedding)
-
-            # Normalize to 0-1 range
             normalized_relevancy = (similarity + 1) / 2
 
-            passed = normalized_relevancy >= self.threshold
-
-            return {
-                "score": normalized_relevancy,
-                "passed": passed,
-                "relevancy": normalized_relevancy,
-                "details": {
-                    "threshold": self.threshold,
-                    "raw_cosine_similarity": similarity,
-                    "input_key": self.input_key,
-                },
-            }
+            return normalized_relevancy
         except Exception as e:
             logger.error("Error calculating answer relevancy: %s", str(e))
-            return {
-                "score": 0.0,
-                "passed": False,
-                "relevancy": 0.0,
-                "details": f"Error: {str(e)}",
-            }
+            return 0.0
 
-    async def evaluate_async(self, context: EvaluatorContext) -> Dict[str, Any]:
+    async def evaluate_async(self, context: EvaluatorContext) -> float:
         """Perform async answer relevancy evaluation.
 
         :param context: The evaluation context
-        :return: Dictionary with evaluation results
+        :return: Relevancy score between 0.0 and 1.0
         """
         import inspect
 
         output = context.output_data
         input_data = context.input_data
 
-        # Handle None output
         if output is None:
-            return {
-                "score": 0.0,
-                "passed": False,
-                "relevancy": 0.0,
-                "details": "Output is None",
-            }
+            return 0.0
 
-        # Extract input text
         try:
             input_str = self._extract_input_text(input_data)
         except KeyError as e:
-            return {
-                "score": 0.0,
-                "passed": False,
-                "relevancy": 0.0,
-                "details": str(e),
-            }
+            logger.error("Error extracting input text: %s", str(e))
+            return 0.0
 
         output_str = str(output)
 
         try:
-            # Get embeddings (async if supported)
             if inspect.iscoroutinefunction(self.embedding_fn):
                 input_embedding = await self.embedding_fn(input_str)
                 output_embedding = await self.embedding_fn(output_str)
@@ -413,29 +307,10 @@ class AnswerRelevancy(BaseEvaluator):
                 input_embedding = self.embedding_fn(input_str)
                 output_embedding = self.embedding_fn(output_str)
 
-            # Calculate cosine similarity
             similarity = _cosine_similarity(input_embedding, output_embedding)
-
-            # Normalize to 0-1 range
             normalized_relevancy = (similarity + 1) / 2
 
-            passed = normalized_relevancy >= self.threshold
-
-            return {
-                "score": normalized_relevancy,
-                "passed": passed,
-                "relevancy": normalized_relevancy,
-                "details": {
-                    "threshold": self.threshold,
-                    "raw_cosine_similarity": similarity,
-                    "input_key": self.input_key,
-                },
-            }
+            return normalized_relevancy
         except Exception as e:
             logger.error("Error calculating answer relevancy: %s", str(e))
-            return {
-                "score": 0.0,
-                "passed": False,
-                "relevancy": 0.0,
-                "details": f"Error: {str(e)}",
-            }
+            return 0.0

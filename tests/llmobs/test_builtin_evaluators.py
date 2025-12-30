@@ -20,8 +20,7 @@ class TestExactMatch:
             expected_output="hello world",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is True
-        assert result["score"] == 1.0
+        assert result == 1.0
 
     def test_exact_match_failure(self):
         evaluator = ExactMatch()
@@ -31,8 +30,7 @@ class TestExactMatch:
             expected_output="goodbye world",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is False
-        assert result["score"] == 0.0
+        assert result == 0.0
 
     def test_exact_match_case_insensitive(self):
         evaluator = ExactMatch(case_sensitive=False)
@@ -42,8 +40,7 @@ class TestExactMatch:
             expected_output="hello world",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is True
-        assert result["score"] == 1.0
+        assert result == 1.0
 
     def test_exact_match_strip_whitespace(self):
         evaluator = ExactMatch(strip_whitespace=True)
@@ -53,8 +50,7 @@ class TestExactMatch:
             expected_output="hello world",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is True
-        assert result["score"] == 1.0
+        assert result == 1.0
 
     def test_exact_match_both_none(self):
         evaluator = ExactMatch()
@@ -64,8 +60,7 @@ class TestExactMatch:
             expected_output=None,
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is True
-        assert result["score"] == 1.0
+        assert result == 1.0
 
     def test_exact_match_one_none(self):
         evaluator = ExactMatch()
@@ -75,8 +70,7 @@ class TestExactMatch:
             expected_output=None,
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is False
-        assert result["score"] == 0.0
+        assert result == 0.0
 
 
 class TestRegexMatch:
@@ -87,8 +81,7 @@ class TestRegexMatch:
             output_data="Call me at 555-1234",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is True
-        assert result["score"] == 1.0
+        assert result == 1.0
 
     def test_regex_match_failure(self):
         evaluator = RegexMatch(pattern=r"\d{3}-\d{4}")
@@ -97,8 +90,7 @@ class TestRegexMatch:
             output_data="No phone number here",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is False
-        assert result["score"] == 0.0
+        assert result == 0.0
 
     def test_regex_match_with_groups(self):
         evaluator = RegexMatch(pattern=r"(\d{3})-(\d{4})")
@@ -107,8 +99,7 @@ class TestRegexMatch:
             output_data="555-1234",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is True
-        assert result["matched_groups"] == ["555", "1234"]
+        assert result == 1.0
 
     def test_regex_match_mode_fullmatch(self):
         evaluator = RegexMatch(pattern=r"\d{3}-\d{4}", match_mode="fullmatch")
@@ -117,7 +108,7 @@ class TestRegexMatch:
             output_data="555-1234",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is True
+        assert result == 1.0
 
         # Should fail with extra text
         ctx2 = EvaluatorContext(
@@ -125,7 +116,7 @@ class TestRegexMatch:
             output_data="Call 555-1234",
         )
         result2 = evaluator.evaluate(ctx2)
-        assert result2["passed"] is False
+        assert result2 == 0.0
 
     def test_regex_match_case_insensitive(self):
         import re
@@ -136,7 +127,7 @@ class TestRegexMatch:
             output_data="HELLO WORLD",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is True
+        assert result == 1.0
 
     def test_regex_match_invalid_pattern(self):
         with pytest.raises(ValueError, match="Invalid regex pattern"):
@@ -153,8 +144,7 @@ class TestRegexMatch:
             output_data=None,
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is False
-        assert result["score"] == 0.0
+        assert result == 0.0
 
 
 class TestLengthValidator:
@@ -165,9 +155,7 @@ class TestLengthValidator:
             output_data="hello world",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is True
-        assert result["score"] == 1.0
-        assert result["length"] == 11
+        assert result == 1.0
 
     def test_length_validator_too_short(self):
         evaluator = LengthValidator(min_length=10, max_length=20)
@@ -176,9 +164,7 @@ class TestLengthValidator:
             output_data="short",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is False
-        assert result["score"] == 0.0
-        assert result["length"] == 5
+        assert result == 0.0
 
     def test_length_validator_too_long(self):
         evaluator = LengthValidator(min_length=5, max_length=10)
@@ -187,9 +173,7 @@ class TestLengthValidator:
             output_data="this is a very long response",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is False
-        assert result["score"] == 0.0
-        assert result["length"] == 28
+        assert result == 0.0
 
     def test_length_validator_only_min(self):
         evaluator = LengthValidator(min_length=5)
@@ -198,7 +182,7 @@ class TestLengthValidator:
             output_data="hello world this is a long text",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is True
+        assert result == 1.0
 
     def test_length_validator_only_max(self):
         evaluator = LengthValidator(max_length=10)
@@ -207,7 +191,7 @@ class TestLengthValidator:
             output_data="short",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is True
+        assert result == 1.0
 
     def test_length_validator_words(self):
         evaluator = LengthValidator(min_length=2, max_length=5, count_type="words")
@@ -216,8 +200,7 @@ class TestLengthValidator:
             output_data="hello world test",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is True
-        assert result["length"] == 3
+        assert result == 1.0
 
     def test_length_validator_lines(self):
         evaluator = LengthValidator(min_length=2, max_length=5, count_type="lines")
@@ -226,8 +209,7 @@ class TestLengthValidator:
             output_data="line1\nline2\nline3",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is True
-        assert result["length"] == 3
+        assert result == 1.0
 
     def test_length_validator_invalid_count_type(self):
         with pytest.raises(ValueError, match="count_type must be"):
@@ -248,8 +230,7 @@ class TestLengthValidator:
             output_data=None,
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is False
-        assert result["length"] == 0
+        assert result == 0.0
 
 
 class TestJSONValidator:
@@ -260,9 +241,7 @@ class TestJSONValidator:
             output_data='{"name": "John", "age": 30}',
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is True
-        assert result["score"] == 1.0
-        assert result["parsed_data"] == {"name": "John", "age": 30}
+        assert result == 1.0
 
     def test_json_validator_valid_json_dict(self):
         evaluator = JSONValidator()
@@ -271,8 +250,7 @@ class TestJSONValidator:
             output_data={"name": "John", "age": 30},
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is True
-        assert result["parsed_data"] == {"name": "John", "age": 30}
+        assert result == 1.0
 
     def test_json_validator_invalid_json(self):
         evaluator = JSONValidator()
@@ -281,9 +259,7 @@ class TestJSONValidator:
             output_data="not valid json {",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is False
-        assert result["score"] == 0.0
-        assert result["parsed_data"] is None
+        assert result == 0.0
 
     def test_json_validator_with_required_keys(self):
         evaluator = JSONValidator(required_keys=["name", "age"])
@@ -292,8 +268,7 @@ class TestJSONValidator:
             output_data='{"name": "John", "age": 30, "city": "NYC"}',
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is True
-        assert result["score"] == 1.0
+        assert result == 1.0
 
     def test_json_validator_missing_required_keys(self):
         evaluator = JSONValidator(required_keys=["name", "age", "email"])
@@ -302,9 +277,7 @@ class TestJSONValidator:
             output_data='{"name": "John", "age": 30}',
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is False
-        assert result["score"] == 0.0
-        assert "email" in result["details"]["missing_keys"]
+        assert result == 0.0
 
     def test_json_validator_none_output(self):
         evaluator = JSONValidator()
@@ -313,8 +286,7 @@ class TestJSONValidator:
             output_data=None,
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is False
-        assert result["parsed_data"] is None
+        assert result == 0.0
 
 
 class TestSemanticSimilarity:
@@ -332,9 +304,7 @@ class TestSemanticSimilarity:
             expected_output="hello",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is True
-        assert result["score"] == 1.0
-        assert result["similarity"] == 1.0
+        assert result == 1.0
 
     def test_semantic_similarity_different(self):
         """Test with orthogonal embeddings."""
@@ -353,9 +323,9 @@ class TestSemanticSimilarity:
             expected_output="goodbye",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is False
+        assert result == 0.0
         # Orthogonal vectors have cosine similarity of 0, normalized to 0.5
-        assert result["similarity"] == 0.5
+        assert result == 0.5
 
     def test_semantic_similarity_threshold(self):
         """Test threshold behavior."""
@@ -392,8 +362,7 @@ class TestSemanticSimilarity:
             expected_output=None,
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is True
-        assert result["score"] == 1.0
+        assert result == 1.0
 
     def test_semantic_similarity_one_none(self):
         def dummy_embedding(text):
@@ -406,8 +375,7 @@ class TestSemanticSimilarity:
             expected_output=None,
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is False
-        assert result["score"] == 0.0
+        assert result == 0.0
 
     def test_semantic_similarity_invalid_threshold(self):
         def dummy_embedding(text):
@@ -427,9 +395,7 @@ class TestSemanticSimilarity:
             expected_output="world",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is False
-        assert result["score"] == 0.0
-        assert "Error" in result["details"]
+        assert result == 0.0
 
     @pytest.mark.asyncio
     async def test_semantic_similarity_async(self):
@@ -445,8 +411,7 @@ class TestSemanticSimilarity:
             expected_output="hello",
         )
         result = await evaluator.evaluate_async(ctx)
-        assert result["passed"] is True
-        assert result["similarity"] == 1.0
+        assert result == 1.0
 
 
 class TestAnswerRelevancy:
@@ -463,8 +428,7 @@ class TestAnswerRelevancy:
             output_data="Python is a programming language",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is True
-        assert result["score"] == 1.0
+        assert result == 1.0
 
     def test_answer_relevancy_irrelevant(self):
         """Test with irrelevant answer."""
@@ -481,7 +445,7 @@ class TestAnswerRelevancy:
             output_data="I like pizza",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is False
+        assert result == 0.0
 
     def test_answer_relevancy_with_input_key(self):
         """Test extracting specific key from input_data."""
@@ -495,7 +459,7 @@ class TestAnswerRelevancy:
             output_data="Python is great",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is True
+        assert result == 1.0
 
     def test_answer_relevancy_missing_input_key(self):
         """Test with missing input key."""
@@ -509,8 +473,7 @@ class TestAnswerRelevancy:
             output_data="Python is great",
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is False
-        assert "missing_key" in result["details"]
+        assert result == 0.0
 
     def test_answer_relevancy_none_output(self):
         def dummy_embedding(text):
@@ -522,8 +485,7 @@ class TestAnswerRelevancy:
             output_data=None,
         )
         result = evaluator.evaluate(ctx)
-        assert result["passed"] is False
-        assert result["score"] == 0.0
+        assert result == 0.0
 
     def test_answer_relevancy_invalid_threshold(self):
         def dummy_embedding(text):
@@ -545,4 +507,4 @@ class TestAnswerRelevancy:
             output_data="Python is a programming language",
         )
         result = await evaluator.evaluate_async(ctx)
-        assert result["passed"] is True
+        assert result == 1.0

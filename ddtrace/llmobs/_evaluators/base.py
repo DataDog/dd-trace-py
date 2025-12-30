@@ -63,6 +63,18 @@ class BaseEvaluator(ABC):
     Subclasses must implement the `evaluate` method for synchronous evaluation.
     Optionally, they can override `evaluate_async` for native async support.
 
+    **Return Value Guidelines:**
+
+    The return value determines how the evaluation is stored and displayed in the LLMObs backend:
+
+    - **Numeric (int/float)**: Stored as a "score" metric, enables charting and aggregation
+    - **Boolean**: Stored as a "boolean" metric for pass/fail tracking
+    - **None**: Stored as a categorical metric with null value
+    - **Other types (str/dict/list)**: Converted to string and stored as "categorical" metric
+
+    For best backend integration, prefer returning numeric scores (0.0-1.0) or booleans.
+    If you need to return additional metadata, consider using span attributes separately.
+
     Example::
 
         class SemanticSimilarity(BaseEvaluator):
@@ -73,7 +85,8 @@ class BaseEvaluator(ABC):
 
             def evaluate(self, context: EvaluatorContext):
                 score = self.model.compare(context.output_data, context.expected_output)
-                return {"score": score, "passed": score >= self.threshold}
+                # Return numeric score for proper backend metrics
+                return score
     """
 
     def __init__(self, name: Optional[str] = None):

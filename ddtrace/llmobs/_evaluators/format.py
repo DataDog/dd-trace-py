@@ -1,8 +1,6 @@
 """Format validation evaluators for LLMObs."""
 
 import json
-from typing import Any
-from typing import Dict
 from typing import Optional
 
 from ddtrace.llmobs._evaluators.base import BaseEvaluator
@@ -21,7 +19,7 @@ class LengthValidator(BaseEvaluator):
         # Ensure response is between 50-200 characters
         evaluator = LengthValidator(min_length=50, max_length=200, count_type="characters")
         result = evaluator.evaluate(context)
-        # Returns: {"score": 1.0, "passed": True, "length": 150}
+        # Returns: 1.0 if within bounds, 0.0 otherwise
 
     :param min_length: Minimum allowed length (inclusive), None for no minimum
     :param max_length: Maximum allowed length (inclusive), None for no maximum
@@ -74,57 +72,31 @@ class LengthValidator(BaseEvaluator):
         if self.count_type == "characters":
             return len(text)
         elif self.count_type == "words":
-            # Split on whitespace and filter out empty strings
             return len([word for word in text.split() if word])
-        else:  # lines
+        else:
             return len(text.splitlines())
 
-    def evaluate(self, context: EvaluatorContext) -> Dict[str, Any]:
+    def evaluate(self, context: EvaluatorContext) -> float:
         """Perform length validation.
 
         :param context: The evaluation context
-        :return: Dictionary with 'score', 'passed', 'length', and 'details'
+        :return: 1.0 if length is within bounds, 0.0 otherwise
         """
         output = context.output_data
 
-        # Handle None
         if output is None:
-            return {
-                "score": 0.0,
-                "passed": False,
-                "length": 0,
-                "details": "Output is None",
-            }
+            return 0.0
 
-        # Convert to string
         output_str = str(output)
         length = self._calculate_length(output_str)
 
-        # Check constraints
-        passed = True
-        violations = []
-
         if self.min_length is not None and length < self.min_length:
-            passed = False
-            violations.append(f"length {length} < min {self.min_length}")
+            return 0.0
 
         if self.max_length is not None and length > self.max_length:
-            passed = False
-            violations.append(f"length {length} > max {self.max_length}")
+            return 0.0
 
-        score = 1.0 if passed else 0.0
-
-        return {
-            "score": score,
-            "passed": passed,
-            "length": length,
-            "details": {
-                "count_type": self.count_type,
-                "min_length": self.min_length,
-                "max_length": self.max_length,
-                "violations": violations,
-            },
-        }
+        return 1.0
 
 
 class JSONValidator(BaseEvaluator):
@@ -138,11 +110,12 @@ class JSONValidator(BaseEvaluator):
         # Just validate JSON syntax
         evaluator = JSONValidator()
         result = evaluator.evaluate(context)
-        # Returns: {"score": 1.0, "passed": True, "parsed_data": {...}}
+        # Returns: 1.0 if valid JSON, 0.0 otherwise
 
         # Validate required keys
         evaluator = JSONValidator(required_keys=["name", "age"])
         result = evaluator.evaluate(context)
+        # Returns: 1.0 if valid with all required keys, 0.0 otherwise
 
     :param required_keys: Optional list of keys that must be present in the JSON object
     :param name: Optional custom name for the evaluator
@@ -161,58 +134,29 @@ class JSONValidator(BaseEvaluator):
         super().__init__(name=name)
         self.required_keys = required_keys or []
 
-    def evaluate(self, context: EvaluatorContext) -> Dict[str, Any]:
+    def evaluate(self, context: EvaluatorContext) -> float:
         """Perform JSON validation.
 
         :param context: The evaluation context
-        :return: Dictionary with 'score', 'passed', 'parsed_data', and 'details'
+        :return: 1.0 if valid JSON with required keys, 0.0 otherwise
         """
         output = context.output_data
 
-        # Handle None
         if output is None:
-            return {
-                "score": 0.0,
-                "passed": False,
-                "parsed_data": None,
-                "details": "Output is None",
-            }
+            return 0.0
 
-        # Convert to string if needed
         if isinstance(output, (dict, list)):
-            # Already a JSON-compatible structure
             parsed_data = output
         else:
             output_str = str(output)
             try:
                 parsed_data = json.loads(output_str)
-            except (json.JSONDecodeError, ValueError) as e:
-                return {
-                    "score": 0.0,
-                    "passed": False,
-                    "parsed_data": None,
-                    "details": f"Invalid JSON: {str(e)}",
-                }
+            except (json.JSONDecodeError, ValueError):
+                return 0.0
 
-        # Check required keys if specified
-        missing_keys = []
         if self.required_keys and isinstance(parsed_data, dict):
             for key in self.required_keys:
                 if key not in parsed_data:
-                    missing_keys.append(key)
+                    return 0.0
 
-        passed = len(missing_keys) == 0
-        score = 1.0 if passed else 0.0
-
-        details = {"is_valid_json": True}
-        if self.required_keys:
-            details["required_keys"] = self.required_keys
-            if missing_keys:
-                details["missing_keys"] = missing_keys
-
-        return {
-            "score": score,
-            "passed": passed,
-            "parsed_data": parsed_data,
-            "details": details,
-        }
+        return 1.0
