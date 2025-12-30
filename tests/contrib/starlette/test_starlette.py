@@ -524,6 +524,7 @@ with TestClient(app) as test_client:
     assert b"datadog context not present in ASGI request scope, trace middleware may be missing\n" in err, err
 
 
+@snapshot(ignores=["meta._dd.span_links"])
 def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
     """Tests if background tasks have been excluded from span duration"""
     r = snapshot_client_with_tracer.get("/backgroundtask")

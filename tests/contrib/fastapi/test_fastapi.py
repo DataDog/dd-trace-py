@@ -750,6 +750,7 @@ def test_websocket_context_propagation(snapshot_app):
     _run_websocket_context_propagation_test()
 
 
+@snapshot(ignores=["meta._dd.span_links"])
 def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
     """Tests if background tasks have been traced but excluded from span duration"""
     response = snapshot_client_with_tracer.get("/asynctask")

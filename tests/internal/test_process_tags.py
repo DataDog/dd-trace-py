@@ -84,8 +84,6 @@ def test_compute_process_tag_excluded_values(excluded_value):
 
 
 class TestProcessTags(TracerTestCase):
-    USE_DUMMY_WRITER = False
-
     def setUp(self):
         super(TestProcessTags, self).setUp()
         self._original_process_tags_enabled = config.enabled
@@ -165,10 +163,6 @@ class TestProcessTags(TracerTestCase):
                         pass
                     with self.tracer.trace("child2"):
                         pass
-
-
-class TestProcessTagsWithDummyWriter(TracerTestCase):
-    USE_DUMMY_WRITER = True
 
     @run_in_subprocess(env_overrides=dict(DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="True"))
     def test_process_tags_activated_with_env(self):

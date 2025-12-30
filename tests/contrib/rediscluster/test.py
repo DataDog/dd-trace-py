@@ -265,7 +265,6 @@ def test_full_command_in_resource_env():
 
 
 @pytest.mark.snapshot
-@pytest.mark.parametrize("use_dummy_writer", [True])
 def test_full_command_in_resource_config(tracer, redis_client):
     with override_config("rediscluster", dict(resource_only_command=False)):
         with tracer.trace("web-request", service="test"):

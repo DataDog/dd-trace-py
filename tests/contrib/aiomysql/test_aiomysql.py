@@ -43,7 +43,6 @@ async def snapshot_conn(tracer):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("use_dummy_writer", [False])
 @pytest.mark.snapshot(ignores=["meta.error.stack"])
 async def test_queries(snapshot_conn):
     db = snapshot_conn
@@ -62,7 +61,6 @@ async def test_queries(snapshot_conn):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
-@pytest.mark.parametrize("use_dummy_writer", [False])
 async def test_pin_override(patched_conn, tracer):
     Pin._override(patched_conn, service="db")
     cursor = await patched_conn.cursor()

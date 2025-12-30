@@ -1,0 +1,27 @@
+[[
+  {
+    "name": "aiohttp.template",
+    "service": "tests.contrib.aiohttp_jinja2",
+    "resource": "aiohttp.template",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "template",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
+      "aiohttp.template": "/template.jinja2",
+      "component": "aiohttp_jinja2",
+      "language": "python",
+      "runtime-id": "7fd5e3b1eea443a3a794aafc5862cc64"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 96510
+    },
+    "duration": 571000,
+    "start": 1667240484733331000
+  }]]

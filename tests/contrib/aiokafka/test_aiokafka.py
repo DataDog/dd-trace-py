@@ -144,6 +144,7 @@ async def test_send_and_wait_with_distributed_tracing():
 
 
 @pytest.mark.asyncio
+@pytest.mark.snapshot(ignores=["meta._dd.span_links", "meta.messaging.destination.name", "meta.kafka.topic"])
 async def test_getmany_multiple_messages_multiple_topics_with_distributed_tracing(tracer, test_spans):
     topic = await create_topic("getmany_distributed_tracing")
     topic_2 = await create_topic("getmany_distributed_tracing_2")

@@ -534,12 +534,10 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
     Uses the global ddtrace.tracer with a DummyWriter to capture spans.
     """
 
-    USE_DUMMY_WRITER = True
-
     def setUp(self):
         """Before each test case, configure the global tracer with a DummyWriter"""
         self.tracer = ddtrace.tracer
-        self.scoped_tracer = scoped_tracer(use_dummy_writer=self.USE_DUMMY_WRITER)
+        self.scoped_tracer = scoped_tracer()
         self.tracer = self.scoped_tracer.__enter__()
         super(TracerTestCase, self).setUp()
 

@@ -243,6 +243,23 @@ class PsycopgCore(TracerTestCase):
                 dict(name="postgres.query", resource=query.as_string(db)),
             )
 
+    @snapshot()
+    def test_composed_query_encoding(self):
+        """Checks whether execution of composed SQL string is traced"""
+        import logging
+
+        logger = logging.getLogger()
+        logger.level = logging.DEBUG
+        query = SQL(" union all ").join([SQL("""select 'one' as x"""), SQL("""select 'two' as x""")])
+        conn = psycopg.connect(**POSTGRES_CONFIG)
+
+        with conn.cursor() as cur:
+            cur.execute(query=query)
+            rows = cur.fetchall()
+            assert len(rows) == 2, rows
+            assert rows[0][0] == "one"
+            assert rows[1][0] == "two"
+
     def test_connection_execute(self):
         """Checks whether connection execute shortcute method works as normal"""
 
@@ -378,6 +395,22 @@ class PsycopgCore(TracerTestCase):
             conn.cursor().execute("""select 'blah'""")
             self.assert_structure(dict(name="postgres.query", service=service))
 
+    @snapshot()
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
+    def test_postgres_dbm_propagation_tag(self):
+        """generates snapshot to check whether execution of SQL string sets dbm propagation tag"""
+        conn = psycopg.connect(**POSTGRES_CONFIG)
+        cursor = conn.cursor()
+        # test string queries
+        cursor.execute("select 'str blah'")
+        cursor.executemany("select %s", (("str_foo",), ("str_bar",)))
+        # test byte string queries
+        cursor.execute(b"select 'byte str blah'")
+        cursor.executemany(b"select %s", ((b"bstr_foo",), (b"bstr_bar",)))
+        # test composed queries
+        cursor.execute(SQL("select 'composed_blah'"))
+        cursor.executemany(SQL("select %s"), (("composed_foo",), ("composed_bar",)))
+
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(
             DD_DBM_PROPAGATION_MODE="service",
@@ -479,48 +512,3 @@ class PsycopgCore(TracerTestCase):
 
         query_span = spans[0]
         assert query_span.name == "postgres.query"
-
-
-class PsycopgSnapshot(TracerTestCase):
-    USE_DUMMY_WRITER = False
-
-    def setUp(self):
-        super(PsycopgSnapshot, self).setUp()
-        patch()
-
-    def tearDown(self):
-        super(PsycopgSnapshot, self).tearDown()
-        unpatch()
-
-    @snapshot()
-    def test_composed_query_encoding(self):
-        """Checks whether execution of composed SQL string is traced"""
-        import logging
-
-        logger = logging.getLogger()
-        logger.level = logging.DEBUG
-        query = SQL(" union all ").join([SQL("""select 'one' as x"""), SQL("""select 'two' as x""")])
-        conn = psycopg.connect(**POSTGRES_CONFIG)
-
-        with conn.cursor() as cur:
-            cur.execute(query=query)
-            rows = cur.fetchall()
-            assert len(rows) == 2, rows
-            assert rows[0][0] == "one"
-            assert rows[1][0] == "two"
-
-    @snapshot()
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
-    def test_postgres_dbm_propagation_tag(self):
-        """generates snapshot to check whether execution of SQL string sets dbm propagation tag"""
-        conn = psycopg.connect(**POSTGRES_CONFIG)
-        cursor = conn.cursor()
-        # test string queries
-        cursor.execute("select 'str blah'")
-        cursor.executemany("select %s", (("str_foo",), ("str_bar",)))
-        # test byte string queries
-        cursor.execute(b"select 'byte str blah'")
-        cursor.executemany(b"select %s", ((b"bstr_foo",), (b"bstr_bar",)))
-        # test composed queries
-        cursor.execute(SQL("select 'composed_blah'"))
-        cursor.executemany(SQL("select %s"), (("composed_foo",), ("composed_bar",)))
