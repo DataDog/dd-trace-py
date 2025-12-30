@@ -44,6 +44,10 @@ log = logging.getLogger("datadog.dogstatsd")
 DEFAULT_HOST = "localhost"
 DEFAULT_PORT = 8125
 
+# Sentinel values for default parameters
+_DEFAULT_HOST = object()
+_DEFAULT_PORT = object()
+
 # Buffering-related values (in seconds)
 DEFAULT_FLUSH_INTERVAL = 0.3
 MIN_FLUSH_INTERVAL = 0.0001
@@ -102,8 +106,8 @@ class DogStatsd(object):
 
     def __init__(
         self,
-        host=DEFAULT_HOST,                      # type: Text
-        port=DEFAULT_PORT,                      # type: int
+        host=_DEFAULT_HOST,                     # type: Text
+        port=_DEFAULT_PORT,                     # type: int
         max_buffer_size=None,                   # type: None
         flush_interval=DEFAULT_FLUSH_INTERVAL,  # type: float
         disable_buffering=True,                 # type: bool
@@ -293,21 +297,24 @@ class DogStatsd(object):
             log.warning("The parameter max_buffer_size is now deprecated and is not used anymore")
 
         # Check host and port env vars
-        agent_host = os.environ.get("DD_AGENT_HOST")
-        if agent_host and host == DEFAULT_HOST:
-            host = agent_host
+        if host is _DEFAULT_HOST:
+            host = os.environ.get("DD_AGENT_HOST", DEFAULT_HOST)
 
-        dogstatsd_port = os.environ.get("DD_DOGSTATSD_PORT")
-        if dogstatsd_port and port == DEFAULT_PORT:
-            try:
-                port = int(dogstatsd_port)
-            except ValueError:
-                log.warning(
-                    "Port number provided in DD_DOGSTATSD_PORT env var is not an integer: \
-                %s, using %s as port number",
-                    dogstatsd_port,
-                    port,
-                )
+        if port is _DEFAULT_PORT:
+            dogstatsd_port = os.environ.get("DD_DOGSTATSD_PORT")
+            if dogstatsd_port:
+                try:
+                    port = int(dogstatsd_port)  # type: ignore
+                except ValueError:
+                    port = DEFAULT_PORT
+                    log.warning(
+                        "Port number provided in DD_DOGSTATSD_PORT env var is not an integer: \
+                    %s, using %s as port number",
+                        dogstatsd_port,
+                        port,
+                    )
+            else:
+                port = DEFAULT_PORT
 
         # Assuming environment variables always override
         telemetry_host = os.environ.get("DD_TELEMETRY_HOST", telemetry_host)
