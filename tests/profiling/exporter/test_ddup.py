@@ -64,10 +64,10 @@ def test_tags_propagated():
     import sys
     from unittest.mock import Mock
 
-    sys.modules["ddtrace.internal.datadog.profiling.ddup"] = Mock()
+    mock_ddup = Mock()
+    sys.modules["ddtrace.internal.datadog.profiling.ddup"] = mock_ddup
 
     from ddtrace.profiling.profiler import Profiler  # noqa: I001
-    from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.internal.settings.profiling import config
 
     # DD_PROFILING_TAGS should override DD_TAGS
@@ -77,9 +77,9 @@ def test_tags_propagated():
     # When Profiler is instantiated and libdd is enabled, it should call ddup.config
     Profiler()
 
-    ddup.config.assert_called()
+    mock_ddup.config.assert_called()
 
-    tags = ddup.config.call_args.kwargs["tags"]
+    tags = mock_ddup.config.call_args.kwargs["tags"]
 
     # Profiler could add tags, so check that tags is a superset of config.tags
     for k, v in config.tags.items():
@@ -111,6 +111,14 @@ def test_push_span_without_span_id():
     This can happen when profiling collector encounters mock span objects in tests.
     Regression test for issue where AttributeError was raised when accessing span.span_id.
     """
+
+    ddup.config(
+        env="my_env",
+        service="my_service",
+        version="my_version",
+        tags={},
+    )
+    ddup.start()
 
     # Create a sample handle
     handle = ddup.SampleHandle()
@@ -145,3 +153,5 @@ def test_push_span_without_span_id():
 
     # Test 6: None span (should handle gracefully)
     handle.push_span(None)
+
+    ddup.upload()
