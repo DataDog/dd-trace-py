@@ -4,10 +4,10 @@ import sys
 import time
 
 
-def f():
+def f() -> None:
     import ddtrace.profiling.bootstrap
 
-    profiler = ddtrace.profiling.bootstrap.profiler
+    profiler = ddtrace.profiling.bootstrap.profiler  # pyright: ignore[reportAttributeAccessIssue]
     for _ in range(50):
         time.sleep(0.1)
     # Manually stop the profiler: atexit hooks are not called in subprocesses launched by multiprocessing and we want to
