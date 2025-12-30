@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: the Profiler now always uses the name of leaf tasks for the "Task name" label. Previously, one of the
+    Stacks would be labelled with the parent task's name, which would lead to inconsistent behaviour across runs.
