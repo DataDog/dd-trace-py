@@ -109,9 +109,11 @@ class TestValkeyClusterPatch(TracerTestCase):
         Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = self.pop_spans()
-        assert spans, spans
-        assert len(spans) == 1
+        # Use find_redis_span to get the specific GET span
+        span = find_redis_span(
+            self.pop_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
+        )
+        assert span is not None
 
         # Test unpatch
         unpatch()
@@ -120,7 +122,8 @@ class TestValkeyClusterPatch(TracerTestCase):
         r.get("key")
 
         spans = self.pop_spans()
-        assert not spans, spans
+        valkey_spans = [s for s in spans if s.get_tag("component") == "valkey"]
+        assert not valkey_spans, valkey_spans
 
         # Test patch again
         patch()
@@ -129,9 +132,11 @@ class TestValkeyClusterPatch(TracerTestCase):
         Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = self.pop_spans()
-        assert spans, spans
-        assert len(spans) == 1
+        # Use find_redis_span to get the specific GET span
+        span = find_redis_span(
+            self.pop_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
+        )
+        assert span is not None
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_v0(self):

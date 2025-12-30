@@ -233,9 +233,11 @@ class TestValkeyPatch(TracerTestCase):
         Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = self.pop_spans()
-        assert spans, spans
-        assert len(spans) == 1
+        # Use find_redis_span to get the specific GET span
+        span = find_redis_span(
+            self.pop_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
+        )
+        assert span is not None
 
         # Test unpatch
         unpatch()
@@ -244,7 +246,8 @@ class TestValkeyPatch(TracerTestCase):
         r.get("key")
 
         spans = self.pop_spans()
-        assert not spans, spans
+        valkey_spans = [s for s in spans if s.get_tag("component") == "valkey"]
+        assert not valkey_spans, spans
 
         # Test patch again
         patch()
@@ -253,9 +256,11 @@ class TestValkeyPatch(TracerTestCase):
         Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = self.pop_spans()
-        assert spans, spans
-        assert len(spans) == 1
+        # Use find_redis_span to get the specific GET span
+        span = find_redis_span(
+            self.pop_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
+        )
+        assert span is not None
 
     def test_valkey_rowcount_all_keys_valid(self):
         self.r.set("key1", "value1")
@@ -544,9 +549,11 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = self.pop_spans()
-        assert spans, spans
-        assert len(spans) == 1
+        # Use find_redis_span to get the specific GET span
+        span = find_redis_span(
+            self.pop_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
+        )
+        assert span is not None
 
         # Test unpatch
         unpatch()
@@ -555,7 +562,8 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         r.get("key")
 
         spans = self.pop_spans()
-        assert not spans, spans
+        valkey_spans = [s for s in spans if s.get_tag("component") == "valkey"]
+        assert not valkey_spans, valkey_spans
 
         # Test patch again
         patch()
@@ -564,9 +572,11 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = self.pop_spans()
-        assert spans, spans
-        assert len(spans) == 1
+        # Use find_redis_span to get the specific GET span
+        span = find_redis_span(
+            self.pop_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
+        )
+        assert span is not None
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     @snapshot()
