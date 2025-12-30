@@ -22,9 +22,9 @@ def test_dogstatsd_recpects_constructor_host_port(monkeypatch):
     monkeypatch.setenv("DD_AGENT_HOST", "env-host")
     monkeypatch.setenv("DD_DOGSTATSD_PORT", "1234")
 
-    client = DogStatsd(host="test-host", port=4321)
-    assert client.host == "test-host"
-    assert client.port == 4321
+    client = DogStatsd(host="localhost", port=8125)
+    assert client.host == "localhost"
+    assert client.port == 8125
 
 
 def test_dogstatsd_uses_default_host_port(monkeypatch):
