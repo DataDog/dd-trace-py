@@ -144,6 +144,24 @@ async def mcp_client(mcp_server):
 
 
 @pytest.fixture
+def mcp_server_initialized():
+    """Run MCP server initialization with custom client info."""
+    import asyncio
+
+    from mcp.types import Implementation
+
+    mcp_server = FastMCP("TestInitServer")
+
+    async def run_init():
+        client_info = Implementation(name="test-client", version="1.2.3")
+        async with create_connected_server_and_client_session(mcp_server._mcp_server, client_info=client_info):
+            pass
+
+    asyncio.run(run_init())
+    return mcp_server
+
+
+@pytest.fixture
 def _llmobs_backend():
     LLMObsServer.requests = []
     # Create and start the HTTP server

@@ -32,7 +32,7 @@ from distutils.dep_util import newer_group
 try:
     # ORDER MATTERS
     # Import this after setuptools or it will fail
-    from Cython.Build import cythonize  # noqa: I100
+    from Cython.Build import cythonize
     import Cython.Distutils
 except ImportError:
     raise ImportError(

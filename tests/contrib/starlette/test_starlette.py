@@ -624,6 +624,6 @@ def test_inferred_spans_api_gateway(client, test_spans):
             api_gateway_resource="GET /",
             method="GET",
             status_code="200",
-            url="local/",
+            url="https://local/",
             start=1736973768,
         )

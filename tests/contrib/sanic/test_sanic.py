@@ -593,7 +593,7 @@ async def test_inferred_spans_api_gateway_default(
                 api_gateway_resource="GET /",
                 method="GET",
                 status_code=test["status_code"],
-                url="local/",
+                url="https://local/",
                 start=1736973768,
                 is_distributed=test_headers["type"] == "distributed",
                 distributed_trace_id=1,

@@ -91,6 +91,14 @@ Datadog::UploaderBuilder::set_tag(std::string_view _key, std::string_view _val)
 }
 
 void
+Datadog::UploaderBuilder::set_process_tags(std::string_view p_tags)
+{
+    if (!p_tags.empty()) {
+        process_tags = p_tags;
+    }
+}
+
+void
 Datadog::UploaderBuilder::set_output_filename(std::string_view _output_filename)
 {
     if (!_output_filename.empty()) {
@@ -142,6 +150,7 @@ Datadog::UploaderBuilder::build()
         { ExportTagKey::runtime_version, runtime_version },
         { ExportTagKey::profiler_version, profiler_version },
         { ExportTagKey::process_id, process_id },
+        { ExportTagKey::process_tags, process_tags },
     };
 
     for (const auto& [tag, data] : tag_data) {

@@ -35,8 +35,10 @@ class TestCase(TracerTestCase, testing.TestCase, FalconTestMixin):
     def test(self, query_string="", trace_query_string=False):
         out = self.make_test_call("/200", expected_status_code=200, query_string=query_string)
         traces = self.pop_traces()
-        span = traces[0][0]
-        assert span.service == "{}"
+        assert len(traces) == 1
+        falcon_span = [span for trace in traces for span in trace if span.get_tag("component") == "falcon"]
+        assert len(falcon_span) == 1
+        assert falcon_span[0].service == "{}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
@@ -81,8 +83,10 @@ class TestCase(TracerTestCase, testing.TestCase, FalconTestMixin):
     def test(self, query_string="", trace_query_string=False):
         out = self.make_test_call("/200", expected_status_code=200, query_string=query_string)
         traces = self.pop_traces()
-        span = traces[0][0]
-        assert span.name == "{}"
+        assert len(traces) == 1
+        falcon_span = [span for trace in traces for span in trace if span.get_tag("component") == "falcon"]
+        assert len(falcon_span) == 1
+        assert falcon_span[0].name == "{}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
