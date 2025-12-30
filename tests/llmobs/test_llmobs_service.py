@@ -44,13 +44,13 @@ from tests.utils import override_global_config
 RAGAS_AVAILABLE = os.getenv("RAGAS_AVAILABLE", False)
 
 
-def run_llmobs_trace_filter(dummy_tracer):
-    with dummy_tracer.trace("span1", span_type=SpanTypes.LLM) as span:
+def run_llmobs_trace_filter(tracer, test_spans):
+    with tracer.trace("span1", span_type=SpanTypes.LLM) as span:
         span._set_tag_str(SPAN_KIND, "llm")
-    return dummy_tracer._span_aggregator.writer.pop()
+    return test_spans.pop()
 
 
-def test_service_enable_proxy(tracer):
+def test_service_enable_proxy(tracer, test_spans):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         llmobs_service.enable(_tracer=tracer, agentless_enabled=False)
         llmobs_instance = llmobs_service._instance
@@ -58,19 +58,19 @@ def test_service_enable_proxy(tracer):
         assert llmobs_service.enabled
         assert llmobs_instance.tracer == tracer
         assert llmobs_instance._llmobs_span_writer._agentless is False
-        assert run_llmobs_trace_filter(tracer) is not None
+        assert run_llmobs_trace_filter(tracer, test_spans) is not None
         llmobs_service.disable()
 
 
-def test_enable_agentless():
+def test_enable_agentless(tracer, test_spans):
     with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="<ml-app-name>")):
-        llmobs_service.enable(_tracer=ddtrace.tracer, agentless_enabled=True)
+        llmobs_service.enable(_tracer=tracer, agentless_enabled=True)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
-        assert llmobs_instance.tracer == ddtrace.tracer
+        assert llmobs_instance.tracer == tracer
         assert llmobs_instance._llmobs_span_writer._agentless is True
-        assert run_llmobs_trace_filter(ddtrace.tracer) is not None
+        assert run_llmobs_trace_filter(tracer, test_spans) is not None
 
         llmobs_service.disable()
 
@@ -86,9 +86,9 @@ def test_enable_agent_proxy_when_agent_is_available(tracer, agent):
         llmobs_service.disable()
 
 
-def test_enable_agentless_when_agent_info_is_not_available(no_agent_info):
+def test_enable_agentless_when_agent_info_is_not_available(tracer, no_agent_info):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
-        llmobs_service.enable(_tracer=ddtrace.tracer)
+        llmobs_service.enable(_tracer=tracer)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
