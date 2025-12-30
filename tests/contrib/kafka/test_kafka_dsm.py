@@ -11,6 +11,7 @@ from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.native import DDSketch
+from ddtrace.internal.service import ServiceStatusError
 from tests.datastreams.test_public_api import MockedTracer
 
 
@@ -34,7 +35,6 @@ def dsm_processor(tracer):
         yield processor
         # flush buckets for the next test run
         processor.periodic()
-        from ddtrace.internal.service import ServiceStatusError
 
         try:
             processor.shutdown(timeout=5)
