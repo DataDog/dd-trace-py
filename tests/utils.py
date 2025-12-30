@@ -297,7 +297,7 @@ def scoped_tracer(use_dummy_writer=True, compute_stats_enabled=None):
         yield ddtrace.tracer
     finally:
         ddtrace.tracer._recreate(
-            re_init=True,
+            reinit=True,
         )
 
 

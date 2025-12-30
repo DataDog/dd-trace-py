@@ -355,9 +355,9 @@ class Tracer(object):
         apm_opt_out: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
         reset_buffer: bool = True,
-        re_init: bool = False,
+        reinit: bool = False,
     ) -> None:
-        if re_init:
+        if reinit:
             self.shutdown()
             self.__class__._instance = None
             self.__class__.__init__(self)

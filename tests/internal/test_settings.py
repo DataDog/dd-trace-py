@@ -20,7 +20,7 @@ def config():
     # Reset the config to its original state
     ddtrace.config = original_config
     # Reset the state of the tracer
-    ddtrace.tracer._recreate(re_init=True)
+    ddtrace.tracer._recreate(reinit=True)
 
 
 def _base_rc_config(cfg):
