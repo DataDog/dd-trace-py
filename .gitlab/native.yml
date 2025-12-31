@@ -38,7 +38,9 @@ include:
   script:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:clang_tidy_build[collapsed=true]\r\e[0Kclang-tidy on profiling C++ code"
+      export DD_FAST_BUILD=1
+      export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
       source /tmp/venv/bin/activate
-      python3 -c "import cython; print(cython.__file__)"
+      pip install -e . -v
       ddtrace/internal/datadog/profiling/build_standalone.sh --clangtidy Debug all
       echo -e "\e[0Ksection_end:`date +%s`:clang_tidy_build\r\e[0K"
