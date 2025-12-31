@@ -25,6 +25,11 @@ class CustomError(Exception):
 @pytest.fixture
 def dsm_processor(tracer):
     processor = tracer.data_streams_processor
+    # Clean up any existing context to prevent test pollution
+    try:
+        del processor._current_context.value
+    except AttributeError:
+        pass
 
     with mock.patch("ddtrace.internal.datastreams.data_streams_processor", return_value=processor):
         yield processor
