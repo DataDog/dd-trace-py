@@ -11,6 +11,7 @@ from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.native import DDSketch
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
 from tests.datastreams.test_public_api import MockedTracer
 
@@ -40,7 +41,7 @@ def dsm_processor(tracer):
             processor.shutdown(timeout=5)
         except ServiceStatusError as e:
             # Expected: processor already stopped by tracer shutdown during test teardown
-            if "already in status stopped" not in str(e):
+            if e.current_status == ServiceStatus.RUNNING:
                 raise
 
 
