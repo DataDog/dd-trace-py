@@ -151,6 +151,7 @@ def dsm_aiokafka_message_commit(instance: "GroupCoordinator", args: Any, kwargs:
 
 
 if config._data_streams_enabled:
+    print("DSM activated")
     core.on("aiokafka.send.start", dsm_aiokafka_send_start)
     core.on("aiokafka.send.completed", dsm_aiokafka_send_completed)
     core.on("aiokafka.getone.message", dsm_aiokafka_message_consume)

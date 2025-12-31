@@ -1426,10 +1426,6 @@ def listen_dd_handlers():
     core.on("asgi.websocket.disconnect.message", _on_asgi_websocket_disconnect_message)
     core.on("asgi.websocket.close.message", _on_asgi_websocket_close_message)
     core.on("context.started.asgi.request", _on_asgi_request)
-    core.on("aiokafka.send.start", _on_aiokafka_send_start)
-    core.on("aiokafka.getone.message", _on_aiokafka_getone_message)
-    core.on("aiokafka.getmany.message", _on_aiokafka_getmany_message)
-    core.on("aiokafka.send.completed", _on_aiokafka_send_complete)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
@@ -1552,8 +1548,14 @@ def listen_dd_handlers():
 
 
 def listen():
+    # httpx
     core.on("httpx.send", _on_httpx_send)
     core.on("httpx.send.completed", _on_httpx_send_completed)
+
+    # aiokafka
+    core.on("aiokafka.send.start", _on_aiokafka_send_start)
+    core.on("aiokafka.getone.message", _on_aiokafka_getone_message)
+    core.on("aiokafka.getmany.message", _on_aiokafka_getmany_message)
 
     if not config._otel_dd_instrumentation:
         listen_dd_handlers()

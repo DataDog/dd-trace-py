@@ -1,3 +1,4 @@
+import contextvars
 import traceback
 from types import TracebackType
 from typing import Optional
@@ -37,7 +38,10 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs):
     if call_trace:
         otel_context = trace.set_span_in_context(span)
         token = attach(otel_context)
+        # AIDEV-NOTE: Store the asyncio context along with the token to validate
+        # it's safe to detach later. This prevents errors when detaching in callbacks.
         ctx.set_item("_otel_context_token", token)
+        ctx.set_item("_otel_context_id", id(contextvars.copy_context()))
 
     ctx._inner_span = span  # type: ignore[assignment]
 
@@ -61,18 +65,33 @@ def _finish_span(
 
     span.end()  # type: ignore[attr-defined]
 
-    # Detach context only if we activated it (when call_trace=True)
+    # Detach context only if we activated it (when call_trace=True) and we're in the same context
+    # AIDEV-NOTE: In async operations, detach() may fail with ValueError if called in a different
+    # asyncio context than where attach() was called (e.g., in callbacks). We check the context ID
+    # to avoid calling detach when it would fail, preventing noisy error logs from OpenTelemetry.
     token = ctx.get_item("_otel_context_token")
     if token is not None:
-        detach(token)
+        # Only detach if we're in the same asyncio context where attach() was called
+        context_id = ctx.get_item("_otel_context_id")
+        current_context_id = id(contextvars.copy_context())
+        if context_id == current_context_id:
+            detach(token)
+
+
+def _on_aiokafka_send_complete(
+    ctx: core.ExecutionContext, exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]], _
+) -> None:
+    _finish_span(ctx, exc_info)
 
 
 def listen():
-    for context_name in ("httpx.request",):
+    for context_name in ("httpx.request", "aiokafka.send", "aiokafka.getone", "aiokafka.getmany"):
         core.on(f"context.started.{context_name}", _start_span)
 
-    for name in ("httpx.request",):
+    for name in ("httpx.request", "aiokafka.getone", "aiokafka.getmany"):
         core.on(f"context.ended.{name}", _finish_span)
+
+    core.on("aiokafka.send.completed", _on_aiokafka_send_complete)
 
 
 listen()

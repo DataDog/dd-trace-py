@@ -8,6 +8,7 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.compat import core
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext.kafka import CONSUME
@@ -16,7 +17,6 @@ from ddtrace.ext.kafka import HOST_LIST
 from ddtrace.ext.kafka import PRODUCE
 from ddtrace.ext.kafka import SERVICE
 from ddtrace.ext.kafka import TOPIC
-from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
 from ddtrace.internal.constants import MESSAGING_SYSTEM
@@ -88,6 +88,7 @@ async def traced_send(func, instance, args, kwargs):
         span_type=SpanTypes.WORKER,
         service=trace_utils.ext_service(None, config.aiokafka),
         tags=common_aiokafka_tags(topic, bootstrap_servers),
+        call_trace=False,
     ) as ctx:
         core.dispatch("aiokafka.send.start", (topic, value, key, headers, ctx, partition))
         args, kwargs = set_argument_value(args, kwargs, 5, "headers", headers, override_unset=True)
