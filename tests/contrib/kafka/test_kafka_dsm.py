@@ -239,11 +239,11 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
 
     # Auto commit is enabled so we want to wait for the commit event to fire
     first_offset = _wait_for_auto_commit_and_fetch_offset()
-    if first_offset is not None:
-        assert (
-            list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)]
-            == first_offset
-        )
+    assert first_offset is not None, "Auto-commit did not complete within 5 seconds"
+    assert (
+        list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)]
+        == first_offset
+    )
 
 
 def test_data_streams_kafka_produce_api_compatibility(dsm_processor, consumer, producer, empty_kafka_topic):
