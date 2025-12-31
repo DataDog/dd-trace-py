@@ -212,14 +212,28 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
     assert len(buckets) == 1
     assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0)] > 0
 
+    def _wait_for_auto_commit_and_fetch_offset(timeout=5.0):
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            tp = TopicPartition(kafka_topic, 0)
+            committed = consumer.committed([tp], timeout=1.0)
+
+            # Check for valid committed offset (> 0, not -1001/_NO_OFFSET)
+            if committed and committed[0].offset > 0:
+                return committed[0].offset
+
+            time.sleep(0.1)
+
+        return None
+
     # Auto commit is enabled so we want to wait for the commit event to fire
-    time.sleep(1)
-    first_offset = consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset
-    if first_offset:
-        assert (
-            list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)]
-            == first_offset
-        )
+    first_offset = _wait_for_auto_commit_and_fetch_offset()
+    assert first_offset is not None, "Auto-commit did not complete within 5 seconds"
+    assert (
+        list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)]
+        == first_offset
+    )
 
 
 def test_data_streams_kafka_produce_api_compatibility(dsm_processor, consumer, producer, empty_kafka_topic):
