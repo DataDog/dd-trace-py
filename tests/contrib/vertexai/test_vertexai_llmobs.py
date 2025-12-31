@@ -63,7 +63,7 @@ class TestLLMObsVertexai:
             contents="What is the sum of the first 50 prime numbers?",
             generation_config=vertexai.generative_models.GenerationConfig(max_output_tokens=300, temperature=1.0),
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_reasoning_span_event(span))
 
