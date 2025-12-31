@@ -27,6 +27,7 @@ class UploaderBuilder
     static inline ExporterTagset user_tags{};
     static inline std::string output_filename{ "" };
     static inline uint64_t max_timeout_ms{ g_default_max_timeout_ms };
+    static inline std::string process_tags;
 
     static constexpr std::string_view language{ g_language_name };
     static constexpr std::string_view family{ g_language_name };
@@ -42,6 +43,7 @@ class UploaderBuilder
     static void set_profiler_version(std::string_view _profiler_version);
     static void set_url(std::string_view _url);
     static void set_tag(std::string_view _key, std::string_view _val);
+    static void set_process_tags(std::string_view p_tags);
     static void set_output_filename(std::string_view _output_filename);
     static void set_max_timeout_ms(uint64_t _max_timeout_ms);
 
