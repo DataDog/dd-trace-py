@@ -1,7 +1,6 @@
 import pytest
 
 
-@pytest.mark.xfail(reason="This test is flaky due to a race condition, see PROF-13137")
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_recursive_on_cpu_tasks",
@@ -132,11 +131,13 @@ def test_asyncio_recursive_on_cpu_tasks():
                         loc("<module>"),
                         loc("main_sync"),
                         loc("run"),
-                        loc("Runner.run"),
-                        loc("BaseEventLoop.run_until_complete"),
-                        loc("BaseEventLoop.run_forever"),
-                        loc("BaseEventLoop._run_once"),
-                        loc("Handle._run"),
+                    ]
+                    + ([loc(f"{runner_prefix}run")] if PYVERSION >= (3, 11) else [])
+                    + [
+                        loc(f"{base_event_loop_prefix}run_until_complete"),
+                        loc(f"{base_event_loop_prefix}run_forever"),
+                        loc(f"{base_event_loop_prefix}_run_once"),
+                        loc(f"{handle_prefix}_run"),
                         # loc("Task-1"),
                         loc("async_main"),
                         loc("outer"),
