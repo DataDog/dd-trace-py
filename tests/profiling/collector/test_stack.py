@@ -487,6 +487,7 @@ def test_collect_once_with_class(tmp_path: Path) -> None:
                 ),
             ],
         ),
+        print_samples_on_failure=True,
     )
 
 
@@ -548,6 +549,7 @@ def test_collect_once_with_class_not_right_type(tmp_path: Path) -> None:
                 ),
             ],
         ),
+        print_samples_on_failure=True,
     )
 
 
@@ -640,6 +642,7 @@ def test_collect_gevent_thread_task() -> None:
                 ),
             ],
         ),
+        print_samples_on_failure=True,
     )
 
 
@@ -768,6 +771,7 @@ def test_collect_span_id(tracer: Tracer, tmp_path: Path) -> None:
                 )
             ],
         ),
+        print_samples_on_failure=True,
     )
 
 
@@ -809,6 +813,7 @@ def test_collect_span_resource_after_finish(tracer: Tracer, tmp_path: Path, requ
                 )
             ],
         ),
+        print_samples_on_failure=True,
     )
 
 
@@ -846,6 +851,7 @@ def test_resource_not_collected(tmp_path: Path, tracer: Tracer) -> None:
                 )
             ],
         ),
+        print_samples_on_failure=True,
     )
 
 
@@ -888,6 +894,7 @@ def test_collect_nested_span_id(tmp_path: Path, tracer: Tracer, request: Fixture
                 )
             ],
         ),
+        print_samples_on_failure=True,
     )
 
 
