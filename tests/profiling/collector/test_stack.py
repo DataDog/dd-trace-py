@@ -1,19 +1,31 @@
 import _thread
 import os
+from pathlib import Path
 import sys
 import threading
 import time
+from typing import TYPE_CHECKING
+from typing import Generator
+from typing import List
+from typing import Tuple
 from unittest.mock import patch
 import uuid
 
 import pytest
+from pytest import FixtureRequest
+from pytest import MonkeyPatch
 
 from ddtrace import ext
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import stack
+from ddtrace.trace import Tracer
 from tests.conftest import get_original_test_name
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
+
+
+if TYPE_CHECKING:
+    from tests.profiling.collector.pprof_pb2 import Sample  # pyright: ignore[reportMissingModuleSource]
 
 
 # Python 3.11.9 is not compatible with gevent, https://github.com/gevent/gevent/issues/2040
@@ -25,23 +37,23 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and (
 )
 
 
-def func1():
+def func1() -> None:
     return func2()
 
 
-def func2():
+def func2() -> None:
     return func3()
 
 
-def func3():
+def func3() -> None:
     return func4()
 
 
-def func4():
+def func4() -> None:
     return func5()
 
 
-def func5():
+def func5() -> None:
     return time.sleep(1)
 
 
@@ -52,7 +64,7 @@ def func5():
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_collect_truncate",
     )
 )
-def test_collect_truncate():
+def test_collect_truncate() -> None:
     import os
 
     from ddtrace.profiling import profiler
@@ -80,7 +92,7 @@ def test_collect_truncate():
         assert len(sample.location_id) <= max_nframes + 2, len(sample.location_id)
 
 
-def test_stack_locations(tmp_path):
+def test_stack_locations(tmp_path: Path) -> None:
     test_name = "test_stack_locations"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -88,19 +100,21 @@ def test_stack_locations(tmp_path):
     assert ddup.is_available
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
+    ddup.upload()
 
-    def baz():
+    def baz() -> None:
         time.sleep(0.1)
 
-    def bar():
+    def bar() -> None:
         baz()
 
-    def foo():
+    def foo() -> None:
         bar()
 
     with stack.StackCollector():
         for _ in range(10):
             foo()
+
     ddup.upload()
 
     profile = pprof_utils.parse_newest_profile(output_filename)
@@ -132,7 +146,7 @@ def test_stack_locations(tmp_path):
     pprof_utils.assert_profile_has_sample(profile, samples=samples, expected_sample=expected_sample)
 
 
-def test_push_span(tmp_path, tracer):
+def test_push_span(tmp_path: Path, tracer: Tracer) -> None:
     test_name = "test_push_span"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -142,6 +156,7 @@ def test_push_span(tmp_path, tracer):
     assert ddup.is_available
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
+    ddup.upload()
 
     resource = str(uuid.uuid4())
     span_type = ext.SpanTypes.WEB
@@ -157,22 +172,30 @@ def test_push_span(tmp_path, tracer):
     ddup.upload(tracer=tracer)
 
     profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_label_key(profile, "span id")
-    assert len(samples) > 0
-    for sample in samples:
-        pprof_utils.assert_stack_event(
-            profile,
-            sample,
-            expected_event=pprof_utils.StackEvent(
-                span_id=span_id,
-                local_root_span_id=local_root_span_id,
-                trace_type=span_type,
-                trace_endpoint=resource,
-            ),
-        )
+    samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
+
+    samples: List[Sample] = []
+    for sample in samples_with_span_id:
+        locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
+        if any(location.filename.endswith("test_stack.py") for location in locations):
+            samples.append(sample)
+
+    assert samples, "No sample found with locations in test_stack.py"
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            span_id=span_id,
+            local_root_span_id=local_root_span_id,
+            trace_type=span_type,
+            trace_endpoint=resource,
+        ),
+        print_samples_on_failure=True,
+    )
 
 
-def test_push_span_unregister_thread(tmp_path, monkeypatch, tracer):
+def test_push_span_unregister_thread(tmp_path: Path, monkeypatch: MonkeyPatch, tracer: Tracer) -> None:
     with patch("ddtrace.internal.datadog.profiling.stack.unregister_thread") as unregister_thread:
         tracer._endpoint_call_counter_span_processor.enable()
 
@@ -183,11 +206,12 @@ def test_push_span_unregister_thread(tmp_path, monkeypatch, tracer):
         assert ddup.is_available
         ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
         ddup.start()
+        ddup.upload()
 
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
 
-        def target_fun():
+        def target_fun() -> None:
             for _ in range(10):
                 time.sleep(0.1)
 
@@ -204,24 +228,30 @@ def test_push_span_unregister_thread(tmp_path, monkeypatch, tracer):
         ddup.upload(tracer=tracer)
 
         profile = pprof_utils.parse_newest_profile(output_filename)
-        samples = pprof_utils.get_samples_with_label_key(profile, "span id")
-        assert len(samples) > 0
-        for sample in samples:
-            pprof_utils.assert_stack_event(
-                profile,
-                sample,
-                expected_event=pprof_utils.StackEvent(
-                    span_id=span_id,
-                    local_root_span_id=local_root_span_id,
-                    trace_type=span_type,
-                    trace_endpoint=resource,
-                ),
-            )
+        samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
+        samples: List[Sample] = []
+        for sample in samples_with_span_id:
+            locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
+            if any(location.filename.endswith("test_stack.py") for location in locations):
+                samples.append(sample)
+
+        assert samples, "No sample found with locations in test_stack.py"
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples=samples,
+            expected_sample=pprof_utils.StackEvent(
+                span_id=span_id,
+                local_root_span_id=local_root_span_id,
+                trace_type=span_type,
+                trace_endpoint=resource,
+            ),
+            print_samples_on_failure=True,
+        )
 
         unregister_thread.assert_called_with(thread_id)
 
 
-def test_push_non_web_span(tmp_path, tracer):
+def test_push_non_web_span(tmp_path: Path, tracer: Tracer) -> None:
     tracer._endpoint_call_counter_span_processor.enable()
 
     test_name = "test_push_non_web_span"
@@ -231,6 +261,7 @@ def test_push_non_web_span(tmp_path, tracer):
     assert ddup.is_available
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
+    ddup.upload()
 
     resource = str(uuid.uuid4())
     span_type = ext.SpanTypes.SQL
@@ -246,22 +277,28 @@ def test_push_non_web_span(tmp_path, tracer):
     ddup.upload(tracer=tracer)
 
     profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_label_key(profile, "span id")
-    assert len(samples) > 0
-    for sample in samples:
-        pprof_utils.assert_stack_event(
-            profile,
-            sample,
-            expected_event=pprof_utils.StackEvent(
-                span_id=span_id,
-                local_root_span_id=local_root_span_id,
-                trace_type=span_type,
-                # trace_endpoint is not set for non-web spans
-            ),
-        )
+    samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
+    samples: List[Sample] = []
+    for sample in samples_with_span_id:
+        locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
+        if any(location.filename.endswith("test_stack.py") for location in locations):
+            samples.append(sample)
+
+    assert samples, "No sample found with locations in test_stack.py"
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            span_id=span_id,
+            local_root_span_id=local_root_span_id,
+            trace_type=span_type,
+            # trace_endpoint is not set for non-web spans
+        ),
+        print_samples_on_failure=True,
+    )
 
 
-def test_push_span_none_span_type(tmp_path, tracer):
+def test_push_span_none_span_type(tmp_path: Path, tracer: Tracer) -> None:
     # Test for https://github.com/DataDog/dd-trace-py/issues/11141
     test_name = "test_push_span_none_span_type"
     pprof_prefix = str(tmp_path / test_name)
@@ -270,6 +307,7 @@ def test_push_span_none_span_type(tmp_path, tracer):
     assert ddup.is_available
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
+    ddup.upload()
 
     tracer._endpoint_call_counter_span_processor.enable()
 
@@ -288,22 +326,28 @@ def test_push_span_none_span_type(tmp_path, tracer):
     ddup.upload(tracer=tracer)
 
     profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_label_key(profile, "span id")
-    assert len(samples) > 0
-    for sample in samples:
-        pprof_utils.assert_stack_event(
-            profile,
-            sample,
-            expected_event=pprof_utils.StackEvent(
-                span_id=span_id,
-                local_root_span_id=local_root_span_id,
-                # span_type is None
-                # trace_endpoint is not set for non-web spans
-            ),
-        )
+    samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
+    samples: List[Sample] = []
+    for sample in samples_with_span_id:
+        locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
+        if any(location.filename.endswith("test_stack.py") for location in locations):
+            samples.append(sample)
+
+    assert samples, "No sample found with locations in test_stack.py"
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            span_id=span_id,
+            local_root_span_id=local_root_span_id,
+            # span_type is None
+            # trace_endpoint is not set for non-web spans
+        ),
+        print_samples_on_failure=True,
+    )
 
 
-def test_exception_collection(tmp_path):
+def test_exception_collection(tmp_path: Path) -> None:
     test_name = "test_exception_collection"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -311,6 +355,7 @@ def test_exception_collection(tmp_path):
     assert ddup.is_available
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
+    ddup.upload()
 
     with stack.StackCollector():
         try:
@@ -328,7 +373,7 @@ def test_exception_collection(tmp_path):
     assert len(samples) == 0
 
 
-def test_exception_collection_threads(tmp_path):
+def test_exception_collection_threads(tmp_path: Path) -> None:
     test_name = "test_exception_collection_threads"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -336,10 +381,11 @@ def test_exception_collection_threads(tmp_path):
     assert ddup.is_available
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
+    ddup.upload()
 
     with stack.StackCollector():
 
-        def target_fun():
+        def target_fun() -> None:
             try:
                 raise ValueError("hello")
             except Exception:
@@ -362,7 +408,7 @@ def test_exception_collection_threads(tmp_path):
     assert len(samples) == 0
 
 
-def test_exception_collection_trace(tmp_path, tracer):
+def test_exception_collection_trace(tmp_path: Path, tracer: Tracer) -> None:
     test_name = "test_exception_collection_trace"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -372,6 +418,7 @@ def test_exception_collection_trace(tmp_path, tracer):
     assert ddup.is_available
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
+    ddup.upload()
 
     with stack.StackCollector(tracer=tracer):
         with tracer.trace("foobar", resource="resource", span_type=ext.SpanTypes.WEB):
@@ -388,13 +435,13 @@ def test_exception_collection_trace(tmp_path, tracer):
     assert len(samples) == 0
 
 
-def test_collect_once_with_class(tmp_path):
+def test_collect_once_with_class(tmp_path: Path) -> None:
     class SomeClass(object):
         @classmethod
-        def sleep_class(cls):
+        def sleep_class(cls) -> None:
             return cls().sleep_instance()
 
-        def sleep_instance(self):
+        def sleep_instance(self) -> None:
             for _ in range(10):
                 time.sleep(0.1)
 
@@ -405,6 +452,7 @@ def test_collect_once_with_class(tmp_path):
     assert ddup.is_available
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
+    ddup.upload()
 
     with stack.StackCollector():
         SomeClass.sleep_class()
@@ -435,20 +483,26 @@ def test_collect_once_with_class(tmp_path):
                 pprof_utils.StackLocation(
                     function_name="test_collect_once_with_class",
                     filename="test_stack.py",
-                    line_no=test_collect_once_with_class.__code__.co_firstlineno + 19,
+                    line_no=test_collect_once_with_class.__code__.co_firstlineno + 20,
                 ),
             ],
         ),
     )
 
 
-def test_collect_once_with_class_not_right_type(tmp_path):
+def test_collect_once_with_class_not_right_type(tmp_path: Path) -> None:
+    """Test that the stack collector profiles methods with non-conventional parameter names.
+
+    Verifies the profiler handles methods where parameters don't follow standard conventions
+    (e.g., using 'foobar' instead of 'self' or 'cls').
+    """
+
     class SomeClass(object):
         @classmethod
-        def sleep_class(foobar, cls):
+        def sleep_class(foobar, cls) -> None:  # pyright: ignore[reportSelfClsParameterName]
             return foobar().sleep_instance(cls)
 
-        def sleep_instance(foobar, self):
+        def sleep_instance(foobar, self) -> None:  # pyright: ignore[reportUnusedParameter, reportSelfClsParameterName]
             for _ in range(10):
                 time.sleep(0.1)
 
@@ -459,6 +513,7 @@ def test_collect_once_with_class_not_right_type(tmp_path):
     assert ddup.is_available
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
+    ddup.upload()
 
     with stack.StackCollector():
         SomeClass.sleep_class(123)
@@ -489,14 +544,14 @@ def test_collect_once_with_class_not_right_type(tmp_path):
                 pprof_utils.StackLocation(
                     function_name="test_collect_once_with_class_not_right_type",
                     filename="test_stack.py",
-                    line_no=test_collect_once_with_class_not_right_type.__code__.co_firstlineno + 19,
+                    line_no=test_collect_once_with_class_not_right_type.__code__.co_firstlineno + 26,
                 ),
             ],
         ),
     )
 
 
-def _fib(n):
+def _fib(n: int) -> int:
     if n == 1:
         return 1
     elif n == 0:
@@ -507,7 +562,7 @@ def _fib(n):
 
 @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
 @pytest.mark.subprocess(ddtrace_run=True)
-def test_collect_gevent_thread_task():
+def test_collect_gevent_thread_task() -> None:
     # TODO(taegyunkim): update echion to support gevent and test with stack v2
 
     from gevent import monkey
@@ -530,9 +585,10 @@ def test_collect_gevent_thread_task():
     assert ddup.is_available
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
+    ddup.upload()
 
     # Start some (green)threads
-    def _dofib():
+    def _dofib() -> None:
         for _ in range(5):
             # spend some time in CPU so the profiler can catch something
             # On a Mac w/ Apple M3 MAX with Python 3.11 it takes about 200ms to calculate _fib(32)
@@ -587,7 +643,7 @@ def test_collect_gevent_thread_task():
     )
 
 
-def test_repr():
+def test_repr() -> None:
     test_collector._test_repr(
         stack.StackCollector,
         "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, nframes=64, tracer=None)",
@@ -612,7 +668,7 @@ exec(
 )
 
 
-def test_stress_threads_run_as_thread(tmp_path):
+def test_stress_threads_run_as_thread(tmp_path: Path) -> None:
     test_name = "test_stress_threads_run_as_thread"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -620,10 +676,11 @@ def test_stress_threads_run_as_thread(tmp_path):
     assert ddup.is_available
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
+    ddup.upload()
 
     quit_thread = threading.Event()
 
-    def wait_for_quit():
+    def wait_for_quit() -> None:
         quit_thread.wait()
 
     with stack.StackCollector():
@@ -650,13 +707,16 @@ def test_stress_threads_run_as_thread(tmp_path):
 
 # if you don't need to check the output profile, you can use this fixture
 @pytest.fixture
-def tracer_and_collector(tracer, request, tmp_path):
+def tracer_and_collector(
+    tracer: Tracer, request: FixtureRequest, tmp_path: Path
+) -> Generator[Tuple[Tracer, stack.StackCollector], None, None]:
     test_name = get_original_test_name(request)
     pprof_prefix = str(tmp_path / test_name)
 
     assert ddup.is_available
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
+    ddup.upload()
 
     c = stack.StackCollector(tracer=tracer)
     c.start()
@@ -667,7 +727,7 @@ def tracer_and_collector(tracer, request, tmp_path):
         ddup.upload(tracer=tracer)
 
 
-def test_collect_span_id(tracer, tmp_path):
+def test_collect_span_id(tracer: Tracer, tmp_path: Path) -> None:
     test_name = "test_collect_span_id"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -675,6 +735,7 @@ def test_collect_span_id(tracer, tmp_path):
     assert ddup.is_available
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
+    ddup.upload()
 
     tracer._endpoint_call_counter_span_processor.enable()
     with stack.StackCollector(tracer=tracer):
@@ -703,20 +764,21 @@ def test_collect_span_id(tracer, tmp_path):
                 pprof_utils.StackLocation(
                     filename=os.path.basename(__file__),
                     function_name=test_name,
-                    line_no=test_collect_span_id.__code__.co_firstlineno + 15,
+                    line_no=test_collect_span_id.__code__.co_firstlineno + 16,
                 )
             ],
         ),
     )
 
 
-def test_collect_span_resource_after_finish(tracer, tmp_path, request):
+def test_collect_span_resource_after_finish(tracer: Tracer, tmp_path: Path, request: FixtureRequest) -> None:
     test_name = get_original_test_name(request)
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
+    ddup.upload()
 
     tracer._endpoint_call_counter_span_processor.enable()
     with stack.StackCollector(tracer=tracer):
@@ -743,14 +805,14 @@ def test_collect_span_resource_after_finish(tracer, tmp_path, request):
                 pprof_utils.StackLocation(
                     filename=os.path.basename(__file__),
                     function_name=test_name,
-                    line_no=test_collect_span_resource_after_finish.__code__.co_firstlineno + 14,
+                    line_no=test_collect_span_resource_after_finish.__code__.co_firstlineno + 15,
                 )
             ],
         ),
     )
 
 
-def test_resource_not_collected(tmp_path, tracer):
+def test_resource_not_collected(tmp_path: Path, tracer: Tracer) -> None:
     test_name = "test_resource_not_collected"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -758,6 +820,7 @@ def test_resource_not_collected(tmp_path, tracer):
     assert ddup.is_available
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
+    ddup.upload()
 
     with stack.StackCollector(tracer=tracer):
         resource = str(uuid.uuid4())
@@ -779,14 +842,14 @@ def test_resource_not_collected(tmp_path, tracer):
                 pprof_utils.StackLocation(
                     filename=os.path.basename(__file__),
                     function_name=test_name,
-                    line_no=test_resource_not_collected.__code__.co_firstlineno + 13,
+                    line_no=test_resource_not_collected.__code__.co_firstlineno + 14,
                 )
             ],
         ),
     )
 
 
-def test_collect_nested_span_id(tmp_path, tracer, request):
+def test_collect_nested_span_id(tmp_path: Path, tracer: Tracer, request: FixtureRequest) -> None:
     test_name = get_original_test_name(request)
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -794,6 +857,7 @@ def test_collect_nested_span_id(tmp_path, tracer, request):
     assert ddup.is_available
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
+    ddup.upload()
 
     tracer._endpoint_call_counter_span_processor.enable()
     with stack.StackCollector(tracer=tracer):
@@ -820,17 +884,17 @@ def test_collect_nested_span_id(tmp_path, tracer, request):
                 pprof_utils.StackLocation(
                     filename=os.path.basename(__file__),
                     function_name=test_name,
-                    line_no=test_collect_nested_span_id.__code__.co_firstlineno + 16,
+                    line_no=test_collect_nested_span_id.__code__.co_firstlineno + 17,
                 )
             ],
         ),
     )
 
 
-def test_stress_trace_collection(tracer_and_collector):
+def test_stress_trace_collection(tracer_and_collector: Tuple[Tracer, stack.StackCollector]) -> None:
     tracer, _ = tracer_and_collector
 
-    def _trace():
+    def _trace() -> None:
         for _ in range(5000):
             with tracer.trace("hello"):
                 time.sleep(0.001)

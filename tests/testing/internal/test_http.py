@@ -253,12 +253,29 @@ class TestBackendConnector:
             call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_4XX),
         ]
 
+    @pytest.mark.parametrize(
+        "error_class,error_message",
+        [
+            (ConnectionRefusedError, "No connection for you"),
+            (BrokenPipeError, "Broken pipe"),
+            (ConnectionAbortedError, "Connection aborted"),
+            (ConnectionResetError, "Connection reset by peer"),
+        ],
+    )
     @patch("http.client.HTTPSConnection")
     @patch("time.sleep")
     @patch("time.perf_counter", return_value=0.0)
-    def test_post_json_connection_refused(self, mock_time: Mock, mock_sleep: Mock, mock_https_connection: Mock) -> None:
+    def test_post_json_connection_errors(
+        self,
+        mock_time: Mock,
+        mock_sleep: Mock,
+        mock_https_connection: Mock,
+        error_class: type[Exception],
+        error_message: str,
+    ) -> None:
+        """Test that all ConnectionError subclasses are handled as retriable NETWORK errors."""
         mock_conn = Mock()
-        mock_conn.getresponse.side_effect = ConnectionRefusedError("No connection for you")
+        mock_conn.getresponse.side_effect = error_class(error_message)
         mock_https_connection.return_value = mock_conn
 
         mock_telemetry = Mock()
@@ -277,7 +294,7 @@ class TestBackendConnector:
         assert len(mock_sleep.call_args_list) == 4
 
         assert result.error_type == ErrorType.NETWORK
-        assert result.error_description == "No connection for you"
+        assert result.error_description == error_message
         assert result.parsed_response is None
         assert result.is_gzip_response is False
         assert result.response_length is None

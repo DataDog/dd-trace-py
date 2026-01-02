@@ -74,7 +74,10 @@ class GenInfo
   public:
     typedef std::unique_ptr<GenInfo> Ptr;
 
+    // The address of the Task PyObject* the GenInfo represents
     PyObject* origin = nullptr;
+
+    // The address of the Frame PyObject* the GenInfo represents
     PyObject* frame = nullptr;
 
     // The coroutine awaited by this coroutine, if any
@@ -182,14 +185,26 @@ class TaskInfo
     typedef std::unique_ptr<TaskInfo> Ptr;
     typedef std::reference_wrapper<TaskInfo> Ref;
 
-    PyObject* origin = NULL;
-    PyObject* loop = NULL;
+    // The address of the Task PyObject* the TaskInfo represents
+    PyObject* origin = nullptr;
 
+    // The address of the asyncio Event Loop PyObject* the Task is running on
+    PyObject* loop = nullptr;
+
+    // The name of the Task
     StringTable::Key name;
+
+    // Whether the Task's coroutine (or a coroutine it awaits, transitively) is currently running (on CPU).
+    // This will not be true if the Task is currently awaiting another Task, and this other Task is on CPU.
     bool is_on_cpu = false;
+
+    // The coroutine wrapped by the Task, i.e. the coroutine passed to asyncio.create_task
+    // or equivalent (e.g. asyncio.run, etc.)
     GenInfo::Ptr coro = nullptr;
 
-    // Information to reconstruct the async stack as best as we can
+    // The Task that the current Task is awaiting, if any.
+    // Note that this will not be set if the current Task's coroutine is awaiting another coroutine,
+    // only if it is awaiting another Task.
     TaskInfo::Ptr waiter = nullptr;
 
     [[nodiscard]] static Result<TaskInfo::Ptr> create(TaskObj*);
@@ -204,7 +219,7 @@ class TaskInfo
     }
 
     [[nodiscard]] static Result<TaskInfo::Ptr> current(PyObject*);
-    inline size_t unwind(FrameStack&, size_t& upper_python_stack_size);
+    inline size_t unwind(FrameStack&);
 };
 
 inline std::unordered_map<PyObject*, PyObject*> task_link_map;
@@ -285,10 +300,12 @@ inline std::vector<std::unique_ptr<StackInfo>> current_tasks;
 // ----------------------------------------------------------------------------
 
 inline size_t
-TaskInfo::unwind(FrameStack& stack, size_t& upper_python_stack_size)
+TaskInfo::unwind(FrameStack& stack)
 {
     // TODO: Check for running task.
-    std::stack<PyObject*> coro_frames;
+
+    // Use a vector-based std::stack as we only push_back/pop_back
+    std::stack<PyObject*, std::vector<PyObject*>> coro_frames;
 
     // Unwind the coro chain
     for (auto py_coro = this->coro.get(); py_coro != NULL; py_coro = py_coro->await.get()) {
@@ -316,7 +333,7 @@ TaskInfo::unwind(FrameStack& stack, size_t& upper_python_stack_size)
         // use the number of Frames added to the Stack to determine the size of the upper Python stack.
         if (count == 0) {
             // The first Frame is the coroutine Frame, so the Python stack size is the number of Frames - 1
-            upper_python_stack_size = new_frames - 1;
+            auto upper_python_stack_size = new_frames - 1;
 
             // Remove the Python Frames from the Stack (they will be added back later)
             // We cannot push those Frames now because otherwise they would be added once per Task,
