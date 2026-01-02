@@ -30,6 +30,7 @@ from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
@@ -859,6 +860,11 @@ def test_annotate_prompt_wrong_type(llmobs):
             "template: 1 must be a string, received int",
         )
 
+def test_annotate_linked_spans(llmobs):
+    with llmobs.llm(model_name="test_model") as span:
+        llmobs.annotate(span=span, _linked_spans=[{"span_id": "123", "trace_id": "456"}])
+        assert span._get_ctx_item(SPAN_LINKS) == [{"span_id": "123", "trace_id": "456", "attributes": {"from": "output", "to": "input"}}]
+
 
 def test_span_error_sets_error(llmobs, llmobs_events):
     with pytest.raises(ValueError):
@@ -1333,6 +1339,13 @@ def test_annotation_context_modifies_name(llmobs):
     with llmobs.annotation_context(name="test_agent_override"):
         with llmobs.llm(name="test_agent", model_name="test") as span:
             assert span.name == "test_agent_override"
+
+
+def test_annotation_context_modifies_span_links(llmobs):
+    with llmobs.annotation_context(_linked_spans=[{"span_id": "123", "trace_id": "456"}]):
+        with llmobs.llm(model_name="test_model") as span:
+            llmobs.annotate(span=span, _linked_spans=[{"span_id": "abc", "trace_id": "def"}])
+            assert span._get_ctx_item(SPAN_LINKS) == [{"span_id": "123", "trace_id": "456", "attributes": {"from": "output", "to": "input"}}, {"span_id": "abc", "trace_id": "def", "attributes": {"from": "output", "to": "input"}}]
 
 
 def test_annotation_context_finished_context_does_not_modify_tags(llmobs):
