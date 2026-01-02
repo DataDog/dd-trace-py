@@ -216,7 +216,7 @@ Datadog::UploaderBuilder::build()
         // We do this first as we still want to reset ProfilerStats if the serialization fails.
         std::swap(stats, borrowed.stats());
 
-        // Try to encode the Profile (which will also reset it)
+        // Try to encode the Profile
         encoded = ddog_prof_Profile_serialize(&borrowed.profile(), nullptr, nullptr);
         if (encoded.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
             auto err = encoded.err;
@@ -224,6 +224,22 @@ Datadog::UploaderBuilder::build()
             ddog_Error_drop(&err);
             ddog_prof_Exporter_drop(ddog_exporter);
             return errmsg;
+        }
+
+        // AIDEV-NOTE: Bug fix for alternating short/long profiles in uwsgi
+        // Profile_serialize() does NOT reset the profile's start_time, which causes the next
+        // profile to have an incorrect duration (spanning from the old start_time to now).
+        // We must explicitly reset the profile after serialization to ensure start_time is
+        // set correctly for the next profiling period.
+        // This fixes the issue where every other profile in uwsgi workers would have very few
+        // samples but report an incorrect (too long) duration.
+        auto reset_res = ddog_prof_Profile_reset(&borrowed.profile());
+        if (!reset_res.ok) {
+            auto err = reset_res.err;
+            const std::string errmsg = Datadog::err_to_msg(&err, "Error resetting profile after serialization");
+            std::cerr << errmsg << std::endl;
+            ddog_Error_drop(&err);
+            // Continue anyway - the upload succeeded, this is just cleanup
         }
     }
 
