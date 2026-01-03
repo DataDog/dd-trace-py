@@ -79,6 +79,7 @@ class SessionManager:
         )
         self.settings = self.api_client.get_settings()
         self.override_settings_with_env_vars()
+        self.show_settings()
 
         self.known_tests = self.api_client.get_known_tests() if self.settings.known_tests_enabled else set()
         self.test_properties = (
@@ -339,6 +340,20 @@ class SessionManager:
         if asbool(os.environ.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false")):
             log.debug("TIA code coverage collection is enabled by environment variable")
             self.settings.coverage_enabled = True
+
+    def show_settings(self) -> None:
+        log.info("Service: %s (env: %s)", self.service, self.env)
+        log.info(
+            "Test Optimization settings: Test Impact Analysis: %s, test skipping: %s, coverage collection: %s",
+            self.settings.itr_enabled,
+            self.settings.skipping_enabled,
+            self.settings.coverage_enabled,
+        )
+        log.info(
+            "Test Optimization settings: Early Flake Detection enabled: %s", self.settings.early_flake_detection.enabled
+        )
+        log.info("Test Optimization settings: Known Tests enabled: %s", self.settings.known_tests_enabled)
+        log.info("Test Optimization settings: Auto Test Retries enabled: %s", self.settings.auto_test_retries.enabled)
 
 
 def _get_service_name_from_git_repo(env_tags: t.Dict[str, str]) -> t.Optional[str]:

@@ -393,7 +393,7 @@ def get_git_tags_from_dd_variables(env: t.MutableMapping[str, str]) -> t.Dict[st
         branch = None
 
     tags: t.Dict[str, t.Optional[str]] = {
-        GitTag.REPOSITORY_URL: env.get("DD_GIT_REPOSITORY_URL"),
+        GitTag.REPOSITORY_URL: env.get("_CI_DD_GIT_REPOSITORY_URL") or env.get("DD_GIT_REPOSITORY_URL"),
         GitTag.COMMIT_SHA: env.get("DD_GIT_COMMIT_SHA"),
         GitTag.BRANCH: branch,
         GitTag.TAG: tag,
