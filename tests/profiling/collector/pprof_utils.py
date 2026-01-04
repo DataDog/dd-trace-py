@@ -195,7 +195,7 @@ def get_function_with_id(profile: pprof_pb2.Profile, function_id: int) -> pprof_
 
 def assert_lock_events_of_type(
     profile: pprof_pb2.Profile,
-    expected_events: List[LockEvent],
+    expected_events: Sequence[LockEvent],
     event_type: LockEventType,
 ):
     samples = get_samples_with_value_type(
@@ -227,8 +227,8 @@ def assert_lock_events_of_type(
 
 def assert_lock_events(
     profile: pprof_pb2.Profile,
-    expected_acquire_events: Union[List[LockEvent], None] = None,
-    expected_release_events: Union[List[LockEvent], None] = None,
+    expected_acquire_events: Union[Sequence[LockEvent], None] = None,
+    expected_release_events: Union[Sequence[LockEvent], None] = None,
 ):
     if expected_acquire_events:
         assert_lock_events_of_type(profile, expected_acquire_events, LockEventType.ACQUIRE)
