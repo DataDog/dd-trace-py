@@ -47,10 +47,56 @@ class Message(TypedDict, total=False):
     tool_calls: List[ToolCall]
 
 
-class Evaluation(TypedDict):
-    action: Literal["ALLOW", "DENY", "ABORT"]
-    reason: str
-    tags: List[str]
+class Evaluation:
+    def __init__(self, action: Literal["ALLOW", "DENY", "ABORT"], reason: str, tags: List[str]):
+        self.action = action
+        self.reason = reason
+        self.tags = tags
+
+    def __getitem__(self, key: str):
+        """Allow dictionary-style access for backward compatibility."""
+        if key == "action":
+            return self.action
+        elif key == "reason":
+            return self.reason
+        elif key == "tags":
+            return self.tags
+        else:
+            raise KeyError(key)
+
+    def __setitem__(self, key: str, value):
+        """Allow dictionary-style assignment for backward compatibility."""
+        if key == "action":
+            self.action = value
+        elif key == "reason":
+            self.reason = value
+        elif key == "tags":
+            self.tags = value
+        else:
+            raise KeyError(key)
+
+    def __contains__(self, key: str) -> bool:
+        """Support 'in' operator."""
+        return key in ("action", "reason", "tags")
+
+    def get(self, key: str, default=None):
+        """Dictionary-style get method."""
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def keys(self):
+        """Return dictionary keys."""
+        return ["action", "reason", "tags"]
+
+    def values(self):
+        """Return dictionary values."""
+        return [self.action, self.reason, self.tags]
+
+    def items(self):
+        """Return dictionary items."""
+        return [("action", self.action), ("reason", self.reason), ("tags", self.tags)]
 
 
 class Options(TypedDict, total=False):

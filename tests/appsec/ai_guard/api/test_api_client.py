@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.appsec._constants import AI_GUARD
-from ddtrace.appsec.ai_guard import AIGuardAbortError
+from ddtrace.appsec.ai_guard import AIGuardAbortError, Evaluation
 from ddtrace.appsec.ai_guard import AIGuardClientError
 from ddtrace.appsec.ai_guard import Function
 from ddtrace.appsec.ai_guard import Message
@@ -107,10 +107,10 @@ def test_evaluate_method(
         assert exc_info.value.tags == tags
     else:
         result = ai_guard_client.evaluate(messages, Options(block=blocking))
-        assert result["action"] == action
-        assert result["reason"] == reason
+        assert result.action == action
+        assert result.reason == reason
         if tags:
-            assert result["tags"] == tags
+            assert result.tags == tags
 
     expected_tags = {"ai_guard.target": target, "ai_guard.action": action}
     if target == "tool":
@@ -283,3 +283,22 @@ def test_meta_attribute(mock_execute_request):
             messages,
             {"service": "test-service", "env": "test-env"},
         )
+
+def test_evaluation_backwards_compatibility():
+    action = "ALLOW"
+    reason = "It's fine"
+    tags = ["tag_1", "tag_2"]
+    evaluation = Evaluation(action=action, reason=reason, tags=tags)
+    assert evaluation["action"] == action
+    assert evaluation["reason"] == reason
+    assert evaluation["tags"] == tags
+    assert evaluation.keys() == ["action", "reason", "tags"]
+    assert evaluation.values() == [action, reason, tags]
+    assert evaluation.items() == [('action', action), ('reason', reason), ('tags', tags)]
+    try:
+        evaluation["other"]
+        assert False, "should trigger an exception"
+    except KeyError:
+        assert True
+    assert evaluation.get("other", "test") == "test"
+
