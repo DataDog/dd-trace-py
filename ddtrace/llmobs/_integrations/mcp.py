@@ -90,6 +90,10 @@ class MCPIntegration(BaseLLMIntegration):
         if mcp_span_type:
             span._set_ctx_item(MCP_SPAN_TYPE, mcp_span_type)
 
+        span_kind = kwargs.get("kind", "None")
+        if span_kind:
+            span._set_ctx_item(SPAN_KIND, span_kind)
+
         return span
 
     # Inject intent capture properties into inputSchemas on the response
