@@ -118,6 +118,8 @@ venv = Venv(
         "DD_PATCH_MODULES": "unittest:false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
         "CARGO_BUILD_JOBS": "12",
+        "_CI_DD_GIT_REPOSITORY_URL": "http://github.com/test-org/test-repo.git",
+        # "DD_PYTEST_USE_NEW_PLUGIN": "true",
     },
     venvs=[
         Venv(
@@ -1234,6 +1236,9 @@ venv = Venv(
                         # DEV: Breaking change made in 2.1.0 release
                         "markupsafe": "<2.0",
                     },
+                    env={
+                        "DD_PYTEST_USE_NEW_PLUGIN": "false",  # env uses pytest <= 7.2.0
+                    },
                     venvs=[
                         Venv(pys=["3.9"], pkgs={"exceptiongroup": latest}),
                     ],
@@ -1803,6 +1808,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",  # env has tests for the old pytest plugin
             },
             venvs=[
                 Venv(
@@ -1860,6 +1866,7 @@ venv = Venv(
             env={
                 "DD_AGENT_PORT": "9126",
                 "DD_PYTEST_USE_NEW_PLUGIN": "true",
+                "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "0",
             },
             venvs=[
                 Venv(
@@ -1913,6 +1920,9 @@ venv = Venv(
             pkgs={
                 "pytest-randomly": latest,
             },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",  # env uses pytest <= 7.2.0
+            },
             venvs=[
                 Venv(
                     pys="3.9",
@@ -1938,6 +1948,9 @@ venv = Venv(
                     # FIXME: add support for v6.1
                     ">=6.0,<6.1",
                 ],
+            },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",  # env has tests for the old pytest plugin
             },
             venvs=[
                 Venv(
@@ -1969,6 +1982,9 @@ venv = Venv(
                 "msgpack": latest,
                 "pytest-randomly": latest,
             },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",  # env has tests for the old pytest plugin
+            },
             venvs=[
                 Venv(
                     pkgs={
@@ -1986,6 +2002,9 @@ venv = Venv(
             pkgs={
                 "flaky": latest,
                 "pytest-randomly": latest,
+            },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",  # env has tests for the old pytest plugin
             },
         ),
         Venv(
@@ -3229,6 +3248,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",  # env has tests for the old pytest plugin
             },
             venvs=[
                 Venv(

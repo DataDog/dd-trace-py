@@ -413,7 +413,7 @@ def extract_user_git_metadata(env=None):
         branch = None
 
     tags = {}
-    tags[REPOSITORY_URL] = env.get("DD_GIT_REPOSITORY_URL")
+    tags[REPOSITORY_URL] = env.get("_CI_DD_GIT_REPOSITORY_URL") or env.get("DD_GIT_REPOSITORY_URL")
     tags[COMMIT_SHA] = env.get("DD_GIT_COMMIT_SHA")
     tags[BRANCH] = branch
     tags[TAG] = tag
