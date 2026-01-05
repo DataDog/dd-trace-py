@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+#
+# Post-checkout hook to check for native code changes
+# Called automatically by Autohook after git checkout or git switch
+#
+# Arguments from git: $1 = previous HEAD, $2 = new HEAD, $3 = flag (1 for branch checkout, 0 for file checkout)
+#
+
+PREV_HEAD=$1
+NEW_HEAD=$2
+BRANCH_CHECKOUT=$3
+
+# Only run for branch checkouts, not file checkouts
+if [ "$BRANCH_CHECKOUT" = "1" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    "$SCRIPT_DIR/scripts/check-native-changes" "$PREV_HEAD" "$NEW_HEAD"
+fi

@@ -7,7 +7,8 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from ..fnv import fnv1_64
+from ddtrace.internal.utils.fnv import fnv1_64
+
 from .schema import Schema
 from .schema_iterator import SchemaIterator
 

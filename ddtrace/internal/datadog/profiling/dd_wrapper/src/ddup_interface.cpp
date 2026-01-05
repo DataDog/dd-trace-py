@@ -103,6 +103,12 @@ ddup_config_user_tag(std::string_view key, std::string_view val) // cppcheck-sup
 }
 
 void
+ddup_config_process_tags(std::string_view process_tags) // cppcheck-suppress unusedFunction
+{
+    Datadog::UploaderBuilder::set_process_tags(process_tags);
+}
+
+void
 ddup_config_sample_type(unsigned int _type) // cppcheck-suppress unusedFunction
 {
     Datadog::SampleManager::add_type(_type);
