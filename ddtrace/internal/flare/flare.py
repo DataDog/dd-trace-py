@@ -15,7 +15,15 @@ from ddtrace._logger import _configure_ddtrace_native_logger
 from ddtrace.internal.flare.json_formatter import StructuredJSONFormatter
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import logger as native_logger
-from ddtrace.internal.native._native import register_tracer_flare as native_flare  # type: ignore
+from ddtrace.internal.utils.http import get_connection
+
+try:
+    from ddtrace.internal.native._native import register_tracer_flare as native_flare  # type: ignore
+
+    NATIVE_AVAILABLE = True
+except (ImportError, AttributeError):
+    NATIVE_AVAILABLE = False
+    native_flare = None  # type: ignore
 
 
 TRACER_FLARE_DIRECTORY = "tracer_flare"
@@ -60,12 +68,19 @@ class Flare:
         # Use a fixed boundary for consistency
         self._BOUNDARY = "83CAD6AA-8A24-462C-8B3D-FF9CC683B51B"
 
-        # Initialize native manager eagerly to fail fast if there's an issue
-        try:
-            self._native_manager = native_flare.TracerFlareManager(agent_url=self.url, language="python")
-        except Exception as e:
-            log.error("Failed to initialize native tracer flare manager: %s", e)
-            raise
+        # Initialize native manager if available
+        self._native_manager = None
+        self._use_native = False
+        if NATIVE_AVAILABLE:
+            try:
+                self._native_manager = native_flare.TracerFlareManager(agent_url=self.url, language="python")
+                self._use_native = True
+                log.debug("Using native tracer flare manager")
+            except Exception as e:
+                log.debug("Failed to initialize native tracer flare manager, using Python fallback: %s", e)
+                self._use_native = False
+        else:
+            log.debug("Native tracer flare not available, using Python fallback")
 
     def prepare(self, log_level: str) -> bool:
         """
@@ -252,36 +267,56 @@ class Flare:
         if not os.path.exists(lock_path):
             open(lock_path, "w").close()
 
-            # Create AgentTaskFile for the send action
-            try:
-                # Convert case_id to integer, handling test patterns
-                case_id_int = (
-                    int(flare_send_req.case_id.split("-")[0])
-                    if "-" in flare_send_req.case_id
-                    else int(flare_send_req.case_id)
-                )
+            if self._use_native:
+                # Use native implementation
+                try:
+                    # Convert case_id to integer, handling test patterns
+                    case_id_int = (
+                        int(flare_send_req.case_id.split("-")[0])
+                        if "-" in flare_send_req.case_id
+                        else int(flare_send_req.case_id)
+                    )
 
-                agent_task = native_flare.AgentTaskFile(
-                    case_id=case_id_int,
-                    hostname=flare_send_req.hostname,
-                    user_handle=flare_send_req.email,
-                    task_type="tracer_flare",
-                    uuid=flare_send_req.uuid,
-                )
+                    agent_task = native_flare.AgentTaskFile(
+                        case_id=case_id_int,
+                        hostname=flare_send_req.hostname,
+                        user_handle=flare_send_req.email,
+                        task_type="tracer_flare",
+                        uuid=flare_send_req.uuid,
+                    )
 
-                # Create ReturnAction.Send
-                send_action = native_flare.ReturnAction.send(agent_task)
-            except Exception as e:
-                log.error("Failed to create flare send request: %s", e)
-                raise
+                    # Create ReturnAction.Send
+                    send_action = native_flare.ReturnAction.send(agent_task)
 
-            # Use native zip_and_send
-            try:
-                self._native_manager.zip_and_send(str(self.flare_dir.absolute()), send_action)
-                log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
-            except Exception as e:
-                log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
-                raise
+                    # Use native zip_and_send
+                    self._native_manager.zip_and_send(str(self.flare_dir.absolute()), send_action)
+                    log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
+                except Exception as e:
+                    log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
+                    raise
+            else:
+                # Use Python fallback
+                client = None
+                try:
+                    client = get_connection(self.url, timeout=self.timeout)
+                    headers, body = self._generate_payload(flare_send_req)
+                    client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
+                    response = client.getresponse()
+                    if response.status == 200:
+                        log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
+                    else:
+                        msg = "Tracer flare upload responded with status code %s:(%s) %s" % (
+                            response.status,
+                            response.reason,
+                            response.read().decode(),
+                        )
+                        raise TracerFlareSendError(msg)
+                except Exception as e:
+                    log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
+                    raise e
+                finally:
+                    if client is not None:
+                        client.close()
 
     def _cleanup_directory_python(self):
         """Clean up the flare directory using Python's shutil."""
@@ -291,13 +326,17 @@ class Flare:
             log.warning("Failed to clean up tracer flare files: %s", e)
 
     def clean_up_files(self):
-        # Use native implementation with Python fallback
-        try:
-            self._native_manager.cleanup_directory(str(self.flare_dir))
-            # Check if directory was actually deleted
-            if self.flare_dir.exists():
-                log.debug("Native cleanup succeeded but directory still exists, cleaning up with Python")
+        if self._use_native:
+            # Use native implementation with Python fallback
+            try:
+                self._native_manager.cleanup_directory(str(self.flare_dir))
+                # Check if directory was actually deleted
+                if self.flare_dir.exists():
+                    log.debug("Native cleanup succeeded but directory still exists, cleaning up with Python")
+                    self._cleanup_directory_python()
+            except Exception as e:
+                log.debug("Native cleanup failed, falling back to Python: %s", e)
                 self._cleanup_directory_python()
-        except Exception as e:
-            log.debug("Native cleanup failed, falling back to Python: %s", e)
+        else:
+            # Use Python implementation
             self._cleanup_directory_python()
