@@ -76,12 +76,16 @@ class Flare:
             try:
                 self._native_manager = native_flare.TracerFlareManager(agent_url=self.url, language="python")
                 self._use_native = True
-                log.debug("Using native tracer flare manager")
+                log.info("Tracer flare: using native implementation")
             except Exception as e:
-                log.debug("Failed to initialize native tracer flare manager, using Python fallback: %s", e)
+                log.warning(
+                    "Tracer flare: native implementation unavailable (%s: %s), using Python fallback",
+                    type(e).__name__,
+                    e,
+                )
                 self._use_native = False
         else:
-            log.debug("Native tracer flare not available, using Python fallback")
+            log.info("Tracer flare: using Python fallback implementation")
 
     def prepare(self, log_level: str) -> bool:
         """
@@ -268,9 +272,10 @@ class Flare:
         if not os.path.exists(lock_path):
             open(lock_path, "w").close()
 
-            if self._use_native:
+            if self._use_native and native_flare is not None:
                 # Use native implementation
                 try:
+                    log.debug("Sending tracer flare using native implementation")
                     # Convert case_id to integer, handling test patterns
                     case_id_int = (
                         int(flare_send_req.case_id.split("-")[0])
@@ -293,14 +298,20 @@ class Flare:
                     self._native_manager.zip_and_send(str(self.flare_dir.absolute()), send_action)  # type: ignore
                     log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
                 except Exception as e:
-                    log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
+                    log.error(
+                        "Failed to send tracer flare using native implementation to Zendesk ticket %s: %s",
+                        flare_send_req.case_id,
+                        e,
+                    )
                     raise
             else:
                 # Use Python fallback
+                log.debug("Sending tracer flare using Python fallback implementation")
                 client = None
                 try:
                     client = get_connection(self.url, timeout=self.timeout)
                     headers, body = self._generate_payload(flare_send_req)
+                    log.debug("Sending POST request to %s with %d bytes", TRACER_FLARE_ENDPOINT, len(body))
                     client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
                     response = client.getresponse()
                     if response.status == 200:
@@ -313,7 +324,11 @@ class Flare:
                         )
                         raise TracerFlareSendError(msg)
                 except Exception as e:
-                    log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
+                    log.error(
+                        "Failed to send tracer flare using Python fallback to Zendesk ticket %s: %s",
+                        flare_send_req.case_id,
+                        e,
+                    )
                     raise e
                 finally:
                     if client is not None:
