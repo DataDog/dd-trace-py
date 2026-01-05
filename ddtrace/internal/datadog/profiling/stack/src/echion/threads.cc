@@ -271,7 +271,6 @@ ThreadInfo::get_tasks_from_linked_list(uintptr_t head_addr, std::vector<TaskInfo
     }
 
     struct llist_node current_node = head_node_local; // Start with head node
-    uintptr_t current_node_addr = head_addr;          // Address of current node
 
     // Copied from CPython's _remote_debugging_module.c: MAX_ITERATIONS
     const size_t MAX_ITERATIONS = 1 << 16;
@@ -308,7 +307,6 @@ ThreadInfo::get_tasks_from_linked_list(uintptr_t head_addr, std::vector<TaskInfo
         if (copy_type(reinterpret_cast<void*>(next_node_addr), current_node)) {
             return ErrorKind::TaskInfoError; // Failed to read next node
         }
-        current_node_addr = next_node_addr; // Update address for next iteration
     }
 
     return Result<void>::ok();
