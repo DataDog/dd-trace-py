@@ -60,6 +60,7 @@ add_library(
     ${EXTENSION_NAME} SHARED
     src/echion/danger.cc
     src/echion/frame.cc
+    src/echion/greenlets.cc
     src/echion/interp.cc
     src/echion/mirrors.cc
     src/echion/tasks.cc
