@@ -1,4 +1,5 @@
 from typing import Dict
+from typing import Mapping
 from typing import Optional
 from typing import Union
 
@@ -12,12 +13,13 @@ def config(
     env: StringType = None,
     service: StringType = None,
     version: StringType = None,
-    tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
+    tags: Optional[Mapping[Union[str, bytes], Union[str, bytes]]] = None,
     max_nframes: Optional[int] = None,
     timeline_enabled: Optional[bool] = None,
     output_filename: Optional[str] = None,
     sample_pool_capacity: Optional[int] = None,
     timeout: Optional[int] = None,
+    process_tags: Optional[str] = None,
 ) -> None: ...
 def start() -> None: ...
 def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Optional[bool] = None) -> None: ...

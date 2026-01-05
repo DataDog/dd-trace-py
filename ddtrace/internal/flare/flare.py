@@ -1,6 +1,5 @@
 import dataclasses
 import io
-import json
 import logging
 from logging.handlers import RotatingFileHandler
 import os
@@ -89,7 +88,7 @@ class Flare:
             return False
 
         # Setup logging and create config file
-        pid = self._setup_flare_logging(flare_log_level_int)
+        self._setup_flare_logging(flare_log_level_int)
         return True
 
     def send(self, flare_send_req: FlareSendRequest):

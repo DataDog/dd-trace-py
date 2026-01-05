@@ -15,15 +15,24 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.llmobs._constants import FILE_FALLBACK_MARKER
+from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import INPUT_TYPE_FILE
+from ddtrace.llmobs._constants import INPUT_TYPE_IMAGE
+from ddtrace.llmobs._constants import INPUT_TYPE_TEXT
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_AUTO
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
+from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
+from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
@@ -581,6 +590,12 @@ def _openai_parse_input_response_messages(
                 for content in item["content"]:
                     processed_item_content += str(content.get("text", "") or "")
                     processed_item_content += str(content.get("refusal", "") or "")
+
+                    item_type = content.get("type", None)
+                    if item_type == INPUT_TYPE_IMAGE:
+                        processed_item_content += _extract_image_reference(content)
+                    elif item_type == INPUT_TYPE_FILE:
+                        processed_item_content += _extract_file_reference(content)
             else:
                 processed_item_content = item["content"]
             if processed_item_content:
@@ -768,12 +783,49 @@ def openai_get_metadata_from_response(
         if value is not None:
             metadata[field] = load_data_value(value)
 
-    usage = getattr(response, "usage", None)
-    output_tokens_details = getattr(usage, "output_tokens_details", None)
-    reasoning_tokens = getattr(output_tokens_details, "reasoning_tokens", 0)
-    metadata["reasoning_tokens"] = reasoning_tokens
-
     return metadata
+
+
+def _extract_image_reference(obj: Any) -> str:
+    """Extract image reference with fallback priority: image_url → file_id → [image]."""
+    return _get_attr(obj, "image_url", None) or _get_attr(obj, "file_id", None) or IMAGE_FALLBACK_MARKER
+
+
+def _extract_file_reference(obj: Any) -> str:
+    """Extract file reference with fallback priority: file_url → file_id → filename → [file]."""
+    return (
+        _get_attr(obj, "file_url", None)
+        or _get_attr(obj, "file_id", None)
+        or _get_attr(obj, "filename", None)
+        or FILE_FALLBACK_MARKER
+    )
+
+
+def _extract_content_item_text(content_item: Any) -> str:
+    """Extract text representation from a content item (text/image/file)."""
+    item_type = _get_attr(content_item, "type", None)
+    if item_type == INPUT_TYPE_IMAGE:
+        return _extract_image_reference(content_item)
+    elif item_type == INPUT_TYPE_FILE:
+        return _extract_file_reference(content_item)
+    elif item_type == INPUT_TYPE_TEXT or item_type is None:
+        text = _get_attr(content_item, "text", "")
+        return str(text) if text else ""
+
+    return ""
+
+
+def _normalize_prompt_variables(variables: Dict[str, Any]) -> Dict[str, Any]:
+    """Converts OpenAI SDK response objects or dicts into simple key-value pairs.
+
+    Example:
+        Input:  {"msg": ResponseInputText(text="Hello"), "doc": ResponseInputFile(file_id="file-123")}
+        Output: {"msg": "Hello", "doc": "file-123"}
+    """
+    if not variables or not isinstance(variables, dict):
+        return {}
+
+    return {key: _extract_content_item_text(value) or value for key, value in variables.items()}
 
 
 def _extract_chat_template_from_instructions(
@@ -782,28 +834,26 @@ def _extract_chat_template_from_instructions(
     """
     Extract a chat template from OpenAI response instructions by replacing variable values with placeholders.
 
+    Uses {{variable_name}} when values are available. Falls back to [image]/[file] markers when
+    OpenAI strips the values (e.g., by default URL stripping behavior).
+
     Args:
         instructions: List of instruction messages from the OpenAI response
         variables: Dictionary of variables used in the prompt
 
     Returns:
-        List of chat template messages with placeholders (e.g., {{variable_name}})
+        List of chat template messages with placeholders (e.g., {{variable_name}}, [image], [file])
     """
     chat_template = []
 
-    # Create a mapping of variable values to placeholder names
+    # Build value:placeholder map - exclude fallback markers so they remain as-is in the template
     value_to_placeholder = {}
     for var_name, var_value in variables.items():
-        if hasattr(var_value, "text"):  # ResponseInputText
-            value_str = str(var_value.text)
-        else:
-            value_str = str(var_value)
-
-        # Skip empty values
-        if not value_str:
+        if var_value is None:
             continue
-
-        value_to_placeholder[value_str] = f"{{{{{var_name}}}}}"
+        value_str = str(var_value)
+        if value_str and value_str not in (IMAGE_FALLBACK_MARKER, FILE_FALLBACK_MARKER):
+            value_to_placeholder[value_str] = f"{{{{{var_name}}}}}"
 
     # Sort by length (longest first) to handle overlapping values correctly
     sorted_values = sorted(value_to_placeholder.keys(), key=len, reverse=True)
@@ -817,18 +867,14 @@ def _extract_chat_template_from_instructions(
         if not content_items:
             continue
 
-        text_parts = []
-        for content_item in content_items:
-            text = _get_attr(content_item, "text", "")
-            if text:
-                text_parts.append(str(text))
+        text_parts = [_extract_content_item_text(item) for item in content_items]
+        text_parts = [part for part in text_parts if part]
 
         if not text_parts:
             continue
 
+        # Combine text and replace variable values with placeholders (longest first)
         full_text = "".join(text_parts)
-
-        # Replace variable values with placeholders (longest first)
         for value_str in sorted_values:
             placeholder = value_to_placeholder[value_str]
             full_text = full_text.replace(value_str, placeholder)
@@ -836,6 +882,35 @@ def _extract_chat_template_from_instructions(
         chat_template.append({"role": role, "content": full_text})
 
     return chat_template
+
+
+def _has_multimodal_inputs(variables: Dict[str, Any]) -> bool:
+    """Check if prompt variables contain multimodal inputs (image/file)."""
+    if not variables or not isinstance(variables, dict):
+        return False
+    for value in variables.values():
+        item_type = _get_attr(value, "type", None)
+        if item_type in (INPUT_TYPE_IMAGE, INPUT_TYPE_FILE):
+            return True
+    return False
+
+
+def set_prompt_tracking_tags(span: Span, *, is_multimodal: bool = False) -> None:
+    """Set prompt tracking telemetry tags on a span.
+
+    Args:
+        span: The span to tag
+        is_multimodal: Whether the prompt contains image/file inputs
+    """
+    new_tags = {PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_AUTO}
+    if is_multimodal:
+        new_tags[PROMPT_MULTIMODAL] = "true"
+
+    existing_tags = span._get_ctx_item(TAGS)
+    if existing_tags:
+        existing_tags.update(new_tags)
+    else:
+        span._set_ctx_item(TAGS, new_tags)
 
 
 def openai_set_meta_tags_from_response(
@@ -862,24 +937,29 @@ def openai_set_meta_tags_from_response(
         }
     )
 
-    if "prompt" in kwargs:
-        prompt_data = kwargs.get("prompt")
-        if prompt_data:
-            try:
-                # Extract chat_template from response instructions if available
-                if response and not prompt_data.get("chat_template") and not prompt_data.get("template"):
-                    instructions = _get_attr(response, "instructions", None)
-                    variables = prompt_data.get("variables", {})
-                    if instructions and variables:
-                        chat_template = _extract_chat_template_from_instructions(instructions, variables)
-                        if chat_template:
-                            prompt_data = dict(prompt_data)  # Make a copy to avoid modifying the original
-                            prompt_data["chat_template"] = chat_template
+    prompt_data = kwargs.get("prompt")
+    if prompt_data:
+        try:
+            prompt_data = dict(prompt_data)  # Make a copy to avoid modifying the original
+            variables = prompt_data.get("variables", {})
+            has_multimodal = _has_multimodal_inputs(variables)
 
-                validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
-                span._set_ctx_item(INPUT_PROMPT, validated_prompt)
-            except (TypeError, ValueError, AttributeError) as e:
-                logger.debug("Failed to validate prompt for OpenAI response: %s", e)
+            # Extract chat_template from response instructions if not already provided
+            if response and not prompt_data.get("chat_template") and not prompt_data.get("template"):
+                instructions = _get_attr(response, "instructions", None)
+                if instructions:
+                    normalized_variables = _normalize_prompt_variables(variables)
+                    chat_template = _extract_chat_template_from_instructions(instructions, normalized_variables)
+                    if chat_template:
+                        prompt_data["chat_template"] = chat_template
+                        prompt_data["variables"] = normalized_variables
+
+            validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
+            span._set_ctx_item(INPUT_PROMPT, validated_prompt)
+
+            set_prompt_tracking_tags(span, is_multimodal=has_multimodal)
+        except (TypeError, ValueError, AttributeError) as e:
+            logger.debug("Failed to validate prompt for OpenAI response: %s", e)
 
     if span.error or not response:
         span._set_ctx_item(OUTPUT_MESSAGES, [Message(content="")])
@@ -1181,6 +1261,13 @@ class OaiSpanAdapter:
                 metrics["output_tokens"] = usage.output_tokens
             if hasattr(usage, "total_tokens"):
                 metrics["total_tokens"] = usage.total_tokens
+            # Chat completion returns `completion_tokens_details` while responses api returns `output_tokens_details`
+            reasoning_output_tokens_details = _get_attr(usage, "completion_tokens_details", {}) or _get_attr(
+                usage, "output_tokens_details", {}
+            )
+            reasoning_output_tokens = _get_attr(reasoning_output_tokens_details, "reasoning_tokens", None)
+            if reasoning_output_tokens is not None:
+                metrics["reasoning_output_tokens"] = reasoning_output_tokens
 
         return metrics if metrics else None
 
@@ -1201,9 +1288,6 @@ class OaiSpanAdapter:
 
             if hasattr(self.response, "text") and self.response.text:
                 metadata["text"] = load_data_value(self.response.text)
-
-            if hasattr(self.response, "usage") and hasattr(self.response.usage, "output_tokens_details"):
-                metadata["reasoning_tokens"] = self.response.usage.output_tokens_details.reasoning_tokens
 
         if self.span_type == "custom" and hasattr(self._raw_oai_span.span_data, "data"):
             custom_data = getattr(self._raw_oai_span.span_data, "data", None)

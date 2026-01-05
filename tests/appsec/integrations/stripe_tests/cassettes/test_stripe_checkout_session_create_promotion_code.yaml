@@ -1,0 +1,120 @@
+interactions:
+- request:
+    body: success_url=https%3A%2F%2Fexample.com%2Fsuccess&client_reference_id=order_123&customer_email=customer%40example.com&line_items[0][price_data][currency]=eur&line_items[0][price_data][product_data][name]=Demo+Product&line_items[0][price_data][unit_amount]=1000&line_items[0][quantity]=2&mode=payment&discounts[0][promotion_code]=promo_1SfKFhAiRiHgXZJiEvfweRJd&shipping_options[0][shipping_rate_data][display_name]=Standard&shipping_options[0][shipping_rate_data][fixed_amount][amount]=250&shipping_options[0][shipping_rate_data][fixed_amount][currency]=eur&shipping_options[0][shipping_rate_data][type]=fixed_amount
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '613'
+      Content-Type:
+      - application/x-www-form-urlencoded
+      Idempotency-Key:
+      - 66a66861-572d-4d4a-9755-96cc065592dc
+      Stripe-Version:
+      - 2025-11-17.clover
+      User-Agent:
+      - Stripe/v1 PythonBindings/14.0.1
+      X-Stripe-Client-Telemetry:
+      - '{"last_request_metrics": {"request_id": "req_yPnR2eduuXEuUI", "request_duration_ms":
+        575}}'
+      X-Stripe-Client-User-Agent:
+      - '{"bindings_version": "14.0.1", "lang": "python", "publisher": "stripe", "httplib":
+        "requests", "lang_version": "3.13.9", "platform": "macOS-15.7.1-arm64-arm-64bit-Mach-O",
+        "uname": "Darwin COMP-L0DW2Y27YN 24.6.0 Darwin Kernel Version 24.6.0: Mon
+        Aug 11 21:15:09 PDT 2025; root:xnu-11417.140.69.701.11~1/RELEASE_ARM64_T6041
+        arm64 arm"}'
+    method: POST
+    uri: https://api.stripe.com/v1/checkout/sessions
+  response:
+    body:
+      string: '{"id": "cs_test_a11GZxWe1yxbP7aA9rfkBRewGhkyuwWSOMSz1URvy9WUF1ixgitOwL2GZX",
+        "object": "checkout.session", "adaptive_pricing": {"enabled": true}, "after_expiration":
+        null, "allow_promotion_codes": null, "amount_subtotal": 2000, "amount_total":
+        1750, "automatic_tax": {"enabled": false, "liability": null, "provider": null,
+        "status": null}, "billing_address_collection": null, "branding_settings":
+        {"background_color": "#ffffff", "border_style": "rounded", "button_color":
+        "#0074d4", "display_name": "", "font_family": "default", "icon": null, "logo":
+        null}, "cancel_url": null, "client_reference_id": "order_123", "client_secret":
+        "redacted", "collected_information": {"business_name": null, "individual_name":
+        null, "shipping_details": null}, "consent": null, "consent_collection": null,
+        "created": 1765976462, "currency": "eur", "currency_conversion": null, "custom_fields":
+        [], "custom_text": {"after_submit": null, "shipping_address": null, "submit":
+        null, "terms_of_service_acceptance": null}, "customer": null, "customer_account":
+        null, "customer_creation": "if_required", "customer_details": {"address":
+        null, "business_name": null, "email": "customer@example.com", "individual_name":
+        null, "name": null, "phone": null, "tax_exempt": "none", "tax_ids": null},
+        "customer_email": "customer@example.com", "discounts": [{"coupon": null, "promotion_code":
+        "promo_1SfKFhAiRiHgXZJiEvfweRJd"}], "expires_at": 1766062862, "invoice": null,
+        "invoice_creation": {"enabled": false, "invoice_data": {"account_tax_ids":
+        null, "custom_fields": null, "description": null, "footer": null, "issuer":
+        null, "metadata": {}, "rendering_options": null}}, "livemode": false, "locale":
+        null, "metadata": {}, "mode": "payment", "origin_context": null, "payment_intent":
+        null, "payment_link": null, "payment_method_collection": "if_required", "payment_method_configuration_details":
+        {"id": "pmc_1SdSuoAiRiHgXZJiX2GuVMpZ", "parent": null}, "payment_method_options":
+        {"card": {"request_three_d_secure": "automatic"}}, "payment_method_types":
+        ["card", "bancontact", "eps", "klarna", "link", "amazon_pay"], "payment_status":
+        "unpaid", "permissions": null, "phone_number_collection": {"enabled": false},
+        "recovered_from": null, "saved_payment_method_options": null, "setup_intent":
+        null, "shipping_address_collection": null, "shipping_cost": {"amount_subtotal":
+        250, "amount_tax": 0, "amount_total": 250, "shipping_rate": "shr_1SfKLiAiRiHgXZJiiYv2Ua1a"},
+        "shipping_options": [{"shipping_amount": 250, "shipping_rate": "shr_1SfKLiAiRiHgXZJiiYv2Ua1a"}],
+        "status": "open", "submit_type": null, "subscription": null, "success_url":
+        "https://example.com/success", "total_details": {"amount_discount": 500, "amount_shipping":
+        250, "amount_tax": 0}, "ui_mode": "hosted", "url": "https://checkout.stripe.com/c/pay/cs_test_a11GZxWe1yxbP7aA9rfkBRewGhkyuwWSOMSz1URvy9WUF1ixgitOwL2GZX#fidnandhYHdWcXxpYCc%2FJ2FgY2RwaXEnKSdkdWxOYHwnPyd1blpxYHZxWjA0VmFWcExEbFdsTWJdX09sdVZEPFJsa3NXdTBrPDFCTW11RG1wZHBBSmg2a09ndzRUdXxGcTV%2FcFNsX3EycmlBPF1KU21oUHVXajJER1BXZlRDd31ufTN8NTVrZ2Y9a2ZrNycpJ2N3amhWYHdzYHcnP3F3cGApJ2dkZm5id2pwa2FGamlqdyc%2FJyZjY2NjY2MnKSdpZHxqcHFRfHVgJz8ndmxrYmlgWmxxYGgnKSdga2RnaWBVaWRmYG1qaWFgd3YnP3F3cGB4JSUl",
+        "wallet_options": null}'
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Methods:
+      - GET, HEAD, PUT, PATCH, POST, DELETE
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Request-Id, Stripe-Manage-Version, Stripe-Should-Retry, X-Stripe-External-Auth-Required,
+        X-Stripe-Privileged-Session-Required
+      Access-Control-Max-Age:
+      - '300'
+      Cache-Control:
+      - no-cache, no-store
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '3668'
+      Content-Security-Policy:
+      - base-uri 'none'; default-src 'none'; form-action 'none'; frame-ancestors 'none';
+        img-src 'self'; script-src 'self' 'report-sample'; style-src 'self'; worker-src
+        'none'; upgrade-insecure-requests; report-uri https://q.stripe.com/csp-violation?q=Y-ZRj3bI4qW_-4DNTSwvSKfU00rAgPcJIwR-VpFhvZo5HROo1qnwjw5x4S-uL9dXqKKs9APkU_vivwjC
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 17 Dec 2025 13:01:02 GMT
+      Idempotency-Key:
+      - 66a66861-572d-4d4a-9755-96cc065592dc
+      Original-Request:
+      - req_AvTJxrcRtdSJRJ
+      Request-Id:
+      - req_AvTJxrcRtdSJRJ
+      Server:
+      - nginx
+      Strict-Transport-Security:
+      - max-age=63072000; includeSubDomains; preload
+      Stripe-Should-Retry:
+      - 'false'
+      Stripe-Version:
+      - 2025-11-17.clover
+      Vary:
+      - Origin
+      X-Stripe-Priority-Routing-Enabled:
+      - 'true'
+      X-Stripe-Routing-Context-Priority-Tier:
+      - api-testmode
+      X-Wc:
+      - ABGHIJ
+    status:
+      code: 200
+      message: OK
+version: 1

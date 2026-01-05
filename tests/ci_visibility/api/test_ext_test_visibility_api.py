@@ -6,6 +6,7 @@ import pytest
 
 from ddtrace.ext.test_visibility import api
 from ddtrace.ext.test_visibility.api import TestSourceFileInfo
+from tests.ci_visibility.test_ci_visibility import _dummy_noop_git_client
 
 
 class TestCISourceFileInfo:
@@ -60,13 +61,16 @@ class TestCISourceFileInfo:
 class TestCIDiscoverTestSessionName:
     def test_discover_set_test_session_name(self):
         """Check that the test command is used to set the test session name."""
-        api.enable_test_visibility()
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.set_test_session_name"
+            ) as set_test_session_name_mock,
+            _dummy_noop_git_client(),
+        ):
+            api.enable_test_visibility()
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.set_test_session_name"
-        ) as set_test_session_name_mock:
             api.TestSession.discover("some_test_command", "dd_manual_test_fw", "1.0.0")
 
-        api.disable_test_visibility()
+            api.disable_test_visibility()
 
         set_test_session_name_mock.assert_called_once_with(test_command="some_test_command")

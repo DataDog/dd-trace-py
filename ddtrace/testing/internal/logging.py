@@ -14,7 +14,9 @@ F = t.TypeVar("F", bound=t.Callable[..., t.Any])
 def setup_logging() -> None:
     testing_logger.propagate = False
 
-    log_level = logging.DEBUG if asbool(os.getenv("DD_TEST_DEBUG")) else logging.INFO
+    debug_enabled = asbool(os.getenv("DD_TEST_DEBUG")) or asbool(os.getenv("DD_TRACE_DEBUG"))
+
+    log_level = logging.DEBUG if debug_enabled else logging.INFO
     testing_logger.setLevel(log_level)
 
     for handler in list(testing_logger.handlers):

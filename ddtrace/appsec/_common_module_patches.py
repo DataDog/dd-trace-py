@@ -14,6 +14,7 @@ from wrapt import FunctionWrapper
 from wrapt import resolve_path
 
 from ddtrace.appsec._asm_request_context import _get_asm_context
+from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
@@ -59,6 +60,10 @@ def patch_common_modules():
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
     try_wrap_function_wrapper("http.client", "HTTPConnection.request", wrapped_request)
+    try_wrap_function_wrapper("http.client", "HTTPConnection.getresponse", wrapped_response)
+
+    patch_stripe_for_appsec()
+
     core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
     log.debug("Patching common modules: builtins and urllib.request")
     _is_patched = True
@@ -74,8 +79,13 @@ def unpatch_common_modules():
     try_unwrap("urllib3.request", "RequestMethods.request")
     try_unwrap("builtins", "open")
     try_unwrap("urllib.request", "OpenerDirector.open")
+    try_unwrap("http.client", "HTTPConnection.request")
+    try_unwrap("http.client", "HTTPConnection.getresponse")
     try_unwrap("_io", "BytesIO.read")
     try_unwrap("_io", "StringIO.read")
+
+    unpatch_stripe_for_appsec()
+
     subprocess_patch.unpatch()
     subprocess_patch.del_str_callback(_RASP_SYSTEM)
     subprocess_patch.del_lst_callback(_RASP_POPEN)
@@ -162,8 +172,6 @@ def _build_headers(lst: Iterable[Tuple[str, str]]) -> Dict[str, Union[str, List[
 
 
 def wrapped_request(original_request_callable, instance, args, kwargs):
-    from ddtrace.appsec._asm_request_context import call_waf_callback
-
     full_url = core.get_item("full_url")
     env = _get_asm_context()
     if _get_rasp_capability("ssrf") and full_url is not None and env is not None:
@@ -188,6 +196,24 @@ def wrapped_request(original_request_callable, instance, args, kwargs):
         if res and _must_block(res.actions):
             raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
     return original_request_callable(*args, **kwargs)
+
+
+def wrapped_response(original_response_callable, instance, args, kwargs):
+    response = original_response_callable(*args, *kwargs)
+    env = _get_asm_context()
+    try:
+        if _get_rasp_capability("ssrf") and response.__class__.__name__ == "HTTPResponse" and env is not None:
+            status = response.getcode()
+            if 300 <= status < 400:
+                # api10 for redirected response status and headers in urllib
+                addresses = {
+                    "DOWN_RES_STATUS": str(status),
+                    "DOWN_RES_HEADERS": _build_headers(response.getheaders()),
+                }
+                call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
+    except Exception:
+        pass  # nosec
+    return response
 
 
 def _parse_http_response_body(response):
@@ -228,7 +254,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                 try:
                     response = original_open_callable(*args, **kwargs)
                     # api10 response handler for regular responses
-                    if response.__class__.__name__ == "HTTPResponse":
+                    if response.__class__.__name__ == "HTTPResponse" and not (300 <= response.status < 400):
                         addresses = {
                             "DOWN_RES_STATUS": str(response.status),
                             "DOWN_RES_HEADERS": _build_headers(response.getheaders()),
@@ -267,11 +293,10 @@ def _parse_headers_urllib3(headers):
 
 
 def wrapped_urllib3_make_request(original_request_callable, instance, args, kwargs):
-    from ddtrace.appsec._asm_request_context import call_waf_callback
-
     full_url = core.get_item("full_url")
     env = _get_asm_context()
-    if _get_rasp_capability("ssrf") and full_url is not None and env is not None:
+    do_rasp = _get_rasp_capability("ssrf") and full_url is not None and env is not None
+    if do_rasp:
         use_body = core.get_item("use_body", False)
         method = args[1] if len(args) > 1 else kwargs.get("method", None)
         body = args[3] if len(args) > 3 else kwargs.get("body", None)
@@ -292,7 +317,18 @@ def wrapped_urllib3_make_request(original_request_callable, instance, args, kwar
         core.discard_item("full_url")
         if res and _must_block(res.actions):
             raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
-    return original_request_callable(*args, **kwargs)
+    response = original_request_callable(*args, **kwargs)
+    try:
+        if do_rasp and response.__class__.__name__ == "BaseHTTPResponse" and 300 <= response.status < 400:
+            # api10 for redirected response status and headers in urllib3
+            addresses = {
+                "DOWN_RES_STATUS": str(response.status),
+                "DOWN_RES_HEADERS": response.headers,
+            }
+            call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
+    except Exception:
+        pass  # nosec
+    return response
 
 
 def wrapped_urllib3_urlopen(original_open_callable, instance, args, kwargs):
@@ -329,7 +365,7 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
                 # API10, doing all request calls in HTTPConnection.request
                 try:
                     response = original_request_callable(*args, **kwargs)
-                    if response.__class__.__name__ == "Response":
+                    if response.__class__.__name__ == "Response" and not (300 <= response.status_code < 400):
                         addresses = {
                             "DOWN_RES_STATUS": str(response.status_code),
                             "DOWN_RES_HEADERS": dict(response.headers),
@@ -545,3 +581,75 @@ def patch_builtins(klass, attr, value):
             pass
 
     ctypes.pythonapi.PyType_Modified(ctypes.py_object(klass))
+
+
+def _wrap_checkout_session_create(original_callable, instance, args, kwargs):
+    session = original_callable(*args, **kwargs)
+    core.dispatch("appsec.stripe.checkout.session.create", (session,))
+    return session
+
+
+def _wrap_payment_intent_create(original_callable, instance, args, kwargs):
+    payment_intent = original_callable(*args, **kwargs)
+    core.dispatch("appsec.stripe.payment_intent.create", (payment_intent,))
+    return payment_intent
+
+
+def _wrap_webhook_construct_event(original_callable, instance, args, kwargs):
+    event = original_callable(*args, **kwargs)
+    core.dispatch("appsec.stripe.webhook.construct_event", (event,))
+    return event
+
+
+def _wrap_stripe_client_construct_event(original_callable, instance, args, kwargs):
+    event = original_callable(*args, **kwargs)
+    core.dispatch("appsec.stripe.stripe_client.construct_event", (event,))
+    return event
+
+
+def patch_stripe_for_appsec():
+    try_wrap_function_wrapper(
+        "stripe.checkout",
+        "Session.create",
+        _wrap_checkout_session_create,
+    )
+    try_wrap_function_wrapper(
+        "stripe.checkout._session_service",
+        "SessionService.create",
+        _wrap_checkout_session_create,
+    )
+    try_wrap_function_wrapper(
+        "stripe",
+        "PaymentIntent.create",
+        _wrap_payment_intent_create,
+    )
+    try_wrap_function_wrapper(
+        "stripe._payment_intent_service",
+        "PaymentIntentService.create",
+        _wrap_payment_intent_create,
+    )
+    try_wrap_function_wrapper(
+        "stripe.webhook",
+        "construct_event",
+        _wrap_webhook_construct_event,
+    )
+    try_wrap_function_wrapper(
+        "stripe._webhook",
+        "Webhook.construct_event",
+        _wrap_webhook_construct_event,
+    )
+    try_wrap_function_wrapper(
+        "stripe._stripe_client",
+        "StripeClient.construct_event",
+        _wrap_stripe_client_construct_event,
+    )
+
+
+def unpatch_stripe_for_appsec():
+    try_unwrap("stripe.checkout", "Session.create")
+    try_unwrap("stripe.checkout._session_service", "SessionService.create")
+    try_unwrap("stripe", "PaymentIntent.create")
+    try_unwrap("stripe._payment_intent_service", "PaymentIntentService.create")
+    try_unwrap("stripe.webhook", "construct_event")
+    try_unwrap("stripe._webhook", "Webhook.construct_event")
+    try_unwrap("stripe._stripe_client", "StripeClient.construct_event")

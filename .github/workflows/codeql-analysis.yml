@@ -4,7 +4,8 @@ on:
   push:
     branches:
       - main
-      - 'mq-working-branch**'
+      - mq-working-branch-*
+  merge_group:
   pull_request:
     # The branches below must be a subset of the branches above
     branches:

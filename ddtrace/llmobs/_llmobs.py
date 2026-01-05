@@ -4,6 +4,7 @@ from dataclasses import field
 import inspect
 import json
 import os
+import sys
 import time
 from typing import Any
 from typing import Callable
@@ -55,8 +56,12 @@ from ddtrace.llmobs._constants import DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import EXPERIMENT_CSV_FIELD_MAX_SIZE
+from ddtrace.llmobs._constants import EXPERIMENT_DATASET_NAME_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
+from ddtrace.llmobs._constants import EXPERIMENT_NAME_KEY
+from ddtrace.llmobs._constants import EXPERIMENT_PROJECT_ID_KEY
+from ddtrace.llmobs._constants import EXPERIMENT_PROJECT_NAME_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ITERATION_KEY
 from ddtrace.llmobs._constants import EXPERIMENTS_INPUT
@@ -65,6 +70,7 @@ from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
 from ddtrace.llmobs._constants import METADATA
@@ -76,6 +82,7 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
@@ -281,7 +288,9 @@ class LLMObs(Service):
             self._llmobs_span_writer.enqueue(span_event)
         except (KeyError, TypeError, ValueError):
             log.error(
-                "Error generating LLMObs span event for span %s, likely due to malformed span", span, exc_info=True
+                "Error generating LLMObs span event for span %s, likely due to malformed span",
+                span,
+                exc_info=True,
             )
         finally:
             if span_event and span._get_ctx_item(SPAN_KIND) == "llm" and not _is_evaluation_span(span):
@@ -318,7 +327,10 @@ class LLMObs(Service):
         if span._get_ctx_item(INPUT_VALUE) is not None:
             input_type = "value"
             llmobs_span.input = [
-                Message(content=safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False) or "", role="")
+                Message(
+                    content=safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False) or "",
+                    role="",
+                )
             ]
 
         if span.context.get_baggage_item(EXPERIMENT_ID_KEY):
@@ -344,7 +356,10 @@ class LLMObs(Service):
         if span._get_ctx_item(OUTPUT_VALUE) is not None:
             output_type = "value"
             llmobs_span.output = [
-                Message(content=safe_json(span._get_ctx_item(OUTPUT_VALUE), ensure_ascii=False) or "", role="")
+                Message(
+                    content=safe_json(span._get_ctx_item(OUTPUT_VALUE), ensure_ascii=False) or "",
+                    role="",
+                )
             ]
 
         output_messages = span._get_ctx_item(OUTPUT_MESSAGES)
@@ -395,7 +410,11 @@ class LLMObs(Service):
                     )
                 llmobs_span = user_llmobs_span
             except Exception as e:
-                log.error("Error in LLMObs span processor (%r): %r", self._user_span_processor, e)
+                log.error(
+                    "Error in LLMObs span processor (%r): %r",
+                    self._user_span_processor,
+                    e,
+                )
                 error = True
             finally:
                 telemetry.record_llmobs_user_processor_called(error)
@@ -497,6 +516,22 @@ class LLMObs(Service):
         if run_iteration and "run_iteration" not in tags:
             tags["run_iteration"] = run_iteration
 
+        dataset_name = span.context.get_baggage_item(EXPERIMENT_DATASET_NAME_KEY)
+        if dataset_name and "dataset_name" not in tags:
+            tags["dataset_name"] = dataset_name
+
+        project_name = span.context.get_baggage_item(EXPERIMENT_PROJECT_NAME_KEY)
+        if project_name and "project_name" not in tags:
+            tags["project_name"] = project_name
+
+        project_id = span.context.get_baggage_item(EXPERIMENT_PROJECT_ID_KEY)
+        if project_id and "project_id" not in tags:
+            tags["project_id"] = project_id
+
+        experiment_name = span.context.get_baggage_item(EXPERIMENT_NAME_KEY)
+        if experiment_name and "experiment_name" not in tags:
+            tags["experiment_name"] = experiment_name
+
         return ["{}:{}".format(k, v) for k, v in tags.items()]
 
     def _do_annotations(self, span: Span) -> None:
@@ -551,7 +586,10 @@ class LLMObs(Service):
         core.reset_listeners("trace.span_start", self._on_span_start)
         core.reset_listeners("trace.span_finish", self._on_span_finish)
         core.reset_listeners("http.span_inject", self._inject_llmobs_context)
-        core.reset_listeners("http.activate_distributed_headers", self._activate_llmobs_distributed_context_soft_fail)
+        core.reset_listeners(
+            "http.activate_distributed_headers",
+            self._activate_llmobs_distributed_context_soft_fail,
+        )
         core.reset_listeners("threading.submit", self._current_trace_context)
         core.reset_listeners("threading.execution", self._llmobs_context_provider.activate)
         core.reset_listeners("asyncio.create_task", self._on_asyncio_create_task)
@@ -559,11 +597,17 @@ class LLMObs(Service):
 
         core.reset_listeners(DISPATCH_ON_LLM_TOOL_CHOICE, self._link_tracker.on_llm_tool_choice)
         core.reset_listeners(DISPATCH_ON_TOOL_CALL, self._link_tracker.on_tool_call)
-        core.reset_listeners(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, self._link_tracker.on_tool_call_output_used)
+        core.reset_listeners(
+            DISPATCH_ON_TOOL_CALL_OUTPUT_USED,
+            self._link_tracker.on_tool_call_output_used,
+        )
 
         core.reset_listeners(DISPATCH_ON_GUARDRAIL_SPAN_START, self._link_tracker.on_guardrail_span_start)
         core.reset_listeners(DISPATCH_ON_LLM_SPAN_FINISH, self._link_tracker.on_llm_span_finish)
-        core.reset_listeners(DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH, self._link_tracker.on_openai_agent_span_finish)
+        core.reset_listeners(
+            DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH,
+            self._link_tracker.on_openai_agent_span_finish,
+        )
 
         forksafe.unregister(self._child_after_fork)
 
@@ -603,6 +647,8 @@ class LLMObs(Service):
         if cls.enabled:
             log.debug("%s already enabled", cls.__name__)
             return
+
+        cls._warn_if_litellm_was_imported()
 
         if os.getenv("DD_LLMOBS_ENABLED") and not asbool(os.getenv("DD_LLMOBS_ENABLED")):
             log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false or 0, not starting LLMObs service")
@@ -666,24 +712,46 @@ class LLMObs(Service):
             core.on("trace.span_start", cls._instance._on_span_start)
             core.on("trace.span_finish", cls._instance._on_span_finish)
             core.on("http.span_inject", cls._inject_llmobs_context)
-            core.on("http.activate_distributed_headers", cls._activate_llmobs_distributed_context_soft_fail)
+            core.on(
+                "http.activate_distributed_headers",
+                cls._activate_llmobs_distributed_context_soft_fail,
+            )
             core.on("threading.submit", cls._instance._current_trace_context, "llmobs_ctx")
             core.on("threading.execution", cls._instance._llmobs_context_provider.activate)
             core.on("asyncio.create_task", cls._instance._on_asyncio_create_task)
             core.on("asyncio.execute_task", cls._instance._on_asyncio_execute_task)
 
-            core.on(DISPATCH_ON_LLM_TOOL_CHOICE, cls._instance._link_tracker.on_llm_tool_choice)
+            core.on(
+                DISPATCH_ON_LLM_TOOL_CHOICE,
+                cls._instance._link_tracker.on_llm_tool_choice,
+            )
             core.on(DISPATCH_ON_TOOL_CALL, cls._instance._link_tracker.on_tool_call)
-            core.on(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, cls._instance._link_tracker.on_tool_call_output_used)
+            core.on(
+                DISPATCH_ON_TOOL_CALL_OUTPUT_USED,
+                cls._instance._link_tracker.on_tool_call_output_used,
+            )
 
-            core.on(DISPATCH_ON_GUARDRAIL_SPAN_START, cls._instance._link_tracker.on_guardrail_span_start)
-            core.on(DISPATCH_ON_LLM_SPAN_FINISH, cls._instance._link_tracker.on_llm_span_finish)
-            core.on(DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH, cls._instance._link_tracker.on_openai_agent_span_finish)
+            core.on(
+                DISPATCH_ON_GUARDRAIL_SPAN_START,
+                cls._instance._link_tracker.on_guardrail_span_start,
+            )
+            core.on(
+                DISPATCH_ON_LLM_SPAN_FINISH,
+                cls._instance._link_tracker.on_llm_span_finish,
+            )
+            core.on(
+                DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH,
+                cls._instance._link_tracker.on_openai_agent_span_finish,
+            )
 
             atexit.register(cls.disable)
             telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
 
-            log.debug("%s enabled; instrumented_proxy_urls: %s", cls.__name__, config._llmobs_instrumented_proxy_urls)
+            log.debug(
+                "%s enabled; instrumented_proxy_urls: %s",
+                cls.__name__,
+                config._llmobs_instrumented_proxy_urls,
+            )
 
             llmobs_info = {
                 "llmobs_enabled": cls.enabled,
@@ -704,6 +772,20 @@ class LLMObs(Service):
                 config._llmobs_ml_app,
             )
 
+    @staticmethod
+    def _warn_if_litellm_was_imported() -> None:
+        if "litellm" in sys.modules:
+            import litellm
+
+            if not getattr(litellm, "_datadog_patch", False):
+                log.warning(
+                    "LLMObs.enable() called after litellm was imported but before it was patched. "
+                    "This may cause tracing issues if you are importing patched methods like 'litellm.completion' "
+                    "directly. To ensure proper tracing, either run your application with ddtrace-run, "
+                    "call ddtrace.patch_all() before importing litellm, or "
+                    "enable LLMObs before importing other modules."
+                )
+
     def _on_asyncio_create_task(self, task_data: Dict[str, Any]) -> None:
         """Propagates llmobs active trace context across asyncio tasks."""
         task_data["llmobs_ctx"] = self._current_trace_context()
@@ -716,7 +798,10 @@ class LLMObs(Service):
 
     @classmethod
     def pull_dataset(
-        cls, dataset_name: str, project_name: Optional[str] = None, version: Optional[int] = None
+        cls,
+        dataset_name: str,
+        project_name: Optional[str] = None,
+        version: Optional[int] = None,
     ) -> Dataset:
         ds = cls._instance._dne_client.dataset_get_with_records(
             dataset_name, (project_name or cls._project_name), version
@@ -827,7 +912,13 @@ class LLMObs(Service):
         summary_evaluators: Optional[
             List[
                 Callable[
-                    [List[DatasetRecordInputType], List[JSONType], List[JSONType], Dict[str, List[JSONType]]], JSONType
+                    [
+                        List[DatasetRecordInputType],
+                        List[JSONType],
+                        List[JSONType],
+                        Dict[str, List[JSONType]],
+                    ],
+                    JSONType,
                 ]
             ]
         ] = None,
@@ -874,7 +965,12 @@ class LLMObs(Service):
             for summary_evaluator in summary_evaluators:
                 sig = inspect.signature(summary_evaluator)
                 params = sig.parameters
-                summary_evaluator_required_params = ("inputs", "outputs", "expected_outputs", "evaluators_results")
+                summary_evaluator_required_params = (
+                    "inputs",
+                    "outputs",
+                    "expected_outputs",
+                    "evaluators_results",
+                )
                 if not all(param in params for param in summary_evaluator_required_params):
                     raise TypeError(
                         "Summary evaluator function must have parameters {}.".format(summary_evaluator_required_params)
@@ -973,15 +1069,22 @@ class LLMObs(Service):
         """
         # id to track an annotation for registering / de-registering
         annotation_id = rand64bits()
+        # Track context we create so we can clean up _reactivate on exit.
+        # Using a dict as a mutable container to share state between closures.
+        state = {"created_context": None}
 
         def get_annotations_context_id():
             current_ctx = cls._instance.tracer.current_trace_context()
             # default the context id to the annotation id
             ctx_id = annotation_id
             if current_ctx is None:
+                # No context exists - create one and enable reactivation so spans finishing
+                # within this annotation_context don't clear the context for subsequent operations
                 current_ctx = Context(is_remote=False)
                 current_ctx.set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
+                current_ctx._reactivate = True
                 cls._instance.tracer.context_provider.activate(current_ctx)
+                state["created_context"] = current_ctx
             elif not current_ctx.get_baggage_item(ANNOTATIONS_CONTEXT_ID):
                 current_ctx.set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
             else:
@@ -992,7 +1095,11 @@ class LLMObs(Service):
             with cls._instance._annotation_context_lock:
                 ctx_id = get_annotations_context_id()
                 cls._instance._annotations.append(
-                    (annotation_id, ctx_id, {"tags": tags, "prompt": prompt, "_name": name})
+                    (
+                        annotation_id,
+                        ctx_id,
+                        {"tags": tags, "prompt": prompt, "_name": name},
+                    )
                 )
 
         def deregister_annotation():
@@ -1000,9 +1107,13 @@ class LLMObs(Service):
                 for i, (key, _, _) in enumerate(cls._instance._annotations):
                     if key == annotation_id:
                         cls._instance._annotations.pop(i)
-                        return
+                        break
                 else:
                     log.debug("Failed to pop annotation context")
+            # Disable reactivation on context we created to prevent it from being
+            # restored after exiting the annotation_context block
+            if state["created_context"] is not None:
+                state["created_context"]._reactivate = False
 
         return AnnotationContext(register_annotation, deregister_annotation)
 
@@ -1058,6 +1169,9 @@ class LLMObs(Service):
         """Returns a simple representation of a span to export its span and trace IDs.
         If no span is provided, the current active LLMObs-type span will be used.
         """
+        if not cls.enabled:
+            log.warning("LLMObs.export_span() called when LLMObs is disabled. No span will be exported.")
+            return None
         if span is None:
             span = cls._instance._current_span()
             if span is None:
@@ -1152,7 +1266,12 @@ class LLMObs(Service):
                 "before running your application."
             )
         span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})
-        log.debug("Starting LLMObs span: %s, span_kind: %s, ml_app: %s", name, operation_kind, ml_app)
+        log.debug(
+            "Starting LLMObs span: %s, span_kind: %s, ml_app: %s",
+            name,
+            operation_kind,
+            ml_app,
+        )
         return span
 
     @classmethod
@@ -1214,7 +1333,13 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        return cls._instance._start_span("tool", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator)
+        return cls._instance._start_span(
+            "tool",
+            name=name,
+            session_id=session_id,
+            ml_app=ml_app,
+            _decorator=_decorator,
+        )
 
     @classmethod
     def task(
@@ -1236,7 +1361,13 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        return cls._instance._start_span("task", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator)
+        return cls._instance._start_span(
+            "task",
+            name=name,
+            session_id=session_id,
+            ml_app=ml_app,
+            _decorator=_decorator,
+        )
 
     @classmethod
     def agent(
@@ -1259,7 +1390,11 @@ class LLMObs(Service):
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         return cls._instance._start_span(
-            "agent", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator
+            "agent",
+            name=name,
+            session_id=session_id,
+            ml_app=ml_app,
+            _decorator=_decorator,
         )
 
     @classmethod
@@ -1283,7 +1418,11 @@ class LLMObs(Service):
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         return cls._instance._start_span(
-            "workflow", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator
+            "workflow",
+            name=name,
+            session_id=session_id,
+            ml_app=ml_app,
+            _decorator=_decorator,
         )
 
     @classmethod
@@ -1347,7 +1486,11 @@ class LLMObs(Service):
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         return cls._instance._start_span(
-            "retrieval", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator
+            "retrieval",
+            name=name,
+            session_id=session_id,
+            ml_app=ml_app,
+            _decorator=_decorator,
         )
 
     @classmethod
@@ -1359,6 +1502,10 @@ class LLMObs(Service):
         experiment_id: Optional[str] = None,
         run_id: Optional[str] = None,
         run_iteration: Optional[int] = None,
+        dataset_name: Optional[str] = None,
+        project_name: Optional[str] = None,
+        project_id: Optional[str] = None,
+        experiment_name: Optional[str] = None,
     ) -> Span:
         """
         Trace an LLM experiment, only used internally by the experiments SDK.
@@ -1382,6 +1529,18 @@ class LLMObs(Service):
 
         if run_iteration is not None:
             span.context.set_baggage_item(EXPERIMENT_RUN_ITERATION_KEY, run_iteration)
+
+        if dataset_name:
+            span.context.set_baggage_item(EXPERIMENT_DATASET_NAME_KEY, dataset_name)
+
+        if project_id:
+            span.context.set_baggage_item(EXPERIMENT_PROJECT_ID_KEY, project_id)
+
+        if project_name:
+            span.context.set_baggage_item(EXPERIMENT_PROJECT_NAME_KEY, project_name)
+
+        if experiment_name:
+            span.context.set_baggage_item(EXPERIMENT_NAME_KEY, experiment_name)
 
         return span
 
@@ -1498,6 +1657,9 @@ class LLMObs(Service):
                 try:
                     validated_prompt = _validate_prompt(prompt, strict_validation=False)
                     cls._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
+                    cls._set_dict_attribute(
+                        span, TAGS, {PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_ANNOTATED}
+                    )
                 except (ValueError, TypeError) as e:
                     error = "invalid_prompt"
                     raise LLMObsAnnotateSpanError("Failed to validate prompt with error:", str(e))
@@ -1609,9 +1771,9 @@ class LLMObs(Service):
         arbitrary structured or non structured IO values in its spans
         """
         if input_value is not None:
-            span._set_ctx_item(EXPERIMENTS_INPUT, safe_json(input_value))
+            span._set_ctx_item(EXPERIMENTS_INPUT, input_value)
         if output_value is not None:
-            span._set_ctx_item(EXPERIMENTS_OUTPUT, safe_json(output_value))
+            span._set_ctx_item(EXPERIMENTS_OUTPUT, output_value)
 
     @staticmethod
     def _set_dict_attribute(span: Span, key, value: Dict[str, Any]) -> None:
@@ -1759,6 +1921,11 @@ class LLMObs(Service):
                             "Failed to parse tags. Tags for evaluation metrics must be strings."
                         )
 
+            # Auto-add source:otel tag when OTel tracing is enabled
+            # This allows the backend to wait for OTel span conversion
+            if config._otel_trace_enabled:
+                evaluation_tags["source"] = "otel"
+
             evaluation_metric: LLMObsEvaluationMetricEvent = {
                 "join_on": join_on,
                 "label": str(label),
@@ -1770,7 +1937,10 @@ class LLMObs(Service):
             }
 
             if assessment:
-                if not isinstance(assessment, str) or assessment not in ("pass", "fail"):
+                if not isinstance(assessment, str) or assessment not in (
+                    "pass",
+                    "fail",
+                ):
                     error = "invalid_assessment"
                     raise LLMObsSubmitEvaluationError(
                         "Failed to parse assessment. assessment must be either 'pass' or 'fail'."

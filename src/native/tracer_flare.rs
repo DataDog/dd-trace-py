@@ -330,7 +330,9 @@ impl TracerFlareManagerPy {
         }
 
         let files: Vec<String> = fs::read_dir(dir_path)
-            .map_err(|e| ZipError::new_err(format!("Failed to read directory {}: {}", directory, e)))?
+            .map_err(|e| {
+                ZipError::new_err(format!("Failed to read directory {}: {}", directory, e))
+            })?
             .filter_map(|entry| {
                 entry.ok().and_then(|e| {
                     let path = e.path();
