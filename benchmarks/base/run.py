@@ -125,7 +125,7 @@ if __name__ == "__main__":
             cname, cvars = job_queue.get(timeout=1)
 
             cpus = cpu_queue.get()
-            print(f"Starting run {cname} on CPUs {cpus}")
+            print(f"Starting run {cname} on CPUs {cpus} [{cvars}]")
             run("scenario.py", cname, cvars, output_dir, cpus=cpus)
             print(f"Finished run {cname}")
             cpu_queue.put(cpus)
