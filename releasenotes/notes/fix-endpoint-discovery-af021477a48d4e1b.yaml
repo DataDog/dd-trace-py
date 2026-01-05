@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix AI Guard endpoint discovery using DD_SITE when no endpoint is provided via config
