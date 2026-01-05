@@ -251,7 +251,7 @@ _config_yaml_content = """\
 aspect_no_iast_{function_name}: &aspect_no_iast_{function_name}
     iast_enabled: 0
     processes: 10
-    loops: 1
+    loops: 10
     values: 6
     warmups: 1
     mod_original_name: "bm.iast_fixtures.{mod_original_name}"
@@ -261,7 +261,7 @@ aspect_no_iast_{function_name}: &aspect_no_iast_{function_name}
 aspect_iast_{function_name}:
     << : *aspect_no_iast_{function_name}
     processes: 10
-    loops: 1
+    loops: 10
     values: 6
     warmups: 1
     iast_enabled: 1
