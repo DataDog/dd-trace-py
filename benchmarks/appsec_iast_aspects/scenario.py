@@ -36,6 +36,7 @@ class IASTAspects(bm.Scenario):
             tainted_param = bytearray(b"example_string_bytearray %s")
 
         def aspect_loop(loops):
+            print(f"\naspect_loop {loops}")
             for _ in range(loops):
                 if self.iast_enabled:
                     # Taint the parameter for each iteration
