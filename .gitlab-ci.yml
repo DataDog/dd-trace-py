@@ -174,7 +174,7 @@ check_new_flaky_tests:
     - when: on_success
 
 codeql-scan:
-  timeout: 8h
+  timeout: 30m
   stage: tests
   needs: []
   image:
