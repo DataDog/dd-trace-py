@@ -56,8 +56,16 @@ if(NOT Threads_FOUND OR NOT CMAKE_USE_PTHREADS_INIT)
 endif()
 
 # Specify the target C-extension that we want to build
-add_library(${EXTENSION_NAME} SHARED src/echion/danger.cc src/echion/frame.cc src/sampler.cpp src/stack.cpp
-                                     src/stack_renderer.cpp src/thread_span_links.cpp)
+add_library(
+    ${EXTENSION_NAME} SHARED
+    src/echion/danger.cc
+    src/echion/frame.cc
+    src/echion/timing.cc
+    src/echion/vm.cc
+    src/sampler.cpp
+    src/stack.cpp
+    src/stack_renderer.cpp
+    src/thread_span_links.cpp)
 
 # Add common config
 add_ddup_config(${EXTENSION_NAME})
