@@ -25,8 +25,9 @@ class CustomError(Exception):
 def dsm_processor(tracer):
     processor = tracer.data_streams_processor
     with mock.patch("ddtrace.internal.datastreams.data_streams_processor", return_value=processor):
-        # Processor should be shutdown and recreated by the tracer fixture
         yield processor
+        # Processor should be recreated by the tracer fixture
+        processor.shutdown(timeout=5)
 
 
 @pytest.mark.parametrize("payload_and_length", [("test", 4), ("你".encode("utf-8"), 3), (b"test2", 5)])

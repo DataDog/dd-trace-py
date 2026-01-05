@@ -30,8 +30,9 @@ def patch_aiokafka():
 def dsm_processor(tracer):
     processor = tracer.data_streams_processor
     with mock.patch("ddtrace.internal.datastreams.data_streams_processor", return_value=processor):
-        # Processor should be shutdown and recreated by the tracer fixture
         yield processor
+        # Processor should be recreated by the tracer fixture
+        processor.shutdown(timeout=5)
 
 
 @pytest.mark.asyncio
