@@ -219,11 +219,12 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     if config.ray.redact_entrypoint_paths:
         entrypoint = redact_paths(entrypoint)
 
+    metadata = kwargs.get("metadata", {}) or {}
     if config.ray.use_entrypoint_as_service_name:
         job_name = get_dd_job_name_from_entrypoint(entrypoint) or DEFAULT_JOB_NAME
     else:
         user_provided_service = config.service if config._is_user_provided_service else None
-        metadata_job_name = kwargs.get("metadata", {}).get("job_name", None)
+        metadata_job_name = metadata.get("job_name", None)
         job_name = user_provided_service or metadata_job_name or DEFAULT_JOB_NAME
 
     job_span = tracer.start_span("ray.job", service=job_name or DEFAULT_JOB_NAME, span_type=SpanTypes.RAY)
@@ -234,7 +235,6 @@ def traced_submit_job(wrapped, instance, args, kwargs):
         if entrypoint:
             job_span._set_tag_str(RAY_ENTRYPOINT, entrypoint)
 
-        metadata = kwargs.get("metadata", {})
         dot_paths = flatten_metadata_dict(metadata)
         for k, v in dot_paths.items():
             set_tag_or_truncate(job_span, k, v)

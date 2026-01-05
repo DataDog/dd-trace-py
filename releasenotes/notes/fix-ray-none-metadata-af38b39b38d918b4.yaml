@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ray: This fix resolves an issue where ``None`` metadata in Ray job submission caused a crash.
