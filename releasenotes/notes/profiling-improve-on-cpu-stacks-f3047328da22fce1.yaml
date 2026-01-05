@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: This improves the accuracy of stacks for on-CPU asyncio Tasks by reducing the odds of Frames for a Task
+    polluting the stack of other Tasks.

@@ -29,15 +29,9 @@ def patch_aiokafka():
 @pytest.fixture
 def dsm_processor(tracer):
     processor = tracer.data_streams_processor
-    # Clean up any existing context to prevent test pollution
-    try:
-        del processor._current_context.value
-    except AttributeError:
-        pass
-
     with mock.patch("ddtrace.internal.datastreams.data_streams_processor", return_value=processor):
+        # Processor should be shutdown and recreated by the tracer fixture
         yield processor
-        processor.shutdown(timeout=5)
 
 
 @pytest.mark.asyncio

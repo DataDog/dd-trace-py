@@ -10,9 +10,10 @@ gevent.monkey.patch_all()
 
 import threading  # noqa: E402, F402, I001
 import time  # noqa: E402, F402
+from typing import List  # noqa: E402
 
 
-def fibonacci(n):
+def fibonacci(n) -> int:
     if n == 0:
         return 0
     elif n == 1:
@@ -21,14 +22,15 @@ def fibonacci(n):
         return fibonacci(n - 1) + fibonacci(n - 2)
 
 
-i = 1
-for _ in range(20):
-    threads = []
-    for _ in range(10):
-        t = threading.Thread(target=fibonacci, args=(i,))
-        t.start()
-        threads.append(t)
-    i += 1
-    for t in threads:
-        t.join()
-    time.sleep(0.1)
+if __name__ == "__main__":
+    i = 1
+    for _ in range(20):
+        threads: List[threading.Thread] = []
+        for _ in range(10):
+            t = threading.Thread(target=fibonacci, args=(i,))
+            t.start()
+            threads.append(t)
+        i += 1
+        for t in threads:
+            t.join()
+        time.sleep(0.1)
