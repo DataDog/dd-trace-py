@@ -7,6 +7,7 @@ from textwrap import dedent
 import mock
 
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.utils import override_config
 
 
 def _assert_distributed_trace(test_spans, llmobs_events, expected_tool_name):
