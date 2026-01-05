@@ -144,7 +144,6 @@ class VulnerabilityBase:
         # If the path contains site-packages anywhere, return 'site-packages/<rest>'
         # Normalize separators to forward slashes for consistency
         if (idx := file_name_norm.find("/site-packages/")) != -1:
-            print(f"file_name_norm({idx}): {file_name_norm}")
             return file_name_norm[idx:]
         return ""
 
