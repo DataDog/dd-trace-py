@@ -113,9 +113,8 @@ endif()
 
 # Link with libdd_wrapper if NATIVE_EXTENSION_LOCATION is defined
 if(DEFINED NATIVE_EXTENSION_LOCATION)
-    # Find the libdd_wrapper shared library
-    # NATIVE_EXTENSION_LOCATION is ddtrace/internal/native, so ../datadog/profiling
-    # gets us to ddtrace/internal/datadog/profiling where libdd_wrapper is located
+    # Find the libdd_wrapper shared library NATIVE_EXTENSION_LOCATION is ddtrace/internal/native, so
+    # ../datadog/profiling gets us to ddtrace/internal/datadog/profiling where libdd_wrapper is located
     find_library(
         DD_WRAPPER_LIB
         NAMES libdd_wrapper${EXTENSION_SUFFIX}
