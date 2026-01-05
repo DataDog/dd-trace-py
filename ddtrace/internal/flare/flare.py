@@ -24,7 +24,7 @@ try:
     NATIVE_AVAILABLE = True
 except (ImportError, AttributeError):
     NATIVE_AVAILABLE = False
-    native_flare = None  # type: ignore
+    native_flare = None
 
 
 TRACER_FLARE_DIRECTORY = "tracer_flare"
@@ -290,7 +290,7 @@ class Flare:
                     send_action = native_flare.ReturnAction.send(agent_task)
 
                     # Use native zip_and_send
-                    self._native_manager.zip_and_send(str(self.flare_dir.absolute()), send_action)
+                    self._native_manager.zip_and_send(str(self.flare_dir.absolute()), send_action)  # type: ignore
                     log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
                 except Exception as e:
                     log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
