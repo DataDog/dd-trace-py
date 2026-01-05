@@ -335,9 +335,8 @@ Sampler::track_asyncio_loop(uintptr_t thread_id, PyObject* loop)
 {
     // Holds echion's global lock
     std::lock_guard<std::mutex> guard(thread_info_map_lock);
-    if (thread_info_map.find(thread_id) != thread_info_map.end()) {
-        thread_info_map.find(thread_id)->second->asyncio_loop =
-          (loop != Py_None) ? reinterpret_cast<uintptr_t>(loop) : 0;
+    if (auto it = thread_info_map.find(thread_id); it != thread_info_map.end()) {
+        it->second->asyncio_loop = (loop != Py_None) ? reinterpret_cast<uintptr_t>(loop) : 0;
     }
 }
 
