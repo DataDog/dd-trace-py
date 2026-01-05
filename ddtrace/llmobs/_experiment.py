@@ -396,7 +396,7 @@ class Experiment:
 
     def run(
         self,
-        jobs: int = 1,
+        jobs: int = None,
         raise_errors: bool = False,
         sample_size: Optional[int] = None,
     ) -> ExperimentResult:
