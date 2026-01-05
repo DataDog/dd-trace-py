@@ -14,36 +14,35 @@ from tests.llmobs._utils import aiterate_stream
 from tests.llmobs._utils import anext_stream
 from tests.llmobs._utils import iterate_stream
 from tests.llmobs._utils import next_stream
-from tests.utils import TracerSpanContainer
 
 
 @pytest.mark.parametrize(
     "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
 )
 class TestLLMObsGoogleGenAI:
-    def test_generate_content(self, genai_client, llmobs_events, mock_tracer, mock_generate_content):
+    def test_generate_content(self, genai_client, llmobs_events, test_spans, mock_generate_content):
         genai_client.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
             config=FULL_GENERATE_CONTENT_CONFIG,
         )
-        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_span_event(span)
 
     def test_generate_content_with_reasoning_tokens(
-        self, genai_client, llmobs_events, mock_tracer, mock_generate_content_with_reasoning
+        self, genai_client, llmobs_events, test_spans, mock_generate_content_with_reasoning
     ):
         genai_client.models.generate_content(
             model="gemini-2.5-pro",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
             config=FULL_GENERATE_CONTENT_CONFIG,
         )
-        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_span_event_with_reasoning(span)
 
-    def test_generate_content_error(self, genai_client, llmobs_events, mock_tracer, mock_generate_content):
+    def test_generate_content_error(self, genai_client, llmobs_events, test_spans, mock_generate_content):
         with pytest.raises(TypeError):
             genai_client.models.generate_content(
                 model="gemini-2.0-flash-001",
@@ -51,13 +50,13 @@ class TestLLMObsGoogleGenAI:
                 config=FULL_GENERATE_CONTENT_CONFIG,
                 not_an_argument="why am i here?",
             )
-        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_error_span_event(span)
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
     def test_generate_content_stream(
-        self, genai_client, llmobs_events, mock_tracer, mock_generate_content_stream, consume_stream
+        self, genai_client, llmobs_events, test_spans, mock_generate_content_stream, consume_stream
     ):
         response = genai_client.models.generate_content_stream(
             model="gemini-2.0-flash-001",
@@ -65,13 +64,11 @@ class TestLLMObsGoogleGenAI:
             config=FULL_GENERATE_CONTENT_CONFIG,
         )
         consume_stream(response)
-        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_span_event(span)
 
-    def test_generate_content_stream_error(
-        self, genai_client, llmobs_events, mock_tracer, mock_generate_content_stream
-    ):
+    def test_generate_content_stream_error(self, genai_client, llmobs_events, test_spans, mock_generate_content_stream):
         with pytest.raises(TypeError):
             genai_client.models.generate_content_stream(
                 model="gemini-2.0-flash-001",
@@ -79,22 +76,22 @@ class TestLLMObsGoogleGenAI:
                 config=FULL_GENERATE_CONTENT_CONFIG,
                 not_an_argument="why am i here?",
             )
-        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_error_span_event(span)
 
-    async def test_generate_content_async(self, genai_client, llmobs_events, mock_tracer, mock_async_generate_content):
+    async def test_generate_content_async(self, genai_client, llmobs_events, test_spans, mock_async_generate_content):
         await genai_client.aio.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
             config=FULL_GENERATE_CONTENT_CONFIG,
         )
-        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_span_event(span)
 
     async def test_generate_content_async_error(
-        self, genai_client, llmobs_events, mock_tracer, mock_async_generate_content
+        self, genai_client, llmobs_events, test_spans, mock_async_generate_content
     ):
         with pytest.raises(TypeError):
             await genai_client.aio.models.generate_content(
@@ -103,13 +100,13 @@ class TestLLMObsGoogleGenAI:
                 config=FULL_GENERATE_CONTENT_CONFIG,
                 not_an_argument="why am i here?",
             )
-        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_error_span_event(span)
 
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
     async def test_generate_content_stream_async(
-        self, genai_client, llmobs_events, mock_tracer, mock_async_generate_content_stream, consume_stream
+        self, genai_client, llmobs_events, test_spans, mock_async_generate_content_stream, consume_stream
     ):
         response = await genai_client.aio.models.generate_content_stream(
             model="gemini-2.0-flash-001",
@@ -117,12 +114,12 @@ class TestLLMObsGoogleGenAI:
             config=FULL_GENERATE_CONTENT_CONFIG,
         )
         await consume_stream(response)
-        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_span_event(span)
 
     async def test_generate_content_stream_async_error(
-        self, genai_client, llmobs_events, mock_tracer, mock_async_generate_content_stream
+        self, genai_client, llmobs_events, test_spans, mock_async_generate_content_stream
     ):
         with pytest.raises(TypeError):
             await genai_client.aio.models.generate_content_stream(
@@ -131,21 +128,21 @@ class TestLLMObsGoogleGenAI:
                 config=FULL_GENERATE_CONTENT_CONFIG,
                 not_an_argument="why am i here?",
             )
-        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_error_span_event(span)
 
-    def test_embed_content(self, genai_client, llmobs_events, mock_tracer, mock_embed_content):
+    def test_embed_content(self, genai_client, llmobs_events, test_spans, mock_embed_content):
         genai_client.models.embed_content(
             model="text-embedding-004",
             contents=["why is the sky blue?", "What is your age?"],
             config=EMBED_CONTENT_CONFIG,
         )
-        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_embedding_span_event(span)
 
-    def test_embed_content_error(self, genai_client, llmobs_events, mock_tracer, mock_embed_content):
+    def test_embed_content_error(self, genai_client, llmobs_events, test_spans, mock_embed_content):
         with pytest.raises(TypeError):
             genai_client.models.embed_content(
                 model="text-embedding-004",
@@ -153,21 +150,21 @@ class TestLLMObsGoogleGenAI:
                 config=EMBED_CONTENT_CONFIG,
                 not_an_argument="why am i here?",
             )
-        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_embedding_error_span_event(span)
 
-    async def test_embed_content_async(self, genai_client, llmobs_events, mock_tracer, mock_async_embed_content):
+    async def test_embed_content_async(self, genai_client, llmobs_events, test_spans, mock_async_embed_content):
         await genai_client.aio.models.embed_content(
             model="text-embedding-004",
             contents=["why is the sky blue?", "What is your age?"],
             config=EMBED_CONTENT_CONFIG,
         )
-        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_embedding_span_event(span)
 
-    async def test_embed_content_async_error(self, genai_client, llmobs_events, mock_tracer, mock_async_embed_content):
+    async def test_embed_content_async_error(self, genai_client, llmobs_events, test_spans, mock_async_embed_content):
         with pytest.raises(TypeError):
             await genai_client.aio.models.embed_content(
                 model="text-embedding-004",
@@ -175,12 +172,12 @@ class TestLLMObsGoogleGenAI:
                 config=EMBED_CONTENT_CONFIG,
                 not_an_argument="why am i here?",
             )
-        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_embedding_error_span_event(span)
 
     def test_generate_content_with_tools(
-        self, genai_client, llmobs_events, mock_tracer, mock_generate_content_with_tools
+        self, genai_client, llmobs_events, test_spans, mock_generate_content_with_tools
     ):
         response = genai_client.models.generate_content(
             model="gemini-2.0-flash-001",
@@ -217,7 +214,7 @@ class TestLLMObsGoogleGenAI:
             config=TOOL_GENERATE_CONTENT_CONFIG,
         )
 
-        traces = TracerSpanContainer(mock_tracer).pop_traces()
+        traces = test_spans.pop_traces()
         assert len(traces) == 2
 
         first_span = traces[0][0]
@@ -232,7 +229,7 @@ class TestLLMObsGoogleGenAI:
         assert llmobs_events[1] == expected_second_event
 
     def test_generate_content_stream_with_tools(
-        self, genai_client, llmobs_events, mock_tracer, mock_generate_content_stream_with_tools
+        self, genai_client, llmobs_events, test_spans, mock_generate_content_stream_with_tools
     ):
         response = genai_client.models.generate_content_stream(
             model="gemini-2.0-flash-001",
@@ -276,7 +273,7 @@ class TestLLMObsGoogleGenAI:
         for _ in response2:
             pass
 
-        traces = TracerSpanContainer(mock_tracer).pop_traces()
+        traces = test_spans.pop_traces()
         assert len(traces) == 2
 
         first_span = traces[0][0]
@@ -291,7 +288,7 @@ class TestLLMObsGoogleGenAI:
         assert llmobs_events[1] == expected_second_event
 
     async def test_generate_content_async_with_tools(
-        self, genai_client, llmobs_events, mock_tracer, mock_async_generate_content_with_tools
+        self, genai_client, llmobs_events, test_spans, mock_async_generate_content_with_tools
     ):
         response = await genai_client.aio.models.generate_content(
             model="gemini-2.0-flash-001",
@@ -328,7 +325,7 @@ class TestLLMObsGoogleGenAI:
             config=TOOL_GENERATE_CONTENT_CONFIG,
         )
 
-        traces = TracerSpanContainer(mock_tracer).pop_traces()
+        traces = test_spans.pop_traces()
         assert len(traces) == 2
 
         first_span = traces[0][0]
@@ -343,7 +340,7 @@ class TestLLMObsGoogleGenAI:
         assert llmobs_events[1] == expected_second_event
 
     async def test_generate_content_stream_async_with_tools(
-        self, genai_client, llmobs_events, mock_tracer, mock_async_generate_content_stream_with_tools
+        self, genai_client, llmobs_events, test_spans, mock_async_generate_content_stream_with_tools
     ):
         response = await genai_client.aio.models.generate_content_stream(
             model="gemini-2.0-flash-001",
@@ -387,7 +384,7 @@ class TestLLMObsGoogleGenAI:
         async for _ in response2:
             pass
 
-        traces = TracerSpanContainer(mock_tracer).pop_traces()
+        traces = test_spans.pop_traces()
         assert len(traces) == 2
 
         first_span = traces[0][0]
