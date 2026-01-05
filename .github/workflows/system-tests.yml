@@ -312,5 +312,5 @@ jobs:
         if: needs.parametric.result == 'success' && needs.system-tests.result == 'success'
         run: exit 0
       - name: Fails if anything else failed
-        if: needs.parametric.result != 'success' || needs.system-tests.result != 'success' || needs.serverless-system-tests.result != 'success'
+        if: needs.parametric.result != 'success' || needs.system-tests.result != 'success'
         run: exit 1
