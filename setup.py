@@ -29,6 +29,7 @@ from distutils.command.clean import clean as CleanCommand  # isort: skip
 from distutils.dep_util import newer_group
 
 
+# trigger tests
 try:
     # ORDER MATTERS
     # Import this after setuptools or it will fail
