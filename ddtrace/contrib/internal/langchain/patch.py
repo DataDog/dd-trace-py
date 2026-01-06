@@ -43,7 +43,7 @@ def _extract_model_name(instance: Any) -> Optional[str]:
     for attr in ("model", "model_name", "model_id", "model_key", "repo_id"):
         if hasattr(instance, attr):
             model_value = getattr(instance, attr)
-            if model_value and isinstance(model_value, str):
+            if model_value and isinstance(model_value, str) and "google" in instance.__class__.__name__.lower():
                 return normalize_model_name(model_value)
             return model_value
     return None

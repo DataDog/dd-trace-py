@@ -1,6 +1,6 @@
 ---
 fixes:
   - |
-    langchain: Resolves an issue where ``ChatGoogleGenerativeAI`` models (Gemini) were incorrectly tagged
+    LLM Observability: Resolves an issue where Langchain ``ChatGoogleGenerativeAI`` models (Gemini) were incorrectly tagged
     with ``model_provider: "chat"`` instead of ``model_provider: "google"``, which caused cost estimation
     to be unavailable in LLM Observability.
