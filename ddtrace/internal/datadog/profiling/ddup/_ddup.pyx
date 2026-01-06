@@ -49,6 +49,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_config_timeline(bint enable)
     void ddup_config_output_filename(string_view output_filename)
     void ddup_config_sample_pool_capacity(uint64_t sample_pool_capacity)
+    void ddup_config_process_tags(string_view process_tags)
 
     void ddup_config_user_tag(string_view key, string_view val)
     void ddup_config_sample_type(unsigned int type)
@@ -334,6 +335,7 @@ def config(
         output_filename: StringType = None,
         sample_pool_capacity: Optional[int] = None,
         timeout: Optional[int] = None,
+        process_tags: StringType = None
 ) -> None:
 
     # Try to provide a ddtrace-specific default service if one is not given
@@ -347,6 +349,8 @@ def config(
         call_func_with_str(ddup_config_version, version)
     if output_filename:
         call_func_with_str(ddup_config_output_filename, output_filename)
+    if process_tags:
+        call_func_with_str(ddup_config_process_tags, process_tags)
 
     # Inherited
     call_func_with_str(ddup_config_runtime, platform.python_implementation())

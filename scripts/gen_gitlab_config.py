@@ -42,10 +42,13 @@ class JobSpec:
     allow_failure: bool = False
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
+    gpu: bool = False
 
     def __str__(self) -> str:
         lines = []
         base = f".test_base_{self.runner}"
+        if self.gpu:
+            base += "_gpu"
         if self.snapshot:
             base += "_snapshot"
 

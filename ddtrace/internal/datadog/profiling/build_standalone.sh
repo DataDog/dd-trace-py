@@ -21,6 +21,12 @@ if [[ $OSTYPE == 'darwin'* ]]; then
   export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
 fi
 
+# Make sure bc is installed
+if ! command -v bc &> /dev/null; then
+  echo "Error: bc not found. Please install bc."
+  exit 1
+fi
+
 # Function to find the highest version of compilers
 # Note that the product of this check is ignored if the user passes CC/CXX
 find_highest_compiler_version() {

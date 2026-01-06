@@ -15,6 +15,19 @@ os tests ubuntu:
   extends: .multi_os_test_base
   image: registry.ddbuild.io/images/mirror/ubuntu:25.04
   tags: ["arch:amd64"]
+  needs:
+    - job: "build linux"
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp310-cp310"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp312-cp312"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp314-cp314"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
   variables:
     WHEEL_PATTERN: "manylinux2014*x86_64.whl"
     PLATFORM: "Ubuntu"
@@ -24,8 +37,17 @@ os tests ubuntu:
 
 os tests macos:
   extends: .multi_os_test_base
-  # "specific:true" ensures that the job runs on dd-trace-py dedicated macOS runner pool
   tags: ["macos:sonoma-amd64", "specific:true"]
+  needs:
+    - job: "build macos"
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            UV_PYTHON: "3.10"
+          - ARCH_TAG: "amd64"
+            UV_PYTHON: "3.12"
+          - ARCH_TAG: "amd64"
+            UV_PYTHON: "3.14"
   variables:
     WHEEL_PATTERN: "macosx*x86_64.whl"
     PLATFORM: "macOS"
@@ -35,5 +57,6 @@ os tests macos:
 os tests windows:
   extends: .multi_os_test_base
   tags: ["windows-v2:2022"]
+  needs: ["download_ddtrace_artifacts"]
   script:
     - powershell -File .gitlab/scripts/multi-os-tests.ps1
