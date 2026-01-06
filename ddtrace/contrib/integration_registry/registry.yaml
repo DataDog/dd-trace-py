@@ -735,7 +735,7 @@ integrations:
   tested_versions_by_dependency:
     pytest:
       min: 6.2.5
-      max: 8.4.2
+      max: 9.0.2
 
 - integration_name: pytest_bdd
   is_external_package: true

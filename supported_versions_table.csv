@@ -77,7 +77,7 @@ pymysql,pymysql,0.10.1,1.1.2,True
 pynamodb,pynamodb *,5.5.1,5.5.1,True
 pyodbc,pyodbc,4.0.39,5.3.0,True
 pyramid,pyramid,1.10.8,2.0.2,True
-pytest,pytest,6.2.5,8.4.2,False
+pytest,pytest,6.2.5,9.0.2,False
 pytest-bdd,pytest_bdd *,4.1.0,6.0.1,False
 ray,ray *,2.46.0,2.49.2,False
 redis,redis,4.6.0,6.4.0,True
