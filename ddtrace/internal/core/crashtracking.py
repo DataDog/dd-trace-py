@@ -81,7 +81,23 @@ def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
 
 
 def _get_args(additional_tags: Optional[Dict[str, str]]):
-    dd_crashtracker_receiver = shutil.which("_dd_crashtracker_receiver")
+    dd_crashtracker_receiver = None
+
+    # Prefer receivers available on PYTHONPATH/sys.path entries (e.g. injected environments).
+    for path_entry in sys.path:
+        if not path_entry:
+            continue
+        candidate_base = os.path.join(path_entry, "_dd_crashtracker_receiver")
+        for candidate in (candidate_base, f"{candidate_base}.py"):
+            if os.path.exists(candidate):
+                dd_crashtracker_receiver = candidate
+                break
+        if dd_crashtracker_receiver:
+            break
+
+    # If not found on PYTHONPATH, fall back to PATH.
+    if dd_crashtracker_receiver is None:
+        dd_crashtracker_receiver = shutil.which("_dd_crashtracker_receiver")
 
     # If not found in PATH, try ddtrace installation directory. This can happen
     # in an injected environment
