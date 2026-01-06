@@ -839,7 +839,8 @@ class TestLLMObsOpenaiV1:
                             }
                         ],
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-                    )
+                    ),
+                    None,
                 ),
                 mock.call(
                     _expected_llmobs_llm_span_event(
@@ -893,7 +894,8 @@ class TestLLMObsOpenaiV1:
                             "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-                    )
+                    ),
+                    None,
                 ),
             ]
         )
@@ -1208,7 +1210,8 @@ MUL: "*"
                             "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-                    )
+                    ),
+                    None,
                 ),
                 mock.call(
                     _expected_llmobs_llm_span_event(
@@ -1227,7 +1230,8 @@ MUL: "*"
                             "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-                    )
+                    ),
+                    None,
                 ),
             ]
         )
@@ -1462,7 +1466,8 @@ MUL: "*"
                             "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-                    )
+                    ),
+                    None,
                 ),
                 mock.call(
                     _expected_llmobs_llm_span_event(
@@ -1486,7 +1491,8 @@ MUL: "*"
                             "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-                    )
+                    ),
+                    None,
                 ),
             ]
         )
@@ -1917,7 +1923,8 @@ MUL: "*"
                             "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-                    )
+                    ),
+                    None,
                 ),
                 mock.call(
                     _expected_llmobs_llm_span_event(
@@ -1943,7 +1950,8 @@ MUL: "*"
                             "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-                    )
+                    ),
+                    None,
                 ),
             ],
         )
@@ -2007,7 +2015,8 @@ MUL: "*"
                             "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-                    )
+                    ),
+                    None,
                 ),
                 mock.call(
                     _expected_llmobs_llm_span_event(
@@ -2033,7 +2042,8 @@ MUL: "*"
                             "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-                    )
+                    ),
+                    None,
                 ),
             ],
         )

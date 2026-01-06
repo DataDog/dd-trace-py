@@ -71,6 +71,26 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
     return expected_tags
 
 
+def _normalize_message(msg):
+    """Normalize message dict to have consistent key ordering (content first, then role, then others).
+
+    The actual LLMObs code produces messages with 'content' before 'role' due to how
+    Message TypedDict instances are constructed. This helper ensures test expectations
+    match the actual output format.
+    """
+    if not isinstance(msg, dict):
+        return msg
+    normalized = {}
+    if "content" in msg:
+        normalized["content"] = msg["content"]
+    if "role" in msg:
+        normalized["role"] = msg["role"]
+    for key, value in msg.items():
+        if key not in ("content", "role"):
+            normalized[key] = value
+    return normalized
+
+
 def _expected_llmobs_llm_span_event(
     span,
     span_kind="llm",
@@ -130,7 +150,9 @@ def _expected_llmobs_llm_span_event(
         if input_messages is not None:
             input_messages = (
                 [
-                    input_message if input_message.get("role") is not None else {**input_message, "role": ""}
+                    _normalize_message(
+                        input_message if input_message.get("role") is not None else {**input_message, "role": ""}
+                    )
                     for input_message in input_messages
                 ]
                 if isinstance(input_messages, list)
@@ -140,7 +162,9 @@ def _expected_llmobs_llm_span_event(
         if output_messages is not None:
             output_messages = (
                 [
-                    output_message if output_message.get("role") is not None else {**output_message, "role": ""}
+                    _normalize_message(
+                        output_message if output_message.get("role") is not None else {**output_message, "role": ""}
+                    )
                     for output_message in output_messages
                 ]
                 if isinstance(output_messages, list)
@@ -162,9 +186,9 @@ def _expected_llmobs_llm_span_event(
         meta_dict.update({"model_name": model_name})
     if model_provider is not None:
         meta_dict.update({"model_provider": model_provider})
+    meta_dict.update({"metadata": metadata or {}})
     if tool_definitions is not None:
         meta_dict["tool_definitions"] = tool_definitions
-    meta_dict.update({"metadata": metadata or {}})
     span_event["meta"].update(meta_dict)
     if token_metrics is not None:
         span_event["metrics"].update(token_metrics)
