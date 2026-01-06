@@ -348,3 +348,26 @@ lib_injection_tests:
     - pyenv install ${PYTHON} && pyenv global ${PYTHON}
     - python --version
     - python lib-injection/sources/sitecustomize.py
+
+profiling_native:
+  needs: []
+  stage: tests
+  tags: [ "arch:amd64" ]
+  image: registry.ddbuild.io/images/mirror/ubuntu:25.04
+  parallel:
+    matrix:
+      - PYTHON: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+      - MEMCPY_MODE: ["default", "fast"]
+      - SANITIZER: ["safety", "thread", "valgrind"]
+  script:
+    - PYENV_GIT_TAG=v2.6.17 curl https://pyenv.run | bash
+    - pyenv --version
+    - pyenv install ${PYTHON} && pyenv global ${PYTHON}
+    - python --version
+    - apt-get update && sudo apt-get install -y llvm-19
+    - if [ ${SANITIZER} == "valgrind" ]; then sudo apt-get install -y valgrind; fi
+    # DEV: We currently have tests in dd_wrapper and stack, setting
+    # stack here will also run tests in dd_wrapper. Revisit this when
+    # that changes.
+    - if [ ${MEMCPY_MODE} == "fast" ]; then export ECHION_USE_FAST_COPY_MEMORY=1; else export ECHION_USE_FAST_COPY_MEMORY=0; fi
+    - ./ddtrace/internal/datadog/profiling/build_standalone.sh --${SANITIZER} RelWithDebInfo stack_test
