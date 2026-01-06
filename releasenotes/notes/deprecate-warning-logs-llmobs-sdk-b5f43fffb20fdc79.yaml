@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    LLM Observability: Warning logs for incorrect usage of the LLM Observability SDK are deprecated and will be replaced with raised errors in ``ddtrace>=4.0.0``.
