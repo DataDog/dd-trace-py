@@ -5,7 +5,7 @@ if(DEFINED NATIVE_EXTENSION_LOCATION)
 else()
     message(
         FATAL_ERROR
-            "NATIVE_EXTENSION_LOCATION is not set. Use `python setup.py` or ddtrace/internal/datadog/profiling/build_standalone.sh"
+            "NATIVE_EXTENSION_LOCATION is not set. Use `python setup.py` or ddtrace/internal/datadog/profiling/build_standalone.sh "
             "to build profiling native extensions.")
 endif()
 
@@ -14,7 +14,7 @@ if(DEFINED EXTENSION_SUFFIX)
 else()
     message(
         FATAL_ERROR
-            "EXTENSION_SUFFIX is not set. Use `python setup.py` or ddtrace/internal/datadog/profiling/build_standalone.sh"
+            "EXTENSION_SUFFIX is not set. Use `python setup.py` or ddtrace/internal/datadog/profiling/build_standalone.sh "
             "to build profiling native extensions.")
 endif()
 

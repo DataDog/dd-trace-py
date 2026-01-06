@@ -15,11 +15,8 @@ def test_asyncio_as_completed() -> None:
     from sys import version_info as PYVERSION
 
     from ddtrace.internal.datadog.profiling import stack
-    from ddtrace.internal.logger import get_logger
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
-
-    LOG = get_logger(__name__)
 
     assert stack.is_available, stack.failure_msg
 
@@ -67,17 +64,6 @@ def test_asyncio_as_completed() -> None:
 
     profile = pprof_utils.parse_newest_profile(output_filename)
 
-    task_names_in_profile = sorted(
-        set(
-            [
-                (profile.string_table[label.str])
-                for sample in profile.sample
-                for label in sample.label
-                if profile.string_table[label.key] == "task name"
-            ]
-        )
-    )
-
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0
 
@@ -110,43 +96,13 @@ def test_asyncio_as_completed() -> None:
 
     # Now, check that we have seen those locations for each Task we've created.
     # (They should be named Task-2 .. Task-11, which is the automatic name assigned to Tasks by asyncio.create_task)
-    # Note: we expect one Task to not be seen (and thus accept to recover from one failure). The reason
-    # is that there is a bug in ddtrace that makes one Task (randomly picked) appear "as part of" the Parent Task,
-    # and this Task thus gets the Parent Task's name and not its own.
-    seen_all_except_one = True
-    seen_task_names: set[str] = set()
     for i in range(2, 12):
-        try:
-            pprof_utils.assert_profile_has_sample(
-                profile,
-                samples,
-                expected_sample=pprof_utils.StackEvent(
-                    task_name=f"Task-{i}",
-                    thread_name="MainThread",
-                    locations=locations,
-                ),
-            )
-
-            seen_task_names.add(f"Task-{i}")
-        except AssertionError:
-            if not seen_all_except_one:
-                LOG.error(
-                    f"More than one Task has not been seen; i = {i} "  # noqa: G004
-                    f"seen_task_names = {seen_task_names} "
-                    f"task_names_in_profile = {task_names_in_profile}"
-                )
-                raise
-
-            # This is the bug situation.
-            # Check that we have seen the expected locations for the Parent Task (Task-1)
-            # If that isn't the case, then something else is broken.
-            pprof_utils.assert_profile_has_sample(
-                profile,
-                samples,
-                expected_sample=pprof_utils.StackEvent(
-                    task_name="Task-1",
-                    thread_name="MainThread",
-                    locations=locations,
-                ),
-            )
-            seen_all_except_one = False
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples,
+            expected_sample=pprof_utils.StackEvent(
+                task_name=f"Task-{i}",
+                thread_name="MainThread",
+                locations=locations,
+            ),
+        )
