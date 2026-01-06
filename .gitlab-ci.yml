@@ -361,7 +361,7 @@ profiling_native:
         SANITIZER: ["safety", "thread", "valgrind"]
   script:
     #- [[ $(git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA) != *profiling* ]] && exit 0
-    - apt-get update && apt install build-essential zlib1g-dev libssl-dev curl git -y
+    - apt-get update && apt install build-essential zlib1g-dev libssl-dev curl git wget -y
     - |
       cd /tmp/
       wget https://www.python.org/ftp/python/${PYTHON}/Python-${PYTHON}.tgz
