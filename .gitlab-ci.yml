@@ -145,7 +145,7 @@ macrobenchmarks:
     DD_DISABLE_VPA: true
   allow_failure: true
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "schedule" || $CI_PIPELINE_SOURCE == "api"
       when: always
     - if: !reference [.is_release]
       when: always
