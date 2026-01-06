@@ -327,6 +327,10 @@ def _root_module(path: Path) -> str:
 def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
     try:
         mapping = {}
+        # Cache site_packages once outside the loop to avoid repeated calls
+        site_packages = _get_site_packages()
+        # Cache namespace package checks to avoid repeated filesystem operations
+        namespace_cache: t.Dict[str, bool] = {}
 
         for name, version, dist_path in _find_distributions_optimized():
             # Get the actual distribution name and version from metadata if available
@@ -352,31 +356,62 @@ def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
             if record_file.exists():
                 try:
                     with open(record_file, "r", encoding="utf-8", errors="ignore") as f:
-                        for line in f:
-                            if not line.strip():
-                                continue
-                            # RECORD format: path,hash,size
-                            path_part = line.split(",")[0]
-                            if not path_part or "/" not in path_part:
-                                continue
+                        # Read all lines at once for better I/O performance
+                        lines = f.readlines()
 
-                            parts = Path(path_part).parts
-                            root = parts[0]
-                            if root.endswith((".dist-info", ".egg-info")) or root == "..":
-                                continue
+                    # Process lines more efficiently
+                    seen_roots = set()
+                    for line in lines:
+                        # Fast check for empty lines
+                        if not line or not line.strip():
+                            continue
 
-                            # Check for namespace packages (no __init__.py in parent)
-                            if len(parts) >= 2:
-                                # This is a simplified namespace check
-                                # If we can't find an __init__.py in site-packages/root/, assume namespace
-                                for site_pkg in _get_site_packages():
+                        # RECORD format: path,hash,size
+                        # Find first comma more efficiently than split
+                        comma_idx = line.find(",")
+                        if comma_idx <= 0:
+                            continue
+
+                        path_part = line[:comma_idx]
+                        # Fast check for invalid paths
+                        if not path_part or "/" not in path_part:
+                            continue
+
+                        # Use string operations instead of Path for better performance
+                        # Split on "/" once to get parts
+                        parts = path_part.split("/")
+                        if not parts or not parts[0]:
+                            continue
+
+                        root = parts[0]
+                        # Fast checks for invalid roots
+                        if root.endswith((".dist-info", ".egg-info")) or root == "..":
+                            continue
+
+                        # Check for namespace packages (no __init__.py in parent)
+                        # Only check if we have a second part and haven't checked this root yet
+                        if len(parts) >= 2 and root not in seen_roots:
+                            seen_roots.add(root)
+
+                            # Check namespace cache first
+                            is_namespace = namespace_cache.get(root)
+                            if is_namespace is None:
+                                # Check if it's a namespace package
+                                is_namespace = False
+                                for site_pkg in site_packages:
                                     root_path = site_pkg / root
                                     if root_path.is_dir() and not (root_path / "__init__.py").exists():
-                                        root = "/".join(parts[:2])
+                                        is_namespace = True
                                         break
+                                namespace_cache[root] = is_namespace
 
-                            if root not in mapping:
-                                mapping[root] = d
+                            if is_namespace:
+                                # Use first two parts for namespace package
+                                root = "/".join(parts[:2])
+
+                        # Skip if we've already mapped this root (check after namespace adjustment)
+                        if root not in mapping:
+                            mapping[root] = d
                 except (OSError, UnicodeDecodeError):
                     pass
             else:
