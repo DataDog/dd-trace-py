@@ -2,8 +2,7 @@
 
 #include <array>
 #include <atomic>
-#include <iostream>
-#include <random>
+#include <cstdint>
 #include <string_view>
 #include <thread>
 #include <vector>
@@ -64,13 +63,19 @@ get_name()
 {
     constexpr auto sz = names[0].size();
 
-    thread_local static std::random_device rd;
-    thread_local static std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(0, sz - 1);
+    // Simple fast PRNG - avoids thread_local std::random_device which can race under heavy load.
+    // XorShift is fast and good enough for test name generation.
+    thread_local uint32_t state = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&state) ^ 0xDEADBEEF);
+    auto next_rand = [&]() {
+        state ^= state << 13;
+        state ^= state >> 17;
+        state ^= state << 5;
+        return state % sz;
+    };
 
-    auto id1 = dis(gen);
-    auto id2 = dis(gen);
-    auto id3 = dis(gen);
+    auto id1 = next_rand();
+    auto id2 = next_rand();
+    auto id3 = next_rand();
 
     std::string name;
     name.reserve(30);
@@ -89,13 +94,15 @@ void
 send_sample(unsigned int id)
 {
     auto h = ddup_start_sample();
-    thread_local static std::random_device rd;
-    thread_local static std::mt19937 gen(rd());
 
     // If the sample is not a valid ID, then randomly choose one
     if (id < 1 || id > 4) {
-        std::uniform_int_distribution<> dis(1, 4);
-        id = dis(gen);
+        // Simple fast PRNG - avoids thread_local std::random_device
+        thread_local uint32_t state = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&state) ^ 0xCAFEBABE);
+        state ^= state << 13;
+        state ^= state >> 17;
+        state ^= state << 5;
+        id = (state % 4) + 1;
     }
 
     // Use ID to determine what kind of sample to send
@@ -117,7 +124,7 @@ send_sample(unsigned int id)
             break;
     }
 
-    for (int i = 0; i < 16; i++) {
+    for (size_t i = 0; i < 16; i++) {
         std::string file = "site-packages/" + get_name() + "/file_" + std::to_string(i) + ".py";
         std::string func = get_name() + std::to_string(i);
         ddup_push_frame(h, func.c_str(), file.c_str(), i, 0);

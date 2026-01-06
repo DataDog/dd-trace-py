@@ -78,9 +78,13 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
 {
     configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
     std::atomic<bool> done(false);
-    std::vector<pthread_t> thread_handles;
+    std::vector<pthread_t> thread_handles(num_threads);
     std::vector<unsigned int> ids;
     std::vector<EmulateSamplerArg> args;
+
+    for (unsigned int i = 0; i < num_threads; i++) {
+        ids.push_back(i);
+    }
 
     for (unsigned int i = 0; i < ids.size(); i++) {
         auto id = ids[i];
@@ -142,6 +146,12 @@ TEST(ForkDeathTest, ForkStressTest4Thread)
 {
     // Same memory leak as before--whatever
     EXPECT_EXIT(sample_in_threads_and_fork(4, 100), ::testing::ExitedWithCode(0), ".*");
+}
+
+TEST(ForkDeathTest, ForkStressTest8Thread)
+{
+    // Same memory leak as before--whatever
+    EXPECT_EXIT(sample_in_threads_and_fork(8, 100), ::testing::ExitedWithCode(0), ".*");
 }
 
 TEST(ForkDeathTest, ForkStressTest16Thread)
