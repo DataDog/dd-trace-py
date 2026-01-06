@@ -188,6 +188,31 @@ def _(asyncio: ModuleType) -> None:
 
             return f(*args, **kwargs)
 
+        # Wrap asyncio.shield to link parent task to shielded future
+        @partial(wrap, sys.modules["asyncio"].tasks.shield)
+        def _(
+            f: typing.Callable[..., "aio.Future[typing.Any]"],
+            args: tuple[typing.Any, ...],
+            kwargs: dict[str, typing.Any],
+        ) -> typing.Any:
+            loop = typing.cast(typing.Optional["aio.AbstractEventLoop"], kwargs.get("loop"))
+            awaitable = typing.cast("aio.Future[typing.Any]", get_argument_value(args, kwargs, 0, "arg"))
+            future = asyncio.ensure_future(awaitable, loop=loop)
+
+            parent = globals()["current_task"]()
+            if parent is not None:
+                stack.link_tasks(parent, future)
+
+            args = (future,) + args[1:]
+
+            return f(*args, **kwargs)
+
+        # Note: asyncio.timeout and asyncio.timeout_at don't create child tasks.
+        # They are context managers that schedule a callback to cancel the current task
+        # if it times out. The timeout._task is the same as the current task, so there's
+        # no parent-child relationship to link. The timeout mechanism is handled by the
+        # event loop's timeout handler, not by creating new tasks.
+
         _call_init_asyncio(asyncio)
 
 
