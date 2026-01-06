@@ -368,10 +368,10 @@ profiling_native:
       tar xzf Python-${PYTHON}.tgz
       cd Python-${PYTHON}
 
-      sudo ./configure --prefix=/opt/python/${PYTHON}/ --enable-optimizations --with-lto --with-computed-gotos --with-system-ffi --with-openssl=/usr/local/ssl
-      sudo make -j "$(grep -c ^processor /proc/cpuinfo)"
-      sudo make altinstall
-      sudo rm /tmp/Python-${PYTHON}.tgz
+      ./configure --prefix=/opt/python/${PYTHON}/ --enable-optimizations --with-lto --with-computed-gotos --with-system-ffi --with-openssl=/usr/local/ssl
+      make -j "$(grep -c ^processor /proc/cpuinfo)"
+      make altinstall
+      rm /tmp/Python-${PYTHON}.tgz
     - python --version
     - apt-get install -y llvm-19 bc clang
     - |
