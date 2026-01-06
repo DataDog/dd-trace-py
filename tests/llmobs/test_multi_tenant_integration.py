@@ -197,7 +197,7 @@ class TestMultiTenantFlushBehavior:
         with override_global_config(dict(_dd_api_key="default-key", _dd_site="default-site")):
             writer = LLMObsSpanWriter(interval=1.0, timeout=5.0, is_agentless=True)
 
-            with mock.patch.object(writer, "_send_payload_for_routing") as mock_send:
+            with mock.patch.object(writer, "_send_payload_for_routing_with_retry") as mock_send:
                 event1 = _mock_span_event("span-1")
                 event2 = _mock_span_event("span-2")
 
@@ -225,7 +225,7 @@ class TestMultiTenantFlushBehavior:
         with override_global_config(dict(_dd_api_key="default-key", _dd_site="default-site")):
             writer = LLMObsSpanWriter(interval=1.0, timeout=5.0, is_agentless=True)
 
-            with mock.patch.object(writer, "_send_payload_for_routing"):
+            with mock.patch.object(writer, "_send_payload_for_routing_with_retry"):
                 event1 = _mock_span_event("span-1")
                 event2 = _mock_span_event("span-2")
 

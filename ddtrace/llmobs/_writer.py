@@ -190,6 +190,12 @@ class BaseLLMObsWriter(PeriodicService):
             until=lambda result: isinstance(result, Response),
         )(self._send_payload)
 
+        self._send_payload_for_routing_with_retry = fibonacci_backoff_with_jitter(
+            attempts=self.RETRY_ATTEMPTS,
+            initial_wait=0.618 * self.interval / (1.618**self.RETRY_ATTEMPTS) / 2,
+            until=lambda result: isinstance(result, Response),
+        )(self._send_payload_for_routing)
+
     def _get_routing_key(self, routing: Optional[RoutingConfig] = None) -> str:
         api_key = (routing.get("dd_api_key") if routing else None) or self._api_key or ""
         site = (routing.get("dd_site") if routing else None) or self._site or ""
@@ -281,18 +287,10 @@ class BaseLLMObsWriter(PeriodicService):
     def periodic(self) -> None:
         with self._lock:
             buffers_to_flush: List[Tuple[str, BufferEntry]] = []
-            for routing_key, buffer in self._buffers.items():
+            for routing_key, buffer in list(self._buffers.items()):
                 if buffer["events"]:
                     buffers_to_flush.append((routing_key, buffer))
-                    self._buffers[routing_key] = {
-                        "events": [],
-                        "size": 0,
-                        "routing": buffer["routing"],
-                    }
-
-            empty_keys = [k for k, b in self._buffers.items() if not b["events"]]
-            for k in empty_keys:
-                del self._buffers[k]
+                    del self._buffers[routing_key]
 
         for routing_key, buffer in buffers_to_flush:
             events = buffer["events"]
@@ -327,7 +325,7 @@ class BaseLLMObsWriter(PeriodicService):
             intake = self._get_intake_for_routing(routing)
             headers = self._get_headers_for_routing(routing)
             try:
-                self._send_payload_for_routing(enc_llm_events, len(events), intake, headers)
+                self._send_payload_for_routing_with_retry(enc_llm_events, len(events), intake, headers)
             except Exception:
                 telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error="connection_error")
                 logger.error(
