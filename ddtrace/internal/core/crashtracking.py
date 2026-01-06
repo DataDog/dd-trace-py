@@ -81,17 +81,29 @@ def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
 
 
 def _get_args(additional_tags: Optional[Dict[str, str]]):
-    script_path = os.path.join(
-        os.path.dirname(__file__),
-        "..",
-        "..",
-        "commands",
-        "_dd_crashtracker_receiver.py",
-    )
+    dd_crashtracker_receiver = None
 
-    # Try injected environment first because if we are intentionally running in
-    # an injected environment, we want to use the injected receiver.
-    dd_crashtracker_receiver = script_path if os.path.exists(script_path) else shutil.which("_dd_crashtracker_receiver")
+    # If _dd_crashtracker_receiver is available in injected environment, we should use it.
+    for path_entry in sys.path:
+        if not path_entry:
+            continue
+        candidate_base = os.path.join(path_entry, "_dd_crashtracker_receiver")
+        for candidate in (candidate_base, f"{candidate_base}.py"):
+            if os.path.exists(candidate):
+                dd_crashtracker_receiver = candidate
+                break
+        if dd_crashtracker_receiver:
+            break
+
+    # If not found in injected environment, fall back to PATH.
+    if dd_crashtracker_receiver is None:
+        dd_crashtracker_receiver = shutil.which("_dd_crashtracker_receiver")
+
+    # If not found in PATH, try ddtrace installation directory
+    if dd_crashtracker_receiver is None:
+        script_path = os.path.join(os.path.dirname(__file__), "..", "..", "commands", "_dd_crashtracker_receiver.py")
+        if os.path.exists(script_path):
+            dd_crashtracker_receiver = script_path
 
     if dd_crashtracker_receiver is None:
         print("Failed to find _dd_crashtracker_receiver", file=sys.stderr)
