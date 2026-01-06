@@ -368,7 +368,7 @@ profiling_native:
     - pyenv --version
     - pyenv install ${PYTHON} && pyenv global ${PYTHON}
     - python --version
-    - apt-get install -y llvm-19 bc
+    - apt-get install -y llvm-19 bc clang
     - if [ ${SANITIZER} == "valgrind" ]; then apt-get install -y valgrind; fi
     # DEV: We currently have tests in dd_wrapper and stack, setting
     # stack here will also run tests in dd_wrapper. Revisit this when
