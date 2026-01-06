@@ -173,6 +173,34 @@ check_new_flaky_tests:
       when: never
     - when: on_success
 
+codeql-scan:
+  timeout: 30m
+  stage: tests
+  needs: []
+  image:
+    name: registry.ddbuild.io/images/code-scanning:v76675231-865a08a-default
+  tags: [ "arch:amd64" ]
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  variables:
+    AWS_REGION: us-east-1
+    BASE_REF: main
+    GOMAXPROCS: 10
+    KUBERNETES_CPU_REQUEST: 10
+    KUBERNETES_CPU_LIMIT: 10
+    KUBERNETES_MEMORY_REQUEST: 96Gi
+    KUBERNETES_MEMORY_LIMIT: 96Gi
+    CI_PROJECT_NAMESPACE: DataDog
+    CODEQL: /usr/local/codeql/codeql
+    CODEQL_DB: /tmp/dd-trace-py.codeql
+    PYTHON_CUSTOM_QLPACK: /tmp/codescanning/qlpacks/python/codeql-suites/python-code-scanning.qls
+    DB_CONFIGS: --threads 8 --ram 96000 --language=python --quiet
+    SCAN_CONFIGS: --format sarifv2.1.0 --threads 8 --ram 96000 --no-tuple-counting --quiet
+    UPLOAD_CONFIGS: -upload_sarif=true
+  script:
+    - ./scripts/codeql_scan.sh
+
 requirements_json_test:
   rules:
     - when: on_success
