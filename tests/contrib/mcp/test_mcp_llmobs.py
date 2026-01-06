@@ -7,6 +7,7 @@ from textwrap import dedent
 import mock
 
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.utils import override_config
 
 
 def _assert_distributed_trace(mock_tracer, llmobs_events, expected_tool_name):
@@ -324,3 +325,98 @@ def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subproc
     assert server_trace is not None
     assert client_trace["spans"][0]["trace_id"] != server_trace["spans"][0]["trace_id"]
     assert client_trace["spans"][0]["_dd"]["apm_trace_id"] != server_trace["spans"][0]["_dd"]["apm_trace_id"]
+
+
+def test_intent_capture_tool_schema_injection(mcp_setup, mock_tracer, llmobs_events, mcp_server):
+    """Test that intent capture adds ddtrace property to tool input schemas."""
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    async def run_test():
+        async with create_connected_server_and_client_session(mcp_server._mcp_server) as client:
+            result = await client.list_tools()
+            return result
+
+    with override_config("mcp", dict(capture_intent=True)):
+        result = asyncio.run(run_test())
+    tool = next(t for t in result.tools if t.name == "calculator")
+    schema = tool.inputSchema
+
+    # Verify ddtrace property is injected
+    assert "ddtrace" in schema["properties"], f"ddtrace not in properties: {schema}"
+    ddtrace_schema = schema["properties"]["ddtrace"]
+    assert ddtrace_schema["type"] == "object"
+    assert "intent" in ddtrace_schema["properties"]
+    assert ddtrace_schema["properties"]["intent"]["type"] == "string"
+    assert "required" in ddtrace_schema
+    assert "intent" in ddtrace_schema["required"]
+
+    # Verify original tool arguments are unchanged
+    assert "operation" in schema["properties"]
+    assert "a" in schema["properties"]
+    assert "b" in schema["properties"]
+    assert schema["properties"]["operation"]["type"] == "string"
+    assert schema["properties"]["a"]["type"] == "integer"
+    assert schema["properties"]["b"]["type"] == "integer"
+
+    # Verify intent is required at top level, and original required args still present
+    assert "intent" in schema["required"]
+    assert "operation" in schema["required"]
+    assert "a" in schema["required"]
+    assert "b" in schema["required"]
+
+
+def test_intent_capture_records_intent_on_span_meta(mcp_setup, mock_tracer, llmobs_events, mcp_server):
+    """Test that intent is recorded on the span meta and ddtrace argument is excluded from input."""
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    async def run_test():
+        async with create_connected_server_and_client_session(mcp_server._mcp_server) as client:
+            await client.call_tool(
+                "calculator",
+                {
+                    "operation": "add",
+                    "a": 1,
+                    "b": 2,
+                    "ddtrace": {"intent": "Testing intent capture for adding numbers"},
+                },
+            )
+
+    with override_config("mcp", dict(capture_intent=True)):
+        asyncio.run(run_test())
+
+    llmobs_events.sort(key=lambda event: event["start_ns"])
+    server_tool_event = next(
+        (e for e in llmobs_events if e["name"] == "calculator" and "mcp_tool_kind:server" in e["tags"]),
+        None,
+    )
+    assert server_tool_event is not None
+
+    # Verify intent is recorded in meta
+    assert "intent" in server_tool_event["meta"], f"intent not in meta: {server_tool_event['meta']}"
+    assert server_tool_event["meta"]["intent"] == "Testing intent capture for adding numbers"
+
+    # Verify ddtrace argument is NOT in the input value
+    input_value = json.loads(server_tool_event["meta"]["input"]["value"])
+    arguments = input_value.get("params", {}).get("arguments", {})
+    assert "ddtrace" not in arguments, f"ddtrace should not be in arguments: {arguments}"
+    assert "operation" in arguments
+    assert "a" in arguments
+    assert "b" in arguments
+
+
+def test_intent_capture_disabled_by_default(mcp_setup, mock_tracer, llmobs_events, mcp_server):
+    """Test that intent capture is disabled by default and ddtrace property is not injected."""
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    async def run_test():
+        async with create_connected_server_and_client_session(mcp_server._mcp_server) as client:
+            result = await client.list_tools()
+            return result
+
+    with override_config("mcp", dict(capture_intent=False)):
+        result = asyncio.run(run_test())
+    tool = next(t for t in result.tools if t.name == "calculator")
+    schema = tool.inputSchema
+
+    # Verify ddtrace property is NOT injected when intent capture is disabled
+    assert "ddtrace" not in schema.get("properties", {}), f"ddtrace should not be in properties: {schema}"

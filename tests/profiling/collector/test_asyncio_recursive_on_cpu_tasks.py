@@ -114,9 +114,9 @@ def test_asyncio_recursive_on_cpu_tasks():
         print_samples_on_failure=True,
     )
 
-    # Same test, but with a specific task_name ("Task-1")``
-    # Ideally, we should be able to report the Task-2 specific part in its own
-    # Stack, but at the moment we are not. This will be fixed in the future.
+    # Same test, but with a specific task_name - "Task-2".
+    # Task-1 is the "root"/parent Task, Task-2 is the one created by inner1.
+    # Since we label Samples with the Leaf Task's name, we want to see "Task-2".
     pprof_utils.assert_profile_has_sample(
         profile,
         list(profile.sample),
@@ -124,7 +124,7 @@ def test_asyncio_recursive_on_cpu_tasks():
             thread_name="MainThread",
             span_id=span_id,
             local_root_span_id=local_root_span_id,
-            task_name="Task-1",
+            task_name="Task-2",
             locations=list(
                 reversed(
                     [
