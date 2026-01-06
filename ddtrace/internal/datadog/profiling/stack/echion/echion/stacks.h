@@ -39,10 +39,6 @@ class FrameStack : public std::deque<Frame::Ref>
 };
 
 // ----------------------------------------------------------------------------
-
-inline FrameStack python_stack;
-
-// ----------------------------------------------------------------------------
 static size_t
 unwind_frame(PyObject* frame_addr, FrameStack& stack)
 {
@@ -106,13 +102,6 @@ unwind_python_stack(PyThreadState* tstate, FrameStack& stack)
     PyObject* frame_addr = reinterpret_cast<PyObject*>(tstate->frame);
 #endif
     unwind_frame(frame_addr, stack);
-}
-
-// ----------------------------------------------------------------------------
-static void
-unwind_python_stack(PyThreadState* tstate)
-{
-    unwind_python_stack(tstate, python_stack);
 }
 
 // ----------------------------------------------------------------------------

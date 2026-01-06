@@ -1,7 +1,6 @@
 import pytest
 
 
-@pytest.mark.xfail(reason="This test is flaky due to a race condition, see PROF-13137")
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_recursive_on_cpu_tasks",
@@ -115,9 +114,9 @@ def test_asyncio_recursive_on_cpu_tasks():
         print_samples_on_failure=True,
     )
 
-    # Same test, but with a specific task_name ("Task-1")``
-    # Ideally, we should be able to report the Task-2 specific part in its own
-    # Stack, but at the moment we are not. This will be fixed in the future.
+    # Same test, but with a specific task_name - "Task-2".
+    # Task-1 is the "root"/parent Task, Task-2 is the one created by inner1.
+    # Since we label Samples with the Leaf Task's name, we want to see "Task-2".
     pprof_utils.assert_profile_has_sample(
         profile,
         list(profile.sample),
@@ -125,18 +124,20 @@ def test_asyncio_recursive_on_cpu_tasks():
             thread_name="MainThread",
             span_id=span_id,
             local_root_span_id=local_root_span_id,
-            task_name="Task-1",
+            task_name="Task-2",
             locations=list(
                 reversed(
                     [
                         loc("<module>"),
                         loc("main_sync"),
                         loc("run"),
-                        loc("Runner.run"),
-                        loc("BaseEventLoop.run_until_complete"),
-                        loc("BaseEventLoop.run_forever"),
-                        loc("BaseEventLoop._run_once"),
-                        loc("Handle._run"),
+                    ]
+                    + ([loc(f"{runner_prefix}run")] if PYVERSION >= (3, 11) else [])
+                    + [
+                        loc(f"{base_event_loop_prefix}run_until_complete"),
+                        loc(f"{base_event_loop_prefix}run_forever"),
+                        loc(f"{base_event_loop_prefix}_run_once"),
+                        loc(f"{handle_prefix}_run"),
                         # loc("Task-1"),
                         loc("async_main"),
                         loc("outer"),

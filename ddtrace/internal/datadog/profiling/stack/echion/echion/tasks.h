@@ -219,7 +219,7 @@ class TaskInfo
     }
 
     [[nodiscard]] static Result<TaskInfo::Ptr> current(PyObject*);
-    inline size_t unwind(FrameStack&, size_t& upper_python_stack_size);
+    inline size_t unwind(FrameStack&);
 };
 
 inline std::unordered_map<PyObject*, PyObject*> task_link_map;
@@ -300,10 +300,12 @@ inline std::vector<std::unique_ptr<StackInfo>> current_tasks;
 // ----------------------------------------------------------------------------
 
 inline size_t
-TaskInfo::unwind(FrameStack& stack, size_t& upper_python_stack_size)
+TaskInfo::unwind(FrameStack& stack)
 {
     // TODO: Check for running task.
-    std::stack<PyObject*> coro_frames;
+
+    // Use a vector-based std::stack as we only push_back/pop_back
+    std::stack<PyObject*, std::vector<PyObject*>> coro_frames;
 
     // Unwind the coro chain
     for (auto py_coro = this->coro.get(); py_coro != NULL; py_coro = py_coro->await.get()) {
@@ -331,7 +333,7 @@ TaskInfo::unwind(FrameStack& stack, size_t& upper_python_stack_size)
         // use the number of Frames added to the Stack to determine the size of the upper Python stack.
         if (count == 0) {
             // The first Frame is the coroutine Frame, so the Python stack size is the number of Frames - 1
-            upper_python_stack_size = new_frames - 1;
+            auto upper_python_stack_size = new_frames - 1;
 
             // Remove the Python Frames from the Stack (they will be added back later)
             // We cannot push those Frames now because otherwise they would be added once per Task,

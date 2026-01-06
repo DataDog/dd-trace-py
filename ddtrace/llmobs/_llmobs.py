@@ -73,6 +73,7 @@ from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
+from ddtrace.llmobs._constants import MCP_TOOL_CALL_INTENT
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import ML_APP
@@ -110,6 +111,7 @@ from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import _is_evaluation_span
 from ddtrace.llmobs._utils import _validate_prompt
+from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
@@ -390,6 +392,9 @@ class LLMObs(Service):
 
         if span._get_ctx_item(TOOL_DEFINITIONS) is not None:
             meta["tool_definitions"] = span._get_ctx_item(TOOL_DEFINITIONS) or []
+        intent = span._get_ctx_item(MCP_TOOL_CALL_INTENT)
+        if intent is not None:
+            meta["intent"] = str(intent)
         if span.error:
             meta["error"] = _ErrorField(
                 message=span.get_tag(ERROR_MSG) or "",
@@ -1043,6 +1048,7 @@ class LLMObs(Service):
         tags: Optional[Dict[str, Any]] = None,
         prompt: Optional[Union[dict, Prompt]] = None,
         name: Optional[str] = None,
+        _linked_spans: Optional[List[ExportedLLMObsSpan]] = None,
     ) -> AnnotationContext:
         """
         Sets specified attributes on all LLMObs spans created while the returned AnnotationContext is active.
@@ -1098,7 +1104,7 @@ class LLMObs(Service):
                     (
                         annotation_id,
                         ctx_id,
-                        {"tags": tags, "prompt": prompt, "_name": name},
+                        {"tags": tags, "prompt": prompt, "_name": name, "_linked_spans": _linked_spans},
                     )
                 )
 
@@ -1556,6 +1562,7 @@ class LLMObs(Service):
         tags: Optional[Dict[str, Any]] = None,
         tool_definitions: Optional[List[Dict[str, Any]]] = None,
         _name: Optional[str] = None,
+        _linked_spans: Optional[List[ExportedLLMObsSpan]] = None,
         _suppress_span_kind_error: bool = False,
     ) -> None:
         """
@@ -1686,6 +1693,12 @@ class LLMObs(Service):
                     cls._tag_freeform_io(span, input_value=input_data, output_value=output_data)
                 else:
                     cls._tag_text_io(span, input_value=input_data, output_value=output_data)
+            if _linked_spans and isinstance(_linked_spans, list):
+                for linked_span in _linked_spans:
+                    # for now, assume all span links are output to input as we do not currently use this for anything
+                    add_span_link(
+                        span, linked_span.get("span_id", ""), linked_span.get("trace_id", ""), "output", "input"
+                    )
             if annotation_error_message:
                 raise LLMObsAnnotateSpanError(annotation_error_message)
         finally:
