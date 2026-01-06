@@ -33,12 +33,8 @@ jobs:
         run: |
           MATRIX_INCLUDE=$(
             {
-              cibuildwheel --print-build-identifiers --platform linux --archs x86_64,i686 | jq -cR '{only: ., os: "ubuntu-latest-16-cores"}' \
-              && cibuildwheel --print-build-identifiers --platform linux --archs aarch64  | jq -cR '{only: ., os: "arm-8core-linux"}' \
-              && cibuildwheel --print-build-identifiers --platform windows --archs AMD64,x86 | jq -cR '{only: ., os: "windows-latest"}' \
-              && cibuildwheel --print-build-identifiers --platform windows --archs ARM64    | jq -cR '{only: ., os: "windows-11-arm"}' \
-              && cibuildwheel --print-build-identifiers --platform macos --archs x86_64 | jq -cR '{only: ., os: "macos-15-large"}' \
-              && cibuildwheel --print-build-identifiers --platform macos --archs arm64 | jq -cR '{only: ., os: "macos-15-xlarge"}'
+              cibuildwheel --print-build-identifiers --platform windows --archs AMD64,x86 | jq -cR '{only: ., os: "windows-latest"}' \
+              && cibuildwheel --print-build-identifiers --platform windows --archs ARM64    | jq -cR '{only: ., os: "windows-11-arm"}'
             } | jq -sc
           )
           echo $MATRIX_INCLUDE
@@ -55,38 +51,11 @@ jobs:
     env:
       CIBW_SKIP: ${{ inputs.cibw_skip }}
       CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
-      CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
-      CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
-      CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
       CIBW_BEFORE_ALL_WINDOWS: ${{ matrix.os == 'windows-latest' && 'rustup target add i686-pc-windows-msvc' || (matrix.os == 'windows-11-arm' && 'rustup target add aarch64-pc-windows-msvc') }}
-      CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
-      CIBW_BEFORE_ALL_LINUX: |
-        if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]]; then
-          curl -sSf https://sh.rustup.rs | sh -s -- -y;
-        fi
-      CIBW_ENVIRONMENT_LINUX: PATH=$HOME/.cargo/bin:$PATH CMAKE_BUILD_PARALLEL_LEVEL=24 CMAKE_ARGS="-DNATIVE_TESTING=OFF"
-      # SYSTEM_VERSION_COMPAT is a workaround for versioning issue, a.k.a.
-      # `platform.mac_ver()` reports incorrect MacOS version at 11.0
-      # See: https://stackoverflow.com/a/65402241
-      CIBW_ENVIRONMENT_MACOS: CMAKE_BUILD_PARALLEL_LEVEL=24 SYSTEM_VERSION_COMPAT=0 CMAKE_ARGS="-DNATIVE_TESTING=OFF"
       # cibuildwheel repair will copy anything's under /output directory from the
       # build container to the host machine. This is a bit hacky way, but seems
       # to be the only way getting debug symbols out from the container while
       # we don't mess up with RECORD file.
-      CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
-        mkdir -p /output/debugwheelhouse &&
-        python scripts/extract_debug_symbols.py {wheel} --output-dir /output/debugwheelhouse &&
-        python scripts/zip_filter.py {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md &&
-        mkdir ./tempwheelhouse &&
-        unzip -l {wheel} | grep '\.so' &&
-        auditwheel repair -w ./tempwheelhouse {wheel} &&
-        mv ./tempwheelhouse/*.whl {dest_dir} &&
-        rm -rf ./tempwheelhouse
-      CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
-        mkdir -p ./debugwheelhouse &&
-        python scripts/extract_debug_symbols.py {wheel} --output-dir ./debugwheelhouse &&
-        python scripts/zip_filter.py {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md &&
-        MACOSX_DEPLOYMENT_TARGET=12.7 delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
       CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: python scripts/zip_filter.py "{wheel}" "*.c" "*.cpp" "*.cc" "*.h" "*.hpp" "*.pyx" "*.md" && mv "{wheel}" "{dest_dir}"
       CIBW_TEST_COMMAND: "python {project}/tests/smoke_test.py"
 
