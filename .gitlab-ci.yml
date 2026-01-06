@@ -360,6 +360,9 @@ profiling_native:
         MEMCPY_MODE: ["default", "fast"]
         SANITIZER: ["safety", "thread", "valgrind"]
   script:
+    #- [[ $(git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA) != *profiling* ]] && exit 0
+    - export PYENV_ROOT="${HOME}/.pyenv"
+    - export PATH="${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PATH}"
     - apt-get update && apt install build-essential zlib1g-dev libssl-dev curl git -y
     - PYENV_GIT_TAG=v2.6.17 curl https://pyenv.run | bash
     - pyenv --version
