@@ -5,6 +5,7 @@ from urllib import parse
 
 import requests
 
+import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
@@ -19,6 +20,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.opentelemetry.constants import OTLP_EXPORTER_HEADER_IDENTIFIER
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import get_argument_value
 
 
@@ -73,9 +75,6 @@ def _wrap_send(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     # Check if tracing is enabled (but allow if APM is opted out for ASM)
-    import ddtrace
-    from ddtrace.internal.settings.asm import config as asm_config
-
     if not ddtrace.tracer.enabled and not asm_config._apm_opt_out:
         return func(*args, **kwargs)
 
@@ -85,8 +84,6 @@ def _wrap_send(func, instance, args, kwargs):
         method = request.method.upper()
     hostname, path = _extract_hostname_and_path(url)
     host_without_port = hostname.split(":")[0] if hostname is not None else None
-
-    parsed_uri = parse.urlparse(url)
 
     # Get pin from instance to access integration config
     pin = Pin.get_from(instance)
@@ -107,7 +104,6 @@ def _wrap_send(func, instance, args, kwargs):
     #   - full_url: Analyze outbound requests for SSRF threats (e.g., requests to 169.254.169.254)
     #   - use_body: Determine if response bodies should be analyzed for sensitive data leakage
     # Without these context items, AppSec security checks are skipped for requests made via this library.
-    full_url = url
     use_body = False
     try:
         from ddtrace.appsec._asm_request_context import _get_asm_context
@@ -131,15 +127,12 @@ def _wrap_send(func, instance, args, kwargs):
         integration_config=integration_config,
         measured=True,
         tags={COMPONENT: config.requests.integration_name, SPAN_KIND: SpanKind.CLIENT},
-        request=request,
+        request_headers=request.headers,
         request_url=url,
         request_method=method,
-        request_headers=request.headers,
         hostname=hostname,
-        path=path,
         host_without_port=host_without_port,
-        parsed_uri=parsed_uri,
-        full_url=full_url,
+        full_url=url,
         use_body=use_body,
     ) as ctx:
         response = None
