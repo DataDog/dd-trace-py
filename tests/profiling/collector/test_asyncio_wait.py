@@ -1,6 +1,12 @@
+import os
+
 import pytest
 
 
+@pytest.mark.skipif(
+    os.environ.get("DD_PROFILING_STACK_V2_ENABLED", "1") == "0",
+    reason="Test requires stack v2 for span correlation in asyncio tasks",
+)
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_wait",
