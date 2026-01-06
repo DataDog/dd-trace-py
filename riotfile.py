@@ -190,6 +190,15 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_integrations_stripe",
+            pys=select_pys(),
+            command="pytest {cmdargs} -v tests/appsec/integrations/stripe_tests/ ",
+            pkgs={
+                "stripe": [latest, "~=11.0", "~=12.0", "~=13.0"],
+                "vcrpy": latest,
+            },
+        ),
+        Venv(
             name="appsec_iast_packages",
             pys=["3.11", "3.12", "3.13", "3.14"],
             command="pytest {cmdargs}  -vvv -rxf tests/appsec/iast_packages/",
@@ -1745,6 +1754,7 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "requests": latest,
                 "aiofiles": latest,
+                "cloudpickle": latest,
             },
             venvs=[
                 Venv(
@@ -3258,6 +3268,17 @@ venv = Venv(
                 "pandas": latest,
             },
             pys=select_pys(min_version="3.9", max_version="3.13"),
+        ),
+        Venv(
+            name="vllm",
+            command="pytest {cmdargs} tests/contrib/vllm",
+            pkgs={
+                "pytest-asyncio": "==0.21.1",
+                "pytest-randomly": latest,
+                "torch": latest,
+                "vllm": ">=0.10.2",
+            },
+            pys=select_pys(min_version="3.10", max_version="3.13"),
         ),
         Venv(
             name="valkey",
