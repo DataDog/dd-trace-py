@@ -21,6 +21,7 @@ class Uploader
     static inline ddog_CancellationToken cancel{ .inner = nullptr };
     static inline std::atomic<uint64_t> upload_seq{ 0 };
     std::string output_filename;
+    std::string process_tags;
     ddog_prof_ProfileExporter ddog_exporter{ .inner = nullptr };
     ddog_prof_EncodedProfile encoded_profile{};
     Datadog::ProfilerStats profiler_stats;
@@ -39,7 +40,8 @@ class Uploader
     Uploader(std::string_view _url,
              ddog_prof_ProfileExporter ddog_exporter,
              ddog_prof_EncodedProfile encoded,
-             Datadog::ProfilerStats stats);
+             Datadog::ProfilerStats stats,
+             std::string_view _process_tags);
     ~Uploader()
     {
         // We need to call _drop() on the exporter and the cancellation token,
@@ -77,6 +79,7 @@ class Uploader
         other.encoded_profile = { .inner = nullptr };
         profiler_stats = std::move(other.profiler_stats);
         output_filename = std::move(other.output_filename);
+        process_tags = std::move(other.process_tags);
         errmsg = std::move(other.errmsg);
     }
 
@@ -91,6 +94,7 @@ class Uploader
             other.encoded_profile = { .inner = nullptr };
             profiler_stats = std::move(other.profiler_stats);
             output_filename = std::move(other.output_filename);
+            process_tags = std::move(other.process_tags);
             errmsg = std::move(other.errmsg);
         }
         return *this;

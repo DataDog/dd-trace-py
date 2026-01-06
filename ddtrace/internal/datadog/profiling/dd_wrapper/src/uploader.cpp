@@ -16,8 +16,10 @@ using namespace Datadog;
 Datadog::Uploader::Uploader(std::string_view _output_filename,
                             ddog_prof_ProfileExporter _ddog_exporter,
                             ddog_prof_EncodedProfile _encoded_profile,
-                            Datadog::ProfilerStats _stats)
+                            Datadog::ProfilerStats _stats,
+                            std::string_view _process_tags)
   : output_filename{ _output_filename }
+  , process_tags{ _process_tags }
   , ddog_exporter{ _ddog_exporter }
   , encoded_profile{ _encoded_profile }
   , profiler_stats{ std::move(_stats) }
@@ -90,6 +92,10 @@ Datadog::Uploader::upload()
     auto internal_metadata_json = profiler_stats.get_internal_metadata_json();
     auto internal_metadata_json_slice = to_slice(internal_metadata_json);
 
+    // Prepare process_tags slice if available
+    ddog_CharSlice process_tags_slice = process_tags.empty() ? ddog_CharSlice{ .ptr = nullptr, .len = 0 } : to_slice(process_tags);
+    ddog_CharSlice* optional_process_tags_ptr = process_tags.empty() ? nullptr : &process_tags_slice;
+
     auto build_res = ddog_prof_Exporter_Request_build(
       &ddog_exporter,
       &encoded_profile,
@@ -101,8 +107,8 @@ Datadog::Uploader::upload()
       ddog_prof_Exporter_Slice_File_empty(), // files_to_export_unmodified
       nullptr,                               // optional_additional_tags
       &internal_metadata_json_slice,
-      nullptr, // optional_info_json
-      nullptr  // optional_process_tags
+      nullptr,                               // optional_info_json
+      optional_process_tags_ptr              // optional_process_tags
     );
 
     if (build_res.tag ==
