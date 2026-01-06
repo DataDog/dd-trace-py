@@ -370,7 +370,6 @@ profiling_native:
     - python --version
     - apt-get install -y llvm-19 bc clang
     - |
-      apk add curl git gcc g++ musl-dev libffi-dev openssl-dev bash cargo make cmake patchelf
       curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       export PATH="$HOME/.cargo/bin:$PATH"
     - if [ ${SANITIZER} == "valgrind" ]; then apt-get install -y valgrind; fi
