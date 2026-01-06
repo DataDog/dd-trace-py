@@ -1,6 +1,5 @@
 import concurrent.futures
 import json
-import sys
 
 import pytest
 
@@ -419,8 +418,9 @@ def test_iast_code_injection_with_stacktrace(server, iast_test_token):
     assert metastruct
 
 
-def test_iast_unvalidated_redirect(iast_test_token):
-    with gunicorn_flask_server(iast_enabled="true", token=iast_test_token, port=8050) as context:
+@pytest.mark.parametrize("server", (gunicorn_flask_server, flask_server))
+def test_iast_unvalidated_redirect(server, iast_test_token):
+    with server(iast_enabled="true", token=iast_test_token, port=8050) as context:
         _, flask_client, pid = context
 
         response = flask_client.get("/iast-unvalidated_redirect-header?location=malicious_url")
@@ -520,7 +520,6 @@ def test_gevent_sensitive_socketpair(server, config, iast_enabled, iast_test_tok
         assert response.text == "OK:True"
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Test not compatible with Python 3.8")
 @pytest.mark.parametrize("server, config", _GEVENT_SERVERS_SCENARIOS)
 @pytest.mark.parametrize("iast_enabled", ("true", "false"))
 def test_gevent_sensitive_greenlet(server, config, iast_enabled, iast_test_token):

@@ -8,6 +8,7 @@ from ddtrace.internal.process_tags import ENTRYPOINT_BASEDIR_TAG
 from ddtrace.internal.process_tags import ENTRYPOINT_NAME_TAG
 from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_TAG
 from ddtrace.internal.process_tags import ENTRYPOINT_WORKDIR_TAG
+from ddtrace.internal.process_tags import _compute_process_tag
 from ddtrace.internal.process_tags import normalize_tag_value
 from ddtrace.internal.settings.process_tags import process_tags_config as config
 from tests.subprocesstest import run_in_subprocess
@@ -26,17 +27,17 @@ TEST_WORKDIR_PATH = "/path/to/workdir"
         ("TestCAPSandSuch", "testcapsandsuch"),
         ("Test Conversion Of Weird !@#$%^&**() Characters", "test_conversion_of_weird_characters"),
         ("$#weird_starting", "weird_starting"),
-        ("allowed:c0l0ns", "allowed:c0l0ns"),
+        ("allowed:c0l0ns", "allowed_c0l0ns"),
         ("1love", "1love"),
         ("/love2", "/love2"),
         ("ünicöde", "ünicöde"),
-        ("ünicöde:metäl", "ünicöde:metäl"),
+        ("ünicöde:metäl", "ünicöde_metäl"),
         ("Data🐨dog🐶 繋がっ⛰てて", "data_dog_繋がっ_てて"),
         (" spaces   ", "spaces"),
         (" #hashtag!@#spaces #__<>#  ", "hashtag_spaces"),
-        (":testing", ":testing"),
+        (":testing", "testing"),
         ("_foo", "foo"),
-        (":::test", ":::test"),
+        (":::test", "test"),
         ("contiguous_____underscores", "contiguous_underscores"),
         ("foo_", "foo"),
         ("\u017fodd_\u017fcase\u017f", "\u017fodd_\u017fcase\u017f"),
@@ -44,36 +45,42 @@ TEST_WORKDIR_PATH = "/path/to/workdir"
         (" ", ""),
         ("ok", "ok"),
         ("™Ö™Ö™™Ö™", "ö_ö_ö"),
-        ("AlsO:ök", "also:ök"),
-        (":still_ok", ":still_ok"),
+        ("AlsO:ök", "also_ök"),
+        (":still_ok", "still_ok"),
         ("___trim", "trim"),
-        ("12.:trim@", "12.:trim"),
-        ("12.:trim@@", "12.:trim"),
-        ("fun:ky__tag/1", "fun:ky_tag/1"),
-        ("fun:ky@tag/2", "fun:ky_tag/2"),
-        ("fun:ky@@@tag/3", "fun:ky_tag/3"),
-        ("tag:1/2.3", "tag:1/2.3"),
-        ("---fun:k####y_ta@#g/1_@@#", "---fun:k_y_ta_g/1"),
-        ("AlsO:œ#@ö))œk", "also:œ_ö_œk"),
+        ("12.:trim@", "12._trim"),
+        ("12.:trim@@", "12._trim"),
+        ("fun:ky__tag/1", "fun_ky_tag/1"),
+        ("fun:ky@tag/2", "fun_ky_tag/2"),
+        ("fun:ky@@@tag/3", "fun_ky_tag/3"),
+        ("tag:1/2.3", "tag_1/2.3"),
+        ("---fun:k####y_ta@#g/1_@@#", "---fun_k_y_ta_g/1"),
+        ("AlsO:œ#@ö))œk", "also_œ_ö_œk"),
         ("test\x99\x8faaa", "test_aaa"),
         ("test\x99\x8f", "test"),
-        ("a" * 888, "a" * 200),
+        ("a" * 888, "a" * 100),
         ("a" + "🐶" * 799 + "b", "a"),
         ("a" + "\ufffd", "a"),
         ("a" + "\ufffd" + "\ufffd", "a"),
         ("a" + "\ufffd" + "\ufffd" + "b", "a_b"),
         (
-            "A00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-            "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-            " 000000000000",
-            "a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-            "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-            "_0",
+            "A0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            " 00000000000",
+            "a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000_0",
         ),
     ],
 )
 def test_normalize_tag(input_tag, expected):
     assert normalize_tag_value(input_tag) == expected
+
+
+@pytest.mark.parametrize(
+    "excluded_value",
+    ["/", "\\", "bin", "", None],
+)
+def test_compute_process_tag_excluded_values(excluded_value):
+    result = _compute_process_tag("test_key", lambda: excluded_value)
+    assert result is None
 
 
 class TestProcessTags(TracerTestCase):
@@ -129,11 +136,19 @@ class TestProcessTags(TracerTestCase):
                         pass
 
                     # Check if debug log was called
-                    mock_log.debug.assert_called_once()
-                    call_args = mock_log.debug.call_args[0]
-                    assert "failed to get process_tags" in call_args[0], (
-                        f"Expected error message not found. Got: {call_args[0]}"
+                    assert mock_log.debug.call_count == 2
+                    call_args1 = mock_log.debug.call_args_list[0][0]
+                    call_args2 = mock_log.debug.call_args_list[1][0]
+
+                    assert "failed to get process tag" in call_args1[0], (
+                        f"Expected error message not found. Got: {call_args1[0]}"
                     )
+                    assert call_args1[1] == "entrypoint.basedir", f"Expected tag key not found. Got: {call_args1[1]}"
+
+                    assert "failed to get process tag" in call_args2[0], (
+                        f"Expected error message not found. Got: {call_args2[0]}"
+                    )
+                    assert call_args2[1] == "entrypoint.name", f"Expected tag key not found. Got: {call_args2[1]}"
 
     @pytest.mark.snapshot
     @run_in_subprocess(env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="2"))

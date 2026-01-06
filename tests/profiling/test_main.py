@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import multiprocessing
 import os
+from pathlib import Path
 import sys
 
 import pytest
@@ -10,7 +11,7 @@ from tests.profiling.collector import pprof_utils
 from tests.utils import call_program
 
 
-def test_call_script():
+def test_call_script() -> None:
     env = os.environ.copy()
     env["DD_PROFILING_ENABLED"] = "1"
     stdout, stderr, exitcode, _ = call_program(
@@ -20,14 +21,14 @@ def test_call_script():
         assert exitcode == 0, (stdout, stderr)
     else:
         assert exitcode == 42, (stdout, stderr)
-    hello, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
-    assert hello == "hello world", stdout.decode().strip()
+
+    stdout = stdout.decode() if isinstance(stdout, bytes) else stdout
+    hello, _ = list(s.strip() for s in stdout.strip().split("\n"))
+    assert hello == "hello world", stdout.strip()
 
 
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
 def test_call_script_gevent():
-    if sys.version_info[:2] == (3, 8):
-        pytest.skip("this test is flaky on 3.8 with stack v2")
     env = os.environ.copy()
     env["DD_PROFILING_ENABLED"] = "1"
     stdout, stderr, exitcode, pid = call_program(
@@ -36,7 +37,7 @@ def test_call_script_gevent():
     assert exitcode == 0, (stdout, stderr)
 
 
-def test_call_script_pprof_output(tmp_path):
+def test_call_script_pprof_output(tmp_path: Path) -> None:
     """This checks if the pprof output and atexit register work correctly.
 
     The script does not run for one minute, so if the `stop_on_exit` flag is broken, this test will fail.
@@ -56,24 +57,27 @@ def test_call_script_pprof_output(tmp_path):
         assert exitcode == 0, (stdout, stderr)
     else:
         assert exitcode == 42, (stdout, stderr)
-    _, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
-    profile = pprof_utils.parse_newest_profile(filename + "." + str(pid))
+
+    stdout = stdout.decode() if isinstance(stdout, bytes) else stdout
+    _, pid = list(s.strip() for s in stdout.strip().split("\n"))
+    profile = pprof_utils.parse_newest_profile(f"{filename}.{pid}")
     samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
     assert len(samples) > 0
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
-def test_fork(tmp_path):
+def test_fork(tmp_path: Path) -> None:
     filename = str(tmp_path / "pprof")
     env = os.environ.copy()
     env["DD_PROFILING_OUTPUT_PPROF"] = filename
     env["DD_PROFILING_CAPTURE_PCT"] = "100"
-    stdout, stderr, exitcode, pid = call_program(
+    stdout, _, exitcode, pid = call_program(
         "python", os.path.join(os.path.dirname(__file__), "simple_program_fork.py"), env=env
     )
     assert exitcode == 0
-    child_pid = stdout.decode().strip()
-    profile = pprof_utils.parse_newest_profile(filename + "." + str(pid))
+    stdout = stdout.decode() if isinstance(stdout, bytes) else stdout
+    child_pid = stdout.strip()
+    profile = pprof_utils.parse_newest_profile(f"{filename}.{pid}")
     parent_expected_acquire_events = [
         pprof_utils.LockAcquireEvent(
             caller_name="<module>",
@@ -136,11 +140,9 @@ def test_fork(tmp_path):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
-def test_fork_gevent():
+def test_fork_gevent() -> None:
     env = os.environ.copy()
-    stdout, stderr, exitcode, pid = call_program(
-        "python", os.path.join(os.path.dirname(__file__), "gevent_fork.py"), env=env
-    )
+    _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "gevent_fork.py"), env=env)
     assert exitcode == 0
 
 
@@ -151,7 +153,7 @@ methods = multiprocessing.get_all_start_methods()
     "method",
     set(methods) - {"forkserver", "fork"},
 )
-def test_multiprocessing(method, tmp_path):
+def test_multiprocessing(method: str, tmp_path: Path) -> None:
     filename = str(tmp_path / "pprof")
     env = os.environ.copy()
     env["DD_PROFILING_OUTPUT_PPROF"] = filename
@@ -165,8 +167,9 @@ def test_multiprocessing(method, tmp_path):
         env=env,
     )
     assert exitcode == 0, (stdout, stderr)
-    pid, child_pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
-    profile = pprof_utils.parse_newest_profile(filename + "." + str(pid))
+    stdout = stdout.decode() if isinstance(stdout, bytes) else stdout
+    pid, child_pid = list(s.strip() for s in stdout.strip().split("\n"))
+    profile = pprof_utils.parse_newest_profile(f"{filename}.{pid}")
     samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
     assert len(samples) > 0
     child_profile = pprof_utils.parse_newest_profile(filename + "." + str(child_pid))
@@ -179,7 +182,7 @@ def test_multiprocessing(method, tmp_path):
     env=dict(DD_PROFILING_ENABLED="1"),
     err=lambda _: "RuntimeError: the memalloc module is already started" not in _,
 )
-def test_memalloc_no_init_error_on_fork():
+def test_memalloc_no_init_error_on_fork() -> None:
     import os
 
     pid = os.fork()
@@ -197,7 +200,7 @@ def test_memalloc_no_init_error_on_fork():
     out="OK\n",
     err=None,
 )
-def test_profiler_start_up_with_module_clean_up_in_protobuf_app():
+def test_profiler_start_up_with_module_clean_up_in_protobuf_app() -> None:
     # This can cause segfaults if we do module clean up with later versions of
     # protobuf. This is a regression test.
     from google.protobuf import empty_pb2  # noqa:F401

@@ -15,12 +15,12 @@ def test_asyncio_gather() -> None:
     import uuid
 
     from ddtrace import ext
-    from ddtrace.internal.datadog.profiling import stack_v2
+    from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
 
-    assert stack_v2.is_available, stack_v2.failure_msg
+    assert stack.is_available, stack.failure_msg
 
     sleep_time = 0.2
     loop_run_time = 3
@@ -65,116 +65,74 @@ def test_asyncio_gather() -> None:
 
     # get samples with task_name
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
-    # The next fails if stack_v2 is not properly configured with asyncio task
+    # The next fails if stack is not properly configured with asyncio task
     # tracking via ddtrace.profiling._asyncio
     assert len(samples) > 0
+
+    # TODO: Currently, we never report Parent Tasks awaiting a Child Task as part of their own.
+    # This means we never see the 'await asyncio.gather(...)' tagged with Task name "outer"
+    # because it is always reported as part of the Stack of a Child Task.
+    # We will fix this in the future.
+    # pprof_utils.assert_profile_has_sample(
+    #     profile,
+    #     samples,
+    #     expected_sample=pprof_utils.StackEvent(
+    #         thread_name="MainThread",
+    #         task_name="outer",
+    #         span_id=span_id,
+    #         local_root_span_id=local_root_span_id,
+    #         locations=[
+    #             pprof_utils.StackLocation(
+    #                 function_name="outer", filename="test_asyncio_gather.py", line_no=outer.__code__.co_firstlineno+3
+    #             ),
+    #         ],
+    #     ),
+    # )
 
     pprof_utils.assert_profile_has_sample(
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
             thread_name="MainThread",
-            task_name="outer",
+            task_name="inner 1",
             span_id=span_id,
             local_root_span_id=local_root_span_id,
             locations=[
                 pprof_utils.StackLocation(
-                    function_name="outer", filename="test_asyncio_gather.py", line_no=outer.__code__.co_firstlineno + 3
+                    function_name="inner1",
+                    filename="test_asyncio_gather.py",
+                    line_no=inner1.__code__.co_firstlineno + 3,
                 ),
-                # TODO: We should add the locations of the gathered Tasks here as they should be in the same Stack
+                pprof_utils.StackLocation(
+                    function_name="outer",
+                    filename="test_asyncio_gather.py",
+                    line_no=outer.__code__.co_firstlineno + 3,
+                ),
             ],
         ),
+        print_samples_on_failure=True,
     )
 
-    try:
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
-                task_name="outer",  # TODO: This is a bug and we need to fix it, it should be "inner 1"
-                span_id=span_id,
-                local_root_span_id=local_root_span_id,
-                locations=[
-                    pprof_utils.StackLocation(
-                        function_name="inner2",
-                        filename="test_asyncio_gather.py",
-                        line_no=inner2.__code__.co_firstlineno + 3,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="outer",
-                        filename="test_asyncio_gather.py",
-                        line_no=outer.__code__.co_firstlineno + 3,
-                    ),
-                ],
-            ),
-        )
-
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
-                task_name="inner 1",
-                span_id=span_id,
-                local_root_span_id=local_root_span_id,
-                locations=[
-                    pprof_utils.StackLocation(
-                        function_name="inner1",
-                        filename="test_asyncio_gather.py",
-                        line_no=inner1.__code__.co_firstlineno + 3,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="outer",
-                        filename="test_asyncio_gather.py",
-                        line_no=outer.__code__.co_firstlineno + 3,
-                    ),
-                ],
-            ),
-        )
-    except AssertionError:
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
-                task_name="inner 2",  # TODO: This is a bug and we need to fix it, it should be "inner 1"
-                span_id=span_id,
-                local_root_span_id=local_root_span_id,
-                locations=[
-                    pprof_utils.StackLocation(
-                        function_name="inner2",
-                        filename="test_asyncio_gather.py",
-                        line_no=inner2.__code__.co_firstlineno + 3,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="outer",
-                        filename="test_asyncio_gather.py",
-                        line_no=outer.__code__.co_firstlineno + 3,
-                    ),
-                ],
-            ),
-        )
-
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
-                task_name="outer",
-                span_id=span_id,
-                local_root_span_id=local_root_span_id,
-                locations=[
-                    pprof_utils.StackLocation(
-                        function_name="inner1",
-                        filename="test_asyncio_gather.py",
-                        line_no=inner1.__code__.co_firstlineno + 3,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="outer",
-                        filename="test_asyncio_gather.py",
-                        line_no=outer.__code__.co_firstlineno + 3,
-                    ),
-                ],
-            ),
-        )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name="MainThread",
+            task_name="inner 2",
+            span_id=span_id,
+            local_root_span_id=local_root_span_id,
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="inner2",
+                    filename="test_asyncio_gather.py",
+                    line_no=inner2.__code__.co_firstlineno + 3,
+                ),
+                pprof_utils.StackLocation(
+                    function_name="outer",
+                    filename="test_asyncio_gather.py",
+                    line_no=outer.__code__.co_firstlineno + 3,
+                ),
+            ],
+        ),
+        print_samples_on_failure=True,
+    )

@@ -5,6 +5,8 @@ This module handles Feature Flag configuration rules from Remote Configuration
 and forwards the raw bytes to the native FFE processor.
 """
 
+from collections import OrderedDict
+from collections.abc import MutableMapping
 from importlib.metadata import version
 import typing
 
@@ -22,8 +24,6 @@ from ddtrace.internal.openfeature._config import _get_ffe_config
 from ddtrace.internal.openfeature._exposure import build_exposure_event
 from ddtrace.internal.openfeature._native import VariationType
 from ddtrace.internal.openfeature._native import resolve_flag
-from ddtrace.internal.openfeature._remoteconfiguration import disable_featureflags_rc
-from ddtrace.internal.openfeature._remoteconfiguration import enable_featureflags_rc
 from ddtrace.internal.openfeature.writer import get_exposure_writer
 from ddtrace.internal.openfeature.writer import start_exposure_writer
 from ddtrace.internal.openfeature.writer import stop_exposure_writer
@@ -41,7 +41,42 @@ else:
 
 
 T = typing.TypeVar("T", covariant=True)
+K = typing.TypeVar("K")
+V = typing.TypeVar("V")
 logger = get_logger(__name__)
+
+
+class LRUCache(MutableMapping, typing.Generic[K, V]):
+    """LRU cache implementation using OrderedDict that implements the Mapping interface."""
+
+    def __init__(self, maxsize: int = 128):
+        self._cache: typing.OrderedDict[K, V] = OrderedDict()
+        self._maxsize = maxsize
+
+    def __getitem__(self, key: K) -> V:
+        """Get value from cache, moving it to end (most recently used)."""
+        self._cache.move_to_end(key)
+        return self._cache[key]
+
+    def __setitem__(self, key: K, value: V) -> None:
+        """Put value in cache, evicting least recently used if at capacity."""
+        if key in self._cache:
+            self._cache.move_to_end(key)
+        self._cache[key] = value
+        if len(self._cache) > self._maxsize:
+            self._cache.popitem(last=False)  # Remove least recently used (first item)
+
+    def __delitem__(self, key: K) -> None:
+        """Delete key from cache."""
+        del self._cache[key]
+
+    def __iter__(self) -> typing.Iterator[K]:
+        """Iterate over cache keys."""
+        return iter(self._cache)
+
+    def __len__(self) -> int:
+        """Return number of items in cache."""
+        return len(self._cache)
 
 
 class DataDogProvider(AbstractProvider):
@@ -59,8 +94,11 @@ class DataDogProvider(AbstractProvider):
         self._config_received = False
 
         # Cache for reported exposures to prevent duplicates
-        # Stores tuples of (flag_key, variant_key, allocation_key)
-        self._exposure_cache: typing.Set[typing.Tuple[str, typing.Optional[str], typing.Optional[str]]] = set()
+        # Stores mapping of (flag_key, subject_id) -> (allocation_key, variant_key)
+        # Using LRU cache with maxsize of 65536 to prevent unbounded memory growth
+        self._exposure_cache: LRUCache[
+            typing.Tuple[str, str], typing.Tuple[typing.Optional[str], typing.Optional[str]]
+        ] = LRUCache(maxsize=65536)
 
         # Check if experimental flagging provider is enabled
         self._enabled = ffe_config.experimental_flagging_provider_enabled
@@ -79,7 +117,7 @@ class DataDogProvider(AbstractProvider):
 
     def initialize(self, evaluation_context: EvaluationContext) -> None:
         """
-        Initialize the provider and enable remote configuration.
+        Initialize the provider.
 
         Called by the OpenFeature SDK when the provider is set.
         Provider Creation → NOT_READY
@@ -94,8 +132,6 @@ class DataDogProvider(AbstractProvider):
         """
         if not self._enabled:
             return
-
-        enable_featureflags_rc()
 
         try:
             # Start the exposure writer for reporting
@@ -112,14 +148,13 @@ class DataDogProvider(AbstractProvider):
 
     def shutdown(self) -> None:
         """
-        Shutdown the provider and disable remote configuration.
+        Shutdown the provider.
 
         Called by the OpenFeature SDK when the provider is being replaced or shutdown.
         """
         if not self._enabled:
             return
 
-        disable_featureflags_rc()
         try:
             # Stop the exposure writer
             stop_exposure_writer()
@@ -210,13 +245,8 @@ class DataDogProvider(AbstractProvider):
             )
 
             # No configuration available - return default
+            # Note: No exposure logging when configuration is missing
             if details is None:
-                self._report_exposure(
-                    flag_key=flag_key,
-                    variant_key=None,
-                    allocation_key=None,
-                    evaluation_context=evaluation_context,
-                )
                 return FlagResolutionDetails(
                     value=default_value,
                     reason=Reason.DEFAULT,
@@ -230,12 +260,14 @@ class DataDogProvider(AbstractProvider):
 
                 # Flag not found - return default with DEFAULT reason
                 if details.error_code == ffe.ErrorCode.FlagNotFound:
-                    self._report_exposure(
-                        flag_key=flag_key,
-                        variant_key=None,
-                        allocation_key=None,
-                        evaluation_context=evaluation_context,
-                    )
+                    # Only report exposure if do_log is explicitly True
+                    if details.do_log:
+                        self._report_exposure(
+                            flag_key=flag_key,
+                            variant_key=None,
+                            allocation_key=None,
+                            evaluation_context=evaluation_context,
+                        )
                     return FlagResolutionDetails(
                         value=default_value,
                         reason=Reason.DEFAULT,
@@ -253,13 +285,14 @@ class DataDogProvider(AbstractProvider):
             # Map native ffe.Reason to OpenFeature Reason
             reason = self._map_reason_to_openfeature(details.reason)
 
-            # Report exposure event
-            self._report_exposure(
-                flag_key=flag_key,
-                variant_key=details.variant,
-                allocation_key=details.allocation_key,
-                evaluation_context=evaluation_context,
-            )
+            # Report exposure event only if do_log flag is True
+            if details.do_log:
+                self._report_exposure(
+                    flag_key=flag_key,
+                    variant_key=details.variant,
+                    allocation_key=details.allocation_key,
+                    evaluation_context=evaluation_context,
+                )
 
             # Check if variant is None/empty to determine if we should use default value.
             # For JSON flags, value can be null which is valid, so we check variant instead.
@@ -298,27 +331,41 @@ class DataDogProvider(AbstractProvider):
         Report a feature flag exposure event to the EVP proxy intake.
 
         Uses caching to prevent duplicate exposure events for the same
-        (flag_key, variant_key, allocation_key) combination.
+        (flag_key, subject_id, variant_key, allocation_key) combination.
+
+        Note: This method should only be called when exposure logging is enabled.
+        Callers must check the do_log flag before invoking this method.
+
+        Args:
+            flag_key: The feature flag key
+            variant_key: The variant key returned by evaluation
+            allocation_key: The allocation key
+            evaluation_context: The evaluation context with subject information
         """
         try:
-            # Check cache to prevent duplicate exposure events
-            cache_key = (flag_key, variant_key, allocation_key)
-            if cache_key in self._exposure_cache:
-                logger.debug("Skipping duplicate exposure event for %s", cache_key)
-                return
-
             exposure_event = build_exposure_event(
                 flag_key=flag_key,
                 variant_key=variant_key,
                 allocation_key=allocation_key,
                 evaluation_context=evaluation_context,
             )
+            if not exposure_event:
+                return
 
-            if exposure_event:
-                writer = get_exposure_writer()
-                writer.enqueue(exposure_event)
-                # Add to cache only after successful enqueue
-                self._exposure_cache.add(cache_key)
+            # Check cache to prevent duplicate exposure events
+            key = (flag_key, exposure_event["subject"]["id"])
+            value = (allocation_key, variant_key)
+
+            cached_value = self._exposure_cache.get(key, None)
+            if cached_value and cached_value == value:
+                logger.debug("Skipping duplicate exposure event for %s->%s", key, value)
+                return
+
+            writer = get_exposure_writer()
+            writer.enqueue(exposure_event)
+
+            # Add to cache only after successful enqueue
+            self._exposure_cache[key] = value
         except Exception as e:
             logger.debug("Failed to report exposure event: %s", e, exc_info=True)
 

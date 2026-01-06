@@ -14,11 +14,11 @@ def test_asyncio_coroutines() -> None:
     import os
     import time
 
-    from ddtrace.internal.datadog.profiling import stack_v2
+    from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
 
-    assert stack_v2.is_available, stack_v2.failure_msg
+    assert stack.is_available, stack.failure_msg
 
     sleep_time = 0.2
     loop_run_time = 0.75
@@ -132,7 +132,7 @@ def test_asyncio_coroutines() -> None:
     # Test that we see the background_math_function task
     pprof_utils.assert_profile_has_sample(
         profile,
-        samples,
+        list(profile.sample),
         expected_sample=pprof_utils.StackEvent(
             thread_name="MainThread",
             locations=[

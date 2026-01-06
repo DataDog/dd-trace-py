@@ -10,6 +10,10 @@ include:
   - project: 'DataDog/benchmarking-platform-tools'
     file: 'images/templates/gitlab/check-slo-breaches.template.yml'
 
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible
+
 variables:
   MACROBENCHMARKS_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py-macrobenchmarks
 
@@ -23,7 +27,8 @@ candidate:
     - interruptible: true
   needs:
     - pipeline: $PARENT_PIPELINE_ID
-      job: download_ddtrace_artifacts
+      job: "build linux: [amd64, cp39-cp39, v85383392-751efc0-manylinux2014_x86_64]"
+      artifacts: true
   script: |
     cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl ./
     echo "CANDIDATE_WHL=$(ls *.whl | head -n 1)" | tee candidate.env

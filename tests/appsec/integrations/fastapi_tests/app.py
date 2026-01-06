@@ -5,6 +5,7 @@ import logging
 import subprocess
 import time
 from urllib.parse import parse_qs
+from urllib.parse import urlparse
 
 from fastapi import FastAPI
 from fastapi import Form
@@ -107,17 +108,15 @@ def get_app():
 
     @app.post("/iast/ssrf/test_secure", response_class=PlainTextResponse)
     async def view_iast_ssrf_secure(url: str = Form(...)):
-        from urllib.parse import urlparse
-
         # Validate the URL and enforce whitelist
         allowed_domains = ["example.com", "api.example.com", "www.datadoghq.com", "localhost"]
-        if type(url) == bytes:
+        if isinstance(url, bytes):
             url = url.decode("utf-8")
         parsed_url = urlparse(url)
         if parsed_url.hostname not in allowed_domains:
             return PlainTextResponse("Forbidden", status_code=403)
         try:
-            requests.get(parsed_url.geturl())
+            requests.get(url)
         except Exception:
             pass
 

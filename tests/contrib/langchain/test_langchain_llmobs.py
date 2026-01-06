@@ -93,6 +93,7 @@ def _expected_langchain_llmobs_llm_span(
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
         span_links=span_links,
         prompt=prompt,
+        prompt_tracking_instrumentation_method="auto" if prompt else None,
     )
 
 
@@ -212,9 +213,9 @@ def test_llmobs_string_prompt_template_invoke(langchain_core, langchain_openai, 
     assert actual_prompt["id"] == "test_langchain_llmobs.prompt_template"
     assert actual_prompt["template"] == template_string
     assert actual_prompt["variables"] == variable_dict
-    # Check that metadata from the prompt template is preserved
     assert "tags" in actual_prompt
     assert actual_prompt["tags"] == {"test_type": "basic_invoke", "author": "test_suite"}
+    assert "prompt_tracking_instrumentation_method:auto" in llmobs_events[1]["tags"]
 
 
 def test_llmobs_string_prompt_template_direct_invoke(
@@ -237,14 +238,13 @@ def test_llmobs_string_prompt_template_direct_invoke(
     llmobs_events.sort(key=lambda span: span["start_ns"])
     assert len(llmobs_events) == 1  # Only LLM span, prompt template invoke doesn't create LLMObs event by itself
 
-    # The prompt should be attached to the LLM span
     actual_prompt = llmobs_events[0]["meta"]["input"]["prompt"]
     assert actual_prompt["id"] == "test_langchain_llmobs.greeting_template"
     assert actual_prompt["template"] == template_string
     assert actual_prompt["variables"] == variable_dict
-    # Check that metadata from the prompt template is preserved
     assert "tags" in actual_prompt
     assert actual_prompt["tags"] == {"test_type": "direct_invoke", "interaction": "greeting"}
+    assert "prompt_tracking_instrumentation_method:auto" in llmobs_events[0]["tags"]
 
 
 def test_llmobs_string_prompt_template_invoke_chat_model(
@@ -434,7 +434,7 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
 
     llmobs_events.sort(key=lambda span: span["start_ns"])
     trace = tracer.pop_traces()[0]
-    assert len(llmobs_events) == 4
+    assert len(llmobs_events) == 5
     assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
         trace[0],
         input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}]),
@@ -447,8 +447,16 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
         output_value=mock.ANY,
         span_links=True,
     )
-    assert llmobs_events[2] == _expected_langchain_llmobs_llm_span(
+    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(
         trace[2],
+        span_kind="task",
+        input_value=json.dumps({"person": "Spongebob Squarepants", "language": "Spanish"}),
+        output_value="Spanish",
+        span_links=True,
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+    )
+    assert llmobs_events[3] == _expected_langchain_llmobs_llm_span(
+        trace[3],
         mock_token_metrics=True,
         span_links=True,
         prompt={
@@ -459,8 +467,8 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
             "_dd_query_variable_keys": ["question"],
         },
     )
-    assert llmobs_events[3] == _expected_langchain_llmobs_llm_span(
-        trace[3],
+    assert llmobs_events[4] == _expected_langchain_llmobs_llm_span(
+        trace[4],
         mock_token_metrics=True,
         span_links=True,
         prompt={
@@ -822,6 +830,173 @@ def test_llmobs_set_tags_with_none_response(langchain_core):
         response=None,
         operation="chat",
     )
+
+
+def test_llmobs_runnable_lambda_invoke(langchain_core, llmobs_events, tracer):
+    def add(inputs: dict) -> int:
+        return inputs["a"] + inputs["b"]
+
+    runnable_lambda = langchain_core.runnables.RunnableLambda(add)
+    result = runnable_lambda.invoke(dict(a=1, b=2))
+    assert result == 3
+
+    span = tracer.pop_traces()[0][0]
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+        span,
+        span_kind="task",
+        input_value=json.dumps({"a": 1, "b": 2}),
+        output_value="3",
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+    )
+
+
+async def test_llmobs_runnable_lambda_ainvoke(langchain_core, llmobs_events, tracer):
+    async def add(inputs: dict) -> int:
+        return inputs["a"] + inputs["b"]
+
+    runnable_lambda = langchain_core.runnables.RunnableLambda(add)
+    result = await runnable_lambda.ainvoke(dict(a=1, b=2))
+    assert result == 3
+
+    span = tracer.pop_traces()[0][0]
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+        span,
+        span_kind="task",
+        input_value=json.dumps({"a": 1, "b": 2}),
+        output_value="3",
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+    )
+
+
+def test_llmobs_runnable_lambda_batch(langchain_core, llmobs_events):
+    def add(inputs: dict) -> int:
+        return inputs["a"] + inputs["b"]
+
+    runnable_lambda = langchain_core.runnables.RunnableLambda(add)
+    result = runnable_lambda.batch([dict(a=1, b=2), dict(a=3, b=4), dict(a=5, b=6)])
+    assert result == [3, 7, 11]
+
+    assert len(llmobs_events) == 4
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+
+    # parent should be batch span
+    assert llmobs_events[0]["parent_id"] == "undefined"
+    assert llmobs_events[0]["name"] == "add_batch"
+    assert llmobs_events[0]["meta"]["span"]["kind"] == "task"
+    assert llmobs_events[0]["meta"]["input"]["value"] == json.dumps(
+        [{"a": 1, "b": 2}, {"a": 3, "b": 4}, {"a": 5, "b": 6}]
+    )
+    assert llmobs_events[0]["meta"]["output"]["value"] == json.dumps([3, 7, 11])
+
+    # assert all children have batch as the parent
+    # however, order of children is not guaranteed
+    # loosely check that the children have the correct input and output values
+    for i in range(1, 4):
+        assert llmobs_events[i]["parent_id"] == llmobs_events[0]["span_id"]
+        assert llmobs_events[i]["name"] == "add"
+        assert llmobs_events[i]["meta"]["span"]["kind"] == "task"
+
+        input_value = json.loads(llmobs_events[i]["meta"]["input"]["value"])
+        output_value = json.loads(llmobs_events[i]["meta"]["output"]["value"])
+        assert "a" in input_value
+        assert "b" in input_value
+        assert isinstance(output_value, int)
+
+
+async def test_llmobs_runnable_lambda_abatch(langchain_core, llmobs_events):
+    async def add(inputs: dict) -> int:
+        return inputs["a"] + inputs["b"]
+
+    runnable_lambda = langchain_core.runnables.RunnableLambda(add)
+    result = await runnable_lambda.abatch([dict(a=1, b=2), dict(a=3, b=4), dict(a=5, b=6)])
+    assert result == [3, 7, 11]
+
+    assert len(llmobs_events) == 4
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+
+    # parent should be batch span
+    assert llmobs_events[0]["parent_id"] == "undefined"
+    assert llmobs_events[0]["name"] == "add_batch"
+    assert llmobs_events[0]["meta"]["span"]["kind"] == "task"
+    assert llmobs_events[0]["meta"]["input"]["value"] == json.dumps(
+        [{"a": 1, "b": 2}, {"a": 3, "b": 4}, {"a": 5, "b": 6}]
+    )
+    assert llmobs_events[0]["meta"]["output"]["value"] == json.dumps([3, 7, 11])
+
+    # assert all children have batch as the parent
+    # however, order of children is not guaranteed
+    # loosely check that the children have the correct input and output values
+    for i in range(1, 4):
+        assert llmobs_events[i]["parent_id"] == llmobs_events[0]["span_id"]
+        assert llmobs_events[i]["name"] == "add"
+        assert llmobs_events[i]["meta"]["span"]["kind"] == "task"
+
+        input_value = json.loads(llmobs_events[i]["meta"]["input"]["value"])
+        output_value = json.loads(llmobs_events[i]["meta"]["output"]["value"])
+        assert "a" in input_value
+        assert "b" in input_value
+        assert isinstance(output_value, int)
+
+
+def test_llmobs_runnable_with_span_links(langchain_core, llmobs_events):
+    sequence = langchain_core.runnables.RunnableLambda(lambda x: x + 1, name="add_1") | {
+        "mul_2": langchain_core.runnables.RunnableLambda(lambda x: x * 2, name="mul_2"),
+        "mul_5": langchain_core.runnables.RunnableLambda(lambda x: x * 5, name="mul_5"),
+    }
+
+    result = sequence.invoke(1)
+
+    assert result == {"mul_2": 4, "mul_5": 10}
+    assert len(llmobs_events) == 4
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+
+    # assert output -> output links for runnable sequence span from last two runnable lambdas
+    # the order of the links is not guaranteed
+    expected_links = [
+        {
+            "trace_id": mock.ANY,
+            "span_id": llmobs_events[2]["span_id"],
+            "attributes": {"from": "output", "to": "output"},
+        },
+        {
+            "trace_id": mock.ANY,
+            "span_id": llmobs_events[3]["span_id"],
+            "attributes": {"from": "output", "to": "output"},
+        },
+    ]
+    assert len(llmobs_events[0]["span_links"]) == len(expected_links)
+    for expected_link in expected_links:
+        assert expected_link in llmobs_events[0]["span_links"]
+
+    # assert input -> input links for add_1 span
+    assert llmobs_events[1]["span_links"] == [
+        {
+            "trace_id": mock.ANY,
+            "span_id": llmobs_events[0]["span_id"],
+            "attributes": {"from": "input", "to": "input"},
+        },
+    ]
+
+    # assert output -> input links for mul_2 and mul_5 spans
+    assert llmobs_events[2]["span_links"] == [
+        {
+            "trace_id": mock.ANY,
+            "span_id": llmobs_events[1]["span_id"],
+            "attributes": {"from": "output", "to": "input"},
+        },
+    ]
+    assert llmobs_events[3]["span_links"] == [
+        {
+            "trace_id": mock.ANY,
+            "span_id": llmobs_events[1]["span_id"],
+            "attributes": {"from": "output", "to": "input"},
+        },
+    ]
 
 
 class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):

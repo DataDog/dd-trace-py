@@ -173,6 +173,7 @@ INTEGRATION_CONFIGS = frozenset(
         "openai",
         "crewai",
         "pydantic_ai",
+        "vllm",
         "logging",
         "boto",
         "mariadb",
@@ -446,7 +447,12 @@ class Config(object):
                 self._trace_rate_limit,
             )
         self._partial_flush_enabled = _get_config("DD_TRACE_PARTIAL_FLUSH_ENABLED", True, asbool)
-        self._partial_flush_min_spans = _get_config("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", 300, int)
+        partial_flush_min_spans = _get_config("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", 300, int)
+        if partial_flush_min_spans < 1:
+            log.warning("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS must be >= 1, defaulting to 1")
+            self._partial_flush_min_spans = 1
+        else:
+            self._partial_flush_min_spans = partial_flush_min_spans
 
         self._http = HttpConfig(header_tags=self._trace_http_header_tags)
         self._remote_config_enabled = _get_config("DD_REMOTE_CONFIGURATION_ENABLED", True, asbool)
