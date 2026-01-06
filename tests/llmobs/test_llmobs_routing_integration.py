@@ -1,5 +1,3 @@
-"""Integration tests for LLMObs multi-tenant routing."""
-
 import asyncio
 import json
 from unittest import mock

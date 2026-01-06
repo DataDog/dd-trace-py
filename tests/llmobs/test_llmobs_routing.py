@@ -1,5 +1,3 @@
-"""Unit tests for LLMObs multi-tenant routing."""
-
 import pytest
 
 from ddtrace.llmobs._routing import RoutingConfig
