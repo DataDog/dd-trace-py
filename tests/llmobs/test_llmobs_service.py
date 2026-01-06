@@ -25,10 +25,12 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
@@ -791,6 +793,7 @@ def test_annotate_prompt_dict(llmobs):
             "_dd_context_variable_keys": ["context"],
             "_dd_query_variable_keys": ["question"],
         }
+        assert span._get_ctx_item(TAGS) == {PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"}
 
 
 def test_annotate_prompt_dict_with_context_var_keys(llmobs):
@@ -814,6 +817,7 @@ def test_annotate_prompt_dict_with_context_var_keys(llmobs):
             "_dd_context_variable_keys": ["var1", "var2"],
             "_dd_query_variable_keys": ["user_input"],
         }
+        assert span._get_ctx_item(TAGS) == {PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"}
 
 
 def test_annotate_prompt_typed_dict(llmobs):
@@ -837,6 +841,7 @@ def test_annotate_prompt_typed_dict(llmobs):
             "_dd_context_variable_keys": ["var1", "var2"],
             "_dd_query_variable_keys": ["user_input"],
         }
+        assert span._get_ctx_item(TAGS) == {PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"}
 
 
 def test_annotate_prompt_wrong_type(llmobs):
@@ -854,6 +859,14 @@ def test_annotate_prompt_wrong_type(llmobs):
             "Failed to validate prompt with error:",
             "template: 1 must be a string, received int",
         )
+
+
+def test_annotate_linked_spans(llmobs):
+    with llmobs.llm(model_name="test_model") as span:
+        llmobs.annotate(span=span, _linked_spans=[{"span_id": "123", "trace_id": "456"}])
+        assert span._get_ctx_item(SPAN_LINKS) == [
+            {"span_id": "123", "trace_id": "456", "attributes": {"from": "output", "to": "input"}}
+        ]
 
 
 def test_span_error_sets_error(llmobs, llmobs_events):
@@ -1322,12 +1335,23 @@ def test_annotation_context_modifies_prompt(llmobs):
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
             }
+            assert span._get_ctx_item(TAGS) == {PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"}
 
 
 def test_annotation_context_modifies_name(llmobs):
     with llmobs.annotation_context(name="test_agent_override"):
         with llmobs.llm(name="test_agent", model_name="test") as span:
             assert span.name == "test_agent_override"
+
+
+def test_annotation_context_modifies_span_links(llmobs):
+    with llmobs.annotation_context(_linked_spans=[{"span_id": "123", "trace_id": "456"}]):
+        with llmobs.llm(model_name="test_model") as span:
+            llmobs.annotate(span=span, _linked_spans=[{"span_id": "abc", "trace_id": "def"}])
+            assert span._get_ctx_item(SPAN_LINKS) == [
+                {"span_id": "123", "trace_id": "456", "attributes": {"from": "output", "to": "input"}},
+                {"span_id": "abc", "trace_id": "def", "attributes": {"from": "output", "to": "input"}},
+            ]
 
 
 def test_annotation_context_finished_context_does_not_modify_tags(llmobs):
@@ -1507,6 +1531,7 @@ async def test_annotation_context_async_modifies_prompt(llmobs):
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
             }
+            assert span._get_ctx_item(TAGS) == {PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"}
 
 
 async def test_annotation_context_async_modifies_name(llmobs):
