@@ -44,11 +44,18 @@ def _prime_tracer_with_priority_sample_rate_from_agent(t, service):
     t.flush()
 
     sampler_key = "service:{},env:".format(service)
+
+    # Set an upper bound on number of checks to avoid deadlocking
+    checks = 0
     while sampler_key not in t._span_aggregator.sampling_processor.sampler._agent_based_samplers:
+        if checks > 5:
+            break
         time.sleep(1)
         s = t.trace("operation", service=service)
         s.finish()
         t.flush()
+        checks += 1
+    assert sampler_key not in t._span_aggregator.sampling_processor.sampler._agent_based_samplers
 
 
 @skip_if_testagent
