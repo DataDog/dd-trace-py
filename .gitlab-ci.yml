@@ -368,7 +368,7 @@ profiling_native:
       tar xzf Python-${PYTHON}.tgz
       cd Python-${PYTHON}
 
-      ./configure --prefix=/opt/python/${PYTHON}/ --enable-optimizations --with-lto --with-computed-gotos --with-system-ffi --with-openssl=/usr/local/ssl
+      ./configure --prefix=/opt/python/${PYTHON}/ --enable-optimizations --with-lto --with-computed-gotos --with-openssl=/usr/local/ssl
       make -j "$(grep -c ^processor /proc/cpuinfo)"
       make altinstall
       rm /tmp/Python-${PYTHON}.tgz
