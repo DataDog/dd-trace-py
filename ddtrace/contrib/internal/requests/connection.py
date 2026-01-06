@@ -98,6 +98,18 @@ def _wrap_send(func, instance, args, kwargs):
     if service is None:
         service = trace_utils.ext_service(pin, config.requests)
 
+    # AppSec Integration: Compute use_body for API10 response body analysis
+    use_body = False
+    try:
+        from ddtrace.appsec._asm_request_context import _get_asm_context
+        from ddtrace.appsec._asm_request_context import should_analyze_body_response
+
+        if asm_context := _get_asm_context():
+            use_body = should_analyze_body_response(asm_context)
+    except ImportError:
+        # AppSec is not available, which is fine - not all users have it enabled
+        pass
+
     with core.context_with_data(
         "requests.send",
         span_name=schematize_url_operation("requests.request", protocol="http", direction=SpanDirection.OUTBOUND),
@@ -113,6 +125,11 @@ def _wrap_send(func, instance, args, kwargs):
         request_method=method,
         hostname=hostname,
         host_without_port=host_without_port,
+        # AppSec Integration: Provide context items for RASP and API Security
+        # - full_url: Used by AppSec patches (wrapped_urllib3_make_request, wrapped_request) for SSRF detection
+        # - use_body: Used by AppSec for API10 response body analysis (sensitive data leakage detection)
+        full_url=request.url,
+        use_body=use_body,
     ) as ctx:
         response = None
         try:
