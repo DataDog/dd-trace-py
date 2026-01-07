@@ -99,6 +99,7 @@ from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordInputType
+from ddtrace.llmobs._experiment import DatasetRecordRaw
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentConfigType
 from ddtrace.llmobs._experiment import JSONType
@@ -819,7 +820,7 @@ class LLMObs(Service):
         dataset_name: str,
         project_name: Optional[str] = None,
         description: str = "",
-        records: Optional[List[DatasetRecord]] = None,
+        records: Optional[List[DatasetRecordRaw]] = None,
     ) -> Dataset:
         if records is None:
             records = []
@@ -880,11 +881,10 @@ class LLMObs(Service):
 
                 for row in rows:
                     records.append(
-                        DatasetRecord(
+                        DatasetRecordRaw(
                             input_data={col: row[col] for col in input_data_columns},
                             expected_output={col: row[col] for col in expected_output_columns},
                             metadata={col: row[col] for col in metadata_columns},
-                            record_id="",
                         )
                     )
 

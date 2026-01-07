@@ -25,7 +25,7 @@ import pytest
 
 import ddtrace
 from ddtrace.llmobs._experiment import Dataset
-from ddtrace.llmobs._experiment import DatasetRecord
+from ddtrace.llmobs._experiment import DatasetRecordRaw
 from ddtrace.llmobs._experiment import _ExperimentRunInfo
 from tests.utils import override_global_config
 
@@ -78,7 +78,7 @@ def run_info_with_stable_id(iteration: int, run_id: Optional[str] = None) -> _Ex
 
 
 @pytest.fixture
-def test_dataset_records() -> List[DatasetRecord]:
+def test_dataset_records() -> List[DatasetRecordRaw]:
     return []
 
 
@@ -108,7 +108,7 @@ def test_dataset(llmobs, test_dataset_records, test_dataset_name) -> Generator[D
 @pytest.fixture
 def test_dataset_one_record(llmobs):
     records = [
-        DatasetRecord(
+        DatasetRecordRaw(
             input_data={"prompt": "What is the capital of France?"},
             expected_output={"answer": "Paris"},
         )
@@ -124,7 +124,7 @@ def test_dataset_one_record(llmobs):
 @pytest.fixture
 def test_dataset_one_record_w_metadata(llmobs):
     records = [
-        DatasetRecord(
+        DatasetRecordRaw(
             input_data={"prompt": "What is the capital of France?"},
             expected_output={"answer": "Paris"},
             metadata={"difficulty": "easy"},
@@ -141,7 +141,7 @@ def test_dataset_one_record_w_metadata(llmobs):
 @pytest.fixture
 def test_dataset_one_record_separate_project(llmobs):
     records = [
-        DatasetRecord(
+        DatasetRecordRaw(
             input_data={"prompt": "What is the capital of Massachusetts?"},
             expected_output={"answer": "Boston"},
         )
@@ -528,7 +528,7 @@ def test_dataset_pull_exists_with_record(llmobs, test_dataset_one_record):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordRaw(
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -576,7 +576,7 @@ def test_dataset_pull_w_versions(llmobs, test_dataset, test_dataset_records):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordRaw(
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -611,11 +611,11 @@ def test_dataset_pull_from_project(llmobs, test_dataset_one_record_separate_proj
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordRaw(
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             ),
-            DatasetRecord(
+            DatasetRecordRaw(
                 input_data={"prompt": "What is the capital of China?"},
                 expected_output={"answer": "Beijing"},
             ),
@@ -628,7 +628,7 @@ def test_dataset_modify_records_multiple_times(llmobs, test_dataset, test_datase
 
     test_dataset.update(
         0,
-        DatasetRecord(input_data={"prompt": "What is the capital of Germany?"}),
+        DatasetRecordRaw(input_data={"prompt": "What is the capital of Germany?"}),
     )
 
     assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
@@ -706,7 +706,7 @@ def test_dataset_modify_records_multiple_times(llmobs, test_dataset, test_datase
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordRaw(
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -719,7 +719,7 @@ def test_dataset_modify_single_record(llmobs, test_dataset, test_dataset_records
 
     test_dataset.update(
         0,
-        DatasetRecord(
+        DatasetRecordRaw(
             input_data={"prompt": "What is the capital of Germany?"},
             expected_output={"answer": "Berlin"},
         ),
@@ -756,7 +756,7 @@ def test_dataset_modify_single_record(llmobs, test_dataset, test_dataset_records
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordRaw(
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -789,7 +789,7 @@ def test_dataset_estimate_size(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordRaw(
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -833,7 +833,7 @@ def test_dataset_modify_record_on_optional(llmobs, test_dataset, test_dataset_re
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordRaw(
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
                 metadata={"difficulty": "easy"},
@@ -879,7 +879,7 @@ def test_dataset_modify_record_on_input(llmobs, test_dataset, test_dataset_recor
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordRaw(
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -888,7 +888,7 @@ def test_dataset_modify_record_on_input(llmobs, test_dataset, test_dataset_recor
 )
 def test_dataset_append(llmobs, test_dataset):
     test_dataset.append(
-        DatasetRecord(
+        DatasetRecordRaw(
             input_data={"prompt": "What is the capital of Italy?"},
             expected_output={"answer": "Rome"},
         )
@@ -926,7 +926,7 @@ def test_dataset_append(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordRaw(
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -936,11 +936,11 @@ def test_dataset_append(llmobs, test_dataset):
 def test_dataset_extend(llmobs, test_dataset):
     test_dataset.extend(
         [
-            DatasetRecord(
+            DatasetRecordRaw(
                 input_data={"prompt": "What is the capital of Italy?"},
                 expected_output={"answer": "Rome"},
             ),
-            DatasetRecord(
+            DatasetRecordRaw(
                 input_data={"prompt": "What is the capital of Sweden?"},
                 expected_output={"answer": "Stockholm"},
             ),
@@ -982,7 +982,7 @@ def test_dataset_extend(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordRaw(
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             )
@@ -990,7 +990,7 @@ def test_dataset_extend(llmobs, test_dataset):
     ],
 )
 def test_dataset_append_no_expected_output(llmobs, test_dataset):
-    test_dataset.append(DatasetRecord(input_data={"prompt": "What is the capital of Sealand?"}))
+    test_dataset.append(DatasetRecordRaw(input_data={"prompt": "What is the capital of Sealand?"}))
     assert len(test_dataset) == 2
     assert test_dataset.latest_version == 1
     assert test_dataset.version == 1
@@ -1026,11 +1026,11 @@ def test_dataset_append_no_expected_output(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordRaw(
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             ),
-            DatasetRecord(
+            DatasetRecordRaw(
                 input_data={"prompt": "What is the capital of Italy?"},
                 expected_output={"answer": "Rome"},
             ),
@@ -1067,8 +1067,8 @@ def test_dataset_delete(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(input_data={"prompt": "What is the capital of Nauru?"}),
-            DatasetRecord(input_data={"prompt": "What is the capital of Sealand?"}),
+            DatasetRecordRaw(input_data={"prompt": "What is the capital of Nauru?"}),
+            DatasetRecordRaw(input_data={"prompt": "What is the capital of Sealand?"}),
         ],
     ],
 )
@@ -1102,11 +1102,11 @@ def test_dataset_delete_no_expected_output(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordRaw(
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             ),
-            DatasetRecord(
+            DatasetRecordRaw(
                 input_data={"prompt": "What is the capital of Italy?"},
                 expected_output={"answer": "Rome"},
             ),
@@ -1149,11 +1149,11 @@ def test_dataset_delete_after_update(llmobs, test_dataset):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordRaw(
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             ),
-            DatasetRecord(
+            DatasetRecordRaw(
                 input_data={"prompt": "What is the capital of Italy?"},
                 expected_output={"answer": "Rome"},
             ),
@@ -1390,11 +1390,11 @@ def test_experiment_create(llmobs, test_dataset_one_record):
     "test_dataset_records",
     [
         [
-            DatasetRecord(
+            DatasetRecordRaw(
                 input_data={"prompt": "What is the capital of France?"},
                 expected_output={"answer": "Paris"},
             ),
-            DatasetRecord(
+            DatasetRecordRaw(
                 input_data={"prompt": "What is the capital of Canada?"},
                 expected_output={"answer": "Ottawa"},
             ),
