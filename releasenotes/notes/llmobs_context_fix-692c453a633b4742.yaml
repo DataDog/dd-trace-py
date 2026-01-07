@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where using multiple sequential ``annotation_context`` blocks 
+    caused annotations to fail after the first operation in subsequent contexts. Previously, the trace context 
+    created by the first ``annotation_context`` remained active after exiting, causing the second context to 
+    reuse a stale context ID. This resulted in annotations not being applied to spans after the first batch 
+    call in the second ``annotation_context`` block.
