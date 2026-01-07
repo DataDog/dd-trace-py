@@ -73,6 +73,7 @@ from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
+from ddtrace.llmobs._constants import MCP_TOOL_CALL_INTENT
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import ML_APP
@@ -391,6 +392,9 @@ class LLMObs(Service):
 
         if span._get_ctx_item(TOOL_DEFINITIONS) is not None:
             meta["tool_definitions"] = span._get_ctx_item(TOOL_DEFINITIONS) or []
+        intent = span._get_ctx_item(MCP_TOOL_CALL_INTENT)
+        if intent is not None:
+            meta["intent"] = str(intent)
         if span.error:
             meta["error"] = _ErrorField(
                 message=span.get_tag(ERROR_MSG) or "",
@@ -1116,6 +1120,12 @@ class LLMObs(Service):
             # restored after exiting the annotation_context block
             if state["created_context"] is not None:
                 state["created_context"]._reactivate = False
+                # DEV: Deactivate the context we created so subsequent annotation_contexts
+                # don't see the stale context with the old ANNOTATIONS_CONTEXT_ID.
+                # Only deactivate if this context is still the active one (not a Span).
+                current_active = cls._instance.tracer.context_provider.active()
+                if current_active is state["created_context"]:
+                    cls._instance.tracer.context_provider.activate(None)
 
         return AnnotationContext(register_annotation, deregister_annotation)
 

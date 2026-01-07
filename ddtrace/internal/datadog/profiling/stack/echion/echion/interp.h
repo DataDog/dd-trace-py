@@ -29,7 +29,7 @@ class InterpreterInfo
 };
 
 static void
-for_each_interp(std::function<void(InterpreterInfo& interp)> callback)
+for_each_interp(_PyRuntimeState* runtime, std::function<void(InterpreterInfo& interp)> callback)
 {
     InterpreterInfo interpreter_info = { 0 };
 
