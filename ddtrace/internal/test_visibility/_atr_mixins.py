@@ -59,12 +59,17 @@ class ATRTestMixin:
         item_id: TestId,
         retry_number: int,
         status: TestStatus,
+        is_final_retry: bool,
         skip_reason: t.Optional[str] = None,
         exc_info: t.Optional[TestExcInfo] = None,
     ) -> None:
         log.debug("Finishing ATR retry %s for test %s", retry_number, item_id)
         require_ci_visibility_service().get_test_by_id(item_id).atr_finish_retry(
-            retry_number=retry_number, status=status, skip_reason=skip_reason, exc_info=exc_info
+            retry_number=retry_number,
+            status=status,
+            is_final_retry=is_final_retry,
+            skip_reason=skip_reason,
+            exc_info=exc_info,
         )
 
     @staticmethod

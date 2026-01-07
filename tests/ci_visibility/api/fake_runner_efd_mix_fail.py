@@ -178,7 +178,8 @@ def run_tests():
     while api.InternalTest.efd_should_retry(m1_s1_t1_id):
         m1_s1_t1_retry_count += 1
         m1_s1_t1_retry_number = api.InternalTest.efd_add_retry(m1_s1_t1_id, start_immediately=True)
-        api.InternalTest.efd_finish_retry(m1_s1_t1_id, m1_s1_t1_retry_number, TestStatus.FAIL)
+        is_final_retry = not api.InternalTest.efd_should_retry(m1_s1_t1_id)
+        api.InternalTest.efd_finish_retry(m1_s1_t1_id, m1_s1_t1_retry_number, TestStatus.FAIL, is_final_retry)
     assert m1_s1_t1_retry_count == 10, "Expected 10 EFD retries, got %s" % m1_s1_t1_retry_count
     m1_s1_t1_final_status = api.InternalTest.efd_get_final_status(m1_s1_t1_id)
     assert m1_s1_t1_final_status == EFDTestStatus.ALL_FAIL, (
@@ -194,7 +195,8 @@ def run_tests():
     while api.InternalTest.efd_should_retry(m1_s1_t2_id):
         m1_s1_t2_retry_count += 1
         m1_s1_t2_retry_number = api.InternalTest.efd_add_retry(m1_s1_t2_id, start_immediately=True)
-        api.InternalTest.efd_finish_retry(m1_s1_t2_id, m1_s1_t2_retry_number, TestStatus.FAIL)
+        is_final_retry = not api.InternalTest.efd_should_retry(m1_s1_t2_id)
+        api.InternalTest.efd_finish_retry(m1_s1_t2_id, m1_s1_t2_retry_number, TestStatus.FAIL, is_final_retry)
     assert m1_s1_t2_retry_count == 5, "Expected 5 EFD retries, got %s" % m1_s1_t2_retry_count
     m1_s1_t2_final_status = api.InternalTest.efd_get_final_status(m1_s1_t2_id)
     assert m1_s1_t2_final_status == EFDTestStatus.ALL_FAIL, (

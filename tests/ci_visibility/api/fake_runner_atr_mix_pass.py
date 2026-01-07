@@ -96,8 +96,10 @@ def run_tests():
     while api.InternalTest.atr_should_retry(m1_s1_t1_id):
         m1_s1_t1_retry_count += 1
         m1_s1_t1_retry_number = api.InternalTest.atr_add_retry(m1_s1_t1_id, start_immediately=True)
+        retry_status = TestStatus.PASS if m1_s1_t1_retry_count % 4 == 0 else TestStatus.FAIL
+        is_final_retry = not api.InternalTest.atr_should_retry(m1_s1_t1_id)
         api.InternalTest.atr_finish_retry(
-            m1_s1_t1_id, m1_s1_t1_retry_number, TestStatus.PASS if m1_s1_t1_retry_count % 4 == 0 else TestStatus.FAIL
+            m1_s1_t1_id, m1_s1_t1_retry_number, retry_status, is_final_retry
         )
     assert m1_s1_t1_retry_count == 4, "Expected 4 ATR retries, got %s" % m1_s1_t1_retry_count
     m1_s1_t1_final_status = api.InternalTest.atr_get_final_status(m1_s1_t1_id)
@@ -111,8 +113,10 @@ def run_tests():
     while api.InternalTest.atr_should_retry(m1_s1_t2_id):
         m1_s1_t2_retry_count += 1
         m1_s1_t2_retry_number = api.InternalTest.atr_add_retry(m1_s1_t2_id, start_immediately=True)
+        retry_status = TestStatus.PASS if m1_s1_t2_retry_count > 1 else TestStatus.FAIL
+        is_final_retry = not api.InternalTest.atr_should_retry(m1_s1_t2_id)
         api.InternalTest.atr_finish_retry(
-            m1_s1_t2_id, m1_s1_t2_retry_number, TestStatus.PASS if m1_s1_t2_retry_count > 1 else TestStatus.FAIL
+            m1_s1_t2_id, m1_s1_t2_retry_number, retry_status, is_final_retry
         )
     assert m1_s1_t2_retry_count == 2, "Expected 2 ATR retries, got %s" % m1_s1_t2_retry_count
     m1_s1_t2_final_status = api.InternalTest.atr_get_final_status(m1_s1_t2_id)
@@ -159,8 +163,10 @@ def run_tests():
     while InternalTest.atr_should_retry(m2_s1_t2_id):
         m2_s1_t2_retry_count += 1
         m2_s1_t2_retry_number = InternalTest.atr_add_retry(m2_s1_t2_id, start_immediately=True)
+        retry_status = TestStatus.PASS if m2_s1_t2_retry_count == 5 else TestStatus.SKIP
+        is_final_retry = not InternalTest.atr_should_retry(m2_s1_t2_id)
         InternalTest.atr_finish_retry(
-            m2_s1_t2_id, m2_s1_t2_retry_number, TestStatus.PASS if m2_s1_t2_retry_count == 5 else TestStatus.SKIP
+            m2_s1_t2_id, m2_s1_t2_retry_number, retry_status, is_final_retry
         )
     assert m2_s1_t2_retry_count == 5, "Expected 5 ATR retries, got %s" % m2_s1_t2_retry_count
     m2_s1_t2_final_status = InternalTest.atr_get_final_status(m2_s1_t2_id)

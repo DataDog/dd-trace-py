@@ -78,7 +78,8 @@ class TestCIVisibilityTestEFD:
                 added_retry_num = efd_test.efd_add_retry()
                 assert added_retry_num == retry_count
                 efd_test.efd_start_retry(added_retry_num)
-                efd_test.efd_finish_retry(added_retry_num, TestStatus.PASS)
+                is_final_retry = not efd_test.efd_should_retry()
+                efd_test.efd_finish_retry(added_retry_num, TestStatus.PASS, is_final_retry)
 
             assert retry_count == expected_max_retries
 
@@ -160,11 +161,12 @@ class TestCIVisibilityTestEFD:
             efd_test.start()
             efd_test.finish_test(test_result)
             expected_num_retry = 0
-            for test_result in retry_results:
+            for idx, test_result in enumerate(retry_results):
                 expected_num_retry += 1
                 added_retry_number = efd_test.efd_add_retry(start_immediately=True)
                 assert added_retry_number == expected_num_retry
-                efd_test.efd_finish_retry(added_retry_number, test_result)
+                is_final_retry = (idx == len(retry_results) - 1)
+                efd_test.efd_finish_retry(added_retry_number, test_result, is_final_retry)
             assert efd_test.efd_get_final_status() == expected_statuses[0]
             assert efd_test.get_status() == expected_statuses[1]
 
@@ -176,6 +178,44 @@ class TestCIVisibilityTestEFD:
         efd_test.start()
         efd_test.finish_test(TestStatus.FAIL)
         assert efd_test.efd_should_retry() is False
+
+    def test_efd_sets_final_status_tag(self):
+        """Tests that the EFD API sets the final_status tag on the last retry"""
+        from ddtrace.internal.ci_visibility.constants import TEST_FINAL_STATUS
+
+        # Use EFD settings with very low retry limits to ensure we hit the limit quickly
+        efd_settings = EarlyFlakeDetectionSettings(True, slow_test_retries_5s=2, slow_test_retries_10s=2, slow_test_retries_30s=2, slow_test_retries_5m=2)
+
+        efd_test = TestVisibilityTest(
+            name="efd_test",
+            session_settings=self._get_session_settings(efd_settings),
+            is_new=True,
+        )
+        mock_session = mock.Mock()
+        mock_session.efd_is_faulty_session.return_value = False
+        with mock.patch.object(TestVisibilityTest, "get_session", lambda *args: mock_session):
+            efd_test.start()
+            # Set test duration to < 5 seconds so it uses slow_test_retries_5s = 2
+            efd_test._span.start_ns -= 3 * 1e9  # 3 seconds ago
+            # Initial test fails
+            efd_test.finish_test(TestStatus.FAIL)
+
+            # Add retries until we hit the limit
+            retries_added = 0
+            while efd_test.efd_should_retry() and retries_added < 10:  # Safety limit
+                retry_num = efd_test.efd_add_retry(start_immediately=True)
+                # Check if this will be the final retry after this one
+                is_final_retry = not efd_test.efd_should_retry()
+                efd_test.efd_finish_retry(retry_num, TestStatus.FAIL, is_final_retry)
+                retries_added += 1
+
+            # The last retry should have the final_status tag
+            if efd_test._efd_retries:
+                last_retry = efd_test._efd_retries[-1]
+                # Verify final_status tag was set on the last retry
+                assert TEST_FINAL_STATUS in last_retry._tags
+                assert last_retry._tags.get(TEST_FINAL_STATUS) == "fail"  # All retries failed
+                assert efd_test.efd_get_final_status() == EFDTestStatus.ALL_FAIL
 
     @pytest.mark.parametrize(
         "faulty_session_threshold,expected_faulty", ((None, True), (10, True), (40, True), (50, False))

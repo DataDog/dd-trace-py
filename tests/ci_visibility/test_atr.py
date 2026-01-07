@@ -94,7 +94,9 @@ class TestCIVisibilityTestATR:
 
                     added_retry_num = atr_test.atr_add_retry(start_immediately=True)
                     assert added_retry_num == retry_count
-                    atr_test.atr_finish_retry(added_retry_num, TestStatus.FAIL)
+                    # Since all retries fail, is_final will be true only when we hit max retries
+                    is_final_retry = not atr_test.atr_should_retry()
+                    atr_test.atr_finish_retry(added_retry_num, TestStatus.FAIL, is_final_retry)
 
                 assert retry_count == (
                     atr_expected_retries[test_number] if test_number < len(atr_expected_retries) else 0
@@ -184,7 +186,8 @@ class TestCIVisibilityTestATR:
             expected_retry_number += 1
             added_retry_number = atr_test.atr_add_retry(start_immediately=True)
             assert added_retry_number == expected_retry_number
-            atr_test.atr_finish_retry(added_retry_number, test_result)
+            is_final_retry = not atr_test.atr_should_retry()
+            atr_test.atr_finish_retry(added_retry_number, test_result, is_final_retry)
         assert atr_test.atr_get_final_status() == expected_status
 
     def test_atr_does_not_retry_if_disabled(self):
@@ -195,3 +198,31 @@ class TestCIVisibilityTestATR:
         atr_test.start()
         atr_test.finish_test(TestStatus.FAIL)
         assert atr_test.atr_should_retry() is False
+
+    def test_atr_sets_final_status_tag(self):
+        """Tests that the ATR API sets the final_status tag on the last retry"""
+        from ddtrace.internal.ci_visibility.constants import TEST_FINAL_STATUS
+
+        atr_settings = AutoTestRetriesSettings(enabled=True)
+        session = TestVisibilitySession(session_settings=self._get_session_settings(atr_settings))
+        session.efd_is_faulty_session = lambda: False
+
+        atr_test = TestVisibilityTest(
+            name="atr_test", session_settings=self._get_session_settings(atr_settings, efd_enabled=True)
+        )
+        atr_test.get_session = lambda: session
+
+        # Test fails initially, then passes on retry
+        atr_test.start()
+        atr_test.finish_test(TestStatus.FAIL)
+
+        # Add a passing retry (will be final since ATR stops on pass)
+        retry_num = atr_test.atr_add_retry(start_immediately=True)
+        atr_test.atr_finish_retry(retry_num, TestStatus.PASS, is_final_retry=True)
+
+        # Get the last retry test
+        last_retry = atr_test._atr_retries[-1]
+
+        # Verify final_status tag was set on the last retry
+        assert last_retry._tags.get(TEST_FINAL_STATUS) == "pass"
+        assert atr_test.atr_get_final_status() == TestStatus.PASS
