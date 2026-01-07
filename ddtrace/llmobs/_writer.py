@@ -155,7 +155,9 @@ class BaseLLMObsWriter(PeriodicService):
     ) -> None:
         super(BaseLLMObsWriter, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
-        self._buffers: Dict[str, BufferEntry] = {}
+        self._buffer: List[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]] = []
+        self._buffer_size: int = 0
+        self._multi_tenant_buffers: Dict[str, BufferEntry] = {}
         self._timeout: float = timeout
         self._api_key: str = _api_key or config._dd_api_key
         self._site: str = _site or config._dd_site
@@ -196,46 +198,23 @@ class BaseLLMObsWriter(PeriodicService):
             until=lambda result: isinstance(result, Response),
         )(self._send_payload_for_routing)
 
-    def _get_routing_key(self, routing: Optional[RoutingConfig] = None) -> str:
-        api_key = (routing.get("dd_api_key") if routing else None) or self._api_key or ""
-        site = (routing.get("dd_site") if routing else None) or self._site or ""
+    def _get_multi_tenant_routing_key(self, routing: RoutingConfig) -> str:
+        api_key = routing.get("dd_api_key") or self._api_key or ""
+        site = routing.get("dd_site") or self._site or ""
         return f"{api_key}:{site}"
 
-    def _get_or_create_buffer(self, routing_key: str, routing: Optional[RoutingConfig] = None) -> BufferEntry:
-        if routing_key not in self._buffers:
-            self._buffers[routing_key] = {
+    def _get_or_create_multi_tenant_buffer(self, routing: RoutingConfig) -> BufferEntry:
+        routing_key = self._get_multi_tenant_routing_key(routing)
+        if routing_key not in self._multi_tenant_buffers:
+            self._multi_tenant_buffers[routing_key] = {
                 "events": [],
                 "size": 0,
                 "routing": {
-                    "dd_api_key": (routing.get("dd_api_key") if routing else None) or self._api_key,
-                    "dd_site": (routing.get("dd_site") if routing else None) or self._site,
+                    "dd_api_key": routing.get("dd_api_key") or self._api_key,
+                    "dd_site": routing.get("dd_site") or self._site,
                 },
             }
-        return self._buffers[routing_key]
-
-    @property
-    def _buffer(self) -> List[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]]:
-        routing_key = self._get_routing_key()
-        buffer = self._buffers.get(routing_key)
-        return buffer["events"] if buffer else []
-
-    @_buffer.setter
-    def _buffer(self, events: List[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]]) -> None:
-        routing_key = self._get_routing_key()
-        buffer = self._get_or_create_buffer(routing_key)
-        buffer["events"] = events
-
-    @property
-    def _buffer_size(self) -> int:
-        routing_key = self._get_routing_key()
-        buffer = self._buffers.get(routing_key)
-        return buffer["size"] if buffer else 0
-
-    @_buffer_size.setter
-    def _buffer_size(self, size: int) -> None:
-        routing_key = self._get_routing_key()
-        buffer = self._get_or_create_buffer(routing_key)
-        buffer["size"] = size
+        return self._multi_tenant_buffers[routing_key]
 
     def start(self, *args, **kwargs):
         super(BaseLLMObsWriter, self).start()
@@ -256,23 +235,33 @@ class BaseLLMObsWriter(PeriodicService):
         event_size: int,
         routing: Optional[RoutingConfig] = None,
     ) -> None:
-        """Internal shared logic of enqueuing events to be submitted to LLM Observability."""
         with self._lock:
-            routing_key = self._get_routing_key(routing)
-            buffer = self._get_or_create_buffer(routing_key, routing)
-
-            if len(buffer["events"]) >= self.BUFFER_LIMIT:
-                logger.warning(
-                    "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self.BUFFER_LIMIT
-                )
-                telemetry.record_dropped_payload(1, event_type=self.EVENT_TYPE, error="buffer_full")
-                return
-            if buffer["size"] + event_size > EVP_PAYLOAD_SIZE_LIMIT:
-                logger.debug("manually flushing buffer because queueing next event will exceed EVP payload limit")
-                self.periodic()
-                buffer = self._get_or_create_buffer(routing_key, routing)
-            buffer["events"].append(event)
-            buffer["size"] += event_size
+            if routing is None:
+                if len(self._buffer) >= self.BUFFER_LIMIT:
+                    logger.warning(
+                        "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self.BUFFER_LIMIT
+                    )
+                    telemetry.record_dropped_payload(1, event_type=self.EVENT_TYPE, error="buffer_full")
+                    return
+                if self._buffer_size + event_size > EVP_PAYLOAD_SIZE_LIMIT:
+                    logger.debug("manually flushing buffer because queueing next event will exceed EVP payload limit")
+                    self.periodic()
+                self._buffer.append(event)
+                self._buffer_size += event_size
+            else:
+                buffer = self._get_or_create_multi_tenant_buffer(routing)
+                if len(buffer["events"]) >= self.BUFFER_LIMIT:
+                    logger.warning(
+                        "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self.BUFFER_LIMIT
+                    )
+                    telemetry.record_dropped_payload(1, event_type=self.EVENT_TYPE, error="buffer_full")
+                    return
+                if buffer["size"] + event_size > EVP_PAYLOAD_SIZE_LIMIT:
+                    logger.debug("manually flushing buffer because queueing next event will exceed EVP payload limit")
+                    self.periodic()
+                    buffer = self._get_or_create_multi_tenant_buffer(routing)
+                buffer["events"].append(event)
+                buffer["size"] += event_size
 
     def _encode(self, payload, num_events):
         try:
@@ -286,16 +275,26 @@ class BaseLLMObsWriter(PeriodicService):
 
     def periodic(self) -> None:
         with self._lock:
-            buffers_to_flush: List[Tuple[str, BufferEntry]] = []
-            for routing_key, buffer in list(self._buffers.items()):
-                if buffer["events"]:
-                    buffers_to_flush.append((routing_key, buffer))
-                    del self._buffers[routing_key]
+            default_events = self._buffer
+            self._buffer = []
+            self._buffer_size = 0
 
-        for routing_key, buffer in buffers_to_flush:
-            events = buffer["events"]
+            multi_tenant_buffers_to_flush: List[BufferEntry] = []
+            for routing_key, buffer in list(self._multi_tenant_buffers.items()):
+                if buffer["events"]:
+                    multi_tenant_buffers_to_flush.append(buffer)
+                    del self._multi_tenant_buffers[routing_key]
+
+        if default_events:
+            self._flush_buffer(default_events, None)
+
+        for buffer in multi_tenant_buffers_to_flush:
             routing = buffer["routing"]
-            self._flush_buffer(events, routing)
+            site = routing.get("dd_site") if routing else None
+            api_key = routing.get("dd_api_key") if routing else None
+            masked_api_key = f"{api_key[:4]}...{api_key[-4:]}" if api_key and len(api_key) > 8 else "***"
+            logger.debug("Encoding and flushing multi-tenant buffer for %s with %s", site, masked_api_key)
+            self._flush_buffer(buffer["events"], routing)
 
     def _flush_buffer(
         self,

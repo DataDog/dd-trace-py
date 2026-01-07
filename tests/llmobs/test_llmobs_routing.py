@@ -58,10 +58,10 @@ class TestMultiBufferWriter:
             writer.enqueue(_mock_span_event(), routing_b)
             writer.enqueue(_mock_span_event(), routing_a)
 
-            assert len(writer._buffers) == 2
+            assert len(writer._multi_tenant_buffers) == 2
 
-            buffer_a = writer._buffers.get("key-a:site-a")
-            buffer_b = writer._buffers.get("key-b:site-b")
+            buffer_a = writer._multi_tenant_buffers.get("key-a:site-a")
+            buffer_b = writer._multi_tenant_buffers.get("key-b:site-b")
 
             assert buffer_a is not None
             assert len(buffer_a["events"]) == 2
@@ -100,5 +100,5 @@ class TestMultiBufferWriter:
             writer.enqueue(_mock_span_event(), routing)
             writer.enqueue(_mock_span_event(), routing)
 
-            buffer = writer._buffers.get("tenant-key:tenant-site")
+            buffer = writer._multi_tenant_buffers.get("tenant-key:tenant-site")
             assert len(buffer["events"]) == 2
