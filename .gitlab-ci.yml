@@ -167,7 +167,7 @@ macrobenchmarks:
     - if: $CI_COMMIT_BRANCH == "main"
       when: always
     - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
-      when: always
+# Always run on tagged releases
     - if: !reference [.is_release]
       when: always
     # Otherwise, run manually
