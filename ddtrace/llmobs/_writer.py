@@ -199,9 +199,7 @@ class BaseLLMObsWriter(PeriodicService):
         )(self._send_payload_for_routing)
 
     def _get_multi_tenant_routing_key(self, routing: RoutingConfig) -> str:
-        api_key = routing.get("dd_api_key") or self._api_key or ""
-        site = routing.get("dd_site") or self._site or ""
-        return f"{api_key}:{site}"
+        return routing.get("dd_api_key") or self._api_key or ""
 
     def _get_or_create_multi_tenant_buffer(self, routing: RoutingConfig) -> BufferEntry:
         routing_key = self._get_multi_tenant_routing_key(routing)
