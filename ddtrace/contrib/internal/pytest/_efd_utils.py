@@ -125,8 +125,9 @@ def _efd_do_retries(item: pytest.Item) -> EFDTestStatus:
         XPASS=_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED,
     )
 
-    final_status = TestStatus.FAIL
-    while should_retry := InternalTest.efd_should_retry(test_id):
+    final_status = None
+    should_retry = InternalTest.efd_should_retry(test_id)
+    while should_retry:
         retry_num = InternalTest.efd_add_retry(test_id, start_immediately=True)
 
         retry_outcome = _get_outcome_from_retry(item, outcomes, retry_num)
@@ -146,6 +147,7 @@ def _efd_do_retries(item: pytest.Item) -> EFDTestStatus:
             retry_outcome.exc_info,
         )
 
+    assert final_status is not None
     return final_status
 
 

@@ -113,8 +113,9 @@ def atr_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) 
 def _atr_do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
     test_id = _get_test_id_from_item(item)
 
-    final_status = TestStatus.FAIL
-    while should_retry := InternalTest.atr_should_retry(test_id):
+    final_status = None
+    should_retry = InternalTest.atr_should_retry(test_id)
+    while should_retry:
         retry_num = InternalTest.atr_add_retry(test_id, start_immediately=True)
 
         retry_outcome = _get_outcome_from_retry(item, outcomes, retry_num)
@@ -135,6 +136,7 @@ def _atr_do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
             exc_info=retry_outcome.exc_info,
         )
 
+    assert final_status is not None
     return final_status
 
 

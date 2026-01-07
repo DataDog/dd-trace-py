@@ -71,7 +71,7 @@ class EFDTestMixin:
         retry_number: int,
         status: TestStatus,
         is_final_retry: bool,
-        final_status: TestStatus,
+        final_status: t.Optional[TestStatus] = None,
         skip_reason: t.Optional[str] = None,
         exc_info: t.Optional[TestExcInfo] = None,
     ):

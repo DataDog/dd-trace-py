@@ -602,19 +602,16 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         retry_number: int,
         status: TestStatus,
         is_final_retry: bool,
-        final_status: Optional[TestStatus] = None,
         skip_reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
     ):
         retry_test = self._attempt_to_fix_get_retry_test(retry_number)
 
-        if retry_number >= self._session_settings.test_management_settings.attempt_to_fix_retries:
-            # FIXME: the last retry wasn't finished yet, so it does not have the correct status.
-            # But we cannot do it after `retry_test.finish()`, because no tags can be added afterwards.
-            # For now, we force the status to be set here. This probably affects EFD and ATR as well.
-            if status is not None:
-                retry_test.set_status(status)
+        # Set status for every retry so final status calculation works correctly
+        if status is not None:
+            retry_test.set_status(status)
 
+        if retry_number >= self._session_settings.test_management_settings.attempt_to_fix_retries:
             all_passed = all(retry._status == TestStatus.PASS for retry in self._attempt_to_fix_retries)
             all_failed = all(retry._status == TestStatus.FAIL for retry in self._attempt_to_fix_retries)
 
@@ -623,8 +620,23 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
             retry_test.set_tag(TEST_ATTEMPT_TO_FIX_PASSED, all_passed)
 
-            if is_final_retry and final_status is not None:
-                retry_test.set_tag(TEST_FINAL_STATUS, final_status.value)
+            # Calculate final status based on all retry statuses
+            if is_final_retry:
+                if all_passed:
+                    calculated_final_status = TestStatus.PASS
+                elif all_failed:
+                    calculated_final_status = TestStatus.FAIL
+                else:
+                    # Mixed results or all skipped
+                    all_skipped = all(retry._status == TestStatus.SKIP for retry in self._attempt_to_fix_retries)
+                    if all_skipped:
+                        calculated_final_status = TestStatus.SKIP
+                    else:
+                        # Mixed: at least one pass means the test passes
+                        has_pass = any(retry._status == TestStatus.PASS for retry in self._attempt_to_fix_retries)
+                        calculated_final_status = TestStatus.PASS if has_pass else TestStatus.FAIL
+
+                retry_test.set_tag(TEST_FINAL_STATUS, calculated_final_status.value)
 
         retry_test.finish_test(status, skip_reason=skip_reason, exc_info=exc_info)
 
