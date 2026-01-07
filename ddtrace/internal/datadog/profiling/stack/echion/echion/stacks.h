@@ -39,11 +39,14 @@ class FrameStack : public std::deque<Frame::Ref>
 };
 
 // ----------------------------------------------------------------------------
+// Unwind Python frames starting from frame_addr and push them onto stack.
+// @param max_depth: Maximum number of frames to unwind. Defaults to max_frames.
+// @return: Number of frames added to the stack.
 static size_t
-unwind_frame(PyObject* frame_addr, FrameStack& stack)
+unwind_frame(PyObject* frame_addr, FrameStack& stack, size_t max_depth = max_frames)
 {
     std::unordered_set<PyObject*> seen_frames; // Used to detect cycles in the stack
-    int count = 0;
+    size_t count = 0;
 
     PyObject* current_frame_addr = frame_addr;
     while (current_frame_addr != NULL && stack.size() < max_frames) {
@@ -68,6 +71,10 @@ unwind_frame(PyObject* frame_addr, FrameStack& stack)
 
         stack.push_back(*maybe_frame);
         count++;
+
+        if (count >= max_depth) {
+            break;
+        }
     }
 
     return count;
