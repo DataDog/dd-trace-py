@@ -38,23 +38,23 @@ class TestRoutingIntegration:
                 LLMObs.annotate(span, input_data="test input", output_data="test output")
 
         assert len(llmobs_span_writer.events) == 1
-        routing_key = llmobs_span_writer._get_routing_key({"dd_api_key": "tenant-key-1", "dd_site": "tenant-site.com"})
-        buffer = llmobs_span_writer._buffers.get(routing_key)
+        routing_key = llmobs_span_writer._get_multi_tenant_routing_key(
+            {"dd_api_key": "tenant-key-1", "dd_site": "tenant-site.com"}
+        )
+        buffer = llmobs_span_writer._multi_tenant_buffers.get(routing_key)
         assert buffer is not None
         assert len(buffer["events"]) == 1
         assert buffer["routing"]["dd_api_key"] == "tenant-key-1"
         assert buffer["routing"]["dd_site"] == "tenant-site.com"
 
     def test_spans_without_routing_context_use_default(self, llmobs, llmobs_span_writer):
-        """Spans created without routing_context use default routing."""
+        """Spans created without routing_context use default buffer."""
         with LLMObs.workflow("test-workflow") as span:
             LLMObs.annotate(span, input_data="test input")
 
         assert len(llmobs_span_writer.events) == 1
-        default_key = llmobs_span_writer._get_routing_key()
-        buffer = llmobs_span_writer._buffers.get(default_key)
-        assert buffer is not None
-        assert len(buffer["events"]) == 1
+        # Default routing uses the main _buffer, not _multi_tenant_buffers
+        assert len(llmobs_span_writer._buffer) == 1
 
     def test_nested_routing_contexts_override(self, llmobs, llmobs_span_writer):
         """Inner routing context overrides outer, restores after exit."""
@@ -71,11 +71,15 @@ class TestRoutingIntegration:
 
         assert len(llmobs_span_writer.events) == 3
 
-        outer_key = llmobs_span_writer._get_routing_key({"dd_api_key": "outer-key", "dd_site": "outer.com"})
-        inner_key = llmobs_span_writer._get_routing_key({"dd_api_key": "inner-key", "dd_site": "inner.com"})
+        outer_key = llmobs_span_writer._get_multi_tenant_routing_key(
+            {"dd_api_key": "outer-key", "dd_site": "outer.com"}
+        )
+        inner_key = llmobs_span_writer._get_multi_tenant_routing_key(
+            {"dd_api_key": "inner-key", "dd_site": "inner.com"}
+        )
 
-        outer_buffer = llmobs_span_writer._buffers.get(outer_key)
-        inner_buffer = llmobs_span_writer._buffers.get(inner_key)
+        outer_buffer = llmobs_span_writer._multi_tenant_buffers.get(outer_key)
+        inner_buffer = llmobs_span_writer._multi_tenant_buffers.get(inner_key)
 
         assert outer_buffer is not None
         assert inner_buffer is not None
@@ -92,8 +96,10 @@ class TestRoutingIntegration:
 
         assert len(llmobs_span_writer.events) == 3
 
-        routing_key = llmobs_span_writer._get_routing_key({"dd_api_key": "parent-key", "dd_site": "parent.com"})
-        buffer = llmobs_span_writer._buffers.get(routing_key)
+        routing_key = llmobs_span_writer._get_multi_tenant_routing_key(
+            {"dd_api_key": "parent-key", "dd_site": "parent.com"}
+        )
+        buffer = llmobs_span_writer._multi_tenant_buffers.get(routing_key)
         assert buffer is not None
         assert len(buffer["events"]) == 3
 
@@ -120,8 +126,10 @@ class TestAsyncRouting:
         assert len(llmobs_span_writer.events) == 3
 
         for i in range(1, 4):
-            key = llmobs_span_writer._get_routing_key({"dd_api_key": f"key-{i}", "dd_site": f"site-{i}.com"})
-            buffer = llmobs_span_writer._buffers.get(key)
+            key = llmobs_span_writer._get_multi_tenant_routing_key(
+                {"dd_api_key": f"key-{i}", "dd_site": f"site-{i}.com"}
+            )
+            buffer = llmobs_span_writer._multi_tenant_buffers.get(key)
             assert buffer is not None
             assert len(buffer["events"]) == 1
             event = buffer["events"][0]
@@ -187,11 +195,15 @@ class TestRoutingSecurity:
             with LLMObs.workflow("workflow-b") as span:
                 LLMObs.annotate(span, input_data="secret-data-for-tenant-B")
 
-        key_a = llmobs_span_writer._get_routing_key({"dd_api_key": "tenant-a-key", "dd_site": "tenant-a.com"})
-        key_b = llmobs_span_writer._get_routing_key({"dd_api_key": "tenant-b-key", "dd_site": "tenant-b.com"})
+        key_a = llmobs_span_writer._get_multi_tenant_routing_key(
+            {"dd_api_key": "tenant-a-key", "dd_site": "tenant-a.com"}
+        )
+        key_b = llmobs_span_writer._get_multi_tenant_routing_key(
+            {"dd_api_key": "tenant-b-key", "dd_site": "tenant-b.com"}
+        )
 
-        buffer_a = llmobs_span_writer._buffers.get(key_a)
-        buffer_b = llmobs_span_writer._buffers.get(key_b)
+        buffer_a = llmobs_span_writer._multi_tenant_buffers.get(key_a)
+        buffer_b = llmobs_span_writer._multi_tenant_buffers.get(key_b)
 
         event_a_json = json.dumps(buffer_a["events"])
         event_b_json = json.dumps(buffer_b["events"])

@@ -1302,7 +1302,7 @@ class LLMObs(Service):
         span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})
 
         routing = _get_current_routing()
-        if routing and routing.get("dd_api_key"):
+        if routing:
             span._set_ctx_item(ROUTING_API_KEY, routing["dd_api_key"])
             if routing.get("dd_site"):
                 span._set_ctx_item(ROUTING_SITE, routing["dd_site"])
