@@ -108,21 +108,25 @@ class TestMultiTenantRouting:
                 assert "secret-tenant-key" not in payload
                 assert "default-key" not in payload
 
-    def test_nested_contexts_override_and_restore(self):
-        """Inner routing context overrides outer, restores after exit."""
+    def test_nested_contexts_override_and_restore(self, caplog):
+        """Inner routing context overrides outer, restores after exit, and logs warning."""
+        import logging
+
         outer_routing = None
         inner_routing = None
         after_inner_routing = None
 
-        with RoutingContext(dd_api_key="outer-key", dd_site="outer-site"):
-            outer_routing = _get_current_routing()
-            with RoutingContext(dd_api_key="inner-key", dd_site="inner-site"):
-                inner_routing = _get_current_routing()
-            after_inner_routing = _get_current_routing()
+        with caplog.at_level(logging.WARNING, logger="ddtrace.llmobs._routing"):
+            with RoutingContext(dd_api_key="outer-key", dd_site="outer-site"):
+                outer_routing = _get_current_routing()
+                with RoutingContext(dd_api_key="inner-key", dd_site="inner-site"):
+                    inner_routing = _get_current_routing()
+                after_inner_routing = _get_current_routing()
 
         assert outer_routing["dd_api_key"] == "outer-key"
         assert inner_routing["dd_api_key"] == "inner-key"
         assert after_inner_routing["dd_api_key"] == "outer-key"
+        assert "Nested routing context detected" in caplog.text
 
     @pytest.mark.asyncio
     async def test_concurrent_contexts_are_isolated(self):
