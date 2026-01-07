@@ -41,11 +41,14 @@ def _get_original_lock_class(module_name: str, class_name: str) -> Callable[...,
     """Reconstruct the original lock class when unpickling. Since this is a module-level function, it can be pickled."""
     import importlib
 
-    module = importlib.import_module(module_name)
-    obj = getattr(module, class_name)
+    module: ModuleType = importlib.import_module(module_name)
+    obj: _LockAllocatorWrapper | Callable[..., Any] = getattr(module, class_name)
 
     # If the object is still wrapped (profiling active in this process), unwrap it. Else, return the original object.
-    return obj._original_class if isinstance(obj, _LockAllocatorWrapper) else obj
+    if isinstance(obj, _LockAllocatorWrapper) and obj._original_class:
+        return obj._original_class
+
+    return obj
 
 
 class _ProfiledLock:
@@ -349,6 +352,9 @@ class _LockAllocatorWrapper:
         In the context of multiprocessing, the child process will get the unwrapped lock class, which will be re-wrapped
         if profiling is enabled there.
         """
+        if self._original_class is None:
+            raise TypeError("Cannot pickle uninitialized _LockAllocatorWrapper")
+
         return (
             _get_original_lock_class,
             (self._original_class.__module__, self._original_class.__qualname__),
