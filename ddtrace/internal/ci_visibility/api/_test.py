@@ -420,10 +420,6 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if status is not None:
             retry_test.set_status(status)
 
-        # # Determine if this is the final retry (check after setting status)
-        # if is_final_retry is None:
-        #     is_final_retry = not self.efd_should_retry()
-
         # Set final_status tag on the final retry (before finishing the span)
         if is_final_retry:
             retry_test.set_tag(TEST_FINAL_STATUS, status.value)
