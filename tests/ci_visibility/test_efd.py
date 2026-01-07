@@ -79,7 +79,8 @@ class TestCIVisibilityTestEFD:
                 assert added_retry_num == retry_count
                 efd_test.efd_start_retry(added_retry_num)
                 is_final_retry = not efd_test.efd_should_retry()
-                efd_test.efd_finish_retry(added_retry_num, TestStatus.PASS, is_final_retry)
+                final_status = TestStatus.PASS if is_final_retry else None
+                efd_test.efd_finish_retry(added_retry_num, TestStatus.PASS, is_final_retry, final_status)
 
             assert retry_count == expected_max_retries
 
@@ -166,7 +167,8 @@ class TestCIVisibilityTestEFD:
                 added_retry_number = efd_test.efd_add_retry(start_immediately=True)
                 assert added_retry_number == expected_num_retry
                 is_final_retry = idx == len(retry_results) - 1
-                efd_test.efd_finish_retry(added_retry_number, test_result, is_final_retry)
+                final_status = expected_statuses[1] if is_final_retry else None
+                efd_test.efd_finish_retry(added_retry_number, test_result, is_final_retry, final_status)
             assert efd_test.efd_get_final_status() == expected_statuses[0]
             assert efd_test.get_status() == expected_statuses[1]
 
@@ -208,7 +210,8 @@ class TestCIVisibilityTestEFD:
                 retry_num = efd_test.efd_add_retry(start_immediately=True)
                 # Check if this will be the final retry after this one
                 is_final_retry = not efd_test.efd_should_retry()
-                efd_test.efd_finish_retry(retry_num, TestStatus.FAIL, is_final_retry)
+                final_status = TestStatus.FAIL if is_final_retry else None
+                efd_test.efd_finish_retry(retry_num, TestStatus.FAIL, is_final_retry, final_status)
                 retries_added += 1
 
             # The last retry should have the final_status tag

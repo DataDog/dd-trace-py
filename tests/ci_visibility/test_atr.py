@@ -96,7 +96,8 @@ class TestCIVisibilityTestATR:
                     assert added_retry_num == retry_count
                     # Since all retries fail, is_final will be true only when we hit max retries
                     is_final_retry = not atr_test.atr_should_retry()
-                    atr_test.atr_finish_retry(added_retry_num, TestStatus.FAIL, is_final_retry)
+                    final_status = TestStatus.FAIL if is_final_retry else None
+                    atr_test.atr_finish_retry(added_retry_num, TestStatus.FAIL, is_final_retry, final_status)
 
                 assert retry_count == (
                     atr_expected_retries[test_number] if test_number < len(atr_expected_retries) else 0
@@ -187,7 +188,8 @@ class TestCIVisibilityTestATR:
             added_retry_number = atr_test.atr_add_retry(start_immediately=True)
             assert added_retry_number == expected_retry_number
             is_final_retry = not atr_test.atr_should_retry()
-            atr_test.atr_finish_retry(added_retry_number, test_result, is_final_retry)
+            final_status = expected_status if is_final_retry else None
+            atr_test.atr_finish_retry(added_retry_number, test_result, is_final_retry, final_status)
         assert atr_test.atr_get_final_status() == expected_status
 
     def test_atr_does_not_retry_if_disabled(self):
@@ -218,7 +220,7 @@ class TestCIVisibilityTestATR:
 
         # Add a passing retry (will be final since ATR stops on pass)
         retry_num = atr_test.atr_add_retry(start_immediately=True)
-        atr_test.atr_finish_retry(retry_num, TestStatus.PASS, is_final_retry=True)
+        atr_test.atr_finish_retry(retry_num, TestStatus.PASS, is_final_retry=True, final_status=TestStatus.PASS)
 
         # Get the last retry test
         last_retry = atr_test._atr_retries[-1]

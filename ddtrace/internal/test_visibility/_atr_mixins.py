@@ -60,6 +60,7 @@ class ATRTestMixin:
         retry_number: int,
         status: TestStatus,
         is_final_retry: bool,
+        final_status: TestStatus,
         skip_reason: t.Optional[str] = None,
         exc_info: t.Optional[TestExcInfo] = None,
     ) -> None:
@@ -68,6 +69,7 @@ class ATRTestMixin:
             retry_number=retry_number,
             status=status,
             is_final_retry=is_final_retry,
+            final_status=final_status,
             skip_reason=skip_reason,
             exc_info=exc_info,
         )

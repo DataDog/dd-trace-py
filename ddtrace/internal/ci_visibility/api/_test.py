@@ -411,6 +411,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         retry_number: int,
         status: TestStatus,
         is_final_retry: bool,
+        final_status: Optional[TestStatus] = None,
         skip_reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
     ) -> None:
@@ -421,8 +422,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             retry_test.set_status(status)
 
         # Set final_status tag on the final retry (before finishing the span)
-        if is_final_retry:
-            retry_test.set_tag(TEST_FINAL_STATUS, status.value)
+        if is_final_retry and final_status is not None:
+            retry_test.set_tag(TEST_FINAL_STATUS, final_status.value)
 
         retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
 
@@ -516,6 +517,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         retry_number: int,
         status: TestStatus,
         is_final_retry: bool,
+        final_status: Optional[TestStatus] = None,
         skip_reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
     ):
@@ -526,8 +528,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             retry_test.set_status(status)
 
         # Set final_status tag on the final retry (before finishing the span)
-        if is_final_retry:
-            retry_test.set_tag(TEST_FINAL_STATUS, status.value)
+        if is_final_retry and final_status is not None:
+            retry_test.set_tag(TEST_FINAL_STATUS, final_status.value)
             # Only set failed_all_retries when we've exhausted all retries and still failed
             if retry_number >= self._session_settings.atr_settings.max_retries:
                 if self.atr_get_final_status() == TestStatus.FAIL:
@@ -600,6 +602,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         retry_number: int,
         status: TestStatus,
         is_final_retry: bool,
+        final_status: Optional[TestStatus] = None,
         skip_reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
     ):
@@ -619,8 +622,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
                 retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
 
             retry_test.set_tag(TEST_ATTEMPT_TO_FIX_PASSED, all_passed)
-            if is_final_retry:
-                retry_test.set_tag(TEST_FINAL_STATUS, status.value)
+
+            if is_final_retry and final_status is not None:
+                retry_test.set_tag(TEST_FINAL_STATUS, final_status.value)
 
         retry_test.finish_test(status, skip_reason=skip_reason, exc_info=exc_info)
 
