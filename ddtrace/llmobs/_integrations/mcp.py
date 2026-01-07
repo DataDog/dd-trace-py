@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from mcp.types import CallToolRequest
     from mcp.types import CallToolResult
     from mcp.types import InitializeRequest
+    from mcp.types import ListToolsResult
 
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
@@ -16,6 +17,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import MCP_TOOL_CALL_INTENT
 from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
@@ -34,6 +36,26 @@ CLIENT_TOOL_CALL_OPERATION_NAME = "client_tool_call"
 SERVER_REQUEST_OPERATION_NAME = "server_request"
 # This operation is handled the same as server_request but has a different name for legacy reasons
 SERVER_TOOL_CALL_OPERATION_NAME = "server_tool_call"
+
+
+DD_TRACE_KEY = "ddtrace"
+INTENT_KEY = "intent"
+INTENT_PROMPT = """Briefly describe the wider context task, and why this tool was chosen.
+ Omit argument values, PII/secrets. Use English.
+ """
+
+
+def dd_trace_input_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            INTENT_KEY: {
+                "type": "string",
+                "description": INTENT_PROMPT,
+            },
+        },
+        "required": [INTENT_KEY],
+    }
 
 
 def _find_client_session_root(span: Optional[Span]) -> Optional[Span]:
@@ -69,6 +91,25 @@ class MCPIntegration(BaseLLMIntegration):
             span._set_ctx_item(MCP_SPAN_TYPE, mcp_span_type)
 
         return span
+
+    # Inject intent capture properties into inputSchemas on the response
+    def inject_tools_list_response(self, response: "ListToolsResult") -> None:
+        if not self.llmobs_enabled:
+            return
+
+        for tool in response.tools:
+            input_schema = getattr(tool, "inputSchema", None)
+            if not isinstance(input_schema, dict):
+                continue
+            if not input_schema.get("type"):
+                input_schema["type"] = "object"
+            if "properties" not in input_schema:
+                input_schema["properties"] = {}
+            if "required" not in input_schema:
+                input_schema["required"] = []
+
+            input_schema["properties"][DD_TRACE_KEY] = dd_trace_input_schema()
+            input_schema["required"].append(INTENT_KEY)
 
     def _parse_mcp_text_content(self, item: Any) -> Dict[str, Any]:
         """Parse MCP TextContent fields, extracting only non-None values."""
@@ -203,6 +244,24 @@ class MCPIntegration(BaseLLMIntegration):
             span.set_tag(ERROR_MSG, "tool resulted in an error")
         _set_or_update_tags(span, override_tags)
         span._set_ctx_items({NAME: tool_name, SPAN_KIND: "tool"})
+
+    def process_ddtrace_argument(self, span: Span, request: "CallToolRequest") -> None:
+        """Process and remove ddtrace argument from requests
+        This is called before the tool is called or the input is recorded
+        """
+        if not self.llmobs_enabled:
+            return
+
+        params = _get_attr(request, "params", None)
+        arguments = _get_attr(params, "arguments", None)
+        ddtrace = _get_attr(arguments, DD_TRACE_KEY, None)
+        if isinstance(arguments, dict) and ddtrace:
+            intent = _get_attr(ddtrace, INTENT_KEY, None)
+            if intent:
+                span._set_ctx_item(MCP_TOOL_CALL_INTENT, intent)
+
+            # The argument is removed before recording the input and calling the tool
+            del arguments[DD_TRACE_KEY]
 
     def _llmobs_set_tags_request_responder_respond(
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any

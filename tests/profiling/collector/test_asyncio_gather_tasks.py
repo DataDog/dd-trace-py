@@ -8,7 +8,7 @@ import pytest
     err=None,
 )
 # For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
-def test_asyncio_gather_wall_time() -> None:
+def test_asyncio_gather_tasks() -> None:
     import asyncio
     import os
 
@@ -62,42 +62,21 @@ def test_asyncio_gather_wall_time() -> None:
             line_no=-1,
         )
 
-    # One of the two Tasks gets included under the Main Task randomly, we have to try both.
-    try:
-        for f, t in (("f4_0", "Task-1"), ("f4_1", "F4_1")):
-            pprof_utils.assert_profile_has_sample(
-                profile,
-                samples,
-                expected_sample=pprof_utils.StackEvent(
-                    thread_name="MainThread",
-                    task_name=t,
-                    locations=[
-                        fn_location("sleep"),
-                        fn_location("f5"),
-                        fn_location(f),
-                        fn_location("f3"),
-                        fn_location("f2"),
-                        fn_location("f1"),
-                        fn_location("main"),
-                    ],
-                ),
-            )
-    except AssertionError:
-        for f, t in (("f4_0", "F4_0"), ("f4_1", "Task-1")):
-            pprof_utils.assert_profile_has_sample(
-                profile,
-                samples,
-                expected_sample=pprof_utils.StackEvent(
-                    thread_name="MainThread",
-                    task_name=t,
-                    locations=[
-                        fn_location("sleep"),
-                        fn_location("f5"),
-                        fn_location(f),
-                        fn_location("f3"),
-                        fn_location("f2"),
-                        fn_location("f1"),
-                        fn_location("main"),
-                    ],
-                ),
-            )
+    for f, t in (("f4_0", "F4_0"), ("f4_1", "F4_1")):
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_name="MainThread",
+                task_name=t,
+                locations=[
+                    fn_location("sleep"),
+                    fn_location("f5"),
+                    fn_location(f),
+                    fn_location("f3"),
+                    fn_location("f2"),
+                    fn_location("f1"),
+                    fn_location("main"),
+                ],
+            ),
+        )
