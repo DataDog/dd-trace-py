@@ -295,10 +295,6 @@ TaskInfo::current(PyObject* loop)
 
 // ----------------------------------------------------------------------------
 
-inline std::vector<std::unique_ptr<StackInfo>> current_tasks;
-
-// ----------------------------------------------------------------------------
-
 inline size_t
 TaskInfo::unwind(FrameStack& stack)
 {

@@ -15,7 +15,6 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
-#include <optional>
 #include <unordered_map>
 
 #if defined PL_LINUX
@@ -40,6 +39,9 @@ class ThreadInfo
 
     uintptr_t thread_id;
     unsigned long native_id;
+    FrameStack python_stack;
+    std::vector<std::unique_ptr<StackInfo>> current_tasks;
+    std::vector<std::unique_ptr<StackInfo>> current_greenlets;
 
     std::string name;
 
@@ -201,7 +203,7 @@ inline std::mutex thread_info_map_lock;
 inline void
 ThreadInfo::unwind(PyThreadState* tstate)
 {
-    unwind_python_stack(tstate);
+    unwind_python_stack(tstate, python_stack);
 
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.

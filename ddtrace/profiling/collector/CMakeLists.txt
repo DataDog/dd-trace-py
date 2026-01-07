@@ -106,7 +106,6 @@ if(APPLE)
                    LINK_FLAGS "-undefined dynamic_lookup")
 elseif(UNIX)
     # Linux specific
-    target_link_libraries(${FULL_EXTENSION_NAME} PRIVATE atomic)
     set_target_properties(${FULL_EXTENSION_NAME} PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE
                                                             INSTALL_RPATH "$ORIGIN/../../internal/datadog/profiling")
 endif()
