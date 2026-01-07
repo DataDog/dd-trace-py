@@ -312,7 +312,7 @@
         "dependency": "gevent",
         "integration": "gevent",
         "minimum_tracer_supported": "21.1.2",
-        "max_tracer_supported": "25.5.1",
+        "max_tracer_supported": "25.9.1",
         "auto-instrumented": true
     },
     {
@@ -560,7 +560,7 @@
         "dependency": "pytest",
         "integration": "pytest",
         "minimum_tracer_supported": "6.2.5",
-        "max_tracer_supported": "8.4.2",
+        "max_tracer_supported": "9.0.2",
         "auto-instrumented": false
     },
     {

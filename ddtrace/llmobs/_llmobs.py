@@ -1120,6 +1120,12 @@ class LLMObs(Service):
             # restored after exiting the annotation_context block
             if state["created_context"] is not None:
                 state["created_context"]._reactivate = False
+                # DEV: Deactivate the context we created so subsequent annotation_contexts
+                # don't see the stale context with the old ANNOTATIONS_CONTEXT_ID.
+                # Only deactivate if this context is still the active one (not a Span).
+                current_active = cls._instance.tracer.context_provider.active()
+                if current_active is state["created_context"]:
+                    cls._instance.tracer.context_provider.activate(None)
 
         return AnnotationContext(register_annotation, deregister_annotation)
 
