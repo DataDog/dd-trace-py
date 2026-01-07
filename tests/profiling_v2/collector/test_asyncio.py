@@ -9,6 +9,7 @@ import pytest
 from ddtrace import ext
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import asyncio as collector_asyncio
+from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
 from tests.profiling.collector.lock_utils import get_lock_linenos
@@ -164,3 +165,24 @@ class TestAsyncioLockCollector:
                 ),
             ],
         )
+
+    async def test_subclassing_wrapped_lock(self):
+        """Test that subclassing of a wrapped lock type works when profiling is active.
+
+        This verifies the fix for neo4j's AsyncRLock that inherits from asyncio.Lock.
+        See: https://github.com/DataDog/dd-trace-py/pull/15604
+        """
+        with collector_asyncio.AsyncioLockCollector(capture_pct=100):
+            assert isinstance(asyncio.Lock, LockAllocatorWrapper)
+
+            # This should NOT raise TypeError
+            class CustomLock(asyncio.Lock):  # type: ignore[misc]
+                def __init__(self):
+                    super().__init__()
+
+            # Verify subclassing and functionality
+            custom_lock = CustomLock()
+            await custom_lock.acquire()
+            assert custom_lock.locked()
+            custom_lock.release()
+            assert not custom_lock.locked()
