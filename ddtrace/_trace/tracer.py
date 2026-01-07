@@ -356,7 +356,9 @@ class Tracer(object):
         appsec_enabled: Optional[bool] = None,
         reset_buffer: bool = True,
     ) -> None:
-        # Reset the span aggregator (recreates writer, clears buffer)
+        """Re-initialize the tracer's processors and trace writer"""
+        # Stop the writer.
+        # This will stop the periodic thread in HTTPWriters, preventing memory leaks and unnecessary I/O.
         self._span_aggregator.reset(
             user_processors=trace_processors,
             compute_stats=compute_stats_enabled,
