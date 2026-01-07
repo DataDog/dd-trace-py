@@ -296,9 +296,10 @@ def scoped_tracer(use_dummy_writer=True, compute_stats_enabled=None):
             ddtrace.tracer._span_aggregator.writer = DummyWriter(trace_flush_enabled=check_test_agent_status())
         yield ddtrace.tracer
     finally:
-        ddtrace.tracer._recreate(
-            reinit=True,
-        )
+        # Reset global tracer to original state
+        ddtrace.tracer.shutdown()
+        Tracer._instance = None
+        Tracer.__init__(ddtrace.tracer)
 
 
 @contextlib.contextmanager

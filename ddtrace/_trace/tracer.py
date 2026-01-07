@@ -355,13 +355,7 @@ class Tracer(object):
         apm_opt_out: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
         reset_buffer: bool = True,
-        reinit: bool = False,
     ) -> None:
-        if reinit:
-            self.shutdown()
-            self.__class__._instance = None
-            self.__class__.__init__(self)
-
         # Reset the span aggregator (recreates writer, clears buffer)
         self._span_aggregator.reset(
             user_processors=trace_processors,
