@@ -136,7 +136,9 @@ def _atr_do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
             exc_info=retry_outcome.exc_info,
         )
 
-    assert final_status is not None
+    if final_status is None:
+        raise RuntimeError("final_status must be set before returning")
+
     return final_status
 
 
