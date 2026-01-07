@@ -105,6 +105,14 @@ def anthropic_url() -> str:
 
 
 @pytest.fixture
+def genai_url() -> str:
+    """
+    Use the request recording endpoint of the testagent to capture requests to Google Generative AI
+    """
+    return "http://localhost:9126/vcr/genai"
+
+
+@pytest.fixture
 def langchain_cohere(langchain_core):
     try:
         import langchain_cohere

@@ -18,8 +18,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations import LangChainIntegration
-from ddtrace.llmobs._integrations.model_providers import get_provider_from_model_name
-from ddtrace.llmobs._integrations.model_providers import normalize_model_name
+from ddtrace.llmobs._integrations.google_utils import get_provider_from_model_name
+from ddtrace.llmobs._integrations.google_utils import normalize_model_name
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
 

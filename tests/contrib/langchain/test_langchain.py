@@ -593,3 +593,79 @@ async def test_runnable_lambda_abatch(langchain_core):
     runnable_lambda = langchain_core.runnables.RunnableLambda(add)
     result = await runnable_lambda.abatch([dict(a=1, b=2), dict(a=3, b=4), dict(a=5, b=6)])
     assert result == [3, 7, 11]
+
+
+def test_google_genai_chat_model(langchain_core, langchain_google_genai, test_spans, genai_url):
+    """
+    Test Google GenAI chat model integration.
+
+    langchain-google-genai < 4.0 uses google-ai-generativelanguage SDK (gRPC-based),
+    which doesn't support base_url redirection for VCR. We use mocks for those versions.
+
+    langchain-google-genai >= 4.0 uses google-genai SDK (HTTP-based via httpx),
+    which respects HttpOptions.base_url. We use VCR cassettes for these versions.
+    """
+    from importlib.metadata import version
+    from unittest import mock
+
+    from tests.contrib.langchain.utils import mock_google_genai_chat_generate_response
+
+    use_vcr = parse_version(version("langchain-google-genai")) >= (4, 0)
+
+    if use_vcr:
+        chat = langchain_google_genai.ChatGoogleGenerativeAI(
+            model="gemini-2.0-flash",
+            temperature=0.7,
+            base_url=genai_url,
+        )
+        chat.invoke([langchain_core.messages.HumanMessage(content="What is the capital of France?")])
+    else:
+        with mock.patch(
+            "langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache"
+        ) as mock_generate:
+            mock_generate.return_value = mock_google_genai_chat_generate_response
+            chat = langchain_google_genai.ChatGoogleGenerativeAI(
+                model="gemini-2.0-flash",
+                temperature=0.7,
+            )
+            chat.invoke([langchain_core.messages.HumanMessage(content="What is the capital of France?")])
+
+    span = test_spans.pop_traces()[0][0]
+    assert span.get_tag("langchain.request.provider") == "google"
+    assert span.get_tag("langchain.request.model") == "gemini-2.0-flash"
+
+
+def test_google_genai_chat_model_with_path(langchain_core, langchain_google_genai, test_spans, genai_url):
+    """
+    Test Google GenAI chat model with model path (e.g., "models/gemini-2.5-flash").
+
+    See test_google_genai_chat_model docstring for VCR vs mock approach details.
+    """
+    from importlib.metadata import version
+    from unittest import mock
+
+    from tests.contrib.langchain.utils import mock_google_genai_chat_generate_response
+
+    use_vcr = parse_version(version("langchain-google-genai")) >= (4, 0)
+
+    if use_vcr:
+        chat = langchain_google_genai.ChatGoogleGenerativeAI(
+            model="models/gemini-2.5-flash",
+            temperature=0.5,
+            base_url=genai_url,
+        )
+        chat.invoke([langchain_core.messages.HumanMessage(content="What is 2+2?")])
+    else:
+        with mock.patch(
+            "langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache"
+        ) as mock_generate:
+            mock_generate.return_value = mock_google_genai_chat_generate_response
+            chat = langchain_google_genai.ChatGoogleGenerativeAI(
+                model="models/gemini-2.5-flash",
+                temperature=0.5,
+            )
+            chat.invoke([langchain_core.messages.HumanMessage(content="What is 2+2?")])
+
+    span = test_spans.pop_traces()[0][0]
+    assert span.get_tag("langchain.request.provider") == "google"
+    assert span.get_tag("langchain.request.model") == "gemini-2.5-flash"

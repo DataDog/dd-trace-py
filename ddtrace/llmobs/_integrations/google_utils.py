@@ -11,8 +11,6 @@ from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
-from ddtrace.llmobs._integrations.model_providers import get_provider_from_model_name
-from ddtrace.llmobs._integrations.model_providers import normalize_model_name
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Message
@@ -23,6 +21,72 @@ from ddtrace.llmobs.types import ToolResult
 # Google GenAI has roles "model" and "user", but in order to stay consistent with other integrations,
 # we use "assistant" as the default role for model messages
 GOOGLE_GENAI_DEFAULT_MODEL_ROLE = "assistant"
+
+
+# Google-specific utilities for model provider identification
+# https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models
+# GeminiAPI: only exports google provided models
+# VertexAI: can map provided models to provider based on prefix, a best effort mapping
+# as huggingface exports hundreds of custom provided models
+KNOWN_MODEL_PREFIX_TO_PROVIDER = {
+    "gemini": "google",
+    "imagen": "google",
+    "veo": "google",
+    "text-embedding": "google",
+    "jamba": "ai21",
+    "claude": "anthropic",
+    "llama": "meta",
+    "mistral": "mistral",
+    "codestral": "mistral",
+    "deepseek": "deepseek",
+    "olmo": "ai2",
+    "tulu": "ai2",
+    "molmo": "ai2",
+    "specter": "ai2",
+    "cosmoo": "ai2",
+    "qodo": "qodo",
+    "mars": "camb.ai",
+}
+
+
+def normalize_model_name(model_path: str) -> str:
+    """
+    Strip path prefixes from model names.
+
+    Examples:
+        >>> normalize_model_name("models/gemini-2.0-flash")
+        "gemini-2.0-flash"
+        >>> normalize_model_name("gemini-2.0-flash")
+        "gemini-2.0-flash"
+
+    Args:
+        model_path: The full model path or name
+
+    Returns:
+        The normalized model name with path prefix stripped
+    """
+    if not model_path:
+        return model_path
+    return model_path.split("/")[-1] if "/" in model_path else model_path
+
+
+def get_provider_from_model_name(model_name: str) -> Optional[str]:
+    """
+    Determine provider from model name prefix.
+
+    Args:
+        model_name: The model name to check
+
+    Returns:
+        The provider name if matched, None otherwise
+    """
+    if not model_name:
+        return None
+    model_lower = model_name.lower()
+    for prefix, provider in KNOWN_MODEL_PREFIX_TO_PROVIDER.items():
+        if model_lower.startswith(prefix):
+            return provider
+    return None
 
 
 def extract_provider_and_model_name(
