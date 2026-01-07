@@ -37,7 +37,7 @@ def _current_thread() -> Tuple[int, str]:
     return thread_id, _threading.get_thread_name(thread_id)
 
 
-def _get_original_lock_class(module_name: str, class_name: str) -> Any:
+def _get_original_lock_class(module_name: str, class_name: str) -> Callable[..., Any]:
     """Reconstruct the original lock class when unpickling. Since this is a module-level function, it can be pickled."""
     import importlib
 
@@ -104,7 +104,7 @@ class _ProfiledLock:
     def __repr__(self) -> str:
         return f"<_ProfiledLock({self.__wrapped__!r}) at {self.init_location}>"
 
-    def __reduce__(self) -> Any:
+    def __reduce__(self) -> Tuple[Callable[..., Any], Tuple[()]]:
         """Support pickling by returning the wrapped lock.
 
         In the context of multiprocessing, the child process will get the unwrapped lock class, which will be re-wrapped
@@ -343,7 +343,7 @@ class _LockAllocatorWrapper:
         """
         return (self._original_class,)  # type: ignore[return-value]
 
-    def __reduce__(self) -> Any:
+    def __reduce__(self) -> Tuple[Callable[[str, str], Callable[..., Any]], Tuple[str, str]]:
         """Support pickling by returning the original class.
 
         In the context of multiprocessing, the child process will get the unwrapped lock class, which will be re-wrapped
