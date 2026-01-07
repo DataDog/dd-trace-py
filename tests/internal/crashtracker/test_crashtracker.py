@@ -1,9 +1,15 @@
 import os
 import sys
+import warnings
 
 import pytest
 
 import tests.internal.crashtracker.utils as utils
+
+# Crashtracking tests intentionally fork after initializing ddtrace, which spawns worker
+# threads; Python 3.12 now emits a DeprecationWarning for that sequence, so ignore it to
+# keep stderr assertions stable (mirrors telemetry tests).
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
