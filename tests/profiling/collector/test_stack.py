@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 # https://github.com/python/cpython/issues/117983
 # The fix was not backported to 3.11. The fix was first released in 3.12.5 for
 # Python 3.12. Tested with Python 3.11.8 and 3.12.5 to confirm the issue.
-TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and (
+GEVENT_COMPATIBLE_WITH_PYTHON_VERSION = os.getenv("DD_PROFILE_TEST_GEVENT", False) and (
     sys.version_info < (3, 11, 9) or sys.version_info >= (3, 12, 5)
 )
 
@@ -562,11 +562,11 @@ def _fib(n: int) -> int:
         return _fib(n - 1) + _fib(n - 2)
 
 
-@pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION, reason=f"gevent is not compatible with Python {sys.version_info}"
+)
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_collect_gevent_thread_task() -> None:
-    # TODO(taegyunkim): update echion to support gevent and test with stack v2
-
     from gevent import monkey
 
     monkey.patch_all()
@@ -590,7 +590,7 @@ def test_collect_gevent_thread_task() -> None:
     ddup.upload()
 
     # Start some (green)threads
-    def _dofib() -> None:
+    def _do_fib() -> None:
         for _ in range(5):
             # spend some time in CPU so the profiler can catch something
             # On a Mac w/ Apple M3 MAX with Python 3.11 it takes about 200ms to calculate _fib(32)
@@ -604,7 +604,7 @@ def test_collect_gevent_thread_task() -> None:
 
     with stack.StackCollector():
         for i in range(5):
-            t = threading.Thread(target=_dofib, name="TestThread %d" % i)
+            t = threading.Thread(target=_do_fib, name=f"TestThread {i}")
             t.start()
             threads.append(t)
         for t in threads:

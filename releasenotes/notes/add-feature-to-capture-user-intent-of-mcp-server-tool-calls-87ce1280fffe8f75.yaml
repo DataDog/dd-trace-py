@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Adds ability to automatically capture the intent and context of an MCP server tool call to modelcontextprotocol/python-sdk servers using the ``DD_MCP_CAPTURE_INTENT`` environment variable.

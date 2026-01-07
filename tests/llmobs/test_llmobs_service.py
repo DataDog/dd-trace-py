@@ -30,6 +30,7 @@ from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
@@ -860,6 +861,14 @@ def test_annotate_prompt_wrong_type(llmobs):
         )
 
 
+def test_annotate_linked_spans(llmobs):
+    with llmobs.llm(model_name="test_model") as span:
+        llmobs.annotate(span=span, _linked_spans=[{"span_id": "123", "trace_id": "456"}])
+        assert span._get_ctx_item(SPAN_LINKS) == [
+            {"span_id": "123", "trace_id": "456", "attributes": {"from": "output", "to": "input"}}
+        ]
+
+
 def test_span_error_sets_error(llmobs, llmobs_events):
     with pytest.raises(ValueError):
         with llmobs.llm(model_name="test_model", model_provider="test_model_provider") as span:
@@ -1335,6 +1344,16 @@ def test_annotation_context_modifies_name(llmobs):
             assert span.name == "test_agent_override"
 
 
+def test_annotation_context_modifies_span_links(llmobs):
+    with llmobs.annotation_context(_linked_spans=[{"span_id": "123", "trace_id": "456"}]):
+        with llmobs.llm(model_name="test_model") as span:
+            llmobs.annotate(span=span, _linked_spans=[{"span_id": "abc", "trace_id": "def"}])
+            assert span._get_ctx_item(SPAN_LINKS) == [
+                {"span_id": "123", "trace_id": "456", "attributes": {"from": "output", "to": "input"}},
+                {"span_id": "abc", "trace_id": "def", "attributes": {"from": "output", "to": "input"}},
+            ]
+
+
 def test_annotation_context_finished_context_does_not_modify_tags(llmobs):
     with llmobs.annotation_context(tags={"foo": "bar"}):
         pass
@@ -1440,6 +1459,47 @@ def test_annotation_context_not_reactivated_after_exit(llmobs):
     # After exiting annotation_context, tags should not be applied
     with llmobs.workflow(name="outside_span") as span2:
         assert span2._get_ctx_item(TAGS) is None
+
+
+def test_annotation_context_sequential_contexts_work_independently(llmobs):
+    """
+    Regression test: Verifies that multiple sequential annotation_contexts work correctly.
+    This tests the specific customer issue where using annotation_context multiple times
+    (e.g., with LangChain's structured outputs and batch()) would cause the second context's
+    annotations to fail after the first batch call.
+
+    The bug occurred because:
+    1. First annotation_context creates a Context with ANNOTATIONS_CONTEXT_ID=X
+    2. First annotation_context exits, but the Context remains active (with _reactivate=False)
+    3. Second annotation_context enters and reuses the stale Context's ANNOTATIONS_CONTEXT_ID=X
+    4. After first span finishes in second context, the Context is not reactivated
+    5. Subsequent spans don't have ANNOTATIONS_CONTEXT_ID, so annotations fail
+    """
+    # First annotation context
+    with llmobs.annotation_context(tags={"context": "first"}):
+        with llmobs.workflow(name="first_ctx_op1") as span1:
+            assert span1._get_ctx_item(TAGS) == {"context": "first"}
+        with llmobs.workflow(name="first_ctx_op2") as span2:
+            assert span2._get_ctx_item(TAGS) == {"context": "first"}
+
+    # Second annotation context - this is where the bug manifested
+    with llmobs.annotation_context(tags={"context": "second"}):
+        # First operation works (reused old context ID)
+        with llmobs.workflow(name="second_ctx_op1") as span3:
+            assert span3._get_ctx_item(TAGS) == {"context": "second"}
+        # Second operation failed before the fix (context not reactivated)
+        with llmobs.workflow(name="second_ctx_op2") as span4:
+            assert span4._get_ctx_item(TAGS) == {"context": "second"}
+        # Third operation to verify it continues to work
+        with llmobs.agent(name="second_ctx_op3") as span5:
+            assert span5._get_ctx_item(TAGS) == {"context": "second"}
+
+    # Third annotation context - verify it still works
+    with llmobs.annotation_context(tags={"context": "third"}):
+        with llmobs.workflow(name="third_ctx_op1") as span6:
+            assert span6._get_ctx_item(TAGS) == {"context": "third"}
+        with llmobs.workflow(name="third_ctx_op2") as span7:
+            assert span7._get_ctx_item(TAGS) == {"context": "third"}
 
 
 def test_annotation_context_only_applies_to_local_context(llmobs):
