@@ -214,6 +214,7 @@ replace_noaspect:
   iast_enabled: false
 
 repr_aspect:
+  <<: *default_aspect
   function_name: "iast_repr_aspect"
 
 repr_noaspect:
