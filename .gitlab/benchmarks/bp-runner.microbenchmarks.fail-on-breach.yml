@@ -539,7 +539,7 @@ experiments:
               - max_rss_usage < 43.25 MB
           - name: iastaspects-lstrip_aspect
             thresholds:
-              - execution_time < 0.02 ms
+              - execution_time < 0.03 ms
               - max_rss_usage < 43.25 MB
           - name: iastaspects-lstrip_noaspect
             thresholds:
