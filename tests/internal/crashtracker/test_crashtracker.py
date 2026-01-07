@@ -6,6 +6,7 @@ import pytest
 
 import tests.internal.crashtracker.utils as utils
 
+
 # Crashtracking tests intentionally fork after initializing ddtrace, which spawns worker
 # threads; Python 3.12 now emits a DeprecationWarning for that sequence, so ignore it to
 # keep stderr assertions stable (mirrors telemetry tests).
