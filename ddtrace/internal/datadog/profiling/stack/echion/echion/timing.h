@@ -15,8 +15,6 @@ inline clock_serv_t cclock;
 
 typedef unsigned long microsecond_t;
 
-inline microsecond_t last_time = 0;
-
 #define TS_TO_MICROSECOND(ts) ((ts).tv_sec * 1e6 + (ts).tv_nsec / 1e3)
 #define TV_TO_MICROSECOND(tv) ((tv).seconds * 1e6 + (tv).microseconds)
 

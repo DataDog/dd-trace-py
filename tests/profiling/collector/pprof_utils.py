@@ -407,10 +407,19 @@ def assert_profile_has_sample(
             if DEBUG_TEST:
                 print(e)
 
-    if not found and print_samples_on_failure:
-        print_all_samples(profile)
+    error_description = "Expected samples not found in profile "
+    if not found:
+        error_description += str(expected_sample.locations)
+        if expected_sample.task_name:
+            error_description += ", task name " + expected_sample.task_name
 
-    assert found, "Expected samples not found in profile " + str(expected_sample.locations)
+        if expected_sample.thread_name:
+            error_description += ", thread name " + expected_sample.thread_name
+
+        if print_samples_on_failure:
+            print_all_samples(profile)
+
+    assert found, error_description
 
 
 def print_all_samples(profile: pprof_pb2.Profile) -> None:

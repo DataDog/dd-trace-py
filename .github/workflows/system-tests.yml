@@ -13,9 +13,40 @@ on:
 
 jobs:
   build-wheels:
-    uses: ./.github/workflows/build_python_3.yml
-    with:
-      cibw_build: 'cp311-manylinux_x86_64 cp312-manylinux_x86_64 cp313-manylinux_x86_64'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - python-version: '3.11'
+            cp-version: 'cp311'
+          - python-version: '3.12'
+            cp-version: 'cp312'
+          - python-version: '3.13'
+            cp-version: 'cp313'
+    env:
+      CIBW_BUILD: ${{ matrix.cp-version }}-manylinux_x86_64
+      CIBW_BEFORE_ALL_LINUX: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
+      CIBW_ENVIRONMENT: "PATH=$HOME/.cargo/bin:$PATH CMAKE_BUILD_PARALLEL_LEVEL=12 CARGO_BUILD_JOBS=12"
+      CIBW_TEST_COMMAND: "python {project}/tests/smoke_test.py"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
+        with:
+          python-version: "3.13"
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@63fd63b352a9a8bdcc24791c9dbee952ee9a8abc # v3.3.0
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: wheels-${{ matrix.cp-version }}-manylinux_x86_64
+          path: ./wheelhouse/*.whl
 
   system-tests-build-weblog:
     needs:
@@ -371,7 +402,7 @@ jobs:
           pattern: wheels-*
           path: binaries/
           merge-multiple: true
-      
+
       - name: Upload combined wheels
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
