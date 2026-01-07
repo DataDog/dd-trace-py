@@ -13,13 +13,14 @@
 
 #include <mutex>
 #include <pthread.h>
+#include <thread>
 
 using namespace Datadog;
 
 // Helper class for spawning a std::thread with control over its default stack size
 #ifdef __linux__
+#include <ctime>
 #include <sys/resource.h>
-#include <time.h>
 #include <unistd.h>
 
 struct ThreadArgs
@@ -161,13 +162,14 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto sample_time_prev = steady_clock::now();
     auto interval_adjust_time_prev = sample_time_prev;
 
+    auto* const runtime = &_PyRuntime;
     while (seq_num == thread_seq_num.load()) {
         auto sample_time_now = steady_clock::now();
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
 
         // Perform the sample
-        for_each_interp([&](InterpreterInfo& interp) -> void {
+        for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
             for_each_thread(interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
                 auto success = thread.sample(interp.id, tstate, wall_time_us);
                 if (success) {
@@ -335,9 +337,8 @@ Sampler::track_asyncio_loop(uintptr_t thread_id, PyObject* loop)
 {
     // Holds echion's global lock
     std::lock_guard<std::mutex> guard(thread_info_map_lock);
-    if (thread_info_map.find(thread_id) != thread_info_map.end()) {
-        thread_info_map.find(thread_id)->second->asyncio_loop =
-          (loop != Py_None) ? reinterpret_cast<uintptr_t>(loop) : 0;
+    if (auto it = thread_info_map.find(thread_id); it != thread_info_map.end()) {
+        it->second->asyncio_loop = (loop != Py_None) ? reinterpret_cast<uintptr_t>(loop) : 0;
     }
 }
 
