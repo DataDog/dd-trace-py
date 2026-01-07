@@ -1120,6 +1120,12 @@ class LLMObs(Service):
             # restored after exiting the annotation_context block
             if state["created_context"] is not None:
                 state["created_context"]._reactivate = False
+                # DEV: Deactivate the context we created so subsequent annotation_contexts
+                # don't see the stale context with the old ANNOTATIONS_CONTEXT_ID.
+                # Only deactivate if this context is still the active one (not a Span).
+                current_active = cls._instance.tracer.context_provider.active()
+                if current_active is state["created_context"]:
+                    cls._instance.tracer.context_provider.activate(None)
 
         return AnnotationContext(register_annotation, deregister_annotation)
 
@@ -2068,11 +2074,15 @@ class LLMObs(Service):
                 return
             parent_llmobs_trace_id = context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
             if parent_llmobs_trace_id is None:
-                log.debug("Failed to extract LLMObs trace ID from request headers. Expected string, got None.")
+                log.debug(
+                    "Failed to extract LLMObs trace ID from request headers. Expected string, got None. "
+                    "Defaulting to the corresponding APM trace ID."
+                )
                 llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
                 llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(context.trace_id)
                 cls._instance._llmobs_context_provider.activate(llmobs_context)
                 error = "missing_parent_llmobs_trace_id"
+                return
             llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
             llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(parent_llmobs_trace_id)
             cls._instance._llmobs_context_provider.activate(llmobs_context)

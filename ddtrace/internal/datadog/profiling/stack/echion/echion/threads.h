@@ -298,7 +298,7 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
         for (auto key : to_remove) {
             // Only remove the link if the Child Task previously existed; otherwise it's a Task that
             // has just been created and that wasn't in all_tasks when we took the snapshot.
-            if (previous_task_objects.find(key) != previous_task_objects.end()) {
+            if (auto it = previous_task_objects.find(key); it != previous_task_objects.end()) {
                 task_link_map.erase(key);
             }
         }
@@ -368,8 +368,8 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
 
             // Get the next task in the chain
             PyObject* task_origin = task.origin;
-            if (waitee_map.find(task_origin) != waitee_map.end()) {
-                current_task = waitee_map.find(task_origin)->second;
+            if (auto maybe_waitee = waitee_map.find(task_origin); maybe_waitee != waitee_map.end()) {
+                current_task = maybe_waitee->second;
                 continue;
             }
 
@@ -377,10 +377,11 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
                 // Check for, e.g., gather links
                 std::lock_guard<std::mutex> lock(task_link_map_lock);
 
-                if (task_link_map.find(task_origin) != task_link_map.end() &&
-                    origin_map.find(task_link_map[task_origin]) != origin_map.end()) {
-                    current_task = origin_map.find(task_link_map[task_origin])->second;
-                    continue;
+                if (auto maybe_parent = task_link_map.find(task_origin); maybe_parent != task_link_map.end()) {
+                    if (auto maybe_origin = origin_map.find(maybe_parent->second); maybe_origin != origin_map.end()) {
+                        current_task = maybe_origin->second;
+                        continue;
+                    }
                 }
             }
 
@@ -661,7 +662,7 @@ ThreadInfo::unwind_greenlets(PyThreadState* tstate, unsigned long cur_native_id)
         auto greenlet_id = greenlet_info.first;
         auto& greenlet = greenlet_info.second;
 
-        if (parent_greenlets.find(greenlet_id) != parent_greenlets.end())
+        if (parent_greenlets.contains(greenlet_id))
             continue;
 
         auto frame = greenlet->frame;
