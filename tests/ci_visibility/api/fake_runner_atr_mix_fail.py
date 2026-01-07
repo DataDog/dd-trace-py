@@ -137,9 +137,7 @@ def run_tests():
         m1_s1_t2_retry_number = api.InternalTest.atr_add_retry(m1_s1_t2_id, start_immediately=True)
         retry_status = TestStatus.PASS if m1_s1_t2_retry_count == 7 else TestStatus.FAIL
         is_final_retry = not api.InternalTest.atr_should_retry(m1_s1_t2_id)
-        api.InternalTest.atr_finish_retry(
-            m1_s1_t2_id, m1_s1_t2_retry_number, retry_status, is_final_retry
-        )
+        api.InternalTest.atr_finish_retry(m1_s1_t2_id, m1_s1_t2_retry_number, retry_status, is_final_retry)
     assert m1_s1_t2_retry_count == 7, "Expected 7 ATR retries, got %s" % m1_s1_t2_retry_count
     m1_s1_t2_final_status = api.InternalTest.atr_get_final_status(m1_s1_t2_id)
     assert m1_s1_t2_final_status == TestStatus.PASS, "Expected final status to be PASS, got %s" % m1_s1_t2_final_status

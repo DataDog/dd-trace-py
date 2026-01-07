@@ -165,7 +165,7 @@ class TestCIVisibilityTestEFD:
                 expected_num_retry += 1
                 added_retry_number = efd_test.efd_add_retry(start_immediately=True)
                 assert added_retry_number == expected_num_retry
-                is_final_retry = (idx == len(retry_results) - 1)
+                is_final_retry = idx == len(retry_results) - 1
                 efd_test.efd_finish_retry(added_retry_number, test_result, is_final_retry)
             assert efd_test.efd_get_final_status() == expected_statuses[0]
             assert efd_test.get_status() == expected_statuses[1]
@@ -184,7 +184,9 @@ class TestCIVisibilityTestEFD:
         from ddtrace.internal.ci_visibility.constants import TEST_FINAL_STATUS
 
         # Use EFD settings with very low retry limits to ensure we hit the limit quickly
-        efd_settings = EarlyFlakeDetectionSettings(True, slow_test_retries_5s=2, slow_test_retries_10s=2, slow_test_retries_30s=2, slow_test_retries_5m=2)
+        efd_settings = EarlyFlakeDetectionSettings(
+            True, slow_test_retries_5s=2, slow_test_retries_10s=2, slow_test_retries_30s=2, slow_test_retries_5m=2
+        )
 
         efd_test = TestVisibilityTest(
             name="efd_test",
