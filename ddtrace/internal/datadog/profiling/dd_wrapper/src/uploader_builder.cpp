@@ -149,8 +149,7 @@ Datadog::UploaderBuilder::build()
         { ExportTagKey::runtime_id, runtime_id },
         { ExportTagKey::runtime_version, runtime_version },
         { ExportTagKey::profiler_version, profiler_version },
-        { ExportTagKey::process_id, process_id },
-        { ExportTagKey::process_tags, process_tags },
+        { ExportTagKey::process_id, process_id }
     };
 
     for (const auto& [tag, data] : tag_data) {
@@ -234,7 +233,10 @@ Datadog::UploaderBuilder::build()
     // when the temporary Uploader object goes out of scope.
     // This was necessary to avoid double-free from calling ddog_prof_Exporter_drop()
     // in the destructor of Uploader. See comments in uploader.hpp for more details.
-    return std::variant<Datadog::Uploader, std::string>{
-        std::in_place_type<Datadog::Uploader>, output_filename, *ddog_exporter, encoded.ok, std::move(stats)
-    };
+    return std::variant<Datadog::Uploader, std::string>{ std::in_place_type<Datadog::Uploader>,
+                                                         output_filename,
+                                                         *ddog_exporter,
+                                                         encoded.ok,
+                                                         std::move(stats),
+                                                         process_tags };
 }
