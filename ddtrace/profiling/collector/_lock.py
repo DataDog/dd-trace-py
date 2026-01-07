@@ -37,6 +37,17 @@ def _current_thread() -> Tuple[int, str]:
     return thread_id, _threading.get_thread_name(thread_id)
 
 
+def _get_original_lock_class(module_name: str, class_name: str) -> Any:
+    """Reconstruct the original lock class when unpickling. Since this is a module-level function, it can be pickled."""
+    import importlib
+
+    module = importlib.import_module(module_name)
+    obj = getattr(module, class_name)
+
+    # If the object is still wrapped (profiling active in this process), unwrap it. Else, return the original object.
+    return obj._original_class if isinstance(obj, _LockAllocatorWrapper) else obj
+
+
 class _ProfiledLock:
     """
     Lightweight lock wrapper that profiles lock acquire/release operations.
@@ -92,6 +103,14 @@ class _ProfiledLock:
 
     def __repr__(self) -> str:
         return f"<_ProfiledLock({self.__wrapped__!r}) at {self.init_location}>"
+
+    def __reduce__(self) -> Any:
+        """Support pickling by returning the wrapped lock.
+
+        In the context of multiprocessing, the child process will get the unwrapped lock class, which will be re-wrapped
+        if profiling is enabled there.
+        """
+        return (type(self.__wrapped__), ())
 
     ### Regular methods ###
 
@@ -323,6 +342,17 @@ class _LockAllocatorWrapper:
         This method returns the actual object type to be used as the base class.
         """
         return (self._original_class,)  # type: ignore[return-value]
+
+    def __reduce__(self) -> Any:
+        """Support pickling by returning the original class.
+
+        In the context of multiprocessing, the child process will get the unwrapped lock class, which will be re-wrapped
+        if profiling is enabled there.
+        """
+        return (
+            _get_original_lock_class,
+            (self._original_class.__module__, self._original_class.__qualname__),
+        )
 
 
 class LockCollector(collector.CaptureSamplerCollector):

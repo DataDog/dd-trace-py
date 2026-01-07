@@ -4,6 +4,7 @@ import _thread
 import glob
 import os
 import sys
+import pickle
 import threading
 import time
 from typing import Callable
@@ -562,6 +563,39 @@ class BaseThreadingLockCollectorTest:
 
             # Try this way too
             Foobar(self.lock_class)
+
+    def test_lock_class_pickle(self) -> None:
+        """Test that the wrapped lock class can be pickled.
+
+        Python 3.14+ changed the default multiprocessing start method from 'fork' to 'forkserver',
+        which requires all objects to be pickleable.
+        """
+        with self.collector_class(capture_pct=100):
+            wrapper = self.lock_class
+            assert isinstance(wrapper, LockAllocatorWrapper)
+
+            unpickled = pickle.loads(pickle.dumps(wrapper))
+
+            assert not isinstance(unpickled, LockAllocatorWrapper)
+            lock = unpickled()
+            lock.acquire()
+            lock.release()
+
+    def test_lock_instance_pickle(self) -> None:
+        """Test that profiled lock instances can be pickled.
+
+        Python 3.14+ changed the default multiprocessing start method from 'fork' to 'forkserver',
+        which requires all objects to be pickleable.
+        """
+        with self.collector_class(capture_pct=100):
+            lock = self.lock_class()
+            assert isinstance(lock, _ProfiledLock)
+
+            unpickled = pickle.loads(pickle.dumps(lock))
+
+            assert not isinstance(unpickled, _ProfiledLock)
+            unpickled.acquire()
+            unpickled.release()
 
     def test_lock_events(self) -> None:
         # The first argument is the recorder.Recorder which is used for the
