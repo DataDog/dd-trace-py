@@ -5,8 +5,9 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.appsec._constants import AI_GUARD
-from ddtrace.appsec.ai_guard import AIGuardAbortError, Evaluation
+from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import AIGuardClientError
+from ddtrace.appsec.ai_guard import Evaluation
 from ddtrace.appsec.ai_guard import Function
 from ddtrace.appsec.ai_guard import Message
 from ddtrace.appsec.ai_guard import Options
@@ -284,6 +285,7 @@ def test_meta_attribute(mock_execute_request):
             {"service": "test-service", "env": "test-env"},
         )
 
+
 def test_evaluation_backwards_compatibility():
     action = "ALLOW"
     reason = "It's fine"
@@ -294,11 +296,10 @@ def test_evaluation_backwards_compatibility():
     assert evaluation["tags"] == tags
     assert evaluation.keys() == ["action", "reason", "tags"]
     assert evaluation.values() == [action, reason, tags]
-    assert evaluation.items() == [('action', action), ('reason', reason), ('tags', tags)]
+    assert evaluation.items() == [("action", action), ("reason", reason), ("tags", tags)]
     try:
         evaluation["other"]
         assert False, "should trigger an exception"
     except KeyError:
         assert True
     assert evaluation.get("other", "test") == "test"
-
