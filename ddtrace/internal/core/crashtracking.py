@@ -93,10 +93,6 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
         if receiver_script_path is None:
             print("Failed to get path to _dd_crashtracker_receiver module", file=sys.stderr)
             return (None, None, None)
-
-        # Ensure we have the .py file, not .pyc
-        if receiver_script_path.endswith(".pyc"):
-            receiver_script_path = receiver_script_path[:-1]  # Remove 'c' to get .py
     except ImportError:
         print("Failed to import _dd_crashtracker_receiver module", file=sys.stderr)
         return (None, None, None)
