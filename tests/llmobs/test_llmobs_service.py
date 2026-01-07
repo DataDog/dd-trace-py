@@ -26,9 +26,9 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
+from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
-from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
@@ -1078,7 +1078,8 @@ def test_activate_distributed_headers_no_llmobs_trace_id_starts_new_context(llmo
             llmobs.activate_distributed_headers({})
             assert mock_extract.call_count == 1
             mock_llmobs_logs.debug.assert_called_once_with(
-                "Failed to extract LLMObs trace ID from request headers. Expected string, got None. Defaulting to the corresponding APM trace ID."
+                "Failed to extract LLMObs trace ID from request headers. Expected string, got None. "
+                "Defaulting to the corresponding APM trace ID."
             )
             mock_activate.assert_called_once_with(dummy_context)
 
