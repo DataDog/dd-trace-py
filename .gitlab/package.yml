@@ -243,13 +243,16 @@ publish-wheels-to-s3:
         echo "S3 index (branch):   ${BRANCH_INDEX_URL}"
       fi
 
-
 # Fail if the downloaded package versions do not match the git tag version
 verify_package_version:
   image: registry.ddbuild.io/images/mirror/python:3.14.0
   tags: [ "arch:amd64" ]
   stage: package
-  needs: [ download_ddtrace_artifacts ]
+  needs:
+    - "build linux"
+    - "build macos"
+    - "build sdist"
+    - "download_ddtrace_artifacts"
   only:
     # v2.10.0
     # v2.10.1
