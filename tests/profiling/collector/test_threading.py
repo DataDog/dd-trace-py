@@ -3,8 +3,8 @@ from __future__ import annotations
 import _thread
 import glob
 import os
-import sys
 import pickle
+import sys
 import threading
 import time
 from typing import Callable
