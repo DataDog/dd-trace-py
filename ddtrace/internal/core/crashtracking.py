@@ -1,6 +1,5 @@
 import os
 import platform
-import shutil
 import sys
 from typing import Dict
 from typing import Optional
@@ -81,32 +80,25 @@ def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
 
 
 def _get_args(additional_tags: Optional[Dict[str, str]]):
-    dd_crashtracker_receiver = None
+    # Instead of searching PATH for the receiver binary, invoke the receiver script
+    # directly with the current Python interpreter. This is more reliable and doesn't
+    # depend on PATH configuration.
+    python_executable = sys.executable
 
-    # If _dd_crashtracker_receiver is available in injected environment, we should use it.
-    for path_entry in sys.path:
-        if not path_entry:
-            continue
-        candidate_base = os.path.join(path_entry, "_dd_crashtracker_receiver")
-        for candidate in (candidate_base, f"{candidate_base}.py"):
-            if os.path.exists(candidate):
-                dd_crashtracker_receiver = candidate
-                break
-        if dd_crashtracker_receiver:
-            break
+    # Get the path to the receiver script module
+    try:
+        import ddtrace.commands._dd_crashtracker_receiver as receiver_module
 
-    # If not found in injected environment, fall back to PATH.
-    if dd_crashtracker_receiver is None:
-        dd_crashtracker_receiver = shutil.which("_dd_crashtracker_receiver")
+        receiver_script_path = receiver_module.__file__
+        if receiver_script_path is None:
+            print("Failed to get path to _dd_crashtracker_receiver module", file=sys.stderr)
+            return (None, None, None)
 
-    # If not found in PATH, try ddtrace installation directory
-    if dd_crashtracker_receiver is None:
-        script_path = os.path.join(os.path.dirname(__file__), "..", "..", "commands", "_dd_crashtracker_receiver.py")
-        if os.path.exists(script_path):
-            dd_crashtracker_receiver = script_path
-
-    if dd_crashtracker_receiver is None:
-        print("Failed to find _dd_crashtracker_receiver", file=sys.stderr)
+        # Ensure we have the .py file, not .pyc
+        if receiver_script_path.endswith(".pyc"):
+            receiver_script_path = receiver_script_path[:-1]  # Remove 'c' to get .py
+    except ImportError:
+        print("Failed to import _dd_crashtracker_receiver module", file=sys.stderr)
         return (None, None, None)
 
     if crashtracker_config.stacktrace_resolver is None:
@@ -142,10 +134,24 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
     if crashtracking_enabled is not None:
         receiver_env["DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED"] = crashtracking_enabled
 
+    # Crashtracker is supported only on Linux and macOS, so we only need to inherit
+    # these library path environment variables.
+    # setup.py:269
+    inherited_env_vars = [
+        "LD_LIBRARY_PATH",
+        "DYLD_LIBRARY_PATH",
+        "PYTHONPATH",
+    ]
+    for env_var in inherited_env_vars:
+        env_value = os.environ.get(env_var)
+        if env_value is not None:
+            receiver_env[env_var] = env_value
+
+    # This is equivalent to: python /path/to/_dd_crashtracker_receiver.py
     receiver_config = CrashtrackerReceiverConfig(
-        [],  # args
+        [python_executable, receiver_script_path],  # args: [program_name, script_path]
         receiver_env,
-        dd_crashtracker_receiver,  # path_to_receiver_binary
+        python_executable,  # path_to_receiver_binary: use current Python interpreter
         crashtracker_config.stderr_filename,
         crashtracker_config.stdout_filename,
     )
