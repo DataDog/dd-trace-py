@@ -99,7 +99,9 @@ def run_tests():
         retry_status = TestStatus.PASS if m1_s1_t1_retry_count % 4 == 0 else TestStatus.FAIL
         is_final_retry = not api.InternalTest.atr_should_retry(m1_s1_t1_id)
         final_status = TestStatus.PASS if is_final_retry else None
-        api.InternalTest.atr_finish_retry(m1_s1_t1_id, m1_s1_t1_retry_number, retry_status, is_final_retry, final_status)
+        api.InternalTest.atr_finish_retry(
+            m1_s1_t1_id, m1_s1_t1_retry_number, retry_status, is_final_retry, final_status
+        )
     assert m1_s1_t1_retry_count == 4, "Expected 4 ATR retries, got %s" % m1_s1_t1_retry_count
     m1_s1_t1_final_status = api.InternalTest.atr_get_final_status(m1_s1_t1_id)
     assert m1_s1_t1_final_status == TestStatus.PASS, "Expected final status to be PASS, got %s" % m1_s1_t1_final_status
@@ -115,7 +117,9 @@ def run_tests():
         retry_status = TestStatus.PASS if m1_s1_t2_retry_count > 1 else TestStatus.FAIL
         is_final_retry = not api.InternalTest.atr_should_retry(m1_s1_t2_id)
         final_status = TestStatus.PASS if is_final_retry else None
-        api.InternalTest.atr_finish_retry(m1_s1_t2_id, m1_s1_t2_retry_number, retry_status, is_final_retry, final_status)
+        api.InternalTest.atr_finish_retry(
+            m1_s1_t2_id, m1_s1_t2_retry_number, retry_status, is_final_retry, final_status
+        )
     assert m1_s1_t2_retry_count == 2, "Expected 2 ATR retries, got %s" % m1_s1_t2_retry_count
     m1_s1_t2_final_status = api.InternalTest.atr_get_final_status(m1_s1_t2_id)
     assert m1_s1_t2_final_status == TestStatus.PASS, "Expected final status to be PASS, got %s" % m1_s1_t2_final_status
