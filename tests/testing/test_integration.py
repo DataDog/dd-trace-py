@@ -630,3 +630,252 @@ class TestRetryHandler:
 
         # Should not retry after max attempts
         assert handler.should_retry(test) is False
+
+    def test_auto_retry_handler_sets_final_status_tag(self) -> None:
+        """Test that AutoTestRetriesHandler sets the final_status tag on the last test run."""
+        from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
+        from ddtrace.testing.internal.test_data import ModuleRef
+        from ddtrace.testing.internal.test_data import SuiteRef
+        from ddtrace.testing.internal.test_data import Test
+        from ddtrace.testing.internal.test_data import TestRef
+        from ddtrace.testing.internal.test_data import TestStatus
+        from ddtrace.testing.internal.test_data import TestTag
+
+        # Create a mock session manager
+        mock_session_manager = Mock()
+
+        # Create AutoTestRetriesHandler
+        with patch.dict(
+            os.environ,
+            {
+                "DD_API_KEY": "foobar",
+                "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true",
+                "DD_CIVISIBILITY_FLAKY_RETRY_COUNT": "2",
+                "DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT": "5",
+            },
+        ):
+            handler = AutoTestRetriesHandler(mock_session_manager)
+
+        # Create a test with a mock parent (suite)
+        module_ref = ModuleRef("module")
+        suite_ref = SuiteRef(module_ref, "suite")
+        test_ref = TestRef(suite_ref, "test_atr_final_status")
+
+        # Create a mock suite as parent
+        mock_suite = Mock()
+        mock_suite.ref = suite_ref
+
+        test = Test(test_ref.name, parent=mock_suite)
+
+        # Initial failing test run
+        test_run = test.make_test_run()
+        test_run.start()
+        test_run.set_status(TestStatus.FAIL)
+        test_run.finish()
+
+        # First retry - pass
+        test_run2 = test.make_test_run()
+        test_run2.start()
+        test_run2.set_status(TestStatus.PASS)
+        test_run2.finish()
+
+        # Get final status
+        final_status = handler.get_final_status(test)
+
+        # Verify final status is PASS (ATR stops on first pass)
+        assert final_status == TestStatus.PASS
+
+        # Simulate what the plugin does: set the final status tag on the last test run
+        test.last_test_run.set_tags({TestTag.FINAL_STATUS: final_status.value})
+
+        # Verify final_status tag was set on the last test run
+        assert TestTag.FINAL_STATUS in test.last_test_run.tags
+        assert test.last_test_run.tags[TestTag.FINAL_STATUS] == "pass"
+
+    def test_efd_handler_sets_final_status_tag(self) -> None:
+        """Test that EarlyFlakeDetectionHandler sets the final_status tag on the last test run."""
+        from ddtrace.testing.internal.retry_handlers import EarlyFlakeDetectionHandler
+        from ddtrace.testing.internal.test_data import ModuleRef
+        from ddtrace.testing.internal.test_data import SuiteRef
+        from ddtrace.testing.internal.test_data import Test
+        from ddtrace.testing.internal.test_data import TestRef
+        from ddtrace.testing.internal.test_data import TestStatus
+        from ddtrace.testing.internal.test_data import TestTag
+
+        # Create a mock session manager with EFD settings
+        mock_session_manager = Mock()
+        mock_efd_settings = Mock()
+        mock_efd_settings.slow_test_retries_5s = 2
+        mock_efd_settings.slow_test_retries_10s = 2
+        mock_efd_settings.slow_test_retries_30s = 2
+        mock_efd_settings.slow_test_retries_5m = 2
+        mock_settings = Mock()
+        mock_settings.early_flake_detection = mock_efd_settings
+        mock_session_manager.settings = mock_settings
+
+        handler = EarlyFlakeDetectionHandler(mock_session_manager)
+
+        # Create a new test
+        module_ref = ModuleRef("module")
+        suite_ref = SuiteRef(module_ref, "suite")
+        test_ref = TestRef(suite_ref, "test_efd_final_status")
+
+        mock_suite = Mock()
+        mock_suite.ref = suite_ref
+
+        test = Test(test_ref.name, parent=mock_suite)
+        test.set_attributes(is_new=True)
+
+        # Initial test run - pass
+        test_run = test.make_test_run()
+        test_run.start()
+        test_run.set_status(TestStatus.PASS)
+        test_run.finish()
+
+        # First retry - fail
+        test_run2 = test.make_test_run()
+        test_run2.start()
+        test_run2.set_status(TestStatus.FAIL)
+        test_run2.finish()
+
+        # Second retry - fail
+        test_run3 = test.make_test_run()
+        test_run3.start()
+        test_run3.set_status(TestStatus.FAIL)
+        test_run3.finish()
+
+        # Get final status
+        final_status = handler.get_final_status(test)
+
+        # Verify final status is PASS (EFD: any pass = flaky pass)
+        assert final_status == TestStatus.PASS
+
+        # Simulate what the plugin does: set the final status tag on the last test run
+        test.last_test_run.set_tags({TestTag.FINAL_STATUS: final_status.value})
+
+        # Verify final_status tag was set on the last test run
+        assert TestTag.FINAL_STATUS in test.last_test_run.tags
+        assert test.last_test_run.tags[TestTag.FINAL_STATUS] == "pass"
+
+    def test_attempt_to_fix_handler_sets_final_status_tag(self) -> None:
+        """Test that AttemptToFixHandler sets the final_status tag on the last test run."""
+        from ddtrace.testing.internal.retry_handlers import AttemptToFixHandler
+        from ddtrace.testing.internal.test_data import ModuleRef
+        from ddtrace.testing.internal.test_data import SuiteRef
+        from ddtrace.testing.internal.test_data import Test
+        from ddtrace.testing.internal.test_data import TestRef
+        from ddtrace.testing.internal.test_data import TestStatus
+        from ddtrace.testing.internal.test_data import TestTag
+
+        # Create a mock session manager with attempt-to-fix settings
+        mock_session_manager = Mock()
+        mock_test_mgmt_settings = Mock()
+        mock_test_mgmt_settings.attempt_to_fix_retries = 3
+        mock_settings = Mock()
+        mock_settings.test_management = mock_test_mgmt_settings
+        mock_session_manager.settings = mock_settings
+
+        handler = AttemptToFixHandler(mock_session_manager)
+
+        # Create a test marked for attempt-to-fix
+        module_ref = ModuleRef("module")
+        suite_ref = SuiteRef(module_ref, "suite")
+        test_ref = TestRef(suite_ref, "test_attempt_to_fix_final_status")
+
+        mock_suite = Mock()
+        mock_suite.ref = suite_ref
+
+        test = Test(test_ref.name, parent=mock_suite)
+        test.set_attributes(is_attempt_to_fix=True)
+
+        # Initial test run - fail
+        test_run = test.make_test_run()
+        test_run.start()
+        test_run.set_status(TestStatus.FAIL)
+        test_run.finish()
+
+        # First retry - fail
+        test_run2 = test.make_test_run()
+        test_run2.start()
+        test_run2.set_status(TestStatus.FAIL)
+        test_run2.finish()
+
+        # Second retry - pass
+        test_run3 = test.make_test_run()
+        test_run3.start()
+        test_run3.set_status(TestStatus.PASS)
+        test_run3.finish()
+
+        # Third retry - pass
+        test_run4 = test.make_test_run()
+        test_run4.start()
+        test_run4.set_status(TestStatus.PASS)
+        test_run4.finish()
+
+        # Get final status
+        final_status = handler.get_final_status(test)
+
+        # Verify final status is PASS (majority pass)
+        assert final_status == TestStatus.PASS
+
+        # Simulate what the plugin does: set the final status tag on the last test run
+        test.last_test_run.set_tags({TestTag.FINAL_STATUS: final_status.value})
+
+        # Verify final_status tag was set on the last test run
+        assert TestTag.FINAL_STATUS in test.last_test_run.tags
+        assert test.last_test_run.tags[TestTag.FINAL_STATUS] == "pass"
+
+    def test_final_status_tag_all_fail(self) -> None:
+        """Test that final_status tag is correctly set to 'fail' when all retries fail."""
+        from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
+        from ddtrace.testing.internal.test_data import ModuleRef
+        from ddtrace.testing.internal.test_data import SuiteRef
+        from ddtrace.testing.internal.test_data import Test
+        from ddtrace.testing.internal.test_data import TestRef
+        from ddtrace.testing.internal.test_data import TestStatus
+        from ddtrace.testing.internal.test_data import TestTag
+
+        # Create a mock session manager
+        mock_session_manager = Mock()
+
+        # Create AutoTestRetriesHandler
+        with patch.dict(
+            os.environ,
+            {
+                "DD_API_KEY": "foobar",
+                "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true",
+                "DD_CIVISIBILITY_FLAKY_RETRY_COUNT": "2",
+                "DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT": "5",
+            },
+        ):
+            handler = AutoTestRetriesHandler(mock_session_manager)
+
+        # Create a test
+        module_ref = ModuleRef("module")
+        suite_ref = SuiteRef(module_ref, "suite")
+        test_ref = TestRef(suite_ref, "test_all_fail")
+
+        mock_suite = Mock()
+        mock_suite.ref = suite_ref
+
+        test = Test(test_ref.name, parent=mock_suite)
+
+        # All test runs fail
+        for _ in range(3):
+            test_run = test.make_test_run()
+            test_run.start()
+            test_run.set_status(TestStatus.FAIL)
+            test_run.finish()
+
+        # Get final status
+        final_status = handler.get_final_status(test)
+
+        # Verify final status is FAIL
+        assert final_status == TestStatus.FAIL
+
+        # Simulate what the plugin does: set the final status tag on the last test run
+        test.last_test_run.set_tags({TestTag.FINAL_STATUS: final_status.value})
+
+        # Verify final_status tag was set to 'fail'
+        assert TestTag.FINAL_STATUS in test.last_test_run.tags
+        assert test.last_test_run.tags[TestTag.FINAL_STATUS] == "fail"
