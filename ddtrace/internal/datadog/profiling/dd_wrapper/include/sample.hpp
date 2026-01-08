@@ -122,7 +122,7 @@ class Sample
     bool push_absolute_ns(int64_t timestamp_ns);
 
     // Interacts with static Sample state
-    bool is_timeline_enabled() const;
+    static bool is_timeline_enabled();
     static void set_timeline(bool enabled);
 
     // Pytorch GPU metadata
