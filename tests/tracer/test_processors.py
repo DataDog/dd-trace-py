@@ -23,14 +23,12 @@ from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
-from tests.utils import override_global_config
 
 
 class DummyProcessor(TraceProcessor):
@@ -474,55 +472,46 @@ def test_trace_128bit_processor(trace_id):
     assert chunk_root._meta[HIGHER_ORDER_TRACE_ID_BITS] == "{:016x}".format(chunk_root.trace_id >> 64)
 
 
+@pytest.mark.subprocess(
+    env={
+        "DD_CIVISIBILITY_ENABLED": "false",
+        "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "true",
+    }
+)
 def test_span_creation_metrics():
     """Test that telemetry metrics are queued in batches of 100 and the remainder is sent on shutdown"""
-    writer = DummyWriter()
-    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
-    aggr.writer = writer
+    import mock
 
-    with override_global_config(dict(_telemetry_enabled=True)):
-        with mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric") as mock_tm:
-            for _ in range(300):
-                span = Span("span", on_finish=[aggr.on_span_finish])
-                aggr.on_span_start(span)
-                span.finish()
+    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+    from ddtrace.trace import tracer
 
-            span = Span("span", on_finish=[aggr.on_span_finish])
-            aggr.on_span_start(span)
+    with mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric") as mock_tm:
+        for _ in range(300):
+            tracer.trace("span").finish()
+
+        with tracer.trace("span") as span:
             span.set_tag("component", "custom")
-            span.finish()
 
-            mock_tm.assert_has_calls(
-                [
-                    mock.call(
-                        TELEMETRY_NAMESPACE.TRACERS, "spans_created", 100, tags=(("integration_name", "datadog"),)
-                    ),
-                    mock.call(
-                        TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 100, tags=(("integration_name", "datadog"),)
-                    ),
-                    mock.call(
-                        TELEMETRY_NAMESPACE.TRACERS, "spans_created", 100, tags=(("integration_name", "datadog"),)
-                    ),
-                    mock.call(
-                        TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 100, tags=(("integration_name", "datadog"),)
-                    ),
-                    mock.call(
-                        TELEMETRY_NAMESPACE.TRACERS, "spans_created", 100, tags=(("integration_name", "datadog"),)
-                    ),
-                    mock.call(
-                        TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 100, tags=(("integration_name", "datadog"),)
-                    ),
-                ]
-            )
-            mock_tm.reset_mock()
-            aggr.shutdown(None)
-            # On span finished the span has a different integration name:
-            mock_tm.assert_has_calls(
-                [
-                    mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_created", 1, tags=(("integration_name", "datadog"),)),
-                    mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 1, tags=(("integration_name", "custom"),)),
-                ]
-            )
+        mock_tm.assert_has_calls(
+            [
+                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_created", 100, tags=(("integration_name", "datadog"),)),
+                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 100, tags=(("integration_name", "datadog"),)),
+                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_created", 100, tags=(("integration_name", "datadog"),)),
+                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 100, tags=(("integration_name", "datadog"),)),
+                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_created", 100, tags=(("integration_name", "datadog"),)),
+                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 100, tags=(("integration_name", "datadog"),)),
+            ]
+        )
+
+        mock_tm.reset_mock()
+        tracer.shutdown()
+        # On span finished the span has a different integration name:
+        mock_tm.assert_has_calls(
+            [
+                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_created", 1, tags=(("integration_name", "datadog"),)),
+                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 1, tags=(("integration_name", "custom"),)),
+            ]
+        )
 
 
 def test_changing_tracer_sampler_changes_tracesamplingprocessor_sampler():
