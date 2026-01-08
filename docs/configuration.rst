@@ -754,7 +754,7 @@ Test Visibility
         also contains performance and memory usage improvements. The new version is currently experimental.
 
      version_added:
-        v4.2.0:
+        v4.3.0:
 
    DD_CIVISIBILITY_ENABLED:
      type: Boolean
