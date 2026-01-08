@@ -14,7 +14,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "8910f640050543eeb7b1d70d29943f8cbf1d3396"
+  SYSTEM_TESTS_REF: "c35863e8e9f5872e27e5f6cf0be8fae82288a4ff"
 
 default:
   interruptible: true
@@ -101,7 +101,6 @@ serverless lambda tests:
     UPSTREAM_GITLAB_USER_LOGIN: $GITLAB_USER_LOGIN
     UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL
     SKIP_E2E_TESTS: "true"
-  allow_failure: true
 
 # Validate the ast-grep rule's test suite in .sg/tests
 "ast-grep rules":
@@ -204,6 +203,10 @@ codeql-scan:
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
+  rules:
+    - if: !reference [.is_release]
+      when: never
+    - when: on_success
   variables:
     AWS_REGION: us-east-1
     BASE_REF: main
