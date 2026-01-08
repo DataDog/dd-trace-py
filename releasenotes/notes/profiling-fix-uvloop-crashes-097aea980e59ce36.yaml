@@ -1,0 +1,3 @@
+fixes:
+  - |
+    profiling: a bug causing crashes when using ``uvloop`` and forking has been resolved.
