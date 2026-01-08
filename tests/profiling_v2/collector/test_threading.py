@@ -1252,23 +1252,3 @@ class TestThreadingRLockCollector(BaseThreadingLockCollectorTest):
             # After releasing, it should not be owned
             lock.release()
             assert not lock._is_owned()
-
-    def test_subclassing_wrapped_lock(self) -> None:
-        """Test that subclassing of a wrapped lock type works when profiling is active.
-
-        This test is only valid for Semaphore-like types (pure Python classes).
-        threading.Lock and threading.RLock are C types that don't support subclassing
-        through __mro_entries__.
-        """
-        with self.collector_class(capture_pct=100):
-            assert isinstance(self.lock_class, LockAllocatorWrapper)
-
-            # This should NOT raise TypeError
-            class CustomLock(self.lock_class):  # type: ignore[misc]
-                def __init__(self) -> None:
-                    super().__init__()
-
-            # Verify subclassing and functionality
-            custom_lock: CustomLock = CustomLock()
-            assert custom_lock.acquire()
-            custom_lock.release()
