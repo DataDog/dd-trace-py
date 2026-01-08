@@ -290,7 +290,7 @@ def override_http_config(integration, values):
 @contextlib.contextmanager
 def scoped_tracer(use_dummy_writer=True):
     """Provides a test-scoped global tracer with no configuration leaks.
-    
+
     Use instead of DummyTracer. When use_dummy_writer=True, captures spans via DummyWriter.
     Note: DummyWriter is legacy. For new tests, prefer snapshot testing with AgentWriter/NativeWriter.
     """
