@@ -102,3 +102,4 @@ TEST_HAS_FAILED_ALL_RETRIES = "test.has_failed_all_retries"
 TEST_ATTEMPT_TO_FIX_PASSED = "test.test_management.attempt_to_fix_passed"
 
 TEST_MANAGEMENT_ENABLED = "test.test_management.enabled"
+TEST_FINAL_STATUS = "test.final_status"

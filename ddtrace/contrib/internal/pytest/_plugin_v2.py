@@ -730,6 +730,15 @@ def _pytest_run_one_test(item, nextitem):
             is_quarantined=is_quarantined,
         )
     else:
+        # Set final_status tag on the finished span for tests without retries
+        # This will be overridden by retry handlers for tests that are retried
+        # We access the span directly to set the tag after finishing
+        from ddtrace.internal.ci_visibility.constants import TEST_FINAL_STATUS
+
+        test_obj = require_ci_visibility_service().get_test_by_id(test_id)
+        if test_obj._span:
+            test_obj._span._meta[TEST_FINAL_STATUS] = test_outcome.status.value
+
         # If no retry handler, we log the reports ourselves.
         for report in reports:
             item.ihook.pytest_runtest_logreport(report=report)
