@@ -189,7 +189,7 @@ Datadog::UploaderBuilder::build()
         return errmsg;
     }
 
-    auto ddog_exporter = &res.ok;
+    auto* ddog_exporter = &res.ok;
 
     auto set_timeout_result = ddog_prof_Exporter_set_timeout(ddog_exporter, max_timeout_ms);
     if (set_timeout_result.tag == DDOG_VOID_RESULT_ERR) {
@@ -237,6 +237,6 @@ Datadog::UploaderBuilder::build()
                                                          output_filename,
                                                          *ddog_exporter,
                                                          encoded.ok,
-                                                         std::move(stats),
+                                                         stats,
                                                          process_tags };
 }
