@@ -49,8 +49,8 @@ create_thread_with_stack(size_t stack_size, Sampler* sampler, uint64_t seq_num)
         pthread_attr_setstacksize(&attr, stack_size);
     }
 
-    pthread_t thread_id;
-    ThreadArgs* thread_args = new ThreadArgs{ sampler, seq_num };
+    pthread_t thread_id{ 0 };
+    auto* thread_args = new ThreadArgs{ sampler, seq_num };
     int ret = pthread_create(&thread_id, &attr, call_sampling_thread, thread_args);
 
     pthread_attr_destroy(&attr);
@@ -69,7 +69,10 @@ void
 Sampler::adapt_sampling_interval()
 {
 #if defined(__linux__)
-    struct timespec ts;
+    struct timespec ts
+    {
+        0, 0
+    };
 
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
     auto new_process_count = static_cast<uint64_t>(ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000);
@@ -333,9 +336,8 @@ Sampler::track_asyncio_loop(uintptr_t thread_id, PyObject* loop)
 {
     // Holds echion's global lock
     std::lock_guard<std::mutex> guard(thread_info_map_lock);
-    if (thread_info_map.find(thread_id) != thread_info_map.end()) {
-        thread_info_map.find(thread_id)->second->asyncio_loop =
-          (loop != Py_None) ? reinterpret_cast<uintptr_t>(loop) : 0;
+    if (auto it = thread_info_map.find(thread_id); it != thread_info_map.end()) {
+        it->second->asyncio_loop = (loop != Py_None) ? reinterpret_cast<uintptr_t>(loop) : 0;
     }
 }
 
@@ -365,11 +367,12 @@ Sampler::track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* 
     const std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
 
     auto entry = greenlet_info_map.find(greenlet_id);
-    if (entry != greenlet_info_map.end())
+    if (entry != greenlet_info_map.end()) {
         // Greenlet is already tracked so we update its info
         entry->second = std::make_unique<GreenletInfo>(greenlet_id, frame, name);
-    else
+    } else {
         greenlet_info_map.emplace(greenlet_id, std::make_unique<GreenletInfo>(greenlet_id, frame, name));
+    }
 
     // Update the thread map
     auto native_id = PyThread_get_thread_native_id();
