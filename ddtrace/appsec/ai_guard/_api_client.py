@@ -7,6 +7,7 @@ from typing import List
 from typing import Literal
 from typing import Optional  # noqa:F401
 from typing import TypedDict
+from typing import Union
 
 from ddtrace import config
 from ddtrace import tracer as ddtracer
@@ -40,9 +41,19 @@ class ToolCall(TypedDict):
     function: Function
 
 
+class ImageURL(TypedDict, total=False):
+    url: str
+
+
+class ContentPart(TypedDict, total=False):
+    type: str
+    text: Optional[str]
+    image_url: Optional[ImageURL]
+
+
 class Message(TypedDict, total=False):
     role: str
-    content: str
+    content: Union[str, List[ContentPart]]
     tool_call_id: str
     tool_calls: List[ToolCall]
 
@@ -130,9 +141,18 @@ class AIGuardClient:
             # ensure the message cannot be modified before serialization
             new_message = deepcopy(message)
             content = new_message.get("content", "")
-            if len(content) > max_content_size:
-                new_message["content"] = content[:max_content_size]
-                content_truncated = True
+            if isinstance(content, str):
+                if len(content) > max_content_size:
+                    new_message["content"] = content[:max_content_size]
+                    content_truncated = True
+            elif isinstance(content, list):
+                # Handle List[ContentPart] - truncate text in content parts
+                for part in content:
+                    if isinstance(part, dict) and "text" in part:
+                        text = part.get("text", "")
+                        if isinstance(text, str) and len(text) > max_content_size:
+                            part["text"] = text[:max_content_size]
+                            content_truncated = True
             return new_message
 
         result = [truncate_message(message) for message in messages]
