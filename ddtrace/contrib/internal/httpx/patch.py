@@ -26,6 +26,7 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 
 
 HTTPX_VERSION = parse_version(httpx.__version__)
+HTTP_REQUEST_TAGS = {COMPONENT: config.httpx.integration_name, SPAN_KIND: SpanKind.CLIENT}
 
 
 def get_version() -> str:
@@ -74,10 +75,6 @@ def _get_service_name(request: httpx.Request) -> Optional[str]:
     return ext_service(None, config.httpx)
 
 
-def http_request_tags() -> Dict[str, str]:
-    return {COMPONENT: config.httpx.integration_name, SPAN_KIND: SpanKind.CLIENT}
-
-
 async def _wrapped_async_send(
     wrapped: BoundFunctionWrapper, instance: httpx.AsyncClient, args: Tuple[httpx.Request], kwargs: Dict[str, Any]
 ):
@@ -89,7 +86,7 @@ async def _wrapped_async_send(
         span_name=schematize_url_operation("http.request", protocol="http", direction=SpanDirection.OUTBOUND),
         span_type=SpanTypes.HTTP,
         service=_get_service_name(req),
-        tags=http_request_tags(),
+        tags=HTTP_REQUEST_TAGS,
         request=req,
     ) as ctx:
         resp = None
@@ -111,7 +108,7 @@ def _wrapped_sync_send(
         span_name=schematize_url_operation("http.request", protocol="http", direction=SpanDirection.OUTBOUND),
         span_type=SpanTypes.HTTP,
         service=_get_service_name(req),
-        tags=http_request_tags(),
+        tags=HTTP_REQUEST_TAGS,
         request=req,
     ) as ctx:
         resp = None
@@ -119,7 +116,8 @@ def _wrapped_sync_send(
             resp = wrapped(*args, **kwargs)
             return resp
         finally:
-            core.dispatch("httpx.send.completed", (ctx, req, resp, _url_to_str(req.url)))
+            ctx.set_item("response", resp)
+            ctx.set_item("request.url", _url_to_str(req.url))
 
 
 def patch() -> None:

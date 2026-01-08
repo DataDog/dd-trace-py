@@ -1,7 +1,6 @@
 import functools
 import sys
 from types import TracebackType
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -67,9 +66,6 @@ from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
 
-
-if TYPE_CHECKING:
-    import httpx
 
 log = get_logger(__name__)
 
@@ -1357,21 +1353,29 @@ def _on_httpx_request_start(ctx: core.ExecutionContext, call_trace: bool = True,
 
 
 def _on_httpx_send_completed(
-    ctx: core.ExecutionContext, request: "httpx.Request", response: "httpx.Response", url: str
+    ctx: core.ExecutionContext,
+    exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
 ) -> None:
     span = ctx.span
 
-    trace_utils.set_http_meta(
-        span,
-        config.httpx,
-        method=request.method,
-        url=url,
-        target_host=request.url.host,
-        status_code=response.status_code if response else None,
-        query=request.url.query,
-        request_headers=request.headers,
-        response_headers=response.headers if response else None,
-    )
+    request = ctx.get_item("request")
+    response = ctx.get_item("response")
+    url = ctx.get_item("url")
+
+    try:
+        trace_utils.set_http_meta(
+            span,
+            config.httpx,
+            method=request.method,
+            url=url,
+            target_host=request.url.host,
+            status_code=response.status_code if response else None,
+            query=request.url.query,
+            request_headers=request.headers,
+            response_headers=response.headers if response else None,
+        )
+    finally:
+        _finish_span(ctx, exc_info)
 
 
 def listen():
@@ -1456,8 +1460,6 @@ def listen():
     core.on("rq.worker.after.perform.job", _on_end_of_traced_method_in_fork)
     core.on("rq.queue.enqueue_job", _propagate_context)
     core.on("molten.router.match", _on_router_match)
-
-    core.on("httpx.send.completed", _on_httpx_send_completed)
 
     for context_name in (
         # web frameworks
@@ -1560,6 +1562,7 @@ def listen():
 
     # Special/extra handling before calling _finish_span
     core.on("context.ended.django.cache", _on_django_cache)
+    core.on("context.ended.httpx.request", _on_httpx_send_completed)
 
 
 listen()
