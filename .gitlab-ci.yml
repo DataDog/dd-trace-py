@@ -14,7 +14,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "8910f640050543eeb7b1d70d29943f8cbf1d3396"
+  SYSTEM_TESTS_REF: "c35863e8e9f5872e27e5f6cf0be8fae82288a4ff"
 
 default:
   interruptible: true
@@ -204,6 +204,10 @@ codeql-scan:
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
+  rules:
+    - if: !reference [.is_release]
+      when: never
+    - when: on_success
   variables:
     AWS_REGION: us-east-1
     BASE_REF: main
