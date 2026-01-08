@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: Backports a bug fix to v3.19. Original bug fix: https://github.com/DataDog/dd-trace-py/pull/15604.
