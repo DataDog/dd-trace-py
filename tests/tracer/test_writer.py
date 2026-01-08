@@ -44,6 +44,19 @@ def mock_sys_platform(new_value):
         sys.platform = old_value
 
 
+@contextlib.contextmanager
+def managed_writer(writer_class, writer_url, **writer_kwargs):
+    """Context manager that creates, starts, and stops a writer, ensuring all payloads are flushed."""
+    writer = writer_class(writer_url, **writer_kwargs)
+    writer.start()
+    try:
+        yield writer
+    finally:
+        writer.flush_queue()
+        # Wait for all asynchronous payloads to be sent before shutting down test servers.
+        writer.stop(3.0)
+
+
 class DummyOutput:
     def __init__(self):
         self.entries = []
@@ -891,19 +904,6 @@ def endpoint_assert_path():
         handler.expected_path_prefix = None
         server.shutdown()
         thread.join()
-
-
-@contextlib.contextmanager
-def managed_writer(writer_class, writer_url, **writer_kwargs):
-    """Context manager that creates, starts, and stops a writer, ensuring all payloads are flushed."""
-    writer = writer_class(writer_url, **writer_kwargs)
-    writer.start()
-    try:
-        yield writer
-    finally:
-        writer.flush_queue()
-        # Wait for all asynchronous payloads to be sent before shutting down test servers.
-        writer.stop(3.0)
 
 
 @pytest.mark.parametrize(
