@@ -361,7 +361,10 @@ class TestOptPlugin:
                 self._mark_quarantined_test_report_group_as_skipped(item, reports)
             self._log_test_reports(item, reports)
             test_run.finish()
-            test.set_status(test_run.get_status())
+            final_status = test_run.get_status()
+            test.set_status(final_status)
+            # Set final_status tag on tests without retries
+            test_run.set_tags({TestTag.FINAL_STATUS: final_status.value})
             self.manager.writer.put_item(test_run)
 
     def _set_test_run_data(self, test_run: TestRun, item: pytest.Item, context: TestContext) -> None:

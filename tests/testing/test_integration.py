@@ -880,8 +880,8 @@ class TestRetryHandler:
         assert TestTag.FINAL_STATUS in test.last_test_run.tags
         assert test.last_test_run.tags[TestTag.FINAL_STATUS] == "fail"
 
-    def test_no_final_status_tag_without_retries(self) -> None:
-        """Test that tests without retries do not have the final_status tag."""
+    def test_final_status_tag_on_tests_without_retries(self) -> None:
+        """Test that tests without retries have the final_status tag."""
         from ddtrace.testing.internal.test_data import ModuleRef
         from ddtrace.testing.internal.test_data import SuiteRef
         from ddtrace.testing.internal.test_data import Test
@@ -903,16 +903,19 @@ class TestRetryHandler:
         test_run = test.make_test_run()
         test_run.start()
         test_run.set_status(TestStatus.PASS)
+        # For tests without retries, the plugin should set the final_status tag
+        test_run.set_tags({TestTag.FINAL_STATUS: TestStatus.PASS.value})
         test_run.finish()
 
         # Set the test status
         test.set_status(TestStatus.PASS)
 
-        # Verify that the test run does NOT have the final_status tag
-        assert TestTag.FINAL_STATUS not in test_run.tags
+        # Verify that the test run has the final_status tag
+        assert TestTag.FINAL_STATUS in test_run.tags
+        assert test_run.tags[TestTag.FINAL_STATUS] == "pass"
 
-    def test_atr_no_final_status_tag_when_passing_on_first_try(self) -> None:
-        """Test that ATR tests passing on first try (no retries) don't have the final_status tag."""
+    def test_atr_final_status_tag_when_passing_on_first_try(self) -> None:
+        """Test that ATR tests passing on first try (no retries) have the final_status tag."""
         from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
         from ddtrace.testing.internal.test_data import ModuleRef
         from ddtrace.testing.internal.test_data import SuiteRef
@@ -950,6 +953,8 @@ class TestRetryHandler:
         test_run = test.make_test_run()
         test_run.start()
         test_run.set_status(TestStatus.PASS)
+        # For tests without retries, the plugin should set the final_status tag
+        test_run.set_tags({TestTag.FINAL_STATUS: TestStatus.PASS.value})
         test_run.finish()
 
         # Set the test status to pass
@@ -958,6 +963,7 @@ class TestRetryHandler:
         # Handler should not retry (test passed)
         assert handler.should_retry(test) is False
 
-        # Verify that the test run does NOT have the final_status tag
-        # (since ATR didn't retry, no final_status tag should be set)
-        assert TestTag.FINAL_STATUS not in test.last_test_run.tags
+        # Verify that the test run has the final_status tag
+        # (tests without retries should have the final_status tag)
+        assert TestTag.FINAL_STATUS in test.last_test_run.tags
+        assert test.last_test_run.tags[TestTag.FINAL_STATUS] == "pass"

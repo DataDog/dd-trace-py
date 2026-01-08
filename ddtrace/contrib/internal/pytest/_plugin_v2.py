@@ -55,6 +55,7 @@ from ddtrace.ext.test_visibility.api import disable_test_visibility
 from ddtrace.ext.test_visibility.api import enable_test_visibility
 from ddtrace.ext.test_visibility.api import is_test_visibility_enabled
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
+from ddtrace.internal.ci_visibility.constants import TEST_FINAL_STATUS
 from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_empty
@@ -691,10 +692,6 @@ def _pytest_run_one_test(item, nextitem):
     is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
     setup_or_teardown_failed = False
 
-    if not InternalTest.is_finished(test_id):
-        _handle_collected_coverage(item, test_id, _current_coverage_collector)
-        InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
-
     for report in reports:
         if report.failed and report.when in (TestPhase.SETUP, TestPhase.TEARDOWN):
             setup_or_teardown_failed = True
@@ -719,6 +716,15 @@ def _pytest_run_one_test(item, nextitem):
         retry_handler = efd_handle_retries
     elif InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
         retry_handler = atr_handle_retries
+
+    if not InternalTest.is_finished(test_id):
+        # For tests without retries, set final_status tag before finishing
+        if not retry_handler:
+            test_obj = require_ci_visibility_service().get_test_by_id(test_id)
+            test_obj.set_tag(TEST_FINAL_STATUS, test_outcome.status.value)
+
+        _handle_collected_coverage(item, test_id, _current_coverage_collector)
+        InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
     if retry_handler:
         # Retry handler is responsible for logging the test reports.

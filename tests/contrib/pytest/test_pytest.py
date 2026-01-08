@@ -5013,8 +5013,8 @@ def test_simple():
                 # Coverage data should be a dict with 'files' key
                 assert isinstance(coverage_data, dict) and "files" in coverage_data
 
-    def test_no_final_status_tag_without_retries(self):
-        """Test that tests without retries do not have the final_status tag."""
+    def test_final_status_tag_on_tests_without_retries(self):
+        """Test that tests without retries have the final_status tag."""
         py_file = self.testdir.makepyfile(
             """
             def test_pass():
@@ -5034,11 +5034,18 @@ def test_simple():
 
         # Get test spans
         test_spans = _get_spans_from_list(spans, "test")
+        assert len(test_spans) == 3
 
-        # Verify that none of the test spans have the final_status tag
+        # Verify that all test spans have the final_status tag
         for test_span in test_spans:
-            assert test_span.get_tag("test.final_status") is None, (
-                f"Test {test_span.get_tag('test.name')} should not have final_status tag without retries"
+            assert test_span.get_tag("test.final_status") is not None, (
+                f"Test {test_span.get_tag('test.name')} should have final_status tag"
+            )
+            # Verify the tag value matches the test status
+            test_status = test_span.get_tag("test.status")
+            final_status = test_span.get_tag("test.final_status")
+            assert final_status == test_status, (
+                f"Test {test_span.get_tag('test.name')}: final_status '{final_status}' should match test.status '{test_status}'"
             )
 
 

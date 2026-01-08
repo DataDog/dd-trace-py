@@ -300,8 +300,8 @@ class PytestATRTestCase(PytestTestCaseBase):
         assert rec.ret == 0
         assert len(spans) == 23
 
-    def test_pytest_atr_no_final_status_tag_without_retries(self):
-        """Test that tests passing on first try (no retries) don't have the final_status tag."""
+    def test_pytest_atr_final_status_tag_on_tests_without_retries(self):
+        """Test that tests passing on first try (no retries) have the final_status tag."""
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
 
         rec = self.inline_run("--ddtrace")
@@ -310,13 +310,17 @@ class PytestATRTestCase(PytestTestCaseBase):
 
         # Get test spans (should be 2 passing tests from _TEST_PASS_CONTENT)
         test_spans = _get_spans_from_list(spans, "test")
+        assert len(test_spans) == 2
 
-        # Verify that none of the passing tests have the final_status tag
-        # (since they passed on first try, no retries were needed)
+        # Verify that all passing tests have the final_status tag
         for test_span in test_spans:
-            assert test_span.get_tag("test.final_status") is None, (
+            assert test_span.get_tag("test.final_status") is not None, (
                 f"Test {test_span.get_tag('test.name')} passed on first try "
-                f"and should not have final_status tag"
+                f"and should have final_status tag"
+            )
+            # Verify final_status matches test.status
+            assert test_span.get_tag("test.final_status") == "pass", (
+                f"Test {test_span.get_tag('test.name')} should have final_status='pass'"
             )
 
     def test_pytest_atr_does_not_retry_failed_setup_or_teardown(self):
