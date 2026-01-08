@@ -353,7 +353,17 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         duration_s = (time_ns() - self._span.start_ns) / 1e9
         return duration_s > 300
 
-    def efd_should_retry(self):
+    def efd_should_retry(self, require_finished=True):
+        """
+        Determines if EFD should retry this test.
+
+        Args:
+            require_finished: If True (default), requires the test to be finished before checking.
+                             If False, calculates duration manually from start_ns.
+
+        Returns:
+            True if EFD should retry, False otherwise.
+        """
         efd_settings = self._session_settings.efd_settings
         if not efd_settings.enabled:
             return False
@@ -367,11 +377,24 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if not self.is_new():
             return False
 
-        if not self.is_finished():
-            log.debug("Early Flake Detection: efd_should_retry called but test is not finished")
-            return False
+        if require_finished:
+            if not self.is_finished():
+                log.debug("Early Flake Detection: efd_should_retry called but test is not finished")
+                return False
+            duration_s = self._span.duration
+        else:
+            # Calculate duration manually before the test is finished
+            from ddtrace.internal.utils.time import Time
 
-        duration_s = self._span.duration
+            if not hasattr(self._span, "start_ns") or self._span.start_ns is None:
+                # Conservative: if we can't get start time, assume retry might happen
+                return True
+
+            duration_ns = Time.time_ns() - self._span.start_ns
+            duration_s = duration_ns / 1e9
+
+        if duration_s is None:
+            return True
 
         num_retries = len(self._efd_retries)
 
