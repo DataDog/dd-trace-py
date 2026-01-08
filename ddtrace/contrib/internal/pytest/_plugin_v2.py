@@ -55,6 +55,7 @@ from ddtrace.ext.test_visibility.api import disable_test_visibility
 from ddtrace.ext.test_visibility.api import enable_test_visibility
 from ddtrace.ext.test_visibility.api import is_test_visibility_enabled
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
+from ddtrace.internal.ci_visibility.constants import TEST_FINAL_STATUS
 from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_empty
@@ -729,8 +730,6 @@ def _pytest_run_one_test(item, nextitem):
 
         # Set final_status tag only if this test will NOT be retried
         if retry_handler is None:
-            from ddtrace.internal.ci_visibility.constants import TEST_FINAL_STATUS
-
             InternalTest.set_tag(test_id, TEST_FINAL_STATUS, test_outcome.status.value)
 
         InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)

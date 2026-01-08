@@ -352,6 +352,13 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         duration_s = (time_ns() - self._span.start_ns) / 1e9
         return duration_s > 300
 
+    def _get_duration_s(self):
+        # Calculate duration manually for plugin flow
+        from ddtrace.internal.utils.time import Time
+
+        duration_ns = Time.time_ns() - self._span.start_ns
+        return duration_ns / 1e9
+
     def efd_should_retry(self):
         efd_settings = self._session_settings.efd_settings
         if not efd_settings.enabled:
@@ -377,15 +384,11 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
                 log.debug("Early Flake Detection: test not finished and status not explicitly set")
                 return False
 
-            # Calculate duration manually for plugin flow
-            from ddtrace.internal.utils.time import Time
-
             if not hasattr(self._span, "start_ns") or self._span.start_ns is None:
                 log.debug("Early Flake Detection: span not started, cannot calculate duration")
                 return False
 
-            duration_ns = Time.time_ns() - self._span.start_ns
-            duration_s = duration_ns / 1e9
+            duration_s = self._get_duration_s()
 
         num_retries = len(self._efd_retries)
 
