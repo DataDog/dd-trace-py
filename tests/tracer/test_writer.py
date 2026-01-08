@@ -63,7 +63,7 @@ class AgentWriterTests(BaseTestCase):
         statsd = mock.Mock()
         with (
             override_global_config(dict(_health_metrics_enabled=False)),
-            cleanup_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd) as writer,
+            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd) as writer,
         ):
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
@@ -75,7 +75,7 @@ class AgentWriterTests(BaseTestCase):
         statsd = mock.Mock()
         with (
             override_global_config(dict(_health_metrics_enabled=True)),
-            cleanup_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=False) as writer,
+            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=False) as writer,
         ):
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
@@ -93,7 +93,7 @@ class AgentWriterTests(BaseTestCase):
         statsd = mock.Mock()
         with (
             override_global_config(dict(_health_metrics_enabled=True, _trace_writer_buffer_size=15000)),
-            cleanup_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd) as writer,
+            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd) as writer,
         ):
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
@@ -128,7 +128,7 @@ class AgentWriterTests(BaseTestCase):
         statsd = mock.Mock()
         with (
             override_global_config(dict(_health_metrics_enabled=True)),
-            cleanup_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=False) as writer,
+            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=False) as writer,
         ):
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j) for j in range(5)])
@@ -161,7 +161,7 @@ class AgentWriterTests(BaseTestCase):
         statsd = mock.Mock()
         with (
             override_global_config(dict(_health_metrics_enabled=True)),
-            cleanup_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=False) as writer,
+            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=False) as writer,
         ):
             # Queue 3 health metrics where each metric has the same name but different tags
             writer.write([Span(name="name", trace_id=1, span_id=1, parent_id=None)])
@@ -193,7 +193,7 @@ class AgentWriterTests(BaseTestCase):
         statsd = mock.Mock()
         with (
             override_global_config(dict(_health_metrics_enabled=True)),
-            cleanup_writer(
+            managed_writer(
                 self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=False, report_metrics=False
             ) as writer,
         ):
@@ -231,7 +231,7 @@ class AgentWriterTests(BaseTestCase):
         statsd = mock.Mock()
         with (
             override_global_config(dict(_health_metrics_enabled=True)),
-            cleanup_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=True) as writer,
+            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=True) as writer,
         ):
             writer.write([Span(name="name", trace_id=1, span_id=j + 1, parent_id=j or None) for j in range(5)])
             statsd.distribution.assert_has_calls(
@@ -250,10 +250,11 @@ class AgentWriterTests(BaseTestCase):
         statsd = mock.Mock()
         with (
             override_global_config(dict(_health_metrics_enabled=True)),
-            cleanup_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=False) as writer,
+            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=False) as writer,
         ):
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
+            writer.flush_queue()
 
             # metrics should be reset after traces are sent
             assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}
@@ -269,35 +270,37 @@ class AgentWriterTests(BaseTestCase):
         statsd = mock.Mock()
         with (
             override_global_config(dict(_health_metrics_enabled=True)),
-            cleanup_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, buffer_size=1000) as writer,
+            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, buffer_size=1000) as writer,
         ):
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
             writer.write([Span(name="a" * i, trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(2**10)])
+            writer.flush_queue()
 
             # metrics should be reset after traces are sent
             assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}
 
-        statsd.distribution.assert_has_calls(
-            [
-                mock.call(
-                    "datadog.%s.buffer.dropped.traces" % writer.STATSD_NAMESPACE,
-                    1,
-                    tags=["reason:t_too_big"],
-                ),
-            ],
-            any_order=True,
-        )
+            statsd.distribution.assert_has_calls(
+                [
+                    mock.call(
+                        "datadog.%s.buffer.dropped.traces" % writer.STATSD_NAMESPACE,
+                        1,
+                        tags=["reason:t_too_big"],
+                    ),
+                ],
+                any_order=True,
+            )
 
     def test_drop_reason_buffer_full(self):
         statsd = mock.Mock()
         with (
             override_global_config(dict(_health_metrics_enabled=True)),
-            cleanup_writer(self.WRITER_CLASS, "http://asdf:1234", buffer_size=1000, dogstatsd=statsd) as writer,
+            managed_writer(self.WRITER_CLASS, "http://asdf:1234", buffer_size=1000, dogstatsd=statsd) as writer,
         ):
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
             writer.write([Span(name="a", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
+            writer.flush_queue()
 
             # metrics should be reset after traces are sent
             assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}
@@ -320,7 +323,7 @@ class AgentWriterTests(BaseTestCase):
         writer_encoder.encode.side_effect = Exception
         with (
             override_global_config(dict(_health_metrics_enabled=True)),
-            cleanup_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=False) as writer,
+            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=False) as writer,
         ):
             for client in writer._clients:
                 client.encoder = writer_encoder
@@ -328,6 +331,7 @@ class AgentWriterTests(BaseTestCase):
                 writer.write(
                     [Span(name="name", trace_id=i, span_id=j, parent_id=max(0, j - 1) or None) for j in range(5)]
                 )
+            writer.flush_queue()
 
             # writer should have has 10 unsent traces, sent traces should be reset to zero
             assert writer._metrics == {"accepted_traces": 10, "sent_traces": 0}
@@ -348,7 +352,7 @@ class AgentWriterTests(BaseTestCase):
 
         with (
             override_global_config(dict(_health_metrics_enabled=True)),
-            cleanup_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=True) as writer,
+            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=True) as writer,
         ):
             # Manually enable gzip compression to trigger the compression code path
             writer._intake_accepts_gzip = True
@@ -399,7 +403,7 @@ class AgentWriterTests(BaseTestCase):
         writer_put.return_value = Response(status=200)
         with (
             override_global_config(dict(_health_metrics_enabled=False, _trace_writer_buffer_size=8 << 20)),
-            cleanup_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, api_version="v0.4") as writer,
+            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, api_version="v0.4") as writer,
         ):
             # this test decodes the msgpack payload to verify the keep rate. v04 is easier to decode so we use that here
             writer.run_periodic = writer_run_periodic
@@ -479,7 +483,7 @@ class NativeWriterTests(AgentWriterTests):
         statsd = mock.Mock()
         with (
             override_global_config(dict(_health_metrics_enabled=True)),
-            cleanup_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=False) as writer,
+            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=False) as writer,
         ):
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
@@ -494,7 +498,7 @@ class NativeWriterTests(AgentWriterTests):
         statsd = mock.Mock()
         with (
             override_global_config(dict(_health_metrics_enabled=True, _trace_writer_buffer_size=15000)),
-            cleanup_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd) as writer,
+            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd) as writer,
         ):
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
@@ -526,7 +530,7 @@ class NativeWriterTests(AgentWriterTests):
         statsd = mock.Mock()
         with (
             override_global_config(dict(_health_metrics_enabled=True)),
-            cleanup_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=False) as writer,
+            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=False) as writer,
         ):
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j) for j in range(5)])
@@ -541,8 +545,7 @@ class NativeWriterTests(AgentWriterTests):
 
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j) for j in range(5)])
-            writer.stop()
-            writer.join()
+            writer.flush_queue()
 
             statsd.distribution.assert_has_calls(
                 [mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 1, tags=None)] * 10
@@ -554,7 +557,7 @@ class NativeWriterTests(AgentWriterTests):
         statsd = mock.Mock()
         with (
             override_global_config(dict(_health_metrics_enabled=True)),
-            cleanup_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=True) as writer,
+            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=True) as writer,
         ):
             writer.write([Span(name="name", trace_id=1, span_id=j + 1, parent_id=j or None) for j in range(5)])
             statsd.distribution.assert_has_calls(
@@ -572,7 +575,7 @@ class NativeWriterTests(AgentWriterTests):
         writer_exporter_send = mock.Mock()
         with (
             override_global_config(dict(_health_metrics_enabled=False, _trace_writer_buffer_size=8 << 20)),
-            cleanup_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, api_version="v0.4") as writer,
+            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, api_version="v0.4") as writer,
         ):
             # this test decodes the msgpack payload to verify the keep rate. v04 is easier to decode so we use that here
             writer.run_periodic = writer_run_periodic
@@ -891,13 +894,16 @@ def endpoint_assert_path():
 
 
 @contextlib.contextmanager
-def cleanup_writer(writer_class, writer_url, **writer_kwargs):
-    """Context manager that creates a writer and automatically cleans it up (stops) on exit."""
+def managed_writer(writer_class, writer_url, **writer_kwargs):
+    """Context manager that creates, starts, and stops a writer, ensuring all payloads are flushed."""
     writer = writer_class(writer_url, **writer_kwargs)
+    writer.start()
     try:
         yield writer
     finally:
-        writer.stop(2.0)
+        writer.flush_queue()
+        # Wait for all asynchronous payloads to be sent before shutting down test servers.
+        writer.stop(3.0)
 
 
 @pytest.mark.parametrize(
@@ -908,18 +914,18 @@ def test_agent_url_path(endpoint_assert_path, writer_and_path):
         writer_class, path = writer_and_path
         # test without base path
         endpoint_assert_path(path)
-        with cleanup_writer(writer_class, "http://%s:%s/" % (_HOST, _PORT)) as writer:
+        with managed_writer(writer_class, "http://%s:%s/" % (_HOST, _PORT)) as writer:
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
         # test without base path nor trailing slash
-        with cleanup_writer(writer_class, "http://%s:%s" % (_HOST, _PORT)) as writer:
+        with managed_writer(writer_class, "http://%s:%s" % (_HOST, _PORT)) as writer:
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
         # test with a base path
         endpoint_assert_path("/test%s" % path)
-        with cleanup_writer(writer_class, "http://%s:%s/test/" % (_HOST, _PORT)) as writer:
+        with managed_writer(writer_class, "http://%s:%s/test/" % (_HOST, _PORT)) as writer:
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
@@ -928,7 +934,7 @@ def test_agent_url_path(endpoint_assert_path, writer_and_path):
 def test_flush_connection_timeout_connect(writer_class):
     with (
         override_env(dict(DD_API_KEY="foobar.baz")),
-        cleanup_writer(writer_class, "http://%s:%s" % (_HOST, 2019)) as writer,
+        managed_writer(writer_class, "http://%s:%s" % (_HOST, 2019)) as writer,
     ):
         exc_type = (OSError, NetworkError)
         with pytest.raises(exc_type):
@@ -940,7 +946,7 @@ def test_flush_connection_timeout_connect(writer_class):
 def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
     with (
         override_env(dict(DD_API_KEY="foobar.baz")),
-        cleanup_writer(writer_class, "http://%s:%s" % (_HOST, _TIMEOUT_PORT)) as writer,
+        managed_writer(writer_class, "http://%s:%s" % (_HOST, _TIMEOUT_PORT)) as writer,
     ):
         writer.HTTP_METHOD = "PUT"  # the test server only accepts PUT
         with pytest.raises((socket.timeout, IoError)):
@@ -952,7 +958,7 @@ def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
 def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
     with (
         override_env(dict(DD_API_KEY="foobar.baz")),
-        cleanup_writer(writer_class, "http://%s:%s" % (_HOST, _RESET_PORT)) as writer,
+        managed_writer(writer_class, "http://%s:%s" % (_HOST, _RESET_PORT)) as writer,
     ):
         exc_types = (httplib.BadStatusLine, ConnectionResetError, NetworkError)
         with pytest.raises(exc_types):
@@ -964,7 +970,7 @@ def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
 @pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
 def test_flush_connection_incomplete_read(endpoint_test_incomplete_read_server, writer_class):
     """Test that IncompleteRead errors are handled properly by resetting the connection"""
-    with cleanup_writer(writer_class, f"http://{_HOST}:{_INCOMPLETE_READ_PORT}") as writer:
+    with managed_writer(writer_class, f"http://{_HOST}:{_INCOMPLETE_READ_PORT}") as writer:
         # IncompleteRead should be raised when the server sends an incomplete chunked response
         exc_types = (httplib.IncompleteRead, NetworkError)
         with pytest.raises(exc_types):
@@ -975,14 +981,14 @@ def test_flush_connection_incomplete_read(endpoint_test_incomplete_read_server, 
 @pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
 def test_flush_connection_uds(endpoint_uds_server, writer_class):
     url = f"unix://{endpoint_uds_server.server_address}"
-    with cleanup_writer(writer_class, url) as writer:
+    with managed_writer(writer_class, url) as writer:
         writer._encoder.put([Span("foobar")])
         writer.flush_queue(raise_exc=True)
 
 
 @pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
 def test_flush_queue_raise(writer_class):
-    with override_env(dict(DD_API_KEY="foobar.baz")), cleanup_writer(writer_class, "http://dne:1234") as writer:
+    with override_env(dict(DD_API_KEY="foobar.baz")), managed_writer(writer_class, "http://dne:1234") as writer:
         # Should not raise
         writer.write([])
         writer.flush_queue(raise_exc=False)
@@ -995,7 +1001,7 @@ def test_flush_queue_raise(writer_class):
 
 @pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
 def test_racing_start(writer_class):
-    with cleanup_writer(writer_class, "http://dne:1234") as writer:
+    with managed_writer(writer_class, "http://dne:1234") as writer:
 
         def do_write(i):
             writer.write([Span(str(i))])
@@ -1177,7 +1183,7 @@ def test_writer_reuse_connections_envvar(monkeypatch, writer_class):
 def test_writer_reuse_connections(writer_class):
     with (
         override_env(dict(DD_API_KEY="foobar.baz")),
-        cleanup_writer(writer_class, "http://localhost:9126", reuse_connections=True) as writer,
+        managed_writer(writer_class, "http://localhost:9126", reuse_connections=True) as writer,
     ):
         # Ensure connection is not reused
         # Do an initial flush to get a connection
@@ -1191,7 +1197,7 @@ def test_writer_reuse_connections(writer_class):
 def test_writer_reuse_connections_false(writer_class):
     with (
         override_env(dict(DD_API_KEY="foobar.baz")),
-        cleanup_writer(writer_class, "http://localhost:9126", reuse_connections=False) as writer,
+        managed_writer(writer_class, "http://localhost:9126", reuse_connections=False) as writer,
     ):
         # Ensure connection is reused
         # Do an initial flush to get a connection
