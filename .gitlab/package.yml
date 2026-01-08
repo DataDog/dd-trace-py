@@ -234,7 +234,7 @@ publish-wheels-to-s3:
       echo "S3 index (pipeline): ${PIPE_INDEX_URL}"
 
       # Also publish to branch path if on main or a release branch
-      if [ "$CI_COMMIT_BRANCH" == "main" ] || [[ "$CI_COMMIT_BRANCH" =~ ^[0-9]+\.[0-9]+$ ]]; then
+      if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]]; then
         echo "Publishing to ${CI_COMMIT_BRANCH}/ path"
         aws s3 cp --recursive --exclude "*" --include "*.whl" pywheels "s3://${BUCKET}/${CI_COMMIT_BRANCH}/"
         generate_index_html "index.branch.html"
@@ -243,13 +243,16 @@ publish-wheels-to-s3:
         echo "S3 index (branch):   ${BRANCH_INDEX_URL}"
       fi
 
-
 # Fail if the downloaded package versions do not match the git tag version
 verify_package_version:
   image: registry.ddbuild.io/images/mirror/python:3.14.0
   tags: [ "arch:amd64" ]
   stage: package
-  needs: [ download_ddtrace_artifacts ]
+  needs:
+    - "build linux"
+    - "build macos"
+    - "build sdist"
+    - "download_ddtrace_artifacts"
   only:
     # v2.10.0
     # v2.10.1
