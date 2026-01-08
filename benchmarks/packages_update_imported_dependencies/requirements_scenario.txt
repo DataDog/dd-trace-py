@@ -23,7 +23,7 @@ filelock==3.16.1
 frozenlist==1.5.0
 fsspec==2024.10.0
 greenlet==3.0.3
-h11==0.14.0
+h11==0.16.0
 httpcore==1.0.7
 httpx==0.27.2
 httpx-sse==0.4.0
@@ -40,12 +40,12 @@ langchain==0.3.10
 langchain-anthropic==0.3.0
 langchain-aws==0.2.9
 langchain-cohere==0.3.3
-langchain-community==0.3.10
-langchain-core==0.3.22
+langchain-community==0.3.31
+langchain-core==0.3.81
 langchain-experimental==0.3.3
 langchain-openai==0.2.11
 langchain-pinecone==0.2.0
-langchain-text-splitters==0.3.2
+langchain-text-splitters==0.3.11
 langsmith==0.1.147
 marshmallow==3.23.1
 mock==5.1.0
