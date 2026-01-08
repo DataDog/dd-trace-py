@@ -316,7 +316,18 @@ detect_circular_imports:
 
 
 package-oci:
-  needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
+  needs: [ "build linux", "download_dependency_wheels" ]
+
+auto_inject trigger:
+  stage: shared-pipeline
+  needs: [ oci-internal-publish, "package version" ]
+  trigger:
+    project: DataDog/auto_inject
+    branch: brettlangdon/python.ci.override
+    strategy: depend
+  variables:
+    DD_TRACE_PY_OCI_IMAGE: registry.ddbuild.io/ci/remote-updates/datadog-apm-library-python:pipeline-${CI_PIPELINE_ID}-1
+    DD_TRACE_PY_VERSION: "${PACKAGE_VERSION}"
 
 promote-oci-to-prod:
   stage: release
