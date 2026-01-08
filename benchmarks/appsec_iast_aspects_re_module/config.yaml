@@ -1,79 +1,93 @@
-re_expand_aspect: &re_expand_aspect
-  warmups: 1
+re_expand_aspect: &default_aspect
+  warmups: 10
+  internal_loop: 100
   function_name: "iast_re_expand_aspect"
-
+  iast_enabled: true
+  
 re_expand_noaspect:
-  <<: *re_expand_aspect
+  <<: *default_aspect
   function_name: "re_expand_noaspect"
+  iast_enabled: false
 
-re_findall_aspect: &re_findall_aspect
-  warmups: 1
+
+re_findall_aspect:
+  <<: *default_aspect
   function_name: "iast_re_findall_aspect"
 
-re_findall_noaspect:
-  <<: *re_findall_aspect
+re_findall_noaspect: 
+  <<: *default_aspect
   function_name: "re_findall_noaspect"
+  iast_enabled: false
 
-re_finditer_aspect: &re_finditer_aspect
-  warmups: 1
+re_finditer_aspect:
+  <<: *default_aspect
   function_name: "iast_re_finditer_aspect"
 
 re_finditer_noaspect:
-  <<: *re_finditer_aspect
+  <<: *default_aspect
   function_name: "re_finditer_noaspect"
+  iast_enabled: false
 
-re_fullmatch_aspect: &re_fullmatch_aspect
-  warmups: 1
+re_fullmatch_aspect:
+  <<: *default_aspect
   function_name: "iast_re_fullmatch_aspect"
 
 re_fullmatch_noaspect:
-  <<: *re_fullmatch_aspect
+  <<: *default_aspect
   function_name: "re_fullmatch_noaspect"
+  iast_enabled: false
 
-re_group_aspect: &re_group_aspect
-  warmups: 1
+re_group_aspect:
+  <<: *default_aspect
   function_name: "iast_re_group_aspect"
+  iast_enabled: false
 
 re_group_noaspect:
-  <<: *re_group_aspect
+  <<: *default_aspect
   function_name: "re_group_noaspect"
+  iast_enabled: false
 
-re_groups_aspect: &re_groups_aspect
-  warmups: 1
+re_groups_aspect:
+  <<: *default_aspect
   function_name: "iast_re_groups_aspect"
 
 re_groups_noaspect:
-  <<: *re_groups_aspect
+  <<: *default_aspect
   function_name: "re_groups_noaspect"
+  iast_enabled: false
 
-re_match_aspect: &re_match_aspect
-  warmups: 1
+re_match_aspect:
+  <<: *default_aspect
   function_name: "iast_re_match_aspect"
 
 re_match_noaspect:
-  <<: *re_match_aspect
+  <<: *default_aspect
   function_name: "re_match_noaspect"
+  iast_enabled: false
 
-re_search_aspect: &re_search_aspect
-  warmups: 1
+re_search_aspect:
+  <<: *default_aspect
   function_name: "iast_re_search_aspect"
 
 re_search_noaspect:
-  <<: *re_search_aspect
+  <<: *default_aspect
   function_name: "re_search_noaspect"
+  iast_enabled: false
 
-re_sub_aspect: &re_sub_aspect
-  warmups: 1
+re_sub_aspect:
+  <<: *default_aspect
   function_name: "iast_re_sub_aspect"
 
 re_sub_noaspect:
-  <<: *re_sub_aspect
+  <<: *default_aspect
   function_name: "re_sub_noaspect"
+  iast_enabled: false
 
-re_subn_aspect: &re_subn_aspect
-  warmups: 1
+re_subn_aspect:
+  <<: *default_aspect
   function_name: "iast_re_subn_aspect"
 
 re_subn_noaspect:
-  <<: *re_subn_aspect
+  <<: *default_aspect
   function_name: "re_subn_noaspect"
+  iast_enabled: false

@@ -25,10 +25,13 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
+from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
@@ -791,6 +794,7 @@ def test_annotate_prompt_dict(llmobs):
             "_dd_context_variable_keys": ["context"],
             "_dd_query_variable_keys": ["question"],
         }
+        assert span._get_ctx_item(TAGS) == {PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"}
 
 
 def test_annotate_prompt_dict_with_context_var_keys(llmobs):
@@ -814,6 +818,7 @@ def test_annotate_prompt_dict_with_context_var_keys(llmobs):
             "_dd_context_variable_keys": ["var1", "var2"],
             "_dd_query_variable_keys": ["user_input"],
         }
+        assert span._get_ctx_item(TAGS) == {PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"}
 
 
 def test_annotate_prompt_typed_dict(llmobs):
@@ -837,6 +842,7 @@ def test_annotate_prompt_typed_dict(llmobs):
             "_dd_context_variable_keys": ["var1", "var2"],
             "_dd_query_variable_keys": ["user_input"],
         }
+        assert span._get_ctx_item(TAGS) == {PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"}
 
 
 def test_annotate_prompt_wrong_type(llmobs):
@@ -854,6 +860,14 @@ def test_annotate_prompt_wrong_type(llmobs):
             "Failed to validate prompt with error:",
             "template: 1 must be a string, received int",
         )
+
+
+def test_annotate_linked_spans(llmobs):
+    with llmobs.llm(model_name="test_model") as span:
+        llmobs.annotate(span=span, _linked_spans=[{"span_id": "123", "trace_id": "456"}])
+        assert span._get_ctx_item(SPAN_LINKS) == [
+            {"span_id": "123", "trace_id": "456", "attributes": {"from": "output", "to": "input"}}
+        ]
 
 
 def test_span_error_sets_error(llmobs, llmobs_events):
@@ -1052,6 +1066,22 @@ def test_activate_distributed_headers_no_llmobs_parent_id_does_nothing(llmobs, m
         mock_extract.return_value = dummy_context
         llmobs.activate_distributed_headers({})
         mock_llmobs_logs.debug.assert_called_once_with("Failed to extract LLMObs parent ID from request headers.")
+
+
+def test_activate_distributed_headers_no_llmobs_trace_id_starts_new_context(llmobs, mock_llmobs_logs):
+    with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
+        dummy_context = Context(
+            trace_id=123, span_id=456, meta={PROPAGATED_PARENT_ID_KEY: "123", PROPAGATED_LLMOBS_TRACE_ID_KEY: None}
+        )
+        mock_extract.return_value = dummy_context
+        with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider.activate") as mock_activate:
+            llmobs.activate_distributed_headers({})
+            assert mock_extract.call_count == 1
+            mock_llmobs_logs.debug.assert_called_once_with(
+                "Failed to extract LLMObs trace ID from request headers. Expected string, got None. "
+                "Defaulting to the corresponding APM trace ID."
+            )
+            mock_activate.assert_called_once_with(dummy_context)
 
 
 def test_activate_distributed_headers_activates_context(llmobs):
@@ -1322,12 +1352,23 @@ def test_annotation_context_modifies_prompt(llmobs):
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
             }
+            assert span._get_ctx_item(TAGS) == {PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"}
 
 
 def test_annotation_context_modifies_name(llmobs):
     with llmobs.annotation_context(name="test_agent_override"):
         with llmobs.llm(name="test_agent", model_name="test") as span:
             assert span.name == "test_agent_override"
+
+
+def test_annotation_context_modifies_span_links(llmobs):
+    with llmobs.annotation_context(_linked_spans=[{"span_id": "123", "trace_id": "456"}]):
+        with llmobs.llm(model_name="test_model") as span:
+            llmobs.annotate(span=span, _linked_spans=[{"span_id": "abc", "trace_id": "def"}])
+            assert span._get_ctx_item(SPAN_LINKS) == [
+                {"span_id": "123", "trace_id": "456", "attributes": {"from": "output", "to": "input"}},
+                {"span_id": "abc", "trace_id": "def", "attributes": {"from": "output", "to": "input"}},
+            ]
 
 
 def test_annotation_context_finished_context_does_not_modify_tags(llmobs):
@@ -1397,6 +1438,85 @@ def test_annotation_context_separate_traces_maintained(llmobs, llmobs_events):
     assert agent_span["span_id"] != workflow_span["span_id"]
     assert workflow_span["parent_id"] == "undefined"
     assert agent_span["parent_id"] == "undefined"
+
+
+def test_annotation_context_persists_across_multiple_root_span_operations(llmobs):
+    """
+    Regression test: verifies that annotation context tags persist across multiple
+    sequential root span operations. This simulates scenarios like multiple batch()
+    calls with structured outputs in Langchain, where each batch creates a root span
+    that finishes before the next batch starts.
+
+    The bug occurred because the trace context wasn't being reactivated after a root
+    span finished, causing subsequent operations to lose the annotation context's baggage.
+    """
+    with llmobs.annotation_context(tags={"test_tag": "should_persist"}):
+        # First operation - creates and finishes a root span
+        with llmobs.workflow(name="first_batch") as span1:
+            assert span1._get_ctx_item(TAGS) == {"test_tag": "should_persist"}
+
+        # Second operation - should still have annotation context applied
+        with llmobs.workflow(name="second_batch") as span2:
+            assert span2._get_ctx_item(TAGS) == {"test_tag": "should_persist"}
+
+        # Third operation - verify it continues to work
+        with llmobs.agent(name="third_operation") as span3:
+            assert span3._get_ctx_item(TAGS) == {"test_tag": "should_persist"}
+
+
+def test_annotation_context_not_reactivated_after_exit(llmobs):
+    """
+    Verifies that once an annotation context exits, the context we created is not
+    reactivated even after subsequent span operations within a new context.
+    """
+    with llmobs.annotation_context(tags={"inside": "context"}):
+        with llmobs.workflow(name="inside_span") as span1:
+            assert span1._get_ctx_item(TAGS) == {"inside": "context"}
+
+    # After exiting annotation_context, tags should not be applied
+    with llmobs.workflow(name="outside_span") as span2:
+        assert span2._get_ctx_item(TAGS) is None
+
+
+def test_annotation_context_sequential_contexts_work_independently(llmobs):
+    """
+    Regression test: Verifies that multiple sequential annotation_contexts work correctly.
+    This tests the specific customer issue where using annotation_context multiple times
+    (e.g., with LangChain's structured outputs and batch()) would cause the second context's
+    annotations to fail after the first batch call.
+
+    The bug occurred because:
+    1. First annotation_context creates a Context with ANNOTATIONS_CONTEXT_ID=X
+    2. First annotation_context exits, but the Context remains active (with _reactivate=False)
+    3. Second annotation_context enters and reuses the stale Context's ANNOTATIONS_CONTEXT_ID=X
+    4. After first span finishes in second context, the Context is not reactivated
+    5. Subsequent spans don't have ANNOTATIONS_CONTEXT_ID, so annotations fail
+    """
+    # First annotation context
+    with llmobs.annotation_context(tags={"context": "first"}):
+        with llmobs.workflow(name="first_ctx_op1") as span1:
+            assert span1._get_ctx_item(TAGS) == {"context": "first"}
+        with llmobs.workflow(name="first_ctx_op2") as span2:
+            assert span2._get_ctx_item(TAGS) == {"context": "first"}
+
+    # Second annotation context - this is where the bug manifested
+    with llmobs.annotation_context(tags={"context": "second"}):
+        # First operation works (reused old context ID)
+        with llmobs.workflow(name="second_ctx_op1") as span3:
+            assert span3._get_ctx_item(TAGS) == {"context": "second"}
+        # Second operation failed before the fix (context not reactivated)
+        with llmobs.workflow(name="second_ctx_op2") as span4:
+            assert span4._get_ctx_item(TAGS) == {"context": "second"}
+        # Third operation to verify it continues to work
+        with llmobs.agent(name="second_ctx_op3") as span5:
+            assert span5._get_ctx_item(TAGS) == {"context": "second"}
+
+    # Third annotation context - verify it still works
+    with llmobs.annotation_context(tags={"context": "third"}):
+        with llmobs.workflow(name="third_ctx_op1") as span6:
+            assert span6._get_ctx_item(TAGS) == {"context": "third"}
+        with llmobs.workflow(name="third_ctx_op2") as span7:
+            assert span7._get_ctx_item(TAGS) == {"context": "third"}
 
 
 def test_annotation_context_only_applies_to_local_context(llmobs):
@@ -1469,6 +1589,7 @@ async def test_annotation_context_async_modifies_prompt(llmobs):
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
             }
+            assert span._get_ctx_item(TAGS) == {PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"}
 
 
 async def test_annotation_context_async_modifies_name(llmobs):

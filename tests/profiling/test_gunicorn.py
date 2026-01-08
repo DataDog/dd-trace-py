@@ -1,12 +1,19 @@
 # -*- encoding: utf-8 -*-
+from __future__ import annotations
+
 import os
+import pathlib
 import re
 import subprocess
 import sys
 import time
+from typing import Any
+from typing import Callable
+from typing import Generator
 import urllib.request
 
 import pytest
+from typing_extensions import TypeAlias
 
 from tests.profiling.collector import pprof_utils
 
@@ -16,7 +23,7 @@ from tests.profiling.collector import pprof_utils
 DEBUG_PRINT = True
 
 
-def debug_print(*args):
+def debug_print(*args: Any) -> None:
     if DEBUG_PRINT:
         print(*args)
 
@@ -27,8 +34,10 @@ if sys.platform == "win32":
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 
+RunGunicornFunc: TypeAlias = Callable[..., subprocess.Popen[bytes]]
 
-def _run_gunicorn(*args):
+
+def _run_gunicorn(*args: str) -> subprocess.Popen[bytes]:
     cmd = (
         [
             "ddtrace-run",
@@ -49,23 +58,26 @@ def _run_gunicorn(*args):
 
 
 @pytest.fixture
-def gunicorn(monkeypatch):
+def gunicorn(monkeypatch: pytest.MonkeyPatch) -> Generator[RunGunicornFunc, None, None]:
     monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "1")
     monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
 
     yield _run_gunicorn
 
 
-def _get_worker_pids(stdout):
-    # type: (str) -> list[int]
+def _get_worker_pids(stdout: str) -> list[int]:
     return [int(_) for _ in re.findall(r"Booting worker with pid: (\d+)", stdout)]
 
 
-def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
-    # type: (...) -> None
+def _test_gunicorn(
+    gunicorn: RunGunicornFunc,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *args: str,
+) -> None:
     filename = str(tmp_path / "gunicorn.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
-    monkeypatch.setenv("_DD_PROFILING_STACK_V2_ADAPTIVE_SAMPLING_ENABLED", "0")
+    monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED", "0")
 
     debug_print("Creating gunicorn workers")
     # DEV: We only start 1 worker to simplify the test
@@ -85,6 +97,7 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
             debug_print(response)
     except Exception as e:
         proc.terminate()
+        assert proc.stdout is not None
         output = proc.stdout.read().decode()
         print(output)
         pytest.fail("Failed to make request to gunicorn server %s" % e)
@@ -93,6 +106,7 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
         proc.terminate()
 
     debug_print("Reading gunicorn worker output to get PIDs")
+    assert proc.stdout is not None
     output = proc.stdout.read().decode()
     worker_pids = _get_worker_pids(output)
     debug_print("Gunicorn worker PIDs: %s" % worker_pids)
@@ -106,7 +120,7 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
     try:
         assert proc.wait(timeout=5) == 0, output
     except subprocess.TimeoutExpired:
-        pytest.fail("Failed to terminate gunicorn process ", output)
+        pytest.fail(f"Failed to terminate gunicorn process: {output}")
     assert "module 'threading' has no attribute '_active'" not in output, output
 
     for pid in worker_pids:
@@ -120,7 +134,7 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
         # when run on GitLab CI. We need to match either of these two.
         filename_regex = r"^(?:__init__\.py|gunicorn-app\.py)$"
 
-        expected_location = pprof_utils.StackLocation(function_name="fib", filename=filename_regex, line_no=8)
+        expected_location = pprof_utils.StackLocation(function_name="fib", filename=filename_regex, line_no=12)
 
         pprof_utils.assert_profile_has_sample(
             profile,
@@ -130,7 +144,10 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
         )
 
 
-def test_gunicorn(gunicorn, tmp_path, monkeypatch):
-    # type: (...) -> None
-    args = ("-k", "gevent") if TESTING_GEVENT else tuple()
+def test_gunicorn(
+    gunicorn: RunGunicornFunc,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args: tuple[str, ...] = ("-k", "gevent") if TESTING_GEVENT else ()
     _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args)

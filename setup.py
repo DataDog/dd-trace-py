@@ -32,7 +32,7 @@ from distutils.dep_util import newer_group
 try:
     # ORDER MATTERS
     # Import this after setuptools or it will fail
-    from Cython.Build import cythonize  # noqa: I100
+    from Cython.Build import cythonize
     import Cython.Distutils
 except ImportError:
     raise ImportError(
@@ -98,7 +98,7 @@ IS_EDITABLE = False  # Set to True if the package is being installed in editable
 LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
-STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
+STACK_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack"
 NATIVE_CRATE = HERE / "src" / "native"
 CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
 
@@ -106,7 +106,7 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.30.0"
+LIBDDWAF_VERSION = "1.30.1"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v15.0.0 requires rust 1.78.
@@ -269,8 +269,7 @@ def is_64_bit_python():
 rust_features = []
 if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
     rust_features.append("crashtracker")
-    if sys.version_info[:2] < (3, 14):
-        rust_features.append("profiling")
+    rust_features.append("profiling")
 
 
 class PatchedDistribution(Distribution):
@@ -424,7 +423,7 @@ class CustomBuildRust(build_rust):
 
 
 class LibraryDownload:
-    CACHE_DIR = HERE / ".download_cache"
+    CACHE_DIR = Path(os.getenv("DD_SETUP_CACHE_DIR", HERE / ".download_cache"))
     USE_CACHE = os.getenv("DD_SETUP_CACHE_DOWNLOADS", "1").lower() in ("1", "yes", "on", "true")
 
     name = None
@@ -618,7 +617,7 @@ class CustomBuildExt(build_ext):
         self.build_rust()
 
         # Build libdd_wrapper before building other extensions that depend on it
-        if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 14):
+        if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
             self.build_libdd_wrapper()
 
         super().run()
@@ -664,8 +663,15 @@ class CustomBuildExt(build_ext):
                 if src_file.exists():
                     newest_source_time = max(newest_source_time, src_file.stat().st_mtime)
 
-            # Only rebuild if source files are newer than the destination
-            should_build = newest_source_time > library_mtime
+            required_headers = ["common.h"]
+            if "profiling" in rust_features:
+                required_headers.append("profiling.h")
+
+            include_dir = CARGO_TARGET_DIR / "include" / "datadog"
+            headers_exist = include_dir.exists() and all((include_dir / header).exists() for header in required_headers)
+
+            # Only rebuild if source files are newer than the destination OR if any required header is missing
+            should_build = newest_source_time > library_mtime or not headers_exist
 
         if should_build:
             # Create and run the CustomBuildRust command
@@ -801,6 +807,7 @@ class CustomBuildExt(build_ext):
             f"-DEXTENSION_NAME={extension_name}",
             f"-DEXTENSION_SUFFIX={self.suffix}",
             f"-DNATIVE_EXTENSION_LOCATION={self.output_dir}",
+            f"-DRUST_GENERATED_HEADERS_DIR={CARGO_TARGET_DIR / 'include'}",
         ]
 
         # Add sccache support if available
@@ -1157,40 +1164,39 @@ if not IS_PYSTON:
         )
 
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
-        if sys.version_info < (3, 14):
-            # Memory profiler now uses CMake to support Abseil dependency
-            MEMALLOC_DIR = HERE / "ddtrace" / "profiling" / "collector"
-            ext_modules.append(
-                CMakeExtension(
-                    "ddtrace.profiling.collector._memalloc",
-                    source_dir=MEMALLOC_DIR,
-                    optional=False,
-                )
+        # Memory profiler now uses CMake to support Abseil dependency
+        MEMALLOC_DIR = HERE / "ddtrace" / "profiling" / "collector"
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.profiling.collector._memalloc",
+                source_dir=MEMALLOC_DIR,
+                optional=False,
             )
+        )
 
-            ext_modules.append(
-                CMakeExtension(
-                    "ddtrace.internal.datadog.profiling.ddup._ddup",
-                    source_dir=DDUP_DIR,
-                    extra_source_dirs=[
-                        DDUP_DIR / ".." / "cmake",
-                        DDUP_DIR / ".." / "dd_wrapper",
-                    ],
-                    optional=False,
-                )
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.ddup._ddup",
+                source_dir=DDUP_DIR,
+                extra_source_dirs=[
+                    DDUP_DIR / ".." / "cmake",
+                    DDUP_DIR / ".." / "dd_wrapper",
+                ],
+                optional=False,
             )
+        )
 
-            ext_modules.append(
-                CMakeExtension(
-                    "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
-                    source_dir=STACK_V2_DIR,
-                    extra_source_dirs=[
-                        STACK_V2_DIR / ".." / "cmake",
-                        STACK_V2_DIR / ".." / "dd_wrapper",
-                    ],
-                    optional=False,
-                ),
-            )
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.stack._stack",
+                source_dir=STACK_DIR,
+                extra_source_dirs=[
+                    STACK_DIR / ".." / "cmake",
+                    STACK_DIR / ".." / "dd_wrapper",
+                ],
+                optional=False,
+            ),
+        )
 
 
 else:

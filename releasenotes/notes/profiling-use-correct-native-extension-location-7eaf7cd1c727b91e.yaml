@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: the build now uses the correct location for the native extension module. Previously, linking would
+    work correctly in tests, but published wheels failed to import the memory profiler extension.

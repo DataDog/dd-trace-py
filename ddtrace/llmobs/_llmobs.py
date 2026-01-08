@@ -4,6 +4,7 @@ from dataclasses import field
 import inspect
 import json
 import os
+import sys
 import time
 from typing import Any
 from typing import Callable
@@ -69,8 +70,10 @@ from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
+from ddtrace.llmobs._constants import MCP_TOOL_CALL_INTENT
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import ML_APP
@@ -80,6 +83,7 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
@@ -107,6 +111,7 @@ from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import _is_evaluation_span
 from ddtrace.llmobs._utils import _validate_prompt
+from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
@@ -387,6 +392,9 @@ class LLMObs(Service):
 
         if span._get_ctx_item(TOOL_DEFINITIONS) is not None:
             meta["tool_definitions"] = span._get_ctx_item(TOOL_DEFINITIONS) or []
+        intent = span._get_ctx_item(MCP_TOOL_CALL_INTENT)
+        if intent is not None:
+            meta["intent"] = str(intent)
         if span.error:
             meta["error"] = _ErrorField(
                 message=span.get_tag(ERROR_MSG) or "",
@@ -645,6 +653,8 @@ class LLMObs(Service):
             log.debug("%s already enabled", cls.__name__)
             return
 
+        cls._warn_if_litellm_was_imported()
+
         if os.getenv("DD_LLMOBS_ENABLED") and not asbool(os.getenv("DD_LLMOBS_ENABLED")):
             log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false or 0, not starting LLMObs service")
             return
@@ -766,6 +776,20 @@ class LLMObs(Service):
                 config._llmobs_instrumented_proxy_urls,
                 config._llmobs_ml_app,
             )
+
+    @staticmethod
+    def _warn_if_litellm_was_imported() -> None:
+        if "litellm" in sys.modules:
+            import litellm
+
+            if not getattr(litellm, "_datadog_patch", False):
+                log.warning(
+                    "LLMObs.enable() called after litellm was imported but before it was patched. "
+                    "This may cause tracing issues if you are importing patched methods like 'litellm.completion' "
+                    "directly. To ensure proper tracing, either run your application with ddtrace-run, "
+                    "call ddtrace.patch_all() before importing litellm, or "
+                    "enable LLMObs before importing other modules."
+                )
 
     def _on_asyncio_create_task(self, task_data: Dict[str, Any]) -> None:
         """Propagates llmobs active trace context across asyncio tasks."""
@@ -1024,6 +1048,7 @@ class LLMObs(Service):
         tags: Optional[Dict[str, Any]] = None,
         prompt: Optional[Union[dict, Prompt]] = None,
         name: Optional[str] = None,
+        _linked_spans: Optional[List[ExportedLLMObsSpan]] = None,
     ) -> AnnotationContext:
         """
         Sets specified attributes on all LLMObs spans created while the returned AnnotationContext is active.
@@ -1050,15 +1075,22 @@ class LLMObs(Service):
         """
         # id to track an annotation for registering / de-registering
         annotation_id = rand64bits()
+        # Track context we create so we can clean up _reactivate on exit.
+        # Using a dict as a mutable container to share state between closures.
+        state = {"created_context": None}
 
         def get_annotations_context_id():
             current_ctx = cls._instance.tracer.current_trace_context()
             # default the context id to the annotation id
             ctx_id = annotation_id
             if current_ctx is None:
+                # No context exists - create one and enable reactivation so spans finishing
+                # within this annotation_context don't clear the context for subsequent operations
                 current_ctx = Context(is_remote=False)
                 current_ctx.set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
+                current_ctx._reactivate = True
                 cls._instance.tracer.context_provider.activate(current_ctx)
+                state["created_context"] = current_ctx
             elif not current_ctx.get_baggage_item(ANNOTATIONS_CONTEXT_ID):
                 current_ctx.set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
             else:
@@ -1072,7 +1104,7 @@ class LLMObs(Service):
                     (
                         annotation_id,
                         ctx_id,
-                        {"tags": tags, "prompt": prompt, "_name": name},
+                        {"tags": tags, "prompt": prompt, "_name": name, "_linked_spans": _linked_spans},
                     )
                 )
 
@@ -1081,9 +1113,19 @@ class LLMObs(Service):
                 for i, (key, _, _) in enumerate(cls._instance._annotations):
                     if key == annotation_id:
                         cls._instance._annotations.pop(i)
-                        return
+                        break
                 else:
                     log.debug("Failed to pop annotation context")
+            # Disable reactivation on context we created to prevent it from being
+            # restored after exiting the annotation_context block
+            if state["created_context"] is not None:
+                state["created_context"]._reactivate = False
+                # DEV: Deactivate the context we created so subsequent annotation_contexts
+                # don't see the stale context with the old ANNOTATIONS_CONTEXT_ID.
+                # Only deactivate if this context is still the active one (not a Span).
+                current_active = cls._instance.tracer.context_provider.active()
+                if current_active is state["created_context"]:
+                    cls._instance.tracer.context_provider.activate(None)
 
         return AnnotationContext(register_annotation, deregister_annotation)
 
@@ -1526,6 +1568,7 @@ class LLMObs(Service):
         tags: Optional[Dict[str, Any]] = None,
         tool_definitions: Optional[List[Dict[str, Any]]] = None,
         _name: Optional[str] = None,
+        _linked_spans: Optional[List[ExportedLLMObsSpan]] = None,
         _suppress_span_kind_error: bool = False,
     ) -> None:
         """
@@ -1627,6 +1670,9 @@ class LLMObs(Service):
                 try:
                     validated_prompt = _validate_prompt(prompt, strict_validation=False)
                     cls._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
+                    cls._set_dict_attribute(
+                        span, TAGS, {PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_ANNOTATED}
+                    )
                 except (ValueError, TypeError) as e:
                     error = "invalid_prompt"
                     raise LLMObsAnnotateSpanError("Failed to validate prompt with error:", str(e))
@@ -1653,6 +1699,12 @@ class LLMObs(Service):
                     cls._tag_freeform_io(span, input_value=input_data, output_value=output_data)
                 else:
                     cls._tag_text_io(span, input_value=input_data, output_value=output_data)
+            if _linked_spans and isinstance(_linked_spans, list):
+                for linked_span in _linked_spans:
+                    # for now, assume all span links are output to input as we do not currently use this for anything
+                    add_span_link(
+                        span, linked_span.get("span_id", ""), linked_span.get("trace_id", ""), "output", "input"
+                    )
             if annotation_error_message:
                 raise LLMObsAnnotateSpanError(annotation_error_message)
         finally:
@@ -1738,9 +1790,9 @@ class LLMObs(Service):
         arbitrary structured or non structured IO values in its spans
         """
         if input_value is not None:
-            span._set_ctx_item(EXPERIMENTS_INPUT, safe_json(input_value))
+            span._set_ctx_item(EXPERIMENTS_INPUT, input_value)
         if output_value is not None:
-            span._set_ctx_item(EXPERIMENTS_OUTPUT, safe_json(output_value))
+            span._set_ctx_item(EXPERIMENTS_OUTPUT, output_value)
 
     @staticmethod
     def _set_dict_attribute(span: Span, key, value: Dict[str, Any]) -> None:
@@ -1888,6 +1940,11 @@ class LLMObs(Service):
                             "Failed to parse tags. Tags for evaluation metrics must be strings."
                         )
 
+            # Auto-add source:otel tag when OTel tracing is enabled
+            # This allows the backend to wait for OTel span conversion
+            if config._otel_trace_enabled:
+                evaluation_tags["source"] = "otel"
+
             evaluation_metric: LLMObsEvaluationMetricEvent = {
                 "join_on": join_on,
                 "label": str(label),
@@ -2017,11 +2074,15 @@ class LLMObs(Service):
                 return
             parent_llmobs_trace_id = context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
             if parent_llmobs_trace_id is None:
-                log.debug("Failed to extract LLMObs trace ID from request headers. Expected string, got None.")
+                log.debug(
+                    "Failed to extract LLMObs trace ID from request headers. Expected string, got None. "
+                    "Defaulting to the corresponding APM trace ID."
+                )
                 llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
                 llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(context.trace_id)
                 cls._instance._llmobs_context_provider.activate(llmobs_context)
                 error = "missing_parent_llmobs_trace_id"
+                return
             llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
             llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(parent_llmobs_trace_id)
             cls._instance._llmobs_context_provider.activate(llmobs_context)

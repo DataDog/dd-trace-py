@@ -65,13 +65,15 @@ def assert_mock_execute_request_call(
     ai_guard_client: AIGuardClient,
     messages: List[Message],
     meta: Optional[Dict[str, Any]] = None,
+    endpoint: Optional[str] = None,
 ):
     expected_attributes = {"messages": messages, "meta": meta or {"service": config.service, "env": config.env}}
 
     expected_payload = {"data": {"attributes": expected_attributes}}
 
+    expected_endpoint = endpoint if endpoint else ai_guard_client._endpoint
     mock_execute_request.assert_called_once_with(
-        f"{ai_guard_client._endpoint}/evaluate",
+        f"{expected_endpoint}/evaluate",
         expected_payload,
     )
 

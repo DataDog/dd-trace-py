@@ -274,7 +274,6 @@ class TestTelemetry:
             payload_size=613,
             request_seconds=3.14,
             events_count=42,
-            serialization_seconds=0.5,
             error=None,
         )
 
@@ -285,7 +284,6 @@ class TestTelemetry:
             call(CIVISIBILITY, "endpoint_payload.bytes", 613, (("endpoint", "test_cycle"),)),
             call(CIVISIBILITY, "endpoint_payload.requests_ms", 3140, (("endpoint", "test_cycle"),)),
             call(CIVISIBILITY, "endpoint_payload.events_count", 42, (("endpoint", "test_cycle"),)),
-            call(CIVISIBILITY, "endpoint_payload.events_serialization_ms", 500, (("endpoint", "test_cycle"),)),
         ]
 
     @pytest.mark.parametrize(
@@ -307,7 +305,6 @@ class TestTelemetry:
             payload_size=613,
             request_seconds=3.14,
             events_count=42,
-            serialization_seconds=0.5,
             error=http_error_type,
         )
 
@@ -327,6 +324,12 @@ class TestTelemetry:
             call(CIVISIBILITY, "endpoint_payload.bytes", 613, (("endpoint", "test_cycle"),)),
             call(CIVISIBILITY, "endpoint_payload.requests_ms", 3140, (("endpoint", "test_cycle"),)),
             call(CIVISIBILITY, "endpoint_payload.events_count", 42, (("endpoint", "test_cycle"),)),
+        ]
+
+    def test_record_event_payload_serialization_seconds(self, telemetry_api: TelemetryAPI) -> None:
+        telemetry_api.record_event_payload_serialization_seconds("test_cycle", 0.5)
+
+        assert telemetry_api.writer.add_distribution_metric.call_args_list == [
             call(CIVISIBILITY, "endpoint_payload.events_serialization_ms", 500, (("endpoint", "test_cycle"),)),
         ]
 
@@ -387,12 +390,12 @@ class TestTelemetry:
             is_disabled=True,
             is_attempt_to_fix=True,
         )
+        test.set_early_flake_detection_abort_reason("slow")
         _initial_test_run = test.make_test_run()
         retry_test_run = test.make_test_run()
         retry_test_run.is_benchmark = lambda: True
         retry_test_run.tags[TestTag.IS_RUM_ACTIVE] = "true"
         retry_test_run.tags[TestTag.BROWSER_DRIVER] = "selenium"
-        retry_test_run.tags[TestTag.EFD_ABORT_REASON] = "slow"
         retry_test_run.tags[TestTag.HAS_FAILED_ALL_RETRIES] = "true"
 
         telemetry_api.record_test_finished(

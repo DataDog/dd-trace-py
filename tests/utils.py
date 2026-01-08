@@ -648,7 +648,8 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         # Stop the writer threads in case the writer is no longer used.
         # Otherwise we risk accumulating threads and file descriptors causing crashes
         # In case the writer is used again it will be restarted by native side.
-        self._inner_writer.before_fork()
+        if isinstance(self._inner_writer, NativeWriter):
+            self._inner_writer._exporter.stop_worker()
         return spans
 
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "DummyWriter":

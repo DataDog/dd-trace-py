@@ -177,7 +177,6 @@ class TelemetryAPI:
         payload_size: int,
         request_seconds: float,
         events_count: int,
-        serialization_seconds: float,
         error: t.Optional[ErrorType],
     ) -> None:
         tags = {"endpoint": endpoint}
@@ -186,10 +185,13 @@ class TelemetryAPI:
         self.add_count_metric("endpoint_payload.requests", 1, tags)
         self.add_distribution_metric("endpoint_payload.requests_ms", request_seconds * 1000, tags)
         self.add_distribution_metric("endpoint_payload.events_count", events_count, tags)
-        self.add_distribution_metric("endpoint_payload.events_serialization_ms", serialization_seconds * 1000, tags)
 
         if error:
             self.record_event_payload_error(endpoint, error)
+
+    def record_event_payload_serialization_seconds(self, endpoint: str, serialization_seconds: float) -> None:
+        tags = {"endpoint": endpoint}
+        self.add_distribution_metric("endpoint_payload.events_serialization_ms", serialization_seconds * 1000, tags)
 
     def record_event_payload_error(self, endpoint: str, error: ErrorType) -> None:
         # `endpoint_payload.requests_errors` accepts a different set of error types, so we need to convert them here.
@@ -224,7 +226,7 @@ class TelemetryAPI:
             "is_retry": test_run.is_retry(),
             "is_rum": test_run.is_rum(),
             "browser_driver": test_run.get_browser_driver(),
-            "early_flake_detection_abort_reason": test_run.get_early_flake_detection_abort_reason(),
+            "early_flake_detection_abort_reason": test_run.test.get_early_flake_detection_abort_reason(),
             "is_quarantined": test_run.test.is_quarantined(),
             "is_disabled": test_run.test.is_disabled(),
             "is_attempt_to_fix": test_run.test.is_attempt_to_fix(),
