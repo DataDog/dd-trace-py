@@ -68,6 +68,7 @@ def langchain_core():
         dict(
             OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
             ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
+            GOOGLE_API_KEY=os.getenv("GOOGLE_API_KEY", "<not-a-real-key>"),
         )
     ):
         langchain_core_patch()
@@ -104,6 +105,14 @@ def anthropic_url() -> str:
 
 
 @pytest.fixture
+def genai_url() -> str:
+    """
+    Use the request recording endpoint of the testagent to capture requests to Google Generative AI
+    """
+    return "http://localhost:9126/vcr/genai"
+
+
+@pytest.fixture
 def langchain_cohere(langchain_core):
     try:
         import langchain_cohere
@@ -119,6 +128,16 @@ def langchain_anthropic(langchain_core):
         import langchain_anthropic
 
         yield langchain_anthropic
+    except ImportError:
+        yield
+
+
+@pytest.fixture
+def langchain_google_genai(langchain_core):
+    try:
+        import langchain_google_genai
+
+        yield langchain_google_genai
     except ImportError:
         yield
 

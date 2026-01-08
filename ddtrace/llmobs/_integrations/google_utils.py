@@ -22,6 +22,8 @@ from ddtrace.llmobs.types import ToolResult
 # we use "assistant" as the default role for model messages
 GOOGLE_GENAI_DEFAULT_MODEL_ROLE = "assistant"
 
+
+# Google-specific utilities for model provider identification
 # https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models
 # GeminiAPI: only exports google provided models
 # VertexAI: can map provided models to provider based on prefix, a best effort mapping
@@ -47,6 +49,46 @@ KNOWN_MODEL_PREFIX_TO_PROVIDER = {
 }
 
 
+def normalize_model_name(model_path: str) -> str:
+    """
+    Strip path prefixes from model names.
+
+    Examples:
+        >>> normalize_model_name("models/gemini-2.0-flash")
+        "gemini-2.0-flash"
+        >>> normalize_model_name("gemini-2.0-flash")
+        "gemini-2.0-flash"
+
+    Args:
+        model_path: The full model path or name
+
+    Returns:
+        The normalized model name with path prefix stripped
+    """
+    if not model_path:
+        return model_path
+    return model_path.split("/")[-1] if "/" in model_path else model_path
+
+
+def get_provider_from_model_name(model_name: str) -> Optional[str]:
+    """
+    Determine provider from model name prefix.
+
+    Args:
+        model_name: The model name to check
+
+    Returns:
+        The provider name if matched, None otherwise
+    """
+    if not model_name:
+        return None
+    model_lower = model_name.lower()
+    for prefix, provider in KNOWN_MODEL_PREFIX_TO_PROVIDER.items():
+        if model_lower.startswith(prefix):
+            return provider
+    return None
+
+
 def extract_provider_and_model_name(
     kwargs: Optional[Dict[str, Any]] = None, instance: Any = None, model_name_attr: Optional[str] = None
 ) -> Tuple[str, str]:
@@ -69,13 +111,10 @@ def extract_provider_and_model_name(
     if not model_path or not isinstance(model_path, str):
         return "custom", "custom"
 
-    model_name = model_path.split("/")[-1] if "/" in model_path else model_path
+    model_name = normalize_model_name(model_path)
+    provider = get_provider_from_model_name(model_name)
 
-    for prefix in KNOWN_MODEL_PREFIX_TO_PROVIDER.keys():
-        if model_name.lower().startswith(prefix):
-            provider_name = KNOWN_MODEL_PREFIX_TO_PROVIDER[prefix]
-            return provider_name, model_name
-    return "custom", model_name if model_name else "custom"
+    return (provider or "custom", model_name or "custom")
 
 
 def normalize_contents_google_genai(contents) -> List[Dict[str, Any]]:
