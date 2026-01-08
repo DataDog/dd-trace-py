@@ -5013,6 +5013,34 @@ def test_simple():
                 # Coverage data should be a dict with 'files' key
                 assert isinstance(coverage_data, dict) and "files" in coverage_data
 
+    def test_no_final_status_tag_without_retries(self):
+        """Test that tests without retries do not have the final_status tag."""
+        py_file = self.testdir.makepyfile(
+            """
+            def test_pass():
+                assert True
+
+            def test_fail():
+                assert False
+
+            def test_skip():
+                import pytest
+                pytest.skip("skipping")
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        spans = self.pop_spans()
+
+        # Get test spans
+        test_spans = _get_spans_from_list(spans, "test")
+
+        # Verify that none of the test spans have the final_status tag
+        for test_span in test_spans:
+            assert test_span.get_tag("test.final_status") is None, (
+                f"Test {test_span.get_tag('test.name')} should not have final_status tag without retries"
+            )
+
 
 def test_pytest_coverage_data_format_handling_none_value():
     """Test that coverage data format issues are handled correctly with proper logging for None value."""
