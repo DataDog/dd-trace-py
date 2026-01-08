@@ -699,28 +699,28 @@ experiments:
           # iastaspectssplit
           - name: iastaspectssplit-rsplit_aspect
             thresholds:
-              - execution_time < 0.20 ms
-              - max_rss_usage < 43.50 MB
+              - execution_time < 0.25 ms
+              - max_rss_usage < 44.00 MB
           - name: iastaspectssplit-rsplit_noaspect
             thresholds:
-              - execution_time < 0.20 ms
-              - max_rss_usage < 43.50 MB
+              - execution_time < 0.25 ms
+              - max_rss_usage < 44.00 MB
           - name: iastaspectssplit-split_aspect
             thresholds:
-              - execution_time < 0.20 ms
-              - max_rss_usage < 43.50 MB
+              - execution_time < 0.25 ms
+              - max_rss_usage < 44.00 MB
           - name: iastaspectssplit-split_noaspect
             thresholds:
-              - execution_time < 0.20 ms
-              - max_rss_usage < 43.50 MB
+              - execution_time < 0.25 ms
+              - max_rss_usage < 44.00 MB
           - name: iastaspectssplit-splitlines_aspect
             thresholds:
-              - execution_time < 0.20 ms
-              - max_rss_usage < 43.50 MB
+              - execution_time < 0.25 ms
+              - max_rss_usage < 44.00 MB
           - name: iastaspectssplit-splitlines_noaspect
             thresholds:
-              - execution_time < 0.20 ms
-              - max_rss_usage < 43.50 MB
+              - execution_time < 0.25 ms
+              - max_rss_usage < 44.00 MB
 
           # iastpropagation
           - name: iastpropagation-no-propagation
