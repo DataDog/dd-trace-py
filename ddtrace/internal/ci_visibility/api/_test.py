@@ -366,15 +366,24 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if not self.is_new():
             return False
 
-        # Calculate duration: use span.duration if finished, otherwise calculate manually
+        # Calculate duration
         if self.is_finished():
             duration_s = self._span.duration
         else:
+            # Span hasn't been finished yet
+            # Only allow retry checking if status was explicitly set (plugin flow)
+            # Otherwise, this is likely direct API usage where test hasn't completed yet
+            if not self._status_set:
+                log.debug("Early Flake Detection: test not finished and status not explicitly set")
+                return False
+
+            # Calculate duration manually for plugin flow
             from ddtrace.internal.utils.time import Time
 
             if not hasattr(self._span, "start_ns") or self._span.start_ns is None:
-                log.debug("Early Flake Detection: cannot calculate duration, span has no start_ns")
+                log.debug("Early Flake Detection: span not started, cannot calculate duration")
                 return False
+
             duration_ns = Time.time_ns() - self._span.start_ns
             duration_s = duration_ns / 1e9
 
@@ -479,6 +488,11 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             return False
 
         if self.get_session().atr_max_retries_reached():
+            return False
+
+        # Only allow retry checking if test is finished OR status was explicitly set (plugin flow)
+        if not self.is_finished() and not self._status_set:
+            log.debug("Auto Test Retries: test not finished and status not explicitly set")
             return False
 
         # Only tests that are failing should be retried
