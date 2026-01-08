@@ -30,11 +30,15 @@ def llmobs_span_writer():
 @pytest.fixture
 def tracer(langchain_core):
     tracer = DummyTracer()
-
-    pin = Pin.get_from(langchain_core)
-    pin._override(langchain_core, tracer=tracer)
-
-    yield tracer
+    original_pin = Pin.get_from(langchain_core)
+    Pin._override(langchain_core, tracer=tracer)
+    try:
+        yield tracer
+    finally:
+        if original_pin is not None:
+            original_pin.onto(langchain_core)
+        else:
+            Pin().remove_from(langchain_core)
 
 
 @pytest.fixture
