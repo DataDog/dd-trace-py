@@ -5029,7 +5029,7 @@ def test_simple():
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run("--ddtrace", file_name)
+        self.inline_run("--ddtrace", file_name)
         spans = self.pop_spans()
 
         # Get test spans
@@ -5045,7 +5045,8 @@ def test_simple():
             test_status = test_span.get_tag("test.status")
             final_status = test_span.get_tag("test.final_status")
             assert final_status == test_status, (
-                f"Test {test_span.get_tag('test.name')}: final_status '{final_status}' should match test.status '{test_status}'"
+                f"Test {test_span.get_tag('test.name')}: final_status '{final_status}' "
+                f"should match test.status '{test_status}'"
             )
 
 
