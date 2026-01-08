@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Any
 from typing import Dict
 from typing import List
@@ -9,17 +10,20 @@ from ddtrace.llmobs._integrations.google_utils import GOOGLE_GENAI_DEFAULT_MODEL
 from ddtrace.llmobs._utils import _get_attr
 
 
+REASONING_ROLE = "reasoning"
+
+
 def _join_chunks(chunks: List[Any]) -> Optional[Dict[str, Any]]:
     """
     Consolidates streamed response GenerateContentResponse chunks into a single dictionary representing the response.
-    All chunks should have the same role since one generation call produces consistent content type.
     """
     if not chunks:
         return None
 
-    text_chunks = []
     non_text_parts = []
     role = None
+
+    parts_by_role: dict[str, list[str]] = defaultdict(list)
 
     try:
         for chunk in chunks:
@@ -36,16 +40,22 @@ def _join_chunks(chunks: List[Any]) -> Optional[Dict[str, Any]]:
                 for part in parts:
                     text = _get_attr(part, "text", None)
                     if text:
-                        text_chunks.append(text)
+                        if getattr(part, "thought", False):
+                            parts_by_role[REASONING_ROLE].append(text)
+                        else:
+                            parts_by_role[role].append(text)
                     else:
                         non_text_parts.append(part)
 
-        parts = []
-        if text_chunks:
-            parts.append({"text": "".join(text_chunks)})
-        parts.extend(non_text_parts)
+        all_parts = []
+        for role, parts in parts_by_role.items():
+            part: dict = {"text": "".join(parts)}
+            if role == REASONING_ROLE:
+                part["thought"] = True
+            all_parts.append(part)
+        all_parts.extend(non_text_parts)
 
-        merged_response = {"candidates": [{"content": {"role": role, "parts": parts}}] if parts else []}
+        merged_response = {"candidates": [{"content": {"role": role, "parts": all_parts}}] if all_parts else []}
 
         last_chunk = chunks[-1]
         merged_response["usage_metadata"] = _get_attr(last_chunk, "usage_metadata", {})
