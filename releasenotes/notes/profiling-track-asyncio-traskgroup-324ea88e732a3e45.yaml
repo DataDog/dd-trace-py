@@ -1,0 +1,3 @@
+features:
+  - |
+    profiling: the Profiler now tracks Tasks created through ``asyncio.TaskGroup``.
