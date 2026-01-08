@@ -113,7 +113,7 @@ The following information should be included:
 
 Example for release v4.1.0::
 
-    ⚠️ [An issue](https://github.com/DataDog/dd-trace-py/pull/15818) was detected with memory profiling in this release. Please consider upgrading to [v4.1.3](https://github.com/DataDog/dd-trace-py/releases/tag/v4.1.3)
+    ⚠️ [An issue](https://github.com/DataDog/dd-trace-py/pull/15818) was detected with memory profiling in this release. Please consider upgrading to [v4.1.3](https://github.com/DataDog/dd-trace-py/releases/tag/v4.1.3) or newer
 
 Documentation
 -------------
