@@ -366,11 +366,17 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if not self.is_new():
             return False
 
-        if not self.is_finished():
-            log.debug("Early Flake Detection: efd_should_retry called but test is not finished")
-            return False
+        # Calculate duration: use span.duration if finished, otherwise calculate manually
+        if self.is_finished():
+            duration_s = self._span.duration
+        else:
+            from ddtrace.internal.utils.time import Time
 
-        duration_s = self._span.duration
+            if not hasattr(self._span, "start_ns") or self._span.start_ns is None:
+                log.debug("Early Flake Detection: cannot calculate duration, span has no start_ns")
+                return False
+            duration_ns = Time.time_ns() - self._span.start_ns
+            duration_s = duration_ns / 1e9
 
         num_retries = len(self._efd_retries)
 
@@ -475,11 +481,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if self.get_session().atr_max_retries_reached():
             return False
 
-        if not self.is_finished():
-            log.debug("Auto Test Retries: atr_should_retry called but test is not finished")
-            return False
-
         # Only tests that are failing should be retried
+        # Note: atr_get_final_status() uses self._status which should be set before this is called
         if self.atr_get_final_status() != TestStatus.FAIL:
             return False
 

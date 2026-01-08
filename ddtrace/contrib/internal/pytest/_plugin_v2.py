@@ -691,10 +691,6 @@ def _pytest_run_one_test(item, nextitem):
     is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
     setup_or_teardown_failed = False
 
-    if not InternalTest.is_finished(test_id):
-        _handle_collected_coverage(item, test_id, _current_coverage_collector)
-        InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
-
     for report in reports:
         if report.failed and report.when in (TestPhase.SETUP, TestPhase.TEARDOWN):
             setup_or_teardown_failed = True
@@ -708,6 +704,13 @@ def _pytest_run_one_test(item, nextitem):
         if report.failed or report.skipped:
             InternalTest.stash_set(test_id, "failure_longrepr", report.longrepr)
 
+    # Set the test status BEFORE determining if we should retry
+    # This is needed because retry logic (especially ATR) depends on the test status
+    if not InternalTest.is_finished(test_id):
+        test_obj = require_ci_visibility_service().get_test_by_id(test_id)
+        test_obj.set_status(test_outcome.status)
+
+    # Determine if we will retry this test BEFORE finishing it
     retry_handler = None
 
     if setup_or_teardown_failed:
@@ -719,6 +722,18 @@ def _pytest_run_one_test(item, nextitem):
         retry_handler = efd_handle_retries
     elif InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
         retry_handler = atr_handle_retries
+
+    # Finish the test now that we know if it will be retried
+    if not InternalTest.is_finished(test_id):
+        _handle_collected_coverage(item, test_id, _current_coverage_collector)
+
+        # Set final_status tag only if this test will NOT be retried
+        if retry_handler is None:
+            from ddtrace.internal.ci_visibility.constants import TEST_FINAL_STATUS
+
+            InternalTest.set_tag(test_id, TEST_FINAL_STATUS, test_outcome.status.value)
+
+        InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
     if retry_handler:
         # Retry handler is responsible for logging the test reports.
