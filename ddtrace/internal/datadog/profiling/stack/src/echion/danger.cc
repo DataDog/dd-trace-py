@@ -148,7 +148,7 @@ safe_memcpy(void* dst, const void* src, size_t n)
         safe_memcpy_return_t chunk = std::min(rem, std::min(to_src_pg, to_dst_pg));
 
         // Optional early probe to fault before entering large memcpy
-        (void)*reinterpret_cast<volatile const uint8_t*>(s);
+        (void)*static_cast<volatile const uint8_t*>(s);
 
         // If this faults, we'll siglongjmp back to the sigsetjmp above.
         (void)memcpy(d, s, static_cast<size_t>(chunk));
