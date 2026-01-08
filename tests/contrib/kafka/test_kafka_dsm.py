@@ -11,6 +11,8 @@ from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.native import DDSketch
+from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.service import ServiceStatusError
 from tests.datastreams.test_public_api import MockedTracer
 
 
@@ -24,10 +26,23 @@ class CustomError(Exception):
 @pytest.fixture
 def dsm_processor(tracer):
     processor = tracer.data_streams_processor
+    # Clean up any existing context to prevent test pollution
+    try:
+        del processor._current_context.value
+    except AttributeError:
+        pass
+
     with mock.patch("ddtrace.internal.datastreams.data_streams_processor", return_value=processor):
         yield processor
         # flush buckets for the next test run
         processor.periodic()
+
+        try:
+            processor.shutdown(timeout=5)
+        except ServiceStatusError as e:
+            # Expected: processor already stopped by tracer shutdown during test teardown
+            if e.current_status == ServiceStatus.RUNNING:
+                raise
 
 
 @pytest.mark.parametrize("payload_and_length", [("test", 4), ("你".encode("utf-8"), 3), (b"test2", 5)])
@@ -43,11 +58,6 @@ def test_data_streams_payload_size(dsm_processor, consumer, producer, kafka_topi
     expected_payload_size += test_header_size  # to account for headers we add here
     expected_payload_size += len(PROPAGATION_KEY_BASE_64)  # Add in header key length
     expected_payload_size += DSM_TEST_PATH_HEADER_SIZE  # to account for path header we add
-
-    try:
-        del dsm_processor._current_context.value
-    except AttributeError:
-        pass
 
     producer.produce(kafka_topic, payload, key=key, headers=test_headers)
     producer.flush()
@@ -65,10 +75,6 @@ def test_data_streams_payload_size(dsm_processor, consumer, producer, kafka_topi
 
 def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, serializing_producer, kafka_topic):
     PAYLOAD = bytes("data streams", encoding="utf-8")
-    try:
-        del dsm_processor._current_context.value
-    except AttributeError:
-        pass
     serializing_producer.produce(kafka_topic, value=PAYLOAD, key="test_key_2")
     serializing_producer.flush()
     message = None
@@ -80,10 +86,6 @@ def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, s
 
 def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
     PAYLOAD = bytes("data streams", encoding="utf-8")
-    try:
-        del dsm_processor._current_context.value
-    except AttributeError:
-        pass
     producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
     producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
     producer.flush()
@@ -127,10 +129,6 @@ def test_data_streams_kafka_offset_monitoring_messages(dsm_processor, non_auto_c
 
     PAYLOAD = bytes("data streams", encoding="utf-8")
     consumer = non_auto_commit_consumer
-    try:
-        del dsm_processor._current_context.value
-    except AttributeError:
-        pass
     buckets = dsm_processor._buckets
     producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
     producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
@@ -170,10 +168,6 @@ def test_data_streams_kafka_offset_monitoring_offsets(dsm_processor, non_auto_co
 
     consumer = non_auto_commit_consumer
     PAYLOAD = bytes("data streams", encoding="utf-8")
-    try:
-        del dsm_processor._current_context.value
-    except AttributeError:
-        pass
     producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
     producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
     producer.flush()
@@ -207,10 +201,6 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
                 return message
 
     PAYLOAD = bytes("data streams", encoding="utf-8")
-    try:
-        del dsm_processor._current_context.value
-    except AttributeError:
-        pass
     producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
     producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
     producer.flush()
@@ -222,24 +212,34 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
     assert len(buckets) == 1
     assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0)] > 0
 
+    def _wait_for_auto_commit_and_fetch_offset(timeout=5.0):
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            tp = TopicPartition(kafka_topic, 0)
+            committed = consumer.committed([tp], timeout=1.0)
+
+            # Check for valid committed offset (> 0, not -1001/_NO_OFFSET)
+            if committed and committed[0].offset > 0:
+                return committed[0].offset
+
+            time.sleep(0.1)
+
+        return None
+
     # Auto commit is enabled so we want to wait for the commit event to fire
-    time.sleep(1)
-    first_offset = consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset
-    if first_offset:
-        assert (
-            list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)]
-            == first_offset
-        )
+    first_offset = _wait_for_auto_commit_and_fetch_offset()
+    assert first_offset is not None, "Auto-commit did not complete within 5 seconds"
+    assert (
+        list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)]
+        == first_offset
+    )
 
 
 def test_data_streams_kafka_produce_api_compatibility(dsm_processor, consumer, producer, empty_kafka_topic):
     kafka_topic = empty_kafka_topic
 
     PAYLOAD = bytes("data streams", encoding="utf-8")
-    try:
-        del dsm_processor._current_context.value
-    except AttributeError:
-        pass
 
     # All of these should work
     producer.produce(kafka_topic)

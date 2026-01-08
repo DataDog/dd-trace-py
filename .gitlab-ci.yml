@@ -14,7 +14,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "6ed543169d8016a383092530fea7955dc9205ab9"
+  SYSTEM_TESTS_REF: "8910f640050543eeb7b1d70d29943f8cbf1d3396"
 
 default:
   interruptible: true
@@ -121,8 +121,15 @@ serverless lambda tests:
 
 microbenchmarks:
   stage: benchmarks
-  needs: [ "download_ddtrace_artifacts" ]
+  needs:
+    - job: "build linux"
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp39-cp39"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
   rules:
+    # Allow failures if explicitly asked
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true
     - allow_failure: false
@@ -136,20 +143,34 @@ microbenchmarks:
 
 macrobenchmarks:
   stage: benchmarks
-  needs: [ "download_ddtrace_artifacts" ]
+  needs:
+    - job: "build linux"
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp39-cp39"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
     DD_DISABLE_VPA: true
-  allow_failure: true
+  allow_failure: false
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
+    # Allow failures if explicitly asked
+    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
+      allow_failure: true
+    # Always run on tagged releases, and main or release branches
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: always
+    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
       when: always
     - if: !reference [.is_release]
       when: always
+    # Otherwise, run manually
     - when: manual
+      allow_failure: true
 
 check_new_flaky_tests:
   stage: tests
@@ -172,6 +193,38 @@ check_new_flaky_tests:
     - if: !reference [.is_devflow_merge_queue]
       when: never
     - when: on_success
+
+codeql-scan:
+  timeout: 30m
+  stage: tests
+  needs: []
+  image:
+    name: registry.ddbuild.io/images/code-scanning:v76675231-865a08a-default
+  tags: [ "arch:amd64" ]
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  rules:
+    - if: !reference [.is_release]
+      when: never
+    - when: on_success
+  variables:
+    AWS_REGION: us-east-1
+    BASE_REF: main
+    GOMAXPROCS: 10
+    KUBERNETES_CPU_REQUEST: 10
+    KUBERNETES_CPU_LIMIT: 10
+    KUBERNETES_MEMORY_REQUEST: 96Gi
+    KUBERNETES_MEMORY_LIMIT: 96Gi
+    CI_PROJECT_NAMESPACE: DataDog
+    CODEQL: /usr/local/codeql/codeql
+    CODEQL_DB: /tmp/dd-trace-py.codeql
+    PYTHON_CUSTOM_QLPACK: /tmp/codescanning/qlpacks/python/codeql-suites/python-code-scanning.qls
+    DB_CONFIGS: --threads 8 --ram 96000 --language=python --quiet
+    SCAN_CONFIGS: --format sarifv2.1.0 --threads 8 --ram 96000 --no-tuple-counting --quiet
+    UPLOAD_CONFIGS: -upload_sarif=true
+  script:
+    - ./scripts/codeql_scan.sh
 
 requirements_json_test:
   rules:
