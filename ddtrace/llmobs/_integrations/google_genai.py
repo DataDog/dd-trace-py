@@ -174,8 +174,6 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         schema = _get_attr(function_declaration, "parameters", {}) or {}
         if hasattr(schema, "model_dump"):
             schema = schema.model_dump(exclude_none=True)
-        else:
-            schema = {"value": repr(schema)}
 
         return ToolDefinition(
             name=str(_get_attr(function_declaration, "name", "") or ""),
