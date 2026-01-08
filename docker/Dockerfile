@@ -9,9 +9,16 @@ ARG HATCH_VERSION=1.14.2
 ARG RIOT_VERSION=0.20.1
 ARG UV_VERSION=0.9.0
 
+# Use bash with pipefail for safer RUN commands involving pipes
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# Avoid interactive prompts and ensure Python behaves correctly with UTF-8
+ENV DEBIAN_FRONTEND=noninteractive
+
 # http://bugs.python.org/issue19846
 # > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
 ENV LANG=C.UTF-8
+
 
 # Use root user to install system dependencies
 USER root
@@ -22,8 +29,8 @@ RUN useradd -ms /bin/bash bits
 # Install system dependencies
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
-    && curl https://mariadb.org/mariadb_release_signing_key.pgp | gpg --dearmor > /etc/apt/trusted.gpg.d/mariadb.gpg \
-    && echo "deb [arch=amd64,arm64] https://mirror.mariadb.org/repo/11.rolling/debian/ trixie main" > /etc/apt/sources.list.d/mariadb.list \
+    && curl -fsSL https://mariadb.org/mariadb_release_signing_key.pgp | gpg --dearmor -o /usr/share/keyrings/mariadb.gpg \
+    && echo "deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/mariadb.gpg] https://mirror.mariadb.org/repo/11.rolling/debian/ trixie main" > /etc/apt/sources.list.d/mariadb.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
       apt-transport-https \
@@ -40,7 +47,6 @@ RUN apt-get update \
       libmariadb-dev \
       libmariadb-dev-compat \
       libmemcached-dev \
-      libmemcached-dev \
       libncurses5-dev \
       libncursesw5-dev \
       libpq-dev \
@@ -50,6 +56,8 @@ RUN apt-get update \
       libsqliteodbc \
       libssh-dev \
       python3.13-dev \
+      python3-pip \
+      python3-venv \
       nodejs \
       npm \
       patch \
@@ -61,23 +69,25 @@ RUN apt-get update \
     # Install azure-functions-core-tools-4, only supported on amd64 architecture for Linux
     # https://github.com/Azure/azure-functions-core-tools/issues/3112
     # Note: Using bookworm repo as trixie is not yet available
-    && if [ "$TARGETARCH" = "amd64" ]; \
-    then \
-      curl https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > microsoft.gpg \
-      && mv microsoft.gpg /etc/apt/trusted.gpg.d/microsoft.gpg \
-      && echo "deb [arch=amd64] https://packages.microsoft.com/repos/microsoft-debian-bookworm-prod bookworm main" > /etc/apt/sources.list.d/dotnetdev.list \
+    && if [[ "${TARGETARCH}" == "amd64" ]]; then \
+      curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+        | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg \
+      && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/microsoft-debian-bookworm-prod bookworm main" \
+        > /etc/apt/sources.list.d/dotnetdev.list \
       && apt-get update \
       && apt-get install -y --no-install-recommends azure-functions-core-tools-4=4.1.0-1; \
     fi \
     # Google Chrome is needed for selenium contrib tests but is currently only available on amd64
-    && if [ "$TARGETARCH" = "amd64" ]; \
-    then \
-      curl https://dl.google.com/linux/linux_signing_key.pub |gpg --dearmor > /etc/apt/trusted.gpg.d/google.gpg \
-      && echo 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main' > /etc/apt/sources.list.d/google-chrome.list \
-      && apt-get update \
-      && apt-get install -y --no-install-recommends google-chrome-stable ; \
+    && if [[ "${TARGETARCH}" == "amd64" ]]; then \
+      curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
+        | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg && \
+      echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" \
+        > /etc/apt/sources.list.d/google-chrome.list && \
+      apt-get update && \
+      apt-get install -y --no-install-recommends google-chrome-stable; \
     fi \
     # Cleaning up apt cache space
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 
@@ -89,23 +99,27 @@ ENV PYENV_ROOT=/home/bits/.pyenv
 ENV CARGO_ROOT=/home/bits/.cargo
 ENV PATH=/home/bits/.local/bin:${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${CARGO_ROOT}/bin:$PATH
 ENV PYTHON_CONFIGURE_OPTS=--enable-shared
-ENV NPM_CONFIG_PREFIX=/home/bits/.local/
+ENV NPM_CONFIG_PREFIX=/home/bits/.local
 
 # Install Rust toolchain
 RUN curl https://sh.rustup.rs -sSf | \
     sh -s -- --default-toolchain stable -y
 
 # Use .python-version to specify all Python versions for testing
-COPY .python-version /home/bits/
+COPY --chown=bits:bits .python-version /home/bits/
 
 # Allow running datadog-ci in CI with npx
 RUN npm install -g @datadog/datadog-ci
 
 # Install pyenv and necessary Python versions
 RUN git clone --depth 1 --branch "v2.6.9" https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
+  && cd "${PYENV_ROOT}" \
   && pyenv local | xargs -L 1 pyenv install \
   && cd -
 
-RUN pip install --no-cache-dir -U "riot==${RIOT_VERSION}" "hatch==${HATCH_VERSION}" "uv==${UV_VERSION}"
+RUN python3 -m pip install --no-cache-dir -U \
+    "riot==${RIOT_VERSION}" \
+    "hatch==${HATCH_VERSION}" \
+    "uv==${UV_VERSION}"
 
 CMD ["/bin/bash"]
