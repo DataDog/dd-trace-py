@@ -20,7 +20,7 @@ Datadog::Uploader::Uploader(std::string_view _output_filename,
   : output_filename{ _output_filename }
   , ddog_exporter{ _ddog_exporter }
   , encoded_profile{ _encoded_profile }
-  , profiler_stats{ std::move(_stats) }
+  , profiler_stats{ _stats }
 {
     // Increment the upload sequence number every time we build an uploader.
     // Uploaders are use-once-and-destroy.

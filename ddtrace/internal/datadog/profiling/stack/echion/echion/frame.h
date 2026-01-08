@@ -49,10 +49,10 @@ class Frame
 
     struct _location
     {
-        int line = 0;
-        int line_end = 0;
-        int column = 0;
-        int column_end = 0;
+        unsigned line = 0;
+        unsigned line_end = 0;
+        unsigned column = 0;
+        unsigned column_end = 0;
     } location;
 
 #if PY_VERSION_HEX >= 0x030b0000
