@@ -25,6 +25,7 @@ extern "C"
     void ddup_config_output_filename(std::string_view filename);
     void ddup_config_sample_pool_capacity(uint64_t capacity);
     void ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms);
+    void ddup_config_process_tags(std::string_view process_tags);
 
     void ddup_config_user_tag(std::string_view key, std::string_view val);
     void ddup_config_sample_type(unsigned int type);
@@ -69,12 +70,7 @@ extern "C"
     void ddup_push_absolute_ns(Datadog::Sample* sample, int64_t timestamp_ns);
     void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
 
-    void ddup_increment_sampling_event_count();
-    void ddup_increment_sample_count();
-
     void ddup_flush_sample(Datadog::Sample* sample);
-    // Stack v2 specific flush, which reverses the locations
-    void ddup_flush_sample_v2(Datadog::Sample* sample);
     void ddup_drop_sample(Datadog::Sample* sample);
 #ifdef __cplusplus
 } // extern "C"

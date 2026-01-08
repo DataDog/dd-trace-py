@@ -15,6 +15,7 @@ from ddtrace.testing.internal.http import BackendConnectorAgentlessSetup
 from ddtrace.testing.internal.http import BackendConnectorEVPProxySetup
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
+from ddtrace.testing.internal.http import Subdomain
 from ddtrace.testing.internal.http import UnixDomainSocketHTTPConnection
 from ddtrace.testing.internal.telemetry import ErrorType
 from tests.testing.mocks import mock_backend_connector
@@ -252,12 +253,29 @@ class TestBackendConnector:
             call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_4XX),
         ]
 
+    @pytest.mark.parametrize(
+        "error_class,error_message",
+        [
+            (ConnectionRefusedError, "No connection for you"),
+            (BrokenPipeError, "Broken pipe"),
+            (ConnectionAbortedError, "Connection aborted"),
+            (ConnectionResetError, "Connection reset by peer"),
+        ],
+    )
     @patch("http.client.HTTPSConnection")
     @patch("time.sleep")
     @patch("time.perf_counter", return_value=0.0)
-    def test_post_json_connection_refused(self, mock_time: Mock, mock_sleep: Mock, mock_https_connection: Mock) -> None:
+    def test_post_json_connection_errors(
+        self,
+        mock_time: Mock,
+        mock_sleep: Mock,
+        mock_https_connection: Mock,
+        error_class: type[Exception],
+        error_message: str,
+    ) -> None:
+        """Test that all ConnectionError subclasses are handled as retriable NETWORK errors."""
         mock_conn = Mock()
-        mock_conn.getresponse.side_effect = ConnectionRefusedError("No connection for you")
+        mock_conn.getresponse.side_effect = error_class(error_message)
         mock_https_connection.return_value = mock_conn
 
         mock_telemetry = Mock()
@@ -276,7 +294,7 @@ class TestBackendConnector:
         assert len(mock_sleep.call_args_list) == 4
 
         assert result.error_type == ErrorType.NETWORK
-        assert result.error_description == "No connection for you"
+        assert result.error_description == error_message
         assert result.parsed_response is None
         assert result.is_gzip_response is False
         assert result.response_length is None
@@ -403,10 +421,45 @@ class TestBackendConnectorSetup:
         connector_setup = BackendConnectorSetup.detect_setup()
         assert isinstance(connector_setup, BackendConnectorAgentlessSetup)
 
-        connector = connector_setup.get_connector_for_subdomain("api")
+        connector = connector_setup.get_connector_for_subdomain(Subdomain.API)
         assert isinstance(connector.conn, http.client.HTTPSConnection)
         assert connector.conn.host == "api.datadoghq.com"
         assert connector.conn.port == 443
+        assert connector.use_gzip is True
+        assert connector.default_headers["dd-api-key"] == "the-key"
+
+        connector = connector_setup.get_connector_for_subdomain(Subdomain.CITESTCYCLE)
+        assert isinstance(connector.conn, http.client.HTTPSConnection)
+        assert connector.conn.host == "citestcycle-intake.datadoghq.com"
+        assert connector.conn.port == 443
+        assert connector.use_gzip is True
+        assert connector.default_headers["dd-api-key"] == "the-key"
+
+    def test_detect_agentless_setup_with_citestcycle_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            os,
+            "environ",
+            {
+                "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true",
+                "DD_API_KEY": "the-key",
+                "DD_CIVISIBILITY_AGENTLESS_URL": "https://localhost:33333",
+            },
+        )
+
+        connector_setup = BackendConnectorSetup.detect_setup()
+        assert isinstance(connector_setup, BackendConnectorAgentlessSetup)
+
+        connector = connector_setup.get_connector_for_subdomain(Subdomain.API)
+        assert isinstance(connector.conn, http.client.HTTPSConnection)
+        assert connector.conn.host == "api.datadoghq.com"
+        assert connector.conn.port == 443
+        assert connector.use_gzip is True
+        assert connector.default_headers["dd-api-key"] == "the-key"
+
+        connector = connector_setup.get_connector_for_subdomain(Subdomain.CITESTCYCLE)
+        assert isinstance(connector.conn, http.client.HTTPSConnection)
+        assert connector.conn.host == "localhost"
+        assert connector.conn.port == 33333
         assert connector.use_gzip is True
         assert connector.default_headers["dd-api-key"] == "the-key"
 
@@ -420,7 +473,7 @@ class TestBackendConnectorSetup:
         connector_setup = BackendConnectorSetup.detect_setup()
         assert isinstance(connector_setup, BackendConnectorAgentlessSetup)
 
-        connector = connector_setup.get_connector_for_subdomain("api")
+        connector = connector_setup.get_connector_for_subdomain(Subdomain.API)
         assert isinstance(connector.conn, http.client.HTTPSConnection)
         assert connector.conn.host == "api.datadoghq.eu"
         assert connector.conn.port == 443
@@ -453,7 +506,7 @@ class TestBackendConnectorSetup:
         path_exists_args, _ = mock_path_exists.call_args
         assert path_exists_args == ("/var/run/datadog/apm.socket",)
 
-        connector = connector_setup.get_connector_for_subdomain("api")
+        connector = connector_setup.get_connector_for_subdomain(Subdomain.API)
         assert isinstance(connector.conn, UnixDomainSocketHTTPConnection)
         assert connector.conn.host == "localhost"
         assert connector.conn.port == 80
@@ -478,7 +531,7 @@ class TestBackendConnectorSetup:
         path_exists_args, _ = mock_path_exists.call_args
         assert path_exists_args == ("/var/run/datadog/apm.socket",)
 
-        connector = connector_setup.get_connector_for_subdomain("api")
+        connector = connector_setup.get_connector_for_subdomain(Subdomain.API)
         assert isinstance(connector.conn, http.client.HTTPConnection)
         assert not isinstance(connector.conn, UnixDomainSocketHTTPConnection)
         assert connector.conn.host == "localhost"
@@ -503,7 +556,7 @@ class TestBackendConnectorSetup:
         path_exists_args, _ = mock_path_exists.call_args
         assert path_exists_args == ("/var/run/datadog/apm.socket",)
 
-        connector = connector_setup.get_connector_for_subdomain("api")
+        connector = connector_setup.get_connector_for_subdomain(Subdomain.API)
         assert isinstance(connector.conn, http.client.HTTPConnection)
         assert not isinstance(connector.conn, UnixDomainSocketHTTPConnection)
         assert connector.conn.host == "localhost"
@@ -540,7 +593,7 @@ class TestBackendConnectorSetup:
 
         assert isinstance(connector_setup, BackendConnectorEVPProxySetup)
 
-        connector = connector_setup.get_connector_for_subdomain("api")
+        connector = connector_setup.get_connector_for_subdomain(Subdomain.API)
         assert isinstance(connector.conn, http.client.HTTPConnection)
         assert connector.conn.host == "somehost"
         assert connector.conn.port == 1234
@@ -559,7 +612,7 @@ class TestBackendConnectorSetup:
 
         assert isinstance(connector_setup, BackendConnectorEVPProxySetup)
 
-        connector = connector_setup.get_connector_for_subdomain("api")
+        connector = connector_setup.get_connector_for_subdomain(Subdomain.API)
         assert isinstance(connector.conn, http.client.HTTPConnection)
         assert connector.conn.host == "somehost"
         assert connector.conn.port == 5678
@@ -578,7 +631,7 @@ class TestBackendConnectorSetup:
 
         assert isinstance(connector_setup, BackendConnectorEVPProxySetup)
 
-        connector = connector_setup.get_connector_for_subdomain("api")
+        connector = connector_setup.get_connector_for_subdomain(Subdomain.API)
         assert isinstance(connector.conn, http.client.HTTPConnection)
         assert connector.conn.host == "somehost"
         assert connector.conn.port == 5678
@@ -598,7 +651,7 @@ class TestBackendConnectorSetup:
 
         assert isinstance(connector_setup, BackendConnectorEVPProxySetup)
 
-        connector = connector_setup.get_connector_for_subdomain("api")
+        connector = connector_setup.get_connector_for_subdomain(Subdomain.API)
         assert isinstance(connector.conn, UnixDomainSocketHTTPConnection)
         assert connector.conn.host == "localhost"
         assert connector.conn.port == 80

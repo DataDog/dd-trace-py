@@ -43,6 +43,19 @@ Datadog::ProfilerStats::reset_state()
 {
     sample_count = 0;
     sampling_event_count = 0;
+    sampling_interval_us = std::nullopt;
+}
+
+void
+Datadog::ProfilerStats::set_sampling_interval_us(size_t interval_us)
+{
+    sampling_interval_us = interval_us;
+}
+
+std::optional<size_t>
+Datadog::ProfilerStats::get_sampling_interval_us()
+{
+    return sampling_interval_us;
 }
 
 std::string
@@ -52,6 +65,13 @@ Datadog::ProfilerStats::get_internal_metadata_json()
     internal_metadata_json.reserve(128);
 
     internal_metadata_json += "{";
+
+    auto maybe_sampling_interval = get_sampling_interval_us();
+    if (maybe_sampling_interval) {
+        internal_metadata_json += R"("sampling_interval_us": )";
+        append_to_string(internal_metadata_json, *maybe_sampling_interval);
+        internal_metadata_json += ",";
+    }
 
     internal_metadata_json += R"("sample_count": )";
     append_to_string(internal_metadata_json, sample_count);

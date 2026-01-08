@@ -1,4 +1,6 @@
+from ddtrace.appsec._iast._taint_tracking._native import initialize_native_state  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native import ops  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native import reset_native_state  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.aspect_format import _format_aspect  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.aspect_helpers import _convert_escaped_text_to_tainted_text
 
@@ -65,6 +67,8 @@ __all__ = [
     "copy_ranges_from_strings",
     "get_range_by_hash",
     "get_ranges",
+    "reset_native_state",
+    "initialize_native_state",
     "is_tainted",
     "new_pyobject_id",
     "origin_to_str",

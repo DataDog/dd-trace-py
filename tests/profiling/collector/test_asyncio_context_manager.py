@@ -20,11 +20,11 @@ def test_asyncio_context_manager_wall_time() -> None:
     from types import TracebackType
     from typing import Union
 
-    from ddtrace.internal.datadog.profiling import stack_v2
+    from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
 
-    assert stack_v2.is_available, stack_v2.failure_msg
+    assert stack.is_available, stack.failure_msg
 
     async def context_manager_dep() -> None:
         await asyncio.sleep(0.25)

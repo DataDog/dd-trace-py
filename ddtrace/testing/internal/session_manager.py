@@ -66,7 +66,7 @@ class SessionManager:
 
         self.is_auto_injected = bool(os.getenv("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
 
-        self.env = os.environ.get("DD_ENV") or DEFAULT_ENV_NAME
+        self.env = os.environ.get("_CI_DD_ENV") or os.environ.get("DD_ENV") or DEFAULT_ENV_NAME
 
         self.api_client = APIClient(
             service=self.service,
@@ -78,6 +78,8 @@ class SessionManager:
             telemetry_api=self.telemetry_api,
         )
         self.settings = self.api_client.get_settings()
+        self.override_settings_with_env_vars()
+
         self.known_tests = self.api_client.get_known_tests() if self.settings.known_tests_enabled else set()
         self.test_properties = (
             self.api_client.get_test_management_properties() if self.settings.test_management.enabled else {}
@@ -141,17 +143,18 @@ class SessionManager:
                 total_tests = len(new_tests) + len(self.known_tests)
                 new_tests_percentage = len(new_tests) / total_tests * 100
                 is_faulty_session = (
-                    len(self.known_tests) > self.settings.early_flake_detection.faulty_session_threshold
+                    len(new_tests) > self.settings.early_flake_detection.faulty_session_threshold
                     and new_tests_percentage > self.settings.early_flake_detection.faulty_session_threshold
                 )
                 if is_faulty_session:
                     log.info("Not enabling Early Flake Detection: too many new tests")
+                    self.session.set_early_flake_detection_abort_reason("faulty")
                 else:
                     self.retry_handlers.append(EarlyFlakeDetectionHandler(self))
             else:
                 log.info("Not enabling Early Flake Detection: no known tests")
 
-        if self.settings.auto_test_retries.enabled and asbool(os.getenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "true")):
+        if self.settings.auto_test_retries.enabled:
             self.retry_handlers.append(AutoTestRetriesHandler(self))
 
     def start(self) -> None:
@@ -221,6 +224,21 @@ class SessionManager:
 
         return test_module, test_suite, test
 
+    def get_test(self, test_ref: TestRef) -> t.Optional[Test]:
+        module = self.session.children.get(test_ref.suite.module.name)
+        if not module:
+            return None
+
+        suite = module.children.get(test_ref.suite.name)
+        if not suite:
+            return None
+
+        test = suite.children.get(test_ref.name)
+        if not test:
+            return None
+
+        return test
+
     def _set_codeowners(self, test: Test) -> None:
         if not self.codeowners:
             return
@@ -263,7 +281,7 @@ class SessionManager:
             log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
             unshallow_successful = git.try_all_unshallow_repository_methods()
             if unshallow_successful:
-                log.debug("Unshallow successful, geting latest commits from backend based on unshallowed commits")
+                log.debug("Unshallow successful, getting latest commits from backend based on unshallowed commits")
                 latest_commits = git.get_latest_commits()
                 backend_commits = self.api_client.get_known_commits(latest_commits)
                 # TODO: ddtrace has a "backend_commits is None" logic here with early return (is it correct?).
@@ -275,8 +293,16 @@ class SessionManager:
             excluded_commits=backend_commits, included_commits=commits_not_in_backend
         )
 
+        uploaded_files = 0
+        uploaded_bytes = 0
+
         for packfile in git.pack_objects(revisions_to_send):
-            self.api_client.send_git_pack_file(packfile)
+            nbytes = self.api_client.send_git_pack_file(packfile)
+            if nbytes is not None:
+                uploaded_bytes += nbytes
+                uploaded_files += 1
+
+        TelemetryAPI.get().record_git_pack_data(uploaded_files, uploaded_bytes)
 
     def is_skippable_test(self, test_ref: TestRef) -> bool:
         if not self.settings.skipping_enabled:
@@ -286,6 +312,33 @@ class SessionManager:
 
     def has_codeowners(self) -> bool:
         return self.codeowners is not None
+
+    def override_settings_with_env_vars(self) -> None:
+        # Kill switches.
+        # These variables default to true, and if explicitly given a false value, disable a feature.
+        if not asbool(os.environ.get("DD_CIVISIBILITY_ITR_ENABLED", "true")):
+            log.debug("Test Impact Analysis is disabled by environment variable")
+            self.settings.itr_enabled = False
+
+        if not asbool(os.environ.get("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "true")):
+            log.debug("Early Flake Detection is disabled by environment variable")
+            self.settings.early_flake_detection.enabled = False
+
+        if not asbool(os.environ.get("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "true")):
+            log.debug("Auto Test Retries is disabled by environment variable")
+            self.settings.auto_test_retries.enabled = False
+
+        # "Reverse" kill switches.
+        # These variables default to false, and if explicitly given a true value, disable a feature.
+        if asbool(os.environ.get("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "false")):
+            log.debug("TIA test skipping is disabled by environment variable")
+            self.settings.skipping_enabled = False
+
+        # Other overrides.
+        # These variables default to false, and if explicitly given a true value, enable a feature.
+        if asbool(os.environ.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false")):
+            log.debug("TIA code coverage collection is enabled by environment variable")
+            self.settings.coverage_enabled = True
 
 
 def _get_service_name_from_git_repo(env_tags: t.Dict[str, str]) -> t.Optional[str]:

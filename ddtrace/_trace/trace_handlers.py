@@ -15,6 +15,7 @@ import wrapt
 
 import ddtrace
 from ddtrace import config
+from ddtrace._trace._inferred_proxy import SUPPORTED_PROXY_SPAN_NAMES
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
@@ -248,7 +249,7 @@ def _on_web_framework_finish_request(
 
 
 def _set_inferred_proxy_tags(span, status_code):
-    if span._parent and span._parent.name == "aws.apigateway":
+    if span._parent and span._parent.name in SUPPORTED_PROXY_SPAN_NAMES:
         inferred_span = span._parent
         status_code = status_code if status_code else span.get_tag("http.status_code")
         if status_code:

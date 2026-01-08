@@ -15,6 +15,7 @@ import ddtrace
 from ddtrace import config
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
+from ddtrace.internal import process_tags
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal.datadog.profiling import ddup
@@ -142,10 +143,14 @@ class _ProfilerInstance(service.Service):
         self.endpoint_collection_enabled: bool = endpoint_collection_enabled
 
         # Non-user-supplied values
-        self._collectors: List[collector.Collector] = []
+        # Note: memalloc.MemoryCollector is not a subclass of collector.Collector, so we need to use a union type.
+        #       This is because its snapshot method cannot be static.
+        self._collectors: List[collector.Collector | memalloc.MemoryCollector] = []
         self._collectors_on_import: Optional[List[tuple[str, Callable[[Any], None]]]] = None
         self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
         self._lambda_function_name: Optional[str] = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+
+        self.process_tags: Optional[str] = process_tags.process_tags or None
 
         self.__post_init__()
 
@@ -179,6 +184,7 @@ class _ProfilerInstance(service.Service):
             output_filename=profiling_config.output_pprof,
             sample_pool_capacity=profiling_config.sample_pool_capacity,
             timeout=profiling_config.api_timeout_ms,
+            process_tags=self.process_tags,
         )
         ddup.start()
 
@@ -218,6 +224,9 @@ class _ProfilerInstance(service.Service):
                 ("threading", lambda _: start_collector(threading.ThreadingSemaphoreCollector)),
                 ("threading", lambda _: start_collector(threading.ThreadingBoundedSemaphoreCollector)),
                 ("asyncio", lambda _: start_collector(asyncio.AsyncioLockCollector)),
+                ("asyncio", lambda _: start_collector(asyncio.AsyncioSemaphoreCollector)),
+                ("asyncio", lambda _: start_collector(asyncio.AsyncioBoundedSemaphoreCollector)),
+                ("asyncio", lambda _: start_collector(asyncio.AsyncioConditionCollector)),
             ]
 
             for module, hook in self._collectors_on_import:
@@ -251,7 +260,7 @@ class _ProfilerInstance(service.Service):
                 ModuleWatchdog.register_module_hook(module, hook)
 
         if self._memory_collector_enabled:
-            self._collectors.append(memalloc.MemoryCollector())  # type: ignore[arg-type]
+            self._collectors.append(memalloc.MemoryCollector())
 
         self._build_default_exporters()
 
@@ -271,7 +280,7 @@ class _ProfilerInstance(service.Service):
             except Exception:
                 LOG.error("Error while snapshotting collector %r", c, exc_info=True)
 
-    _COPY_IGNORE_ATTRIBUTES = {"status"}
+    _COPY_IGNORE_ATTRIBUTES = {"status", "process_tags"}
 
     def copy(self) -> "_ProfilerInstance":
         return self.__class__(

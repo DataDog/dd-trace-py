@@ -1,67 +1,35 @@
 import bm
+from bm.iast_utils import IAST_ENV
+from bm.iast_utils import _with_iast_context
+from bm.iast_utils import _without_iast_context
+from bm.iast_utils import asm_config
 from bm.utils import override_env
 
-
-try:
-    # >= 3.15
-    from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request as end_iast_context
-    from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request as iast_start_request
-except ImportError:
-    try:
-        # >= 3.6; < 3.15
-        from ddtrace.appsec._iast._iast_request_context_base import end_iast_context
-        from ddtrace.appsec._iast._iast_request_context_base import start_iast_context as iast_start_request
-    except ImportError:
-        # < 3.6
-        from ddtrace.appsec._iast._iast_request_context import end_iast_context
-        from ddtrace.appsec._iast._iast_request_context import iast_start_request
-
-try:
-    # >= 3.6; < 3.15
-    from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_enabled
-except ImportError:
-    try:
-        # < 3.6
-        from ddtrace.appsec._iast._iast_request_context import set_iast_request_enabled
-    except ImportError:
-        # >= 3.15
-        set_iast_request_enabled = lambda x: None  # noqa: E731
+from ddtrace.appsec._iast import enable_iast_propagation
 
 
-def _start_iast_context_and_oce():
-    # oce.reconfigure()
-    # oce.acquire_request(None)
-    iast_start_request()
-    set_iast_request_enabled(True)
-
-
-def _end_iast_context_and_oce():
-    end_iast_context()
-
-
-with override_env({"DD_IAST_ENABLED": "True"}):
-    import functions
+with override_env(IAST_ENV):
+    asm_config._iast_enabled = True
+    asm_config._iast_propagation_enabled = True
+    enable_iast_propagation()
+    import functions  # noqa: E402
 
 
 class IASTAspectsSplit(bm.Scenario):
     iast_enabled: bool
     function_name: str
+    internal_loop: int
 
     def run(self):
-        if self.iast_enabled:
-            with override_env({"DD_IAST_ENABLED": "True"}):
-                _start_iast_context_and_oce()
-
-        def _(loops):
+        def aspect_loop(loops):
             for _ in range(loops):
-                if self.iast_enabled:
-                    with override_env({"DD_IAST_ENABLED": "True"}):
-                        getattr(functions, self.function_name)()
+                for _ in range(self.internal_loop):
+                    if self.iast_enabled:
+                        # Taint the parameter for each iteration
+                        _ = getattr(functions, self.function_name)()
+                    else:
+                        _ = getattr(functions, self.function_name)()
 
-                else:
-                    getattr(functions, self.function_name)()
-
-        yield _
-        if self.iast_enabled:
-            with override_env({"DD_IAST_ENABLED": "True"}):
-                _end_iast_context_and_oce()
+        context = _with_iast_context if self.iast_enabled else _without_iast_context
+        with context():
+            yield aspect_loop

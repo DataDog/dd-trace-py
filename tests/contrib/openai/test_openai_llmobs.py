@@ -7,6 +7,7 @@ import pytest
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.utils import _est_tokens
 from ddtrace.llmobs._utils import safe_json
+from tests.contrib.openai.utils import assert_prompt_tracking
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
 from tests.contrib.openai.utils import get_openai_vcr
@@ -873,6 +874,7 @@ class TestLLMObsOpenaiV1:
                             "output_tokens": 36,
                             "total_tokens": 179,
                             "cache_read_input_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -947,6 +949,7 @@ class TestLLMObsOpenaiV1:
                     "output_tokens": 275,
                     "total_tokens": 434,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 256,
                 },
                 tool_definitions=[
                     {
@@ -965,7 +968,6 @@ class TestLLMObsOpenaiV1:
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}, "verbosity": "medium"},
-                    "reasoning_tokens": 256,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -1036,6 +1038,7 @@ MUL: "*"
                     "output_tokens": 214,
                     "total_tokens": 455,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 192,
                 },
                 tool_definitions=[
                     {
@@ -1181,6 +1184,7 @@ MUL: "*"
                             "output_tokens": 100,
                             "total_tokens": 1321,
                             "cache_read_input_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1199,6 +1203,7 @@ MUL: "*"
                             "output_tokens": 100,
                             "total_tokens": 1320,
                             "cache_read_input_tokens": 1152,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1427,6 +1432,7 @@ MUL: "*"
                             "output_tokens": 100,
                             "total_tokens": 1521,
                             "cache_read_input_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1450,6 +1456,7 @@ MUL: "*"
                             "output_tokens": 100,
                             "total_tokens": 1520,
                             "cache_read_input_tokens": 1280,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1521,13 +1528,13 @@ MUL: "*"
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
-                    "reasoning_tokens": 0,
                 },
                 token_metrics={
                     "input_tokens": 53,
                     "output_tokens": 40,
                     "total_tokens": 93,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -1564,13 +1571,13 @@ MUL: "*"
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
-                    "reasoning_tokens": 0,
                 },
                 token_metrics={
                     "input_tokens": 9,
                     "output_tokens": 12,
                     "total_tokens": 21,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -1619,9 +1626,14 @@ MUL: "*"
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
-                    "reasoning_tokens": 0,
                 },
-                token_metrics={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "cache_read_input_tokens": 0},
+                token_metrics={
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "total_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
+                },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
@@ -1653,13 +1665,13 @@ MUL: "*"
                     "top_p": 1.0,
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
-                    "reasoning_tokens": 0,
                 },
                 token_metrics={
                     "input_tokens": 75,
                     "output_tokens": 23,
                     "total_tokens": 98,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tool_definitions=[
                     {
@@ -1718,7 +1730,6 @@ MUL: "*"
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
-                    "reasoning_tokens": 0,
                 },
                 tool_definitions=[
                     {
@@ -1742,6 +1753,7 @@ MUL: "*"
                     "output_tokens": 23,
                     "total_tokens": 98,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -1804,13 +1816,13 @@ MUL: "*"
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
                     "user": "ddtrace-test",
-                    "reasoning_tokens": 0,
                 },
                 token_metrics={
                     "input_tokens": 53,
                     "output_tokens": 40,
                     "total_tokens": 93,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -1860,7 +1872,6 @@ MUL: "*"
                             "tool_choice": "auto",
                             "truncation": "disabled",
                             "text": {"format": {"type": "text"}},
-                            "reasoning_tokens": 0,
                             "user": "ddtrace-test",
                         },
                         token_metrics={
@@ -1868,6 +1879,7 @@ MUL: "*"
                             "output_tokens": 14,
                             "total_tokens": 1529,
                             "cache_read_input_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1886,7 +1898,6 @@ MUL: "*"
                             "tool_choice": "auto",
                             "truncation": "disabled",
                             "text": {"format": {"type": "text"}},
-                            "reasoning_tokens": 0,
                             "user": "ddtrace-test",
                         },
                         token_metrics={
@@ -1894,6 +1905,7 @@ MUL: "*"
                             "output_tokens": 8,
                             "total_tokens": 1523,
                             "cache_read_input_tokens": 1390,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1950,7 +1962,6 @@ MUL: "*"
                             "tool_choice": "auto",
                             "truncation": "disabled",
                             "text": {"format": {"type": "text"}},
-                            "reasoning_tokens": 0,
                             "stream": True,
                         },
                         token_metrics={
@@ -1958,6 +1969,7 @@ MUL: "*"
                             "output_tokens": 14,
                             "total_tokens": 1529,
                             "cache_read_input_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1976,7 +1988,6 @@ MUL: "*"
                             "tool_choice": "auto",
                             "truncation": "disabled",
                             "text": {"format": {"type": "text"}},
-                            "reasoning_tokens": 0,
                             "stream": True,
                         },
                         token_metrics={
@@ -1984,6 +1995,7 @@ MUL: "*"
                             "output_tokens": 8,
                             "total_tokens": 1523,
                             "cache_read_input_tokens": 1390,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -2090,6 +2102,7 @@ MUL: "*"
                     "output_tokens": 93,
                     "total_tokens": 220,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -2143,13 +2156,13 @@ MUL: "*"
                         },
                         "verbosity": "medium",
                     },
-                    "reasoning_tokens": 0,
                 },
                 token_metrics={
                     "input_tokens": 113,
                     "output_tokens": 99,
                     "total_tokens": 212,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -2241,13 +2254,13 @@ MUL: "*"
                 "tool_choice": "auto",
                 "truncation": "disabled",
                 "text": {"format": {"type": "text"}, "verbosity": "medium"},
-                "reasoning_tokens": 128,
             },
             token_metrics={
                 "input_tokens": 642,
                 "output_tokens": 206,
                 "total_tokens": 848,
                 "cache_read_input_tokens": 0,
+                "reasoning_output_tokens": 128,
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             tool_definitions=[
@@ -2302,37 +2315,234 @@ MUL: "*"
         mock_tracer.pop_traces()
         assert mock_llmobs_writer.enqueue.call_count == 1
 
-        call_args = mock_llmobs_writer.enqueue.call_args[0][0]
+        assert_prompt_tracking(
+            span_event=mock_llmobs_writer.enqueue.call_args[0][0],
+            prompt_id="pmpt_690b24669d8c81948acc0e98da10e6490190feb3a62eee0b",
+            prompt_version="4",
+            variables={"question": "What is machine learning?"},
+            expected_chat_template=[
+                {"role": "developer", "content": "Direct & Conversational tone"},
+                {"role": "user", "content": "You are a helpful assistant. Please answer this question: {{question}}"},
+            ],
+            expected_messages=[
+                {"role": "developer", "content": "Direct & Conversational tone"},
+                {
+                    "role": "user",
+                    "content": "You are a helpful assistant. Please answer this question: What is machine learning?",
+                },
+            ],
+        )
 
-        # Verify prompt metadata is captured
-        assert "prompt" in call_args["meta"]["input"]
-        actual_prompt = call_args["meta"]["input"]["prompt"]
-        assert actual_prompt["id"] == "pmpt_690b24669d8c81948acc0e98da10e6490190feb3a62eee0b"
-        assert actual_prompt["version"] == "4"
-        assert actual_prompt["variables"] == {"question": "What is machine learning?"}
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 87),
+        reason="Reusable prompts only available in openai >= 1.87",
+    )
+    def test_response_with_mixed_input_prompt_tracking_url_stripped(self, openai, mock_llmobs_writer, mock_tracer):
+        """Test default behavior: image_url is stripped, file_id is preserved."""
+        from openai.types.responses import ResponseInputFile
+        from openai.types.responses import ResponseInputImage
+        from openai.types.responses import ResponseInputText
 
-        # Verify chat_template is extracted with variable placeholders
-        assert "chat_template" in actual_prompt
-        chat_template = actual_prompt["chat_template"]
-        assert len(chat_template) == 2
-        # First message: developer role
-        assert chat_template[0]["role"] == "developer"
-        assert chat_template[0]["content"] == "Direct & Conversational tone"
-        # Second message: user role with variable placeholder
-        assert chat_template[1]["role"] == "user"
-        assert chat_template[1]["content"] == "You are a helpful assistant. Please answer this question: {{question}}"
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_with_mixed_prompt_url_stripped.yaml"):
+            client = openai.OpenAI()
+            client.responses.create(
+                prompt={
+                    "id": "pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
+                    "version": "2",
+                    "variables": {
+                        "user_message": ResponseInputText(type="input_text", text="Analyze these images and document"),
+                        "user_image_1": ResponseInputImage(
+                            type="input_image",
+                            image_url="https://raw.githubusercontent.com/github/explore/main/topics/python/python.png",
+                            detail="auto",
+                        ),
+                        "user_file": ResponseInputFile(
+                            type="input_file",
+                            file_url="https://www.berkshirehathaway.com/letters/2024ltr.pdf",
+                        ),
+                        "user_image_2": ResponseInputImage(
+                            type="input_image",
+                            file_id="file-BCuhT1HQ24kmtsuuzF1mh2",
+                            detail="auto",
+                        ),
+                    },
+                },
+            )
+        mock_tracer.pop_traces()
+        assert mock_llmobs_writer.enqueue.call_count == 1
 
-        # Verify the actual prompt content is captured in input messages
-        input_messages = call_args["meta"]["input"]["messages"]
-        assert len(input_messages) == 2
-        # Developer message
-        assert input_messages[0]["role"] == "developer"
-        assert input_messages[0]["content"] == "Direct & Conversational tone"
-        # User message with rendered variables
-        assert input_messages[1]["role"] == "user"
-        assert (
-            input_messages[1]["content"]
-            == "You are a helpful assistant. Please answer this question: What is machine learning?"
+        assert_prompt_tracking(
+            span_event=mock_llmobs_writer.enqueue.call_args[0][0],
+            prompt_id="pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
+            prompt_version="2",
+            variables={
+                "user_message": "Analyze these images and document",
+                "user_image_1": "https://raw.githubusercontent.com/github/explore/main/topics/python/python.png",
+                "user_file": "https://www.berkshirehathaway.com/letters/2024ltr.pdf",
+                "user_image_2": "file-BCuhT1HQ24kmtsuuzF1mh2",
+            },
+            expected_chat_template=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Analyze the following content from the user:\n\n"
+                        "Text message: {{user_message}}\n"
+                        "Image reference 1: [image]\n"
+                        "Document reference: {{user_file}}\n"
+                        "Image reference 2: {{user_image_2}}\n\n"
+                        "Please provide a comprehensive analysis."
+                    ),
+                }
+            ],
+            expected_messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Analyze the following content from the user:\n\n"
+                        "Text message: Analyze these images and document\n"
+                        "Image reference 1: [image]\n"
+                        "Document reference: https://www.berkshirehathaway.com/letters/2024ltr.pdf\n"
+                        "Image reference 2: file-BCuhT1HQ24kmtsuuzF1mh2\n\n"
+                        "Please provide a comprehensive analysis."
+                    ),
+                }
+            ],
+            prompt_multimodal=True,
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 87),
+        reason="Reusable prompts only available in openai >= 1.87",
+    )
+    def test_response_with_mixed_input_prompt_tracking_url_preserved(self, openai, mock_llmobs_writer, mock_tracer):
+        """Test with include parameter: image_url is preserved."""
+        from openai.types.responses import ResponseInputFile
+        from openai.types.responses import ResponseInputImage
+        from openai.types.responses import ResponseInputText
+
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_with_mixed_prompt_url_preserved.yaml"):
+            client = openai.OpenAI()
+            client.responses.create(
+                include=["message.input_image.image_url"],
+                prompt={
+                    "id": "pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
+                    "version": "2",
+                    "variables": {
+                        "user_message": ResponseInputText(type="input_text", text="Analyze these images and document"),
+                        "user_image_1": ResponseInputImage(
+                            type="input_image",
+                            image_url="https://raw.githubusercontent.com/github/explore/main/topics/python/python.png",
+                            detail="auto",
+                        ),
+                        "user_file": ResponseInputFile(
+                            type="input_file",
+                            file_url="https://www.berkshirehathaway.com/letters/2024ltr.pdf",
+                        ),
+                        "user_image_2": ResponseInputImage(
+                            type="input_image",
+                            file_id="file-BCuhT1HQ24kmtsuuzF1mh2",
+                            detail="auto",
+                        ),
+                    },
+                },
+            )
+        mock_tracer.pop_traces()
+        assert mock_llmobs_writer.enqueue.call_count == 1
+
+        assert_prompt_tracking(
+            span_event=mock_llmobs_writer.enqueue.call_args[0][0],
+            prompt_id="pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
+            prompt_version="2",
+            variables={
+                "user_message": "Analyze these images and document",
+                "user_image_1": "https://raw.githubusercontent.com/github/explore/main/topics/python/python.png",
+                "user_file": "https://www.berkshirehathaway.com/letters/2024ltr.pdf",
+                "user_image_2": "file-BCuhT1HQ24kmtsuuzF1mh2",
+            },
+            expected_chat_template=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Analyze the following content from the user:\n\n"
+                        "Text message: {{user_message}}\n"
+                        "Image reference 1: {{user_image_1}}\n"
+                        "Document reference: {{user_file}}\n"
+                        "Image reference 2: {{user_image_2}}\n\n"
+                        "Please provide a comprehensive analysis."
+                    ),
+                }
+            ],
+            expected_messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Analyze the following content from the user:\n\n"
+                        "Text message: Analyze these images and document\n"
+                        "Image reference 1: "
+                        "https://raw.githubusercontent.com/github/explore/main/topics/python/python.png\n"
+                        "Document reference: https://www.berkshirehathaway.com/letters/2024ltr.pdf\n"
+                        "Image reference 2: file-BCuhT1HQ24kmtsuuzF1mh2\n\n"
+                        "Please provide a comprehensive analysis."
+                    ),
+                }
+            ],
+            prompt_multimodal=True,
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
+    def test_response_reasoning_tokens(self, openai, mock_llmobs_writer, mock_tracer):
+        """Test that reasoning tokens are captured in response endpoints."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_reasoning_tokens.yaml"):
+            model = "gpt-5-mini"
+            input_messages = multi_message_input
+            client = openai.OpenAI()
+            resp = client.responses.create(
+                model=model, input=input_messages, max_output_tokens=500, user="ddtrace-test"
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+
+        # Extract output messages including reasoning items
+        output_messages = []
+        for output in resp.output:
+            if output.type == "reasoning":
+                # Extract both reasoning and assistant messages
+                reasoning_content = {
+                    "summary": output.summary if hasattr(output, "summary") else [],
+                    "encrypted_content": output.encrypted_content if hasattr(output, "encrypted_content") else "",
+                    "id": output.id if hasattr(output, "id") else "",
+                }
+                output_messages.append({"role": "reasoning", "content": safe_json(reasoning_content)})
+            elif output.type == "message":
+                output_messages.append({"role": "assistant", "content": output.content[0].text})
+
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp.model,
+                model_provider="openai",
+                input_messages=input_messages,
+                output_messages=output_messages,
+                metadata={
+                    "max_output_tokens": 500,
+                    "user": "ddtrace-test",
+                    "temperature": 1.0,
+                    "top_p": 1.0,
+                    "tool_choice": "auto",
+                    "truncation": "disabled",
+                    "text": {"format": {"type": "text"}, "verbosity": "medium"},
+                },
+                token_metrics={
+                    "input_tokens": 54,
+                    "output_tokens": 164,
+                    "total_tokens": 218,
+                    "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 128,
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
         )
 
 

@@ -38,6 +38,7 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import LANGCHAIN_ROLE_MAPPING
 from ddtrace.llmobs._integrations.utils import extract_instance_metadata_from_stack
 from ddtrace.llmobs._integrations.utils import format_langchain_io
+from ddtrace.llmobs._integrations.utils import set_prompt_tracking_tags
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
@@ -957,5 +958,6 @@ class LangChainIntegration(BaseLLMIntegration):
             try:
                 prompt = _validate_prompt(prompt, strict_validation=True)
                 span._set_ctx_item(INPUT_PROMPT, prompt)
+                set_prompt_tracking_tags(span)
             except Exception as e:
                 log.debug("Failed to validate langchain prompt", e)

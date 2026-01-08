@@ -145,7 +145,8 @@ candidate:
   tags: [ "arch:amd64" ]
   needs:
     - pipeline: $PARENT_PIPELINE_ID
-      job: download_ddtrace_artifacts
+      job: "build linux: [amd64, cp39-cp39, v85383392-751efc0-manylinux2014_x86_64]"
+      artifacts: true
   script: |
     cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl ./
     echo "CANDIDATE_WHL=$(ls *.whl | head -n 1)" | tee candidate.env
@@ -171,7 +172,7 @@ microbenchmarks:
         - "packages_package_for_root_module_mapping packages_update_imported_dependencies"
       - CPUS_PER_RUN: "2"
         SCENARIOS:
-        - "django_simple flask_simple flask_sqli errortracking_django_simple errortracking_flask_sqli"
+        - "django_simple flask_simple flask_sqli errortracking_django_simple errortracking_flask_sqli startup"
         # Flaky timeouts on starting up
         # - "appsec_iast_django_startup"
         # They take a long time to run and frequently time out
@@ -211,8 +212,8 @@ benchmarks-pr-comment:
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
 
 # Unlike pre-release SLO checks that run unconditionally (which have
-# "when: always"), this PR-level check runs only if benchmarks succeed. 
-# Since benchmark failures block the PR directly, this job blocks the PR if 
+# "when: always"), this PR-level check runs only if benchmarks succeed.
+# Since benchmark failures block the PR directly, this job blocks the PR if
 # benchmarks succeed but there are SLO breaches.
 check-slo-breaches:
   extends: .check-slo-breaches

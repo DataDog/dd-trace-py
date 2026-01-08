@@ -109,6 +109,8 @@ def test_evaluate_method(
         result = ai_guard_client.evaluate(messages, Options(block=blocking))
         assert result["action"] == action
         assert result["reason"] == reason
+        if tags:
+            assert result["tags"] == tags
 
     expected_tags = {"ai_guard.target": target, "ai_guard.action": action}
     if target == "tool":
@@ -132,7 +134,9 @@ def test_evaluate_method(
             ("error", "false"),
         ),
     )
-    assert_mock_execute_request_call(mock_execute_request, ai_guard_client, messages)
+    assert_mock_execute_request_call(
+        mock_execute_request, ai_guard_client, messages, endpoint="https://api.example.com/ai-guard"
+    )
 
 
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
@@ -231,6 +235,31 @@ def test_span_meta_content_truncation(mock_execute_request, telemetry_mock, ai_g
     prompt = meta["messages"][0]
     assert len(prompt["content"]) == ai_guard_config._ai_guard_max_content_size
     assert_telemetry(telemetry_mock, "ai_guard.truncated", (("type", "content"),))
+
+
+@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_message_immutability(mock_execute_request, telemetry_mock, ai_guard_client, tracer):
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    messages = [
+        Message(role="assistant", tool_calls=[ToolCall(id="call_1", function=Function(name="test", arguments="{}"))])
+    ]
+    with tracer.trace("test"):
+        ai_guard_client.evaluate(messages)
+        # Update messages before being flushed
+        messages[0].get("tool_calls").append(ToolCall(id="call_2", function=Function(name="test", arguments="{}")))
+        messages.append(
+            Message(
+                role="assistant", tool_calls=[ToolCall(id="call_2", function=Function(name="test", arguments="{}"))]
+            )
+        )
+
+    span = tracer.get_spans()[1]  # AI Guard span
+    meta = span._get_struct_tag(AI_GUARD.TAG)
+    messages = meta["messages"]
+    assert len(messages) == 1
+    assert len(messages[0]["tool_calls"]) == 1
 
 
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")

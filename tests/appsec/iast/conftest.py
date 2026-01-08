@@ -11,8 +11,11 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
+from ddtrace.appsec._iast._taint_tracking import initialize_native_state
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
+from ddtrace.appsec._iast._taint_tracking._native import reset_source_truncation_cache
+from ddtrace.appsec._iast._taint_tracking._native import reset_taint_range_limit_cache
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
 from ddtrace.appsec._iast.taint_sinks.untrusted_serialization import patch as unstrusted_serialization_patch
@@ -62,6 +65,7 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         ),
         override_env(env),
     ):
+        initialize_native_state()
         assert debug_context_array_size() == 2
         assert debug_context_array_free_slots_number() > 0
         span = MockSpan()
@@ -80,11 +84,15 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
             weak_hash_unpatch()
             _testing_unpatch_iast()
             _end_iast_context_and_oce(span)
+            reset_taint_range_limit_cache()
+            reset_source_truncation_cache()
 
 
 @pytest.fixture
 def iast_context_defaults():
-    yield from iast_context(dict(DD_IAST_ENABLED="true"))
+    yield from iast_context(
+        dict(DD_IAST_ENABLED="true", DD_IAST_MAX_RANGE_COUNT="5000", DD_IAST_TRUNCATION_MAX_VALUE_LENGTH="10000")
+    )
 
 
 @pytest.fixture

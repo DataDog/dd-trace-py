@@ -14,11 +14,11 @@ def test_asyncio_as_completed() -> None:
     import random
     from sys import version_info as PYVERSION
 
-    from ddtrace.internal.datadog.profiling import stack_v2
+    from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
 
-    assert stack_v2.is_available, stack_v2.failure_msg
+    assert stack.is_available, stack.failure_msg
 
     async def other(t: float) -> None:
         await asyncio.sleep(t)
@@ -30,9 +30,12 @@ def test_asyncio_as_completed() -> None:
     async def main() -> None:
         # Create a mix of Tasks and Coroutines
         futures = [
-            asyncio.create_task(wait_and_return_delay(i / 10)) if i % 2 == 0 else wait_and_return_delay(i / 10)
-            for i in range(10)
+            asyncio.create_task(wait_and_return_delay(float(i) / 10))
+            if i % 2 == 0
+            else wait_and_return_delay(float(i) / 10)
+            for i in range(2, 12)
         ]
+        assert len(futures) == 10
 
         # Randomize the order of the futures
         random.shuffle(futures)
@@ -73,7 +76,7 @@ def test_asyncio_as_completed() -> None:
         pprof_utils.StackLocation(
             function_name="main",
             filename="test_asyncio_as_completed.py",
-            line_no=main.__code__.co_firstlineno + 14,
+            line_no=main.__code__.co_firstlineno + 17,
         ),
     ]
 
@@ -91,11 +94,15 @@ def test_asyncio_as_completed() -> None:
             ),
         ] + locations
 
-    pprof_utils.assert_profile_has_sample(
-        profile,
-        samples,
-        expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
-            locations=locations,
-        ),
-    )
+    # Now, check that we have seen those locations for each Task we've created.
+    # (They should be named Task-2 .. Task-11, which is the automatic name assigned to Tasks by asyncio.create_task)
+    for i in range(2, 12):
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples,
+            expected_sample=pprof_utils.StackEvent(
+                task_name=f"Task-{i}",
+                thread_name="MainThread",
+                locations=locations,
+            ),
+        )

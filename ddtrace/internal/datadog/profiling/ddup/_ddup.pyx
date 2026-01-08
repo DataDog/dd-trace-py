@@ -49,6 +49,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_config_timeline(bint enable)
     void ddup_config_output_filename(string_view output_filename)
     void ddup_config_sample_pool_capacity(uint64_t sample_pool_capacity)
+    void ddup_config_process_tags(string_view process_tags)
 
     void ddup_config_user_tag(string_view key, string_view val)
     void ddup_config_sample_type(unsigned int type)
@@ -334,6 +335,7 @@ def config(
         output_filename: StringType = None,
         sample_pool_capacity: Optional[int] = None,
         timeout: Optional[int] = None,
+        process_tags: StringType = None
 ) -> None:
 
     # Try to provide a ddtrace-specific default service if one is not given
@@ -347,6 +349,8 @@ def config(
         call_func_with_str(ddup_config_version, version)
     if output_filename:
         call_func_with_str(ddup_config_output_filename, output_filename)
+    if process_tags:
+        call_func_with_str(ddup_config_process_tags, process_tags)
 
     # Inherited
     call_func_with_str(ddup_config_runtime, platform.python_implementation())
@@ -508,14 +512,18 @@ cdef class SampleHandle:
             return
         if not span:
             return
-        if span.span_id:
-            ddup_push_span_id(self.ptr, clamp_to_uint64_unsigned(span.span_id))
-        if not span._local_root:
+        span_id = getattr(span, 'span_id', None)
+        if span_id:
+            ddup_push_span_id(self.ptr, clamp_to_uint64_unsigned(span_id))
+        local_root = getattr(span, '_local_root', None)
+        if not local_root:
             return
-        if span._local_root.span_id:
-            ddup_push_local_root_span_id(self.ptr, clamp_to_uint64_unsigned(span._local_root.span_id))
-        if span._local_root.span_type:
-            call_ddup_push_trace_type(self.ptr, span._local_root.span_type)
+        local_root_span_id = getattr(local_root, 'span_id', None)
+        if local_root_span_id:
+            ddup_push_local_root_span_id(self.ptr, clamp_to_uint64_unsigned(local_root_span_id))
+        local_root_span_type = getattr(local_root, 'span_type', None)
+        if local_root_span_type:
+            call_ddup_push_trace_type(self.ptr, local_root_span_type)
 
     def push_monotonic_ns(self, monotonic_ns: int) -> None:
         if self.ptr is not NULL:

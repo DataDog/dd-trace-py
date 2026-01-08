@@ -24,6 +24,8 @@ OUTPUT_DOCUMENTS = "_ml_obs.meta.output.documents"
 OUTPUT_MESSAGES = "_ml_obs.meta.output.messages"
 OUTPUT_VALUE = "_ml_obs.meta.output.value"
 
+MCP_TOOL_CALL_INTENT = "_ml_obs.meta.intent"
+
 SPAN_START_WHILE_DISABLED_WARNING = (
     "Span started with LLMObs disabled."
     " If using ddtrace-run, ensure DD_LLMOBS_ENABLED is set to 1. Else, use LLMObs.enable()."
@@ -43,7 +45,16 @@ TOTAL_TOKENS_METRIC_KEY = "total_tokens"
 CACHE_WRITE_INPUT_TOKENS_METRIC_KEY = "cache_write_input_tokens"
 CACHE_READ_INPUT_TOKENS_METRIC_KEY = "cache_read_input_tokens"
 BILLABLE_CHARACTER_COUNT_METRIC_KEY = "billable_character_count"
+REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
 
+TIME_TO_FIRST_TOKEN_METRIC_KEY = "time_to_first_token"  # nosec B105
+TIME_IN_QUEUE_METRIC_KEY = "time_in_queue"
+TIME_IN_MODEL_PREFILL_METRIC_KEY = "time_in_model_prefill"
+TIME_IN_MODEL_DECODE_METRIC_KEY = "time_in_model_decode"
+TIME_IN_MODEL_INFERENCE_METRIC_KEY = "time_in_model_inference"
+# TIME_E2E_METRIC_KEY = "time_e2e"
+
+EVP_PROXY_AGENT_BASE_PATH = "/evp_proxy/v2"
 EVAL_ENDPOINT = "/api/intake/llm-obs/v2/eval-metric"
 SPAN_ENDPOINT = "/api/v2/llmobs"
 SPAN_SUBDOMAIN_NAME = "llmobs-intake"
@@ -85,6 +96,12 @@ NAME = "_ml_obs.name"
 # Prompt constants
 DEFAULT_PROMPT_NAME = "unnamed-prompt"
 
+# Prompt tracking tags
+PROMPT_TRACKING_INSTRUMENTATION_METHOD = "prompt_tracking_instrumentation_method"
+PROMPT_MULTIMODAL = "prompt_multimodal"
+INSTRUMENTATION_METHOD_AUTO = "auto"
+INSTRUMENTATION_METHOD_ANNOTATED = "annotated"
+
 DECORATOR = "_ml_obs.decorator"
 INTEGRATION = "_ml_obs.integration"
 
@@ -104,10 +121,27 @@ LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"
 
 PROXY_REQUEST = "llmobs.proxy_request"
 
+# experiment span baggage keys to be propagated across boundaries
 EXPERIMENT_ID_KEY = "_ml_obs.experiment_id"
 EXPERIMENT_RUN_ID_KEY = "_ml_obs.experiment_run_id"
 EXPERIMENT_RUN_ITERATION_KEY = "_ml_obs.experiment_run_iteration"
+EXPERIMENT_PROJECT_NAME_KEY = "_ml_obs.experiment_project_name"
+EXPERIMENT_PROJECT_ID_KEY = "_ml_obs.experiment_project_id"
+EXPERIMENT_DATASET_NAME_KEY = "_ml_obs.experiment_dataset_name"
+EXPERIMENT_NAME_KEY = "_ml_obs.experiment_name"
+
+# experiment context keys
+EXPERIMENT_RECORD_METADATA = "_ml_obs.meta.metadata"
 EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
 EXPERIMENTS_INPUT = "_ml_obs.meta.input"
 EXPERIMENTS_OUTPUT = "_ml_obs.meta.output"
 DEFAULT_PROJECT_NAME = "default-project"
+
+# Fallback markers for prompt tracking when OpenAI strips values
+IMAGE_FALLBACK_MARKER = "[image]"
+FILE_FALLBACK_MARKER = "[file]"
+
+# OpenAI input types
+INPUT_TYPE_IMAGE = "input_image"
+INPUT_TYPE_FILE = "input_file"
+INPUT_TYPE_TEXT = "input_text"
