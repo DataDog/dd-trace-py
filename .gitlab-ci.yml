@@ -315,7 +315,7 @@ detect_circular_imports:
 
 
 package-oci:
-  needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
+  needs: [ "ddtrace package", download_dependency_wheels ]
 
 promote-oci-to-prod:
   stage: release
