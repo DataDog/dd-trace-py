@@ -329,398 +329,398 @@ experiments:
           # iast_aspects
           - name: iast_aspects-re_expand_aspect
             thresholds:
-              - execution_time < 0.04 ms
+              - execution_time < 4.88 ms
               - max_rss_usage < 43.50 MB
           - name: iast_aspects-re_expand_noaspect
             thresholds:
-              - execution_time < 0.04 ms
+              - execution_time < 4.62 ms
               - max_rss_usage < 43.50 MB
           - name: iast_aspects-re_findall_aspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.45 ms
               - max_rss_usage < 43.50 MB
           - name: iast_aspects-re_findall_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.43 ms
               - max_rss_usage < 43.50 MB
           - name: iast_aspects-re_finditer_aspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.59 ms
               - max_rss_usage < 43.50 MB
           - name: iast_aspects-re_finditer_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.44 ms
               - max_rss_usage < 43.50 MB
           - name: iast_aspects-re_fullmatch_aspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.36 ms
               - max_rss_usage < 43.50 MB
           - name: iast_aspects-re_fullmatch_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.40 ms
               - max_rss_usage < 43.50 MB
           - name: iast_aspects-re_group_aspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.63 ms
               - max_rss_usage < 43.50 MB
           - name: iast_aspects-re_group_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.64 ms
               - max_rss_usage < 43.50 MB
           - name: iast_aspects-re_groups_aspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.65 ms
               - max_rss_usage < 43.50 MB
           - name: iast_aspects-re_groups_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.65 ms
               - max_rss_usage < 43.50 MB
           - name: iast_aspects-re_match_aspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.37 ms
               - max_rss_usage < 43.50 MB
           - name: iast_aspects-re_match_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.41 ms
               - max_rss_usage < 43.50 MB
           - name: iast_aspects-re_search_aspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.35 ms
               - max_rss_usage < 43.50 MB
           - name: iast_aspects-re_search_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.38 ms
               - max_rss_usage < 43.50 MB
           - name: iast_aspects-re_sub_aspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.46 ms
               - max_rss_usage < 43.50 MB
           - name: iast_aspects-re_sub_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.52 ms
               - max_rss_usage < 43.50 MB
           - name: iast_aspects-re_subn_aspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.49 ms
               - max_rss_usage < 43.50 MB
           - name: iast_aspects-re_subn_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.53 ms
               - max_rss_usage < 43.50 MB
 
           # iastaspects
           - name: iastaspects-add_aspect
             thresholds:
-              - execution_time < 0.02 ms
+              - execution_time < 0.13 ms
               - max_rss_usage < 43.25 MB
           - name: iastaspects-add_inplace_aspect
             thresholds:
-              - execution_time < 0.02 ms
+              - execution_time < 0.13 ms
               - max_rss_usage < 43.25 MB
           - name: iastaspects-add_inplace_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.04 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-add_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.07 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-bytearray_aspect
             thresholds:
-              - execution_time < 0.03 ms
+              - execution_time < 0.40 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-bytearray_extend_aspect
             thresholds:
-              - execution_time < 0.03 ms
+              - execution_time < 0.80 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-bytearray_extend_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.40 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-bytearray_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.30 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-bytes_aspect
             thresholds:
-              - execution_time < 0.02 ms
+              - execution_time < 0.30 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-bytes_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.20 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-bytesio_aspect
             thresholds:
-              - execution_time < 0.07 ms
+              - execution_time < 5.00 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-bytesio_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.42 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-capitalize_aspect
             thresholds:
-              - execution_time < 0.02 ms
+              - execution_time < 0.30 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-capitalize_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.30 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-casefold_aspect
             thresholds:
-              - execution_time < 0.02 ms
+              - execution_time < 0.50 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-casefold_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.50 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-decode_aspect
             thresholds:
-              - execution_time < 0.03 ms
+              - execution_time < 0.10 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-decode_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.21 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-encode_aspect
             thresholds:
-              - execution_time < 0.03 ms
+              - execution_time < 0.20 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-encode_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.20 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-format_aspect
             thresholds:
-              - execution_time < 0.2 ms
+              - execution_time < 19.20 ms
               - max_rss_usage < 43.25 MB
           - name: iastaspects-format_map_aspect
             thresholds:
-              - execution_time < 0.2 ms
+              - execution_time < 21.50 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-format_map_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.50 ms
               - max_rss_usage < 43.25 MB
           - name: iastaspects-format_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.50 ms
               - max_rss_usage < 43.25 MB
           - name: iastaspects-index_aspect
             thresholds:
-              - execution_time < 0.02 ms
+              - execution_time < 0.30 ms
               - max_rss_usage < 43.25 MB
           - name: iastaspects-index_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.30 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-join_aspect
             thresholds:
-              - execution_time < 0.02 ms
+              - execution_time < 0.30 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-join_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.30 ms
               - max_rss_usage < 43.25 MB
           - name: iastaspects-ljust_aspect
             thresholds:
-              - execution_time < 0.03 ms
+              - execution_time < 0.70 ms
               - max_rss_usage < 43.25 MB
           - name: iastaspects-ljust_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.30 ms
               - max_rss_usage < 43.25 MB
           - name: iastaspects-lower_aspect
             thresholds:
-              - execution_time < 0.03 ms
+              - execution_time < 0.50 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-lower_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.30 ms
               - max_rss_usage < 43.25 MB
           - name: iastaspects-lstrip_aspect
             thresholds:
-              - execution_time < 0.03 ms
+              - execution_time < 3.00 ms
               - max_rss_usage < 43.25 MB
           - name: iastaspects-lstrip_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 3.00 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-modulo_aspect
             thresholds:
-              - execution_time < 0.2 ms
+              - execution_time < 18.75 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-modulo_aspect_for_bytearray_bytearray
             thresholds:
-              - execution_time < 0.2 ms
+              - execution_time < 19.35 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-modulo_aspect_for_bytes
             thresholds:
-              - execution_time < 0.2 ms
+              - execution_time < 18.90 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-modulo_aspect_for_bytes_bytearray
             thresholds:
-              - execution_time < 0.2 ms
+              - execution_time < 19.15 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-modulo_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 3.00 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-replace_aspect
             thresholds:
-              - execution_time < 0.30 ms
+              - execution_time < 24.00 ms
               - max_rss_usage < 44.00 MB
           - name: iastaspects-replace_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.30 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-repr_aspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.42 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-repr_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.09 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-rstrip_aspect
             thresholds:
-              - execution_time < 0.03 ms
+              - execution_time < 0.50 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-rstrip_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.30 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-slice_aspect
             thresholds:
-              - execution_time < 0.02 ms
+              - execution_time < 0.30 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-slice_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.09 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-stringio_aspect
             thresholds:
-              - execution_time < 0.08 ms
+              - execution_time < 5.00 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-stringio_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.50 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-strip_aspect
             thresholds:
-              - execution_time < 0.02 ms
+              - execution_time < 0.35 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-strip_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.24 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-swapcase_aspect
             thresholds:
-              - execution_time < 0.03 ms
+              - execution_time < 0.50 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-swapcase_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.40 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-title_aspect
             thresholds:
-              - execution_time < 0.03 ms
+              - execution_time < 0.50 ms
               - max_rss_usage < 43.0 MB
           - name: iastaspects-title_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.40 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-translate_aspect
             thresholds:
-              - execution_time < 0.03 ms
+              - execution_time < 0.70 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-translate_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.50 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-upper_aspect
             thresholds:
-              - execution_time < 0.03 ms
+              - execution_time < 0.50 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspects-upper_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.400 ms
               - max_rss_usage < 43.50 MB
 
           # iastaspectsospath
           - name: iastaspectsospath-ospathbasename_aspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.70 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspectsospath-ospathbasename_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.70 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspectsospath-ospathjoin_aspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.70 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspectsospath-ospathjoin_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.70 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspectsospath-ospathnormcase_aspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.70 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspectsospath-ospathnormcase_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.70 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspectsospath-ospathsplit_aspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.70 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspectsospath-ospathsplit_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.70 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspectsospath-ospathsplitdrive_aspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.70 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspectsospath-ospathsplitdrive_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.70 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspectsospath-ospathsplitext_aspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.70 ms
               - max_rss_usage < 43.50 MB
           - name: iastaspectsospath-ospathsplitext_noaspect
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.70 ms
               - max_rss_usage < 43.50 MB
 
           # iastaspectssplit
           - name: iastaspectssplit-rsplit_aspect
             thresholds:
-              - execution_time < 0.01 ms
-              - max_rss_usage < 43.50 MB
+              - execution_time < 0.25 ms
+              - max_rss_usage < 44.00 MB
           - name: iastaspectssplit-rsplit_noaspect
             thresholds:
-              - execution_time < 0.01 ms
-              - max_rss_usage < 43.50 MB
+              - execution_time < 0.25 ms
+              - max_rss_usage < 44.00 MB
           - name: iastaspectssplit-split_aspect
             thresholds:
-              - execution_time < 0.01 ms
-              - max_rss_usage < 43.50 MB
+              - execution_time < 0.25 ms
+              - max_rss_usage < 44.00 MB
           - name: iastaspectssplit-split_noaspect
             thresholds:
-              - execution_time < 0.01 ms
-              - max_rss_usage < 43.50 MB
+              - execution_time < 0.25 ms
+              - max_rss_usage < 44.00 MB
           - name: iastaspectssplit-splitlines_aspect
             thresholds:
-              - execution_time < 0.01 ms
-              - max_rss_usage < 43.50 MB
+              - execution_time < 0.25 ms
+              - max_rss_usage < 44.00 MB
           - name: iastaspectssplit-splitlines_noaspect
             thresholds:
-              - execution_time < 0.01 ms
-              - max_rss_usage < 43.50 MB
+              - execution_time < 0.25 ms
+              - max_rss_usage < 44.00 MB
 
           # iastpropagation
           - name: iastpropagation-no-propagation

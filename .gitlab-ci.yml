@@ -204,6 +204,10 @@ codeql-scan:
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
+  rules:
+    - if: !reference [.is_release]
+      when: never
+    - when: on_success
   variables:
     AWS_REGION: us-east-1
     BASE_REF: main
