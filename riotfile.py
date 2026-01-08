@@ -134,6 +134,7 @@ venv = Venv(
             pys=["3.10"],
             env={
                 "DD_TRACE_ENABLED": "false",
+                "PYTHONUNBUFFERED": "1",
             },
             pkgs={
                 "reno": "~=3.5.0",
