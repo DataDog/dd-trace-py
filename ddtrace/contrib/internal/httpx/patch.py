@@ -94,7 +94,8 @@ async def _wrapped_async_send(
             resp = await wrapped(*args, **kwargs)
             return resp
         finally:
-            core.dispatch("httpx.send.completed", (ctx, req, resp, _url_to_str(req.url)))
+            ctx.set_item("response", resp)
+            ctx.set_item("url", _url_to_str(req.url))
 
 
 def _wrapped_sync_send(
@@ -117,7 +118,7 @@ def _wrapped_sync_send(
             return resp
         finally:
             ctx.set_item("response", resp)
-            ctx.set_item("request.url", _url_to_str(req.url))
+            ctx.set_item("url", _url_to_str(req.url))
 
 
 def patch() -> None:

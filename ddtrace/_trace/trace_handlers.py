@@ -1556,7 +1556,6 @@ def listen():
         "azure.eventhubs.patched_producer_send_batch",
         "aiokafka.getone",
         "aiokafka.getmany",
-        "httpx.request",
     ):
         core.on(f"context.ended.{name}", _finish_span)
 
