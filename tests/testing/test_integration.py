@@ -631,7 +631,7 @@ class TestRetryHandler:
         # Should not retry after max attempts
         assert handler.should_retry(test) is False
 
-    def test_auto_retry_handler_sets_final_status_tag(self) -> None:
+    def test_auto_retry_handler_final_status_calculation(self) -> None:
         """Test that AutoTestRetriesHandler sets the final_status tag on the last test run."""
         from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
         from ddtrace.testing.internal.test_data import ModuleRef
@@ -685,15 +685,8 @@ class TestRetryHandler:
         # Verify final status is PASS (ATR stops on first pass)
         assert final_status == TestStatus.PASS
 
-        # Simulate what the plugin does: set the final status tag on the last test run
-        test.last_test_run.set_tags({TestTag.FINAL_STATUS: final_status.value})
-
-        # Verify final_status tag was set on the last test run
-        assert TestTag.FINAL_STATUS in test.last_test_run.tags
-        assert test.last_test_run.tags[TestTag.FINAL_STATUS] == "pass"
-
-    def test_efd_handler_sets_final_status_tag(self) -> None:
-        """Test that EarlyFlakeDetectionHandler sets the final_status tag on the last test run."""
+    def test_efd_handler_final_status_calculation(self) -> None:
+        """Test that EarlyFlakeDetectionHandler calculates final_status correctly (pass if any pass)."""
         from ddtrace.testing.internal.retry_handlers import EarlyFlakeDetectionHandler
         from ddtrace.testing.internal.test_data import ModuleRef
         from ddtrace.testing.internal.test_data import SuiteRef
@@ -750,15 +743,8 @@ class TestRetryHandler:
         # Verify final status is PASS (EFD: any pass = flaky pass)
         assert final_status == TestStatus.PASS
 
-        # Simulate what the plugin does: set the final status tag on the last test run
-        test.last_test_run.set_tags({TestTag.FINAL_STATUS: final_status.value})
-
-        # Verify final_status tag was set on the last test run
-        assert TestTag.FINAL_STATUS in test.last_test_run.tags
-        assert test.last_test_run.tags[TestTag.FINAL_STATUS] == "pass"
-
-    def test_attempt_to_fix_handler_sets_final_status_tag(self) -> None:
-        """Test that AttemptToFixHandler sets the final_status tag on the last test run."""
+    def test_attempt_to_fix_handler_final_status_calculation(self) -> None:
+        """Test that AttemptToFixHandler calculates final_status correctly (pass if any pass)."""
         from ddtrace.testing.internal.retry_handlers import AttemptToFixHandler
         from ddtrace.testing.internal.test_data import ModuleRef
         from ddtrace.testing.internal.test_data import SuiteRef
@@ -818,13 +804,6 @@ class TestRetryHandler:
         # Verify final status is PASS (majority pass)
         assert final_status == TestStatus.PASS
 
-        # Simulate what the plugin does: set the final status tag on the last test run
-        test.last_test_run.set_tags({TestTag.FINAL_STATUS: final_status.value})
-
-        # Verify final_status tag was set on the last test run
-        assert TestTag.FINAL_STATUS in test.last_test_run.tags
-        assert test.last_test_run.tags[TestTag.FINAL_STATUS] == "pass"
-
     def test_final_status_tag_all_fail(self) -> None:
         """Test that final_status tag is correctly set to 'fail' when all retries fail."""
         from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
@@ -873,95 +852,3 @@ class TestRetryHandler:
         # Verify final status is FAIL
         assert final_status == TestStatus.FAIL
 
-        # Simulate what the plugin does: set the final status tag on the last test run
-        test.last_test_run.set_tags({TestTag.FINAL_STATUS: final_status.value})
-
-        # Verify final_status tag was set to 'fail'
-        assert TestTag.FINAL_STATUS in test.last_test_run.tags
-        assert test.last_test_run.tags[TestTag.FINAL_STATUS] == "fail"
-
-    def test_final_status_tag_on_tests_without_retries(self) -> None:
-        """Test that tests without retries have the final_status tag."""
-        from ddtrace.testing.internal.test_data import ModuleRef
-        from ddtrace.testing.internal.test_data import SuiteRef
-        from ddtrace.testing.internal.test_data import Test
-        from ddtrace.testing.internal.test_data import TestRef
-        from ddtrace.testing.internal.test_data import TestStatus
-        from ddtrace.testing.internal.test_data import TestTag
-
-        # Create a test without any retry handler
-        module_ref = ModuleRef("module")
-        suite_ref = SuiteRef(module_ref, "suite")
-        test_ref = TestRef(suite_ref, "test_no_retries")
-
-        mock_suite = Mock()
-        mock_suite.ref = suite_ref
-        test = Test(test_ref, mock_suite)
-
-        # Create a test run (no retries)
-        test_run = test.make_test_run()
-        test_run.start()
-        test_run.set_status(TestStatus.PASS)
-        # For tests without retries, the plugin should set the final_status tag
-        test_run.set_tags({TestTag.FINAL_STATUS: TestStatus.PASS.value})
-        test_run.finish()
-
-        # Set the test status
-        test.set_status(TestStatus.PASS)
-
-        # Verify that the test run has the final_status tag
-        assert TestTag.FINAL_STATUS in test_run.tags
-        assert test_run.tags[TestTag.FINAL_STATUS] == "pass"
-
-    def test_atr_final_status_tag_when_passing_on_first_try(self) -> None:
-        """Test that ATR tests passing on first try (no retries) have the final_status tag."""
-        from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
-        from ddtrace.testing.internal.test_data import ModuleRef
-        from ddtrace.testing.internal.test_data import SuiteRef
-        from ddtrace.testing.internal.test_data import Test
-        from ddtrace.testing.internal.test_data import TestRef
-        from ddtrace.testing.internal.test_data import TestStatus
-        from ddtrace.testing.internal.test_data import TestTag
-
-        # Create a mock session manager
-        mock_session_manager = Mock()
-
-        # Create AutoTestRetriesHandler
-        with patch.dict(
-            os.environ,
-            {
-                "DD_API_KEY": "foobar",
-                "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true",
-                "DD_CIVISIBILITY_FLAKY_RETRY_COUNT": "2",
-                "DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT": "5",
-            },
-        ):
-            handler = AutoTestRetriesHandler(mock_session_manager)
-
-        # Create a test that passes on first try
-        module_ref = ModuleRef("module")
-        suite_ref = SuiteRef(module_ref, "suite")
-        test_ref = TestRef(suite_ref, "test_pass_first_try")
-
-        mock_suite = Mock()
-        mock_suite.ref = suite_ref
-        test = Test(test_ref, mock_suite)
-
-        # Create one test run that passes
-        test_run = test.make_test_run()
-        test_run.start()
-        test_run.set_status(TestStatus.PASS)
-        # For tests without retries, the plugin should set the final_status tag
-        test_run.set_tags({TestTag.FINAL_STATUS: TestStatus.PASS.value})
-        test_run.finish()
-
-        # Set the test status to pass
-        test.set_status(TestStatus.PASS)
-
-        # Handler should not retry (test passed)
-        assert handler.should_retry(test) is False
-
-        # Verify that the test run has the final_status tag
-        # (tests without retries should have the final_status tag)
-        assert TestTag.FINAL_STATUS in test.last_test_run.tags
-        assert test.last_test_run.tags[TestTag.FINAL_STATUS] == "pass"

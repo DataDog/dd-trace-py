@@ -17,6 +17,7 @@ from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import get_user_property
 from ddtrace.ext.test_visibility.api import TestId
 from ddtrace.ext.test_visibility.api import TestStatus
+from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility.api import InternalTest
 
@@ -113,33 +114,37 @@ def atr_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) 
 def _atr_do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
     test_id = _get_test_id_from_item(item)
 
-    final_status = None
     should_retry = InternalTest.atr_should_retry(test_id)
     while should_retry:
         retry_num = InternalTest.atr_add_retry(test_id, start_immediately=True)
 
+        # If atr_add_retry failed (returned None), break out of the loop
+        if retry_num is None:
+            log.debug("ATR retry failed to start for test %s, stopping retries", test_id)
+            break
+
         retry_outcome = _get_outcome_from_retry(item, outcomes, retry_num)
 
-        # Check if we should continue after this retry
+        # Check if we should continue after this retry (must do this before finishing)
         should_retry = InternalTest.atr_should_retry(test_id)
 
-        if not should_retry:
-            final_status = InternalTest.atr_get_final_status(test_id)
+        # Determine if this is the final retry and get final status
+        is_final_retry = not should_retry
+        final_status = InternalTest.atr_get_final_status(test_id) if not should_retry else None
 
+        # Finish the retry with all the correct parameters
         InternalTest.atr_finish_retry(
             item_id=test_id,
             retry_number=retry_num,
             status=retry_outcome.status,
-            is_final_retry=not should_retry,
+            is_final_retry=is_final_retry,
             final_status=final_status,
             skip_reason=retry_outcome.skip_reason,
             exc_info=retry_outcome.exc_info,
         )
 
-    if final_status is None:
-        raise RuntimeError("final_status must be set before returning")
-
-    return final_status
+    # After all retries (or early break), return the final status
+    return InternalTest.atr_get_final_status(test_id)
 
 
 def _atr_write_report_for_status(

@@ -130,6 +130,11 @@ def _efd_do_retries(item: pytest.Item) -> EFDTestStatus:
     while should_retry:
         retry_num = InternalTest.efd_add_retry(test_id, start_immediately=True)
 
+        # If efd_add_retry failed (returned None), break out of the loop
+        if retry_num is None:
+            log.debug("EFD retry failed to start for test %s, stopping retries", test_id)
+            break
+
         retry_outcome = _get_outcome_from_retry(item, outcomes, retry_num)
 
         # Check if we should continue after this retry

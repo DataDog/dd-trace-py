@@ -322,6 +322,20 @@ class PytestATRTestCase(PytestTestCaseBase):
                 f"Test {test_span.get_tag('test.name')} should have final_status='pass'"
             )
 
+
+        # Check tests that failed all retries
+        if "test_func_fail" in spans_by_test:
+            fail_spans = spans_by_test["test_func_fail"]
+            # Find the spans with test_func_fail
+            fail_spans = [s for s in fail_spans if "test_func_fail" in s.get_tag("test.name")]
+            if fail_spans:
+                # Should have multiple attempts, last one should have final_status='fail'
+                last_fail_span = max(fail_spans, key=lambda s: s.get_tag("test.is_retry") or "false")
+                assert last_fail_span.get_tag("test.final_status") == "fail", (
+                    "Last retry of failing test should have final_status='fail'"
+                )
+                assert last_fail_span.get_tag("test.has_failed_all_retries") == "true"
+
     def test_pytest_atr_does_not_retry_failed_setup_or_teardown(self):
         # NOTE: This feature only works for regular pytest tests. For tests inside unittest classes, setup and teardown
         # happens at the 'call' phase, and we don't have a way to detect that the error happened during setup/teardown,
