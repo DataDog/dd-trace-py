@@ -9,14 +9,14 @@ from ddtrace.llmobs._evaluators.format import JSONValidator
 from ddtrace.llmobs._evaluators.format import LengthValidator
 from ddtrace.llmobs._evaluators.semantic import AnswerRelevancy
 from ddtrace.llmobs._evaluators.semantic import SemanticSimilarity
-from ddtrace.llmobs._evaluators.string_matching import ExactMatch
 from ddtrace.llmobs._evaluators.string_matching import RegexMatch
+from ddtrace.llmobs._evaluators.string_matching import StringCheck
 
 
 __all__ = [
     "BaseEvaluator",
     "EvaluatorContext",
-    "ExactMatch",
+    "StringCheck",
     "RegexMatch",
     "LengthValidator",
     "JSONValidator",

@@ -8,53 +8,96 @@ from ddtrace.llmobs._evaluators.base import BaseEvaluator
 from ddtrace.llmobs._evaluators.base import EvaluatorContext
 
 
-class ExactMatch(BaseEvaluator):
-    """Evaluator that performs exact string matching.
+class StringCheck(BaseEvaluator):
+    """Evaluator that performs string comparison operations.
 
-    Compares the output_data with expected_output for exact equality.
-    Useful for classification tasks, structured outputs, or any scenario
-    where the output must match exactly.
+    Compares the output_data with expected_output using various string operations.
+    Supports operations similar to OpenAI's String Check Grader.
+
+    Operations:
+    - 'eq': Equals (exact match) - default
+    - 'ne': Not equals (inequality)
+    - 'contains': Contains substring (case-sensitive)
+    - 'icontains': Contains substring (case-insensitive)
 
     Example::
 
-        evaluator = ExactMatch(case_sensitive=True)
+        # Exact match (default)
+        evaluator = StringCheck(operation="eq", case_sensitive=True)
         result = evaluator.evaluate(context)
-        # Returns: 1.0 if exact match, 0.0 otherwise
+        # Returns: 1.0 if output == expected_output
 
-    :param case_sensitive: Whether to perform case-sensitive comparison (default: True)
+        # Not equals
+        evaluator = StringCheck(operation="ne")
+        # Returns: 1.0 if output != expected_output
+
+        # Contains (case-sensitive)
+        evaluator = StringCheck(operation="contains")
+        # Returns: 1.0 if expected_output is in output
+
+        # Contains (case-insensitive)
+        evaluator = StringCheck(operation="icontains")
+        # Returns: 1.0 if expected_output is in output (ignoring case)
+
+    :param operation: String comparison operation: 'eq', 'ne', 'contains', 'icontains' (default: 'eq')
+    :param case_sensitive: Whether to perform case-sensitive comparison (default: True, ignored for 'icontains')
     :param strip_whitespace: Whether to strip leading/trailing whitespace before comparison (default: False)
     :param name: Optional custom name for the evaluator
     """
 
+    VALID_OPERATIONS = ("eq", "ne", "contains", "icontains")
+
     def __init__(
         self,
+        operation: str = "eq",
         case_sensitive: bool = True,
         strip_whitespace: bool = False,
         name: Optional[str] = None,
     ):
-        """Initialize the ExactMatch evaluator.
+        """Initialize the StringCheck evaluator.
 
+        :param operation: String comparison operation: 'eq', 'ne', 'contains', 'icontains'
         :param case_sensitive: Whether to perform case-sensitive comparison
         :param strip_whitespace: Whether to strip whitespace before comparison
         :param name: Optional custom name for the evaluator
+        :raises ValueError: If operation is invalid
         """
         super().__init__(name=name)
+
+        if operation not in self.VALID_OPERATIONS:
+            raise ValueError(f"operation must be one of {self.VALID_OPERATIONS}, got: {operation}")
+
+        self.operation = operation
         self.case_sensitive = case_sensitive
         self.strip_whitespace = strip_whitespace
 
     def evaluate(self, context: EvaluatorContext) -> float:
-        """Perform exact match evaluation.
+        """Perform string comparison evaluation.
 
         :param context: The evaluation context
-        :return: 1.0 if exact match, 0.0 otherwise
+        :return: 1.0 if condition passes, 0.0 otherwise
         """
         output = context.output_data
         expected = context.expected_output
 
+        # Handle None cases
         if output is None and expected is None:
-            return 1.0
+            # Both None
+            if self.operation == "eq":
+                return 1.0  # None == None
+            elif self.operation == "ne":
+                return 0.0  # Not (None != None)
+            else:  # contains, icontains
+                return 0.0  # Can't check containment with None
+
         if output is None or expected is None:
-            return 0.0
+            # One is None
+            if self.operation == "eq":
+                return 0.0  # None != value
+            elif self.operation == "ne":
+                return 1.0  # None != value
+            else:  # contains, icontains
+                return 0.0  # Can't check containment with None
 
         output_str = str(output)
         expected_str = str(expected)
@@ -63,11 +106,24 @@ class ExactMatch(BaseEvaluator):
             output_str = output_str.strip()
             expected_str = expected_str.strip()
 
-        if not self.case_sensitive:
+        # Apply case sensitivity
+        if self.operation == "icontains":
+            # icontains is always case-insensitive
+            output_str = output_str.lower()
+            expected_str = expected_str.lower()
+        elif not self.case_sensitive:
             output_str = output_str.lower()
             expected_str = expected_str.lower()
 
-        return 1.0 if output_str == expected_str else 0.0
+        # Perform operation
+        if self.operation == "eq":
+            return 1.0 if output_str == expected_str else 0.0
+        elif self.operation == "ne":
+            return 1.0 if output_str != expected_str else 0.0
+        elif self.operation in ("contains", "icontains"):
+            return 1.0 if expected_str in output_str else 0.0
+
+        return 0.0  # Should never reach here
 
 
 class RegexMatch(BaseEvaluator):
