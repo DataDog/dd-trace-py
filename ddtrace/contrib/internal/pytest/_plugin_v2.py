@@ -692,6 +692,28 @@ def _pytest_run_one_test(item, nextitem):
     is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
     setup_or_teardown_failed = False
 
+    # Check if retry mechanisms will be triggered (before finishing the test)
+    # ATR retries only failing tests
+    atr_will_retry = (
+        InternalTestSession.atr_is_enabled()
+        and test_outcome.status == TestStatus.FAIL
+    )
+    # EFD retries only "new" tests (we can't check duration/retry limits before finishing)
+    efd_will_retry = (
+        InternalTestSession.efd_enabled()
+        and InternalTest.is_new_test(test_id)
+    )
+    # Attempt to fix always retries if the test is marked for it
+    attempt_to_fix_will_retry = is_attempt_to_fix and _pytest_version_supports_attempt_to_fix()
+
+    if not InternalTest.is_finished(test_id):
+        if not (efd_will_retry or atr_will_retry or attempt_to_fix_will_retry):
+            test_obj = require_ci_visibility_service().get_test_by_id(test_id)
+            test_obj.set_tag(TEST_FINAL_STATUS, test_outcome.status.value)
+
+        _handle_collected_coverage(item, test_id, _current_coverage_collector)
+        InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
+
     for report in reports:
         if report.failed and report.when in (TestPhase.SETUP, TestPhase.TEARDOWN):
             setup_or_teardown_failed = True
@@ -710,21 +732,12 @@ def _pytest_run_one_test(item, nextitem):
     if setup_or_teardown_failed:
         # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed.
         log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
-    elif is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
+    elif attempt_to_fix_will_retry:
         retry_handler = attempt_to_fix_handle_retries
-    elif InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
+    elif efd_will_retry and InternalTest.efd_should_retry(test_id):
         retry_handler = efd_handle_retries
-    elif InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
+    elif atr_will_retry and InternalTest.atr_should_retry(test_id):
         retry_handler = atr_handle_retries
-
-    if not InternalTest.is_finished(test_id):
-        # For tests without retries, set final_status tag before finishing
-        if not retry_handler:
-            test_obj = require_ci_visibility_service().get_test_by_id(test_id)
-            test_obj.set_tag(TEST_FINAL_STATUS, test_outcome.status.value)
-
-        _handle_collected_coverage(item, test_id, _current_coverage_collector)
-        InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
     if retry_handler:
         # Retry handler is responsible for logging the test reports.
