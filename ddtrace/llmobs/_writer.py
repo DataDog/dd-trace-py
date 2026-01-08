@@ -192,12 +192,6 @@ class BaseLLMObsWriter(PeriodicService):
             until=lambda result: isinstance(result, Response),
         )(self._send_payload)
 
-        self._send_payload_for_routing_with_retry = fibonacci_backoff_with_jitter(
-            attempts=self.RETRY_ATTEMPTS,
-            initial_wait=0.618 * self.interval / (1.618**self.RETRY_ATTEMPTS) / 2,
-            until=lambda result: isinstance(result, Response),
-        )(self._send_payload_for_routing)
-
     def _get_multi_tenant_routing_key(self, routing: RoutingConfig) -> str:
         return routing.get("dd_api_key") or self._api_key or ""
 
@@ -233,33 +227,32 @@ class BaseLLMObsWriter(PeriodicService):
         event_size: int,
         routing: Optional[RoutingConfig] = None,
     ) -> None:
+        """Internal shared logic of enqueuing events to be submitted to LLM Observability."""
         with self._lock:
-            if routing is None:
-                if len(self._buffer) >= self.BUFFER_LIMIT:
-                    logger.warning(
-                        "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self.BUFFER_LIMIT
-                    )
-                    telemetry.record_dropped_payload(1, event_type=self.EVENT_TYPE, error="buffer_full")
-                    return
-                if self._buffer_size + event_size > EVP_PAYLOAD_SIZE_LIMIT:
-                    logger.debug("manually flushing buffer because queueing next event will exceed EVP payload limit")
-                    self.periodic()
-                self._buffer.append(event)
-                self._buffer_size += event_size
-            else:
+            if routing:
                 buffer = self._get_or_create_multi_tenant_buffer(routing)
-                if len(buffer["events"]) >= self.BUFFER_LIMIT:
-                    logger.warning(
-                        "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self.BUFFER_LIMIT
-                    )
-                    telemetry.record_dropped_payload(1, event_type=self.EVENT_TYPE, error="buffer_full")
-                    return
-                if buffer["size"] + event_size > EVP_PAYLOAD_SIZE_LIMIT:
-                    logger.debug("manually flushing buffer because queueing next event will exceed EVP payload limit")
-                    self.periodic()
-                    buffer = self._get_or_create_multi_tenant_buffer(routing)
+                events, size = buffer["events"], buffer["size"]
+            else:
+                events, size = self._buffer, self._buffer_size
+
+            if len(events) >= self.BUFFER_LIMIT:
+                logger.warning(
+                    "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self.BUFFER_LIMIT
+                )
+                telemetry.record_dropped_payload(1, event_type=self.EVENT_TYPE, error="buffer_full")
+                return
+
+            if size + event_size > EVP_PAYLOAD_SIZE_LIMIT:
+                logger.debug("manually flushing buffer because queueing next event will exceed EVP payload limit")
+                self.periodic()
+
+            if routing:
+                buffer = self._get_or_create_multi_tenant_buffer(routing)
                 buffer["events"].append(event)
                 buffer["size"] += event_size
+            else:
+                self._buffer.append(event)
+                self._buffer_size += event_size
 
     def _encode(self, payload, num_events):
         try:
@@ -273,7 +266,9 @@ class BaseLLMObsWriter(PeriodicService):
 
     def periodic(self) -> None:
         with self._lock:
-            default_events = self._buffer
+            if not self._buffer and not self._multi_tenant_buffers:
+                return
+            events = self._buffer
             self._buffer = []
             self._buffer_size = 0
 
@@ -283,16 +278,11 @@ class BaseLLMObsWriter(PeriodicService):
                     multi_tenant_buffers_to_flush.append(buffer)
                     del self._multi_tenant_buffers[routing_key]
 
-        if default_events:
-            self._flush_buffer(default_events, None)
+        if events:
+            self._flush_buffer(events, None)
 
         for buffer in multi_tenant_buffers_to_flush:
-            routing = buffer["routing"]
-            site = routing.get("dd_site") if routing else None
-            api_key = routing.get("dd_api_key") if routing else None
-            masked_api_key = f"{api_key[:4]}...{api_key[-4:]}" if api_key and len(api_key) > 8 else "***"
-            logger.debug("Encoding and flushing multi-tenant buffer for %s with %s", site, masked_api_key)
-            self._flush_buffer(buffer["events"], routing)
+            self._flush_buffer(buffer["events"], buffer["routing"])
 
     def _flush_buffer(
         self,
@@ -318,34 +308,24 @@ class BaseLLMObsWriter(PeriodicService):
         if not enc_llm_events:
             return
 
-        if has_custom_routing:
-            intake = self._get_intake_for_routing(routing)
-            headers = self._get_headers_for_routing(routing)
-            try:
-                self._send_payload_for_routing_with_retry(enc_llm_events, len(events), intake, headers)
-            except Exception:
-                telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error="connection_error")
-                logger.error(
-                    "failed to send %d LLMObs %s events to %s",
-                    len(events),
-                    self.EVENT_TYPE,
-                    intake,
-                    exc_info=True,
-                    extra={"send_to_telemetry": False},
-                )
-        else:
-            try:
+        try:
+            if has_custom_routing:
+                intake = self._get_intake_for_routing(routing)
+                headers = self._get_headers_for_routing(routing)
+                self._send_payload_with_retry(enc_llm_events, len(events), intake, headers)
+            else:
                 self._send_payload_with_retry(enc_llm_events, len(events))
-            except Exception:
-                telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error="connection_error")
-                logger.error(
-                    "failed to send %d LLMObs %s events to %s",
-                    len(events),
-                    self.EVENT_TYPE,
-                    self._intake,
-                    exc_info=True,
-                    extra={"send_to_telemetry": False},
-                )
+        except Exception:
+            telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error="connection_error")
+            intake = self._get_intake_for_routing(routing) if has_custom_routing else self._intake
+            logger.error(
+                "failed to send %d LLMObs %s events to %s",
+                len(events),
+                self.EVENT_TYPE,
+                intake,
+                exc_info=True,
+                extra={"send_to_telemetry": False},
+            )
 
     def _get_intake_for_routing(self, routing: Optional[RoutingConfig]) -> str:
         if self._override_url:
@@ -366,11 +346,17 @@ class BaseLLMObsWriter(PeriodicService):
             headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
         return headers
 
-    def _send_payload_for_routing(
-        self, payload: str, num_events: int, intake: str, headers: Dict[str, str]
+    def _send_payload(
+        self,
+        payload: bytes,
+        num_events: int,
+        intake: Optional[str] = None,
+        headers: Optional[Dict[str, str]] = None,
     ) -> Response:
-        conn = get_connection(intake)
+        intake = intake or self._intake
+        headers = headers or self._headers
         url = f"{intake}{self._endpoint}"
+        conn = get_connection(intake)
         try:
             conn.request("POST", self._endpoint, payload, headers)
             resp = conn.getresponse()
@@ -394,38 +380,6 @@ class BaseLLMObsWriter(PeriodicService):
                 num_events,
                 self.EVENT_TYPE,
                 intake,
-                exc_info=True,
-                extra={"send_to_telemetry": False},
-            )
-            raise
-        finally:
-            conn.close()
-
-    def _send_payload(self, payload: bytes, num_events: int):
-        conn = get_connection(self._intake)
-        try:
-            conn.request("POST", self._endpoint, payload, self._headers)
-            resp = conn.getresponse()
-            if resp.status >= 300:
-                logger.error(
-                    "failed to send %d LLMObs %s events to %s, got response code %d, status: %s",
-                    num_events,
-                    self.EVENT_TYPE,
-                    self._url,
-                    resp.status,
-                    resp.read(),
-                    extra={"send_to_telemetry": False},
-                )
-                telemetry.record_dropped_payload(num_events, event_type=self.EVENT_TYPE, error="http_error")
-            else:
-                logger.debug("sent %d LLMObs %s events to %s", num_events, self.EVENT_TYPE, self._url)
-            return Response.from_http_response(resp)
-        except Exception:
-            logger.error(
-                "failed to send %d LLMObs %s events to %s",
-                num_events,
-                self.EVENT_TYPE,
-                self._intake,
                 exc_info=True,
                 extra={"send_to_telemetry": False},
             )
