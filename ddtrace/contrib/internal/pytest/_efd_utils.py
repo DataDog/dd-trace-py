@@ -130,6 +130,32 @@ def _efd_do_retries(item: pytest.Item) -> EFDTestStatus:
 
         retry_outcome = _get_outcome_from_retry(item, outcomes, retry_num)
 
+        # Set status before checking if we should retry again
+        from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
+
+        test_obj = require_ci_visibility_service().get_test_by_id(test_id)
+        retry_test_obj = test_obj._efd_get_retry_test(retry_num)
+        retry_test_obj.set_status(retry_outcome.status)
+
+        # Check if this is the last retry
+        is_last_retry = not InternalTest.efd_should_retry(test_id)
+
+        # Set final_status tag on the last retry before finishing
+        if is_last_retry:
+            from ddtrace.internal.ci_visibility.constants import TEST_FINAL_STATUS
+
+            final_status = InternalTest.efd_get_final_status(test_id)
+            # EFD final status is EFDTestStatus enum, need to convert to TestStatus
+            if final_status == EFDTestStatus.ALL_PASS:
+                final_status_value = "pass"
+            elif final_status == EFDTestStatus.ALL_FAIL:
+                final_status_value = "fail"
+            elif final_status == EFDTestStatus.ALL_SKIP:
+                final_status_value = "skip"
+            else:  # FLAKY - if any pass, final status is pass
+                final_status_value = "pass"
+            retry_test_obj.set_tag(TEST_FINAL_STATUS, final_status_value)
+
         InternalTest.efd_finish_retry(
             test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
         )
