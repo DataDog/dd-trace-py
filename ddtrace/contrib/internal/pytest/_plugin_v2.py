@@ -694,15 +694,9 @@ def _pytest_run_one_test(item, nextitem):
 
     # Check if retry mechanisms will be triggered (before finishing the test)
     # ATR retries only failing tests
-    atr_will_retry = (
-        InternalTestSession.atr_is_enabled()
-        and test_outcome.status == TestStatus.FAIL
-    )
+    atr_will_retry = InternalTestSession.atr_is_enabled() and test_outcome.status == TestStatus.FAIL
     # EFD retries only "new" tests (we can't check duration/retry limits before finishing)
-    efd_will_retry = (
-        InternalTestSession.efd_enabled()
-        and InternalTest.is_new_test(test_id)
-    )
+    efd_will_retry = InternalTestSession.efd_enabled() and InternalTest.is_new_test(test_id)
     # Attempt to fix always retries if the test is marked for it
     attempt_to_fix_will_retry = is_attempt_to_fix and _pytest_version_supports_attempt_to_fix()
 

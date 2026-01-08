@@ -888,7 +888,6 @@ class TestRetryHandler:
         from ddtrace.testing.internal.test_data import TestRef
         from ddtrace.testing.internal.test_data import TestStatus
         from ddtrace.testing.internal.test_data import TestTag
-        from unittest.mock import Mock
 
         # Create a test without any retry handler
         module_ref = ModuleRef("module")
@@ -923,7 +922,6 @@ class TestRetryHandler:
         from ddtrace.testing.internal.test_data import TestRef
         from ddtrace.testing.internal.test_data import TestStatus
         from ddtrace.testing.internal.test_data import TestTag
-        from unittest.mock import Mock
 
         # Create a mock session manager
         mock_session_manager = Mock()

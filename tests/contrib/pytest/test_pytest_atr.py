@@ -315,8 +315,7 @@ class PytestATRTestCase(PytestTestCaseBase):
         # Verify that all passing tests have the final_status tag
         for test_span in test_spans:
             assert test_span.get_tag("test.final_status") is not None, (
-                f"Test {test_span.get_tag('test.name')} passed on first try "
-                f"and should have final_status tag"
+                f"Test {test_span.get_tag('test.name')} passed on first try and should have final_status tag"
             )
             # Verify final_status matches test.status
             assert test_span.get_tag("test.final_status") == "pass", (
