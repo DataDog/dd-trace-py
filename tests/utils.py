@@ -289,6 +289,11 @@ def override_http_config(integration, values):
 
 @contextlib.contextmanager
 def scoped_tracer(use_dummy_writer=True):
+    """Provides a test-scoped global tracer with no configuration leaks.
+    
+    Use instead of DummyTracer. When use_dummy_writer=True, captures spans via DummyWriter.
+    Note: DummyWriter is legacy. For new tests, prefer snapshot testing with AgentWriter/NativeWriter.
+    """
     try:
         if use_dummy_writer:
             ddtrace.tracer._span_aggregator.writer = DummyWriter(trace_flush_enabled=check_test_agent_status())
@@ -296,6 +301,9 @@ def scoped_tracer(use_dummy_writer=True):
     finally:
         # Reset global tracer to original state
         ddtrace.tracer.shutdown()
+        # Tracer uses a singleton pattern. We reinitialize the existing object (not create a new one)
+        # because ddtrace.tracer, ddtrace.trace.tracer, ddtrace.internal.core.tracer, etc. all reference
+        # the same object. Reinitializing updates all references automatically.
         Tracer._instance = None
         Tracer.__init__(ddtrace.tracer)
 
