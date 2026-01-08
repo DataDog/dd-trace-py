@@ -6,7 +6,6 @@ To start the service manually, invoke the ``enable`` method::
     LLMObs.enable()
 """
 
-from ._evaluators import AnswerRelevancy
 from ._evaluators import BaseEvaluator
 from ._evaluators import EvaluatorContext
 from ._evaluators import JSONValidator
@@ -34,5 +33,4 @@ __all__ = [
     "LengthValidator",
     "JSONValidator",
     "SemanticSimilarity",
-    "AnswerRelevancy",
 ]
