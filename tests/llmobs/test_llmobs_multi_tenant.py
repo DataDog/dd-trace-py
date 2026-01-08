@@ -126,7 +126,7 @@ class TestMultiTenantRouting:
         assert outer_routing["dd_api_key"] == "outer-key"
         assert inner_routing["dd_api_key"] == "inner-key"
         assert after_inner_routing["dd_api_key"] == "outer-key"
-        assert "Nested routing context detected" in caplog.text
+        assert "Nested routing context detected. Inner context will override outer context." in caplog.text
 
     @pytest.mark.asyncio
     async def test_concurrent_contexts_are_isolated(self):

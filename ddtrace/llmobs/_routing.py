@@ -45,15 +45,9 @@ class RoutingContext:
     def __enter__(self) -> "RoutingContext":
         current = _DD_ROUTING_CONTEXTVAR.get()
         if current is not None:
-            outer_key = current.get("dd_api_key", "")
-            inner_key = self._config.get("dd_api_key", "")
-            masked_outer = f"****{outer_key[-4:]}" if outer_key else ""
-            masked_inner = f"****{inner_key[-4:]}" if inner_key else ""
             logger.warning(
-                "Nested routing context detected. Inner context (%s) will override outer context (%s). "
-                "Spans created in the inner context will only be sent to the inner context.",
-                masked_inner,
-                masked_outer,
+                "Nested routing context detected. Inner context will override outer context. "
+                "Spans created in the inner context will only be sent to the inner context."
             )
         self._token = _DD_ROUTING_CONTEXTVAR.set(self._config)
         return self
