@@ -59,9 +59,6 @@ def test_source_origin_refcount():
 _SOURCE1 = Source(name="name", value="value", origin=OriginType.COOKIE)
 _SOURCE2 = Source(name="name2", value="value2", origin=OriginType.BODY)
 
-_RANGE1 = TaintRange(0, 2, _SOURCE1)
-_RANGE2 = TaintRange(1, 3, _SOURCE2)
-
 
 def test_unicode_fast_tainting():
     for i in range(5000):
@@ -304,6 +301,8 @@ def test_collisions_bytearray():
 
 
 def test_set_get_ranges_str():
+    _RANGE1 = TaintRange(0, 2, _SOURCE1)
+    _RANGE2 = TaintRange(1, 3, _SOURCE2)
     s1 = "abcde😁"
     s2 = "defg"
     assert taint_pyobject_with_ranges(s1, [_RANGE1, _RANGE2])
@@ -313,6 +312,8 @@ def test_set_get_ranges_str():
 
 
 def test_set_get_ranges_other():
+    _RANGE1 = TaintRange(0, 2, _SOURCE1)
+    _RANGE2 = TaintRange(1, 3, _SOURCE2)
     s1 = 12345
     s2 = None
     assert set_ranges(s1, [_RANGE1, _RANGE2], _get_iast_context_id()) is False
@@ -323,6 +324,8 @@ def test_set_get_ranges_other():
 
 
 def test_set_get_ranges_bytes():
+    _RANGE1 = TaintRange(0, 2, _SOURCE1)
+    _RANGE2 = TaintRange(1, 3, _SOURCE2)
     b1 = b"ABCDE"
     b2 = b"DEFG"
     assert taint_pyobject_with_ranges(b1, [_RANGE2, _RANGE1])
@@ -331,6 +334,8 @@ def test_set_get_ranges_bytes():
 
 
 def test_set_get_ranges_bytearray():
+    _RANGE1 = TaintRange(0, 2, _SOURCE1)
+    _RANGE2 = TaintRange(1, 3, _SOURCE2)
     b1 = bytearray(b"abcdef")
     b2 = bytearray(b"abcdef")
     assert taint_pyobject_with_ranges(b1, [_RANGE1, _RANGE2])
@@ -418,6 +423,8 @@ def test_shift_taint_ranges(source, vulnerability_type):
 
 
 def test_are_all_text_all_ranges():
+    _RANGE1 = TaintRange(0, 2, _SOURCE1)
+    _RANGE2 = TaintRange(1, 3, _SOURCE2)
     s1 = "abc123"
     s2 = "ghijk"
     s3 = "xyzv"
@@ -454,6 +461,8 @@ def test_are_all_text_all_ranges():
 
 
 def test_get_range_by_hash():
+    _RANGE1 = TaintRange(0, 2, _SOURCE1)
+    _RANGE2 = TaintRange(1, 3, _SOURCE2)
     hash_r1 = hash(_RANGE1)
     assert hash_r1 == _RANGE1.__hash__()
     hash_r2_call = hash(_RANGE2)

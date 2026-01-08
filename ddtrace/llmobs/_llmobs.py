@@ -1852,11 +1852,15 @@ class LLMObs(Service):
                 return
             parent_llmobs_trace_id = context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
             if parent_llmobs_trace_id is None:
-                log.debug("Failed to extract LLMObs trace ID from request headers. Expected string, got None.")
+                log.debug(
+                    "Failed to extract LLMObs trace ID from request headers. Expected string, got None. "
+                    "Defaulting to the corresponding APM trace ID."
+                )
                 llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
                 llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(context.trace_id)
                 cls._instance._llmobs_context_provider.activate(llmobs_context)
                 error = "missing_parent_llmobs_trace_id"
+                return
             llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
             llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(parent_llmobs_trace_id)
             cls._instance._llmobs_context_provider.activate(llmobs_context)

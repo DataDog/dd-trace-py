@@ -1,6 +1,7 @@
 #pragma once
+#include "api/safe_context.h"
+#include "api/safe_initializer.h"
 #include "helpers.h"
-#include "initializer/initializer.h"
 
 template<class StrType>
 StrType

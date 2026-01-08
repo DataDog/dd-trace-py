@@ -84,7 +84,7 @@ Homepage = "https://github.com/DataDog/dd-trace-py"
 "Source Code" = "https://github.com/DataDog/dd-trace-py/"
 
 [tool.setuptools_scm]
-version_scheme = "release-branch-semver"  # Must be "release-branch-semver" for now in main, see https://github.com/DataDog/dd-trace-py/issues/8801
+version_scheme = "guess-next-dev"
 write_to = "ddtrace/_version.py"
 
 [tool.cython-lint]
@@ -138,6 +138,7 @@ exclude = '''
   | dist/
   | tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py$
   | tests/profiling/collector/pprof_.*_pb2.py$
+  | tests/coverage/included_path/py39_line_numbers.py$
 )
 '''
 
@@ -236,6 +237,7 @@ exclude = [
     "tests/contrib/grpc/hello_pb2.py",
     "tests/contrib/django_celery/app/*",
     "tests/contrib/protobuf/schemas/**/*.py",
+    "tests/coverage/included_path/py39_line_numbers.py",
     "tests/appsec/iast/fixtures/ast/str/non_utf8_content.py",
     "tests/appsec/iast/fixtures/aspects/str/non_utf8_content.py",
     "tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py"

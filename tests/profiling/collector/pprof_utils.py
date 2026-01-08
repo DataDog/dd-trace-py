@@ -3,12 +3,14 @@ from enum import Enum
 import glob
 import os
 import re
+from typing import TYPE_CHECKING
 from typing import Any
-from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Sequence
 from typing import Tuple
 from typing import Union
+from typing import cast
 
 import zstandard as zstd
 
@@ -28,18 +30,21 @@ def _protobuf_version() -> Tuple[int, int, int]:
     return parse_version(google.protobuf.__version__)
 
 
-# Load the appropriate pprof_pb2 module
-_pb_version = _protobuf_version()
-for v in [(4, 21), (3, 19), (3, 12)]:
-    if _pb_version >= v:
-        import sys
-
-        pprof_module = "tests.profiling.collector.pprof_%s%s_pb2" % v
-        __import__(pprof_module)
-        pprof_pb2 = sys.modules[pprof_module]
-        break
+if TYPE_CHECKING:
+    from tests.profiling.collector import pprof_pb2  # pyright: ignore[reportMissingModuleSource]
 else:
-    from tests.profiling.collector import pprof_3_pb2 as pprof_pb2  # type: ignore[no-redef]
+    # Load the appropriate pprof_pb2 module
+    _pb_version = _protobuf_version()
+    for v in [(4, 21), (3, 19), (3, 12)]:
+        if _pb_version >= v:
+            import sys
+
+            pprof_module = "tests.profiling.collector.pprof_%s%s_pb2" % v
+            __import__(pprof_module)
+            pprof_pb2 = sys.modules[pprof_module]
+            break
+    else:
+        from tests.profiling.collector import pprof_3_pb2 as pprof_pb2  # type: ignore[no-redef]
 
 
 # Clamp the value to the range [0, UINT64_MAX] as done in clamp_to_uint64_unsigned
@@ -172,7 +177,7 @@ def get_samples_with_label_key(profile: pprof_pb2.Profile, key: str) -> List[ppr
     return [sample for sample in profile.sample if get_label_with_key(profile.string_table, sample, key)]
 
 
-def get_label_with_key(string_table: Dict[int, str], sample: pprof_pb2.Sample, key: str) -> pprof_pb2.Label:
+def get_label_with_key(string_table: Sequence[str], sample: pprof_pb2.Sample, key: str) -> Optional[pprof_pb2.Label]:
     return next((label for label in sample.label if string_table[label.key] == key), None)
 
 
@@ -202,7 +207,9 @@ def assert_lock_events_of_type(
         get_label_with_key(profile.string_table, sample, "lock name") for sample in samples
     ), "All samples should have the label 'lock name'"
     samples = {
-        profile.string_table[get_label_with_key(profile.string_table, sample, "lock name").str]: sample
+        profile.string_table[
+            cast(pprof_pb2.Label, get_label_with_key(profile.string_table, sample, "lock name")).str
+        ]: sample
         for sample in samples
     }
     for expected_event in expected_events:
@@ -225,7 +232,7 @@ def assert_lock_events(
         assert_lock_events_of_type(profile, expected_release_events, LockEventType.RELEASE)
 
 
-def assert_str_label(string_table: Dict[int, str], sample, key: str, expected_value: Optional[str]):
+def assert_str_label(string_table: Sequence[str], sample, key: str, expected_value: Optional[str]):
     if expected_value:
         label = get_label_with_key(string_table, sample, key)
         # We use fullmatch to ensure that the whole string matches the expected value
@@ -236,13 +243,14 @@ def assert_str_label(string_table: Dict[int, str], sample, key: str, expected_va
         )
 
 
-def assert_num_label(string_table: Dict[int, str], sample, key: str, expected_value: Optional[int]):
+def assert_num_label(string_table: Sequence[str], sample, key: str, expected_value: Optional[int]):
     if expected_value:
         label = get_label_with_key(string_table, sample, key)
+        assert label is not None, "Label {} not found in sample".format(key)
         assert label.num == expected_value, "Expected {} got {} for label {}".format(expected_value, label.num, key)
 
 
-def assert_base_event(string_table: Dict[int, str], sample: pprof_pb2.Sample, expected_event: EventBaseClass):
+def assert_base_event(string_table: Sequence[str], sample: pprof_pb2.Sample, expected_event: EventBaseClass):
     assert_num_label(string_table, sample, "span id", expected_event.span_id)
     assert_num_label(string_table, sample, "local root span id", expected_event.local_root_span_id)
     assert_str_label(string_table, sample, "trace type", expected_event.trace_type)
@@ -258,6 +266,7 @@ def assert_lock_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expe
     # Check that the sample has label "lock name" with value
     # filename:self.lock_linenos.create:lock_name
     lock_name_label = get_label_with_key(profile.string_table, sample, "lock name")
+    assert lock_name_label is not None, "Lock name label not found in sample"
     if expected_event.lock_name is None:
         expected_lock_name = "{}:{}".format(expected_event.filename, expected_event.linenos.create)
     else:
