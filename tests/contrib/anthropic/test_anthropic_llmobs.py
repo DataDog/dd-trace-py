@@ -61,7 +61,7 @@ EXPECTED_TOOL_DEFINITIONS = [
     ],
 )
 class TestLLMObsAnthropic:
-    def test_content_block_stop_without_content_does_not_crash(self):
+    def test_content_block_stop_without_content_does_not_crash(self, ddtrace_global_config):
         """Regression test for beta streaming: content_block_stop can arrive without any content blocks."""
         from ddtrace.contrib.internal.anthropic._streaming import _on_content_block_stop_chunk
 
