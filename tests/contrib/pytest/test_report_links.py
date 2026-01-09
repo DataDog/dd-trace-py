@@ -7,8 +7,8 @@ from ddtrace.ext import ci
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
-from tests.utils import DummyTracer
 from tests.utils import override_env
+from tests.utils import scoped_tracer
 
 
 # Test cases taken from <https://github.com/DataDog/datadog-ci/blob/v3.7.0/src/helpers/__tests__/app.test.ts>.
@@ -60,19 +60,20 @@ def test_quote_for_query(text, expected):
 
 
 def _get_session_settings() -> TestVisibilitySessionSettings:
-    return TestVisibilitySessionSettings(
-        tracer=DummyTracer(),
-        test_service="the_test_service",
-        test_command="the_test_command",
-        test_framework="the_test_framework",
-        test_framework_metric_name=TEST_FRAMEWORKS.MANUAL,
-        test_framework_version="0.0",
-        session_operation_name="the_session",
-        module_operation_name="the_module",
-        suite_operation_name="the_suite",
-        test_operation_name="the_test",
-        workspace_path=Path().absolute(),
-    )
+    with scoped_tracer() as tracer:
+        return TestVisibilitySessionSettings(
+            tracer=tracer,
+            test_service="the_test_service",
+            test_command="the_test_command",
+            test_framework="the_test_framework",
+            test_framework_metric_name=TEST_FRAMEWORKS.MANUAL,
+            test_framework_version="0.0",
+            session_operation_name="the_session",
+            module_operation_name="the_module",
+            suite_operation_name="the_suite",
+            test_operation_name="the_test",
+            workspace_path=Path().absolute(),
+        )
 
 
 class TerminalReporterMock:

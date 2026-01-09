@@ -10,23 +10,24 @@ from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettin
 from ddtrace.internal.ci_visibility.api._suite import TestVisibilitySuite
 from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
-from tests.utils import DummyTracer
+from tests.utils import scoped_tracer
 
 
 def _get_default_civisibility_settings():
-    return TestVisibilitySessionSettings(
-        tracer=DummyTracer(),
-        test_service="test_service",
-        test_command="test_command",
-        test_framework="test_framework",
-        test_framework_version="1.2.3",
-        test_framework_metric_name=TEST_FRAMEWORKS.MANUAL,
-        session_operation_name="session_operation_name",
-        module_operation_name="module_operation_name",
-        suite_operation_name="suite_operation_name",
-        test_operation_name="test_operation_name",
-        workspace_path=Path("/absolute/path/to/root_dir"),
-    )
+    with scoped_tracer() as tracer:
+        return TestVisibilitySessionSettings(
+            tracer=tracer,
+            test_service="test_service",
+            test_command="test_command",
+            test_framework="test_framework",
+            test_framework_metric_name=TEST_FRAMEWORKS.MANUAL,
+            test_framework_version="1.2.3",
+            session_operation_name="session_operation_name",
+            module_operation_name="module_operation_name",
+            suite_operation_name="suite_operation_name",
+            test_operation_name="test_operation_name",
+            workspace_path=Path("/absolute/path/to/root_dir"),
+        )
 
 
 def _get_default_module_id():
@@ -89,9 +90,9 @@ class TestCIVisibilitySessionSettings:
         assert settings.workspace_path.is_absolute()
 
     def test_civisibility_sessionsettings_root_dir_rejects_relative_path(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError), scoped_tracer() as tracer:
             _ = TestVisibilitySessionSettings(
-                tracer=DummyTracer(),
+                tracer=tracer,
                 test_service="test_service",
                 test_command="test_command",
                 test_framework="test_framework",
@@ -105,9 +106,9 @@ class TestCIVisibilitySessionSettings:
             )
 
     def test_civisibility_sessionsettings_root_dir_rejects_non_path(self):
-        with pytest.raises(TypeError):
+        with pytest.raises(TypeError), scoped_tracer() as tracer:
             _ = TestVisibilitySessionSettings(
-                tracer=DummyTracer(),
+                tracer=tracer,
                 test_service="test_service",
                 test_command="test_command",
                 test_framework="test_framework",

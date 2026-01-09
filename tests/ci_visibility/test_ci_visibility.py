@@ -43,9 +43,9 @@ from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.ci_visibility.util import set_up_mock_civisibility
 from tests.utils import DummyCIVisibilityWriter
-from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import override_global_config
+from tests.utils import scoped_tracer
 
 
 TEST_SHA_1 = "b3672ea5cbc584124728c48a443825d2940e0ddd"
@@ -121,8 +121,7 @@ def test_ci_visibility_service_enable():
             return_value=TestVisibilityAPISettings(False, False, False, False),
         ),
     ):
-        with _patch_dummy_writer():
-            dummy_tracer = DummyTracer()
+        with _patch_dummy_writer(), scoped_tracer() as dummy_tracer:
             CIVisibility.enable(tracer=dummy_tracer, service="test-service")
             ci_visibility_instance = CIVisibility._instance
             assert ci_visibility_instance is not None
@@ -156,8 +155,7 @@ def test_ci_visibility_service_enable_without_service():
             "ddtrace.internal.ci_visibility.recorder._extract_repository_name_from_url", return_value="test-repo"
         ),
     ):
-        with _patch_dummy_writer():
-            dummy_tracer = DummyTracer()
+        with _patch_dummy_writer(), scoped_tracer() as dummy_tracer:
             CIVisibility.enable(tracer=dummy_tracer)
             ci_visibility_instance = CIVisibility._instance
             assert ci_visibility_instance is not None
@@ -187,13 +185,12 @@ def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request)
         _dummy_noop_git_client(),
         mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()),
     ):
-        with _patch_dummy_writer():
+        with _patch_dummy_writer(), scoped_tracer() as dummy_tracer:
             _do_request.return_value = Response(
                 status=200,
                 body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
                 '{"code_coverage":true,"tests_skipping":true}}}',
             )
-            dummy_tracer = DummyTracer()
             CIVisibility.enable(tracer=dummy_tracer, service="test-service")
             assert CIVisibility._instance._api_settings.coverage_enabled is False
             assert CIVisibility._instance._api_settings.skipping_enabled is False
@@ -314,8 +311,7 @@ def test_agent_evp_proxy_base_url_logic(mock_agent_info, agent_info_response, ex
     """Tests the logic of CIVisibility._agent_evp_proxy_base_url"""
     mock_agent_info.return_value = agent_info_response
     # Create a minimal CIVisibility instance for testing the method
-    tracer = DummyTracer()
-    with _dummy_noop_git_client():
+    with _dummy_noop_git_client(), scoped_tracer() as tracer:
         visibility = CIVisibility(tracer=tracer, service="test")
     assert visibility._agent_evp_proxy_base_url() == expected_path
 
@@ -323,8 +319,7 @@ def test_agent_evp_proxy_base_url_logic(mock_agent_info, agent_info_response, ex
 @mock.patch("ddtrace.internal.agent.info", side_effect=Exception("Agent unreachable"))
 def test_agent_evp_proxy_base_url_agent_error(mock_agent_info):
     """Tests _agent_evp_proxy_base_url when agent.info() raises an exception"""
-    tracer = DummyTracer()
-    with _dummy_noop_git_client():
+    with _dummy_noop_git_client(), scoped_tracer() as tracer:
         visibility = CIVisibility(tracer=tracer, service="test")
     assert visibility._agent_evp_proxy_base_url() is None
 
@@ -354,8 +349,7 @@ def test_civisibility_init_evp_proxy_versions(
     mock_agent_info.return_value = {"endpoints": [mock_evp_proxy_path], "default_env": "ci-env"}
 
     with _ci_override_env({}), _dummy_noop_git_client():
-        with _patch_dummy_writer():
-            tracer = DummyTracer()
+        with _patch_dummy_writer(), scoped_tracer() as tracer:
             CIVisibility.enable(tracer=tracer, service="test-service")
             ci_visibility_instance = CIVisibility._instance
             assert ci_visibility_instance is not None
@@ -476,8 +470,7 @@ def test_ci_visibility_service_disable():
         ),
         _dummy_noop_git_client(),
     ):
-        with _patch_dummy_writer():
-            dummy_tracer = DummyTracer()
+        with _patch_dummy_writer(), scoped_tracer() as dummy_tracer:
             CIVisibility.enable(tracer=dummy_tracer, service="test-service")
             CIVisibility.disable()
             ci_visibility_instance = CIVisibility._instance
@@ -1324,8 +1317,7 @@ def test_ci_visibility_service_disabled_by_dd_civisibility_enabled_false():
             return_value=TestVisibilityAPISettings(False, False, False, False),
         ),
     ):
-        with _patch_dummy_writer():
-            dummy_tracer = DummyTracer()
+        with _patch_dummy_writer(), scoped_tracer() as dummy_tracer:
             CIVisibility.enable(tracer=dummy_tracer, service="test-service")
             assert not CIVisibility.enabled
             assert CIVisibility._instance is None
@@ -1347,8 +1339,7 @@ def test_ci_visibility_service_disabled_by_dd_civisibility_enabled_0():
             return_value=TestVisibilityAPISettings(False, False, False, False),
         ),
     ):
-        with _patch_dummy_writer():
-            dummy_tracer = DummyTracer()
+        with _patch_dummy_writer(), scoped_tracer() as dummy_tracer:
             CIVisibility.enable(tracer=dummy_tracer, service="test-service")
             assert not CIVisibility.enabled
             assert CIVisibility._instance is None
@@ -1370,8 +1361,7 @@ def test_ci_visibility_service_enabled_by_dd_civisibility_enabled_true():
             return_value=TestVisibilityAPISettings(False, False, False, False),
         ),
     ):
-        with _patch_dummy_writer():
-            dummy_tracer = DummyTracer()
+        with _patch_dummy_writer(), scoped_tracer() as dummy_tracer:
             CIVisibility.enable(tracer=dummy_tracer, service="test-service")
             assert CIVisibility.enabled
             assert CIVisibility._instance is not None
@@ -1396,8 +1386,7 @@ def test_ci_visibility_service_enabled_by_dd_civisibility_enabled_1():
             return_value=TestVisibilityAPISettings(False, False, False, False),
         ),
     ):
-        with _patch_dummy_writer():
-            dummy_tracer = DummyTracer()
+        with _patch_dummy_writer(), scoped_tracer() as dummy_tracer:
             CIVisibility.enable(tracer=dummy_tracer, service="test-service")
             assert CIVisibility.enabled
             assert CIVisibility._instance is not None
@@ -1421,8 +1410,7 @@ def test_ci_visibility_service_enabled_by_default_when_dd_civisibility_enabled_n
             return_value=TestVisibilityAPISettings(False, False, False, False),
         ),
     ):
-        with _patch_dummy_writer():
-            dummy_tracer = DummyTracer()
+        with _patch_dummy_writer(), scoped_tracer() as dummy_tracer:
             CIVisibility.enable(tracer=dummy_tracer, service="test-service")
             assert CIVisibility.enabled
             assert CIVisibility._instance is not None
@@ -1732,8 +1720,8 @@ class TestCIVisibilityLibraryCapabilities(TracerTestCase):
 class TestCIVisibilityGzipSupport:
     @pytest.fixture(autouse=True)
     def _setup_mocks(self):
-        with _dummy_noop_git_client():
-            self.dummy_tracer = DummyTracer()
+        with _dummy_noop_git_client(), scoped_tracer() as dummy_tracer:
+            self.dummy_tracer = dummy_tracer
             self.dummy_tracer._agent_url = "http://agent:8126"
             self.civisibility = CIVisibility()
             self.civisibility.tracer = self.dummy_tracer

@@ -11,7 +11,7 @@ from ddtrace.internal.ci_visibility.api._session import TestVisibilitySession
 from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
-from tests.utils import DummyTracer
+from tests.utils import scoped_tracer
 
 
 class TestCIVisibilityTestATR:
@@ -23,21 +23,22 @@ class TestCIVisibilityTestATR:
     def _get_session_settings(
         self, atr_settings: AutoTestRetriesSettings, efd_enabled: bool = False
     ) -> TestVisibilitySessionSettings:
-        return TestVisibilitySessionSettings(
-            tracer=DummyTracer(),
-            test_service="efd_test_service",
-            test_command="efd_test_command",
-            test_framework="efd_test_framework",
-            test_framework_metric_name=TEST_FRAMEWORKS.MANUAL,
-            test_framework_version="0.0",
-            session_operation_name="efd_session",
-            module_operation_name="efd_module",
-            suite_operation_name="efd_suite",
-            test_operation_name="efd_test",
-            workspace_path=Path().absolute(),
-            efd_settings=EarlyFlakeDetectionSettings(enabled=efd_enabled),
-            atr_settings=atr_settings,
-        )
+        with scoped_tracer() as tracer:
+            return TestVisibilitySessionSettings(
+                tracer=tracer,
+                test_service="efd_test_service",
+                test_command="efd_test_command",
+                test_framework="efd_test_framework",
+                test_framework_metric_name=TEST_FRAMEWORKS.MANUAL,
+                test_framework_version="0.0",
+                session_operation_name="efd_session",
+                module_operation_name="efd_module",
+                suite_operation_name="efd_suite",
+                test_operation_name="efd_test",
+                workspace_path=Path().absolute(),
+                efd_settings=EarlyFlakeDetectionSettings(enabled=efd_enabled),
+                atr_settings=atr_settings,
+            )
 
     @pytest.mark.parametrize(
         "num_tests,atr_settings,atr_expected_retries",

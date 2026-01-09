@@ -87,7 +87,7 @@ def test_evaluate_method(
     mock_execute_request,
     telemetry_mock,
     ai_guard_client,
-    tracer,
+    test_spans,
     action,
     reason,
     tags,
@@ -122,7 +122,7 @@ def test_evaluate_method(
     if tags:
         expected_meta_struct.update({"attack_categories": tags})
     assert_ai_guard_span(
-        tracer,
+        test_spans,
         expected_tags,
         expected_meta_struct,
     )
@@ -208,7 +208,7 @@ def test_evaluate_invalid_action(mock_execute_request, telemetry_mock, ai_guard_
 
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-def test_span_meta_messages_truncation(mock_execute_request, telemetry_mock, ai_guard_client, tracer):
+def test_span_meta_messages_truncation(mock_execute_request, telemetry_mock, ai_guard_client, test_spans):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     messages = []
@@ -216,7 +216,7 @@ def test_span_meta_messages_truncation(mock_execute_request, telemetry_mock, ai_
         messages.append(Message(role="user", content="Tell me 10 things I should know about DataDog"))
     ai_guard_client.evaluate(messages)
 
-    span = find_ai_guard_span(tracer)
+    span = find_ai_guard_span(test_spans)
     meta = span._get_struct_tag(AI_GUARD.TAG)
     assert len(meta["messages"]) == ai_guard_config._ai_guard_max_messages_length
     assert_telemetry(telemetry_mock, "ai_guard.truncated", (("type", "messages"),))
@@ -224,14 +224,14 @@ def test_span_meta_messages_truncation(mock_execute_request, telemetry_mock, ai_
 
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-def test_span_meta_content_truncation(mock_execute_request, telemetry_mock, ai_guard_client, tracer):
+def test_span_meta_content_truncation(mock_execute_request, telemetry_mock, ai_guard_client, test_spans):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     random_output = random_string(ai_guard_config._ai_guard_max_content_size + 1)
 
     ai_guard_client.evaluate([Message(role="user", content=random_output)])
 
-    span = find_ai_guard_span(tracer)
+    span = find_ai_guard_span(test_spans)
     meta = span._get_struct_tag(AI_GUARD.TAG)
     prompt = meta["messages"][0]
     assert len(prompt["content"]) == ai_guard_config._ai_guard_max_content_size

@@ -10,7 +10,6 @@ from ddtrace.ext import http
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import skip_if_native_writer
-from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 
@@ -18,11 +17,9 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
 
 
 @pytest.fixture
-def stats_tracer():
+def stats_tracer(tracer):
     with override_global_config(dict(_trace_compute_stats=True)):
-        tracer = DummyTracer()
         yield tracer
-        tracer.shutdown()
 
 
 class consistent_end_trace(object):
