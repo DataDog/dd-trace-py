@@ -1,10 +1,15 @@
 from importlib.metadata import version
 import os
+from pathlib import Path
 import re
 import signal
+from subprocess import Popen
 from subprocess import TimeoutExpired
 import sys
 import time
+from typing import IO
+from typing import Callable
+from typing import Generator
 
 import pytest
 
@@ -26,7 +31,7 @@ uwsgi_app = os.path.join(os.path.dirname(__file__), "uwsgi-app.py")
 
 
 @pytest.fixture
-def uwsgi(monkeypatch, tmp_path):
+def uwsgi(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Generator[Callable[..., Popen[bytes]], None, None]:
     # Do not ignore profiler so we have samples in the output pprof
     monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
     # Do not use pytest tmpdir fixtures which generate directories longer than allowed for a socket file name
@@ -49,14 +54,14 @@ def uwsgi(monkeypatch, tmp_path):
         os.unlink(socket_name)
 
 
-def test_uwsgi_threads_disabled(uwsgi):
+def test_uwsgi_threads_disabled(uwsgi: Callable[..., Popen[bytes]]) -> None:
     proc = uwsgi()
     stdout, _ = proc.communicate()
     assert proc.wait() != 0
     assert THREADS_MSG in stdout
 
 
-def test_uwsgi_threads_number_set(uwsgi):
+def test_uwsgi_threads_number_set(uwsgi: Callable[..., Popen[bytes]]) -> None:
     proc = uwsgi("--threads", "1")
     try:
         stdout, _ = proc.communicate(timeout=1)
@@ -66,10 +71,13 @@ def test_uwsgi_threads_number_set(uwsgi):
     assert THREADS_MSG not in stdout
 
 
-def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
+def test_uwsgi_threads_enabled(
+    uwsgi: Callable[..., Popen[bytes]], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     proc = uwsgi("--enable-threads")
+    assert proc.stdout is not None
     worker_pids = _get_worker_pids(proc.stdout, 1)
     # Give some time to the process to actually startup
     time.sleep(3)
@@ -81,7 +89,7 @@ def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
         assert len(samples) > 0
 
 
-def test_uwsgi_threads_processes_no_primary(uwsgi, monkeypatch):
+def test_uwsgi_threads_processes_no_primary(uwsgi: Callable[..., Popen[bytes]]) -> None:
     proc = uwsgi("--enable-threads", "--processes", "2")
     stdout, _ = proc.communicate()
     assert (
@@ -90,8 +98,9 @@ def test_uwsgi_threads_processes_no_primary(uwsgi, monkeypatch):
     )
 
 
-def _get_worker_pids(stdout, num_worker, num_app_started=1):
-    worker_pids = []
+def _get_worker_pids(stdout: IO[bytes] | None, num_worker: int, num_app_started: int = 1) -> list[int]:
+    assert stdout is not None
+    worker_pids: list[int] = []
     started = 0
     while True:
         line = stdout.readline()
@@ -110,7 +119,9 @@ def _get_worker_pids(stdout, num_worker, num_app_started=1):
     return worker_pids
 
 
-def test_uwsgi_threads_processes_primary(uwsgi, tmp_path, monkeypatch):
+def test_uwsgi_threads_processes_primary(
+    uwsgi: Callable[..., Popen[bytes]], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     proc = uwsgi("--enable-threads", "--master", "--py-call-uwsgi-fork-hooks", "--processes", "2")
@@ -125,7 +136,9 @@ def test_uwsgi_threads_processes_primary(uwsgi, tmp_path, monkeypatch):
         assert len(samples) > 0
 
 
-def test_uwsgi_threads_processes_primary_lazy_apps(uwsgi, tmp_path, monkeypatch):
+def test_uwsgi_threads_processes_primary_lazy_apps(
+    uwsgi: Callable[..., Popen[bytes]], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
@@ -143,7 +156,9 @@ def test_uwsgi_threads_processes_primary_lazy_apps(uwsgi, tmp_path, monkeypatch)
         assert len(samples) > 0
 
 
-def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypatch):
+def test_uwsgi_threads_processes_no_primary_lazy_apps(
+    uwsgi: Callable[..., Popen[bytes]], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
@@ -178,7 +193,7 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypat
         print(f"INFO: Worker {worker_pid} was successfully killed.")
 
     for pid in worker_pids:
-        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
+        profile = pprof_utils.parse_newest_profile(f"{filename}.{pid}")
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
         assert len(samples) > 0
 
@@ -188,7 +203,7 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypat
     tuple(int(x) for x in version("uwsgi").split(".")) >= (2, 0, 30),
     reason="uwsgi>=2.0.30 does not require --skip-atexit",
 )
-def test_uwsgi_require_skip_atexit_when_lazy_with_master(uwsgi, lazy_flag):
+def test_uwsgi_require_skip_atexit_when_lazy_with_master(uwsgi: Callable[..., Popen[bytes]], lazy_flag: str) -> None:
     expected_warning = b"ddtrace.internal.uwsgi.uWSGIConfigDeprecationWarning: skip-atexit option must be set"
 
     proc = uwsgi("--enable-threads", "--master", "--processes", "2", lazy_flag)
@@ -203,12 +218,13 @@ def test_uwsgi_require_skip_atexit_when_lazy_with_master(uwsgi, lazy_flag):
     tuple(int(x) for x in version("uwsgi").split(".")) >= (2, 0, 30),
     reason="uwsgi>=2.0.30 does not require --skip-atexit",
 )
-def test_uwsgi_require_skip_atexit_when_lazy_without_master(uwsgi, lazy_flag):
+def test_uwsgi_require_skip_atexit_when_lazy_without_master(uwsgi: Callable[..., Popen[bytes]], lazy_flag: str) -> None:
     expected_warning = b"ddtrace.internal.uwsgi.uWSGIConfigDeprecationWarning: skip-atexit option must be set"
     num_workers = 2
     proc = uwsgi("--enable-threads", "--processes", str(num_workers), lazy_flag)
+    assert proc.stdout is not None
 
-    worker_pids = []
+    worker_pids: list[int] = []
     logged_warning = 0
     while True:
         line = proc.stdout.readline()
