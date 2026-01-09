@@ -70,7 +70,7 @@ tests-gen:
 
 run-tests-trigger:
  stage: tests
- needs: [ tests-gen, "build linux" ]
+ needs: [ tests-gen, publish-wheels-to-s3 ]
  # Allow the child job to fail if explicitly asked
  rules:
    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
