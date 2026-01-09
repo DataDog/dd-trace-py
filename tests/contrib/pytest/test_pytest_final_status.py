@@ -11,6 +11,7 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_attempt_to_fix
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
@@ -138,6 +139,7 @@ class TestFinalStatusNoRetries(PytestTestCaseBase):
         assert final_span.get_tag("test.final_status") == "skip"
 
 
+@pytest.mark.skipif(not _pytest_version_supports_atr(), reason="ATR tests require pytest >=7.0")
 class TestFinalStatusATR(PytestTestCaseBase):
     """Test that final_status is set correctly for ATR (Adaptive Test Retry) scenarios."""
 
@@ -400,6 +402,7 @@ def test_mixed_outcomes():
         assert final_span.get_tag("test.final_status") == "skip"
 
 
+@pytest.mark.skipif(not _pytest_version_supports_attempt_to_fix(), reason="Attempt to Fix tests require pytest >=7.0")
 class TestFinalStatusAttemptToFix(PytestTestCaseBase):
     """Test that final_status is set correctly for Attempt to Fix scenarios."""
 
@@ -432,9 +435,6 @@ class TestFinalStatusAttemptToFix(PytestTestCaseBase):
 
     @pytest.fixture(autouse=True, scope="function")
     def set_up_attempt_to_fix(self):
-        if not _pytest_version_supports_attempt_to_fix():
-            pytest.skip("Attempt-to-Fix requires pytest >=7.0")
-
         with (
             mock.patch(
                 "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
