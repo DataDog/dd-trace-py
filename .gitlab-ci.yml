@@ -410,7 +410,7 @@ encoders_profile:
   script:
     - export PYENV_ROOT="${HOME}/.pyenv"
     - export PATH="${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PATH}"
-    - apt-get update && apt install build-essential zlib1g-dev libssl-dev curl git -y
+    - apt-get update && apt install build-essential zlib1g-dev libssl-dev curl git libffi-dev -y
     - PYENV_GIT_TAG=v2.6.17 curl https://pyenv.run | bash
     - pyenv --version
     - pyenv install 3.10 && pyenv global 3.10
