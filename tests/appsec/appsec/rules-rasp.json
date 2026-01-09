@@ -260,17 +260,19 @@
               {
                 "address": "server.io.net.request.headers",
                 "key_path": [
-                  "Host"
+                  "host"
                 ]
               },
               {
                 "address": "server.io.net.request.headers",
                 "key_path": [
-                  "TagHost"
+                  "taghost"
                 ]
               }
             ],
-            "list": ["www.datadoghq.com"]
+            "list": [
+              "www.datadoghq.com"
+            ]
           },
           "operator": "exact_match"
         }
@@ -304,7 +306,9 @@
                 ]
               }
             ],
-            "list": ["qw2jedrkjerbgol23ewpfirj2qw3or"]
+            "list": [
+              "qw2jedrkjerbgol23ewpfirj2qw3or"
+            ]
           },
           "operator": "exact_match"
         }
@@ -320,6 +324,5 @@
       },
       "on_match": []
     }
-
   ]
 }

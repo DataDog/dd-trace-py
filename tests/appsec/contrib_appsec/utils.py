@@ -1361,7 +1361,7 @@ class Contrib_TestClass_For_Threats:
                 {"mastercard": "5123456789123456"},
                 [{"mastercard": [8, {"card_type": "mastercard", "category": "payment", "type": "card"}]}],
             ),
-            ({"SSN": "123-45-6789"}, [{"SSN": [8, {"category": "pii", "type": "us_ssn"}]}]),
+            ({"ssn": "123-45-6789"}, [{"ssn": [8, {"category": "pii", "type": "us_ssn"}]}]),
         ],
     )
     def test_api_security_scanners(

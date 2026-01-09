@@ -61,7 +61,7 @@ def test_small_objects(obj, res):
 @pytest.mark.parametrize(
     ["obj", "res"],
     [
-        (CaseInsensitiveDict({"SomeHeader": "SomeValue"}), {"SomeHeader": "SomeValue"}),
+        (CaseInsensitiveDict({"SomeHeader": "SomeValue"}), {"someheader": "SomeValue"}),
         (range(1, 4), [1, 2, 3]),
         ((1, 2, 3), [1, 2, 3]),
     ],

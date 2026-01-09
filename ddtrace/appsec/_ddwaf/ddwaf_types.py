@@ -156,10 +156,13 @@ class ddwaf_object(ctypes.Structure):
             for counter_object, (key, val) in enumerate(struct.items()):
                 if not isinstance(key, (bytes, str)):  # discards non string keys
                     continue
+                if isinstance(key, bytes):
+                    key = str(key)
+
                 if counter_object >= max_objects:
                     observator.set_container_size(len(struct))
                     break
-                res_key = truncate_string(key.encode("UTF-8", errors="ignore") if isinstance(key, str) else key)
+                res_key = truncate_string(key.lower().encode("UTF-8", errors="ignore"))
                 obj = ddwaf_object(
                     val,
                     observator=observator,
