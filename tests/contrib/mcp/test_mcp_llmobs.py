@@ -328,7 +328,7 @@ def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subproc
 
 
 def test_intent_capture_tool_schema_injection(mcp_setup, llmobs_events, mcp_server):
-    """Test that intent capture adds ddtrace property to tool input schemas."""
+    """Test that intent capture adds telemetry property to tool input schemas."""
     from mcp.shared.memory import create_connected_server_and_client_session
 
     async def run_test():
@@ -341,14 +341,14 @@ def test_intent_capture_tool_schema_injection(mcp_setup, llmobs_events, mcp_serv
     tool = next(t for t in result.tools if t.name == "calculator")
     schema = tool.inputSchema
 
-    # Verify ddtrace property is injected
-    assert "ddtrace" in schema["properties"], f"ddtrace not in properties: {schema}"
-    ddtrace_schema = schema["properties"]["ddtrace"]
-    assert ddtrace_schema["type"] == "object"
-    assert "intent" in ddtrace_schema["properties"]
-    assert ddtrace_schema["properties"]["intent"]["type"] == "string"
-    assert "required" in ddtrace_schema
-    assert "intent" in ddtrace_schema["required"]
+    # Verify telemetry property is injected
+    assert "telemetry" in schema["properties"], f"telemetry not in properties: {schema}"
+    telemetry_schema = schema["properties"]["telemetry"]
+    assert telemetry_schema["type"] == "object"
+    assert "intent" in telemetry_schema["properties"]
+    assert telemetry_schema["properties"]["intent"]["type"] == "string"
+    assert "required" in telemetry_schema
+    assert "intent" in telemetry_schema["required"]
 
     # Verify original tool arguments are unchanged
     assert "operation" in schema["properties"]
@@ -366,7 +366,7 @@ def test_intent_capture_tool_schema_injection(mcp_setup, llmobs_events, mcp_serv
 
 
 def test_intent_capture_records_intent_on_span_meta(mcp_setup, test_spans, llmobs_events, mcp_server):
-    """Test that intent is recorded on the span meta and ddtrace argument is excluded from input."""
+    """Test that intent is recorded on the span meta and telemetry argument is excluded from input."""
     from mcp.shared.memory import create_connected_server_and_client_session
 
     async def run_test():
@@ -377,7 +377,7 @@ def test_intent_capture_records_intent_on_span_meta(mcp_setup, test_spans, llmob
                     "operation": "add",
                     "a": 1,
                     "b": 2,
-                    "ddtrace": {"intent": "Testing intent capture for adding numbers"},
+                    "telemetry": {"intent": "Testing intent capture for adding numbers"},
                 },
             )
 
@@ -395,17 +395,17 @@ def test_intent_capture_records_intent_on_span_meta(mcp_setup, test_spans, llmob
     assert "intent" in server_tool_event["meta"], f"intent not in meta: {server_tool_event['meta']}"
     assert server_tool_event["meta"]["intent"] == "Testing intent capture for adding numbers"
 
-    # Verify ddtrace argument is NOT in the input value
+    # Verify telemetry argument is NOT in the input value
     input_value = json.loads(server_tool_event["meta"]["input"]["value"])
     arguments = input_value.get("params", {}).get("arguments", {})
-    assert "ddtrace" not in arguments, f"ddtrace should not be in arguments: {arguments}"
+    assert "telemetry" not in arguments, f"telemetry should not be in arguments: {arguments}"
     assert "operation" in arguments
     assert "a" in arguments
     assert "b" in arguments
 
 
 def test_intent_capture_disabled_by_default(mcp_setup, test_spans, llmobs_events, mcp_server):
-    """Test that intent capture is disabled by default and ddtrace property is not injected."""
+    """Test that intent capture is disabled by default and telemetry property is not injected."""
     from mcp.shared.memory import create_connected_server_and_client_session
 
     async def run_test():
@@ -418,5 +418,5 @@ def test_intent_capture_disabled_by_default(mcp_setup, test_spans, llmobs_events
     tool = next(t for t in result.tools if t.name == "calculator")
     schema = tool.inputSchema
 
-    # Verify ddtrace property is NOT injected when intent capture is disabled
-    assert "ddtrace" not in schema.get("properties", {}), f"ddtrace should not be in properties: {schema}"
+    # Verify telemetry property is NOT injected when intent capture is disabled
+    assert "telemetry" not in schema.get("properties", {}), f"telemetry should not be in properties: {schema}"
