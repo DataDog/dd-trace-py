@@ -8,7 +8,6 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import USER_KEEP
 from ddtrace.ext import SpanTypes
 from tests.appsec.iast.iast_utils import load_iast_report
-from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -30,12 +29,12 @@ def traced_function(tracer, sampling_rate="100"):
     return span
 
 
-def test_appsec_iast_processor(iast_context_defaults):
+def test_appsec_iast_processor(iast_context_defaults, tracer):
     """
     test_appsec_iast_processor.
     This test throws  'finished span not connected to a trace' log error
     """
-    tracer = DummyTracer(iast_enabled=True)
+    tracer.configure(iast_enabled=True)
 
     span = traced_function(tracer)
     tracer._on_span_finish(span)
@@ -46,14 +45,14 @@ def test_appsec_iast_processor(iast_context_defaults):
 
 
 @pytest.mark.parametrize("sampling_rate", ["0.0", "0.5", "1.0"])
-def test_appsec_iast_processor_ensure_span_is_manual_keep(iast_context_defaults, sampling_rate):
+def test_appsec_iast_processor_ensure_span_is_manual_keep(iast_context_defaults, sampling_rate, tracer):
     """
     test_appsec_iast_processor_ensure_span_is_manual_keep.
     This test throws  'finished span not connected to a trace' log error
     """
     with override_env({"DD_TRACE_SAMPLING_RULES": '[{"sample_rate":%s]"}]' % (sampling_rate,)}):
         oce.reconfigure()
-        tracer = DummyTracer(iast_enabled=True)
+        tracer.configure(iast_enabled=True)
 
         span = traced_function(tracer)
         tracer._on_span_finish(span)
@@ -65,7 +64,7 @@ def test_appsec_iast_processor_ensure_span_is_manual_keep(iast_context_defaults,
 
 
 @pytest.mark.parametrize("sampling_rate", ["0.0", "100"])
-def test_appsec_iast_processor_ensure_span_is_sampled(iast_context_defaults, sampling_rate):
+def test_appsec_iast_processor_ensure_span_is_sampled(iast_context_defaults, sampling_rate, tracer):
     """
     test_appsec_iast_processor_ensure_span_is_manual_keep.
     This test throws  'finished span not connected to a trace' log error
@@ -78,7 +77,7 @@ def test_appsec_iast_processor_ensure_span_is_sampled(iast_context_defaults, sam
         )
     ):
         oce.reconfigure()
-        tracer = DummyTracer(iast_enabled=True)
+        tracer.configure(iast_enabled=True)
         span = traced_function(tracer, sampling_rate=sampling_rate)
         tracer._on_span_finish(span)
 

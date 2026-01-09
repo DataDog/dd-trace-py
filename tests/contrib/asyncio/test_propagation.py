@@ -21,16 +21,16 @@ def test_event_loop_unpatch(tracer):
 
 
 @pytest.mark.asyncio
-async def test_event_loop_double_patch(tracer):
+async def test_event_loop_double_patch(tracer, test_spans):
     # ensures that double patching will not double instrument
     # the event loop
     patch()
     patch()
-    await test_tasks_chaining(tracer)
+    await test_tasks_chaining(tracer, test_spans)
 
 
 @pytest.mark.asyncio
-async def test_tasks_chaining(tracer):
+async def test_tasks_chaining(tracer, test_spans):
     # ensures that the context is propagated between different tasks
     @tracer.wrap("spawn_task")
     async def coro_3():
@@ -50,7 +50,7 @@ async def test_tasks_chaining(tracer):
 
     await coro_1()
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     spans = traces[0]
     assert len(spans) == 3
@@ -66,7 +66,7 @@ async def test_tasks_chaining(tracer):
 
 
 @pytest.mark.asyncio
-async def test_concurrent_chaining(tracer):
+async def test_concurrent_chaining(tracer, test_spans):
     @tracer.wrap("f1")
     async def f1():
         await asyncio.sleep(0.01)
@@ -82,7 +82,7 @@ async def test_concurrent_chaining(tracer):
         with tracer.trace("main_task_child"):
             time.sleep(0.01)
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 4
     main_task = traces[0][0]
@@ -99,7 +99,7 @@ async def test_concurrent_chaining(tracer):
 
 
 @pytest.mark.asyncio
-async def test_propagation_with_new_context(tracer):
+async def test_propagation_with_new_context(tracer, test_spans):
     # ensures that if a new Context is activated, a trace
     # with the Context arguments is created
     ctx = Context(trace_id=100, span_id=101)
@@ -108,7 +108,7 @@ async def test_propagation_with_new_context(tracer):
     with tracer.trace("async_task"):
         await asyncio.sleep(0.01)
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 1
     span = traces[0][0]

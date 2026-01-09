@@ -24,8 +24,6 @@ from tests.contrib.crewai.utils import fun_fact_text
 from tests.contrib.crewai.utils import itinerary_text
 from tests.contrib.crewai.utils import welcome_email_text
 from tests.llmobs._utils import TestLLMObsSpanWriter
-from tests.utils import DummyTracer
-from tests.utils import DummyWriter
 from tests.utils import override_global_config
 
 
@@ -346,11 +344,10 @@ def crewai(monkeypatch):
 
 
 @pytest.fixture
-def mock_tracer(crewai):
+def mock_tracer(crewai, tracer):
     pin = Pin.get_from(crewai)
-    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin._override(crewai, tracer=mock_tracer)
-    yield mock_tracer
+    pin._override(crewai, tracer=tracer)
+    yield tracer
 
 
 @pytest.fixture

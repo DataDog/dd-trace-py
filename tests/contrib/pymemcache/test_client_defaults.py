@@ -25,12 +25,12 @@ def client(tracer):
         unpatch()
 
 
-def test_query_default(client, tracer):
+def test_query_default(client, tracer, test_spans):
     client.sock = MockSocket([b"STORED\r\n"])
     result = client.set(b"key", b"value", noreply=False)
     assert result is True
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
     assert traces[0][0].get_tag("memcached.query") is None

@@ -7,7 +7,6 @@ from ddtrace.llmobs import LLMObs as llmobs_service
 from tests.contrib.litellm.utils import get_request_vcr
 from tests.contrib.litellm.utils import model_list
 from tests.llmobs._utils import TestLLMObsSpanWriter
-from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 
@@ -61,11 +60,10 @@ def litellm_llmobs(mock_tracer, llmobs_span_writer):
 
 
 @pytest.fixture
-def mock_tracer(litellm):
-    mock_tracer = DummyTracer()
+def mock_tracer(litellm, tracer):
     pin = Pin.get_from(litellm)
-    pin._override(litellm, tracer=mock_tracer)
-    yield mock_tracer
+    pin._override(litellm, tracer=tracer)
+    yield tracer
 
 
 @pytest.fixture

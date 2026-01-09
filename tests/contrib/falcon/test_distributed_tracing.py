@@ -4,7 +4,6 @@ from ddtrace import config
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.falcon.patch import FALCON_VERSION
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
-from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 
 from .app import get_app
@@ -19,7 +18,6 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
     def setUp(self):
         super(DistributedTracingTestCase, self).setUp()
         self._service = "falcon"
-        self.tracer = DummyTracer()
         self.api = get_app(tracer=self.tracer)
         if FALCON_VERSION >= (2, 0, 0):
             self.client = testing.TestClient(self.api)
@@ -35,7 +33,7 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
         out = self.make_test_call("/200", headers=headers, expected_status_code=200)
         assert out.content.decode("utf-8") == "Success"
 
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
 
         assert len(traces) == 1
         assert len(traces[0]) == 1
@@ -45,7 +43,6 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
 
     def test_distributed_tracing_disabled_via_int_config(self):
         config.falcon["distributed_tracing"] = False
-        self.tracer = DummyTracer()
         self.api = get_app(tracer=self.tracer)
         if FALCON_VERSION >= (2, 0, 0):
             self.client = testing.TestClient(self.api)
@@ -56,7 +53,7 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
         out = self.make_test_call("/200", headers=headers, expected_status_code=200)
         assert out.content.decode("utf-8") == "Success"
 
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
 
         assert len(traces) == 1
         assert len(traces[0]) == 1
@@ -66,7 +63,6 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_FALCON_DISTRIBUTED_TRACING="False"))
     def test_distributed_tracing_disabled_via_env_var(self):
-        self.tracer = DummyTracer()
         self.api = get_app(tracer=self.tracer)
 
         if FALCON_VERSION >= (2, 0, 0):
@@ -78,7 +74,7 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
         out = self.make_test_call("/200", headers=headers, expected_status_code=200)
         assert out.content.decode("utf-8") == "Success"
 
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
 
@@ -103,7 +99,7 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
         out = self.make_test_call("/200", headers=distributed_headers, expected_status_code=200)
         assert out.content.decode("utf-8") == "Success"
 
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
 
         aws_gateway_span = traces[0][0]
         web_span = traces[0][1]
@@ -149,7 +145,7 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
         out = self.make_test_call("/200", headers=distributed_headers, expected_status_code=200)
         assert out.content.decode("utf-8") == "Success"
 
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
 
         web_span = traces[0][0]
         assert web_span._parent is None

@@ -7,6 +7,7 @@ from ddtrace.trace import tracer
 from tests.contrib.aiohttp.app.web import set_filesystem_loader
 from tests.contrib.aiohttp.app.web import set_package_loader
 import tests.contrib.aiohttp.conftest  # noqa:F401
+from tests.utils import TracerSpanContainer
 
 
 VERSION = tuple(map(int, aiohttp_jinja2.__version__.split(".")))
@@ -21,7 +22,7 @@ async def test_template_rendering(untraced_app_tracer_jinja, aiohttp_client):
     text = await request.text()
     assert "OK" == text
     # the trace is created
-    traces = tracer.pop_traces()
+    traces = TracerSpanContainer(tracer).pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
     span = traces[0][0]
@@ -43,12 +44,10 @@ async def test_template_rendering_snapshot(untraced_app_tracer_jinja, aiohttp_cl
         assert 200 == request.status
 
 
-@pytest.mark.parametrize("use_global_tracer", [True])
 async def test_template_rendering_snapshot_patched_server(
     patched_app_tracer_jinja,
     aiohttp_client,
     snapshot_context,
-    use_global_tracer,
 ):
     app, _ = patched_app_tracer_jinja
     Pin._override(aiohttp_jinja2, tracer=tracer)
@@ -70,7 +69,7 @@ async def test_template_rendering_filesystem(untraced_app_tracer_jinja, aiohttp_
     text = await request.text()
     assert "OK" == text
     # the trace is created
-    traces = tracer.pop_traces()
+    traces = TracerSpanContainer(tracer).pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
     span = traces[0][0]
@@ -93,7 +92,7 @@ async def test_template_rendering_package(untraced_app_tracer_jinja, aiohttp_cli
     text = await request.text()
     assert "OK" == text
     # the trace is created
-    traces = tracer.pop_traces()
+    traces = TracerSpanContainer(tracer).pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
     span = traces[0][0]
@@ -114,7 +113,7 @@ async def test_template_decorator(untraced_app_tracer_jinja, aiohttp_client, loo
     text = await request.text()
     assert "OK" == text
     # the trace is created
-    traces = tracer.pop_traces()
+    traces = TracerSpanContainer(tracer).pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
     span = traces[0][0]
@@ -134,7 +133,7 @@ async def test_template_error(untraced_app_tracer_jinja, aiohttp_client):
     assert 500 == request.status
     await request.text()
     # the trace is created
-    traces = tracer.pop_traces()
+    traces = TracerSpanContainer(tracer).pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
     span = traces[0][0]

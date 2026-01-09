@@ -13,6 +13,7 @@ from tests.contrib.pydantic_ai.utils import expected_run_agent_span_event
 from tests.contrib.pydantic_ai.utils import expected_run_tool_span_event
 from tests.contrib.pydantic_ai.utils import foo_tool
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.utils import TracerSpanContainer
 
 
 PYDANTIC_AI_VERSION = parse_version(pydantic_ai.__version__)
@@ -37,7 +38,7 @@ class TestLLMObsPydanticAI:
                 model_settings=model_settings,
             )
             result = await agent.run("Hello, world!")
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(
             span,
@@ -52,7 +53,7 @@ class TestLLMObsPydanticAI:
         with request_vcr.use_cassette("agent_iter.yaml"):
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
             result = agent.run_sync("Hello, world!")
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(span, result.output)
 
@@ -63,7 +64,7 @@ class TestLLMObsPydanticAI:
             async with agent.run_stream("Hello, world!") as result:
                 async for chunk in result.stream(debounce_by=None):
                     output = chunk
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(span, output)
 
@@ -79,7 +80,7 @@ class TestLLMObsPydanticAI:
             async with agent.run_stream("Hello, world!") as result:
                 async for chunk in result.stream_text(debounce_by=None, delta=delta):
                     output = output + chunk if delta else chunk
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(span, output)
 
@@ -91,7 +92,7 @@ class TestLLMObsPydanticAI:
                 async for chunk in result.stream_structured():
                     if chunk[1]:
                         output = chunk[0].parts[0].content
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(span, output)
 
@@ -101,7 +102,7 @@ class TestLLMObsPydanticAI:
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
             async with agent.run_stream("Hello, world!") as result:
                 output = await result.get_output()
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(span, output)
 
@@ -114,7 +115,7 @@ class TestLLMObsPydanticAI:
             async with agent.run_stream("What is the square of 2?") as result:
                 async for chunk in result.stream():
                     output = chunk
-        trace = mock_tracer.pop_traces()[0]
+        trace = TracerSpanContainer(mock_tracer).pop_traces()[0]
         agent_span = trace[0]
         tool_span = trace[1]
         assert len(llmobs_events) == 2
@@ -144,7 +145,7 @@ class TestLLMObsPydanticAI:
             async with agent.run_stream("What is the square of 2?") as result:
                 async for chunk in result.stream_structured(debounce_by=None):
                     output = chunk
-        trace = mock_tracer.pop_traces()[0]
+        trace = TracerSpanContainer(mock_tracer).pop_traces()[0]
         agent_span = trace[0]
         tool_span = trace[1]
         assert len(llmobs_events) == 2
@@ -168,7 +169,7 @@ class TestLLMObsPydanticAI:
                         output = chunk
                         raise Exception("test error")
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
             span,
@@ -190,7 +191,7 @@ class TestLLMObsPydanticAI:
                 async for _ in agent_run:
                     pass
                 output = agent_run.result.output
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(span, output)
 
@@ -219,7 +220,7 @@ class TestLLMObsPydanticAI:
                 tools=[foo_tool],
             )
             result = await agent.run("Hello, world!")
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(
             span, result.output, tools=expected_calculate_square_tool() + expected_foo_tool()

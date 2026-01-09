@@ -1,4 +1,5 @@
 from ddtrace._trace.pin import Pin
+from tests.utils import TracerSpanContainer
 
 
 # DBM Shared Tests
@@ -28,7 +29,7 @@ async def _test_execute_many(dbm_comment, cursor, wrapped_instance):
 
 async def _test_dbm_propagation_enabled(tracer, cursor, service):
     await cursor.execute("SELECT 1")
-    spans = tracer.pop()
+    spans = TracerSpanContainer(tracer).pop()
     assert len(spans) == 1
     span = spans[0]
     assert span.name == f"{service}.query"

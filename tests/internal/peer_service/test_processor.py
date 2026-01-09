@@ -105,10 +105,9 @@ def test_tracer_hooks():
     from ddtrace.constants import SPAN_KIND
     from ddtrace.ext import SpanKind
     from ddtrace.internal.settings.peer_service import PeerServiceConfig
-    from tests.utils import DummyTracer
+    from ddtrace.trace import tracer
 
     peer_service_config = PeerServiceConfig()
-    tracer = DummyTracer()
     span = tracer.trace(
         "test",
         service="test_service",

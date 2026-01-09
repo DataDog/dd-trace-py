@@ -1,4 +1,4 @@
-__all__ = ["pytest_configure", "test_spans", "tracer"]
+__all__ = ["pytest_configure"]
 
 import os
 
@@ -6,9 +6,6 @@ import django
 from django.conf import settings
 
 from ddtrace.contrib.internal.django.patch import patch
-
-from ..django.conftest import test_spans
-from ..django.conftest import tracer
 
 
 # We manually designate which settings we will be using in an environment variable

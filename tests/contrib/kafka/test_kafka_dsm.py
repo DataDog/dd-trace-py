@@ -11,8 +11,6 @@ from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.native import DDSketch
-from ddtrace.internal.service import ServiceStatus
-from ddtrace.internal.service import ServiceStatusError
 from tests.datastreams.test_public_api import MockedTracer
 
 
@@ -26,23 +24,10 @@ class CustomError(Exception):
 @pytest.fixture
 def dsm_processor(tracer):
     processor = tracer.data_streams_processor
-    # Clean up any existing context to prevent test pollution
-    try:
-        del processor._current_context.value
-    except AttributeError:
-        pass
-
     with mock.patch("ddtrace.internal.datastreams.data_streams_processor", return_value=processor):
         yield processor
-        # flush buckets for the next test run
-        processor.periodic()
-
-        try:
-            processor.shutdown(timeout=5)
-        except ServiceStatusError as e:
-            # Expected: processor already stopped by tracer shutdown during test teardown
-            if e.current_status == ServiceStatus.RUNNING:
-                raise
+        # Processor should be recreated by the tracer fixture
+        processor.shutdown(timeout=5)
 
 
 @pytest.mark.parametrize("payload_and_length", [("test", 4), ("你".encode("utf-8"), 3), (b"test2", 5)])
@@ -274,9 +259,9 @@ def test_data_streams_default_context_propagation(consumer, producer, kafka_topi
     assert message.headers()[0][1] is not None
 
 
-def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, kafka_topic):
-    Pin._override(producer, tracer=dummy_tracer)
-    Pin._override(consumer, tracer=dummy_tracer)
+def test_span_has_dsm_payload_hash(kafka_tracer, test_spans, consumer, producer, kafka_topic):
+    Pin._override(producer, tracer=kafka_tracer)
+    Pin._override(consumer, tracer=kafka_tracer)
 
     test_string = "payload hash test"
     PAYLOAD = bytes(test_string, encoding="utf-8")
@@ -291,7 +276,7 @@ def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, kafka_topic
     # message comes back with expected test string
     assert message.value() == b"payload hash test"
 
-    traces = dummy_tracer.pop_traces()
+    traces = test_spans.pop_traces()
     produce_span = traces[0][0]
     consume_span = traces[len(traces) - 1][0]
 

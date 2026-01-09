@@ -19,8 +19,6 @@ from tests.contrib.google_genai.utils import MOCK_TOOL_CALL_RESPONSE_STREAM
 from tests.contrib.google_genai.utils import MOCK_TOOL_FINAL_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_TOOL_FINAL_RESPONSE_STREAM
 from tests.llmobs._utils import TestLLMObsSpanWriter
-from tests.utils import DummyTracer
-from tests.utils import DummyWriter
 from tests.utils import override_global_config
 
 
@@ -50,12 +48,11 @@ def genai_client_vcr(genai):
 
 
 @pytest.fixture
-def mock_tracer(ddtrace_global_config, genai):
+def mock_tracer(ddtrace_global_config, genai, tracer):
     try:
         pin = Pin.get_from(genai)
-        mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-        pin._override(genai, tracer=mock_tracer)
-        yield mock_tracer
+        pin._override(genai, tracer=tracer)
+        yield tracer
     except Exception:
         yield
 

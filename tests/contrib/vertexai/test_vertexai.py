@@ -9,6 +9,7 @@ from tests.contrib.vertexai.utils import _async_streamed_response
 from tests.contrib.vertexai.utils import _mock_completion_response
 from tests.contrib.vertexai.utils import _mock_completion_stream_chunk
 from tests.contrib.vertexai.utils import weather_tool
+from tests.utils import TracerSpanContainer
 from tests.utils import override_global_config
 
 
@@ -29,7 +30,7 @@ def test_global_tags(vertexai, mock_tracer):
             ),
         )
 
-    span = mock_tracer.pop_traces()[0][0]
+    span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
     assert span.resource == "GenerativeModel.generate_content"
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"

@@ -14,6 +14,7 @@ from tests.llmobs._utils import aiterate_stream
 from tests.llmobs._utils import anext_stream
 from tests.llmobs._utils import iterate_stream
 from tests.llmobs._utils import next_stream
+from tests.utils import TracerSpanContainer
 
 
 @pytest.mark.parametrize(
@@ -26,7 +27,7 @@ class TestLLMObsGoogleGenAI:
             contents="Why is the sky blue? Explain in 2-3 sentences.",
             config=FULL_GENERATE_CONTENT_CONFIG,
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_span_event(span)
 
@@ -38,7 +39,7 @@ class TestLLMObsGoogleGenAI:
             contents="Why is the sky blue? Explain in 2-3 sentences.",
             config=FULL_GENERATE_CONTENT_CONFIG,
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_span_event_with_reasoning(span)
 
@@ -50,7 +51,7 @@ class TestLLMObsGoogleGenAI:
                 config=FULL_GENERATE_CONTENT_CONFIG,
                 not_an_argument="why am i here?",
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_error_span_event(span)
 
@@ -64,7 +65,7 @@ class TestLLMObsGoogleGenAI:
             config=FULL_GENERATE_CONTENT_CONFIG,
         )
         consume_stream(response)
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_span_event(span)
 
@@ -78,7 +79,7 @@ class TestLLMObsGoogleGenAI:
                 config=FULL_GENERATE_CONTENT_CONFIG,
                 not_an_argument="why am i here?",
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_error_span_event(span)
 
@@ -88,7 +89,7 @@ class TestLLMObsGoogleGenAI:
             contents="Why is the sky blue? Explain in 2-3 sentences.",
             config=FULL_GENERATE_CONTENT_CONFIG,
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_span_event(span)
 
@@ -102,7 +103,7 @@ class TestLLMObsGoogleGenAI:
                 config=FULL_GENERATE_CONTENT_CONFIG,
                 not_an_argument="why am i here?",
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_error_span_event(span)
 
@@ -116,7 +117,7 @@ class TestLLMObsGoogleGenAI:
             config=FULL_GENERATE_CONTENT_CONFIG,
         )
         await consume_stream(response)
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_span_event(span)
 
@@ -130,7 +131,7 @@ class TestLLMObsGoogleGenAI:
                 config=FULL_GENERATE_CONTENT_CONFIG,
                 not_an_argument="why am i here?",
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_error_span_event(span)
 
@@ -140,7 +141,7 @@ class TestLLMObsGoogleGenAI:
             contents=["why is the sky blue?", "What is your age?"],
             config=EMBED_CONTENT_CONFIG,
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_embedding_span_event(span)
 
@@ -152,7 +153,7 @@ class TestLLMObsGoogleGenAI:
                 config=EMBED_CONTENT_CONFIG,
                 not_an_argument="why am i here?",
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_embedding_error_span_event(span)
 
@@ -162,7 +163,7 @@ class TestLLMObsGoogleGenAI:
             contents=["why is the sky blue?", "What is your age?"],
             config=EMBED_CONTENT_CONFIG,
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_embedding_span_event(span)
 
@@ -174,7 +175,7 @@ class TestLLMObsGoogleGenAI:
                 config=EMBED_CONTENT_CONFIG,
                 not_an_argument="why am i here?",
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_embedding_error_span_event(span)
 
@@ -216,7 +217,7 @@ class TestLLMObsGoogleGenAI:
             config=TOOL_GENERATE_CONTENT_CONFIG,
         )
 
-        traces = mock_tracer.pop_traces()
+        traces = TracerSpanContainer(mock_tracer).pop_traces()
         assert len(traces) == 2
 
         first_span = traces[0][0]
@@ -275,7 +276,7 @@ class TestLLMObsGoogleGenAI:
         for _ in response2:
             pass
 
-        traces = mock_tracer.pop_traces()
+        traces = TracerSpanContainer(mock_tracer).pop_traces()
         assert len(traces) == 2
 
         first_span = traces[0][0]
@@ -327,7 +328,7 @@ class TestLLMObsGoogleGenAI:
             config=TOOL_GENERATE_CONTENT_CONFIG,
         )
 
-        traces = mock_tracer.pop_traces()
+        traces = TracerSpanContainer(mock_tracer).pop_traces()
         assert len(traces) == 2
 
         first_span = traces[0][0]
@@ -386,7 +387,7 @@ class TestLLMObsGoogleGenAI:
         async for _ in response2:
             pass
 
-        traces = mock_tracer.pop_traces()
+        traces = TracerSpanContainer(mock_tracer).pop_traces()
         assert len(traces) == 2
 
         first_span = traces[0][0]

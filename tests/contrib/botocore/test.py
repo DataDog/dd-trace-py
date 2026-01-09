@@ -104,6 +104,8 @@ class BotocoreTest(TracerTestCase):
         self.sqs_test_queue = self.sqs_client.create_queue(QueueName=self.queue_name)
 
         super(BotocoreTest, self).setUp()
+        # Clear any spans that might have been generated during setUp before DummyWriter was active
+        self.reset()
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
@@ -120,6 +122,11 @@ class BotocoreTest(TracerTestCase):
 
         unpatch()
         self.sqs_client.delete_queue(QueueUrl=self.queue_name)
+
+    def get_spans(self):
+        """Override to filter out urllib3 spans that are captured alongside botocore spans."""
+        spans = super(BotocoreTest, self).get_spans()
+        return [s for s in spans if s.name != "urllib3.request"]
 
     @mock_ec2
     @mock_s3
@@ -706,6 +713,7 @@ class BotocoreTest(TracerTestCase):
 
     def _test_sqs_client(self):
         self.sqs_client.delete_queue(QueueUrl=self.queue_name)  # Delete so we can test create_queue spans
+        self.reset()  # Clear spans from delete_queue
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
@@ -872,6 +880,7 @@ class BotocoreTest(TracerTestCase):
                         AttributeName="RawMessageDelivery",
                         AttributeValue="true",
                     )
+                self.reset()  # Clear spans from setup operations
 
                 Pin.get_from(sns)._clone(tracer=self.tracer).onto(sns)
                 Pin.get_from(self.sqs_client)._clone(tracer=self.tracer).onto(self.sqs_client)
@@ -886,8 +895,11 @@ class BotocoreTest(TracerTestCase):
 
                 spans = self.get_spans()
                 assert spans
-                publish_span = spans[0]
                 assert len(spans) == 3
+                assert spans[0].resource == "sns.publish"
+                assert spans[1].resource == "sqs.receivemessage"
+                assert spans[2].resource == "sns.deletetopic"
+                publish_span = spans[0]
                 assert publish_span.get_tag("aws.region") == "us-east-1"
                 assert publish_span.get_tag("region") == "us-east-1"
                 assert publish_span.get_tag("aws.operation") == "Publish"
@@ -1309,9 +1321,15 @@ class BotocoreTest(TracerTestCase):
         client.put_records(StreamName=stream_name, Records=data)
 
         spans = self.get_spans()
-        assert spans
-        span = spans[0]
-        assert len(spans) == 1
+        assert len(spans) == 2
+        # First span is CreateStream, second is PutRecords
+        create_span = spans[0]
+        span = spans[1]
+        assert create_span.get_tag("aws.operation") == "CreateStream"
+        assert create_span.resource == "kinesis.createstream"
+        assert create_span.parent_id is None  # root span
+        assert span.get_tag("aws.operation") == "PutRecords"
+        assert span.parent_id is None  # root span (sibling, not child)
         assert span.get_tag("aws.region") == "us-east-1"
         assert span.get_tag("region") == "us-east-1"
         assert span.get_tag("aws.operation") == "PutRecords"
@@ -1453,10 +1471,12 @@ class BotocoreTest(TracerTestCase):
             )
 
             spans = self.get_spans()
-            assert spans
-            span = spans[0]
-
-            assert len(spans) == 1
+            assert len(spans) == 2
+            # First span is CreateFunction, second is Invoke
+            create_span = spans[0]
+            span = spans[1]
+            assert create_span.get_tag("aws.operation") == "CreateFunction"
+            assert create_span.resource == "lambda.createfunction"
             assert span.get_tag("aws.region") == "us-west-2"
             assert span.get_tag("region") == "us-west-2"
             assert span.get_tag("aws.operation") == "Invoke"
@@ -1496,9 +1516,12 @@ class BotocoreTest(TracerTestCase):
         )
 
         spans = self.get_spans()
-        assert spans
-        span = spans[0]
-        assert len(spans) == 1
+        assert len(spans) == 2
+        # First span is CreateFunction, second is Invoke
+        create_span = spans[0]
+        span = spans[1]
+        assert create_span.get_tag("aws.operation") == "CreateFunction"
+        assert create_span.resource == "lambda.createfunction"
         assert span.get_tag("aws.region") == "us-west-2"
         assert span.get_tag("region") == "us-west-2"
         assert span.get_tag("aws.operation") == "Invoke"
@@ -1723,6 +1746,7 @@ class BotocoreTest(TracerTestCase):
             Rule="a-test-bus-rule",
             Targets=[{"Id": "a-test-bus-rule-target", "Arn": "arn:aws:sqs:us-east-1:000000000000:Test"}],
         )
+        self.reset()  # Clear spans from setup operations
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
@@ -1735,13 +1759,16 @@ class BotocoreTest(TracerTestCase):
 
         spans = self.get_spans()
         assert spans
-        assert len(spans) == 2
+        assert len(spans) == 3
+        assert spans[0].resource == "events.putevents"
+        assert spans[1].resource == "sqs.receivemessage"
+        assert spans[2].resource == "events.deleteeventbus"
         span = spans[0]
         str_entries = span.get_tag("params.Entries")
-        put_rule_span = spans[1]
-        assert put_rule_span.get_tag("rulename") == "a-test-bus"
-        assert put_rule_span.get_tag("aws_service") == "events"
-        assert put_rule_span.get_tag("region") == "us-east-1"
+        delete_bus_span = spans[2]
+        assert delete_bus_span.get_tag("rulename") == "a-test-bus"
+        assert delete_bus_span.get_tag("aws_service") == "events"
+        assert delete_bus_span.get_tag("region") == "us-east-1"
         assert str_entries is None
 
         message = messages["Messages"][0]
@@ -1787,6 +1814,7 @@ class BotocoreTest(TracerTestCase):
             Rule="a-test-bus-rule",
             Targets=[{"Id": "a-test-bus-rule-target", "Arn": "arn:aws:sqs:us-east-1:000000000000:Test"}],
         )
+        self.reset()  # Clear spans from setup operations
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
@@ -1799,7 +1827,10 @@ class BotocoreTest(TracerTestCase):
 
         spans = self.get_spans()
         assert spans
-        assert len(spans) == 2
+        assert len(spans) == 3
+        assert spans[0].resource == "events.putevents"
+        assert spans[1].resource == "sqs.receivemessage"
+        assert spans[2].resource == "events.deleteeventbus"
         span = spans[0]
         str_entries = span.get_tag("params.Entries")
         assert str_entries is None
@@ -2036,6 +2067,7 @@ class BotocoreTest(TracerTestCase):
         url_parts = sqs_url.split("/")
         sqs_arn = "arn:aws:sqs:{}:{}:{}".format("us-east-1", url_parts[-2], url_parts[-1])
         sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+        self.reset()  # Clear spans from setup operations (create_topic, subscribe)
 
         if use_default_tracer:
             Pin.get_from(sns)._clone(tracer=self.tracer).onto(sns)
@@ -2053,8 +2085,8 @@ class BotocoreTest(TracerTestCase):
         # clean up resources
         sns.delete_topic(TopicArn=topic_arn)
 
-        # check if the appropriate span was generated
-        assert len(spans) == 2, "Expected 2 spans, found {}".format(len(spans))
+        # check if the appropriate span was generated (SNS publish span only, urllib3 is filtered)
+        assert len(spans) == 1, "Expected 1 span, found {}".format(len(spans))
         return spans[0]
 
     @mock_sns
@@ -2140,6 +2172,7 @@ class BotocoreTest(TracerTestCase):
         url_parts = sqs_url.split("/")
         sqs_arn = "arn:aws:sqs:{}:{}:{}".format("us-east-1", url_parts[-2], url_parts[-1])
         sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+        self.reset()  # Clear spans from setup operations
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
@@ -2157,7 +2190,8 @@ class BotocoreTest(TracerTestCase):
         # check if the appropriate span was generated
         assert spans
         span = spans[0]
-        assert len(spans) == 2
+        assert len(spans) == 1
+        assert spans[0].resource == "sns.publish"
         assert span.get_tag("aws.region") == "us-east-1"
         assert span.get_tag("region") == "us-east-1"
         assert span.get_tag("aws.operation") == "Publish"
@@ -2201,6 +2235,7 @@ class BotocoreTest(TracerTestCase):
         url_parts = sqs_url.split("/")
         sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
         sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+        self.reset()  # Clear spans from setup operations
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
@@ -2234,7 +2269,8 @@ class BotocoreTest(TracerTestCase):
         # check if the appropriate span was generated
         assert spans
         span = spans[0]
-        assert len(spans) == 2
+        assert len(spans) == 1
+        assert spans[0].resource == "sns.publish"
         assert span.get_tag("aws.region") == "us-east-1"
         assert span.get_tag("region") == "us-east-1"
         assert span.get_tag("aws.operation") == "Publish"
@@ -2278,6 +2314,7 @@ class BotocoreTest(TracerTestCase):
         url_parts = sqs_url.split("/")
         sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
         sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+        self.reset()  # Clear spans from setup operations
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
@@ -2308,7 +2345,8 @@ class BotocoreTest(TracerTestCase):
         # check if the appropriate span was generated
         assert spans
         span = spans[0]
-        assert len(spans) == 2
+        assert len(spans) == 1
+        assert spans[0].resource == "sns.publish"
         assert span.get_tag("aws.region") == "us-east-1"
         assert span.get_tag("region") == "us-east-1"
         assert span.get_tag("aws.operation") == "Publish"
@@ -2346,6 +2384,7 @@ class BotocoreTest(TracerTestCase):
             url_parts = sqs_url.split("/")
             sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
             sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+            self.reset()
 
             pin = Pin(service=self.TEST_SERVICE)
             pin._tracer = self.tracer
@@ -2378,6 +2417,8 @@ class BotocoreTest(TracerTestCase):
             assert spans
             span = spans[0]
             assert len(spans) == 2
+            assert spans[0].resource == "sns.publishbatch"
+            assert spans[1].resource == "sqs.receivemessage"
             assert span.get_tag("aws.region") == region
             assert span.get_tag("region") == region
             assert span.get_tag("aws.operation") == "PublishBatch"
@@ -2442,6 +2483,7 @@ class BotocoreTest(TracerTestCase):
         url_parts = sqs_url.split("/")
         sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
         sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+        self.reset()  # Clear spans from setup operations
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
@@ -2478,7 +2520,8 @@ class BotocoreTest(TracerTestCase):
         # check if the appropriate span was generated
         assert spans
         span = spans[0]
-        assert len(spans) == 2
+        assert len(spans) == 1
+        assert spans[0].resource == "sns.publishbatch"
         assert span.get_tag("aws.region") == region
         assert span.get_tag("region") == region
         assert span.get_tag("aws.operation") == "PublishBatch"
@@ -2515,6 +2558,7 @@ class BotocoreTest(TracerTestCase):
         url_parts = sqs_url.split("/")
         sqs_arn = "arn:aws:sqs:{}:{}:{}".format(region, url_parts[-2], url_parts[-1])
         sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=sqs_arn)
+        self.reset()  # Clear spans from setup operations
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
@@ -2552,7 +2596,8 @@ class BotocoreTest(TracerTestCase):
         # check if the appropriate span was generated
         assert spans
         span = spans[0]
-        assert len(spans) == 2
+        assert len(spans) == 1
+        assert spans[0].resource == "sns.publishbatch"
         assert span.get_tag("aws.region") == region
         assert span.get_tag("region") == region
         assert span.get_tag("aws.operation") == "PublishBatch"
@@ -2742,6 +2787,7 @@ class BotocoreTest(TracerTestCase):
 
         stream_name = "kinesis_put_record_" + test_name
         shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
+        self.reset()  # Clear spans from setup operations (create_stream, describe_stream)
 
         partition_key = "1234"
 
@@ -2781,6 +2827,7 @@ class BotocoreTest(TracerTestCase):
 
         stream_name = "kinesis_put_records_" + test_name
         shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
+        self.reset()  # Clear spans from setup operations (create_stream, describe_stream)
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
@@ -3316,6 +3363,12 @@ class BotocoreTest(TracerTestCase):
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_sqs
     def test_aws_payload_tagging_sqs_invalid_config(self):
+        # Recreate setUp operations to ensure spans are captured by snapshot test
+        # (setUp spans are sent before snapshot context starts)
+        for queue_url in self.sqs_client.list_queues().get("QueueUrls", []):
+            self.sqs_client.delete_queue(QueueUrl=queue_url)
+        self.sqs_test_queue = self.sqs_client.create_queue(QueueName=self.queue_name)
+
         with self.override_config(
             "botocore",
             dict(payload_tagging_request="non_json_path", payload_tagging_response="$..Attr ibutes.PlatformCredential"),
@@ -3401,7 +3454,9 @@ class BotocoreTest(TracerTestCase):
         with self.override_config(
             "botocore",
             dict(
-                payload_tagging_request="$..PublishBatchRequestEntries.[*].Message,$..PublishBatchRequestEntries.[*].Id",
+                payload_tagging_request=(
+                    "$..PublishBatchRequestEntries.[*].Message,$..PublishBatchRequestEntries.[*].Id"
+                ),
                 payload_tagging_response="$..HTTPHeaders.*",
             ),
         ):

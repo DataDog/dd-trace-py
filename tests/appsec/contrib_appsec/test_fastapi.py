@@ -5,6 +5,7 @@ import starlette
 
 from tests.appsec.contrib_appsec import utils
 from tests.appsec.contrib_appsec.fastapi_app.app import get_app
+from tests.utils import scoped_tracer
 
 
 FASTAPI_VERSION = tuple(int(v) for v in fastapi.__version__.split("."))
@@ -20,7 +21,7 @@ class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
 
         # for fastapi, test tracer needs to be set before the app is created
         # contrary to other frameworks
-        with utils.test_tracer() as tracer:
+        with scoped_tracer() as tracer:
             application = get_app()
 
             client = TestClient(application, base_url="http://localhost:%d" % self.SERVER_PORT)

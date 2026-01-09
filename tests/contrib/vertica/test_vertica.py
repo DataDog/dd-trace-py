@@ -1,6 +1,5 @@
 import pytest
 
-import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
@@ -12,7 +11,7 @@ from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.settings._config import _deepmerge
 from tests.contrib.config import VERTICA_CONFIG
-from tests.utils import DummyTracer
+from tests.utils import TracerSpanContainer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
@@ -21,14 +20,13 @@ TEST_TABLE = "test_table"
 
 
 @pytest.fixture(scope="function")
-def test_tracer(request):
-    request.cls.test_tracer = DummyTracer()
-    return request.cls.test_tracer
+def test_tracer(request, tracer):
+    request.cls.test_tracer = tracer
+    return tracer
 
 
 @pytest.fixture(scope="function")
 def test_conn(request, test_tracer):
-    ddtrace.tracer = test_tracer
     patch()
 
     import vertica_python  # must happen AFTER installing with patch()
@@ -44,7 +42,7 @@ def test_conn(request, test_tracer):
         )
         """.format(TEST_TABLE)
     )
-    test_tracer.pop()
+    TracerSpanContainer(test_tracer).pop()
 
     request.cls.test_conn = (conn, cur)
     return conn, cur
@@ -130,14 +128,12 @@ class TestVertica(TracerTestCase):
             patch()
             import vertica_python
 
-            test_tracer = DummyTracer()
-
             conn = vertica_python.connect(**VERTICA_CONFIG)
             cur = conn.cursor()
-            Pin._override(cur, tracer=test_tracer)
+            Pin._override(cur, tracer=self.tracer)
             with conn:
                 cur.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
-        spans = test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         assert spans[0].service == "test_svc_name"
 
@@ -164,13 +160,11 @@ class TestVertica(TracerTestCase):
             patch()
             import vertica_python
 
-            test_tracer = DummyTracer()
-
             conn = vertica_python.connect(**VERTICA_CONFIG)
-            Pin._override(conn, service="mycustomservice", tracer=test_tracer)
+            Pin._override(conn, service="mycustomservice", tracer=self.tracer)
             conn.cursor()  # should be traced now
             conn.close()
-        spans = test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         assert spans[0].name == "get_cursor"
         assert spans[0].service == "mycustomservice"
@@ -185,7 +179,7 @@ class TestVertica(TracerTestCase):
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
 
         # check all the metadata
@@ -216,7 +210,7 @@ class TestVertica(TracerTestCase):
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
 
         # check all the metadata
@@ -244,7 +238,7 @@ class TestVertica(TracerTestCase):
         with conn, pytest.raises(VerticaSyntaxError):
             cur.execute("INVALID QUERY")
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
 
         # check all the metadata
@@ -293,7 +287,7 @@ class TestVertica(TracerTestCase):
             cur.fetchall()
             assert cur.rowcount == 5
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 9
 
         # check all the rowcounts
@@ -331,7 +325,7 @@ class TestVertica(TracerTestCase):
             cur.execute("SELECT * FROM {0}; SELECT * FROM {0}".format(TEST_TABLE))
             cur.nextset()
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 3
 
         # check all the rowcounts
@@ -352,7 +346,7 @@ class TestVertica(TracerTestCase):
                 "1,foo\n2,bar",
             )
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
 
         # check all the rowcounts
@@ -379,7 +373,7 @@ class TestVertica(TracerTestCase):
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         span = spans[0]
         assert span.service != "mysvc"
@@ -403,7 +397,7 @@ class TestVertica(TracerTestCase):
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         span = spans[0]
         assert span.service == "vertica"
@@ -427,7 +421,7 @@ class TestVertica(TracerTestCase):
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         span = spans[0]
         assert span.service == "mysvc"
@@ -445,7 +439,7 @@ class TestVertica(TracerTestCase):
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         span = spans[0]
         assert span.service == "vertica"
@@ -463,7 +457,7 @@ class TestVertica(TracerTestCase):
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         span = spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
@@ -502,7 +496,7 @@ class TestVertica(TracerTestCase):
             cur.fetchall()
             assert cur.rowcount == 5
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 9
 
         # check all the rowcounts
@@ -546,7 +540,7 @@ class TestVertica(TracerTestCase):
             cur.fetchall()
             assert cur.rowcount == 5
 
-        spans = self.test_tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 9
 
         # check all the rowcounts

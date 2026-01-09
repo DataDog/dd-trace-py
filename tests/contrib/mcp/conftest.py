@@ -14,8 +14,6 @@ from ddtrace.contrib.internal.mcp.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import SPAN_ENDPOINT as LLMOBS_SPAN_ENDPOINT
 from tests.llmobs._utils import TestLLMObsSpanWriter
-from tests.utils import DummyTracer
-from tests.utils import DummyWriter
 from tests.utils import override_global_config
 
 
@@ -54,11 +52,10 @@ def mcp_setup():
 
 
 @pytest.fixture
-def mock_tracer(mcp_setup):
+def mock_tracer(mcp_setup, tracer):
     pin = Pin.get_from(mcp_setup)
-    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin._override(mcp_setup, tracer=mock_tracer)
-    yield mock_tracer
+    pin._override(mcp_setup, tracer=tracer)
+    yield tracer
 
 
 @pytest.fixture

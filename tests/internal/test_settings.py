@@ -8,15 +8,17 @@ from ddtrace._trace.product import apm_tracing_rc
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.settings._config import Config
 from tests.utils import remote_config_build_payload as build_payload
+from tests.utils import scoped_tracer
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def config():
     import ddtrace
 
     original_config = ddtrace.config
     ddtrace.config = Config()
-    yield ddtrace.config
+    with scoped_tracer():
+        yield ddtrace.config
     # Reset the config to its original state
     ddtrace.config = original_config
 

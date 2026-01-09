@@ -4,7 +4,6 @@ import pytest
 
 from ddtrace.contrib.internal.aiokafka.patch import patch
 from ddtrace.contrib.internal.aiokafka.patch import unpatch
-from tests.utils import DummyTracer
 from tests.utils import override_config
 from tests.utils import override_global_tracer
 
@@ -140,15 +139,13 @@ async def test_send_and_wait_with_distributed_tracing():
             result = await consumer.getone()
             await consumer.commit()
 
-            assert has_header(result.headers, "x-datadog-trace-id")
-            assert has_header(result.headers, "some_header")
+        assert has_header(result.headers, "x-datadog-trace-id")
+        assert has_header(result.headers, "some_header")
 
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["meta._dd.span_links", "meta.messaging.destination.name", "meta.kafka.topic"])
-async def test_getmany_multiple_messages_multiple_topics_with_distributed_tracing():
-    tracer = DummyTracer()
-
+async def test_getmany_multiple_messages_multiple_topics_with_distributed_tracing(tracer, test_spans):
     topic = await create_topic("getmany_distributed_tracing")
     topic_2 = await create_topic("getmany_distributed_tracing_2")
 
@@ -166,7 +163,7 @@ async def test_getmany_multiple_messages_multiple_topics_with_distributed_tracin
                 headers = next(iter(result.values()))[0].headers
                 assert has_header(headers, "x-datadog-trace-id")
 
-    spans = tracer.pop()
+    spans = test_spans.pop()
     consumer_span = find_span_by_name(spans, "kafka.consume")
 
     assert consumer_span is not None, "Consumer span not found"

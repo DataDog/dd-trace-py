@@ -65,7 +65,7 @@ class TestTracedCursor(TracerTestCase):
         traced_cursor.executemany("SELECT * FROM db;", ())
         traced_cursor.callproc("procedure_named_moon")
 
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 3
         dbm_comment = "/*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/ "
         cursor.execute.assert_called_once_with(dbm_comment + "SELECT * FROM db;")
@@ -160,26 +160,26 @@ class TestTracedCursor(TracerTestCase):
         traced_cursor = TracedCursor(cursor, pin, {})
 
         assert "__result__" == traced_cursor.execute("arg_1", kwarg1="kwarg1")
-        assert len(tracer.pop()) == 0
+        assert len(self.pop_spans()) == 0
 
         assert "__result__" == traced_cursor.executemany("arg_1", kwarg1="kwarg1")
-        assert len(tracer.pop()) == 0
+        assert len(self.pop_spans()) == 0
 
         cursor.callproc.return_value = "callproc"
         assert "callproc" == traced_cursor.callproc("arg_1", "arg_2")
-        assert len(tracer.pop()) == 0
+        assert len(self.pop_spans()) == 0
 
         cursor.fetchone.return_value = "fetchone"
         assert "fetchone" == traced_cursor.fetchone("arg_1", "arg_2")
-        assert len(tracer.pop()) == 0
+        assert len(self.pop_spans()) == 0
 
         cursor.fetchmany.return_value = "fetchmany"
         assert "fetchmany" == traced_cursor.fetchmany("arg_1", "arg_2")
-        assert len(tracer.pop()) == 0
+        assert len(self.pop_spans()) == 0
 
         cursor.fetchall.return_value = "fetchall"
         assert "fetchall" == traced_cursor.fetchall("arg_1", "arg_2")
-        assert len(tracer.pop()) == 0
+        assert len(self.pop_spans()) == 0
 
     def test_span_info(self):
         cursor = self.cursor
@@ -193,7 +193,7 @@ class TestTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span = self.pop_spans()[0]  # type: Span
         # Only measure if the name passed matches the default name (e.g. `sql.query` and not `sql.query.fetchall`)
         assert_is_not_measured(span)
         assert span.get_tag("pin1") == "value_pin1", "Pin tags are preserved"
@@ -220,7 +220,7 @@ class TestTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span = self.pop_spans()[0]  # type: Span
         assert span.service == "cfg-service"
 
     def test_default_service(self):
@@ -236,7 +236,7 @@ class TestTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span = self.pop_spans()[0]  # type: Span
         assert span.service == "db"
 
     def test_default_service_cfg(self):
@@ -252,7 +252,7 @@ class TestTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span = self.pop_spans()[0]  # type: Span
         assert span.service == "default-svc"
 
     def test_service_cfg_and_pin(self):
@@ -268,7 +268,7 @@ class TestTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span = self.pop_spans()[0]  # type: Span
         assert span.service == "pin-svc"
 
     def test_django_traced_cursor_backward_compatibility(self):
@@ -287,7 +287,7 @@ class TestTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span = self.pop_spans()[0]  # type: Span
         # Row count
         assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
 
@@ -395,26 +395,26 @@ class TestFetchTracedCursor(TracerTestCase):
         traced_cursor = FetchTracedCursor(cursor, pin, {})
 
         assert "__result__" == traced_cursor.execute("arg_1", kwarg1="kwarg1")
-        assert len(tracer.pop()) == 0
+        assert len(self.pop_spans()) == 0
 
         assert "__result__" == traced_cursor.executemany("arg_1", kwarg1="kwarg1")
-        assert len(tracer.pop()) == 0
+        assert len(self.pop_spans()) == 0
 
         cursor.callproc.return_value = "callproc"
         assert "callproc" == traced_cursor.callproc("arg_1", "arg_2")
-        assert len(tracer.pop()) == 0
+        assert len(self.pop_spans()) == 0
 
         cursor.fetchone.return_value = "fetchone"
         assert "fetchone" == traced_cursor.fetchone("arg_1", "arg_2")
-        assert len(tracer.pop()) == 0
+        assert len(self.pop_spans()) == 0
 
         cursor.fetchmany.return_value = "fetchmany"
         assert "fetchmany" == traced_cursor.fetchmany("arg_1", "arg_2")
-        assert len(tracer.pop()) == 0
+        assert len(self.pop_spans()) == 0
 
         cursor.fetchall.return_value = "fetchall"
         assert "fetchall" == traced_cursor.fetchall("arg_1", "arg_2")
-        assert len(tracer.pop()) == 0
+        assert len(self.pop_spans()) == 0
 
     def test_span_info(self):
         cursor = self.cursor
@@ -428,7 +428,7 @@ class TestFetchTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span = self.pop_spans()[0]  # type: Span
         assert span.get_tag("pin1") == "value_pin1", "Pin tags are preserved"
         assert span.get_tag("extra1") == "value_extra1", "Extra tags are merged into pin tags"
         assert span.name == "my_name", "Span name is respected"
@@ -455,7 +455,7 @@ class TestFetchTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span = self.pop_spans()[0]  # type: Span
         # Row count
         assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
 
@@ -474,7 +474,7 @@ class TestFetchTracedCursor(TracerTestCase):
             pass
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
-        span = tracer.pop()[0]  # type: Span
+        span = self.pop_spans()[0]  # type: Span
         assert span.get_metric("db.row_count") is None
 
     def test_callproc_can_handle_arbitrary_args(self):
@@ -486,17 +486,17 @@ class TestFetchTracedCursor(TracerTestCase):
         traced_cursor = TracedCursor(cursor, pin, {})
 
         traced_cursor.callproc("proc_name", "arg_1")
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         self.reset()
 
         traced_cursor.callproc("proc_name", "arg_1", "arg_2")
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         self.reset()
 
         traced_cursor.callproc("proc_name", "arg_1", "arg_2", {"arg_key": "arg_value"})
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         self.reset()
 
@@ -526,14 +526,14 @@ class TestFetchTracedCursor(TracerTestCase):
         cursor.fetchmany.assert_called_once_with(1)
         cursor.callproc.assert_called_once_with("proc")
 
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 4
 
         # The following operations should generate DBM comments
         traced_cursor.execute("SELECT * FROM db;")
         traced_cursor.executemany("SELECT * FROM db;", ())
 
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         dbm_comment_exc = dbm_propagator._get_dbm_comment(spans[0])
         cursor.execute.assert_called_once_with(dbm_comment_exc + "SELECT * FROM db;")
@@ -572,7 +572,7 @@ class TestTracedConnection(TracerTestCase):
         pin._tracer = tracer
         traced_connection = TracedConnection(connection, pin)
         traced_connection.commit()
-        assert tracer.pop()[0].name == "mock.connection.commit"
+        assert self.pop_spans()[0].name == "mock.connection.commit"
         connection.commit.assert_called_with()
 
     def test_rollback_is_traced(self):
@@ -583,7 +583,7 @@ class TestTracedConnection(TracerTestCase):
         pin._tracer = tracer
         traced_connection = TracedConnection(connection, pin)
         traced_connection.rollback()
-        assert tracer.pop()[0].name == "mock.connection.rollback"
+        assert self.pop_spans()[0].name == "mock.connection.rollback"
         connection.rollback.assert_called_with()
 
     def test_connection_context_manager(self):

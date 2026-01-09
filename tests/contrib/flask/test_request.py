@@ -211,6 +211,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         span = self.find_span_by_name(self.get_spans(), "flask.request")
         self.assertEqual(span.trace_id, 678910)
         self.assertEqual(span.parent_id, 12345)
+        self.reset()  # Clear spans before next request
 
         # Explicitly enable distributed tracing
         with self.override_config("flask", dict(distributed_tracing_enabled=True)):
@@ -228,6 +229,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         span = self.find_span_by_name(self.get_spans(), "flask.request")
         self.assertEqual(span.trace_id, 678910)
         self.assertEqual(span.parent_id, 12345)
+        self.reset()  # Clear spans before next request
 
         # With distributed tracing disabled
         with self.override_config("flask", dict(distributed_tracing_enabled=False)):

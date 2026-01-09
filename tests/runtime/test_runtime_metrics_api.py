@@ -5,7 +5,6 @@ import pytest
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.runtime import RuntimeMetrics
-from tests.utils import DummyTracer
 
 
 def test_runtime_metrics_api():
@@ -142,8 +141,8 @@ assert RuntimeMetrics._enabled
     "enable_kwargs",
     (
         dict(),
-        dict(tracer=DummyTracer(), dogstatsd_url="udp://agent:8125"),
-        dict(tracer=DummyTracer(), dogstatsd_url="udp://agent:8125", flush_interval=100.0),
+        dict(dogstatsd_url="udp://agent:8125"),
+        dict(dogstatsd_url="udp://agent:8125", flush_interval=100.0),
         dict(flush_interval=0),
     ),
 )
@@ -153,11 +152,6 @@ def test_runtime_metrics_enable(enable_kwargs):
 
         assert RuntimeWorker._instance is not None
         assert RuntimeWorker._instance.status == ServiceStatus.RUNNING
-        assert (
-            RuntimeWorker._instance.tracer == enable_kwargs["tracer"]
-            if "tracer" in enable_kwargs
-            else RuntimeWorker._instance.tracer is not None
-        )
         assert (
             RuntimeWorker._instance.dogstatsd_url == enable_kwargs["dogstatsd_url"]
             if "dogstatsd_url" in enable_kwargs

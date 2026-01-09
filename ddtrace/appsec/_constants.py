@@ -259,6 +259,10 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     DOWN_RES_HEADERS: Literal["server.io.net.response.headers"] = "server.io.net.response.headers"
     DOWN_RES_BODY: Literal["server.io.net.response.body"] = "server.io.net.response.body"
 
+    HEADER_ADDRESSES = frozenset(
+        (DOWN_REQ_HEADERS, DOWN_RES_HEADERS, REQUEST_HEADERS_NO_COOKIES, RESPONSE_HEADERS_NO_COOKIES)
+    )
+
 
 class SPAN_DATA_NAMES(metaclass=Constant_Class):
     """string names used by the library for tagging data from requests in context or span"""

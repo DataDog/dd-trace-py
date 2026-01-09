@@ -13,7 +13,6 @@ from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import logs_vcr
-from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import request_token
@@ -166,11 +165,6 @@ def mock_ragas_answer_relevancy_calculate_similarity():
     MockRagasCalcSim.return_value = numpy.array([1.0, 1.0, 1.0])
     yield MockRagasCalcSim
     patcher.stop()
-
-
-@pytest.fixture
-def tracer():
-    return DummyTracer()
 
 
 @pytest.fixture

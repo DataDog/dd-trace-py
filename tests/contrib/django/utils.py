@@ -3,6 +3,10 @@ import contextlib
 from zeep import Client
 from zeep.transports import Transport
 
+from ddtrace.internal.settings._config import config
+from tests.utils import TracerSpanContainer
+from tests.utils import scoped_tracer
+
 
 def make_soap_request(url):
     client = Client(wsdl=url, transport=Transport())
@@ -25,15 +29,13 @@ def setup_django():
     django.setup()
 
 
+@contextlib.contextmanager
 def setup_django_test_spans():
     setup_django()
 
-    from ddtrace.internal.settings._config import config
-    from tests.utils import DummyTracer
-    from tests.utils import TracerSpanContainer
-
-    config.django._tracer = DummyTracer()
-    return TracerSpanContainer(config.django._tracer)
+    with scoped_tracer() as tracer:
+        config.django._tracer = tracer
+        yield TracerSpanContainer(config.django._tracer)
 
 
 @contextlib.contextmanager

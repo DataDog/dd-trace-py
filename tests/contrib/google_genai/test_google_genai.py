@@ -5,6 +5,7 @@ from tests.contrib.google_genai.utils import EMBED_CONTENT_CONFIG
 from tests.contrib.google_genai.utils import FULL_GENERATE_CONTENT_CONFIG
 from tests.contrib.google_genai.utils import TOOL_GENERATE_CONTENT_CONFIG
 from tests.contrib.google_genai.utils import get_current_weather
+from tests.utils import TracerSpanContainer
 from tests.utils import override_global_config
 
 
@@ -22,7 +23,7 @@ def test_global_tags(mock_generate_content, genai_client, mock_tracer):
             config=FULL_GENERATE_CONTENT_CONFIG,
         )
 
-    span = mock_tracer.pop_traces()[0][0]
+    span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
     assert span.resource == "Models.generate_content"
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"

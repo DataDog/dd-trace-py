@@ -15,7 +15,6 @@ from ddtrace.contrib.internal.openai_agents.patch import patch
 from ddtrace.contrib.internal.openai_agents.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
 from tests.llmobs._utils import TestLLMObsSpanWriter
-from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 
@@ -204,11 +203,10 @@ def openai(agents):
 
 
 @pytest.fixture
-def mock_tracer(agents):
-    mock_tracer = DummyTracer()
+def mock_tracer(agents, tracer):
     pin = Pin.get_from(agents)
-    pin._override(agents, tracer=mock_tracer)
-    yield mock_tracer
+    pin._override(agents, tracer=tracer)
+    yield tracer
 
 
 @pytest.fixture

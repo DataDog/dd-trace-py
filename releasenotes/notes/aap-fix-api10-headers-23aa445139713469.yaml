@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    AAP: This fix resolves an issue where some downstream request analysis rules were not matched because HTTP header names were compared case-sensitively; header names are now normalized so rules match correctly.

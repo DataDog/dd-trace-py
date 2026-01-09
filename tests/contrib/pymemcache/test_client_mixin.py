@@ -8,7 +8,6 @@ from ddtrace.contrib.internal.pymemcache.patch import patch
 from ddtrace.contrib.internal.pymemcache.patch import unpatch
 from ddtrace.ext import memcached as memcachedx
 from ddtrace.ext import net
-from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import override_config
 
@@ -34,10 +33,7 @@ class PymemcacheClientTestCaseMixin(TracerTestCase):
     """Tests for a patched pymemcache.client.base.Client."""
 
     def get_spans(self):
-        pin = Pin.get_from(pymemcache)
-        tracer = pin.tracer
-        spans = tracer.pop()
-        return spans
+        return self.pop_spans()
 
     def check_spans(self, num_expected, resources_expected, queries_expected):
         """A helper for validating basic span information."""
@@ -60,14 +56,15 @@ class PymemcacheClientTestCaseMixin(TracerTestCase):
         return spans
 
     def setUp(self):
+        super().setUp()
         patch()
 
     def tearDown(self):
         unpatch()
+        super().tearDown()
 
     def make_client(self, mock_socket_values, **kwargs):
-        tracer = DummyTracer()
-        Pin._override(pymemcache, tracer=tracer)
+        Pin._override(pymemcache, tracer=self.tracer)
         self.client = pymemcache.client.base.Client((TEST_HOST, TEST_PORT), **kwargs)
         self.client.sock = MockSocket(list(mock_socket_values))
         return self.client

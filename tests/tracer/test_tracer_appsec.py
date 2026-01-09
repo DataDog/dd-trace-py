@@ -14,7 +14,6 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import Span
 from tests.appsec.utils import asm_context
-from tests.utils import DummyTracer
 from tests.utils import override_env
 
 
@@ -201,13 +200,12 @@ def test_set_http_meta(
 @pytest.mark.parametrize("sca_enabled", ["true", "false"])
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
-def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled):
+def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled, tracer):
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
     with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
         ddtrace.config._reset()
-        tracer = DummyTracer()
         tracer.configure(appsec_enabled=appsec_enabled, iast_enabled=iast_enabled, apm_tracing_disabled=True)
         if sca_enabled == "true":
             assert bool(ddtrace.config._sca_enabled) is True

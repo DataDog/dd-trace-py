@@ -56,7 +56,7 @@ def test_span_delete_empty(fn_task):
     assert exception is None
 
 
-def test_memory_leak_safety(tracer, fn_task):
+def test_memory_leak_safety(tracer, test_spans, fn_task):
     # Spans are shared between signals using a Dictionary (task_id -> span).
     # This test ensures the GC correctly cleans finished spans. If this test
     # fails a memory leak will happen for sure.
@@ -68,8 +68,8 @@ def test_memory_leak_safety(tracer, fn_task):
     assert weak_dict.get(key)
     # flush data and force the GC
     weak_dict.get(key).finish()
-    tracer.pop()
-    tracer.pop_traces()
+    test_spans.pop()
+    test_spans.pop_traces()
     gc.collect()
     assert weak_dict.get(key) is None
 

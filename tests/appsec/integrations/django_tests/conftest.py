@@ -4,7 +4,6 @@ import django
 from django.conf import settings
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.appsec._iast import enable_iast_propagation
 from ddtrace.appsec._iast import load_iast
 from ddtrace.appsec._iast import oce
@@ -14,10 +13,7 @@ from ddtrace.contrib.internal.django.patch import patch as django_patch
 from ddtrace.contrib.internal.psycopg.patch import patch as psycopg_patch
 from ddtrace.contrib.internal.requests.patch import patch as requests_patch
 from ddtrace.contrib.internal.sqlite3.patch import patch as sqlite3_patch
-from ddtrace.internal import core
-from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
-from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -56,33 +52,6 @@ def debug_mode():
     settings.DEBUG = True
     yield
     settings.DEBUG = original_debug
-
-
-@pytest.fixture
-def tracer():
-    tracer = DummyTracer()
-    # Patch Django and override tracer to be our test tracer
-    pin = Pin.get_from(django)
-    original_tracer = pin.tracer
-    Pin._override(django, tracer=tracer)
-
-    # Yield to our test
-    core.tracer = tracer
-    with override_config("django", dict(_tracer=tracer)):
-        yield tracer
-    tracer.pop()
-    core.tracer = original_tracer
-    # Reset the tracer pinned to Django and unpatch
-    # DEV: unable to properly unpatch and reload django app with each test
-    # unpatch()
-    Pin._override(django, tracer=original_tracer)
-
-
-@pytest.fixture
-def test_spans(tracer):
-    container = TracerSpanContainer(tracer)
-    yield container
-    container.reset()
 
 
 @pytest.fixture
