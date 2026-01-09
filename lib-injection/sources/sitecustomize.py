@@ -472,12 +472,13 @@ def _inject():
 
         # Try architecture-specific directory first (new format), fall back to platform-only (legacy)
         arch_site_pkgs_path = os.path.join(
-            pkgs_path, "%s%s-%s-%s" % (SITE_PKGS_MARKER, ".".join(PYTHON_VERSION.split(".")[:2]), current_platform, current_arch)
+            pkgs_path,
+            "%s%s-%s-%s" % (SITE_PKGS_MARKER, ".".join(PYTHON_VERSION.split(".")[:2]), current_platform, current_arch),
         )
         legacy_site_pkgs_path = os.path.join(
             pkgs_path, "%s%s-%s" % (SITE_PKGS_MARKER, ".".join(PYTHON_VERSION.split(".")[:2]), current_platform)
         )
-        
+
         if os.path.exists(arch_site_pkgs_path):
             site_pkgs_path = arch_site_pkgs_path
             _log("using architecture-specific site-packages path: %r" % site_pkgs_path, level="debug")

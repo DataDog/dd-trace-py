@@ -36,7 +36,7 @@ def get_platform_details():
     """Determines platform details needed for constructing the site-packages directory name."""
     python_version = platform.python_version()
     py_major_minor = ".".join(python_version.split(".")[:2])
-    
+
     # Determine architecture
     current_arch = platform.machine()
     if current_arch == "x86_64":
