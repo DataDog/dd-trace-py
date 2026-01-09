@@ -684,13 +684,8 @@ ThreadInfo::unwind_greenlets(PyThreadState* tstate, unsigned long cur_native_id)
         // The limit here is arbitrary, but it should be more than enough for
         // most use cases.
         const size_t MAX_GREENLET_DEPTH = 512;
-        size_t iteration_count = 0;
-        for (;;) {
-            // Safety: prevent infinite loops from cycles or corrupted parent maps
-            if (++iteration_count > MAX_GREENLET_DEPTH) {
-                break;
-            }
-
+        // Safety: prevent infinite loops from cycles or corrupted parent maps
+        for (size_t iteration_count = 0; iteration_count < MAX_GREENLET_DEPTH; ++iteration_count) {
             // Check for cycles
             if (visited.contains(greenlet_id)) {
                 break;
