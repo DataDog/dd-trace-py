@@ -74,7 +74,10 @@ class GenInfo
   public:
     typedef std::unique_ptr<GenInfo> Ptr;
 
+    // The address of the Task PyObject* the GenInfo represents
     PyObject* origin = nullptr;
+
+    // The address of the Frame PyObject* the GenInfo represents
     PyObject* frame = nullptr;
 
     // The coroutine awaited by this coroutine, if any
@@ -182,14 +185,26 @@ class TaskInfo
     typedef std::unique_ptr<TaskInfo> Ptr;
     typedef std::reference_wrapper<TaskInfo> Ref;
 
-    PyObject* origin = NULL;
-    PyObject* loop = NULL;
+    // The address of the Task PyObject* the TaskInfo represents
+    PyObject* origin = nullptr;
 
+    // The address of the asyncio Event Loop PyObject* the Task is running on
+    PyObject* loop = nullptr;
+
+    // The name of the Task
     StringTable::Key name;
+
+    // Whether the Task's coroutine (or a coroutine it awaits, transitively) is currently running (on CPU).
+    // This will not be true if the Task is currently awaiting another Task, and this other Task is on CPU.
     bool is_on_cpu = false;
+
+    // The coroutine wrapped by the Task, i.e. the coroutine passed to asyncio.create_task
+    // or equivalent (e.g. asyncio.run, etc.)
     GenInfo::Ptr coro = nullptr;
 
-    // Information to reconstruct the async stack as best as we can
+    // The Task that the current Task is awaiting, if any.
+    // Note that this will not be set if the current Task's coroutine is awaiting another coroutine,
+    // only if it is awaiting another Task.
     TaskInfo::Ptr waiter = nullptr;
 
     [[nodiscard]] static Result<TaskInfo::Ptr> create(TaskObj*);
@@ -204,7 +219,7 @@ class TaskInfo
     }
 
     [[nodiscard]] static Result<TaskInfo::Ptr> current(PyObject*);
-    inline size_t unwind(FrameStack&, size_t& upper_python_stack_size);
+    inline size_t unwind(FrameStack&);
 };
 
 inline std::unordered_map<PyObject*, PyObject*> task_link_map;
@@ -280,15 +295,13 @@ TaskInfo::current(PyObject* loop)
 
 // ----------------------------------------------------------------------------
 
-inline std::vector<std::unique_ptr<StackInfo>> current_tasks;
-
-// ----------------------------------------------------------------------------
-
 inline size_t
-TaskInfo::unwind(FrameStack& stack, size_t& upper_python_stack_size)
+TaskInfo::unwind(FrameStack& stack)
 {
     // TODO: Check for running task.
-    std::stack<PyObject*> coro_frames;
+
+    // Use a vector-based std::stack as we only push_back/pop_back
+    std::stack<PyObject*, std::vector<PyObject*>> coro_frames;
 
     // Unwind the coro chain
     for (auto py_coro = this->coro.get(); py_coro != NULL; py_coro = py_coro->await.get()) {
@@ -304,29 +317,20 @@ TaskInfo::unwind(FrameStack& stack, size_t& upper_python_stack_size)
         PyObject* frame = coro_frames.top();
         coro_frames.pop();
 
-        auto new_frames = unwind_frame(frame, stack);
+        // We only need the single Task frame from each coroutine, not the full Python stack (which we already have
+        // from the Thread Stack).
+        // For a running Task, unwind_frame would also yield the asyncio runtime frames "on top"
+        // of the Task frame, but we would discard those anyway. Limiting to 1 frame avoids walking
+        // the Frame chain unnecessarily.
+        auto new_frames = unwind_frame(frame, stack, 1);
+        assert(new_frames <= 1 && "expected exactly 1 frame to be unwound (or 0 in case of an error)");
 
         // If we failed to unwind the Frame, stop unwinding the coroutine chain; otherwise we could
         // end up with Stacks with missing Frames between two coroutines Frames.
         if (new_frames == 0) {
             break;
         }
-
-        // If this is the first Frame being unwound (we have not added any Frames to the Stack yet),
-        // use the number of Frames added to the Stack to determine the size of the upper Python stack.
-        if (count == 0) {
-            // The first Frame is the coroutine Frame, so the Python stack size is the number of Frames - 1
-            upper_python_stack_size = new_frames - 1;
-
-            // Remove the Python Frames from the Stack (they will be added back later)
-            // We cannot push those Frames now because otherwise they would be added once per Task,
-            // we only want to add them once per Leaf Task, and on top of all non-leaf Tasks.
-            for (size_t i = 0; i < upper_python_stack_size; i++) {
-                stack.pop_back();
-            }
-        }
-
-        count += new_frames;
+        count += 1;
     }
 
     return count;

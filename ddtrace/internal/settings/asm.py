@@ -215,6 +215,7 @@ class ASMConfig(DDConfig):
         "_asm_http_span_types",
         "_apm_tracing_enabled",
         "_bypass_instrumentation_for_waf",
+        "_is_testing_instrumentation_for_waf",
         "_iast_enabled",
         "_iast_request_sampling",
         "_iast_debug",
@@ -265,6 +266,7 @@ class ASMConfig(DDConfig):
         + r"?\d+)?)|(X\'[0-9A-Fa-f]+\')|(B\'[01]+\'))$",
     )
     _bypass_instrumentation_for_waf = False
+    _is_testing_instrumentation_for_waf = False
 
     # IAST supported on python 3.6 to 3.13 and never on windows
     _iast_supported: bool = ((3, 6, 0) <= sys.version_info < (3, 15, 0)) and not (

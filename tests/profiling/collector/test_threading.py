@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from __future__ import annotations
 
 import _thread
 import glob
@@ -11,6 +11,7 @@ from typing import List
 from typing import Optional
 from typing import Type
 from typing import Union
+from typing import cast
 import uuid
 
 import mock
@@ -20,6 +21,8 @@ from ddtrace import ext
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
+from ddtrace.profiling.collector._lock import _ProfiledLock
 from ddtrace.profiling.collector.threading import ThreadingBoundedSemaphoreCollector
 from ddtrace.profiling.collector.threading import ThreadingLockCollector
 from ddtrace.profiling.collector.threading import ThreadingRLockCollector
@@ -34,26 +37,16 @@ from tests.profiling.collector.pprof_utils import pprof_pb2
 
 PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
 
-
-# Type aliases for supported classes
-LockTypeClass = Union[
-    Type[threading.Lock], Type[threading.RLock], Type[threading.Semaphore], Type[threading.BoundedSemaphore]
-]
 # threading.Lock and threading.RLock are factory functions that return _thread types.
 # We reference the underlying _thread types directly to avoid creating instances at import time.
-# threading.Semaphore and threading.BoundedSemaphore are Python classes, not factory functions.
 LockTypeInst = Union[_thread.LockType, _thread.RLock, threading.Semaphore, threading.BoundedSemaphore]
+LockTypeClass = Type[LockTypeInst]
 
-CollectorTypeClass = Union[
-    Type[ThreadingLockCollector],
-    Type[ThreadingRLockCollector],
-    Type[ThreadingSemaphoreCollector],
-    Type[ThreadingBoundedSemaphoreCollector],
-]
 # Type alias for collector instances
 CollectorTypeInst = Union[
     ThreadingLockCollector, ThreadingRLockCollector, ThreadingSemaphoreCollector, ThreadingBoundedSemaphoreCollector
 ]
+CollectorTypeClass = Type[CollectorTypeInst]
 
 
 # Module-level globals for testing global lock profiling
@@ -171,8 +164,6 @@ def test_lock_repr(
 
 
 def test_patch():
-    from ddtrace.profiling.collector._lock import _LockAllocatorWrapper
-
     lock = threading.Lock
     collector = ThreadingLockCollector()
     collector.start()
@@ -180,7 +171,7 @@ def test_patch():
     # After patching, threading.Lock is replaced with our wrapper
     # The old reference (lock) points to the original builtin Lock class
     assert lock != threading.Lock  # They're different after patching
-    assert isinstance(threading.Lock, _LockAllocatorWrapper)  # threading.Lock is now wrapped
+    assert isinstance(threading.Lock, LockAllocatorWrapper)  # threading.Lock is now wrapped
     assert callable(threading.Lock)  # and it's callable
     collector.stop()
     # After stopping, everything is restored
@@ -538,7 +529,15 @@ class BaseThreadingLockCollectorTest:
         )  # pyright: ignore[reportCallIssue]
         ddup.start()
 
-    def teardown_method(self, method: Callable[..., None]) -> None:
+        # Clear any accumulated samples that have been created by other unrelated tests
+        # and that may interfere with our tests.
+        ddup.upload()
+
+    def teardown_method(self) -> None:
+        # Clear any accumulated samples that have not been uploaded and may interfere
+        # with subsequent tests.
+        ddup.upload()
+
         # might be unnecessary but this will ensure that the file is removed
         # after each successful test, and when a test fails it's easier to
         # pinpoint and debug.
@@ -1281,7 +1280,7 @@ class BaseThreadingLockCollectorTest:
         assert overhead_multiplier < 50, (
             f"Overhead too high: {overhead_multiplier}x (regular: {regular_time:.6f}s, "
             f"profiled: {profiled_time_zero:.6f}s)"
-        )  # noqa: E501
+        )
 
     def test_release_not_sampled_when_acquire_not_sampled(self) -> None:
         """Test that lock release events are NOT sampled if their corresponding acquire was not sampled."""
@@ -1291,6 +1290,7 @@ class BaseThreadingLockCollectorTest:
             # Do multiple acquire/release cycles
             for _ in range(10):
                 lock.acquire()
+                assert cast(_ProfiledLock, lock).acquired_time is None
                 time.sleep(0.001)
                 lock.release()
 
@@ -1377,6 +1377,26 @@ class BaseSemaphoreTest(BaseThreadingLockCollectorTest):
     Contains tests that apply to both regular Semaphore and BoundedSemaphore,
     particularly those related to internal lock detection and Condition-based implementation.
     """
+
+    def test_subclassing_wrapped_lock(self) -> None:
+        """Test that subclassing of a wrapped lock type works when profiling is active.
+
+        This test is only valid for Semaphore-like types (pure Python classes).
+        threading.Lock and threading.RLock are C types that don't support subclassing
+        through __mro_entries__.
+        """
+        with self.collector_class():
+            assert isinstance(self.lock_class, LockAllocatorWrapper)
+
+            # This should NOT raise TypeError
+            class CustomLock(self.lock_class):  # type: ignore[misc]
+                def __init__(self) -> None:
+                    super().__init__()
+
+            # Verify subclassing and functionality
+            custom_lock: CustomLock = CustomLock()
+            assert custom_lock.acquire()
+            custom_lock.release()
 
     def _verify_no_double_counting(self, marker_name: str, lock_var_name: str) -> None:
         """Helper method to verify no double-counting in profile output.

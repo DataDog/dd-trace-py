@@ -75,6 +75,7 @@ StackRenderer::render_task_begin(std::string task_name, bool on_cpu)
     if (failed) {
         return;
     }
+
     if (sample == nullptr) {
         // The very first task on a thread will already have a sample, since there's no way to deduce whether
         // a thread has tasks without checking, and checking before populating the sample would make the state
@@ -89,10 +90,13 @@ StackRenderer::render_task_begin(std::string task_name, bool on_cpu)
         // Add the thread context into the sample
         sample->push_threadinfo(
           static_cast<int64_t>(thread_state.id), static_cast<int64_t>(thread_state.native_id), thread_state.name);
-        sample->push_task_name(task_name);
         sample->push_walltime(thread_state.wall_time_ns, 1);
-        if (on_cpu)
-            sample->push_cputime(thread_state.cpu_time_ns, 1); // initialized to 0, so possibly a no-op
+
+        if (on_cpu) {
+            // initialized to 0, so possibly a no-op
+            sample->push_cputime(thread_state.cpu_time_ns, 1);
+        }
+
         sample->push_monotonic_ns(thread_state.now_time_ns);
 
         // We also want to make sure the tid -> span_id mapping is present in the sample for the task
@@ -103,9 +107,10 @@ StackRenderer::render_task_begin(std::string task_name, bool on_cpu)
             sample->push_local_root_span_id(active_span->local_root_span_id);
             sample->push_trace_type(std::string_view(active_span->span_type));
         }
-
-        pushed_task_name = true;
     }
+
+    sample->push_task_name(task_name);
+    pushed_task_name = true;
 }
 
 void
@@ -148,6 +153,7 @@ StackRenderer::render_frame(Frame& frame)
             pushed_task_name = true;
         }
         // And return early to avoid pushing task name as a frame
+        // TODO: We may want to do that for clarity, actually. Let's reconvene.
         return;
     }
 

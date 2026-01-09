@@ -103,6 +103,12 @@ ddup_config_user_tag(std::string_view key, std::string_view val) // cppcheck-sup
 }
 
 void
+ddup_config_process_tags(std::string_view process_tags) // cppcheck-suppress unusedFunction
+{
+    Datadog::UploaderBuilder::set_process_tags(process_tags);
+}
+
+void
 ddup_config_sample_type(unsigned int _type) // cppcheck-suppress unusedFunction
 {
     Datadog::SampleManager::add_type(_type);
@@ -164,6 +170,10 @@ ddup_start() // cppcheck-suppress unusedFunction
 Datadog::Sample*
 ddup_start_sample() // cppcheck-suppress unusedFunction
 {
+    // Ensure profile_state is initialized before creating Sample objects.
+    // ddup_start() uses std::call_once, so it's safe to call multiple times.
+    ddup_start();
+
     return Datadog::SampleManager::start_sample();
 }
 

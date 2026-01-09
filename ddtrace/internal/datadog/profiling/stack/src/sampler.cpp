@@ -13,13 +13,14 @@
 
 #include <mutex>
 #include <pthread.h>
+#include <thread>
 
 using namespace Datadog;
 
 // Helper class for spawning a std::thread with control over its default stack size
 #ifdef __linux__
+#include <ctime>
 #include <sys/resource.h>
-#include <time.h>
 #include <unistd.h>
 
 struct ThreadArgs
@@ -49,8 +50,8 @@ create_thread_with_stack(size_t stack_size, Sampler* sampler, uint64_t seq_num)
         pthread_attr_setstacksize(&attr, stack_size);
     }
 
-    pthread_t thread_id;
-    ThreadArgs* thread_args = new ThreadArgs{ sampler, seq_num };
+    pthread_t thread_id{ 0 };
+    auto* thread_args = new ThreadArgs{ sampler, seq_num };
     int ret = pthread_create(&thread_id, &attr, call_sampling_thread, thread_args);
 
     pthread_attr_destroy(&attr);
@@ -69,7 +70,10 @@ void
 Sampler::adapt_sampling_interval()
 {
 #if defined(__linux__)
-    struct timespec ts;
+    struct timespec ts
+    {
+        0, 0
+    };
 
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
     auto new_process_count = static_cast<uint64_t>(ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000);
@@ -137,6 +141,7 @@ Sampler::adapt_sampling_interval()
     }
 
     sample_interval_us.store(new_interval);
+    Sample::profile_borrow().stats().set_sampling_interval_us(new_interval);
 
     // Update the counters for the next iteration
     process_count = new_process_count;
@@ -160,13 +165,14 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto sample_time_prev = steady_clock::now();
     auto interval_adjust_time_prev = sample_time_prev;
 
+    auto* const runtime = &_PyRuntime;
     while (seq_num == thread_seq_num.load()) {
         auto sample_time_now = steady_clock::now();
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
 
         // Perform the sample
-        for_each_interp([&](InterpreterInfo& interp) -> void {
+        for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
             for_each_thread(interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
                 auto success = thread.sample(interp.id, tstate, wall_time_us);
                 if (success) {
@@ -203,6 +209,7 @@ Sampler::set_interval(double new_interval_s)
 {
     microsecond_t new_interval_us = static_cast<microsecond_t>(new_interval_s * 1e6);
     sample_interval_us.store(new_interval_us);
+    Sample::profile_borrow().stats().set_sampling_interval_us(new_interval_us);
 }
 
 Sampler::Sampler()
@@ -333,9 +340,8 @@ Sampler::track_asyncio_loop(uintptr_t thread_id, PyObject* loop)
 {
     // Holds echion's global lock
     std::lock_guard<std::mutex> guard(thread_info_map_lock);
-    if (thread_info_map.find(thread_id) != thread_info_map.end()) {
-        thread_info_map.find(thread_id)->second->asyncio_loop =
-          (loop != Py_None) ? reinterpret_cast<uintptr_t>(loop) : 0;
+    if (auto it = thread_info_map.find(thread_id); it != thread_info_map.end()) {
+        it->second->asyncio_loop = (loop != Py_None) ? reinterpret_cast<uintptr_t>(loop) : 0;
     }
 }
 
@@ -365,11 +371,12 @@ Sampler::track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* 
     const std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
 
     auto entry = greenlet_info_map.find(greenlet_id);
-    if (entry != greenlet_info_map.end())
+    if (entry != greenlet_info_map.end()) {
         // Greenlet is already tracked so we update its info
         entry->second = std::make_unique<GreenletInfo>(greenlet_id, frame, name);
-    else
+    } else {
         greenlet_info_map.emplace(greenlet_id, std::make_unique<GreenletInfo>(greenlet_id, frame, name));
+    }
 
     // Update the thread map
     auto native_id = PyThread_get_thread_native_id();

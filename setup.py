@@ -32,7 +32,7 @@ from distutils.dep_util import newer_group
 try:
     # ORDER MATTERS
     # Import this after setuptools or it will fail
-    from Cython.Build import cythonize  # noqa: I100
+    from Cython.Build import cythonize
     import Cython.Distutils
 except ImportError:
     raise ImportError(
@@ -106,7 +106,7 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.30.0"
+LIBDDWAF_VERSION = "1.30.1"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v15.0.0 requires rust 1.78.
@@ -423,7 +423,7 @@ class CustomBuildRust(build_rust):
 
 
 class LibraryDownload:
-    CACHE_DIR = HERE / ".download_cache"
+    CACHE_DIR = Path(os.getenv("DD_SETUP_CACHE_DIR", HERE / ".download_cache"))
     USE_CACHE = os.getenv("DD_SETUP_CACHE_DOWNLOADS", "1").lower() in ("1", "yes", "on", "true")
 
     name = None

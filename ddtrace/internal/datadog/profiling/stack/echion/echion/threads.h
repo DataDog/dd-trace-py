@@ -39,6 +39,9 @@ class ThreadInfo
 
     uintptr_t thread_id;
     unsigned long native_id;
+    FrameStack python_stack;
+    std::vector<std::unique_ptr<StackInfo>> current_tasks;
+    std::vector<std::unique_ptr<StackInfo>> current_greenlets;
 
     std::string name;
 
@@ -200,23 +203,70 @@ inline std::mutex thread_info_map_lock;
 inline void
 ThreadInfo::unwind(PyThreadState* tstate)
 {
-    unwind_python_stack(tstate);
+    unwind_python_stack(tstate, python_stack);
+
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
         // We cast it to void to ignore failures.
         (void)unwind_tasks(tstate);
+    } else {
+        // We make the assumption that gevent and asyncio are not mixed
+        // together to keep the logic here simple. We can always revisit this
+        // should there be a substantial demand for it.
+        unwind_greenlets(tstate, native_id);
     }
-
-    // We make the assumption that gevent and asyncio are not mixed
-    // together to keep the logic here simple. We can always revisit this
-    // should there be a substantial demand for it.
-    unwind_greenlets(tstate, native_id);
 }
 
 // ----------------------------------------------------------------------------
 inline Result<void>
 ThreadInfo::unwind_tasks(PyThreadState* tstate)
 {
+    // The size of the "pure Python" stack (before asyncio Frames), computed later by walking the Python Stack
+    size_t upper_python_stack_size = 0;
+
+    // Check if the Python stack contains "_run".
+    // To avoid having to do string comparisons every time we unwind Tasks, we keep track
+    // of the cache key of the "_run" Frame.
+    static std::optional<Frame::Key> frame_cache_key;
+    if (!frame_cache_key) {
+        for (size_t i = 0; i < python_stack.size(); i++) {
+            const auto& frame = python_stack[i].get();
+            const auto& frame_name = string_table.lookup(frame.name)->get();
+
+#if PY_VERSION_HEX >= 0x030b0000
+            // After Python 3.11, function names in Frames are qualified with e.g. the class name, so we
+            // can use the qualified name to identify the "_run" Frame.
+            constexpr std::string_view _run = "Handle._run";
+            auto is_run_frame = frame_name == _run;
+#else
+            // Before Python 3.11, function names in Frames are not qualified, so we
+            // can use the filename to identify the "_run" Frame.
+            constexpr std::string_view asyncio_runners_py = "asyncio/events.py";
+            constexpr std::string_view _run = "_run";
+            auto filename = string_table.lookup(frame.filename)->get();
+            auto is_asyncio = filename.rfind(asyncio_runners_py) == filename.size() - asyncio_runners_py.size();
+            auto is_run_frame = is_asyncio && (frame_name.rfind(_run) == frame_name.size() - _run.size());
+#endif
+            if (is_run_frame) {
+                // Although Frames are stored in an LRUCache, the cache key is ALWAYS the same
+                // even if the Frame gets evicted from the cache.
+                // This means we can keep the cache key and re-use it to determine
+                // whether we see the "_run" Frame in the Python stack.
+                frame_cache_key = frame.cache_key;
+                upper_python_stack_size = python_stack.size() - i;
+                break;
+            }
+        }
+    } else {
+        for (size_t i = 0; i < python_stack.size(); i++) {
+            const auto& frame = python_stack[i].get();
+            if (frame.cache_key == *frame_cache_key) {
+                upper_python_stack_size = python_stack.size() - i;
+                break;
+            }
+        }
+    }
+
     std::vector<TaskInfo::Ref> leaf_tasks;
     std::unordered_set<PyObject*> parent_tasks;
     std::unordered_map<PyObject*, TaskInfo::Ref> waitee_map; // Indexed by task origin
@@ -248,7 +298,7 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
         for (auto key : to_remove) {
             // Only remove the link if the Child Task previously existed; otherwise it's a Task that
             // has just been created and that wasn't in all_tasks when we took the snapshot.
-            if (previous_task_objects.find(key) != previous_task_objects.end()) {
+            if (auto it = previous_task_objects.find(key); it != previous_task_objects.end()) {
                 task_link_map.erase(key);
             }
         }
@@ -286,23 +336,14 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
         }
     }
 
-    // The size of the "pure Python" stack (before asyncio Frames), computed later by TaskInfo::unwind
-    size_t upper_python_stack_size = 0;
-    // Unused variable, will be used later by TaskInfo::unwind
-    size_t unused;
-
-    bool on_cpu_task_seen = false;
     for (auto& leaf_task : leaf_tasks) {
-        on_cpu_task_seen = on_cpu_task_seen || leaf_task.get().is_on_cpu;
-
         auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu);
         auto& stack = stack_info->stack;
 
         for (auto current_task = leaf_task;;) {
             auto& task = current_task.get();
 
-            // The task_stack_size includes both the coroutines frames and the "upper" Python synchronous frames
-            size_t task_stack_size = task.unwind(stack, task.is_on_cpu ? upper_python_stack_size : unused);
+            auto task_stack_size = task.unwind(stack);
             if (task.is_on_cpu) {
                 // Get the "bottom" part of the Python synchronous Stack, that is to say the
                 // synchronous functions and coroutines called by the Task's outermost coroutine
@@ -310,6 +351,10 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
                 // subtract the number of Frames in the "upper Python stack" (asyncio machinery + sync entrypoint)
                 // This gives us [outermost coroutine, ... , innermost coroutine, outermost sync function, ... ,
                 // innermost sync function]
+                // TODO: This may be incorrect if the Task that we know is on CPU does not match the Task that
+                //       actually was on CPU when the Python Thread Stack was captured. One way to work around this
+                //       may be to look at every Task Stack and match it against the Thread Stack. This would be
+                //       somewhat costly though, and so far I have not seen a single instance of this race condition.
                 size_t frames_to_push =
                   (python_stack.size() > task_stack_size) ? python_stack.size() - task_stack_size : 0;
                 for (size_t i = 0; i < frames_to_push; i++) {
@@ -323,8 +368,8 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
 
             // Get the next task in the chain
             PyObject* task_origin = task.origin;
-            if (waitee_map.find(task_origin) != waitee_map.end()) {
-                current_task = waitee_map.find(task_origin)->second;
+            if (auto maybe_waitee = waitee_map.find(task_origin); maybe_waitee != waitee_map.end()) {
+                current_task = maybe_waitee->second;
                 continue;
             }
 
@@ -332,10 +377,11 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
                 // Check for, e.g., gather links
                 std::lock_guard<std::mutex> lock(task_link_map_lock);
 
-                if (task_link_map.find(task_origin) != task_link_map.end() &&
-                    origin_map.find(task_link_map[task_origin]) != origin_map.end()) {
-                    current_task = origin_map.find(task_link_map[task_origin])->second;
-                    continue;
+                if (auto maybe_parent = task_link_map.find(task_origin); maybe_parent != task_link_map.end()) {
+                    if (auto maybe_origin = origin_map.find(maybe_parent->second); maybe_origin != origin_map.end()) {
+                        current_task = maybe_origin->second;
+                        continue;
+                    }
                 }
             }
 
@@ -351,7 +397,7 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
         // one we saw in TaskInfo::unwind. This is extremely unlikely, I believe, but failing to account for it would
         // cause an underflow, so let's be conservative.
         size_t start_index = 0;
-        if (on_cpu_task_seen && python_stack.size() >= upper_python_stack_size) {
+        if (python_stack.size() >= upper_python_stack_size) {
             start_index = python_stack.size() - upper_python_stack_size;
         }
         for (size_t i = start_index; i < python_stack.size(); i++) {
@@ -616,7 +662,7 @@ ThreadInfo::unwind_greenlets(PyThreadState* tstate, unsigned long cur_native_id)
         auto greenlet_id = greenlet_info.first;
         auto& greenlet = greenlet_info.second;
 
-        if (parent_greenlets.find(greenlet_id) != parent_greenlets.end())
+        if (parent_greenlets.contains(greenlet_id))
             continue;
 
         auto frame = greenlet->frame;
@@ -670,9 +716,7 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
         return ErrorKind::CpuTimeError;
     }
 
-    bool thread_is_running = is_running();
-
-    Renderer::get().render_cpu_time(thread_is_running ? cpu_time - previous_cpu_time : 0);
+    Renderer::get().render_cpu_time(is_running() ? cpu_time - previous_cpu_time : 0);
 
     this->unwind(tstate);
 
@@ -716,18 +760,9 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
 
         current_greenlets.clear();
     } else {
-        // If we don't have any asyncio tasks, we check that we don't have any
-        // greenlets either. In this case, we print the ordinary thread stack.
-        // With greenlets, we recover the thread stack from the active greenlet,
-        // so if we don't skip here we would have a double print.
-        if (current_greenlets.empty()) {
-            // Print the PID and thread name
-            Renderer::get().render_stack_begin(pid, iid, name);
-            // Print the stack
-            python_stack.render();
-
-            Renderer::get().render_stack_end(MetricType::Time, delta);
-        }
+        Renderer::get().render_stack_begin(pid, iid, name);
+        python_stack.render();
+        Renderer::get().render_stack_end(MetricType::Time, delta);
     }
 
     return Result<void>::ok();

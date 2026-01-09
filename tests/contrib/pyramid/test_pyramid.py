@@ -365,7 +365,7 @@ class TestAPIGatewayTracing(PyramidBase):
                             api_gateway_resource="GET /",
                             method="GET",
                             status_code=test_endpoint["status"],
-                            url="local/",
+                            url="https://local/",
                             start=1736973768,
                         )
                     else:
