@@ -383,12 +383,28 @@ class WrappingContext(BaseWrappingContext):
             _UniversalWrappingContext.extract(f).unregister(self)
 
 
+class LazyWrappedFunction(Protocol):
+    """A lazy-wrapped function."""
+
+    __dd_lazy_context__: t.Optional[WrappingContext] = None
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
 class LazyWrappingContext(WrappingContext):
     def __init__(self, f: FunctionType):
         super().__init__(f)
 
         self._trampoline: t.Optional[Wrapper] = None
         self._trampoline_lock = Lock()
+
+    @classmethod
+    def is_wrapped(cls, f: FunctionType) -> bool:
+        try:
+            return isinstance(t.cast(LazyWrappedFunction, f).__dd_lazy_context__, cls)
+        except AttributeError:
+            return False
 
     def wrap(self) -> None:
         """Perform the bytecode wrapping on first invocation."""
@@ -406,20 +422,11 @@ class LazyWrappingContext(WrappingContext):
                 with tl:
                     f = t.cast(WrappedFunction, self.__wrapped__)
                     if is_wrapped_with(self.__wrapped__, trampoline):
-                        # If the wrapped function was instrumented with a
-                        # wrapping context before the first invocation we need
-                        # to carry that over to the original function when we
-                        # remove the trampoline.
-                        try:
-                            inner = f.__dd_wrapped__
-                        except AttributeError:
-                            inner = None
                         f = unwrap(f, trampoline)
+
                         self._trampoline = None
-                        try:
-                            f.__dd_context_wrapped__ = inner.__dd_context_wrapped__
-                        except AttributeError:
-                            pass
+                        del t.cast(LazyWrappedFunction, f).__dd_lazy_context__
+
                         super(LazyWrappingContext, self).wrap()
                 return f(*args, **kwargs)
 
@@ -427,9 +434,11 @@ class LazyWrappingContext(WrappingContext):
 
             self._trampoline = trampoline
 
+            t.cast(LazyWrappedFunction, self.__wrapped__).__dd_lazy_context__ = self
+
     def unwrap(self) -> None:
         with self._trampoline_lock:
-            if self.is_wrapped(self.__wrapped__):
+            if _UniversalWrappingContext.is_wrapped(self.__wrapped__):
                 assert self._trampoline is None  # nosec
                 super().unwrap()
             elif self._trampoline is not None:

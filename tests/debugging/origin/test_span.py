@@ -78,6 +78,30 @@ class SpanProbeTestCase(TracerTestCase):
         assert _exit.get_tag("_dd.code_origin.frames.0.file") is None
         assert _exit.get_tag("_dd.code_origin.frames.0.line") is None
 
+    def test_span_origin_instrument_once(self):
+        """
+        Test that the view function gets instrumented only once even when
+        registered as an entry point multiple times.
+        """
+
+        def entry_call():
+            pass
+
+        for _ in range(10):
+            core.dispatch("service_entrypoint.patch", (entry_call,))
+
+        with self.tracer.trace("entry"):
+            entry_call()
+            with self.tracer.trace("middle"):
+                with self.tracer.trace("exit", span_type=SpanTypes.HTTP):
+                    pass
+
+        self.assert_span_count(3)
+        entry, *_ = self.get_spans()
+
+        # Check for the expected tags on the entry span
+        assert entry.get_tag("_dd.code_origin.type") == "entry"
+
     def test_span_origin_session(self):
         def entry_call():
             pass

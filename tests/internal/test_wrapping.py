@@ -938,12 +938,14 @@ def test_wrapping_context_lazy():
 
     (wc := DummyLazyWrappingContext(foo)).wrap()
 
-    assert not DummyLazyWrappingContext.is_wrapped(foo)
+    assert DummyLazyWrappingContext.is_wrapped(foo)
+    assert not _UniversalWrappingContext.is_wrapped(foo)
 
     for _ in range(n := 10):
         assert foo() == free
 
-        assert DummyLazyWrappingContext.is_wrapped(foo)
+        assert not DummyLazyWrappingContext.is_wrapped(foo)
+        assert _UniversalWrappingContext.is_wrapped(foo)
 
     assert wc.count == n
 
@@ -953,6 +955,7 @@ def test_wrapping_context_lazy():
 
     for _ in range(10):
         assert not DummyLazyWrappingContext.is_wrapped(foo)
+        assert not _UniversalWrappingContext.is_wrapped(foo)
 
         assert foo() == free
 
