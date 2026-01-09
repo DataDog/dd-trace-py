@@ -193,7 +193,7 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(
         print(f"INFO: Worker {worker_pid} was successfully killed.")
 
     for pid in worker_pids:
-        profile = pprof_utils.parse_newest_profile(f"{filename}.{pid}")
+        profile = pprof_utils.parse_newest_profile(f"{filename}.{pid}", allow_penultimate=True)
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
         assert len(samples) > 0
 
