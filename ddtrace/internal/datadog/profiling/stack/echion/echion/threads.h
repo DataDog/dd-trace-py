@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 
 #if defined PL_LINUX
@@ -217,8 +218,9 @@ ThreadInfo::unwind(PyThreadState* tstate)
 inline Result<void>
 ThreadInfo::unwind_tasks(PyThreadState* tstate)
 {
-    // The size of the "pure Python" stack (before asyncio Frames), computed later by walking the Python Stack
-    size_t upper_python_stack_size = 0;
+    // The size of the "pure Python" stack (before asyncio Frames).
+    // Defaults to the full Python stack size (and updated if we find the "_run" Frame)
+    size_t upper_python_stack_size = python_stack.size();
 
     // Check if the Python stack contains "_run".
     // To avoid having to do string comparisons every time we unwind Tasks, we keep track
