@@ -1146,7 +1146,7 @@ class LLMObs(Service):
 
             async with LLMObs.routing_context(dd_api_key=customer_api_key):
                 with LLMObs.workflow(name="process"):
-                    # spans go to customer's org
+                    # llmobs spans go to customer's org
                     pass
         """
         return RoutingContext(dd_api_key, dd_site)

@@ -166,9 +166,7 @@ class BaseLLMObsWriter(PeriodicService):
         self._default_project: Project = _default_project
 
         self._agentless: bool = is_agentless
-        self._intake: str = self._override_url or (
-            f"{self.AGENTLESS_BASE_URL}.{self._site}" if is_agentless else agent_config.trace_agent_url
-        )
+        self._intake: str = self._get_intake(None)
         self._endpoint: str = self.ENDPOINT if is_agentless else f"{EVP_PROXY_AGENT_BASE_PATH}{self.ENDPOINT}"
         override_url_parsed = urlparse(self._override_url)
         if self._override_url and override_url_parsed.scheme != "unix" and override_url_parsed.path not in ("/", ""):
@@ -178,13 +176,7 @@ class BaseLLMObsWriter(PeriodicService):
             # to form http://localhost:8080/foo/bar/buz/baz
             self._endpoint = self.ENDPOINT.lstrip("/")
 
-        self._headers: Dict[str, str] = {"Content-Type": "application/json"}
-        if is_agentless:
-            self._headers["DD-API-KEY"] = self._api_key
-            if self._app_key:
-                self._headers["DD-APPLICATION-KEY"] = self._app_key
-        else:
-            self._headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
+        self._headers: Dict[str, str] = self._get_headers(None)
 
         self._send_payload_with_retry = fibonacci_backoff_with_jitter(
             attempts=self.RETRY_ATTEMPTS,
@@ -289,35 +281,34 @@ class BaseLLMObsWriter(PeriodicService):
         events: List[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]],
         routing: Optional[RoutingConfig],
     ) -> None:
-        has_custom_routing = routing is not None and (
-            routing.get("dd_api_key") != self._api_key or routing.get("dd_site") != self._site
-        )
-
-        if self._agentless and not self._headers.get("DD-API-KEY"):
-            api_key = (routing.get("dd_api_key") if routing else None) or self._api_key
-            if not api_key:
-                logger.warning(
-                    "A Datadog API key is required for sending data to LLM Observability in agentless mode. "
-                    "LLM Observability data will not be sent. Ensure an API key is set either via DD_API_KEY or via "
-                    "`LLMObs.enable(api_key=...)` before running your application."
-                )
-                return
+        api_key = (routing.get("dd_api_key") if routing else None) or self._api_key
+        if self._agentless and not api_key:
+            logger.warning(
+                "A Datadog API key is required for sending data to LLM Observability in agentless mode. "
+                "LLM Observability data will not be sent. Ensure an API key is set either via DD_API_KEY or via "
+                "`LLMObs.enable(api_key=...)` before running your application."
+            )
+            return
 
         data = self._data(events)
         enc_llm_events = self._encode(data, len(events))
         if not enc_llm_events:
             return
 
+        has_custom_routing = routing is not None and (
+            routing.get("dd_api_key") != self._api_key or routing.get("dd_site") != self._site
+        )
+
         try:
             if has_custom_routing:
-                intake = self._get_intake_for_routing(routing)
-                headers = self._get_headers_for_routing(routing)
+                intake = self._get_intake(routing)
+                headers = self._get_headers(routing)
                 self._send_payload_with_retry(enc_llm_events, len(events), intake, headers)
             else:
                 self._send_payload_with_retry(enc_llm_events, len(events))
         except Exception:
             telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error="connection_error")
-            intake = self._get_intake_for_routing(routing) if has_custom_routing else self._intake
+            intake = self._get_intake(routing) if has_custom_routing else self._intake
             logger.error(
                 "failed to send %d LLMObs %s events to %s",
                 len(events),
@@ -327,7 +318,7 @@ class BaseLLMObsWriter(PeriodicService):
                 extra={"send_to_telemetry": False},
             )
 
-    def _get_intake_for_routing(self, routing: Optional[RoutingConfig]) -> str:
+    def _get_intake(self, routing: Optional[RoutingConfig]) -> str:
         if self._override_url:
             return self._override_url
         if not self._agentless:
@@ -335,7 +326,7 @@ class BaseLLMObsWriter(PeriodicService):
         site = (routing.get("dd_site") if routing else None) or self._site
         return f"{self.AGENTLESS_BASE_URL}.{site}"
 
-    def _get_headers_for_routing(self, routing: Optional[RoutingConfig]) -> Dict[str, str]:
+    def _get_headers(self, routing: Optional[RoutingConfig]) -> Dict[str, str]:
         headers = {"Content-Type": "application/json"}
         if self._agentless:
             api_key = (routing.get("dd_api_key") if routing else None) or self._api_key
