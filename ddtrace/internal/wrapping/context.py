@@ -14,6 +14,7 @@ from bytecode import Bytecode
 
 from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.forksafe import Lock
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.inspection import link_function_to_code
 from ddtrace.internal.wrapping import WrappedFunction
 from ddtrace.internal.wrapping import Wrapper
@@ -23,6 +24,8 @@ from ddtrace.internal.wrapping import set_function_code
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 
+
+log = get_logger(__name__)
 
 T = t.TypeVar("T")
 
@@ -386,7 +389,7 @@ class WrappingContext(BaseWrappingContext):
 class LazyWrappedFunction(Protocol):
     """A lazy-wrapped function."""
 
-    __dd_lazy_context__: t.Optional[WrappingContext] = None
+    __dd_lazy_contexts__: t.List[WrappingContext]
 
     def __call__(self, *args, **kwargs):
         pass
@@ -402,7 +405,7 @@ class LazyWrappingContext(WrappingContext):
     @classmethod
     def is_wrapped(cls, f: FunctionType) -> bool:
         try:
-            return isinstance(t.cast(LazyWrappedFunction, f).__dd_lazy_context__, cls)
+            return any(isinstance(c, cls) for c in t.cast(LazyWrappedFunction, f).__dd_lazy_contexts__)
         except AttributeError:
             return False
 
@@ -425,7 +428,13 @@ class LazyWrappingContext(WrappingContext):
                         f = unwrap(f, trampoline)
 
                         self._trampoline = None
-                        del t.cast(LazyWrappedFunction, f).__dd_lazy_context__
+
+                        try:
+                            (cs := t.cast(LazyWrappedFunction, f).__dd_lazy_contexts__).remove(self)
+                            if not cs:
+                                del t.cast(LazyWrappedFunction, f).__dd_lazy_contexts__
+                        except (AttributeError, ValueError):
+                            log.warning("Inconsistent lazy wrapping context state")
 
                         super(LazyWrappingContext, self).wrap()
                 return f(*args, **kwargs)
@@ -434,7 +443,10 @@ class LazyWrappingContext(WrappingContext):
 
             self._trampoline = trampoline
 
-            t.cast(LazyWrappedFunction, self.__wrapped__).__dd_lazy_context__ = self
+            wf = t.cast(LazyWrappedFunction, self.__wrapped__)
+            if not hasattr(wf, "__dd_lazy_contexts__"):
+                wf.__dd_lazy_contexts__ = []
+            wf.__dd_lazy_contexts__.append(self)
 
     def unwrap(self) -> None:
         with self._trampoline_lock:
