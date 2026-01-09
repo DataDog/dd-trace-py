@@ -18,7 +18,7 @@ source ${PREFIX}/bin/activate
 pip install pip --upgrade
 
 # Install dependencies
-pip install hypothesis msgpack pytest mock austin-python~=1.7 austin-dist~=3.6
+pip install ctypes hypothesis msgpack pytest mock austin-python~=1.7 austin-dist~=3.6
 
 # Install ddtrace
 pip install -e .
