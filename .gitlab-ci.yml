@@ -14,7 +14,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "b70045d150ad433df14decedb8426bc8f3869826"
+  SYSTEM_TESTS_REF: "c35863e8e9f5872e27e5f6cf0be8fae82288a4ff"
 
 default:
   interruptible: true
@@ -101,7 +101,6 @@ serverless lambda tests:
     UPSTREAM_GITLAB_USER_LOGIN: $GITLAB_USER_LOGIN
     UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL
     SKIP_E2E_TESTS: "true"
-  allow_failure: true
 
 # Validate the ast-grep rule's test suite in .sg/tests
 "ast-grep rules":
@@ -316,7 +315,7 @@ detect_circular_imports:
 
 
 package-oci:
-  needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
+  needs: [ "ddtrace package", download_dependency_wheels ]
 
 promote-oci-to-prod:
   stage: release
@@ -401,3 +400,36 @@ lib_injection_tests:
     - pyenv install ${PYTHON} && pyenv global ${PYTHON}
     - python --version
     - python lib-injection/sources/sitecustomize.py
+
+profiling_native:
+  needs: []
+  stage: tests
+  tags: [ "arch:amd64" ]
+  image: registry.ddbuild.io/images/mirror/ubuntu:25.04
+  parallel:
+    matrix:
+      - PYTHON: ["3.9.24", "3.10.19", "3.11.14", "3.12.12", "3.13.11", "3.14.2"]
+        MEMCPY_MODE: ["default", "fast"]
+        SANITIZER: ["safety", "thread", "valgrind"]
+  script:
+    - apt-get update && apt install git -y
+    - |
+      [[ $(git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA) != *profiling* ]] && exit 0
+    - export PYENV_ROOT="${HOME}/.pyenv"
+    - export PATH="${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PATH}"
+    - apt-get update && apt install build-essential zlib1g-dev libssl-dev curl llvm-19 bc clang -y
+    - PYENV_GIT_TAG=v2.6.17 curl https://pyenv.run | bash
+    - pyenv --version
+    - PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install ${PYTHON} && pyenv global ${PYTHON}
+    - python --version
+    - echo "$PYENV_ROOT/versions/$PYTHON/lib/" > /etc/ld.so.conf.d/python.conf
+    - ldconfig
+    - |
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      export PATH="$HOME/.cargo/bin:$PATH"
+    - if [ ${SANITIZER} == "valgrind" ]; then apt-get install -y valgrind; fi
+    # DEV: We currently have tests in dd_wrapper and stack, setting
+    # stack here will also run tests in dd_wrapper. Revisit this when
+    # that changes.
+    - if [ ${MEMCPY_MODE} == "fast" ]; then export ECHION_USE_FAST_COPY_MEMORY=1; else export ECHION_USE_FAST_COPY_MEMORY=0; fi
+    - ./ddtrace/internal/datadog/profiling/build_standalone.sh --${SANITIZER} RelWithDebInfo stack_test
