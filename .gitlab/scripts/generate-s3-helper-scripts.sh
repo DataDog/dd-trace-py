@@ -12,9 +12,11 @@ fi
 S3_BASE_URL="$1"
 OUTPUT_PREFIX="$2"
 
-# Extract version from pyproject.toml
-VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
-echo "Detected version: ${VERSION}"
+if [ -z "${PACKAGE_VERSION:-}" ]; then
+  echo "Error: PACKAGE_VERSION environment variable is not set." >&2
+  exit 1
+fi
+echo "Detected version: ${PACKAGE_VERSION}"
 
 # Generate download.sh
 cat > "${OUTPUT_PREFIX}.download.sh" << 'DOWNLOAD_SCRIPT_EOF'
@@ -61,7 +63,7 @@ DOWNLOAD_SCRIPT_EOF
 # Replace placeholders in download.sh
 sed -i.bak \
   -e "s|S3_URL_PLACEHOLDER|${S3_BASE_URL}|g" \
-  -e "s|VERSION_PLACEHOLDER|${VERSION}|g" \
+  -e "s|VERSION_PLACEHOLDER|${PACKAGE_VERSION}|g" \
   "${OUTPUT_PREFIX}.download.sh"
 rm "${OUTPUT_PREFIX}.download.sh.bak"
 
@@ -112,7 +114,7 @@ INSTALL_SCRIPT_EOF
 # Replace placeholders in install.sh
 sed -i.bak \
   -e "s|S3_URL_PLACEHOLDER|${S3_BASE_URL}|g" \
-  -e "s|VERSION_PLACEHOLDER|${VERSION}|g" \
+  -e "s|VERSION_PLACEHOLDER|${PACKAGE_VERSION}|g" \
   "${OUTPUT_PREFIX}.install.sh"
 rm "${OUTPUT_PREFIX}.install.sh.bak"
 
