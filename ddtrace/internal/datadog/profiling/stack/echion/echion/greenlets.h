@@ -89,7 +89,3 @@ inline std::unordered_map<uintptr_t, GreenletInfo::ID>& greenlet_thread_map =
 inline std::mutex greenlet_info_map_lock;
 
 // ----------------------------------------------------------------------------
-
-inline std::vector<std::unique_ptr<StackInfo>> current_greenlets;
-
-// ----------------------------------------------------------------------------

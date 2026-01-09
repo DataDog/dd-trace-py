@@ -22,7 +22,7 @@ EscapeContext = NamedTuple("EscapeContext", [("id", Any), ("position", int)])
 DEFAULT_PARAMETER_NAME = ""
 TAINT_FORMAT_CAPTURE = r"\:\+-(?:\<(?P<inputid>[0-9a-zA-Z\-]+)\>)?(.+?)(?:\<(?P=inputid)\>)?-\+\:"
 TAINT_FORMAT_PATTERN = re.compile(TAINT_FORMAT_CAPTURE, re.MULTILINE | re.DOTALL)
-TAINT_FORMAT_CAPTURE_BYTES = rb"\:\+-(?:\<(?P<inputid>[0-9a-zA-Z\-]+)\>)?(.+?)(?:\<(?P=inputid)\>)?-\+\:"  # noqa: E501; pylint: disable=anomalous-backslash-in-string
+TAINT_FORMAT_CAPTURE_BYTES = rb"\:\+-(?:\<(?P<inputid>[0-9a-zA-Z\-]+)\>)?(.+?)(?:\<(?P=inputid)\>)?-\+\:"
 TAINT_FORMAT_PATTERN_BYTES = re.compile(TAINT_FORMAT_CAPTURE_BYTES, re.MULTILINE | re.DOTALL)
 
 

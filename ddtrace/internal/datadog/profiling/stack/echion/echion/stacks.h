@@ -39,19 +39,18 @@ class FrameStack : public std::deque<Frame::Ref>
 };
 
 // ----------------------------------------------------------------------------
-
-inline FrameStack python_stack;
-
-// ----------------------------------------------------------------------------
+// Unwind Python frames starting from frame_addr and push them onto stack.
+// @param max_depth: Maximum number of frames to unwind. Defaults to max_frames.
+// @return: Number of frames added to the stack.
 static size_t
-unwind_frame(PyObject* frame_addr, FrameStack& stack)
+unwind_frame(PyObject* frame_addr, FrameStack& stack, size_t max_depth = max_frames)
 {
     std::unordered_set<PyObject*> seen_frames; // Used to detect cycles in the stack
-    int count = 0;
+    size_t count = 0;
 
     PyObject* current_frame_addr = frame_addr;
     while (current_frame_addr != NULL && stack.size() < max_frames) {
-        if (seen_frames.find(current_frame_addr) != seen_frames.end())
+        if (seen_frames.contains(current_frame_addr))
             break;
 
         seen_frames.insert(current_frame_addr);
@@ -72,6 +71,10 @@ unwind_frame(PyObject* frame_addr, FrameStack& stack)
 
         stack.push_back(*maybe_frame);
         count++;
+
+        if (count >= max_depth) {
+            break;
+        }
     }
 
     return count;
@@ -106,13 +109,6 @@ unwind_python_stack(PyThreadState* tstate, FrameStack& stack)
     PyObject* frame_addr = reinterpret_cast<PyObject*>(tstate->frame);
 #endif
     unwind_frame(frame_addr, stack);
-}
-
-// ----------------------------------------------------------------------------
-static void
-unwind_python_stack(PyThreadState* tstate)
-{
-    unwind_python_stack(tstate, python_stack);
 }
 
 // ----------------------------------------------------------------------------

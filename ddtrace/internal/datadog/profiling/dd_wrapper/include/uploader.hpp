@@ -24,6 +24,7 @@ class Uploader
     ddog_prof_ProfileExporter ddog_exporter{ .inner = nullptr };
     ddog_prof_EncodedProfile encoded_profile{};
     Datadog::ProfilerStats profiler_stats;
+    std::string process_tags;
 
     bool export_to_file(ddog_prof_EncodedProfile& encoded, std::string_view internal_metadata_json);
 
@@ -39,7 +40,8 @@ class Uploader
     Uploader(std::string_view _url,
              ddog_prof_ProfileExporter ddog_exporter,
              ddog_prof_EncodedProfile encoded,
-             Datadog::ProfilerStats stats);
+             Datadog::ProfilerStats stats,
+             std::string_view _process_tags);
     ~Uploader()
     {
         // We need to call _drop() on the exporter and the cancellation token,
@@ -78,6 +80,7 @@ class Uploader
         profiler_stats = std::move(other.profiler_stats);
         output_filename = std::move(other.output_filename);
         errmsg = std::move(other.errmsg);
+        process_tags = std::move(other.process_tags);
     }
 
     Uploader& operator=(Uploader&& other) noexcept
@@ -92,6 +95,7 @@ class Uploader
             profiler_stats = std::move(other.profiler_stats);
             output_filename = std::move(other.output_filename);
             errmsg = std::move(other.errmsg);
+            process_tags = std::move(other.process_tags);
         }
         return *this;
     }

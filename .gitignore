@@ -48,6 +48,8 @@ var/
 .installed.cfg
 *.egg
 *.whl
+pywheels/
+debugwheelhouse/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -111,6 +113,9 @@ celerybeat-schedule*
 # docker-compose env file
 # it must be versioned to keep track of backing services defaults
 !.env
+
+# Local docker-compose overrides
+docker-compose.override.yml
 
 # virtualenv
 .venv*

@@ -1,5 +1,6 @@
 re_expand_aspect: &default_aspect
   warmups: 10
+  internal_loop: 100
   function_name: "iast_re_expand_aspect"
   iast_enabled: true
   

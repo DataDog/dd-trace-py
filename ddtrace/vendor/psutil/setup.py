@@ -597,10 +597,6 @@ def get_extensions():
             extra_link_args=getattr(original_ext, "extra_link_args", []),
         )
 
-        # Copy py_limited_api if it exists
-        if hasattr(original_ext, "py_limited_api"):
-            adapted.py_limited_api = original_ext.py_limited_api
-
         return adapted
 
     # Get the platform-specific extension name
@@ -645,9 +641,6 @@ def get_extensions():
             define_macros=macros,
             libraries=[],
         )
-        # Copy py_limited_api from the main extension for consistency
-        if hasattr(ext, "py_limited_api"):
-            posix_ext.py_limited_api = ext.py_limited_api
 
         # Add platform-specific libraries for posix extension
         if SUNOS:
