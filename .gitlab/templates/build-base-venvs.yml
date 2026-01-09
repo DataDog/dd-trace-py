@@ -6,18 +6,16 @@ build_base_venvs:
     matrix:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
   variables:
-    CMAKE_BUILD_PARALLEL_LEVEL: '12'
     PIP_VERBOSE: '0'
     DD_PROFILING_NATIVE_TESTS: '1'
-    DD_USE_SCCACHE: '1'
-    DD_FAST_BUILD: '1'
-  rules:
-    - if: '$CI_COMMIT_REF_NAME == "main"'
-      variables:
-        DD_FAST_BUILD: '0'
-    - when: always
   script: |
     set -e -o pipefail
+    pip install -U git+https://github.com/DataDog/riot.git@brettlangdon/wheel-source
+
+    if [ -z "$RIOT_WHEEL_SOURCE" ]; then
+      echo "RIOT_WHEEL_SOURCE is not set"
+      exit 1
+    fi
     riot -P -v generate --python=$PYTHON_VERSION
     echo "Running smoke tests"
     riot -v run -s --python=$PYTHON_VERSION smoke_test
@@ -25,6 +23,3 @@ build_base_venvs:
     name: venv_$PYTHON_VERSION
     paths:
       - .riot/venv_*
-      - ddtrace/_version.py
-      - ddtrace/**/*.so*
-      - ddtrace/internal/datadog/profiling/test/test_*
