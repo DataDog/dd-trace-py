@@ -51,6 +51,12 @@ def _get_original_lock_class(module_name: str, class_name: str) -> Callable[...,
     return obj
 
 
+def _create_original_lock_instance(module_name: str, class_name: str) -> Any:
+    """Create an instance of the original lock class when unpickling a _ProfiledLock."""
+    lock_class = _get_original_lock_class(module_name, class_name)
+    return lock_class()
+
+
 class _ProfiledLock:
     """
     Lightweight lock wrapper that profiles lock acquire/release operations.
@@ -107,13 +113,17 @@ class _ProfiledLock:
     def __repr__(self) -> str:
         return f"<_ProfiledLock({self.__wrapped__!r}) at {self.init_location}>"
 
-    def __reduce__(self) -> Tuple[Callable[..., Any], Tuple[()]]:
+    def __reduce__(self) -> Tuple[Callable[[str, str], Any], Tuple[str, str]]:
         """Support pickling by returning the wrapped lock.
 
         In the context of multiprocessing, the child process will get the unwrapped lock class, which will be re-wrapped
         if profiling is enabled there.
         """
-        return (type(self.__wrapped__), ())
+        wrapped_type = type(self.__wrapped__)
+        return (
+            _create_original_lock_instance,
+            (wrapped_type.__module__, wrapped_type.__qualname__),
+        )
 
     ### Regular methods ###
 
