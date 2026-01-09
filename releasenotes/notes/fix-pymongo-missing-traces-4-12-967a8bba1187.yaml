@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    pymongo: Introduces support for pymongo 4.12 AsyncClient.
+
