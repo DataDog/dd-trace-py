@@ -17,6 +17,7 @@ build_base_venvs:
       exit 1
     fi
     riot -P -v generate --python=$PYTHON_VERSION
+    rm -rf ddtrace/
     echo "Running smoke tests"
     riot -v run -s --python=$PYTHON_VERSION smoke_test
   artifacts:
