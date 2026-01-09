@@ -45,9 +45,10 @@ def trace_async_mongo_client_init(func: FunctionType, args: Tuple[Any, ...], kwa
     setup_mongo_client_pin(client)
 
 
-def trace_async_topology_select_server(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
+async def trace_async_topology_select_server(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
     """Wrapper for AsyncTopology.select_server to propagate pin to selected server."""
-    server = func(*args, **kwargs)
+    # AsyncTopology.select_server is async, so we need to await it
+    server = await func(*args, **kwargs)
     # Ensure the pin used on the traced mongo client is passed down to the topology instance
     # This allows us to pass the same pin in traced server objects.
     topology_instance = get_argument_value(args, kwargs, 0, "self")
@@ -84,14 +85,14 @@ async def traced_async_get_socket(func: FunctionType, args: Tuple[Any, ...], kwa
     """
     instance = get_argument_value(args, kwargs, 0, "self")
     pin = Pin.get_from(instance)
-    
+
     # Call the original async function which returns an async context manager
     cm = await func(*args, **kwargs)
-    
+
     if not pin or not pin.enabled():
         # Return the original context manager unchanged
         return cm
-    
+
     # Wrap the context manager to add tracing
     @contextlib.asynccontextmanager
     async def traced_cm():
@@ -99,7 +100,7 @@ async def traced_async_get_socket(func: FunctionType, args: Tuple[Any, ...], kwa
             async with cm as sock_info:
                 setup_checkout_span_tags(span, sock_info, instance)
                 yield sock_info
-    
+
     return traced_cm()
 
 
