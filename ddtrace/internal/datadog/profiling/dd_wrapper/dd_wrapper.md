@@ -103,9 +103,8 @@ A Profile is periodically flushed to the Datadog backend during an upload operat
 A profile actually manages its own internal cache of strings, which makes it slightly unfortunate that we de-duplicate strings _twice_.
 This is a little bit of a wart, but in practice we're still way under the memory overhead of the pure-Python collection system in mainline dd-trace-py.
 
-For simplicity, the Profile object maintains two `ddog_prof_Profile`s using a red-black swap mechanism.
-When one Profile is consumed by the uploader, it gets swapped with the other profile.
-This probably isn't actually necessary anymore.
+The Profile is locked during serialization and reset after encoding completes.
+The actual HTTP upload happens without holding the profile lock.
 
 
 ### Uploader
