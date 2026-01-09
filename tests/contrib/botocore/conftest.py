@@ -11,8 +11,6 @@ from ddtrace.contrib.internal.urllib3.patch import unpatch as urllib3_unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
 from tests.llmobs._utils import TestLLMObsSpanWriter
-from tests.utils import DummyTracer
-from tests.utils import DummyWriter
 from tests.utils import override_global_config
 
 
@@ -38,19 +36,17 @@ def aws_credentials():
 
 
 @pytest.fixture
-def mock_tracer(bedrock_client):
+def mock_tracer(bedrock_client, tracer):
     pin = Pin.get_from(bedrock_client)
-    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin._override(bedrock_client, tracer=mock_tracer)
-    yield mock_tracer
+    pin._override(bedrock_client, tracer=tracer)
+    yield tracer
 
 
 @pytest.fixture
-def mock_tracer_agent(bedrock_agent_client):
+def mock_tracer_agent(bedrock_agent_client, tracer):
     pin = Pin.get_from(bedrock_agent_client)
-    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin._override(bedrock_agent_client, tracer=mock_tracer)
-    yield mock_tracer
+    pin._override(bedrock_agent_client, tracer=tracer)
+    yield tracer
 
 
 @pytest.fixture
@@ -109,11 +105,10 @@ def llmobs_span_writer():
 
 
 @pytest.fixture
-def mock_tracer_proxy(bedrock_client_proxy):
-    mock_tracer = DummyTracer()
+def mock_tracer_proxy(bedrock_client_proxy, tracer):
     pin = Pin.get_from(bedrock_client_proxy)
-    pin._override(bedrock_client_proxy, tracer=mock_tracer)
-    yield mock_tracer
+    pin._override(bedrock_client_proxy, tracer=tracer)
+    yield tracer
 
 
 @pytest.fixture

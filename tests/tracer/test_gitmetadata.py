@@ -10,7 +10,6 @@ import subprocess
 import pytest
 
 from tests.subprocesstest import run_in_subprocess
-from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 
 
@@ -43,9 +42,7 @@ class GitMetadataTestCase(TracerTestCase):
         )
     )
     def test_gitmetadata_from_package(self):
-        tracer = DummyTracer()
-
-        with tracer.trace("span") as s:
+        with self.tracer.trace("span") as s:
             pass
 
         assert s.get_tag("_dd.git.commit.sha") == os.getenv("SHA_VALUE")
@@ -58,9 +55,7 @@ class GitMetadataTestCase(TracerTestCase):
         )
     )
     def test_gitmetadata_from_DD_TAGS(self):
-        tracer = DummyTracer()
-
-        with tracer.trace("span") as s:
+        with self.tracer.trace("span") as s:
             pass
 
         # must be from DD_TAGS
@@ -79,9 +74,7 @@ class GitMetadataTestCase(TracerTestCase):
         )
     )
     def test_gitmetadata_from_ENV(self):
-        tracer = DummyTracer()
-
-        with tracer.trace("span") as s:
+        with self.tracer.trace("span") as s:
             pass
 
         # must be from env variables
@@ -103,9 +96,7 @@ class GitMetadataTestCase(TracerTestCase):
         )
     )
     def test_gitmetadata_disabled(self):
-        tracer = DummyTracer()
-
-        with tracer.trace("span") as s:
+        with self.tracer.trace("span") as s:
             pass
 
         # must not present
@@ -122,9 +113,7 @@ class GitMetadataTestCase(TracerTestCase):
         )
     )
     def test_gitmetadata_package_without_metadata(self):
-        tracer = DummyTracer()
-
-        with tracer.trace("span") as s:
+        with self.tracer.trace("span") as s:
             pass
 
         # must not present
@@ -142,9 +131,7 @@ class GitMetadataTestCase(TracerTestCase):
         )
     )
     def test_gitmetadata_from_env_filtering_https(self):
-        tracer = DummyTracer()
-
-        with tracer.trace("span") as s:
+        with self.tracer.trace("span") as s:
             pass
 
         # must be from env variables
@@ -162,9 +149,7 @@ class GitMetadataTestCase(TracerTestCase):
         )
     )
     def test_gitmetadata_from_ddtags_filtering_https(self):
-        tracer = DummyTracer()
-
-        with tracer.trace("span") as s:
+        with self.tracer.trace("span") as s:
             pass
 
         # must be from DD_TAGS
@@ -183,9 +168,7 @@ class GitMetadataTestCase(TracerTestCase):
         )
     )
     def test_gitmetadata_from_env_filtering_ssh(self):
-        tracer = DummyTracer()
-
-        with tracer.trace("span") as s:
+        with self.tracer.trace("span") as s:
             pass
 
         # must be from env variables
@@ -203,9 +186,7 @@ class GitMetadataTestCase(TracerTestCase):
         )
     )
     def test_gitmetadata_from_ddtags_filtering_ssh(self):
-        tracer = DummyTracer()
-
-        with tracer.trace("span") as s:
+        with self.tracer.trace("span") as s:
             pass
 
         # must be from DD_TAGS

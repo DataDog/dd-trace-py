@@ -34,7 +34,6 @@ from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.trace import Context
 from ddtrace.trace import Span
-from tests.utils import DummyTracer
 
 
 _ORIGIN_KEY = ORIGIN_KEY.encode()
@@ -782,8 +781,7 @@ def test_span_link_v05_encoding():
         (MsgpackEncoderV05, 9),
     ],
 )
-def test_encoder_propagates_dd_origin(Encoder, item):
-    tracer = DummyTracer()
+def test_encoder_propagates_dd_origin(tracer, Encoder, item):
     encoder = Encoder(1 << 20, 1 << 20)
     with tracer.trace("Root") as root:
         root.context.dd_origin = CI_APP_TEST_ORIGIN

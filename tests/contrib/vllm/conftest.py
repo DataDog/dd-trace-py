@@ -9,8 +9,6 @@ from ddtrace.contrib.internal.vllm.patch import patch
 from ddtrace.contrib.internal.vllm.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
 from tests.llmobs._utils import TestLLMObsSpanWriter
-from tests.utils import DummyTracer
-from tests.utils import DummyWriter
 from tests.utils import override_global_config
 
 from ._utils import shutdown_cached_llms
@@ -48,11 +46,10 @@ def vllm():
 
 
 @pytest.fixture
-def mock_tracer(vllm):
+def mock_tracer(vllm, tracer):
     pin = Pin.get_from(vllm)
-    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin._override(vllm, tracer=mock_tracer)
-    yield mock_tracer
+    pin._override(vllm, tracer=tracer)
+    yield tracer
 
 
 @pytest.fixture

@@ -4,6 +4,7 @@ import anthropic as anthropic_module
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
+from tests.utils import TracerSpanContainer
 from tests.utils import override_global_config
 
 from .utils import tools
@@ -29,7 +30,7 @@ def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, mock_trac
                 messages=[{"role": "user", "content": "What does Nietzsche mean by 'God is dead'?"}],
             )
 
-    span = mock_tracer.pop_traces()[0][0]
+    span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
     assert span.resource == "Messages.create"
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"
@@ -294,7 +295,7 @@ async def test_global_tags_async(ddtrace_config_anthropic, anthropic, request_vc
                 messages=[{"role": "user", "content": "What does Nietzsche mean by 'God is dead'?"}],
             )
 
-    span = mock_tracer.pop_traces()[0][0]
+    span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
     assert span.resource == "AsyncMessages.create"
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"
