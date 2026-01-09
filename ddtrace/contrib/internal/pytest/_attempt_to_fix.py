@@ -110,7 +110,11 @@ def _do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
             test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
         )
 
-    return InternalTest.attempt_to_fix_get_final_status(test_id)
+    final_status = InternalTest.attempt_to_fix_get_final_status(test_id)
+
+    InternalTest.set_final_status(test_id, final_status)
+
+    return final_status
 
 
 def attempt_to_fix_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_return_type:

@@ -122,7 +122,12 @@ def _atr_do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
             test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
         )
 
-    return InternalTest.atr_get_final_status(test_id)
+    final_status = InternalTest.atr_get_final_status(test_id)
+
+    # Set final_status tag on the last retry
+    InternalTest.set_final_status(test_id, final_status)
+
+    return final_status
 
 
 def _atr_write_report_for_status(

@@ -28,6 +28,7 @@ from ddtrace.internal.ci_visibility.constants import RETRY_REASON
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_ATTEMPT_TO_FIX_PASSED
 from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
+from ddtrace.internal.ci_visibility.constants import TEST_FINAL_STATUS
 from ddtrace.internal.ci_visibility.constants import TEST_HAS_FAILED_ALL_RETRIES
 from ddtrace.internal.ci_visibility.constants import TEST_IS_ATTEMPT_TO_FIX
 from ddtrace.internal.ci_visibility.constants import TEST_IS_DISABLED
@@ -644,3 +645,6 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
                 value = getattr(self._benchmark_duration_data, tag)
                 if value is not None:
                     self.set_tag(attr, value)
+
+    def set_final_status(self, final_status: TestStatus):
+        self.set_tag_after_finished(TEST_FINAL_STATUS, final_status.value)

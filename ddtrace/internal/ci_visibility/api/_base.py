@@ -472,6 +472,10 @@ class TestVisibilityItemBase(abc.ABC):
     def was_itr_forced_run(self) -> bool:
         return self._is_itr_forced_run
 
+    @_require_span
+    def set_tag_after_finished(self, tag_name: str, tag_value: Any) -> None:
+        self._tags[tag_name] = tag_value
+
     @_require_not_finished
     def set_tag(self, tag_name: str, tag_value: Any) -> None:
         self._tags[tag_name] = tag_value

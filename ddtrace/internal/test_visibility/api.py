@@ -217,3 +217,10 @@ class InternalTest(
         require_ci_visibility_service().get_test_by_id(item_id).overwrite_attributes(
             name, suite_name, parameters, codeowners
         )
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def set_final_status(test_id: ext_api.TestId, final_status: ext_api.TestStatus) -> None:
+        log.debug("Setting final_status to test %s as %s", test_id, final_status)
+
+        return require_ci_visibility_service().get_test_by_id(test_id).set_final_status(final_status)

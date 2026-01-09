@@ -134,7 +134,23 @@ def _efd_do_retries(item: pytest.Item) -> EFDTestStatus:
             test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
         )
 
-    return InternalTest.efd_get_final_status(test_id)
+    efd_final_status = InternalTest.efd_get_final_status(test_id)
+
+    # Set final_status tag on the last retry
+    # Convert EFDTestStatus to final_status string value
+    # EFD final status: ALL_PASS -> pass, ALL_FAIL -> fail, ALL_SKIP -> skip, FLAKY -> pass (any pass counts)
+    # if efd_final_status == EFDTestStatus.ALL_PASS:
+    #     final_status_value = TestStatus.PASS
+    if efd_final_status == EFDTestStatus.ALL_FAIL:
+        final_status = TestStatus.FAIL
+    elif efd_final_status == EFDTestStatus.ALL_SKIP:
+        final_status = TestStatus.SKIP
+    else:  # FLAKY - if any pass, final status is pass
+        final_status = TestStatus.PASS
+
+    InternalTest.set_final_status(test_id, final_status)
+
+    return efd_final_status
 
 
 def _efd_write_report_for_status(
