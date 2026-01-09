@@ -415,6 +415,9 @@ encoders_profile:
     - pyenv --version
     - pyenv install 3.10 && pyenv global 3.10
     - python --version
+    - |
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      export PATH="$HOME/.cargo/bin:$PATH"
     - mkdir profile_output
     - bash scripts/profiles/encoders/setup.sh profile_output
     - bash scripts/profiles/encoders/run.sh profile_output
