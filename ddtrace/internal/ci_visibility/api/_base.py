@@ -427,14 +427,21 @@ class TestVisibilityItemBase(abc.ABC):
         """Finish and send the span to the backend.
 
         This just sends the span - finish_test() should be called first to prepare it.
+        If finish_test() hasn't been called yet, it will be called automatically for backward compatibility.
         Parent items override this to handle children first.
         """
         log.debug("Test Visibility: finishing and sending %s", self)
+
+        # Backward compatibility: if finish_test() wasn't called yet, call it now
+        if self._finish_time is None:
+            self.finish_test()
+
         self._finish_span()
 
     def is_finished(self) -> bool:
-        # return self._finish_time is not None or self._span is not None and self._span.finished
-        return self._span is not None and self._span.finished
+        # With two-phase finish, a test is considered finished after finish_test() is called (_finish_time is set)
+        # even if the span hasn't been sent yet (span.finished is False)
+        return self._finish_time is not None or (self._span is not None and self._span.finished)
 
     def get_session(self) -> Optional["TestVisibilitySession"]:
         if self.parent is None:
@@ -671,6 +678,7 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
 
         force results in all children being finished regardless of their status
         finish_test() should be called first to prepare the span.
+        If finish_test() hasn't been called yet, it will be called automatically for backward compatibility.
         """
         if force:
             # Finish all children regardless of their status
@@ -681,6 +689,10 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
                     # For children being forcefully finished, prepare and send them
                     child.finish(force=force)
             self.set_status(self.get_raw_status())
+
+        # Backward compatibility: if finish_test() wasn't called yet, call it now
+        if self._finish_time is None:
+            self.finish_test(override_status=override_status, override_finish_time=override_finish_time)
 
         # Send the span (finish_test() should have been called already to prepare it)
         self._finish_span()
