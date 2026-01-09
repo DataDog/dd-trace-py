@@ -1,5 +1,5 @@
 build_base_venvs:
-  extends: .cached_testrunner
+  extends: .testrunner
   stage: setup
   needs: []
   parallel:

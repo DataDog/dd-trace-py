@@ -68,6 +68,7 @@ include:
     - unset DD_ENV
     - unset DD_TAGS
     - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
+    - rm -rf ddtrace/
   script:
     - |
       hashes=( $(.gitlab/scripts/get-riot-hashes.sh "${SUITE_NAME}") )
