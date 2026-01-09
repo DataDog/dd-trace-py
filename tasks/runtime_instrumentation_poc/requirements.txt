@@ -1,0 +1,7 @@
+# Runtime Instrumentation PoC Dependencies
+
+# Terminal UI framework
+textual>=0.47.0
+
+# Note: bytecode library is already a dependency of dd-trace-py
+# Note: dd-trace-py modules are imported directly (we're inside the dd-trace-py repo)
