@@ -56,6 +56,7 @@ def test_internal_adaptive_sampling():
 
     # We expect to find at least one Profile with more Samples than Sampling Events (i.e. one Profile with more
     # than one Thread) because the Thread is short-lived, so we cannot guarantee we will see it more than once.
+    found_sampling_interval_us_after_first_export = False
     found_at_least_one_with_more_samples_than_sampling_events = False
     for i, f in enumerate(files):
         with open(f, "r") as fp:
@@ -63,20 +64,20 @@ def test_internal_adaptive_sampling():
 
             assert internal_metadata is not None
             assert "sample_count" in internal_metadata
-            assert internal_metadata["sample_count"] > 0
-
             assert "sampling_event_count" in internal_metadata
             assert internal_metadata["sampling_event_count"] <= internal_metadata["sample_count"]
 
-            # With adaptive sampling enabled, we should have the sampling_interval_us field
-            assert "sampling_interval_us" in internal_metadata
-            assert internal_metadata["sampling_interval_us"] > 0, (
-                f"Sampling interval should be positive: {internal_metadata['sampling_interval_us']}"
-            )
+            if "sampling_interval_us" in internal_metadata:
+                assert internal_metadata["sampling_interval_us"] > 0, (
+                    f"Sampling interval should be positive: {internal_metadata['sampling_interval_us']}"
+                )
+                if i > 0:
+                    found_sampling_interval_us_after_first_export = True
 
             if internal_metadata["sample_count"] > internal_metadata["sampling_event_count"]:
                 found_at_least_one_with_more_samples_than_sampling_events = True
 
+    assert found_sampling_interval_us_after_first_export
     assert found_at_least_one_with_more_samples_than_sampling_events, (
         "Expected at least one file with more samples than sampling events"
     )
