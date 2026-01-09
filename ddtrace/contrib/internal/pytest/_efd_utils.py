@@ -128,22 +128,19 @@ def _efd_do_retries(item: pytest.Item) -> EFDTestStatus:
     # Send the original test FIRST (it's already finished before retries start)
     InternalTest.write_test(test_id)
 
-    # Track if we have any retries
+    # Track the last retry to write after setting final_status
     last_retry_num = None
-    previous_retry_num = None
 
     while InternalTest.efd_should_retry(test_id):
+        # Write the previous retry now that we know it's not the last
+        if last_retry_num is not None:
+            InternalTest.efd_write_retry(test_id, last_retry_num)
+
         last_retry_num = InternalTest.efd_add_retry(test_id, start_immediately=True)
         retry_outcome = _get_outcome_from_retry(item, outcomes, last_retry_num)
         InternalTest.efd_finish_retry(
             test_id, last_retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
         )
-
-        # Write the previous retry now that we know it's not the last
-        if previous_retry_num is not None:
-            InternalTest.efd_write_retry(test_id, previous_retry_num)
-
-        previous_retry_num = last_retry_num
 
     efd_final_status = InternalTest.efd_get_final_status(test_id)
 

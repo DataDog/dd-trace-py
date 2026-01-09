@@ -104,22 +104,19 @@ def _do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
     # Send the original test FIRST (it's already finished before retries start)
     InternalTest.write_test(test_id)
 
-    # Track if we have any retries
+    # Track the last retry to write after setting final_status
     last_retry_num = None
-    previous_retry_num = None
 
     while InternalTest.attempt_to_fix_should_retry(test_id):
+        # Write the previous retry now that we know it's not the last
+        if last_retry_num is not None:
+            InternalTest.attempt_to_fix_write_retry(test_id, last_retry_num)
+
         last_retry_num = InternalTest.attempt_to_fix_add_retry(test_id, start_immediately=True)
         retry_outcome = _get_outcome_from_retry(item, outcomes, last_retry_num)
         InternalTest.attempt_to_fix_finish_retry(
             test_id, last_retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
         )
-
-        # Write the previous retry now that we know it's not the last
-        if previous_retry_num is not None:
-            InternalTest.attempt_to_fix_write_retry(test_id, previous_retry_num)
-
-        previous_retry_num = last_retry_num
 
     final_status = InternalTest.attempt_to_fix_get_final_status(test_id)
 
