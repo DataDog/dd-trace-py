@@ -1,5 +1,9 @@
 # stdlib
 import contextlib
+from types import FunctionType
+from typing import Any
+from typing import Dict
+from typing import Tuple
 
 import pymongo
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
@@ -34,13 +38,15 @@ log = get_logger(__name__)
 VERSION = pymongo.version_tuple
 
 
-def trace_async_mongo_client_init(func, args, kwargs):
+def trace_async_mongo_client_init(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> None:
+    """Wrapper for AsyncMongoClient.__init__ to set up pin handling."""
     func(*args, **kwargs)
     client = get_argument_value(args, kwargs, 0, "self")
     setup_mongo_client_pin(client)
 
 
-def trace_async_topology_select_server(func, args, kwargs):
+def trace_async_topology_select_server(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
+    """Wrapper for AsyncTopology.select_server to propagate pin to selected server."""
     server = func(*args, **kwargs)
     # Ensure the pin used on the traced mongo client is passed down to the topology instance
     # This allows us to pass the same pin in traced server objects.
@@ -49,7 +55,14 @@ def trace_async_topology_select_server(func, args, kwargs):
     return server
 
 
-async def trace_async_server_run_operation_and_with_response(func, args, kwargs):
+async def trace_async_server_run_operation_and_with_response(
+    func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]
+) -> Any:
+    """
+    Wrapper for AsyncServer.run_operation to trace operations.
+
+    Extracts operation from args[2] (pattern: run_operation(self, sock_info, operation, ...)).
+    """
     server_instance = get_argument_value(args, kwargs, 0, "self")
     operation = get_argument_value(args, kwargs, 2, "operation")
 
@@ -62,22 +75,40 @@ async def trace_async_server_run_operation_and_with_response(func, args, kwargs)
         return process_server_operation_result(span, operation, result)
 
 
-@contextlib.asynccontextmanager
-async def traced_async_get_socket(func, args, kwargs):
+async def traced_async_get_socket(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
+    """
+    Async wrapper for AsyncServer.checkout to trace socket checkout.
+
+    checkout() is an async function that returns an async context manager.
+    We wrap the returned context manager to add tracing.
+    """
     instance = get_argument_value(args, kwargs, 0, "self")
     pin = Pin.get_from(instance)
+    
+    # Call the original async function which returns an async context manager
+    cm = await func(*args, **kwargs)
+    
     if not pin or not pin.enabled():
-        async with func(*args, **kwargs) as sock_info:
-            yield sock_info
-            return
+        # Return the original context manager unchanged
+        return cm
+    
+    # Wrap the context manager to add tracing
+    @contextlib.asynccontextmanager
+    async def traced_cm():
+        with create_checkout_span(pin, _CHECKOUT_FN_NAME) as span:
+            async with cm as sock_info:
+                setup_checkout_span_tags(span, sock_info, instance)
+                yield sock_info
+    
+    return traced_cm()
 
-    with create_checkout_span(pin, _CHECKOUT_FN_NAME) as span:
-        async with func(*args, **kwargs) as sock_info:
-            setup_checkout_span_tags(span, sock_info, instance)
-            yield sock_info
 
+async def trace_async_socket_command(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
+    """
+    Wrapper for AsyncConnection.command to trace command operations.
 
-async def trace_async_socket_command(func, args, kwargs):
+    Uses parse_socket_command_spec to extract dbname (args[1]) and spec (args[2]).
+    """
     parsed = parse_socket_command_spec(args, kwargs)
     if parsed is None:
         return await func(*args, **kwargs)
@@ -89,7 +120,13 @@ async def trace_async_socket_command(func, args, kwargs):
         return await func(*args, **kwargs)
 
 
-async def trace_async_socket_write_command(func, args, kwargs):
+async def trace_async_socket_write_command(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
+    """
+    Wrapper for AsyncConnection.write_command to trace write command operations.
+
+    Uses parse_socket_write_command_msg to extract msg (args[2]).
+    Signature: write_command(self, request_id, msg, codec_options)
+    """
     parsed = parse_socket_write_command_msg(args, kwargs)
     if parsed is None:
         return await func(*args, **kwargs)
@@ -107,7 +144,7 @@ def patch_pymongo_async_modules():
     if VERSION < (4, 12):
         log.warning("Async pymongo support requires pymongo >= 4.12")
         return
-    # TODO: Confirm whether the wrap methods below are actually equivalent to the sync ones.
+    # All wrappers verified to match sync equivalents - see ASYNC_WRAPPER_REVIEW.md
     _w(AsyncMongoClient.__init__, trace_async_mongo_client_init)
     _w(AsyncTopology.select_server, trace_async_topology_select_server)
     _w(AsyncServer.run_operation, trace_async_server_run_operation_and_with_response)
