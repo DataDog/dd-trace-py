@@ -162,21 +162,24 @@ class TestVisibilityItemBase(abc.ABC):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.name})"
 
+    def _add_tag_to_span(self, tag, tag_value):
+        try:
+            if isinstance(tag_value, str):
+                self._span._set_tag_str(tag, tag_value)
+            elif isinstance(tag_value, bool):
+                self._span._set_tag_str(tag, "true" if tag_value else "false")
+            else:
+                self._span.set_tag(tag, tag_value)
+        except Exception as e:
+            log.debug("Error setting tag %s: %s", tag, e)
+
     @_require_span
     def _add_all_tags_to_span(self) -> None:
         if self._span is None:
             return
 
         for tag, tag_value in self._tags.items():
-            try:
-                if isinstance(tag_value, str):
-                    self._span._set_tag_str(tag, tag_value)
-                elif isinstance(tag_value, bool):
-                    self._span._set_tag_str(tag, "true" if tag_value else "false")
-                else:
-                    self._span.set_tag(tag, tag_value)
-            except Exception as e:
-                log.debug("Error setting tag %s: %s", tag, e)
+            self._add_tag_to_span(tag, tag_value)
 
     def _start_span(self, context: Optional[Context] = None) -> None:
         # Test items do not use a parent, and are instead their own trace's root span
@@ -474,7 +477,13 @@ class TestVisibilityItemBase(abc.ABC):
 
     @_require_span
     def set_tag_after_finished(self, tag_name: str, tag_value: Any) -> None:
+        """Set a tag on the span after it has been finished.
+
+        This is useful for tags that need to be set based on the final outcome of retries.
+        """
         self._tags[tag_name] = tag_value
+        if self._span is not None:
+            self._add_tag_to_span(tag_name, tag_value)
 
     @_require_not_finished
     def set_tag(self, tag_name: str, tag_value: Any) -> None:

@@ -647,4 +647,21 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
                     self.set_tag(attr, value)
 
     def set_final_status(self, final_status: TestStatus):
-        self.set_tag_after_finished(TEST_FINAL_STATUS, final_status.value)
+        """Set the final_status tag on the appropriate test span.
+
+        If this test has retries, the tag is set on the last retry span.
+        Otherwise, it's set on this test's span.
+        """
+        # For tests with retries, set the final_status on the last retry
+        if self._atr_retries:
+            last_retry = self._atr_retries[-1]
+            last_retry.set_tag_after_finished(TEST_FINAL_STATUS, final_status.value)
+        elif self._efd_retries:
+            last_retry = self._efd_retries[-1]
+            last_retry.set_tag_after_finished(TEST_FINAL_STATUS, final_status.value)
+        elif self._attempt_to_fix_retries:
+            last_retry = self._attempt_to_fix_retries[-1]
+            last_retry.set_tag_after_finished(TEST_FINAL_STATUS, final_status.value)
+        else:
+            # No retries, set on this test's span
+            self.set_tag_after_finished(TEST_FINAL_STATUS, final_status.value)
