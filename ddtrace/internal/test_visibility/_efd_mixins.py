@@ -91,3 +91,12 @@ class EFDTestMixin:
         log.debug("Getting EFD final status for test %s", item_id)
 
         return require_ci_visibility_service().get_test_by_id(item_id).efd_get_final_status()
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def efd_write_retry(test_id: TestId, retry_number: int) -> None:
+        """Write (send) a specific EFD retry span to the backend."""
+        log.debug("Writing EFD retry %s for test %s", retry_number, test_id)
+        test = require_ci_visibility_service().get_test_by_id(test_id)
+        retry_test = test._efd_get_retry_test(retry_number)
+        retry_test.write_test()

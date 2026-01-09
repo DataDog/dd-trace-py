@@ -370,11 +370,13 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if not self.is_new():
             return False
 
-        if not self.is_finished():
+        # Check if finish_test() has been called (sets _finish_time)
+        if self._finish_time is None:
             log.debug("Early Flake Detection: efd_should_retry called but test is not finished")
             return False
 
-        duration_s = self._span.duration
+        # Calculate duration from start time and finish time
+        duration_s = (self._finish_time - (self._span.start / 1e9)) if self._span.start else 0
 
         num_retries = len(self._efd_retries)
 
@@ -656,17 +658,21 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
         If this test has retries, the tag is set on the last retry span.
         Otherwise, it's set on this test's span.
+
+        With the new two-phase approach (finish_test + write_test), this should be called
+        AFTER finish_test() but BEFORE write_test().
         """
         # For tests with retries, set the final_status on the last retry
         if self._atr_retries:
             last_retry = self._atr_retries[-1]
-            last_retry.set_tag_after_finished(TEST_FINAL_STATUS, final_status.value)
+            # Add tag directly to the span since finish_test() has already been called
+            last_retry._add_tag_to_span(TEST_FINAL_STATUS, final_status.value)
         elif self._efd_retries:
             last_retry = self._efd_retries[-1]
-            last_retry.set_tag_after_finished(TEST_FINAL_STATUS, final_status.value)
+            last_retry._add_tag_to_span(TEST_FINAL_STATUS, final_status.value)
         elif self._attempt_to_fix_retries:
             last_retry = self._attempt_to_fix_retries[-1]
-            last_retry.set_tag_after_finished(TEST_FINAL_STATUS, final_status.value)
+            last_retry._add_tag_to_span(TEST_FINAL_STATUS, final_status.value)
         else:
             # No retries, set on this test's span
-            self.set_tag_after_finished(TEST_FINAL_STATUS, final_status.value)
+            self._add_tag_to_span(TEST_FINAL_STATUS, final_status.value)

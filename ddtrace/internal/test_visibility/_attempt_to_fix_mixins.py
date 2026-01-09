@@ -61,3 +61,12 @@ class AttemptToFixTestMixin:
     def attempt_to_fix_get_final_status(item_id: TestId) -> TestStatus:
         log.debug("Getting attempt to fix final status for test %s", item_id)
         return require_ci_visibility_service().get_test_by_id(item_id).attempt_to_fix_get_final_status()
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def attempt_to_fix_write_retry(test_id: TestId, retry_number: int) -> None:
+        """Write (send) a specific Attempt to Fix retry span to the backend."""
+        log.debug("Writing Attempt to Fix retry %s for test %s", retry_number, test_id)
+        test = require_ci_visibility_service().get_test_by_id(test_id)
+        retry_test = test._attempt_to_fix_get_retry_test(retry_number)
+        retry_test.write_test()

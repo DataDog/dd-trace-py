@@ -73,3 +73,12 @@ class ATRTestMixin:
         log.debug("Getting ATR final status for test %s", test_id)
 
         return require_ci_visibility_service().get_test_by_id(test_id).atr_get_final_status()
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def atr_write_retry(test_id: TestId, retry_number: int) -> None:
+        """Write (send) a specific retry span to the backend."""
+        log.debug("Writing ATR retry %s for test %s", retry_number, test_id)
+        test = require_ci_visibility_service().get_test_by_id(test_id)
+        retry_test = test._atr_get_retry_test(retry_number)
+        retry_test.write_test()

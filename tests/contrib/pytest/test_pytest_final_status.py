@@ -181,6 +181,12 @@ class TestFinalStatusATR(PytestTestCaseBase):
         test_spans = _get_spans_from_list(spans, "test", "test_fail")
         assert len(test_spans) == 6  # Original + 5 retries (default)
 
+        # Verify spans are in chronological order by start time
+        for i in range(len(test_spans) - 1):
+            assert test_spans[i].start < test_spans[i + 1].start, (
+                f"Spans not in chronological order: span {i} starts at or after span {i+1}"
+            )
+
         # Check that only the last span has final_status tag
         for span in test_spans[:-1]:
             assert span.get_tag("test.status") == "fail"
