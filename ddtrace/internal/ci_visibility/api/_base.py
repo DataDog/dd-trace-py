@@ -39,6 +39,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.utils.time import Time
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 
@@ -158,6 +159,7 @@ class TestVisibilityItemBase(abc.ABC):
         self._codeowners: Optional[List[str]] = []
         self._source_file_info: Optional[TestSourceFileInfo] = None
         self._coverage_data: Optional[TestVisibilityCoverageData] = None
+        self._finish_time: Optional[int] = None
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.name})"
@@ -204,7 +206,7 @@ class TestVisibilityItemBase(abc.ABC):
         log.debug("Started span %s for item %s", self._span, self)
 
     @_require_span
-    def _finish_span(self, override_finish_time: Optional[float] = None) -> None:
+    def _finish_test_span(self, override_finish_time: Optional[float] = None) -> None:
         if self._span is None:
             return
 
@@ -236,7 +238,12 @@ class TestVisibilityItemBase(abc.ABC):
         self._set_span_tags()
 
         self._add_all_tags_to_span()
-        self._span.finish(finish_time=override_finish_time)
+
+        self._finish_time = override_finish_time or Time.time()
+
+    @_require_span
+    def _finish_span(self) -> None:
+        self._span.finish(finish_time=self._finish_time)
 
         parent_span = self.get_parent_span()
         if parent_span:
@@ -396,7 +403,7 @@ class TestVisibilityItemBase(abc.ABC):
     def is_started(self) -> bool:
         return self._span is not None
 
-    def finish(
+    def finish_test(
         self,
         force: bool = False,
         override_status: Optional[TestStatus] = None,
@@ -412,9 +419,13 @@ class TestVisibilityItemBase(abc.ABC):
             self.set_status(override_status)
 
         self._telemetry_record_event_finished()
-        self._finish_span(override_finish_time=override_finish_time)
+        self._finish_test_span(override_finish_time=override_finish_time)
+
+    def finish(self):
+        self._finish_span()
 
     def is_finished(self) -> bool:
+        # return self._finish_time is not None or self._span is not None and self._span.finished
         return self._span is not None and self._span.finished
 
     def get_session(self) -> Optional["TestVisibilitySession"]:

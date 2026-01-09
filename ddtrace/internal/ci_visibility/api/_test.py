@@ -121,8 +121,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             )
             self._main_tracer_context.__enter__()
 
-    def _finish_span(self, override_finish_time: Optional[float] = None) -> None:
-        super()._finish_span(override_finish_time)
+    def _finish_span(self) -> None:
+        super()._finish_span()
 
         if asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")) and self._main_tracer_context:
             self._main_tracer_context.__exit__(None, None, None)
@@ -235,7 +235,10 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         ):
             self._efd_abort_reason = "slow"
 
-        super().finish(override_finish_time=override_finish_time)
+        super().finish_test(override_finish_time=override_finish_time)
+
+    def write_test(self) -> None:
+        super().finish()
 
     def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
         if self.efd_has_retries():
@@ -476,7 +479,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if self.get_session().atr_max_retries_reached():
             return False
 
-        if not self.is_finished():
+        # Check if finish_test() has been called (sets _finish_time)
+        if self._finish_time is None:
             log.debug("Auto Test Retries: atr_should_retry called but test is not finished")
             return False
 
@@ -559,7 +563,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if not self._session_settings.test_management_settings.enabled:
             return False
 
-        if not self.is_finished():
+        # Check if finish_test() has been called (sets _finish_time)
+        if self._finish_time is None:
             log.debug("Attempt To Fix: attempt_to_fix_should_retry called but test is not finished")
             return False
 

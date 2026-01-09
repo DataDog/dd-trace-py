@@ -164,7 +164,7 @@ class InternalTest(
 ):
     @staticmethod
     @_catch_and_log_exceptions
-    def finish(
+    def finish_test(
         item_id: ext_api.TestId,
         status: t.Optional[ext_api.TestStatus] = None,
         skip_reason: t.Optional[str] = None,
@@ -175,6 +175,12 @@ class InternalTest(
         require_ci_visibility_service().get_test_by_id(item_id).finish_test(
             status=status, skip_reason=skip_reason, exc_info=exc_info, override_finish_time=override_finish_time
         )
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def write_test(item_id: ext_api.TestId) -> None:
+        log.debug("Writing test %s", item_id)
+        require_ci_visibility_service().get_test_by_id(item_id).write_test()
 
     @staticmethod
     @_catch_and_log_exceptions
