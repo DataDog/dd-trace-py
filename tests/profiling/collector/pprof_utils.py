@@ -143,7 +143,9 @@ class LockReleaseEvent(LockEvent):
         super().__init__(event_type=LockEventType.RELEASE, *args, **kwargs)
 
 
-def parse_newest_profile(filename_prefix: str, assert_samples: bool = True) -> pprof_pb2.Profile:
+def parse_newest_profile(
+    filename_prefix: str, assert_samples: bool = True, allow_penultimate: bool = False
+) -> pprof_pb2.Profile:
     """Parse the newest profile that has given filename prefix. The profiler
     outputs profile file with following naming convention:
     <filename_prefix>.<pid>.<counter>.pprof, and in tests, we'd want to parse
@@ -159,6 +161,18 @@ def parse_newest_profile(filename_prefix: str, assert_samples: bool = True) -> p
         serialized_data = dctx.stream_reader(fp).read()
     profile = pprof_pb2.Profile()
     profile.ParseFromString(serialized_data)
+
+    if allow_penultimate and len(profile.sample) == 0 and len(files) > 1:
+        # The newest profile file may be empty if it was just created and has not yet accumulated samples.
+        # In this case, we try to parse the (second-to-last) file instead, which is more likely
+        # to contain complete data. We temporarily rename the newest file so parse_newest_profile picks
+        # the previous one.
+        temp_filename = filename + ".temp"
+        os.rename(filename, temp_filename)
+        try:
+            return parse_newest_profile(filename_prefix, assert_samples, allow_penultimate=False)
+        finally:
+            os.rename(temp_filename, filename)
 
     if assert_samples:
         assert len(profile.sample) > 0, "No samples found in profile"

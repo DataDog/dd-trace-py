@@ -1,6 +1,8 @@
 FROM debian:bookworm-slim as base
 
-ARG PYTHON_VERSION=3.13
+# Keep this version in sync with the one we acually use in benchmarking-platform
+# https://github.com/DataDog/benchmarking-platform/blob/32681a9f805f4d62cf6bd7d205ddeb83ab72288d/container/install-base-deps.sh#L21
+ARG PYTHON_VERSION=3.9.15
 ARG PYENV_VERSION=2.5.5
 RUN apt-get update && apt-get install --no-install-recommends -y \
     make build-essential libssl-dev zlib1g-dev \
@@ -14,7 +16,9 @@ RUN git clone --depth 1 https://github.com/pyenv/pyenv.git --branch "v$PYENV_VER
 RUN pyenv install "$PYTHON_VERSION"
 
 FROM debian:bookworm-slim
-ARG PYTHON_VERSION=3.13
+# Keep this version in sync with
+# https://github.com/DataDog/benchmarking-platform/blob/32681a9f805f4d62cf6bd7d205ddeb83ab72288d/container/install-base-deps.sh#L21
+ARG PYTHON_VERSION=3.9.15
 
 COPY --from=base /pyenv /pyenv
 ENV PYENV_ROOT "/pyenv"

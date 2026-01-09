@@ -20,7 +20,6 @@ from ddtrace.ext import http
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
-from tests.utils import override_global_tracer
 
 
 HOST_AND_PORT = "localhost:8001"
@@ -122,7 +121,6 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         # ensure that double patch doesn't duplicate instrumentation
         patch()
         session = Session()
-        session.datadog_tracer = self.tracer
 
         out = session.get(URL_200)
         assert out.status_code == 200
@@ -204,23 +202,22 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
     def test_requests_module_200(self):
         # ensure the requests API is instrumented even without
         # using a `Session` directly
-        with override_global_tracer(self.tracer):
-            out = requests.get(URL_200)
-            assert out.status_code == 200
-            # validation
-            spans = self.pop_spans()
-            assert len(spans) == 1
-            s = spans[0]
+        out = requests.get(URL_200)
+        assert out.status_code == 200
+        # validation
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
 
-            assert_is_measured(s)
-            assert s.get_tag(http.METHOD) == "GET"
-            assert s.get_tag("component") == "requests"
-            assert s.get_tag("span.kind") == "client"
-            assert s.get_tag("out.host") == SOCKET
-            assert_span_http_status_code(s, 200)
-            assert s.error == 0
-            assert s.span_type == "http"
-            assert s.resource == "GET /status/200"
+        assert_is_measured(s)
+        assert s.get_tag(http.METHOD) == "GET"
+        assert s.get_tag("component") == "requests"
+        assert s.get_tag("span.kind") == "client"
+        assert s.get_tag("out.host") == SOCKET
+        assert_span_http_status_code(s, 200)
+        assert s.error == 0
+        assert s.span_type == "http"
+        assert s.resource == "GET /status/200"
 
     def test_post_500(self):
         out = self.session.post(URL_500)

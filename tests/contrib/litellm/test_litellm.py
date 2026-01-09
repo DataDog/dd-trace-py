@@ -1,6 +1,7 @@
 import pytest
 
 from tests.contrib.litellm.utils import get_cassette_name
+from tests.utils import TracerSpanContainer
 from tests.utils import override_global_config
 
 
@@ -20,7 +21,7 @@ def test_global_tags(litellm, request_vcr, mock_tracer):
                 messages=messages,
             )
 
-    span = mock_tracer.pop_traces()[0][0]
+    span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
     assert span.resource == "completion"
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"
