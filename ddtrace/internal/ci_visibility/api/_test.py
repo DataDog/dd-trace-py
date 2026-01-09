@@ -383,7 +383,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             return False
 
         # Calculate duration from start time and finish time
-        duration_s = (self._finish_time - (self._span.start / 1e9)) if self._span.start else 0
+        duration_s = (self._finish_time - (self._span.start_ns / 1e9)) if self._span.start_ns else 0
 
         num_retries = len(self._efd_retries)
 

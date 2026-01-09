@@ -659,10 +659,7 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
             self.set_status(item_status)
 
         # Prepare the span with all tags
-        self.finish_test(override_status=override_status, override_finish_time=override_finish_time)
-
-        # Send the span
-        super().finish()
+        super().finish_test(override_status=override_status, override_finish_time=override_finish_time)
 
     def finish(
         self,
@@ -673,17 +670,20 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
         """Recursively finish all children and then finish self
 
         force results in all children being finished regardless of their status
+        finish_test() should be called first to prepare the span.
         """
         if force:
             # Finish all children regardless of their status
             for child in self._children.values():
+                if not child._finish_time:
+                    child.finish_test(override_status=override_status, override_finish_time=override_finish_time)
                 if not child.is_finished():
+                    # For children being forcefully finished, prepare and send them
                     child.finish(force=force)
             self.set_status(self.get_raw_status())
 
-        # Prepare and send the span
-        self.finish_test(override_status=override_status, override_finish_time=override_finish_time)
-        super().finish()
+        # Send the span (finish_test() should have been called already to prepare it)
+        self._finish_span()
 
     def add_child(self, child_item_id: CIDT, child: CITEMT) -> None:
         child.parent = self
