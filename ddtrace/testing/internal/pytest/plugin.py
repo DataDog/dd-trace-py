@@ -615,7 +615,7 @@ class TestOptPlugin:
 
         To make the extra failed reports collected during retries (see `get_extra_failed_report` for details) show up
         with the rest of the failure exception reports, we modify them to look like normal failures, and append them to
-        the failed reports. After they have been shown by pytest, we undo the change so tha the final count of failed
+        the failed reports. After they have been shown by pytest, we undo the change so that the final count of failed
         tests is not affected.
         """
         # Do not show dd_retry in final stats.

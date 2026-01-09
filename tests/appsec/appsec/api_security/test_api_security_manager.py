@@ -277,7 +277,7 @@ class TestApiSecurityManager:
 
             # First request should collect
             assert manager._should_collect_schema(mock_environment, USER_KEEP)
-            # Sencond one should discarded
+            # Second one should discarded
             assert not manager._should_collect_schema(mock_environment, USER_KEEP)
 
     def test_should_collect_schema_route_missing_computes_endpoint(self, mock_environment):
