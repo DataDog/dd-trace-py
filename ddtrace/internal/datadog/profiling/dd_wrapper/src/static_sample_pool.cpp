@@ -24,9 +24,9 @@ std::optional<Sample*>
 StaticSamplePool::take_sample()
 {
     for (std::size_t i = 0; i < CAPACITY; ++i) {
-        Sample* s = pool[i].exchange(nullptr, std::memory_order_acq_rel);
-        if (s != nullptr) {
-            return s;
+        Sample* string = pool[i].exchange(nullptr, std::memory_order_acq_rel);
+        if (string != nullptr) {
+            return string;
         }
     }
     return std::nullopt;

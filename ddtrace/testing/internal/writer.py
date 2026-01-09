@@ -163,6 +163,8 @@ class TestOptWriter(BaseWriter):
                 send_gzip=True,
             )
 
+            self.connector.close()
+
             TelemetryAPI.get().record_event_payload(
                 endpoint="test_cycle",
                 payload_size=len(pack),
@@ -222,6 +224,8 @@ class TestCoverageWriter(BaseWriter):
             ]
 
             result = self.connector.post_files("/api/v2/citestcov", files=files, send_gzip=True)
+
+            self.connector.close()
 
             TelemetryAPI.get().record_event_payload(
                 endpoint="code_coverage",

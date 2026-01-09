@@ -24,6 +24,7 @@ class IASTAspects(bm.Scenario):
     iast_enabled: bool
     function_name: str
     default_function_type: str
+    internal_loop: int
 
     def run(self):
         # Create a tainted parameter to pass to functions
@@ -45,12 +46,14 @@ class IASTAspects(bm.Scenario):
                         source_value=tainted_param,
                         source_origin=OriginType.PARAMETER,
                     )
-                    _ = getattr(functions, self.function_name)(tainted)
+                    for _ in range(self.internal_loop):
+                        _ = getattr(functions, self.function_name)(tainted)
                     # DEBUG-NOTE: Uncomment to test locally that everything is working correctly
                     # from ddtrace.appsec._iast._taint_tracking import is_tainted
                     # assert is_tainted(result)
                 else:
-                    _ = getattr(functions, self.function_name)(tainted_param)
+                    for _ in range(self.internal_loop):
+                        _ = getattr(functions, self.function_name)(tainted_param)
 
         context = _with_iast_context if self.iast_enabled else _without_iast_context
         with context():

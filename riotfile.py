@@ -1860,6 +1860,7 @@ venv = Venv(
             env={
                 "DD_AGENT_PORT": "9126",
                 "DD_PYTEST_USE_NEW_PLUGIN": "true",
+                "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "0",
             },
             venvs=[
                 Venv(

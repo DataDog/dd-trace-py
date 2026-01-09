@@ -101,6 +101,20 @@ Releases
 If you're managing a new release of the library, follow the instructions
 `here <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-release.rst>`_.
 
+Regressions
+-----------
+
+If a major regression is detected, please add a warning note at the top of the release introducing this regression.
+The following information should be included:
+
+- A link to a description of the regression (which can be included in the fix)
+- The impacted product
+- The release including a fix if available
+
+Example for release v4.1.0::
+
+    ⚠️ [An issue](https://github.com/DataDog/dd-trace-py/pull/15818) was detected with memory profiling in this release. Please consider upgrading to [v4.1.3](https://github.com/DataDog/dd-trace-py/releases/tag/v4.1.3) or newer
+
 Documentation
 -------------
 

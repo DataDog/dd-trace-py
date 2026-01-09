@@ -18,15 +18,17 @@ with override_env(IAST_ENV):
 class IASTAspectsSplit(bm.Scenario):
     iast_enabled: bool
     function_name: str
+    internal_loop: int
 
     def run(self):
         def aspect_loop(loops):
             for _ in range(loops):
-                if self.iast_enabled:
-                    # Taint the parameter for each iteration
-                    _ = getattr(functions, self.function_name)()
-                else:
-                    _ = getattr(functions, self.function_name)()
+                for _ in range(self.internal_loop):
+                    if self.iast_enabled:
+                        # Taint the parameter for each iteration
+                        _ = getattr(functions, self.function_name)()
+                    else:
+                        _ = getattr(functions, self.function_name)()
 
         context = _with_iast_context if self.iast_enabled else _without_iast_context
         with context():

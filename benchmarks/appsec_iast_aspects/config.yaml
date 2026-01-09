@@ -1,5 +1,6 @@
 add_aspect: &default_aspect
-  warmups: 1
+  warmups: 5
+  internal_loop: 100
   function_name: "iast_add_aspect"
   iast_enabled: true
   default_function_type: "str"
@@ -213,6 +214,7 @@ replace_noaspect:
   iast_enabled: false
 
 repr_aspect:
+  <<: *default_aspect
   function_name: "iast_repr_aspect"
 
 repr_noaspect:

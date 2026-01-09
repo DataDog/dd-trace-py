@@ -31,8 +31,7 @@ namespace Datadog {
     X(library_version, "library_version")                                                                              \
     X(profile_seq, "profile_seq")                                                                                      \
     X(is_crash, "is_crash")                                                                                            \
-    X(severity, "severity")                                                                                            \
-    X(process_tags, "process_tags")
+    X(severity, "severity")
 
 // Here there are two columns because the Datadog backend expects these labels
 // to have spaces in the names.

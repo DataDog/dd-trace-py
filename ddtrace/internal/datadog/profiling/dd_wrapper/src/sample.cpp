@@ -27,12 +27,12 @@ Datadog::internal::StringArena::reset()
 std::string_view
 Datadog::internal::StringArena::insert(std::string_view s)
 {
-    auto chunk = &chunks.back();
+    auto* chunk = &chunks.back();
     if ((chunk->capacity() - chunk->size()) < s.size()) {
         chunk = &chunks.emplace_back();
         chunk->reserve(std::max(s.size(), Datadog::internal::StringArena::DEFAULT_SIZE));
     }
-    int base = chunk->size();
+    auto base = chunk->size();
     chunk->insert(chunk->end(), s.begin(), s.end());
     return std::string_view(chunk->data() + base, s.size());
 }
@@ -532,7 +532,7 @@ Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
 
         // Get the current monotonic time.  Use clock_gettime directly because the standard underspecifies
         // which clock is actually used in std::chrono
-        timespec ts;
+        timespec ts{ 0, 0 };
         clock_gettime(CLOCK_MONOTONIC, &ts);
         auto monotonic_ns = static_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + ts.tv_nsec;
 
@@ -555,7 +555,7 @@ Datadog::Sample::set_timeline(bool enabled)
 }
 
 bool
-Datadog::Sample::is_timeline_enabled() const
+Datadog::Sample::is_timeline_enabled()
 {
     return timeline_enabled;
 }

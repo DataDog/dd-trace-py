@@ -12,7 +12,7 @@ else
   S3_INDEX_URL="https://${S3_BUCKET}.s3.amazonaws.com/${BASELINE_COMMIT_SHA}/index.html"
 
   echo "Attempting to download wheel from S3 index: ${S3_INDEX_URL}"
-  if python3.9 -m pip download --no-deps --index-url "${S3_INDEX_URL}" ddtrace 2>/dev/null; then
+  if python3.9 -m pip download --no-index --no-deps --find-links "${S3_INDEX_URL}" --pre ddtrace 2>/dev/null; then
     echo "Successfully downloaded wheel from S3"
   else
     echo "Failed to download from S3, building wheel from scratch..."

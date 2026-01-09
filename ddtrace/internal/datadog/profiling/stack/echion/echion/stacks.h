@@ -50,7 +50,7 @@ unwind_frame(PyObject* frame_addr, FrameStack& stack, size_t max_depth = max_fra
 
     PyObject* current_frame_addr = frame_addr;
     while (current_frame_addr != NULL && stack.size() < max_frames) {
-        if (seen_frames.find(current_frame_addr) != seen_frames.end())
+        if (seen_frames.contains(current_frame_addr))
             break;
 
         seen_frames.insert(current_frame_addr);

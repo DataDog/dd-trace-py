@@ -138,6 +138,11 @@ class TestOptPlugin:
         # during tests are captured by us (and not sent to the APM agent, for instance).
         self.enable_ddtrace_trace_filter = True
 
+        # EXCEPTION: When testing ddtrace itself, we don't want to interfere with the normal operation of the tracer,
+        # and want ddtrace spans to be entirely independent from the test spans.
+        if asbool(os.environ.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
+            self.enable_ddtrace_trace_filter = False
+
         self.enable_all_ddtrace_integrations = False
         self.reports_by_nodeid: t.Dict[str, _ReportGroup] = defaultdict(lambda: {})
         self.excinfo_by_report: t.Dict[pytest.TestReport, t.Optional[pytest.ExceptionInfo[t.Any]]] = {}
