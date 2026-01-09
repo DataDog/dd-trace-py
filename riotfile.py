@@ -1366,6 +1366,18 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="psycopg_psycopg2",
+            command="pytest {cmdargs} tests/contrib/psycopg/test_psycopg_dual_import.py",
+            pys=["3.12"],
+            pkgs={
+                "psycopg": "==3.2.11",
+                "psycopg-binary": "==3.2.11",
+                "psycopg2-binary": "==2.9.11",
+                "pytest-asyncio": latest,
+                "pytest-randomly": latest,
+            },
+        ),
+        Venv(
             name="appsec_iast_memcheck",
             command="pytest --memray --stacks=35 {cmdargs} tests/appsec/iast_memcheck/",
             pys=select_pys(),
