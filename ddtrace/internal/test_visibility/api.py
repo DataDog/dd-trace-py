@@ -4,6 +4,7 @@ import typing as t
 from ddtrace.ext.test_visibility import api as ext_api
 from ddtrace.ext.test_visibility._test_visibility_base import TestSessionId
 from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
+from ddtrace.internal.ci_visibility.api._base import SPECIAL_STATUS
 from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 from ddtrace.internal.codeowners import Codeowners as _Codeowners
 from ddtrace.internal.logger import get_logger
@@ -224,3 +225,8 @@ class InternalTest(
         log.debug("Setting final_status to test %s as %s", test_id, final_status)
 
         return require_ci_visibility_service().get_test_by_id(test_id).set_final_status(final_status)
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def get_status(test_id: ext_api.TestId) -> t.Union[ext_api.TestStatus, SPECIAL_STATUS]:
+        return require_ci_visibility_service().get_test_by_id(test_id).get_status()
