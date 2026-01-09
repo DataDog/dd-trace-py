@@ -88,10 +88,7 @@ def unpatch():
 
 
 def patch_pymongo_module():
-    if _VERSION >= (4, 12):
-        _w(pymongo.MongoClient._init_background, _trace_mongo_client_init)
-    else:
-        _w(pymongo.MongoClient.__init__, _trace_mongo_client_init)
+    _w(pymongo.MongoClient.__init__, _trace_mongo_client_init)
     _w(Topology.select_server, _trace_topology_select_server)
     if _VERSION >= (3, 12):
         _w(Server.run_operation, _trace_server_run_operation_and_with_response)
