@@ -7,7 +7,7 @@ from subprocess import Popen
 from subprocess import TimeoutExpired
 import sys
 import time
-from typing import IO
+from typing import IO, Optional
 from typing import Callable
 from typing import Generator
 
@@ -98,7 +98,7 @@ def test_uwsgi_threads_processes_no_primary(uwsgi: Callable[..., Popen[bytes]]) 
     )
 
 
-def _get_worker_pids(stdout: IO[bytes] | None, num_worker: int, num_app_started: int = 1) -> list[int]:
+def _get_worker_pids(stdout: Optional[IO[bytes]], num_worker: int, num_app_started: int = 1) -> list[int]:
     assert stdout is not None
     worker_pids: list[int] = []
     started = 0
