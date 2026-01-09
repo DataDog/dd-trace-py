@@ -7,21 +7,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.dogpile_cache.patch import patch
 from ddtrace.contrib.internal.dogpile_cache.patch import unpatch
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
-from tests.utils import DummyTracer
-from tests.utils import TracerSpanContainer
 from tests.utils import assert_is_measured
-
-
-@pytest.fixture
-def tracer():
-    return DummyTracer()
-
-
-@pytest.fixture
-def test_spans(tracer):
-    container = TracerSpanContainer(tracer)
-    yield container
-    container.reset()
 
 
 @pytest.fixture
@@ -255,8 +241,7 @@ except AttributeError:
     from dogpile import lock as dogpile_lock
 
 # Required fixtures
-from tests.contrib.dogpile_cache.test_tracing import tracer
-from tests.contrib.dogpile_cache.test_tracing import test_spans
+from tests.conftest import *
 from tests.contrib.dogpile_cache.test_tracing import region
 from tests.contrib.dogpile_cache.test_tracing import cleanup
 from tests.contrib.dogpile_cache.test_tracing import single_cache
