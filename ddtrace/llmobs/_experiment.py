@@ -70,6 +70,15 @@ def _is_async_evaluator(evaluator: Any) -> bool:
     return inspect.iscoroutinefunction(evaluator)
 
 
+def _is_async_task(task: Callable) -> bool:
+    """Check if a task is an async function.
+
+    :param task: The task function to check
+    :return: True if it's a coroutine function, False otherwise
+    """
+    return inspect.iscoroutinefunction(task)
+
+
 JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
 NonNoneJSONType = Union[str, int, float, bool, List[JSONType], Dict[str, JSONType]]
 ExperimentConfigType = Dict[str, JSONType]
@@ -459,12 +468,33 @@ class Experiment:
         self._tags["experiment_id"] = str(experiment_id)
         self._run_name = experiment_run_name
         run_results = []
+        # Detect if task is async
+        is_async_task = _is_async_task(self._task)
+
         # for backwards compatibility
         for run_iteration in range(self._runs):
             run = _ExperimentRunInfo(run_iteration)
             self._tags["run_id"] = str(run._id)
             self._tags["run_iteration"] = str(run._run_iteration)
-            task_results = self._run_task(jobs, run, raise_errors, sample_size)
+
+            # Run task (async or sync)
+            if is_async_task:
+                # Check if we're already in an async context
+                try:
+                    loop = asyncio.get_running_loop()
+                    # Already in async context - create task and run it
+                    task_results = loop.run_until_complete(self._run_task_async(jobs, run, raise_errors, sample_size))
+                except RuntimeError as e:
+                    # Check if the error is "no running event loop" (which is what we want)
+                    if "no running event loop" in str(e).lower():
+                        # No running loop - safe to use asyncio.run()
+                        task_results = asyncio.run(self._run_task_async(jobs, run, raise_errors, sample_size))
+                    else:
+                        # Re-raise other RuntimeErrors
+                        raise
+            else:
+                task_results = self._run_task(jobs, run, raise_errors, sample_size)
+
             evaluations = self._run_evaluators(task_results, raise_errors=raise_errors, jobs=jobs)
             summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors)
             run_result = self._merge_results(run, task_results, evaluations, summary_evals)
@@ -544,6 +574,67 @@ class Experiment:
                 },
             }
 
+    async def _process_record_async(
+        self, idx_record: Tuple[int, DatasetRecord], run: _ExperimentRunInfo
+    ) -> Optional[TaskResult]:
+        """Async version of _process_record for async tasks."""
+        if not self._llmobs_instance or not self._llmobs_instance.enabled:
+            return None
+        idx, record = idx_record
+        with self._llmobs_instance._experiment(
+            name=self._task.__name__,
+            experiment_id=self._id,
+            run_id=str(run._id),
+            run_iteration=run._run_iteration,
+            dataset_name=self._dataset.name,
+            project_name=self._project_name,
+            project_id=self._project_id,
+            experiment_name=self.name,
+        ) as span:
+            span_context = self._llmobs_instance.export_span(span=span)
+            if span_context:
+                span_id = span_context.get("span_id", "")
+                trace_id = span_context.get("trace_id", "")
+            else:
+                span_id, trace_id = "", ""
+            input_data = record["input_data"]
+            record_id = record.get("record_id", "")
+            tags = {
+                **self._tags,
+                "dataset_id": str(self._dataset._id),
+                "dataset_record_id": str(record_id),
+                "experiment_id": str(self._id),
+            }
+            output_data = None
+            try:
+                # Call async task
+                output_data = await self._task(input_data, self._config)
+            except Exception:
+                span.set_exc_info(*sys.exc_info())
+            self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
+
+            span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
+            if "metadata" in record:
+                span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
+
+            return {
+                "idx": idx,
+                "span_id": span_id,
+                "trace_id": trace_id,
+                "timestamp": span.start_ns,
+                "output": output_data,
+                "metadata": {
+                    "dataset_record_index": idx,
+                    "experiment_name": self.name,
+                    "dataset_name": self._dataset.name,
+                },
+                "error": {
+                    "message": span.get_tag(ERROR_MSG),
+                    "stack": span.get_tag(ERROR_STACK),
+                    "type": span.get_tag(ERROR_TYPE),
+                },
+            }
+
     def _run_task(
         self,
         jobs: int,
@@ -590,6 +681,68 @@ class Experiment:
         self._llmobs_instance.flush()  # Ensure spans get submitted in serverless environments
         return task_results
 
+    async def _run_task_async(
+        self,
+        jobs: int,
+        run: _ExperimentRunInfo,
+        raise_errors: bool = False,
+        sample_size: Optional[int] = None,
+    ) -> List[TaskResult]:
+        """Async version of _run_task for async tasks with semaphore-based concurrency control."""
+        if not self._llmobs_instance or not self._llmobs_instance.enabled:
+            return []
+        if sample_size is not None and sample_size < len(self._dataset):
+            subset_records = [deepcopy(record) for record in self._dataset._records[:sample_size]]
+            subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
+            subset_dataset = Dataset(
+                name=subset_name,
+                project=self._dataset.project,
+                dataset_id=self._dataset._id,
+                records=subset_records,
+                description=self._dataset.description,
+                latest_version=self._dataset._latest_version,
+                version=self._dataset._version,
+                _dne_client=self._dataset._dne_client,
+            )
+        else:
+            subset_dataset = self._dataset
+
+        # Semaphore to limit concurrent task executions
+        task_semaphore = asyncio.Semaphore(jobs)
+
+        async def _process_single_task(idx_record: Tuple[int, DatasetRecord]) -> Optional[TaskResult]:
+            """Process a single task with semaphore."""
+            async with task_semaphore:
+                return await self._process_record_async(idx_record, run)
+
+        # Create tasks for all records
+        tasks = [_process_single_task((idx, record)) for idx, record in enumerate(subset_dataset)]
+
+        # Execute all tasks concurrently (controlled by semaphore)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Process results
+        task_results = []
+        for result in results:
+            if isinstance(result, Exception):
+                # If raise_errors is True, re-raise the exception
+                if raise_errors:
+                    raise result
+                continue
+            if not result:
+                continue
+            task_results.append(result)
+            err_dict = result.get("error") or {}
+            if isinstance(err_dict, dict):
+                err_msg = err_dict.get("message")
+                err_stack = err_dict.get("stack")
+                err_type = err_dict.get("type")
+            if raise_errors and err_msg:
+                raise RuntimeError("Error on record {}: {}\n{}\n{}".format(result["idx"], err_msg, err_type, err_stack))
+
+        self._llmobs_instance.flush()  # Ensure spans get submitted in serverless environments
+        return task_results
+
     def _run_evaluators(
         self, task_results: List[TaskResult], raise_errors: bool = False, jobs: int = 10
     ) -> List[EvaluationResult]:
@@ -607,7 +760,19 @@ class Experiment:
 
         if has_async:
             # If any evaluator is async, run all evaluators in async context
-            return asyncio.run(self._run_evaluators_async(task_results, raise_errors, jobs))
+            # Check if we're already in an async context
+            try:
+                loop = asyncio.get_running_loop()
+                # Already in async context - use the existing loop
+                return loop.run_until_complete(self._run_evaluators_async(task_results, raise_errors, jobs))
+            except RuntimeError as e:
+                # Check if the error is "no running event loop" (which is what we want)
+                if "no running event loop" in str(e).lower():
+                    # No running loop - safe to use asyncio.run()
+                    return asyncio.run(self._run_evaluators_async(task_results, raise_errors, jobs))
+                else:
+                    # Re-raise other RuntimeErrors
+                    raise
         else:
             # All evaluators are sync, use existing sync implementation
             return self._run_evaluators_sync(task_results, raise_errors)
