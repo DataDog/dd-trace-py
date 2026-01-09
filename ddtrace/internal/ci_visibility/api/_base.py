@@ -159,7 +159,7 @@ class TestVisibilityItemBase(abc.ABC):
         self._codeowners: Optional[List[str]] = []
         self._source_file_info: Optional[TestSourceFileInfo] = None
         self._coverage_data: Optional[TestVisibilityCoverageData] = None
-        self._finish_time: Optional[int] = None
+        self._finish_time: Optional[float] = None
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.name})"
@@ -243,6 +243,8 @@ class TestVisibilityItemBase(abc.ABC):
 
     @_require_span
     def _finish_span(self) -> None:
+        if self._span is None:
+            return
         self._span.finish(finish_time=self._finish_time)
 
         parent_span = self.get_parent_span()
@@ -405,15 +407,15 @@ class TestVisibilityItemBase(abc.ABC):
 
     def finish_test(
         self,
-        force: bool = False,
         override_status: Optional[TestStatus] = None,
         override_finish_time: Optional[float] = None,
     ) -> None:
-        """Finish the span and set the _is_finished flag to True.
+        """Prepare the span for finishing by setting all tags and finish time.
 
-        Nothing should be called after this method is called.
+        This does NOT send the span - call finish() or write_test() to actually send it.
+        The 'force' parameter is provided for compatibility with parent items but not used here.
         """
-        log.debug("Test Visibility: finishing %s", self)
+        log.debug("Test Visibility: preparing to finish %s", self)
 
         if override_status:
             self.set_status(override_status)
@@ -421,7 +423,13 @@ class TestVisibilityItemBase(abc.ABC):
         self._telemetry_record_event_finished()
         self._finish_test_span(override_finish_time=override_finish_time)
 
-    def finish(self):
+    def finish(self, force: bool = False) -> None:
+        """Finish and send the span to the backend.
+
+        This just sends the span - finish_test() should be called first to prepare it.
+        Parent items override this to handle children first.
+        """
+        log.debug("Test Visibility: finishing and sending %s", self)
         self._finish_span()
 
     def is_finished(self) -> bool:
@@ -624,9 +632,8 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
         # If we somehow got here, something odd happened and we set the status as FAIL out of caution
         return TestStatus.FAIL
 
-    def finish(
+    def finish_test(
         self,
-        force: bool = False,
         override_status: Optional[TestStatus] = None,
         override_finish_time: Optional[float] = None,
     ) -> None:
@@ -634,8 +641,6 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
 
         An unfinished status is not considered an error condition (eg: some order-randomization plugins may cause
         non-linear ordering of children items).
-
-        force results in all children being finished regardless of their status
 
         override_status only applies to the current item. Any unfinished children that are forced to finish will be
         finished with whatever status they had at finish time (in reality, this should mean that any unfinished
@@ -645,6 +650,30 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
             # Respect override status no matter what
             self.set_status(override_status)
 
+        item_status = self.get_status()
+
+        if item_status == SPECIAL_STATUS.UNFINISHED:
+            return
+
+        if not isinstance(item_status, SPECIAL_STATUS):
+            self.set_status(item_status)
+
+        # Prepare the span with all tags
+        self.finish_test(override_status=override_status, override_finish_time=override_finish_time)
+
+        # Send the span
+        super().finish()
+
+    def finish(
+        self,
+        force: bool = False,
+        override_status: Optional[TestStatus] = None,
+        override_finish_time: Optional[float] = None,
+    ) -> None:
+        """Recursively finish all children and then finish self
+
+        force results in all children being finished regardless of their status
+        """
         if force:
             # Finish all children regardless of their status
             for child in self._children.values():
@@ -652,15 +681,9 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
                     child.finish(force=force)
             self.set_status(self.get_raw_status())
 
-        item_status = self.get_status()
-
-        if item_status == SPECIAL_STATUS.UNFINISHED and not force:
-            return
-
-        if not isinstance(item_status, SPECIAL_STATUS):
-            self.set_status(item_status)
-
-        super().finish(force=force, override_status=override_status, override_finish_time=override_finish_time)
+        # Prepare and send the span
+        self.finish_test(override_status=override_status, override_finish_time=override_finish_time)
+        super().finish()
 
     def add_child(self, child_item_id: CIDT, child: CITEMT) -> None:
         child.parent = self

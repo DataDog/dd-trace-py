@@ -210,17 +210,20 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
     def finish_test(
         self,
+        override_status: Optional[TestStatus] = None,
+        override_finish_time: Optional[float] = None,
         status: Optional[TestStatus] = None,
         skip_reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
-        override_finish_time: Optional[float] = None,
     ) -> None:
         log.debug("Test Visibility: finishing %s, with status: %s, skip_reason: %s", self, status, skip_reason)
 
         self.set_tag(test.TYPE, SpanTypes.TEST)
 
-        if status is not None:
-            self.set_status(status)
+        # Use override_status if provided, otherwise use status parameter
+        final_status = override_status if override_status is not None else status
+        if final_status is not None:
+            self.set_status(final_status)
         if skip_reason is not None:
             self.set_tag(test.SKIP_REASON, skip_reason)
         if exc_info is not None:
@@ -235,10 +238,14 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         ):
             self._efd_abort_reason = "slow"
 
-        super().finish_test(override_finish_time=override_finish_time)
+        super().finish_test(override_status=override_status, override_finish_time=override_finish_time)
 
     def write_test(self) -> None:
-        super().finish()
+        """Send the test span to the backend.
+
+        This should be called after finish_test() has been called to prepare the span.
+        """
+        self._finish_span()
 
     def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
         if self.efd_has_retries():
@@ -267,7 +274,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if self._session_settings.itr_test_skipping_level == ITR_SKIPPING_LEVEL.TEST:
             self.count_itr_skipped()
         self.mark_itr_skipped()
-        self.finish_test(TestStatus.SKIP)
+        self.finish_test(status=TestStatus.SKIP)
 
     def overwrite_attributes(
         self,
@@ -614,7 +621,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
             retry_test.set_tag(TEST_ATTEMPT_TO_FIX_PASSED, all_passed)
 
-        retry_test.finish_test(status, skip_reason=skip_reason, exc_info=exc_info)
+        retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
 
     def attempt_to_fix_get_final_status(self) -> TestStatus:
         if all(retry._status == TestStatus.PASS for retry in self._attempt_to_fix_retries):
