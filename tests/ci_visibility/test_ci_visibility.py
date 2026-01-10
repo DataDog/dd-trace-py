@@ -1731,6 +1731,8 @@ class TestCIVisibilityGzipSupport:
             self.civisibility._suite_skipping_mode = False
             self.civisibility._api_settings = TestVisibilityAPISettings(False, False, False, False)
             self.civisibility._config = Config()
+            # Yield to prevent the scooped tracer from being shutdown before the test is complete.
+            yield
 
     @mock.patch("ddtrace.internal.ci_visibility.recorder.agent.info")
     def test_is_gzip_supported_by_agent_no_info(self, mock_agent_info):
