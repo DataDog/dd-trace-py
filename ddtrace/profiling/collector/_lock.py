@@ -243,10 +243,11 @@ class _ProfiledLock:
 class _LockAllocatorWrapper:
     """Wrapper for lock allocator functions that prevents method binding."""
 
-    __slots__ = ("_func",)
+    __slots__ = ("_func", "_original_class")
 
-    def __init__(self, func: Callable[..., Any]) -> None:
+    def __init__(self, func: Callable[..., Any], original_class: Optional[Type[Any]] = None) -> None:
         self._func: Callable[..., Any] = func
+        self._original_class: Optional[Type[Any]] = original_class
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         return self._func(*args, **kwargs)
@@ -254,6 +255,17 @@ class _LockAllocatorWrapper:
     def __get__(self, instance: Any, owner: Optional[Type] = None) -> _LockAllocatorWrapper:
         # Prevent automatic method binding (e.g., Foo.lock_class = threading.Lock)
         return self
+
+    def __mro_entries__(self, bases: Tuple[Any, ...]) -> Tuple[Type[Any], ...]:
+        """Support subclassing the wrapped lock type (PEP 560).
+
+        When custom lock types inherit from a wrapped lock
+        (e.g. neo4j's AsyncRLock that inherits from asyncio.Lock), Python errors with:
+        > TypeError: _LockAllocatorWrapper.__init__() takes 2 positional arguments but 4 were given
+
+        This method returns the actual lock type to be used as the base class.
+        """
+        return (self._original_class,)  # type: ignore[return-value]
 
 
 class LockCollector(collector.CaptureSamplerCollector):
@@ -305,7 +317,7 @@ class LockCollector(collector.CaptureSamplerCollector):
                 capture_sampler=self._capture_sampler,
             )
 
-        self._set_patch_target(_LockAllocatorWrapper(_profiled_allocate_lock))
+        self._set_patch_target(_LockAllocatorWrapper(_profiled_allocate_lock, original_lock))
 
     def unpatch(self) -> None:
         """Unpatch the threading module for tracking lock allocation."""
