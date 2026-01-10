@@ -160,6 +160,7 @@
       "test.name": "test_selenium_local_unpatch",
       "test.source.file": "test_selenium.py",
       "test.status": "pass",
+      "test.final_status": "pass",
       "test.suite": "test_selenium.py",
       "test.type": "test",
       "test_module_id": "13788837375514495677",
