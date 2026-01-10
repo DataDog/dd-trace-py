@@ -364,7 +364,7 @@ class Test(TestBase):
     @_catch_and_log_exceptions
     def finish(
         item_id: TestId,
-        status: TestStatus,
+        status: Optional[TestStatus] = None,
         skip_reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
         final: bool = True,
@@ -384,7 +384,7 @@ class Test(TestBase):
         # Only set final_status if this is the final execution (no retries will follow)
         # For external API users, final=True by default (backward compatible)
         # For internal API with retries, pass final=False to avoid duplicate final_status tags
-        if final:
+        if final and status is not None:
             test_obj.set_final_status(status)
 
         test_obj.finish()
