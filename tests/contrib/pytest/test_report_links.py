@@ -8,7 +8,6 @@ from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from tests.utils import override_env
-from tests.utils import scoped_tracer
 
 
 # Test cases taken from <https://github.com/DataDog/datadog-ci/blob/v3.7.0/src/helpers/__tests__/app.test.ts>.
@@ -59,21 +58,21 @@ def test_quote_for_query(text, expected):
     assert _report_links._quote_for_query(text) == expected
 
 
-def _get_session_settings() -> TestVisibilitySessionSettings:
-    with scoped_tracer() as tracer:
-        return TestVisibilitySessionSettings(
-            tracer=tracer,
-            test_service="the_test_service",
-            test_command="the_test_command",
-            test_framework="the_test_framework",
-            test_framework_metric_name=TEST_FRAMEWORKS.MANUAL,
-            test_framework_version="0.0",
-            session_operation_name="the_session",
-            module_operation_name="the_module",
-            suite_operation_name="the_suite",
-            test_operation_name="the_test",
-            workspace_path=Path().absolute(),
-        )
+@pytest.fixture
+def session_settings(tracer):
+    yield TestVisibilitySessionSettings(
+        tracer=tracer,
+        test_service="the_test_service",
+        test_command="the_test_command",
+        test_framework="the_test_framework",
+        test_framework_metric_name=TEST_FRAMEWORKS.MANUAL,
+        test_framework_version="0.0",
+        session_operation_name="the_session",
+        module_operation_name="the_module",
+        suite_operation_name="the_suite",
+        test_operation_name="the_test",
+        workspace_path=Path().absolute(),
+    )
 
 
 class TerminalReporterMock:
@@ -87,7 +86,7 @@ class TerminalReporterMock:
         self.lines.append(text)
 
 
-def test_print_report_links_full(mocker):
+def test_print_report_links_full(mocker, session_settings):
     terminalreporter = TerminalReporterMock()
     ci_visibility_instance = mocker.Mock(spec=CIVisibility)
     mocker.patch(
@@ -105,7 +104,7 @@ def test_print_report_links_full(mocker):
             ci.PIPELINE_ID: "123456",
         },
     )
-    mocker.patch.object(ci_visibility_instance, "get_session_settings", lambda: _get_session_settings())
+    mocker.patch.object(ci_visibility_instance, "get_session_settings", lambda: session_settings)
     mocker.patch.object(ci_visibility_instance, "get_dd_env", lambda: None)
 
     with override_env({}):
@@ -124,7 +123,7 @@ def test_print_report_links_full(mocker):
     ]
 
 
-def test_print_report_links_only_commit_report(mocker):
+def test_print_report_links_only_commit_report(mocker, session_settings):
     terminalreporter = TerminalReporterMock()
 
     ci_visibility_instance = mocker.Mock(spec=CIVisibility)
@@ -141,7 +140,7 @@ def test_print_report_links_only_commit_report(mocker):
             ci.git.COMMIT_SHA: "abcd0123",
         },
     )
-    mocker.patch.object(ci_visibility_instance, "get_session_settings", lambda: _get_session_settings())
+    mocker.patch.object(ci_visibility_instance, "get_session_settings", lambda: session_settings)
     mocker.patch.object(ci_visibility_instance, "get_dd_env", lambda: None)
 
     with override_env({}):
@@ -156,7 +155,7 @@ def test_print_report_links_only_commit_report(mocker):
     ]
 
 
-def test_print_report_links_only_test_runs_report(mocker):
+def test_print_report_links_only_test_runs_report(mocker, session_settings):
     terminalreporter = TerminalReporterMock()
 
     ci_visibility_instance = mocker.Mock(spec=CIVisibility)
@@ -172,7 +171,7 @@ def test_print_report_links_only_test_runs_report(mocker):
             ci.PIPELINE_ID: "123456",
         },
     )
-    mocker.patch.object(ci_visibility_instance, "get_session_settings", lambda: _get_session_settings())
+    mocker.patch.object(ci_visibility_instance, "get_session_settings", lambda: session_settings)
     mocker.patch.object(ci_visibility_instance, "get_dd_env", lambda: None)
 
     with override_env({}):
@@ -188,7 +187,7 @@ def test_print_report_links_only_test_runs_report(mocker):
     ]
 
 
-def test_print_report_links_no_report(mocker):
+def test_print_report_links_no_report(mocker, session_settings):
     terminalreporter = TerminalReporterMock()
 
     ci_visibility_instance = mocker.Mock(spec=CIVisibility)
@@ -201,7 +200,7 @@ def test_print_report_links_no_report(mocker):
         "get_ci_tags",
         lambda: {},
     )
-    mocker.patch.object(ci_visibility_instance, "get_session_settings", lambda: _get_session_settings())
+    mocker.patch.object(ci_visibility_instance, "get_session_settings", lambda: session_settings)
     mocker.patch.object(ci_visibility_instance, "get_dd_env", lambda: None)
 
     with override_env({}):
@@ -210,7 +209,7 @@ def test_print_report_links_no_report(mocker):
     assert terminalreporter.lines == []
 
 
-def test_print_report_links_escape_names(mocker):
+def test_print_report_links_escape_names(mocker, session_settings):
     terminalreporter = TerminalReporterMock()
 
     ci_visibility_instance = mocker.Mock(spec=CIVisibility)
@@ -229,7 +228,7 @@ def test_print_report_links_escape_names(mocker):
             ci.PIPELINE_ID: 'a "strange" id',
         },
     )
-    mocker.patch.object(ci_visibility_instance, "get_session_settings", lambda: _get_session_settings())
+    mocker.patch.object(ci_visibility_instance, "get_session_settings", lambda: session_settings)
     mocker.patch.object(ci_visibility_instance, "get_dd_env", lambda: None)
 
     with override_env({}):
@@ -247,7 +246,7 @@ def test_print_report_links_escape_names(mocker):
     ]
 
 
-def test_print_report_links_commit_report_with_env(mocker):
+def test_print_report_links_commit_report_with_env(mocker, session_settings):
     terminalreporter = TerminalReporterMock()
 
     ci_visibility_instance = mocker.Mock(spec=CIVisibility)
@@ -264,7 +263,7 @@ def test_print_report_links_commit_report_with_env(mocker):
             ci.git.COMMIT_SHA: "abcd0123",
         },
     )
-    mocker.patch.object(ci_visibility_instance, "get_session_settings", lambda: _get_session_settings())
+    mocker.patch.object(ci_visibility_instance, "get_session_settings", lambda: session_settings)
     mocker.patch.object(ci_visibility_instance, "get_dd_env", lambda: "the_env")
 
     with override_env({}):

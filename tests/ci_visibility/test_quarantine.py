@@ -9,36 +9,32 @@ from ddtrace.internal.ci_visibility.api._session import TestVisibilitySession
 from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
-from tests.utils import scoped_tracer
 
 
 class TestCIVisibilityTestQuarantine:
     """Tests that the classes in the CIVisibility API correctly handle quarantine."""
 
-    def _get_session_settings(
-        self,
-    ) -> TestVisibilitySessionSettings:
-        with scoped_tracer() as tracer:
-            return TestVisibilitySessionSettings(
-                tracer=tracer,
-                test_service="qurantine_test_service",
-                test_command="qurantine_test_command",
-                test_framework="qurantine_test_framework",
-                test_framework_metric_name=TEST_FRAMEWORKS.MANUAL,
-                test_framework_version="0.0",
-                session_operation_name="qurantine_session",
-                module_operation_name="qurantine_module",
-                suite_operation_name="qurantine_suite",
-                test_operation_name="qurantine_test",
-                workspace_path=Path().absolute(),
-                efd_settings=EarlyFlakeDetectionSettings(enabled=False),
-                atr_settings=AutoTestRetriesSettings(enabled=False),
-                test_management_settings=TestManagementSettings(enabled=True),
-            )
+    def _get_session_settings(self, tracer) -> TestVisibilitySessionSettings:
+        return TestVisibilitySessionSettings(
+            tracer=tracer,
+            test_service="qurantine_test_service",
+            test_command="qurantine_test_command",
+            test_framework="qurantine_test_framework",
+            test_framework_metric_name=TEST_FRAMEWORKS.MANUAL,
+            test_framework_version="0.0",
+            session_operation_name="qurantine_session",
+            module_operation_name="qurantine_module",
+            suite_operation_name="qurantine_suite",
+            test_operation_name="qurantine_test",
+            workspace_path=Path().absolute(),
+            efd_settings=EarlyFlakeDetectionSettings(enabled=False),
+            atr_settings=AutoTestRetriesSettings(enabled=False),
+            test_management_settings=TestManagementSettings(enabled=True),
+        )
 
-    def test_quarantine_tags_set(self):
+    def test_quarantine_tags_set(self, tracer):
         session = TestVisibilitySession(
-            session_settings=self._get_session_settings(),
+            session_settings=self._get_session_settings(tracer),
         )
 
         test = TestVisibilityTest(
