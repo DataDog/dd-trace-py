@@ -115,7 +115,7 @@ def run_tests():
 
     # m1_s1_t1 test expect 7 ATR retries
     api.InternalTest.start(m1_s1_t1_id)
-    api.InternalTest.finish(m1_s1_t1_id, TestStatus.FAIL)
+    api.InternalTest.finish(m1_s1_t1_id, TestStatus.FAIL, final=False)  # Not final - retries will follow
 
     m1_s1_t1_retry_count = 0
     while api.InternalTest.atr_should_retry(m1_s1_t1_id):
@@ -128,7 +128,7 @@ def run_tests():
 
     # m1_s1_t2 test: expect 7 ATR retries, passes on last attempt
     api.InternalTest.start(m1_s1_t2_id)
-    api.InternalTest.finish(m1_s1_t2_id, TestStatus.FAIL)
+    api.InternalTest.finish(m1_s1_t2_id, TestStatus.FAIL, final=False)  # Not final - retries will follow
 
     m1_s1_t2_retry_count = 0
     while api.InternalTest.atr_should_retry(m1_s1_t2_id):
@@ -152,7 +152,7 @@ def run_tests():
     assert not api.InternalTest.atr_should_retry(m1_s1_t4_p1_id), "Should not retry: first attempt passed"
 
     api.InternalTest.start(m1_s1_t4_p2_id)
-    api.InternalTest.mark_fail(m1_s1_t4_p2_id)
+    api.InternalTest.mark_fail(m1_s1_t4_p2_id, final=False)  # Not final - retries will follow
     m1_s1_t4_p2_retry_count = 0
     while api.InternalTest.atr_should_retry(m1_s1_t4_p2_id):
         m1_s1_t4_p2_retry_count += 1
@@ -208,7 +208,7 @@ def run_tests():
 
     # m2_s2_t2 test: expects 1 retries, then fail because total session reries max is reached
     api.InternalTest.start(m2_s2_t2_id)
-    api.InternalTest.finish(m2_s2_t2_id, TestStatus.FAIL)
+    api.InternalTest.finish(m2_s2_t2_id, TestStatus.FAIL, final=False)  # Not final - retries will follow
 
     m2_s2_t2_retry_count = 0
     while api.InternalTest.atr_should_retry(m2_s2_t2_id):

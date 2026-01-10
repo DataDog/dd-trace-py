@@ -128,32 +128,16 @@ def _efd_do_retries(item: pytest.Item) -> EFDTestStatus:
     # Send the original test FIRST (it's already finished before retries start)
     InternalTest.write_test(test_id)
 
-    # Track the last retry to write after setting final_status
-    last_retry_num = None
-
     while InternalTest.efd_should_retry(test_id):
-        # Write the previous retry now that we know it's not the last
-        if last_retry_num is not None:
-            InternalTest.efd_write_retry(test_id, last_retry_num)
+        retry_num = InternalTest.efd_add_retry(test_id, start_immediately=True)
+        retry_outcome = _get_outcome_from_retry(item, outcomes, retry_num)
 
-        last_retry_num = InternalTest.efd_add_retry(test_id, start_immediately=True)
-        retry_outcome = _get_outcome_from_retry(item, outcomes, last_retry_num)
+        # efd_finish_retry now auto-writes the span (and sets final_status on the last one)
         InternalTest.efd_finish_retry(
-            test_id, last_retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
+            test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
         )
 
     efd_final_status = InternalTest.efd_get_final_status(test_id)
-
-    final_status = InternalTest.get_status(test_id)
-    if not isinstance(final_status, TestStatus):
-        log.debug("Unable to set final_status: Special status received for test %s", test_id)
-    else:
-        # Set final_status tag on the last retry or original test
-        InternalTest.set_final_status(test_id, final_status)
-
-    # Finally send the last retry (which now has final_status)
-    if last_retry_num is not None:
-        InternalTest.efd_write_retry(test_id, last_retry_num)
 
     return efd_final_status
 

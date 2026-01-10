@@ -276,6 +276,11 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         self.mark_itr_skipped()
         self.finish_test(status=TestStatus.SKIP)
 
+        # Set final_status for ITR skipped tests
+        self.set_final_status(TestStatus.SKIP)
+
+        self.finish()  # Actually send the span
+
     def overwrite_attributes(
         self,
         name: Optional[str] = None,
@@ -432,6 +437,17 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
         retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
 
+        # Check if there will be more retries after this one
+        will_retry_again = self.efd_should_retry()
+
+        # If this is the last retry, set final_status before writing
+        if not will_retry_again:
+            final_status = self.get_status()
+            if isinstance(final_status, TestStatus):
+                retry_test._add_tag_to_span(TEST_FINAL_STATUS, final_status.value)
+
+        retry_test.write_test()  # Auto-send the retry span
+
     def efd_get_final_status(self) -> EFDTestStatus:
         status_counts: Dict[TestStatus, int] = {
             TestStatus.PASS: 0,
@@ -536,6 +552,16 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
         retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
 
+        # Check if there will be more retries after this one
+        will_retry_again = self.atr_should_retry()
+
+        # If this is the last retry, set final_status before writing
+        if not will_retry_again:
+            final_status = self.atr_get_final_status()
+            retry_test._add_tag_to_span(TEST_FINAL_STATUS, final_status.value)
+
+        retry_test.write_test()  # Auto-send the retry span
+
     def atr_get_final_status(self) -> TestStatus:
         if self._status in [TestStatus.PASS, TestStatus.SKIP]:
             return self._status
@@ -622,6 +648,16 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             retry_test.set_tag(TEST_ATTEMPT_TO_FIX_PASSED, all_passed)
 
         retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
+
+        # Check if there will be more retries after this one
+        will_retry_again = self.attempt_to_fix_should_retry()
+
+        # If this is the last retry, set final_status before writing
+        if not will_retry_again:
+            final_status = self.attempt_to_fix_get_final_status()
+            retry_test._add_tag_to_span(TEST_FINAL_STATUS, final_status.value)
+
+        retry_test.write_test()  # Auto-send the retry span
 
     def attempt_to_fix_get_final_status(self) -> TestStatus:
         if all(retry._status == TestStatus.PASS for retry in self._attempt_to_fix_retries):
