@@ -53,6 +53,13 @@ def _get_original_lock_class(module_name: str, class_name: str) -> Callable[...,
 
 def _create_original_lock_instance(module_name: str, class_name: str) -> Any:
     """Create an instance of the original lock class when unpickling a _ProfiledLock."""
+    # Map internal _thread types to their threading module counterparts, as they're not directly accessible.
+    if module_name == "_thread":
+        if class_name == "lock":
+            module_name, class_name = "threading", "Lock"
+        elif class_name == "RLock":
+            module_name, class_name = "threading", "RLock"
+
     lock_class = _get_original_lock_class(module_name, class_name)
     return lock_class()
 
