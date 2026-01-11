@@ -9,6 +9,7 @@ import pytest
 
 from ddtrace.contrib.internal.openai.patch import patch
 from ddtrace.contrib.internal.openai.patch import unpatch
+from ddtrace.llmobs import LLMObs
 from ddtrace.trace import TraceFilter
 from tests.utils import override_config
 from tests.utils import override_global_config
@@ -134,3 +135,15 @@ def patch_openai(ddtrace_global_config, ddtrace_config_openai, openai_api_key, o
 def snapshot_tracer(tracer, openai, patch_openai):
     tracer.configure(trace_processors=[FilterOrg()])
     return tracer
+
+
+@pytest.fixture
+def test_spans(ddtrace_global_config, test_spans, snapshot_tracer):
+    if ddtrace_global_config.get("_llmobs_enabled", False):
+        # Have to disable and re-enable LLMObs to use to mock tracer.
+        LLMObs.disable()
+        LLMObs.enable(_tracer=snapshot_tracer, integrations_enabled=False)
+
+    yield test_spans
+
+    LLMObs.disable()

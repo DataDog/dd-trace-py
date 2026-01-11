@@ -5,6 +5,7 @@ import pytest
 
 from ddtrace.contrib.internal.anthropic.patch import patch
 from ddtrace.contrib.internal.anthropic.patch import unpatch
+from ddtrace.llmobs import LLMObs
 from tests.contrib.anthropic.utils import get_request_vcr
 from tests.utils import override_config
 from tests.utils import override_env
@@ -19,6 +20,18 @@ def ddtrace_config_anthropic():
 @pytest.fixture
 def ddtrace_global_config():
     return {}
+
+
+@pytest.fixture
+def test_spans(ddtrace_global_config, test_spans):
+    try:
+        if ddtrace_global_config.get("_llmobs_enabled", False):
+            # Have to disable and re-enable LLMObs to use to mock tracer.
+            LLMObs.disable()
+            LLMObs.enable(integrations_enabled=False)
+        yield test_spans
+    finally:
+        LLMObs.disable()
 
 
 @pytest.fixture

@@ -699,7 +699,7 @@ async def test_llmobs_single_agent_with_tool_errors(
 
 @pytest.mark.asyncio
 async def test_llmobs_oai_agents_with_chat_completions_span_linking(
-    agents, test_spans, request_vcr, llmobs_events, research_workflow
+    agents, openai, test_spans, request_vcr, llmobs_events, research_workflow
 ):
     with request_vcr.use_cassette("test_multiple_agent_handoffs_with_chat_completions.yaml"):
         result = await agents.Runner.run(
@@ -748,7 +748,7 @@ async def test_llmobs_oai_agents_with_chat_completions_span_linking(
 
 
 async def test_llmobs_oai_agents_with_guardrail_spans(
-    agents, test_spans, request_vcr, llmobs_events, simple_agent_with_guardrail
+    agents, openai, test_spans, request_vcr, llmobs_events, simple_agent_with_guardrail
 ):
     with request_vcr.use_cassette("test_oai_agents_with_guardrail_spans.yaml"):
         await agents.Runner.run(simple_agent_with_guardrail, "What is the sum of 1 and 2?")

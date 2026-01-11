@@ -4,6 +4,7 @@ import pytest
 
 from ddtrace.contrib.internal.vertexai.patch import patch
 from ddtrace.contrib.internal.vertexai.patch import unpatch
+from ddtrace.llmobs import LLMObs
 from tests.contrib.vertexai.utils import MockAsyncPredictionServiceClient
 from tests.contrib.vertexai.utils import MockPredictionServiceClient
 from tests.utils import override_config
@@ -32,6 +33,18 @@ def mock_client():
 @pytest.fixture
 def mock_async_client():
     yield MockAsyncPredictionServiceClient()
+
+
+@pytest.fixture
+def test_spans(ddtrace_global_config, vertexai, tracer, test_spans):
+    try:
+        if ddtrace_global_config.get("_llmobs_enabled", False):
+            # Have to disable and re-enable LLMObs to use the mock tracer.
+            LLMObs.disable()
+            LLMObs.enable(integrations_enabled=False, agentless_enabled=False)
+        yield test_spans
+    except Exception:
+        yield
 
 
 @pytest.fixture
