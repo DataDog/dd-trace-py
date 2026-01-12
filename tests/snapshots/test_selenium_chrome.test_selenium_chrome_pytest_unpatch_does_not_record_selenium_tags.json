@@ -153,6 +153,7 @@
       "runtime.version": "3.10.14",
       "span.kind": "test",
       "test.command": "pytest --ddtrace -s --ddtrace-patch-all",
+      "test.final_status": "pass",
       "test.framework": "pytest",
       "test.framework_version": "8.3.4",
       "test.module": "",

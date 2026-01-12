@@ -28,6 +28,7 @@ from ddtrace.internal.ci_visibility.constants import RETRY_REASON
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_ATTEMPT_TO_FIX_PASSED
 from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
+from ddtrace.internal.ci_visibility.constants import TEST_FINAL_STATUS
 from ddtrace.internal.ci_visibility.constants import TEST_HAS_FAILED_ALL_RETRIES
 from ddtrace.internal.ci_visibility.constants import TEST_IS_ATTEMPT_TO_FIX
 from ddtrace.internal.ci_visibility.constants import TEST_IS_DISABLED
@@ -295,6 +296,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             self.count_itr_skipped()
         self.mark_itr_skipped()
         self.finish_test(status=TestStatus.SKIP)
+        self.set_final_status(TestStatus.SKIP)
         self.finish()  # Actually send the span
 
     def overwrite_attributes(
