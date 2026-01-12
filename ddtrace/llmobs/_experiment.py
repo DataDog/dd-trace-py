@@ -357,6 +357,10 @@ class Dataset:
 
 
 class Experiment:
+    @classmethod
+    def _NO_OP_TASK(cls, input_data, config):
+        return None
+
     def __init__(
         self,
         name: str,
@@ -382,6 +386,7 @@ class Experiment:
             ]
         ] = None,
         runs: Optional[int] = None,
+        is_distributed: Optional[bool] = False,
     ) -> None:
         self.name = name
         self._task = task
@@ -397,6 +402,7 @@ class Experiment:
         self._config: Dict[str, JSONType] = config or {}
         self._runs: int = runs or 1
         self._llmobs_instance = _llmobs_instance
+        self._is_distributed = is_distributed
 
         if not project_name:
             raise ValueError(
@@ -410,12 +416,7 @@ class Experiment:
         self._id: Optional[str] = None
         self._run_name: Optional[str] = None
 
-    def run(
-        self,
-        jobs: int = 1,
-        raise_errors: bool = False,
-        sample_size: Optional[int] = None,
-    ) -> ExperimentResult:
+    def _init_experiment(self):
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             raise ValueError(
                 "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
@@ -442,6 +443,17 @@ class Experiment:
         self._id = experiment_id
         self._tags["experiment_id"] = str(experiment_id)
         self._run_name = experiment_run_name
+
+
+    def run(
+        self,
+        jobs: int = 1,
+        raise_errors: bool = False,
+        sample_size: Optional[int] = None,
+    ) -> ExperimentResult:
+        if self._is_distributed:
+            raise TypeError("run is not supported for a distributed experiment")
+        self._init_experiment()
         run_results = []
         # for backwards compatibility
         for run_iteration in range(self._runs):
