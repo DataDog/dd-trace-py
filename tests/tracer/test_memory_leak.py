@@ -8,12 +8,6 @@ import pytest
 
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
-from tests.utils import DummyTracer
-
-
-@pytest.fixture
-def tracer() -> DummyTracer:
-    return DummyTracer()
 
 
 def trace(weakdict: WeakValueDictionary, tracer: Tracer, *args, **kwargs) -> Span:
