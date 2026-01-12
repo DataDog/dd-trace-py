@@ -104,6 +104,7 @@ from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentConfigType
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
+from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _get_ml_app
@@ -903,6 +904,72 @@ class LLMObs(Service):
     @classmethod
     def _delete_dataset(cls, dataset_id: str) -> None:
         return cls._instance._dne_client.dataset_delete(dataset_id)
+
+    @classmethod
+    def prompt_optimization(cls, name:str) -> PromptOptimization:
+        return PromptOptimization(name)
+
+
+    @classmethod
+    def prompt_optimization(
+        cls,
+        name: str,
+        task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
+        optimization_task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
+        dataset: Dataset,
+        evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
+        project_name: Optional[str] = None,
+        tags: Optional[Dict[str, str]] = None,
+        config: Optional[ExperimentConfigType] = None,
+    ) -> PromptOptimization:
+        """Initializes an Experiment to run a task on a Dataset and evaluators.
+
+        :param name: The name of the experiment.
+        :param task: The task function to run. Must accept parameters ``input_data`` and ``config``.
+        :param optimization_task: ...
+        :param dataset: The dataset to run the experiment on, created with LLMObs.pull/create_dataset().
+        :param evaluators: A list of evaluator functions to evaluate the task output.
+                           Must accept parameters ``input_data``, ``output_data``, and ``expected_output``.
+        :param project_name: The name of the project to save the experiment to.
+        :param tags: A dictionary of string key-value tag pairs to associate with the experiment.
+        :param config: A configuration dictionary describing the experiment.
+        """
+        if not callable(task):
+            raise TypeError("task must be a callable function.")
+        sig = inspect.signature(task)
+        params = sig.parameters
+        if "input_data" not in params or "config" not in params:
+            raise TypeError("Task function must have 'input_data' and 'config' parameters.")
+
+        if not callable(optimization_task):
+            raise TypeError("optimization_task must be a callable function.")
+        # sig = inspect.signature(optimization_task)
+        # params = sig.parameters
+        # if "input_data" not in params or "config" not in params:
+        #     raise TypeError("Task function must have 'input_data' and 'config' parameters.")
+
+        if not isinstance(dataset, Dataset):
+            raise TypeError("Dataset must be an LLMObs Dataset object.")
+        if not evaluators or not all(callable(evaluator) for evaluator in evaluators):
+            raise TypeError("Evaluators must be a list of callable functions.")
+        for evaluator in evaluators:
+            sig = inspect.signature(evaluator)
+            params = sig.parameters
+            evaluator_required_params = ("input_data", "output_data", "expected_output")
+            if not all(param in params for param in evaluator_required_params):
+                raise TypeError("Evaluator function must have parameters {}.".format(evaluator_required_params))
+
+        return PromptOptimization(
+            name=name,
+            task=task,
+            optimization_task=optimization_task,
+            dataset=dataset,
+            evaluators=evaluators,
+            project_name=project_name or cls._project_name,
+            tags=tags,
+            config=config,
+            _llmobs_instance=cls._instance,
+        )
 
     @classmethod
     def experiment(
