@@ -606,7 +606,10 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
         log.debug("Test %s was not finished normally during pytest_runtest_protocol, finishing it now", test_id)
         if reports_dict:
             test_outcome = _process_reports_dict(item, reports_dict)
-            InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
+            InternalTest.prepare_for_finish(
+                test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info
+            )
+            InternalTest.finish(test_id)
         else:
             log.debug("Test %s has no entry in reports_by_item", test_id)
             InternalTest.finish(test_id)
