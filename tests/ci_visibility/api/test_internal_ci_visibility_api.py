@@ -14,7 +14,7 @@ from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 
 @pytest.fixture
 def civisibility_settings(tracer):
-    yield TestVisibilitySessionSettings(
+    return TestVisibilitySessionSettings(
         tracer=tracer,
         test_service="test_service",
         test_command="test_command",
