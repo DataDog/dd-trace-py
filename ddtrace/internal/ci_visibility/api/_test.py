@@ -452,6 +452,16 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             retry_test.set_status(status)
 
         retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
+
+        # Check if there will be more retries after this one
+        will_retry_again = self.efd_should_retry()
+
+        # If this is the last retry, set final_status before writing
+        if not will_retry_again:
+            final_status = self.get_status()
+            if isinstance(final_status, TestStatus):
+                retry_test._add_tag_to_span(TEST_FINAL_STATUS, final_status.value)
+
         retry_test.finish()  # Send the retry span
 
     def efd_get_final_status(self) -> EFDTestStatus:
@@ -557,7 +567,16 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
                 retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
 
         retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
-        retry_test.finish()  # Send the retry span
+
+        # Check if there will be more retries after this one
+        will_retry_again = self.atr_should_retry()
+
+        # If this is the last retry, set final_status before writing
+        if not will_retry_again:
+            final_status = self.atr_get_final_status()
+            retry_test._add_tag_to_span(TEST_FINAL_STATUS, final_status.value)
+
+        retry_test.finish()  # Auto-send the retry span
 
     def atr_get_final_status(self) -> TestStatus:
         if self._status in [TestStatus.PASS, TestStatus.SKIP]:
@@ -644,8 +663,17 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
             retry_test.set_tag(TEST_ATTEMPT_TO_FIX_PASSED, all_passed)
 
-        retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
-        retry_test.finish()  # Send the retry span
+        retry_test.prepare_for_finish(status=status, skip_reason=skip_reason, exc_info=exc_info)
+
+        # Check if there will be more retries after this one
+        will_retry_again = self.attempt_to_fix_should_retry()
+
+        # If this is the last retry, set final_status before writing
+        if not will_retry_again:
+            final_status = self.attempt_to_fix_get_final_status()
+            retry_test._add_tag_to_span(TEST_FINAL_STATUS, final_status.value)
+
+        retry_test.finish()  # Auto-send the retry span
 
     def attempt_to_fix_get_final_status(self) -> TestStatus:
         if all(retry._status == TestStatus.PASS for retry in self._attempt_to_fix_retries):
@@ -683,3 +711,27 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
                 value = getattr(self._benchmark_duration_data, tag)
                 if value is not None:
                     self.set_tag(attr, value)
+
+    def set_final_status(self, final_status: TestStatus):
+        """Set the final_status tag on the appropriate test span.
+
+        If this test has retries, the tag is set on the last retry span.
+        Otherwise, it's set on this test's span.
+
+        With the new two-phase approach (prepare_for_finish + finish), this should be called
+        AFTER prepare_for_finish() but BEFORE finish().
+        """
+        # For tests with retries, set the final_status on the last retry
+        if self._atr_retries:
+            last_retry = self._atr_retries[-1]
+            # Add tag directly to the span since prepare_for_finish() has already been called
+            last_retry._add_tag_to_span(TEST_FINAL_STATUS, final_status.value)
+        elif self._efd_retries:
+            last_retry = self._efd_retries[-1]
+            last_retry._add_tag_to_span(TEST_FINAL_STATUS, final_status.value)
+        elif self._attempt_to_fix_retries:
+            last_retry = self._attempt_to_fix_retries[-1]
+            last_retry._add_tag_to_span(TEST_FINAL_STATUS, final_status.value)
+        else:
+            # No retries, set on this test's span
+            self._add_tag_to_span(TEST_FINAL_STATUS, final_status.value)
