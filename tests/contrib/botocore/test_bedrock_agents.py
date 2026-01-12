@@ -36,7 +36,7 @@ def test_agent_invoke_stream(bedrock_agent_client, request_vcr):
             pass
 
 
-def test_span_finishes_after_generator_exit(bedrock_agent_client, request_vcr, mock_tracer_agent, test_spans):
+def test_span_finishes_after_generator_exit(bedrock_agent_client, request_vcr, test_spans):
     with request_vcr.use_cassette("agent_invoke.yaml"):
         response = bedrock_agent_client.invoke_agent(
             agentAliasId=AGENT_ALIAS_ID,
@@ -57,7 +57,7 @@ def test_span_finishes_after_generator_exit(bedrock_agent_client, request_vcr, m
         assert span.resource == "aws.bedrock-agent-runtime"
 
 
-def test_agent_invoke_trace_disabled(bedrock_agent_client, request_vcr, mock_tracer_agent, test_spans):
+def test_agent_invoke_trace_disabled(bedrock_agent_client, request_vcr, test_spans):
     # Test that we still get the agent span when enableTrace is set to False
     with request_vcr.use_cassette("agent_invoke_trace_disabled.yaml"):
         response = bedrock_agent_client.invoke_agent(
@@ -77,7 +77,7 @@ def test_agent_invoke_trace_disabled(bedrock_agent_client, request_vcr, mock_tra
 
 
 @pytest.mark.skipif(BOTO_VERSION < (1, 36, 0), reason="Streaming configurations not supported in this boto3 version")
-def test_agent_invoke_stream_trace_disabled(bedrock_agent_client, request_vcr, mock_tracer_agent, test_spans):
+def test_agent_invoke_stream_trace_disabled(bedrock_agent_client, request_vcr, test_spans):
     # Test that we still get the agent span when enableTrace is set to False
     with request_vcr.use_cassette("agent_invoke_trace_disabled.yaml"):
         response = bedrock_agent_client.invoke_agent(
