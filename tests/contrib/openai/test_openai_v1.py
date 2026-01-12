@@ -9,6 +9,7 @@ from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
 from tests.contrib.openai.utils import get_openai_vcr
 from tests.contrib.openai.utils import multi_message_input
+from tests.utils import TracerSpanContainer
 from tests.utils import override_global_config
 from tests.utils import snapshot_context
 
@@ -189,7 +190,7 @@ def test_global_tags(openai_vcr, openai, mock_tracer):
                 model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
             )
 
-    span = mock_tracer.pop_traces()[0][0]
+    span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"
     assert span.get_tag("version") == "1234"
@@ -225,7 +226,7 @@ def test_completion_raw_response_stream(openai, openai_vcr, mock_tracer):
         client = openai.OpenAI()
         client.completions.with_raw_response.create(model="ada", prompt="Hello world", stream=True, n=None)
 
-    assert len(mock_tracer.pop_traces()) == 0
+    assert len(TracerSpanContainer(mock_tracer).pop_traces()) == 0
 
 
 @pytest.mark.skipif(
@@ -237,7 +238,7 @@ async def test_acompletion_raw_response_stream(openai, openai_vcr, mock_tracer):
         client = openai.AsyncOpenAI()
         await client.completions.with_raw_response.create(model="ada", prompt="Hello world", stream=True, n=None)
 
-    assert len(mock_tracer.pop_traces()) == 0
+    assert len(TracerSpanContainer(mock_tracer).pop_traces()) == 0
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
@@ -360,7 +361,7 @@ def test_chat_completion_raw_response_stream(openai, openai_vcr, mock_tracer):
             n=None,
         )
 
-    assert len(mock_tracer.pop_traces()) == 0
+    assert len(TracerSpanContainer(mock_tracer).pop_traces()) == 0
 
 
 @pytest.mark.skipif(
@@ -380,7 +381,7 @@ async def test_achat_completion_raw_response_stream(openai, openai_vcr, mock_tra
             n=None,
         )
 
-    assert len(mock_tracer.pop_traces()) == 0
+    assert len(TracerSpanContainer(mock_tracer).pop_traces()) == 0
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])

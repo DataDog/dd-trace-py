@@ -12,8 +12,6 @@ from ddtrace.contrib.internal.openai.patch import patch
 from ddtrace.contrib.internal.openai.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from ddtrace.trace import TraceFilter
-from tests.utils import DummyTracer
-from tests.utils import DummyWriter
 from tests.utils import override_config
 from tests.utils import override_global_config
 
@@ -143,17 +141,16 @@ def snapshot_tracer(openai, patch_openai):
 
 
 @pytest.fixture
-def mock_tracer(ddtrace_global_config, openai, patch_openai):
+def mock_tracer(ddtrace_global_config, openai, patch_openai, tracer):
     pin = Pin.get_from(openai)
-    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin._override(openai, tracer=mock_tracer)
+    pin._override(openai, tracer=tracer)
     pin.tracer.configure(trace_processors=[FilterOrg()])
 
     if ddtrace_global_config.get("_llmobs_enabled", False):
         # Have to disable and re-enable LLMObs to use to mock tracer.
         LLMObs.disable()
-        LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)
+        LLMObs.enable(_tracer=tracer, integrations_enabled=False)
 
-    yield mock_tracer
+    yield tracer
 
     LLMObs.disable()

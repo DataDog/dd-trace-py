@@ -4,6 +4,7 @@ import pytest
 
 from tests.contrib.google_adk.conftest import create_test_message
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.utils import TracerSpanContainer
 
 
 @pytest.mark.parametrize(
@@ -31,7 +32,7 @@ class TestLLMObsGoogleADK:
                 else:
                     raise
 
-        spans = mock_tracer.pop_traces()[0]
+        spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
 
         # We expect 3 events: 2 tool calls and 1 agent run
         assert len(llmobs_events) == 3
@@ -65,7 +66,7 @@ class TestLLMObsGoogleADK:
                 else:
                     raise
 
-        spans = mock_tracer.pop_traces()[0]
+        spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
         assert len(llmobs_events) == 2
         assert len(spans) == 2
 
@@ -83,7 +84,7 @@ class TestLLMObsGoogleADK:
         code_input = CodeExecutionInput(code='print("hello world")')
         executor.execute_code(mock_invocation_context, code_input)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         expected_llmobs_code_execution_event(llmobs_events[0], span)
 

@@ -17,7 +17,7 @@ from tests.contrib.botocore.bedrock_utils import get_mock_response_data
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
-from tests.utils import DummyTracer
+from tests.utils import TracerSpanContainer
 from tests.utils import override_global_config
 
 
@@ -87,7 +87,7 @@ class TestLLMObsBedrock:
                 model = "us." + model
             response = bedrock_client.invoke_model(body=body, modelId=model)
             json.loads(response.get("body").read())
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
 
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == cls.expected_llmobs_span_event(
@@ -122,7 +122,7 @@ class TestLLMObsBedrock:
             response = bedrock_client.invoke_model_with_response_stream(body=body, modelId=model)
             for _ in response.get("body"):
                 pass
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
 
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == cls.expected_llmobs_span_event(
@@ -173,7 +173,7 @@ class TestLLMObsBedrock:
         with get_request_vcr().use_cassette(cassette_name):
             response = bedrock_client.invoke_model(body=body, modelId=model)
             json.loads(response.get("body").read())
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
 
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == self.expected_llmobs_span_event(span, 1)
@@ -216,14 +216,13 @@ class TestLLMObsBedrock:
     def test_llmobs_meta_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_tracer, llmobs_events):
         self._test_llmobs_invoke_stream("meta", bedrock_client, mock_tracer, llmobs_events)
 
-    def test_llmobs_only_patches_bedrock(self, ddtrace_global_config, llmobs_span_writer):
+    def test_llmobs_only_patches_bedrock(self, ddtrace_global_config, llmobs_span_writer, tracer, test_spans):
         llmobs_service.disable()
 
         with override_global_config(
             {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "tests.llmobs"}
         ):
             llmobs_service.enable(integrations_enabled=True)
-            mock_tracer = DummyTracer()
             # ensure we don't get spans for non-bedrock services
             from botocore.exceptions import ClientError
             import botocore.session
@@ -231,12 +230,16 @@ class TestLLMObsBedrock:
             session = botocore.session.get_session()
             sqs_client = session.create_client("sqs", region_name="us-east-1")
             pin = Pin.get_from(sqs_client)
-            pin._override(sqs_client, tracer=mock_tracer)
+            pin._override(sqs_client, tracer=tracer)
             try:
                 sqs_client.list_queues()
             except ClientError:
                 pass
-            assert mock_tracer.pop_traces() == []
+            # Filter out urllib3 spans - we only care that SQS/botocore spans aren't generated
+            traces = test_spans.pop_traces()
+            non_urllib3_traces = [[s for s in t if s.name != "urllib3.request"] for t in traces]
+            non_urllib3_traces = [t for t in non_urllib3_traces if t]  # Remove empty traces
+            assert non_urllib3_traces == []
 
         llmobs_service.disable()
 
@@ -248,7 +251,7 @@ class TestLLMObsBedrock:
                 body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
                 response = bedrock_client.invoke_model(body=body, modelId=model)
                 json.loads(response.get("body").read())
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
 
         metadata = mock.ANY
 
@@ -272,7 +275,7 @@ class TestLLMObsBedrock:
         with request_vcr.use_cassette("bedrock_converse.yaml"):
             response = bedrock_client.converse(**request_params)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
 
         assert llmobs_events[0] == _expected_llmobs_llm_span_event(
@@ -323,7 +326,7 @@ class TestLLMObsBedrock:
             with request_vcr.use_cassette("bedrock_converse_error.yaml"):
                 bedrock_client.converse(**request_params)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == _expected_llmobs_llm_span_event(
             span,
@@ -352,7 +355,7 @@ class TestLLMObsBedrock:
                     if "text" in chunk["contentBlockDelta"]["delta"]:
                         output_msg += chunk["contentBlockDelta"]["delta"]["text"]
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
 
         assert llmobs_events[0] == _expected_llmobs_llm_span_event(
@@ -406,7 +409,7 @@ class TestLLMObsBedrock:
                 # delete keys from streamed chunk
                 [chunk.pop(key) for key in list(chunk.keys())]
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
 
         assert llmobs_events[0] == _expected_llmobs_llm_span_event(
@@ -470,7 +473,7 @@ class TestLLMObsBedrock:
                 ),
             )
             assert len(llmobs_events) == 2
-            spans = mock_tracer.pop_traces()
+            spans = TracerSpanContainer(mock_tracer).pop_traces()
             span1, span2 = spans[0][0], spans[1][0]
             assert llmobs_events[0] == _expected_llmobs_llm_span_event(
                 span1,
@@ -550,7 +553,7 @@ class TestLLMObsBedrock:
                 pass
 
             assert len(llmobs_events) == 2
-            spans = mock_tracer.pop_traces()
+            spans = TracerSpanContainer(mock_tracer).pop_traces()
             span1, span2 = spans[0][0], spans[1][0]
 
             assert llmobs_events[0] == _expected_llmobs_llm_span_event(
@@ -739,13 +742,13 @@ class TestLLMObsBedrockProxy:
             json.loads(response.get("body").read())
 
         if "_llmobs_instrumented_proxy_urls" in ddtrace_global_config:
-            span = mock_tracer.pop_traces()[0][0]
+            span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
             assert len(llmobs_events) == 1
             assert llmobs_events[0] == cls.expected_llmobs_span_event_proxy(
                 span, n_output, message="message" in provider
             )
         else:
-            span = mock_tracer.pop_traces()[0][0]
+            span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
             assert len(llmobs_events) == 1
             assert llmobs_events[0]["meta"]["span"]["kind"] == "llm"
 
@@ -787,13 +790,13 @@ class TestLLMObsBedrockProxy:
             "_llmobs_instrumented_proxy_urls" in ddtrace_global_config
             and ddtrace_global_config["_llmobs_instrumented_proxy_urls"]
         ):
-            span = mock_tracer.pop_traces()[0][0]
+            span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
             assert len(llmobs_events) == 1
             assert llmobs_events[0] == cls.expected_llmobs_span_event_proxy(
                 span, n_output, message="message" in provider
             )
         else:
-            span = mock_tracer.pop_traces()[0][0]
+            span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
             assert len(llmobs_events) == 1
             assert llmobs_events[0]["meta"]["span"]["kind"] == "llm"
 
@@ -1031,6 +1034,7 @@ class TestLLMObsBedrockProxy:
         llmobs_events,
         mock_invoke_model_http_error,
         mock_invoke_model_response_error,
+        test_spans,
     ):
         import botocore
 
@@ -1046,7 +1050,7 @@ class TestLLMObsBedrockProxy:
             "_llmobs_instrumented_proxy_urls" in ddtrace_global_config
             and ddtrace_global_config["_llmobs_instrumented_proxy_urls"]
         ):
-            span = mock_tracer_proxy.pop_traces()[0][0]
+            span = test_spans.pop_traces()[0][0]
             assert len(llmobs_events) == 1
             assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
                 span,

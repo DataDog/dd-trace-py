@@ -479,7 +479,7 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         encoded_traces = ci_agentless_encoder.encode()
         assert encoded_traces, "Expected encoded traces but got empty list"
         [(event_payload, _)] = encoded_traces
-        decoded_event_payload = self.tracer.encoder._decode(event_payload)
+        decoded_event_payload = self.tracer._span_aggregator.writer.msgpack_encoder._decode(event_payload)
         given_test_span = spans[0]
         given_test_event = decoded_event_payload[b"events"][0]
         expected_meta = {
@@ -542,7 +542,7 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         encoded_traces = ci_agentless_encoder.encode()
         assert encoded_traces, "Expected encoded traces but got empty list"
         [(event_payload, _)] = encoded_traces
-        decoded_event_payload = self.tracer.encoder._decode(event_payload)
+        decoded_event_payload = self.tracer._span_aggregator.writer.msgpack_encoder._decode(event_payload)
         given_test_suite_span = spans[3]
         assert given_test_suite_span.get_tag("type") == "test_suite_end"
         given_test_suite_event = decoded_event_payload[b"events"][3]
@@ -600,7 +600,7 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         encoded_traces = ci_agentless_encoder.encode()
         assert encoded_traces, "Expected encoded traces but got empty list"
         [(event_payload, _)] = encoded_traces
-        decoded_event_payload = self.tracer.encoder._decode(event_payload)
+        decoded_event_payload = self.tracer._span_aggregator.writer.msgpack_encoder._decode(event_payload)
         given_test_module_span = spans[2]
         given_test_module_event = decoded_event_payload[b"events"][2]
         expected_meta = {
@@ -653,7 +653,7 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         encoded_traces = ci_agentless_encoder.encode()
         assert encoded_traces, "Expected encoded traces but got empty list"
         [(event_payload, _)] = encoded_traces
-        decoded_event_payload = self.tracer.encoder._decode(event_payload)
+        decoded_event_payload = self.tracer._span_aggregator.writer.msgpack_encoder._decode(event_payload)
         given_test_session_span = spans[1]
         given_test_session_event = decoded_event_payload[b"events"][1]
         expected_meta = {
