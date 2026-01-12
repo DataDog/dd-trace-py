@@ -445,3 +445,19 @@ class AI_GUARD(metaclass=Constant_Class):
     METRIC_PREFIX: Literal["ai_guard"] = "ai_guard"
     REQUESTS_METRIC: str = METRIC_PREFIX + ".requests"
     TRUNCATED_METRIC: str = METRIC_PREFIX + ".truncated"
+
+
+class SCA(metaclass=Constant_Class):
+    """SCA (Software Composition Analysis) related constants."""
+
+    # Environment variables
+    ENV_ENABLED: Literal["DD_APPSEC_SCA_ENABLED"] = "DD_APPSEC_SCA_ENABLED"
+    ENV_DETECTION: Literal["DD_SCA_DETECTION_ENABLED"] = "DD_SCA_DETECTION_ENABLED"
+
+    # Telemetry tags
+    TAG_INSTRUMENTED: Literal["_dd.sca.instrumented"] = "_dd.sca.instrumented"
+    TAG_DETECTION_HIT: Literal["_dd.sca.detection_hit"] = "_dd.sca.detection_hit"
+    TAG_TARGET: Literal["_dd.sca.target"] = "_dd.sca.target"
+
+    # RC product name
+    RC_PRODUCT: Literal["SCA_DETECTION"] = "SCA_DETECTION"

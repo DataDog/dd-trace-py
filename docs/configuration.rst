@@ -525,6 +525,14 @@ Application & API Security
      default: None
      description: Whether to enable/disable SCA (Software Composition Analysis).
 
+   DD_SCA_DETECTION_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+        Whether to enable SCA runtime vulnerability detection. When enabled, the tracer will instrument
+        functions specified by Remote Configuration to detect vulnerable library usage at runtime.
+        Requires ``DD_APPSEC_SCA_ENABLED`` to be enabled.
+
    DD_APPSEC_MAX_STACK_TRACES:
      type: Integer
      default: 2

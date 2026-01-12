@@ -13,6 +13,7 @@ from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_TRUNCATION_MAX_VALUE_LENGTH_DEFAULT
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
+from ddtrace.appsec._constants import SCA
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.ext import SpanTypes
@@ -204,6 +205,9 @@ class ASMConfig(DDConfig):
         int, "DD_API_SECURITY_MAX_DOWNSTREAM_REQUEST_BODY_ANALYSIS", default=1
     )
 
+    # SCA DETECTION (Runtime Instrumentation)
+    _sca_detection_enabled = DDConfig.var(bool, SCA.ENV_DETECTION, default=False)
+
     # for tests purposes
     _asm_config_keys = [
         "_asm_enabled",
@@ -239,6 +243,7 @@ class ASMConfig(DDConfig):
         "_api_security_parse_response_body",
         "_dr_sample_rate",
         "_dr_body_limit_per_request",
+        "_sca_detection_enabled",
         "_waf_timeout",
         "_iast_redaction_enabled",
         "_iast_redaction_name_pattern",
