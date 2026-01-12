@@ -126,7 +126,9 @@ def test_schematized_service_names(ddtrace_run_python_code_in_subprocess, schema
     code = """
 import pytest
 import sys
+
 from tests.contrib.djangorestframework.conftest import *
+from tests.conftest import *
 
 def test(client, test_spans):
     response = client.get("/users/")
@@ -160,6 +162,7 @@ def test_schematized_operation_names(ddtrace_run_python_code_in_subprocess, sche
     code = """
 import pytest
 import sys
+from tests.conftest import *
 from tests.contrib.djangorestframework.conftest import *
 
 def test(client, test_spans):

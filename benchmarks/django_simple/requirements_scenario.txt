@@ -1,3 +1,2 @@
-django==4.2.21
+django==4.2.27
 gunicorn==23.0.0
-requests==2.31.0

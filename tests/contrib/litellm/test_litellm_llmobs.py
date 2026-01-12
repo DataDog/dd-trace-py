@@ -13,6 +13,7 @@ from tests.contrib.litellm.utils import parse_response
 from tests.contrib.litellm.utils import tools
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.utils import TracerSpanContainer
 
 
 @pytest.mark.parametrize(
@@ -41,7 +42,7 @@ class TestLLMObsLiteLLM:
             else:
                 output_messages, token_metrics = parse_response(resp)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == _expected_llmobs_llm_span_event(
             span,
@@ -72,7 +73,7 @@ class TestLLMObsLiteLLM:
             else:
                 output_messages, token_metrics = parse_response(resp)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == _expected_llmobs_llm_span_event(
             span,
@@ -107,7 +108,7 @@ class TestLLMObsLiteLLM:
             else:
                 output_messages, token_metrics = parse_response(resp)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == _expected_llmobs_llm_span_event(
             span,
@@ -148,7 +149,7 @@ class TestLLMObsLiteLLM:
             else:
                 output_messages, token_metrics = parse_response(resp)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == _expected_llmobs_llm_span_event(
             span,
@@ -177,7 +178,7 @@ class TestLLMObsLiteLLM:
             else:
                 output_messages, token_metrics = parse_response(resp, is_completion=True)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == _expected_llmobs_llm_span_event(
             span,
@@ -206,7 +207,7 @@ class TestLLMObsLiteLLM:
             else:
                 output_messages, token_metrics = parse_response(resp, is_completion=True)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == _expected_llmobs_llm_span_event(
             span,
@@ -239,7 +240,7 @@ class TestLLMObsLiteLLM:
             else:
                 output_messages, _ = parse_response(resp)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
             span,
@@ -275,7 +276,7 @@ class TestLLMObsLiteLLM:
             else:
                 output_messages, token_metrics = parse_response(resp)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == _expected_llmobs_llm_span_event(
             span,
@@ -312,7 +313,7 @@ class TestLLMObsLiteLLM:
             else:
                 output_messages, _ = parse_response(resp)
 
-        trace = mock_tracer.pop_traces()[0]
+        trace = TracerSpanContainer(mock_tracer).pop_traces()[0]
         assert len(trace) == 2
         router_span = trace[0]
 
@@ -354,7 +355,7 @@ class TestLLMObsLiteLLM:
             else:
                 output_messages, _ = parse_response(resp)
 
-        trace = mock_tracer.pop_traces()[0]
+        trace = TracerSpanContainer(mock_tracer).pop_traces()[0]
         assert len(trace) == 2
         router_span = trace[0]
 
@@ -396,7 +397,7 @@ class TestLLMObsLiteLLM:
             else:
                 output_messages, _ = parse_response(resp, is_completion=True)
 
-        trace = mock_tracer.pop_traces()[0]
+        trace = TracerSpanContainer(mock_tracer).pop_traces()[0]
         assert len(trace) == 2
         router_span = trace[0]
 
@@ -438,7 +439,7 @@ class TestLLMObsLiteLLM:
             else:
                 output_messages, _ = parse_response(resp, is_completion=True)
 
-        trace = mock_tracer.pop_traces()[0]
+        trace = TracerSpanContainer(mock_tracer).pop_traces()[0]
         assert len(trace) == 2
         router_span = trace[0]
 

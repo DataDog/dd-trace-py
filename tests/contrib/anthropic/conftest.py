@@ -8,8 +8,6 @@ from ddtrace.contrib.internal.anthropic.patch import patch
 from ddtrace.contrib.internal.anthropic.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from tests.contrib.anthropic.utils import get_request_vcr
-from tests.utils import DummyTracer
-from tests.utils import DummyWriter
 from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -32,16 +30,15 @@ def snapshot_tracer(anthropic):
 
 
 @pytest.fixture
-def mock_tracer(ddtrace_global_config, anthropic):
+def mock_tracer(ddtrace_global_config, tracer, anthropic):
     try:
         pin = Pin.get_from(anthropic)
-        mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-        pin._override(anthropic, tracer=mock_tracer)
+        pin._override(anthropic, tracer=tracer)
         if ddtrace_global_config.get("_llmobs_enabled", False):
             # Have to disable and re-enable LLMObs to use to mock tracer.
             LLMObs.disable()
-            LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)
-        yield mock_tracer
+            LLMObs.enable(_tracer=tracer, integrations_enabled=False)
+        yield tracer
     finally:
         LLMObs.disable()
 
