@@ -164,7 +164,7 @@ class InternalTest(
 ):
     @staticmethod
     @_catch_and_log_exceptions
-    def finish_test(
+    def prepare_for_finish(
         item_id: ext_api.TestId,
         status: t.Optional[ext_api.TestStatus] = None,
         skip_reason: t.Optional[str] = None,
@@ -172,7 +172,7 @@ class InternalTest(
         override_finish_time: t.Optional[float] = None,
     ):
         log.debug("Finishing test with status: %s, skip_reason: %s", status, skip_reason)
-        require_ci_visibility_service().get_test_by_id(item_id).finish_test(
+        require_ci_visibility_service().get_test_by_id(item_id).prepare_for_finish(
             status=status, skip_reason=skip_reason, exc_info=exc_info, override_finish_time=override_finish_time
         )
 
@@ -224,13 +224,6 @@ class InternalTest(
         require_ci_visibility_service().get_test_by_id(item_id).overwrite_attributes(
             name, suite_name, parameters, codeowners
         )
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def set_final_status(test_id: ext_api.TestId, final_status: ext_api.TestStatus) -> None:
-        log.debug("Setting final_status to test %s as %s", test_id, final_status)
-
-        return require_ci_visibility_service().get_test_by_id(test_id).set_final_status(final_status)
 
     @staticmethod
     @_catch_and_log_exceptions

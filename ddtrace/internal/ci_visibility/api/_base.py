@@ -405,7 +405,7 @@ class TestVisibilityItemBase(abc.ABC):
     def is_started(self) -> bool:
         return self._span is not None
 
-    def finish_test(
+    def prepare_for_finish(
         self,
         override_status: Optional[TestStatus] = None,
         override_finish_time: Optional[float] = None,
@@ -426,20 +426,20 @@ class TestVisibilityItemBase(abc.ABC):
     def finish(self, force: bool = False) -> None:
         """Finish and send the span to the backend.
 
-        This just sends the span - finish_test() should be called first to prepare it.
-        If finish_test() hasn't been called yet, it will be called automatically for backward compatibility.
+        This just sends the span - prepare_for_finish() should be called first to prepare it.
+        If prepare_for_finish() hasn't been called yet, it will be called automatically for backward compatibility.
         Parent items override this to handle children first.
         """
         log.debug("Test Visibility: finishing and sending %s", self)
 
-        # Backward compatibility: if finish_test() wasn't called yet, call it now
+        # Backward compatibility: if prepare_for_finish() wasn't called yet, call it now
         if self._finish_time is None:
-            self.finish_test()
+            self.prepare_for_finish()
 
         self._finish_span()
 
     def is_finished(self) -> bool:
-        # With two-phase finish, a test is considered finished after finish_test() is called (_finish_time is set)
+        # With two-phase finish, a test is considered finished after prepare_for_finish() is called (_finish_time is set)
         # even if the span hasn't been sent yet (span.finished is False)
         return self._finish_time is not None or (self._span is not None and self._span.finished)
 
@@ -639,7 +639,7 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
         # If we somehow got here, something odd happened and we set the status as FAIL out of caution
         return TestStatus.FAIL
 
-    def finish_test(
+    def prepare_for_finish(
         self,
         override_status: Optional[TestStatus] = None,
         override_finish_time: Optional[float] = None,
@@ -666,7 +666,7 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
             self.set_status(item_status)
 
         # Prepare the span with all tags
-        super().finish_test(override_status=override_status, override_finish_time=override_finish_time)
+        super().prepare_for_finish(override_status=override_status, override_finish_time=override_finish_time)
 
     def finish(
         self,

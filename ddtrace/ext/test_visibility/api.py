@@ -367,26 +367,17 @@ class Test(TestBase):
         status: Optional[TestStatus] = None,
         skip_reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
-        final: bool = True,
     ):
         log.debug(
-            "Finishing test %s, status: %s, skip_reason: %s, exc_info: %s, final: %s",
+            "Finishing test %s, status: %s, skip_reason: %s, exc_info: %s",
             item_id,
             status,
             skip_reason,
             exc_info,
-            final,
         )
 
         test_obj = require_ci_visibility_service().get_test_by_id(item_id)
-        test_obj.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
-
-        # Only set final_status if this is the final execution (no retries will follow)
-        # For external API users, final=True by default (backward compatible)
-        # For internal API with retries, pass final=False to avoid duplicate final_status tags
-        if final and status is not None:
-            test_obj.set_final_status(status)
-
+        test_obj.prepare_for_finish(status=status, skip_reason=skip_reason, exc_info=exc_info)
         test_obj.finish()
 
     @staticmethod

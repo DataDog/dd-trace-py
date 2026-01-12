@@ -49,12 +49,12 @@ class TestVisibilitySuite(TestVisibilityParentItem[TestId, TestVisibilityTest], 
         module_name = self.parent.name if self.parent is not None else "none"
         return f"{self.__class__.__name__}(name={self.name}, module={module_name})"
 
-    def finish_test(
+    def prepare_for_finish(
         self,
         override_status: Optional[TestStatus] = None,
         override_finish_time: Optional[float] = None,
     ) -> None:
-        super().finish_test(override_status=override_status, override_finish_time=override_finish_time)
+        super().prepare_for_finish(override_status=override_status, override_finish_time=override_finish_time)
 
     def finish(
         self,

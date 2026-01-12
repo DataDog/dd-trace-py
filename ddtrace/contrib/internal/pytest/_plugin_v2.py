@@ -693,7 +693,7 @@ def _pytest_run_one_test(item, nextitem):
 
     if not InternalTest.is_finished(test_id):
         _handle_collected_coverage(item, test_id, _current_coverage_collector)
-        InternalTest.finish_test(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
+        InternalTest.prepare_for_finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
     for report in reports:
         if report.failed and report.when in (TestPhase.SETUP, TestPhase.TEARDOWN):
@@ -730,13 +730,6 @@ def _pytest_run_one_test(item, nextitem):
             is_quarantined=is_quarantined,
         )
     else:
-        # Set final_status tag on the finished span for tests without retries
-        # This will be overridden by retry handlers for tests that are retried
-        # We access the span directly to set the tag after finishing
-        if test_outcome.status is None:
-            log.debug("Test status for %s is None", test_id)
-        else:
-            InternalTest.set_final_status(test_id, test_outcome.status)
 
         # If no retry handler, we log the reports ourselves.
         for report in reports:
