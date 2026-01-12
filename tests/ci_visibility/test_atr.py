@@ -84,7 +84,7 @@ class TestCIVisibilityTestATR:
 
             with mock.patch.object(atr_test, "get_session", return_value=session):
                 atr_test.start()
-                atr_test.finish_test(TestStatus.FAIL)
+                atr_test.prepare_for_finish(TestStatus.FAIL)
 
                 retry_count = 0
                 while atr_test.atr_should_retry():  # avoid infinite loops
@@ -176,7 +176,7 @@ class TestCIVisibilityTestATR:
         atr_test.get_session = lambda: session
 
         atr_test.start()
-        atr_test.finish_test(test_result)
+        atr_test.prepare_for_finish(test_result)
         expected_retry_number = 0
         for test_result in retry_results:
             if not atr_test.atr_should_retry():
@@ -193,5 +193,5 @@ class TestCIVisibilityTestATR:
             session_settings=self._get_session_settings(atr_settings=AutoTestRetriesSettings(enabled=False)),
         )
         atr_test.start()
-        atr_test.finish_test(TestStatus.FAIL)
+        atr_test.prepare_for_finish(TestStatus.FAIL)
         assert atr_test.atr_should_retry() is False

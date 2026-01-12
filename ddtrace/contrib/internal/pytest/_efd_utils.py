@@ -126,7 +126,7 @@ def _efd_do_retries(item: pytest.Item) -> EFDTestStatus:
     )
 
     # Send the original test FIRST (it's already finished before retries start)
-    InternalTest.write_test(test_id)
+    InternalTest.finish(test_id)
 
     while InternalTest.efd_should_retry(test_id):
         retry_num = InternalTest.efd_add_retry(test_id, start_immediately=True)

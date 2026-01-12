@@ -735,7 +735,7 @@ def _pytest_run_one_test(item, nextitem):
         for report in reports:
             item.ihook.pytest_runtest_logreport(report=report)
 
-    InternalTest.write_test(test_id)
+    InternalTest.finish(test_id)
 
     item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
 

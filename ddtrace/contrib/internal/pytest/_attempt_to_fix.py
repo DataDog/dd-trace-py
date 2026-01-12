@@ -102,7 +102,7 @@ def _do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
     test_id = _get_test_id_from_item(item)
 
     # Send the original test FIRST (it's already finished before retries start)
-    InternalTest.write_test(test_id)
+    InternalTest.finish(test_id)
 
     while InternalTest.attempt_to_fix_should_retry(test_id):
         retry_num = InternalTest.attempt_to_fix_add_retry(test_id, start_immediately=True)

@@ -178,9 +178,9 @@ class InternalTest(
 
     @staticmethod
     @_catch_and_log_exceptions
-    def write_test(item_id: ext_api.TestId) -> None:
-        log.debug("Writing test %s", item_id)
-        require_ci_visibility_service().get_test_by_id(item_id).write_test()
+    def finish(item_id: ext_api.TestId) -> None:
+        log.debug("Finishing test %s", item_id)
+        require_ci_visibility_service().get_test_by_id(item_id).finish()
 
     @staticmethod
     @_catch_and_log_exceptions

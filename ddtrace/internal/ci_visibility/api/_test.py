@@ -239,12 +239,14 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
         super().prepare_for_finish(override_status=override_status, override_finish_time=override_finish_time)
 
-    def write_test(self) -> None:
+    def finish(self) -> None:
         """Send the test span to the backend.
 
         This should be called after prepare_for_finish() has been called to prepare the span.
+        If prepare_for_finish() hasn't been called yet, it will be called automatically for backward compatibility.
         """
-        self._finish_span()
+        # Call the base class finish method which has the backward compatibility logic
+        super().finish()
 
     def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
         if self.efd_has_retries():
@@ -431,7 +433,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             retry_test.set_status(status)
 
         retry_test.prepare_for_finish(status=status, skip_reason=skip_reason, exc_info=exc_info)
-        retry_test.write_test()  # Auto-send the retry span
+        retry_test.finish()  # Send the retry span
 
     def efd_get_final_status(self) -> EFDTestStatus:
         status_counts: Dict[TestStatus, int] = {
@@ -536,7 +538,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
                 retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
 
         retry_test.prepare_for_finish(status=status, skip_reason=skip_reason, exc_info=exc_info)
-        retry_test.write_test()  # Auto-send the retry span
+        retry_test.finish()  # Send the retry span
 
     def atr_get_final_status(self) -> TestStatus:
         if self._status in [TestStatus.PASS, TestStatus.SKIP]:
@@ -624,7 +626,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             retry_test.set_tag(TEST_ATTEMPT_TO_FIX_PASSED, all_passed)
 
         retry_test.prepare_for_finish(status=status, skip_reason=skip_reason, exc_info=exc_info)
-        retry_test.write_test()  # Auto-send the retry span
+        retry_test.finish()  # Send the retry span
 
     def attempt_to_fix_get_final_status(self) -> TestStatus:
         if all(retry._status == TestStatus.PASS for retry in self._attempt_to_fix_retries):
@@ -662,4 +664,3 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
                 value = getattr(self._benchmark_duration_data, tag)
                 if value is not None:
                     self.set_tag(attr, value)
-

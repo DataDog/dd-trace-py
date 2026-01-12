@@ -179,7 +179,7 @@ class TestSession(_TestVisibilityAPIBase):
         log.debug("Finishing session, force_finish_session_modules: %s", force_finish_children)
 
         session = require_ci_visibility_service().get_session()
-        session.finish_test(override_status=override_status)
+        session.prepare_for_finish(override_status=override_status)
         session.finish(force=force_finish_children)
 
     @staticmethod
@@ -243,7 +243,7 @@ class TestModule(TestBase):
         )
 
         test_obj = require_ci_visibility_service().get_module_by_id(item_id)
-        test_obj.finish_test(override_status=override_status)
+        test_obj.prepare_for_finish(override_status=override_status)
         test_obj.finish(force=force_finish_children)
 
 
@@ -293,7 +293,7 @@ class TestSuite(TestBase):
         )
 
         test_suite_obj = require_ci_visibility_service().get_suite_by_id(item_id)
-        test_suite_obj.finish_test(override_status=override_status)
+        test_suite_obj.prepare_for_finish(override_status=override_status)
         test_suite_obj.finish(force=force_finish_children)
 
 

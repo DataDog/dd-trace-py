@@ -70,7 +70,7 @@ class TestCIVisibilityTestEFD:
             efd_test.start()
             # Overwrite the test duration
             efd_test._span.start_ns -= efd_test_duration_s * 1e9
-            efd_test.finish_test(TestStatus.PASS)
+            efd_test.prepare_for_finish(TestStatus.PASS)
 
             retry_count = 0
             while efd_test.efd_should_retry():
@@ -158,7 +158,7 @@ class TestCIVisibilityTestEFD:
         mock_session.efd_is_faulty_session.return_value = False
         with mock.patch.object(TestVisibilityTest, "get_session", lambda *args: mock_session):
             efd_test.start()
-            efd_test.finish_test(test_result)
+            efd_test.prepare_for_finish(test_result)
             expected_num_retry = 0
             for test_result in retry_results:
                 expected_num_retry += 1
@@ -174,7 +174,7 @@ class TestCIVisibilityTestEFD:
             session_settings=self._get_session_settings(EarlyFlakeDetectionSettings(False)),
         )
         efd_test.start()
-        efd_test.finish_test(TestStatus.FAIL)
+        efd_test.prepare_for_finish(TestStatus.FAIL)
         assert efd_test.efd_should_retry() is False
 
     @pytest.mark.parametrize(

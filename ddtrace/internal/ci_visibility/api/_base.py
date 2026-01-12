@@ -412,7 +412,7 @@ class TestVisibilityItemBase(abc.ABC):
     ) -> None:
         """Prepare the span for finishing by setting all tags and finish time.
 
-        This does NOT send the span - call finish() or write_test() to actually send it.
+        This does NOT send the span - call finish() to actually send it.
         The 'force' parameter is provided for compatibility with parent items but not used here.
         """
         log.debug("Test Visibility: preparing to finish %s", self)
@@ -677,24 +677,24 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
         """Recursively finish all children and then finish self
 
         force results in all children being finished regardless of their status
-        finish_test() should be called first to prepare the span.
-        If finish_test() hasn't been called yet, it will be called automatically for backward compatibility.
+        prepare_for_finish() should be called first to prepare the span.
+        If prepare_for_finixh() hasn't been called yet, it will be called automatically for backward compatibility.
         """
         if force:
             # Finish all children regardless of their status
             for child in self._children.values():
                 if not child._finish_time:
-                    child.finish_test(override_status=override_status, override_finish_time=override_finish_time)
+                    child.prepare_for_finish(override_status=override_status, override_finish_time=override_finish_time)
                 if not child.is_finished():
                     # For children being forcefully finished, prepare and send them
                     child.finish(force=force)
             self.set_status(self.get_raw_status())
 
-        # Backward compatibility: if finish_test() wasn't called yet, call it now
+        # Backward compatibility: if prepare_for_finish() wasn't called yet, call it now
         if self._finish_time is None:
-            self.finish_test(override_status=override_status, override_finish_time=override_finish_time)
+            self.prepare_for_finish(override_status=override_status, override_finish_time=override_finish_time)
 
-        # Send the span (finish_test() should have been called already to prepare it)
+        # Send the span (prepare_for_finish() should have been called already to prepare it)
         self._finish_span()
 
     def add_child(self, child_item_id: CIDT, child: CITEMT) -> None:
