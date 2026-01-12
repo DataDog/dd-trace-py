@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: This fix resolves an issue where memory profiler module fails
+    to load when the system doesn't have libatomic installed.
+

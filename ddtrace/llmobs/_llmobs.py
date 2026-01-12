@@ -39,6 +39,7 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -122,6 +123,7 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.vendor.debtcollector import deprecate
 
 
 log = get_logger(__name__)
@@ -1033,12 +1035,20 @@ class LLMObs(Service):
             if span is None:
                 telemetry.record_span_exported(span, "no_active_span")
                 log.warning("No span provided and no active LLMObs-generated span found.")
+                deprecate(
+                    "LLMObs.export_span() warnings logged will instead be raised as errors in ddtrace version 4.0.0",
+                    category=DDTraceDeprecationWarning,
+                )
                 return None
         error = None
         try:
             if span.span_type != SpanTypes.LLM:
                 error = "invalid_span"
                 log.warning("Span must be an LLMObs-generated span.")
+                deprecate(
+                    "LLMObs.export_span() warnings logged will instead be raised as errors in ddtrace version 4.0.0",
+                    category=DDTraceDeprecationWarning,
+                )
                 return None
             return ExportedLLMObsSpan(
                 span_id=str(span.span_id),
@@ -1047,6 +1057,10 @@ class LLMObs(Service):
         except (TypeError, AttributeError):
             error = "invalid_span"
             log.warning("Failed to export span. Span must be a valid Span object.")
+            deprecate(
+                "LLMObs.export_span() warnings logged will instead be raised as errors in ddtrace version 4.0.0",
+                category=DDTraceDeprecationWarning,
+            )
             return None
         finally:
             telemetry.record_span_exported(span, error)
@@ -1430,31 +1444,55 @@ class LLMObs(Service):
                 if span is None:
                     error = "invalid_span_no_active_spans"
                     log.warning("No span provided and no active LLMObs-generated span found.")
+                    deprecate(
+                        "LLMObs.annotate() warnings logged will instead be raised as errors in ddtrace version 4.0.0",
+                        category=DDTraceDeprecationWarning,
+                    )
                     return
             if span.span_type != SpanTypes.LLM:
                 error = "invalid_span_type"
                 log.warning("Span must be an LLMObs-generated span.")
+                deprecate(
+                    "LLMObs.annotate() warnings logged will instead be raised as errors in ddtrace version 4.0.0",
+                    category=DDTraceDeprecationWarning,
+                )
                 return
             if span.finished:
                 error = "invalid_finished_span"
                 log.warning("Cannot annotate a finished span.")
+                deprecate(
+                    "LLMObs.annotate() warnings logged will instead be raised as errors in ddtrace version 4.0.0",
+                    category=DDTraceDeprecationWarning,
+                )
                 return
             if metadata is not None:
                 if not isinstance(metadata, dict):
                     error = "invalid_metadata"
                     log.warning("metadata must be a dictionary")
+                    deprecate(
+                        "LLMObs.annotate() warnings logged will instead be raised as errors in ddtrace version 4.0.0",
+                        category=DDTraceDeprecationWarning,
+                    )
                 else:
                     cls._set_dict_attribute(span, METADATA, metadata)
             if metrics is not None:
                 if not isinstance(metrics, dict) or not all(isinstance(v, (int, float)) for v in metrics.values()):
                     error = "invalid_metrics"
                     log.warning("metrics must be a dictionary of string key - numeric value pairs.")
+                    deprecate(
+                        "LLMObs.annotate() warnings logged will instead be raised as errors in ddtrace version 4.0.0",
+                        category=DDTraceDeprecationWarning,
+                    )
                 else:
                     cls._set_dict_attribute(span, METRICS, metrics)
             if tags is not None:
                 if not isinstance(tags, dict):
                     error = "invalid_tags"
                     log.warning("span tags must be a dictionary of string key - primitive value pairs.")
+                    deprecate(
+                        "LLMObs.annotate() warnings logged will instead be raised as errors in ddtrace version 4.0.0",
+                        category=DDTraceDeprecationWarning,
+                    )
                 else:
                     session_id = tags.get("session_id")
                     if session_id:
@@ -1474,8 +1512,16 @@ class LLMObs(Service):
                 except (ValueError, TypeError) as e:
                     error = "invalid_prompt"
                     log.warning("Failed to validate prompt with error:", str(e), exc_info=True)
+                    deprecate(
+                        "LLMObs.annotate() warnings logged will instead be raised as errors in ddtrace version 4.0.0",
+                        category=DDTraceDeprecationWarning,
+                    )
             if not span_kind:
                 log.debug("Span kind not specified, skipping annotation for input/output data")
+                deprecate(
+                    "LLMObs.annotate() warnings logged will instead be raised as errors in ddtrace version 4.0.0",
+                    category=DDTraceDeprecationWarning,
+                )
                 return
             if input_data is not None or output_data is not None:
                 if span_kind == "llm":
@@ -1754,6 +1800,11 @@ class LLMObs(Service):
                     "ML App name is required for sending evaluation metrics. Evaluation metric data will not be sent. "
                     "Ensure this configuration is set before running your application."
                 )
+                deprecate(
+                    "LLMObs.submit_evaluation() warnings logged for missing ml_app will "
+                    "instead be raised as errors in ddtrace version 4.0.0",
+                    category=DDTraceDeprecationWarning,
+                )
                 return
 
             evaluation_tags = {
@@ -1768,6 +1819,11 @@ class LLMObs(Service):
                     except TypeError:
                         error = "invalid_tags"
                         log.warning("Failed to parse tags. Tags for evaluation metrics must be strings.")
+                        deprecate(
+                            "LLMObs.submit_evaluation() warnings logged for unparsable tags will "
+                            "instead be raised as errors in ddtrace version 4.0.0",
+                            category=DDTraceDeprecationWarning,
+                        )
 
             evaluation_metric: LLMObsEvaluationMetricEvent = {
                 "join_on": join_on,
@@ -1783,12 +1839,22 @@ class LLMObs(Service):
                 if not isinstance(assessment, str) or assessment not in ("pass", "fail"):
                     error = "invalid_assessment"
                     log.warning("Failed to parse assessment. assessment must be either 'pass' or 'fail'.")
+                    deprecate(
+                        "LLMObs.submit_evaluation() warnings for invalid assessment logged will instead "
+                        "be raised as errors in ddtrace version 4.0.0",
+                        category=DDTraceDeprecationWarning,
+                    )
                 else:
                     evaluation_metric["assessment"] = assessment
             if reasoning:
                 if not isinstance(reasoning, str):
                     error = "invalid_reasoning"
                     log.warning("Failed to parse reasoning. reasoning must be a string.")
+                    deprecate(
+                        "LLMObs.submit_evaluation() warnings for invalid reasoning logged will "
+                        "instead be raised as errors in ddtrace version 4.0.0",
+                        category=DDTraceDeprecationWarning,
+                    )
                 else:
                     evaluation_metric["reasoning"] = reasoning
 
@@ -1796,6 +1862,11 @@ class LLMObs(Service):
                 if not isinstance(metadata, dict):
                     error = "invalid_metadata"
                     log.warning("metadata must be json serializable dictionary.")
+                    deprecate(
+                        "LLMObs.submit_evaluation() warnings for invalid metadata logged will "
+                        "instead be raised as errors in ddtrace version 4.0.0",
+                        category=DDTraceDeprecationWarning,
+                    )
                 else:
                     metadata = safe_json(metadata)
                     if metadata and isinstance(metadata, str):
@@ -1846,16 +1917,31 @@ class LLMObs(Service):
             if not isinstance(request_headers, dict):
                 error = "invalid_request_headers"
                 log.warning("request_headers must be a dictionary of string key-value pairs.")
+                deprecate(
+                    "LLMObs.inject_distributed_headers() warnings logged will "
+                    "instead be raised as errors in ddtrace version 4.0.0",
+                    category=DDTraceDeprecationWarning,
+                )
                 return request_headers
             if span is None:
                 span = cls._instance.tracer.current_span()
             if span is None:
                 error = "no_active_span"
                 log.warning("No span provided and no currently active span found.")
+                deprecate(
+                    "LLMObs.inject_distributed_headers() warnings logged will "
+                    "instead be raised as errors in ddtrace version 4.0.0",
+                    category=DDTraceDeprecationWarning,
+                )
                 return request_headers
             if not isinstance(span, Span):
                 error = "invalid_span"
                 log.warning("span must be a valid Span object. Distributed context will not be injected.")
+                deprecate(
+                    "LLMObs.inject_distributed_headers() warnings logged will "
+                    "instead be raised as errors in ddtrace version 4.0.0",
+                    category=DDTraceDeprecationWarning,
+                )
                 return request_headers
             HTTPPropagator.inject(span.context, request_headers)
             return request_headers
@@ -1868,6 +1954,11 @@ class LLMObs(Service):
             return None
         if not context.trace_id or not context.span_id:
             log.warning("Failed to extract trace/span ID from request headers.")
+            deprecate(
+                "LLMObs.activate_distributed_headers() warnings logged will "
+                "instead be raised as errors in ddtrace version 4.0.0",
+                category=DDTraceDeprecationWarning,
+            )
             return "missing_context"
         _parent_id = context._meta.get(PROPAGATED_PARENT_ID_KEY)
         if _parent_id is None:
