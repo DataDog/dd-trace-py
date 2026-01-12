@@ -401,6 +401,6 @@ class Test(TestBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def mark_skip(item_id: TestId, skip_reason: Optional[str] = None, fina):
+    def mark_skip(item_id: TestId, skip_reason: Optional[str] = None):
         log.debug("Marking test %s as skipped, skip reason: %s", item_id, skip_reason)
         Test.finish(item_id, TestStatus.SKIP, skip_reason=skip_reason)
