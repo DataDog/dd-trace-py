@@ -153,8 +153,32 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypat
     worker_pids = _get_worker_pids(proc.stdout, 2, 2)
     assert len(worker_pids) == 2
 
-    # Give some time to child to actually startup and output a profile
-    time.sleep(3)
+    # Wait for profiles with wall-time samples to be generated
+    # The upload interval is 1s, but we need to wait for at least one full
+    # profiling cycle plus buffer for slow CI environments
+    max_wait = 10
+    wait_interval = 0.5
+    waited = 0
+    all_have_samples = False
+    while waited < max_wait:
+        time.sleep(wait_interval)
+        waited += wait_interval
+        # Check if profiles with wall-time samples exist for all workers
+        try:
+            all_have_samples = all(
+                pprof_utils.get_samples_with_value_type(
+                    pprof_utils.parse_newest_profile("%s.%d" % (filename, pid), assert_samples=False),
+                    "wall-time",
+                )
+                for pid in worker_pids
+            )
+            if all_have_samples:
+                break
+        except (IndexError, FileNotFoundError, StopIteration):
+            # Profile files don't exist yet or don't have wall-time sample type
+            pass
+
+    assert all_have_samples, f"Timed out waiting for profiles with wall-time samples after {max_wait}s"
 
     # Kill master process
     parent_pid: int = worker_pids[0]
@@ -178,9 +202,11 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypat
         print(f"INFO: Worker {worker_pid} was successfully killed.")
 
     for pid in worker_pids:
-        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
+        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid), assert_samples=False)
+        assert len(profile.sample) > 0, f"Profile for worker {pid} has no samples."
+
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
-        assert len(samples) > 0
+        assert len(samples) > 0, f"Profile for worker {pid} has no wall-time samples."
 
 
 @pytest.mark.parametrize("lazy_flag", ["--lazy-apps", "--lazy"])
