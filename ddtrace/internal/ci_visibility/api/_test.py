@@ -207,7 +207,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             is_auto_injected=self._session_settings.is_auto_injected,
         )
 
-    def prepare_for_finish(
+    def finish_test(
         self,
         override_status: Optional[TestStatus] = None,
         override_finish_time: Optional[float] = None,
@@ -275,7 +275,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if self._session_settings.itr_test_skipping_level == ITR_SKIPPING_LEVEL.TEST:
             self.count_itr_skipped()
         self.mark_itr_skipped()
-        self.prepare_for_finish(status=TestStatus.SKIP)
+        self.finish_test(status=TestStatus.SKIP)
         self.finish()  # Actually send the span
 
     def overwrite_attributes(
@@ -432,7 +432,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if status is not None:
             retry_test.set_status(status)
 
-        retry_test.prepare_for_finish(status=status, skip_reason=skip_reason, exc_info=exc_info)
+        retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
         retry_test.finish()  # Send the retry span
 
     def efd_get_final_status(self) -> EFDTestStatus:
@@ -537,7 +537,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             if self.atr_get_final_status() == TestStatus.FAIL:
                 retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
 
-        retry_test.prepare_for_finish(status=status, skip_reason=skip_reason, exc_info=exc_info)
+        retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
         retry_test.finish()  # Send the retry span
 
     def atr_get_final_status(self) -> TestStatus:
@@ -625,7 +625,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
             retry_test.set_tag(TEST_ATTEMPT_TO_FIX_PASSED, all_passed)
 
-        retry_test.prepare_for_finish(status=status, skip_reason=skip_reason, exc_info=exc_info)
+        retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
         retry_test.finish()  # Send the retry span
 
     def attempt_to_fix_get_final_status(self) -> TestStatus:

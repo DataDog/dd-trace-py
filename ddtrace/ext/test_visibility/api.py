@@ -377,7 +377,7 @@ class Test(TestBase):
         )
 
         test_obj = require_ci_visibility_service().get_test_by_id(item_id)
-        test_obj.prepare_for_finish(status=status, skip_reason=skip_reason, exc_info=exc_info)
+        test_obj.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
         test_obj.finish()
 
     @staticmethod

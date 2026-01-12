@@ -685,8 +685,9 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
         if self._finish_time is None:
             self.prepare_for_finish(override_status=override_status, override_finish_time=override_finish_time)
 
-        # Send the span (prepare_for_finish() should have been called already to prepare it)
-        self._finish_span()
+        super().finish()
+        # # Send the span (prepare_for_finish() should have been called already to prepare it)
+        # self._finish_span()
 
     def add_child(self, child_item_id: CIDT, child: CITEMT) -> None:
         child.parent = self

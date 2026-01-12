@@ -172,7 +172,7 @@ class InternalTest(
         override_finish_time: t.Optional[float] = None,
     ):
         log.debug("Finishing test with status: %s, skip_reason: %s", status, skip_reason)
-        require_ci_visibility_service().get_test_by_id(item_id).prepare_for_finish(
+        require_ci_visibility_service().get_test_by_id(item_id).finish_test(
             status=status, skip_reason=skip_reason, exc_info=exc_info, override_finish_time=override_finish_time
         )
 
