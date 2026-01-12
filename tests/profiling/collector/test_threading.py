@@ -1294,7 +1294,7 @@ class BaseThreadingLockCollectorTest:
                 time.sleep(0.001)
                 lock.release()
 
-        ddup.upload()
+        # ddup.upload()
 
         profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename, assert_samples=False)
         release_samples: List[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
