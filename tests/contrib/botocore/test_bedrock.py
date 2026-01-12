@@ -9,6 +9,7 @@ from tests.contrib.botocore.bedrock_utils import BOTO_VERSION
 from tests.contrib.botocore.bedrock_utils import bedrock_converse_args_with_system_and_tool
 from tests.contrib.botocore.bedrock_utils import create_bedrock_converse_request
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
+from tests.utils import TracerSpanContainer
 
 
 @pytest.mark.snapshot
@@ -248,7 +249,7 @@ def test_span_finishes_after_generator_exit(bedrock_client, request_vcr, mock_tr
                 if i >= 6:
                     raise GeneratorExit
                 i += 1
-    span = mock_tracer.pop_traces()[0][0]
+    span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
     assert span is not None
     assert span.name == "bedrock-runtime.command"
     assert span.resource == "InvokeModelWithResponseStream"

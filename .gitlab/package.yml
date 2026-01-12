@@ -120,7 +120,7 @@ variables:
     - pip install ${SDIST_FILE}
     - python ${CI_PROJECT_DIR}/tests/smoke_test.py
 
-download_ddtrace_artifacts:
+"download windows wheels":
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   tags: [ "arch:amd64" ]
   stage: package
@@ -182,7 +182,7 @@ publish-wheels-to-s3:
   image: registry.ddbuild.io/images/mirror/amazon/aws-cli:2.4.29
   stage: package
   needs:
-    - job: "build linux"
+    - job: "ddtrace package"
       artifacts: true
   variables:
     BUCKET: dd-trace-py-builds
@@ -233,18 +233,52 @@ publish-wheels-to-s3:
       echo "S3 index (commit):   ${COMMIT_INDEX_URL}"
       echo "S3 index (pipeline): ${PIPE_INDEX_URL}"
 
+      # Also publish to branch path if on main or a release branch
+      if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+        echo "Publishing to ${CI_COMMIT_BRANCH}/ path"
+        aws s3 cp --recursive --exclude "*" --include "*.whl" pywheels "s3://${BUCKET}/${CI_COMMIT_BRANCH}/"
+        generate_index_html "index.branch.html"
+        aws s3 cp "index.branch.html" "s3://${BUCKET}/${CI_COMMIT_BRANCH}/index.html" --content-type text/html
+        BRANCH_INDEX_URL="https://${BUCKET}.s3.amazonaws.com/${CI_COMMIT_BRANCH}/index.html"
+        echo "S3 index (branch):   ${BRANCH_INDEX_URL}"
+      fi
 
-# Fail if the downloaded package versions do not match the git tag version
-verify_package_version:
+# Extract package version from pyproject.toml and save to dotenv artifact
+"package version":
   image: registry.ddbuild.io/images/mirror/python:3.14.0
   tags: [ "arch:amd64" ]
   stage: package
-  needs: [ download_ddtrace_artifacts ]
-  only:
-    # v2.10.0
-    # v2.10.1
-    # v2.10.0rc0
-    # v2.10.0rc5
-    - /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
   script:
-    - .gitlab/verify-package-versions.sh
+    - PACKAGE_VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+    - echo "PACKAGE_VERSION=${PACKAGE_VERSION}" | tee -a package_version.env
+    # Validate commit tag matches version if tag is set
+    - |
+      if [ -n "${CI_COMMIT_TAG:-}" ]; then
+        EXPECTED_TAG="v${PACKAGE_VERSION}"
+        if [ "${CI_COMMIT_TAG}" != "${EXPECTED_TAG}" ]; then
+          echo "[ERROR] CI_COMMIT_TAG (${CI_COMMIT_TAG}) does not match expected tag (${EXPECTED_TAG})"
+          exit 1
+        fi
+      fi
+  artifacts:
+    reports:
+      dotenv: package_version.env
+
+# Aggregate and validate all built wheels
+"ddtrace package":
+  image: registry.ddbuild.io/images/mirror/python:3.14.0
+  tags: [ "arch:amd64" ]
+  stage: package
+  needs:
+    - "build linux"
+    - "build macos"
+    - "build sdist"
+    - "download windows wheels"
+    - "package version"
+  script:
+    - pip install packaging
+    - .gitlab/validate-ddtrace-package.py pywheels
+  artifacts:
+    paths:
+      - "pywheels/*.whl"
+      - "pywheels/*.tar.gz"

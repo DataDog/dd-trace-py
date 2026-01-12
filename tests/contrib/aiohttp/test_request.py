@@ -4,6 +4,7 @@ from urllib import request
 
 from ddtrace import config
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
+from tests.utils import TracerSpanContainer
 from tests.utils import assert_is_measured
 from tests.utils import override_global_config
 
@@ -19,7 +20,7 @@ async def test_full_request(patched_app_tracer, aiohttp_client):
     assert 200 == request.status
     await request.text()
     # the trace is created
-    traces = tracer.pop_traces()
+    traces = TracerSpanContainer(tracer).pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
     request_span = traces[0][0]
@@ -42,7 +43,7 @@ async def test_full_request_w_mem_leak_prevention_flag(patched_app_tracer, aioht
         assert 200 == request.status
         await request.text()
         # the trace is created
-        traces = tracer.pop_traces()
+        traces = TracerSpanContainer(tracer).pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         request_span = traces[0][0]
@@ -63,7 +64,7 @@ async def test_stream_request(patched_app_tracer, aiohttp_client):
     async with await aiohttp_client(app) as client:
         response = await client.request("GET", "/stream/")
         await response.text()
-    traces = tracer.pop_traces()
+    traces = TracerSpanContainer(tracer).pop_traces()
     request_span = traces[0][0]
     assert abs(0.5 - request_span.duration) < 0.05
 
@@ -91,12 +92,12 @@ async def test_multiple_full_request(patched_app_tracer, aiohttp_client):
         t.join(timeout=0.5)
 
     # the trace is created
-    traces = tracer.pop_traces()
+    traces = TracerSpanContainer(tracer).pop_traces()
     assert 10 == len(traces)
     assert 1 == len(traces[0])
 
 
-async def test_user_specified_service(tracer, aiohttp_client):
+async def test_user_specified_service(tracer, test_spans, aiohttp_client):
     """
     When a service name is specified by the user
         The aiohttp integration should use it as the service name
@@ -107,7 +108,7 @@ async def test_user_specified_service(tracer, aiohttp_client):
         client = await aiohttp_client(app)
         request = await client.request("GET", "/")
         await request.text()
-        traces = tracer.pop_traces()
+        traces = test_spans.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         request_span = traces[0][0]
@@ -122,7 +123,7 @@ async def test_http_request_header_tracing(patched_app_tracer, aiohttp_client):
     request = await client.request("GET", "/", headers={"my-header": "my_value"})
     await request.text()
 
-    traces = tracer.pop_traces()
+    traces = TracerSpanContainer(tracer).pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
 
@@ -141,7 +142,7 @@ async def test_http_response_header_tracing(patched_app_tracer, aiohttp_client):
     request = await client.request("GET", "/response_headers/")
     await request.text()
 
-    traces = tracer.pop_traces()
+    traces = TracerSpanContainer(tracer).pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
 

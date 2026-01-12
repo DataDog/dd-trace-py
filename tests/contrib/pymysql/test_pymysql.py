@@ -57,7 +57,7 @@ class PyMySQLCore(object):
 
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         span = spans[0]
@@ -82,7 +82,7 @@ class PyMySQLCore(object):
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
             assert len(rows) == 1
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 2
 
             span = spans[0]
@@ -110,7 +110,7 @@ class PyMySQLCore(object):
         cursor.execute(query)
         rows = cursor.fetchall()
         assert len(rows) == 3
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         self.assertEqual(spans[0].name, "pymysql.query")
 
@@ -123,7 +123,7 @@ class PyMySQLCore(object):
             cursor.execute(query)
             rows = cursor.fetchall()
             assert len(rows) == 3
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 2
 
             fetch_span = spans[1]
@@ -160,7 +160,7 @@ class PyMySQLCore(object):
         assert rows[1][0] == "foo"
         assert rows[1][1] == "this is foo"
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         cursor.execute("drop table if exists dummy")
 
@@ -192,7 +192,7 @@ class PyMySQLCore(object):
             assert rows[1][0] == "foo"
             assert rows[1][1] == "this is foo"
 
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 3
             cursor.execute("drop table if exists dummy")
 
@@ -231,7 +231,7 @@ class PyMySQLCore(object):
         assert len(output) == 3
         assert output[2] == 42
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert spans, spans
 
         # number of spans depends on PyMySQL implementation details,
@@ -252,7 +252,7 @@ class PyMySQLCore(object):
         conn, tracer = self._get_conn_tracer()
 
         conn.commit()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "pymysql"
@@ -262,7 +262,7 @@ class PyMySQLCore(object):
         conn, tracer = self._get_conn_tracer()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "pymysql"
@@ -333,7 +333,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         span = spans[0]
@@ -346,7 +346,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
             assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
     @TracerTestCase.run_in_subprocess(
