@@ -568,9 +568,20 @@ class Experiment:
             evals_dict = {}
             for evaluator in self._evaluators:
                 eval_result: JSONType = None
+                eval_reasoning: str = ""
+                eval_assessment: str = ""
+                eval_metadata: Dict[str, JSONType] = {}
                 eval_err: JSONType = None
                 try:
                     eval_result = evaluator(input_data, output_data, expected_output)
+
+                    # Apply special handling if the evaluator result supports dict-like access
+                    # and has certain keys.
+                    eval_reasoning = try_dict_access(eval_result, "reasoning", "")
+                    eval_assessment = try_dict_access(eval_result, "assessment", "")
+                    eval_metadata = try_dict_access(eval_result, "metadata", {})
+                    eval_result = try_dict_access(eval_result, "result", eval_result)
+
                 except Exception as e:
                     exc_type, exc_value, exc_tb = sys.exc_info()
                     exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
@@ -585,6 +596,9 @@ class Experiment:
                 evals_dict[evaluator.__name__] = {
                     "value": eval_result,
                     "error": eval_err,
+                    "reasoning": eval_reasoning,
+                    "assessment": eval_assessment,
+                    "metadata": eval_metadata,
                 }
             evaluation: EvaluationResult = {"idx": idx, "evaluations": evals_dict}
             evaluations.append(evaluation)
@@ -690,8 +704,10 @@ class Experiment:
         trace_id: str,
         timestamp_ns: int,
         source: str = "custom",
+        reasoning: Optional[str] = None,
+        assessment: Optional[str] = None,
+        metadata: Optional[Dict[str, JSONType]] = None,
     ) -> "LLMObsExperimentEvalMetricEvent":
-        metric_type = None
         if eval_value is None:
             metric_type = "categorical"
         elif isinstance(eval_value, bool):
@@ -701,7 +717,7 @@ class Experiment:
         else:
             metric_type = "categorical"
             eval_value = str(eval_value).lower()
-        return {
+        eval_metric = {
             "metric_source": source,
             "span_id": span_id,
             "trace_id": trace_id,
@@ -713,6 +729,13 @@ class Experiment:
             "tags": convert_tags_dict_to_list(self._tags),
             "experiment_id": self._id,
         }
+        if reasoning:
+            eval_metric["reasoning"] = reasoning
+        if assessment:
+            eval_metric["assessment"] = assessment
+        if metadata:
+            eval_metric["metadata"] = metadata
+        return eval_metric
 
     def _generate_metrics_from_exp_results(
         self, experiment_result: ExperimentRun
@@ -738,6 +761,9 @@ class Experiment:
                     span_id,
                     trace_id,
                     timestamp_ns,
+                    reasoning=eval_data.get("reasoning"),
+                    assessment=eval_data.get("assessment"),
+                    metadata=eval_data.get("metadata"),
                 )
                 eval_metrics.append(eval_metric)
 
@@ -763,3 +789,11 @@ def _get_base_url() -> str:
         subdomain = "app."
 
     return f"https://{subdomain}{config._dd_site}"
+
+def try_dict_access(x: Any, key: str, default: Any) -> Any:
+    try:
+        return x[key]
+    except KeyError:
+        return default
+    except TypeError:
+        return default
