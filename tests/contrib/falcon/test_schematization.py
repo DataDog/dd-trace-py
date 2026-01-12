@@ -26,7 +26,7 @@ from tests.contrib.falcon.app import get_app
 class TestCase(TracerTestCase, testing.TestCase, FalconTestMixin):
     def setUp(self):
         super(TestCase, self).setUp()
-        self.api = get_app(tracer=self.tracer)
+        self.api = get_app()
         if FALCON_VERSION >= (2, 0, 0):
             self.client = testing.TestClient(self.api)
         else:
@@ -74,7 +74,7 @@ from tests.contrib.falcon.app import get_app
 class TestCase(TracerTestCase, testing.TestCase, FalconTestMixin):
     def setUp(self):
         super(TestCase, self).setUp()
-        self.api = get_app(tracer=self.tracer)
+        self.api = get_app()
         if FALCON_VERSION >= (2, 0, 0):
             self.client = testing.TestClient(self.api)
         else:

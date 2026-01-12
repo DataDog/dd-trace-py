@@ -12,7 +12,7 @@ from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 )
 class TestLLMObsGoogleADK:
     @pytest.mark.asyncio
-    async def test_agent_run1(self, test_runner, llmobs_events, request_vcr, mock_tracer):
+    async def test_agent_run1(self, test_runner, llmobs_events, request_vcr, test_spans):
         """Test that a simple agent run creates a valid LLMObs span event."""
         error_type = mock.ANY
         with request_vcr.use_cassette("agent_run_async.yaml"):
@@ -31,7 +31,7 @@ class TestLLMObsGoogleADK:
                 else:
                     raise
 
-        spans = mock_tracer.pop_traces()[0]
+        spans = test_spans.pop_traces()[0]
 
         # We expect 3 events: 2 tool calls and 1 agent run
         assert len(llmobs_events) == 3
@@ -46,7 +46,7 @@ class TestLLMObsGoogleADK:
         )
 
     @pytest.mark.asyncio
-    async def test_agent_run_with_tools(self, test_runner, llmobs_events, request_vcr, mock_tracer):
+    async def test_agent_run_with_tools(self, test_runner, llmobs_events, request_vcr, test_spans):
         """Test that an agent run with tool usage creates a valid LLMObs span event."""
         error_type = 0
         with request_vcr.use_cassette("agent_tool_usage.yaml"):
@@ -65,7 +65,7 @@ class TestLLMObsGoogleADK:
                 else:
                     raise
 
-        spans = mock_tracer.pop_traces()[0]
+        spans = test_spans.pop_traces()[0]
         assert len(llmobs_events) == 2
         assert len(spans) == 2
 
@@ -74,7 +74,7 @@ class TestLLMObsGoogleADK:
 
         expected_llmobs_agent_span_event_with_tools(llmobs_events, agent_span, tool_span, error_type)
 
-    def test_code_execution(self, mock_invocation_context, mock_tracer, llmobs_events):
+    def test_code_execution(self, mock_invocation_context, test_spans, llmobs_events):
         """Test that code execution creates a valid LLMObs span event."""
         from google.adk.code_executors.code_execution_utils import CodeExecutionInput
         from google.adk.code_executors.unsafe_local_code_executor import UnsafeLocalCodeExecutor
@@ -83,7 +83,7 @@ class TestLLMObsGoogleADK:
         code_input = CodeExecutionInput(code='print("hello world")')
         executor.execute_code(mock_invocation_context, code_input)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         expected_llmobs_code_execution_event(llmobs_events[0], span)
 

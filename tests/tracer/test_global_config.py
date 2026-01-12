@@ -6,7 +6,6 @@ from ddtrace import config as global_config
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig
 
-from ..utils import DummyTracer
 from ..utils import override_env
 
 
@@ -16,7 +15,6 @@ class GlobalConfigTestCase(TestCase):
     def setUp(self):
         self.config = Config()
         self.config.web = IntegrationConfig(self.config, "web")
-        self.tracer = DummyTracer()
 
     def test_registration(self):
         # ensure an integration can register a new list of settings

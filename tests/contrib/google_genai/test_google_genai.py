@@ -8,7 +8,7 @@ from tests.contrib.google_genai.utils import get_current_weather
 from tests.utils import override_global_config
 
 
-def test_global_tags(mock_generate_content, genai_client, mock_tracer):
+def test_global_tags(mock_generate_content, genai_client, test_spans):
     """
     When the global config UST tags are set
         The service name should be used for all data
@@ -22,7 +22,7 @@ def test_global_tags(mock_generate_content, genai_client, mock_tracer):
             config=FULL_GENERATE_CONTENT_CONFIG,
         )
 
-    span = mock_tracer.pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
     assert span.resource == "Models.generate_content"
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"

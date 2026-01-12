@@ -3,14 +3,12 @@ import os
 import pytest
 import vcr
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.openai.patch import patch as patch_openai
 from ddtrace.contrib.internal.openai.patch import unpatch as unpatch_openai
 from ddtrace.contrib.internal.pydantic_ai.patch import patch
 from ddtrace.contrib.internal.pydantic_ai.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
 from tests.llmobs._utils import TestLLMObsSpanWriter
-from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 
@@ -47,19 +45,16 @@ def pydantic_ai(ddtrace_global_config, monkeypatch):
 
 
 @pytest.fixture
-def openai_patched(mock_tracer):
+def openai_patched():
     patch_openai()
     import openai
-
-    pin = Pin.get_from(openai)
-    pin._override(openai, tracer=mock_tracer)
 
     yield openai
     unpatch_openai()
 
 
 @pytest.fixture
-def pydantic_ai_llmobs(mock_tracer, llmobs_span_writer):
+def pydantic_ai_llmobs(tracer, llmobs_span_writer):
     llmobs_service.disable()
     with override_global_config(
         {
@@ -67,18 +62,10 @@ def pydantic_ai_llmobs(mock_tracer, llmobs_span_writer):
             "_dd_api_key": "<not-a-real-key>",
         }
     ):
-        llmobs_service.enable(_tracer=mock_tracer, integrations_enabled=False)
+        llmobs_service.enable(_tracer=tracer, integrations_enabled=False)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         yield llmobs_service
     llmobs_service.disable()
-
-
-@pytest.fixture
-def mock_tracer(pydantic_ai):
-    mock_tracer = DummyTracer()
-    pin = Pin.get_from(pydantic_ai)
-    pin._override(pydantic_ai, tracer=mock_tracer)
-    yield mock_tracer
 
 
 @pytest.fixture

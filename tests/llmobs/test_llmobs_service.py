@@ -40,7 +40,6 @@ from ddtrace.trace import Context
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
-from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -48,43 +47,40 @@ from tests.utils import override_global_config
 RAGAS_AVAILABLE = os.getenv("RAGAS_AVAILABLE", False)
 
 
-def run_llmobs_trace_filter(dummy_tracer):
-    with dummy_tracer.trace("span1", span_type=SpanTypes.LLM) as span:
+def run_llmobs_trace_filter(tracer, test_spans):
+    with tracer.trace("span1", span_type=SpanTypes.LLM) as span:
         span._set_tag_str(SPAN_KIND, "llm")
-    return dummy_tracer._span_aggregator.writer.pop()
+    return test_spans.pop()
 
 
-def test_service_enable_proxy():
+def test_service_enable_proxy(tracer, test_spans):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
-        dummy_tracer = DummyTracer()
-        llmobs_service.enable(_tracer=dummy_tracer, agentless_enabled=False)
+        llmobs_service.enable(_tracer=tracer, agentless_enabled=False)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
-        assert llmobs_instance.tracer == dummy_tracer
+        assert llmobs_instance.tracer == tracer
         assert llmobs_instance._llmobs_span_writer._agentless is False
-        assert run_llmobs_trace_filter(dummy_tracer) is not None
+        assert run_llmobs_trace_filter(tracer, test_spans) is not None
         llmobs_service.disable()
 
 
-def test_enable_agentless():
+def test_enable_agentless(tracer, test_spans):
     with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="<ml-app-name>")):
-        dummy_tracer = DummyTracer()
-        llmobs_service.enable(_tracer=dummy_tracer, agentless_enabled=True)
+        llmobs_service.enable(_tracer=tracer, agentless_enabled=True)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
-        assert llmobs_instance.tracer == dummy_tracer
+        assert llmobs_instance.tracer == tracer
         assert llmobs_instance._llmobs_span_writer._agentless is True
-        assert run_llmobs_trace_filter(dummy_tracer) is not None
+        assert run_llmobs_trace_filter(tracer, test_spans) is not None
 
         llmobs_service.disable()
 
 
-def test_enable_agent_proxy_when_agent_is_available(agent):
+def test_enable_agent_proxy_when_agent_is_available(tracer, agent):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
-        dummy_tracer = DummyTracer()
-        llmobs_service.enable(_tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=tracer)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
@@ -93,10 +89,9 @@ def test_enable_agent_proxy_when_agent_is_available(agent):
         llmobs_service.disable()
 
 
-def test_enable_agentless_when_agent_info_is_not_available(no_agent_info):
+def test_enable_agentless_when_agent_info_is_not_available(tracer, no_agent_info):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
-        dummy_tracer = DummyTracer()
-        llmobs_service.enable(_tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=tracer)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
@@ -105,10 +100,9 @@ def test_enable_agentless_when_agent_info_is_not_available(no_agent_info):
         llmobs_service.disable()
 
 
-def test_enable_agentless_when_agent_is_not_available(no_agent):
+def test_enable_agentless_when_agent_is_not_available(tracer, no_agent):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
-        dummy_tracer = DummyTracer()
-        llmobs_service.enable(_tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=tracer)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
@@ -117,10 +111,9 @@ def test_enable_agentless_when_agent_is_not_available(no_agent):
         llmobs_service.disable()
 
 
-def test_enable_agentless_when_agent_does_not_have_proxy(agent_missing_proxy):
+def test_enable_agentless_when_agent_does_not_have_proxy(tracer, agent_missing_proxy):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
-        dummy_tracer = DummyTracer()
-        llmobs_service.enable(_tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=tracer)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
@@ -129,10 +122,9 @@ def test_enable_agentless_when_agent_does_not_have_proxy(agent_missing_proxy):
         llmobs_service.disable()
 
 
-def test_service_disable():
+def test_service_disable(tracer):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
-        dummy_tracer = DummyTracer()
-        llmobs_service.enable(_tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=tracer)
         llmobs_service.disable()
         assert llmobs_service.enabled is False
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
@@ -140,48 +132,46 @@ def test_service_disable():
         assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
 
 
-def test_service_enable_no_api_key():
+def test_service_enable_no_api_key(tracer):
     with override_global_config(dict(_dd_api_key="", _llmobs_ml_app="<ml-app-name>")):
-        dummy_tracer = DummyTracer()
         with pytest.raises(ValueError):
-            llmobs_service.enable(_tracer=dummy_tracer, agentless_enabled=True)
+            llmobs_service.enable(_tracer=tracer, agentless_enabled=True)
         assert llmobs_service.enabled is False
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
         assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
 
 
-def test_service_enable_already_enabled(mock_llmobs_logs):
+def test_service_enable_already_enabled(tracer, mock_llmobs_logs):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
-        dummy_tracer = DummyTracer()
-        llmobs_service.enable(_tracer=dummy_tracer)
-        llmobs_service.enable(_tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=tracer)
+        llmobs_service.enable(_tracer=tracer)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
-        assert llmobs_instance.tracer == dummy_tracer
+        assert llmobs_instance.tracer == tracer
         llmobs_service.disable()
         mock_llmobs_logs.debug.assert_has_calls([mock.call("%s already enabled", "LLMObs")])
 
 
 @mock.patch("ddtrace.llmobs._llmobs.patch")
-def test_service_enable_patches_llmobs_integrations(mock_tracer_patch):
+def test_service_enable_patches_llmobs_integrations(llmobs_patch):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         llmobs_service.enable()
-        mock_tracer_patch.assert_called_once()
-        kwargs = mock_tracer_patch.call_args[1]
+        llmobs_patch.assert_called_once()
+        kwargs = llmobs_patch.call_args[1]
         for module in SUPPORTED_LLMOBS_INTEGRATIONS.values():
             assert kwargs[module] is True if module != "botocore" else ["bedrock-runtime"]
         llmobs_service.disable()
 
 
 @mock.patch("ddtrace.llmobs._llmobs.patch")
-def test_service_enable_does_not_override_global_patch_modules(mock_tracer_patch, monkeypatch):
+def test_service_enable_does_not_override_global_patch_modules(llmobs_patch, monkeypatch):
     monkeypatch.setenv("DD_PATCH_MODULES", "openai:false")
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         llmobs_service.enable()
-        mock_tracer_patch.assert_called_once()
-        kwargs = mock_tracer_patch.call_args[1]
+        llmobs_patch.assert_called_once()
+        kwargs = llmobs_patch.call_args[1]
         for module in SUPPORTED_LLMOBS_INTEGRATIONS.values():
             if module == "openai":
                 assert kwargs[module] is False
@@ -191,12 +181,12 @@ def test_service_enable_does_not_override_global_patch_modules(mock_tracer_patch
 
 
 @mock.patch("ddtrace.llmobs._llmobs.patch")
-def test_service_enable_does_not_override_integration_enabled_env_vars(mock_tracer_patch, monkeypatch):
+def test_service_enable_does_not_override_integration_enabled_env_vars(llmobs_patch, monkeypatch):
     monkeypatch.setenv("DD_TRACE_OPENAI_ENABLED", "false")
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         llmobs_service.enable()
-        mock_tracer_patch.assert_called_once()
-        kwargs = mock_tracer_patch.call_args[1]
+        llmobs_patch.assert_called_once()
+        kwargs = llmobs_patch.call_args[1]
         for module in SUPPORTED_LLMOBS_INTEGRATIONS.values():
             if module == "openai":
                 assert kwargs[module] is False
@@ -206,7 +196,7 @@ def test_service_enable_does_not_override_integration_enabled_env_vars(mock_trac
 
 
 @mock.patch("ddtrace.llmobs._llmobs.patch")
-def test_service_enable_does_not_override_global_patch_config(mock_tracer_patch, monkeypatch):
+def test_service_enable_does_not_override_global_patch_config(llmobs_patch, monkeypatch):
     """Test that _patch_integrations() ensures `DD_PATCH_MODULES` overrides `DD_TRACE_<MODULE>_ENABLED`."""
     monkeypatch.setenv("DD_TRACE_OPENAI_ENABLED", "true")
     monkeypatch.setenv("DD_TRACE_ANTHROPIC_ENABLED", "false")
@@ -214,8 +204,8 @@ def test_service_enable_does_not_override_global_patch_config(mock_tracer_patch,
     monkeypatch.setenv("DD_PATCH_MODULES", "openai:false")
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         llmobs_service.enable()
-        mock_tracer_patch.assert_called_once()
-        kwargs = mock_tracer_patch.call_args[1]
+        llmobs_patch.assert_called_once()
+        kwargs = llmobs_patch.call_args[1]
         for module in SUPPORTED_LLMOBS_INTEGRATIONS.values():
             if module in ("openai", "anthropic", "botocore"):
                 assert kwargs[module] is False
@@ -434,9 +424,8 @@ def test_annotate_no_active_span_logs_warning(llmobs):
     assert str(excinfo.value) == "No span provided and no active LLMObs-generated span found."
 
 
-def test_annotate_non_llm_span_logs_warning(llmobs):
-    dummy_tracer = DummyTracer()
-    with dummy_tracer.trace("root") as non_llmobs_span:
+def test_annotate_non_llm_span_logs_warning(tracer, llmobs):
+    with tracer.trace("root") as non_llmobs_span:
         with pytest.raises(Exception) as excinfo:
             llmobs.annotate(span=non_llmobs_span, metadata={"test": "test"})
         assert str(excinfo.value) == "Span must be an LLMObs-generated span."
@@ -941,8 +930,8 @@ def test_export_span_specified_span_is_incorrect_type_raises(llmobs):
     assert str(excinfo.value) == "Failed to export span. Span must be a valid Span object."
 
 
-def test_export_span_specified_span_is_not_llmobs_span_raises(llmobs):
-    with DummyTracer().trace("non_llmobs_span") as span:
+def test_export_span_specified_span_is_not_llmobs_span_raises(tracer, llmobs):
+    with tracer.trace("non_llmobs_span") as span:
         with pytest.raises(Exception) as excinfo:
             llmobs.export_span(span=span)
         assert str(excinfo.value) == "Span must be an LLMObs-generated span."
@@ -1119,10 +1108,10 @@ assert LLMObs._instance._llmobs_span_writer._url == "https://llmobs-intake.datad
     assert status == 0, err
 
 
-def test_llmobs_fork_recreates_and_restarts_span_writer():
+def test_llmobs_fork_recreates_and_restarts_span_writer(tracer):
     """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
     with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload"):
-        llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app", agentless_enabled=False)
+        llmobs_service.enable(_tracer=tracer, ml_app="test_app", agentless_enabled=False)
         original_span_writer = llmobs_service._instance._llmobs_span_writer
         pid = os.fork()
         if pid:  # parent
@@ -1140,11 +1129,11 @@ def test_llmobs_fork_recreates_and_restarts_span_writer():
         llmobs_service.disable()
 
 
-def test_llmobs_fork_recreates_and_restarts_agentless_span_writer():
+def test_llmobs_fork_recreates_and_restarts_agentless_span_writer(tracer):
     """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
     with override_global_config(dict(_dd_api_key="<not-a-real-key>")):
         with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload"):
-            llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app", agentless_enabled=True)
+            llmobs_service.enable(_tracer=tracer, ml_app="test_app", agentless_enabled=True)
             original_span_writer = llmobs_service._instance._llmobs_span_writer
             pid = os.fork()
             if pid:  # parent
@@ -1162,10 +1151,10 @@ def test_llmobs_fork_recreates_and_restarts_agentless_span_writer():
             llmobs_service.disable()
 
 
-def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
+def test_llmobs_fork_recreates_and_restarts_eval_metric_writer(tracer):
     """Test that forking a process correctly recreates and restarts the LLMObsEvalMetricWriter."""
     with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter.periodic"):
-        llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
+        llmobs_service.enable(_tracer=tracer, ml_app="test_app")
         original_eval_metric_writer = llmobs_service._instance._llmobs_eval_metric_writer
         pid = os.fork()
         if pid:  # parent
@@ -1183,12 +1172,12 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
         llmobs_service.disable()
 
 
-def test_llmobs_fork_recreates_and_restarts_evaluator_runner(mock_ragas_evaluator):
+def test_llmobs_fork_recreates_and_restarts_evaluator_runner(tracer, mock_ragas_evaluator):
     """Test that forking a process correctly recreates and restarts the EvaluatorRunner."""
     pytest.importorskip("ragas")
     with override_env(dict(DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
         with mock.patch("ddtrace.llmobs._evaluators.runner.EvaluatorRunner.periodic"):
-            llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
+            llmobs_service.enable(_tracer=tracer, ml_app="test_app")
             original_evaluator_runner = llmobs_service._instance._evaluator_runner
             pid = os.fork()
             if pid:  # parent
@@ -1206,11 +1195,11 @@ def test_llmobs_fork_recreates_and_restarts_evaluator_runner(mock_ragas_evaluato
             llmobs_service.disable()
 
 
-def test_llmobs_fork_create_span(monkeypatch):
+def test_llmobs_fork_create_span(tracer, monkeypatch):
     """Test that forking a process correctly encodes new spans created in each process."""
     monkeypatch.setenv("_DD_LLMOBS_WRITER_INTERVAL", "5.0")
     with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload"):
-        llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
+        llmobs_service.enable(_tracer=tracer, ml_app="test_app")
         pid = os.fork()
         if pid:  # parent
             with llmobs_service.task():
@@ -1230,13 +1219,13 @@ def test_llmobs_fork_create_span(monkeypatch):
         llmobs_service.disable()
 
 
-def test_llmobs_fork_evaluator_runner_run(monkeypatch):
+def test_llmobs_fork_evaluator_runner_run(tracer, monkeypatch):
     """Test that forking a process correctly encodes new spans created in each process."""
     monkeypatch.setenv("DD_LLMOBS_EVALUATOR_INTERVAL", 5.0)
     pytest.importorskip("ragas")
     monkeypatch.setenv("DD_LLMOBS_EVALUATORS", "ragas_faithfulness")
     with mock.patch("ddtrace.llmobs._evaluators.runner.EvaluatorRunner.periodic"):
-        llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app", api_key="test_api_key")
+        llmobs_service.enable(_tracer=tracer, ml_app="test_app", api_key="test_api_key")
         pid = os.fork()
         if pid:  # parent
             llmobs_service._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "456"}, None)
@@ -1253,10 +1242,10 @@ def test_llmobs_fork_evaluator_runner_run(monkeypatch):
         llmobs_service.disable()
 
 
-def test_llmobs_fork_disabled(monkeypatch):
+def test_llmobs_fork_disabled(tracer, monkeypatch):
     """Test that after being disabled the service remains disabled when forking"""
     monkeypatch.setenv("DD_LLMOBS_ENABLED", "0")
-    svc = llmobs_service(tracer=DummyTracer())
+    svc = llmobs_service(tracer=tracer)
     pid = os.fork()
     assert not svc.enabled, "both the parent and child should be disabled"
     assert svc._llmobs_span_writer.status == ServiceStatus.STOPPED
@@ -1271,7 +1260,7 @@ def test_llmobs_fork_disabled(monkeypatch):
     svc.disable()
 
 
-def test_llmobs_fork_disabled_then_enabled(monkeypatch):
+def test_llmobs_fork_disabled_then_enabled(tracer, monkeypatch):
     """Test that after being initially disabled, the service can be enabled in a fork"""
     monkeypatch.setenv("DD_LLMOBS_ENABLED", "0")
     svc = llmobs_service._instance
@@ -1283,7 +1272,7 @@ def test_llmobs_fork_disabled_then_enabled(monkeypatch):
         # Enable the service in the child
         with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
             monkeypatch.setenv("DD_LLMOBS_ENABLED", "1")
-            llmobs_service.enable(_tracer=DummyTracer())
+            llmobs_service.enable(_tracer=tracer)
         svc = llmobs_service._instance
         assert svc._llmobs_span_writer.status == ServiceStatus.RUNNING
         assert svc._llmobs_eval_metric_writer.status == ServiceStatus.RUNNING
@@ -1626,12 +1615,11 @@ async def test_annotation_context_async_nested(llmobs):
                 assert span._get_ctx_item(TAGS) == {"foo": "baz", "boo": "bar"}
 
 
-def test_service_enable_starts_evaluator_runner_when_evaluators_exist():
+def test_service_enable_starts_evaluator_runner_when_evaluators_exist(tracer):
     pytest.importorskip("ragas")
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         with override_env(dict(DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
-            dummy_tracer = DummyTracer()
-            llmobs_service.enable(_tracer=dummy_tracer)
+            llmobs_service.enable(_tracer=tracer)
             llmobs_instance = llmobs_service._instance
             assert llmobs_instance is not None
             assert llmobs_service.enabled
@@ -1640,10 +1628,9 @@ def test_service_enable_starts_evaluator_runner_when_evaluators_exist():
             llmobs_service.disable()
 
 
-def test_service_enable_does_not_start_evaluator_runner():
+def test_service_enable_does_not_start_evaluator_runner(tracer):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
-        dummy_tracer = DummyTracer()
-        llmobs_service.enable(_tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=tracer)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
