@@ -47,22 +47,6 @@ def _supported_versions() -> Dict[str, str]:
     return {"httpx": ">=0.25"}
 
 
-def _url_to_str(url: httpx.URL) -> str:
-    """
-    Helper to convert the httpx.URL parts from bytes to a str
-    """
-    scheme = url.raw_scheme
-    host = url.raw_host
-    port = url.port
-    raw_path = url.raw_path
-    url = scheme + b"://" + host
-    if port is not None:
-        url += b":" + ensure_binary(str(port))
-    url += raw_path
-
-    return ensure_text(url)
-
-
 def _get_service_name(request: httpx.Request) -> Optional[str]:
     if config.httpx.split_by_domain:
         if hasattr(request.url, "netloc"):
@@ -95,7 +79,6 @@ async def _wrapped_async_send(
             return resp
         finally:
             ctx.set_item("response", resp)
-            ctx.set_item("url", _url_to_str(req.url))
 
 
 def _wrapped_sync_send(
@@ -118,7 +101,6 @@ def _wrapped_sync_send(
             return resp
         finally:
             ctx.set_item("response", resp)
-            ctx.set_item("url", _url_to_str(req.url))
 
 
 def patch() -> None:

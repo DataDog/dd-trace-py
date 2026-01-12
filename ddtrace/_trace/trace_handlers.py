@@ -48,6 +48,8 @@ from ddtrace.ext.kafka import RECEIVED_MESSAGE
 from ddtrace.ext.kafka import TOMBSTONE
 from ddtrace.ext.kafka import TOPIC
 from ddtrace.internal import core
+from ddtrace.internal.compat import ensure_binary
+from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
@@ -1352,6 +1354,22 @@ def _on_httpx_request_start(ctx: core.ExecutionContext, call_trace: bool = True,
         HTTPPropagator.inject(span.context, request.headers)
 
 
+def httpx_url_to_str(url) -> str:
+    """
+    Helper to convert the httpx.URL parts from bytes to a str
+    """
+    scheme = url.raw_scheme
+    host = url.raw_host
+    port = url.port
+    raw_path = url.raw_path
+    url = scheme + b"://" + host
+    if port is not None:
+        url += b":" + ensure_binary(str(port))
+    url += raw_path
+
+    return ensure_text(url)
+
+
 def _on_httpx_send_completed(
     ctx: core.ExecutionContext,
     exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
@@ -1360,14 +1378,13 @@ def _on_httpx_send_completed(
 
     request = ctx.get_item("request")
     response = ctx.get_item("response")
-    url = ctx.get_item("url")
 
     try:
         trace_utils.set_http_meta(
             span,
             config.httpx,
             method=request.method,
-            url=url,
+            url=httpx_url_to_str(request.url),
             target_host=request.url.host,
             status_code=response.status_code if response else None,
             query=request.url.query,
