@@ -15,6 +15,7 @@ from ddtrace.appsec.ai_guard import AIGuardClient
 from ddtrace.appsec.ai_guard._api_client import Message
 from ddtrace.internal.settings.asm import ai_guard_config
 from tests.utils import DummyTracer
+from tests.utils import TracerSpanContainer
 
 
 def random_string(length: int) -> str:
@@ -22,7 +23,7 @@ def random_string(length: int) -> str:
 
 
 def find_ai_guard_span(tracer: DummyTracer) -> Span:
-    spans = tracer.get_spans()
+    spans = TracerSpanContainer(tracer).spans
     assert len(spans) == 1
     span = spans[0]
     assert span.name == AI_GUARD.RESOURCE_TYPE

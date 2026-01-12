@@ -783,12 +783,12 @@ class PytestTestCase(PytestTestCaseBase):
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
         # Check if spans tagged with dd_origin after encoding and decoding as the tagging occurs at encode time
-        encoder = self.tracer.encoder
+        encoder = self.tracer._span_aggregator.writer.msgpack_encoder
         encoder.put(spans)
         encoded_results = encoder.encode()
         assert encoded_results, "Expected encoded traces but got empty list"
         [(trace, _)] = encoded_results
-        (decoded_trace,) = self.tracer.encoder._decode(trace)
+        (decoded_trace,) = self.tracer._span_aggregator.writer.msgpack_encoder._decode(trace)
         assert len(decoded_trace) == 7
         for span in decoded_trace:
             assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"
@@ -798,7 +798,7 @@ class PytestTestCase(PytestTestCaseBase):
         encoded_results = ci_agentless_encoder.encode()
         assert encoded_results, "Expected encoded traces but got empty list"
         [(event_payload, _)] = encoded_results
-        decoded_event_payload = self.tracer.encoder._decode(event_payload)
+        decoded_event_payload = self.tracer._span_aggregator.writer.msgpack_encoder._decode(event_payload)
         assert len(decoded_event_payload[b"events"]) == 7
         for event in decoded_event_payload[b"events"]:
             assert event[b"content"][b"meta"][b"_dd.origin"] == b"ciapp-test"
