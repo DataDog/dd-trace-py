@@ -1,4 +1,3 @@
-from io import StringIO
 import math
 import sys
 import traceback
@@ -521,19 +520,59 @@ class Span(object):
         # Ensure the limit is negative for traceback.print_exception (to keep most recent frames)
         limit: int = -abs(limit)  # type: ignore[no-redef]
 
-        # Create a buffer to hold the traceback
-        buff = StringIO()
-        # Print the exception traceback to the buffer with the specified limit
-        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=limit)
-        tb = buff.getvalue()
+        # Format traceback with reversed frames to show most recent call first
+        tb_lines = traceback.format_exception(exc_type, exc_val, exc_tb, limit=limit)
+
+        if (
+            tb_lines
+            and len(tb_lines) > 1
+            and tb_lines[0].startswith("Traceback")
+            and "most recent call last" in tb_lines[0]
+        ):
+            # Update header to indicate reversed order
+            tb_lines[0] = tb_lines[0].replace("(most recent call last)", "(most recent call first)")
+
+            # Find the start of the exception message (last line that doesn't start with whitespace)
+            exception_start = len(tb_lines)
+            for i in range(len(tb_lines) - 1, -1, -1):
+                if not tb_lines[i].startswith((" ", "\t")):
+                    exception_start = i
+                    break
+
+            # Reverse only the stack frames (between header and exception message)
+            if exception_start > 1:
+                stack_frames = tb_lines[1:exception_start]
+                stack_frames.reverse()
+                tb_lines = [tb_lines[0]] + stack_frames + tb_lines[exception_start:]
+
+        tb = "".join(tb_lines)
 
         # Check if the traceback exceeds the maximum allowed length
         while len(tb) > MAX_SPAN_META_VALUE_LEN and abs(limit) > 1:
-            # Reduce the limit by half and print the traceback again
+            # Reduce the limit by half and format again with reversed frames
             limit //= 2
-            buff = StringIO()
-            traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=limit)
-            tb = buff.getvalue()
+            tb_lines = traceback.format_exception(exc_type, exc_val, exc_tb, limit=limit)
+
+            if (
+                tb_lines
+                and len(tb_lines) > 1
+                and tb_lines[0].startswith("Traceback")
+                and "most recent call last" in tb_lines[0]
+            ):
+                tb_lines[0] = tb_lines[0].replace("(most recent call last)", "(most recent call first)")
+
+                exception_start = len(tb_lines)
+                for i in range(len(tb_lines) - 1, -1, -1):
+                    if not tb_lines[i].startswith((" ", "\t")):
+                        exception_start = i
+                        break
+
+                if exception_start > 1:
+                    stack_frames = tb_lines[1:exception_start]
+                    stack_frames.reverse()
+                    tb_lines = [tb_lines[0]] + stack_frames + tb_lines[exception_start:]
+
+            tb = "".join(tb_lines)
 
         return tb
 
