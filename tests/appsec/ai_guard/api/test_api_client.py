@@ -18,6 +18,7 @@ from tests.appsec.ai_guard.utils import assert_mock_execute_request_call
 from tests.appsec.ai_guard.utils import find_ai_guard_span
 from tests.appsec.ai_guard.utils import mock_evaluate_response
 from tests.appsec.ai_guard.utils import random_string
+from tests.utils import TracerSpanContainer
 from tests.utils import override_global_config
 
 
@@ -255,7 +256,7 @@ def test_message_immutability(mock_execute_request, telemetry_mock, ai_guard_cli
             )
         )
 
-    span = tracer.get_spans()[1]  # AI Guard span
+    span = TracerSpanContainer(tracer).spans[1]  # AI Guard span
     meta = span._get_struct_tag(AI_GUARD.TAG)
     messages = meta["messages"]
     assert len(messages) == 1

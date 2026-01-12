@@ -13,6 +13,7 @@ from ddtrace.llmobs.decorators import tool
 from ddtrace.llmobs.decorators import workflow
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.utils import TracerSpanContainer
 
 
 @pytest.fixture
@@ -61,7 +62,7 @@ def test_llm_decorator(llmobs, llmobs_events):
         pass
 
     f()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span, "llm", model_name="test_model", model_provider="test_provider", session_id="test_session_id"
     )
@@ -73,7 +74,7 @@ def test_llm_decorator_no_model_name_sets_default(llmobs, llmobs_events):
         pass
 
     f()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span, "llm", model_name="custom", model_provider="test_provider", session_id="test_session_id"
     )
@@ -85,7 +86,7 @@ def test_llm_decorator_default_kwargs(llmobs, llmobs_events):
         pass
 
     f()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span, "llm", model_name="custom", model_provider="custom"
     )
@@ -99,7 +100,7 @@ def test_embedding_decorator(llmobs, llmobs_events):
         pass
 
     f()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span, "embedding", model_name="test_model", model_provider="test_provider", session_id="test_session_id"
     )
@@ -111,7 +112,7 @@ def test_embedding_decorator_no_model_name_sets_default(llmobs, llmobs_events):
         pass
 
     f()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span, "embedding", model_name="custom", model_provider="test_provider", session_id="test_session_id"
     )
@@ -123,7 +124,7 @@ def test_embedding_decorator_default_kwargs(llmobs, llmobs_events):
         pass
 
     f()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span, "embedding", model_name="custom", model_provider="custom"
     )
@@ -135,7 +136,7 @@ def test_retrieval_decorator(llmobs, llmobs_events):
         pass
 
     f()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "retrieval", session_id="test_session_id")
 
 
@@ -145,7 +146,7 @@ def test_retrieval_decorator_default_kwargs(llmobs, llmobs_events):
         pass
 
     f()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "retrieval")
 
 
@@ -155,7 +156,7 @@ def test_task_decorator(llmobs, llmobs_events):
         pass
 
     f()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "task", session_id="test_session_id")
 
 
@@ -165,7 +166,7 @@ def test_task_decorator_default_kwargs(llmobs, llmobs_events):
         pass
 
     f()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "task")
 
 
@@ -175,7 +176,7 @@ def test_tool_decorator(llmobs, llmobs_events):
         pass
 
     f()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "tool", session_id="test_session_id")
 
 
@@ -185,7 +186,7 @@ def test_tool_decorator_default_kwargs(llmobs, llmobs_events):
         pass
 
     f()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "tool")
 
 
@@ -195,7 +196,7 @@ def test_workflow_decorator(llmobs, llmobs_events):
         pass
 
     f()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "workflow", session_id="test_session_id")
 
 
@@ -205,7 +206,7 @@ def test_workflow_decorator_default_kwargs(llmobs, llmobs_events):
         pass
 
     f()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "workflow")
 
 
@@ -215,7 +216,7 @@ def test_agent_decorator(llmobs, llmobs_events):
         pass
 
     f()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(span, "agent", session_id="test_session_id")
 
 
@@ -225,7 +226,7 @@ def test_agent_decorator_default_kwargs(llmobs, llmobs_events):
         pass
 
     f()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(span, "agent")
 
 
@@ -236,7 +237,7 @@ def test_llm_decorator_with_error(llmobs, llmobs_events):
 
     with pytest.raises(ValueError):
         f()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span,
         "llm",
@@ -258,7 +259,7 @@ def test_non_llm_decorators_with_error(llmobs, llmobs_events):
 
         with pytest.raises(ValueError):
             f()
-        span = llmobs._instance.tracer.pop()[0]
+        span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
         assert llmobs_events[-1] == _expected_llmobs_non_llm_span_event(
             span,
             decorator_name,
@@ -281,7 +282,7 @@ def test_llm_annotate(llmobs, llmobs_events):
         )
 
     f()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span,
         "llm",
@@ -308,7 +309,7 @@ def test_llm_annotate_raw_string_io(llmobs, llmobs_events):
         )
 
     f()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span,
         "llm",
@@ -338,7 +339,7 @@ def test_non_llm_decorators_no_args(llmobs, llmobs_events):
             pass
 
         f()
-        span = llmobs._instance.tracer.pop()[0]
+        span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
         assert llmobs_events[-1] == _expected_llmobs_non_llm_span_event(span, decorator_name)
 
 
@@ -350,7 +351,7 @@ def test_agent_decorator_no_args(llmobs, llmobs_events):
         pass
 
     f()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(span, "agent")
 
 
@@ -363,7 +364,7 @@ def test_ml_app_override(llmobs, llmobs_events):
             pass
 
         f()
-        span = llmobs._instance.tracer.pop()[0]
+        span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
         assert llmobs_events[-1] == _expected_llmobs_non_llm_span_event(
             span, decorator_name, tags={"ml_app": "test_ml_app"}
         )
@@ -373,7 +374,7 @@ def test_ml_app_override(llmobs, llmobs_events):
         pass
 
     g()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[-1] == _expected_llmobs_llm_span_event(
         span, "llm", model_name="test_model", model_provider="custom", tags={"ml_app": "test_ml_app"}
     )
@@ -383,7 +384,7 @@ def test_ml_app_override(llmobs, llmobs_events):
         pass
 
     h()
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[-1] == _expected_llmobs_llm_span_event(
         span, "embedding", model_name="test_model", model_provider="custom", tags={"ml_app": "test_ml_app"}
     )
@@ -404,7 +405,7 @@ async def test_non_llm_async_decorators(llmobs, llmobs_events):
             pass
 
         await f()
-        span = llmobs._instance.tracer.pop()[0]
+        span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
         assert llmobs_events[-1] == _expected_llmobs_non_llm_span_event(span, decorator_name)
 
 
@@ -417,7 +418,7 @@ async def test_llm_async_decorators(llmobs, llmobs_events):
             pass
 
         await f()
-        span = llmobs._instance.tracer.pop()[0]
+        span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
         assert llmobs_events[-1] == _expected_llmobs_llm_span_event(
             span, decorator_name, model_name="test_model", model_provider="test_provider"
         )
@@ -432,7 +433,7 @@ def test_automatic_annotation_non_llm_decorators(llmobs, llmobs_events):
             return prompt
 
         f("test_prompt", "arg_2", kwarg_2=12345)
-        span = llmobs._instance.tracer.pop()[0]
+        span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
         assert llmobs_events[-1] == _expected_llmobs_non_llm_span_event(
             span,
             decorator_name,
@@ -450,7 +451,7 @@ def test_automatic_annotation_retrieval_decorator(llmobs, llmobs_events):
         return [{"name": "name", "id": "1234567890", "score": 0.9}]
 
     test_retrieval("test_query", "arg_2", kwarg_2=12345)
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         span,
         "retrieval",
@@ -474,7 +475,7 @@ def test_automatic_annotation_off_non_llm_decorators(llmobs, llmobs_events):
             return prompt
 
         f("test_prompt", "arg_2", kwarg_2=12345)
-        span = llmobs._instance.tracer.pop()[0]
+        span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
         assert llmobs_events[-1] == _expected_llmobs_non_llm_span_event(
             span, decorator_name, session_id="test_session_id"
         )
@@ -490,7 +491,7 @@ def test_automatic_annotation_off_if_manually_annotated(llmobs, llmobs_events):
             return prompt
 
         f("test_prompt", "arg_2", kwarg_2=12345)
-        span = llmobs._instance.tracer.pop()[0]
+        span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
         assert llmobs_events[-1] == _expected_llmobs_non_llm_span_event(
             span,
             decorator_name,
@@ -530,7 +531,7 @@ def test_generator_sync(llmobs, llmobs_events):
             assert e == i
             i += 1
 
-        span = llmobs._instance.tracer.pop()[0]
+        span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
         if decorator_name == "llm":
             expected_span_event = _expected_llmobs_llm_span_event(
                 span,
@@ -591,7 +592,7 @@ async def test_generator_async(llmobs, llmobs_events):
             assert e == i
             i += 1
 
-        span = llmobs._instance.tracer.pop()[0]
+        span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
         if decorator_name == "llm":
             expected_span_event = _expected_llmobs_llm_span_event(
                 span,
@@ -694,7 +695,7 @@ def test_generator_sync_finishes_span_on_error(llmobs, llmobs_events):
         for _ in f():
             pass
 
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         span,
         "workflow",
@@ -716,7 +717,7 @@ async def test_generator_async_finishes_span_on_error(llmobs, llmobs_events):
         async for _ in f():
             pass
 
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         span,
         "workflow",
@@ -742,7 +743,7 @@ def test_generator_sync_send(llmobs, llmobs_events):
     assert gen.send(4) == 16
     gen.close()
 
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "workflow")
 
 
@@ -762,7 +763,7 @@ async def test_generator_async_send(llmobs, llmobs_events):
 
     await gen.aclose()
 
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "workflow")
 
 
@@ -777,7 +778,7 @@ def test_generator_sync_throw(llmobs, llmobs_events):
         next(gen)
         gen.throw(ValueError("test_error"))
 
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         span,
         "workflow",
@@ -798,7 +799,7 @@ async def test_generator_async_throw(llmobs, llmobs_events):
         await gen.asend(None)
         await gen.athrow(ValueError("test_error"))
 
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         span,
         "workflow",
@@ -821,7 +822,7 @@ def test_generator_exit_exception_sync(llmobs, llmobs_events):
         if element == 5:
             break
 
-    span = llmobs._instance.tracer.pop()[0]
+    span = TracerSpanContainer(llmobs._instance.tracer).pop()[0]
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         span,
         "workflow",
