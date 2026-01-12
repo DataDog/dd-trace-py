@@ -50,6 +50,15 @@ def dummy_evaluator(input_data, output_data, expected_output):
     return int(output_data == expected_output)
 
 
+def dummy_evaluator_with_extra_return_values(input_data, output_data, expected_output):
+    return {
+        "result": expected_output == output_data,
+        "reasoning": "it matches" if expected_output == output_data else "it doesn't match",
+        "assessment": "pass" if expected_output == output_data else "fail",
+        "metadata": {"difficulty": "easy"}
+    }
+
+
 def faulty_evaluator(input_data, output_data, expected_output):
     raise ValueError("This is a test error in evaluator")
 
@@ -1484,6 +1493,25 @@ def test_experiment_run_evaluators(llmobs, test_dataset_one_record):
     assert eval_results[0] == {
         "idx": 0,
         "evaluations": {"dummy_evaluator": {"value": False, "error": None}},
+    }
+
+
+def test_experiment_run_evaluators_with_extra_return_values(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record,
+                            [dummy_evaluator_with_extra_return_values])
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
+    assert len(task_results) == 1
+    eval_results = exp._run_evaluators(task_results, raise_errors=False)
+    assert len(eval_results) == 1
+    assert eval_results[0] == {
+        "idx": 0,
+        "evaluations": {"dummy_evaluator": {
+            "value": False,
+            "error": None,
+            "reasoning": "it doesn't match",
+            "assessment": "fail",
+            "metadata": {"difficulty": "easy"},
+        }},
     }
 
 
