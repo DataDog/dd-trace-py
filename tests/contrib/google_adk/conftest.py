@@ -19,8 +19,6 @@ from ddtrace.contrib.internal.google_adk.patch import unpatch as adk_unpatch
 from ddtrace.llmobs import LLMObs
 from tests.contrib.google_adk.utils import get_request_vcr
 from tests.llmobs._utils import TestLLMObsSpanWriter
-from tests.utils import DummyTracer
-from tests.utils import DummyWriter
 from tests.utils import override_global_config
 
 
@@ -48,12 +46,11 @@ def adk(ddtrace_global_config):
 
 
 @pytest.fixture
-def mock_tracer(adk):
+def mock_tracer(adk, tracer):
     pin = Pin.get_from(adk)
-    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
     if pin is not None:
-        pin._override(adk, tracer=mock_tracer)
-    yield mock_tracer
+        pin._override(adk, tracer=tracer)
+    yield tracer
 
 
 @pytest.fixture(scope="session")

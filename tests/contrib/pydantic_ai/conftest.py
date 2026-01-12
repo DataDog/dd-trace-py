@@ -10,7 +10,6 @@ from ddtrace.contrib.internal.pydantic_ai.patch import patch
 from ddtrace.contrib.internal.pydantic_ai.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
 from tests.llmobs._utils import TestLLMObsSpanWriter
-from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 
@@ -74,11 +73,10 @@ def pydantic_ai_llmobs(mock_tracer, llmobs_span_writer):
 
 
 @pytest.fixture
-def mock_tracer(pydantic_ai):
-    mock_tracer = DummyTracer()
+def mock_tracer(pydantic_ai, tracer):
     pin = Pin.get_from(pydantic_ai)
-    pin._override(pydantic_ai, tracer=mock_tracer)
-    yield mock_tracer
+    pin._override(pydantic_ai, tracer=tracer)
+    yield tracer
 
 
 @pytest.fixture
