@@ -83,7 +83,7 @@ run-tests-trigger:
    strategy: depend
  variables:
     # Tell riot to install from pre-built wheels instead of building from source
-    RIOT_WHEEL_SOURCE: "https://dd-trace-py-builds.s3.amazonaws.com/${CI_PIPELINE_ID}/index.html"
+    RIOT_WHEEL_PATH: "https://dd-trace-py-builds.s3.amazonaws.com/${CI_PIPELINE_ID}/index.html"
 
 serverless lambda tests:
   stage: tests

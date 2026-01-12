@@ -12,8 +12,8 @@ build_base_venvs:
     set -e -o pipefail
     pip install -U git+https://github.com/DataDog/riot.git@brettlangdon/wheel-source
 
-    if [ -z "$RIOT_WHEEL_SOURCE" ]; then
-      echo "RIOT_WHEEL_SOURCE is not set"
+    if [ -z "$RIOT_WHEEL_PATH" ]; then
+      echo "RIOT_WHEEL_PATH is not set"
       exit 1
     fi
     riot -P -v generate --python=$PYTHON_VERSION
