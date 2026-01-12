@@ -260,13 +260,13 @@
               {
                 "address": "server.io.net.request.headers",
                 "key_path": [
-                  "Host"
+                  "host"
                 ]
               },
               {
                 "address": "server.io.net.request.headers",
                 "key_path": [
-                  "TagHost"
+                  "taghost"
                 ]
               }
             ],
