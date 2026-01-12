@@ -2,7 +2,6 @@ import mock
 import pytest
 
 from ddtrace.llmobs._integrations import BaseLLMIntegration
-from tests.utils import DummyTracer
 
 
 @pytest.fixture(scope="function")
@@ -20,9 +19,9 @@ def ddtrace_global_config():
 
 
 @pytest.fixture(scope="function")
-def mock_pin():
+def mock_pin(tracer):
     mock_pin = mock.Mock()
-    mock_pin.tracer = DummyTracer()
+    mock_pin.tracer = tracer
     mock_pin.service = "dummy_service"
     yield mock_pin
 
