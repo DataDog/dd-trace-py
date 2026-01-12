@@ -3,6 +3,7 @@ from __future__ import annotations
 import _thread
 import glob
 import os
+import pickle
 import sys
 import threading
 import time
@@ -562,6 +563,23 @@ class BaseThreadingLockCollectorTest:
 
             # Try this way too
             Foobar(self.lock_class)
+
+    def _assert_pickle_roundtrip(self, obj: object, wrapped_type: type) -> Union[LockTypeClass, LockTypeInst]:
+        """Helper to verify an object can be pickled and unwraps correctly."""
+        assert isinstance(obj, wrapped_type)
+        unpickled = pickle.loads(pickle.dumps(obj))
+        assert not isinstance(unpickled, wrapped_type)
+        return unpickled
+
+    def test_lock_class_pickle(self) -> None:
+        """Test that the wrapped lock class can be pickled (Python 3.14+ forkserver compat)."""
+        with self.collector_class(capture_pct=100):
+            self._assert_pickle_roundtrip(self.lock_class, LockAllocatorWrapper)
+
+    def test_lock_instance_pickle(self) -> None:
+        """Test that profiled lock instances can be pickled (Python 3.14+ forkserver compat)."""
+        with self.collector_class(capture_pct=100):
+            self._assert_pickle_roundtrip(self.lock_class(), _ProfiledLock)
 
     def test_lock_events(self) -> None:
         # The first argument is the recorder.Recorder which is used for the
