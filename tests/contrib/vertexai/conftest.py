@@ -36,7 +36,7 @@ def mock_async_client():
 
 
 @pytest.fixture
-def test_spans(ddtrace_global_config, vertexai, tracer, test_spans):
+def test_spans(ddtrace_global_config, vertexai, test_spans):
     try:
         if ddtrace_global_config.get("_llmobs_enabled", False):
             # Have to disable and re-enable LLMObs to use the mock tracer.
