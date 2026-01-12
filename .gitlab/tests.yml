@@ -18,6 +18,8 @@ include:
   stage: setup
   tags: [ "arch:amd64" ]
   needs: []
+  script: |
+    echo "Creating test artifacts..."
   artifacts:
     paths:
       # Only include the necessary directories/files to run tests
