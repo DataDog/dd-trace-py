@@ -501,16 +501,6 @@ class TestVisibilityItemBase(abc.ABC):
     def was_itr_forced_run(self) -> bool:
         return self._is_itr_forced_run
 
-    @_require_span
-    def set_tag_after_finished(self, tag_name: str, tag_value: Any) -> None:
-        """Set a tag on the span after it has been finished.
-
-        This is useful for tags that need to be set based on the final outcome of retries.
-        """
-        self._tags[tag_name] = tag_value
-        if self._span is not None:
-            self._add_tag_to_span(tag_name, tag_value)
-
     @_require_not_finished
     def set_tag(self, tag_name: str, tag_value: Any) -> None:
         self._tags[tag_name] = tag_value
@@ -678,7 +668,7 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
 
         force results in all children being finished regardless of their status
         prepare_for_finish() should be called first to prepare the span.
-        If prepare_for_finixh() hasn't been called yet, it will be called automatically for backward compatibility.
+        If prepare_for_finish() hasn't been called yet, it will be called automatically for backward compatibility.
         """
         if force:
             # Finish all children regardless of their status

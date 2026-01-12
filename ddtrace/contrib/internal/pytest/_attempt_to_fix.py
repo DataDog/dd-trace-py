@@ -108,7 +108,7 @@ def _do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
         retry_num = InternalTest.attempt_to_fix_add_retry(test_id, start_immediately=True)
         retry_outcome = _get_outcome_from_retry(item, outcomes, retry_num)
 
-        # attempt_to_fix_finish_retry now auto-writes the span (and sets final_status on the last one)
+        # attempt_to_fix_finish_retry now auto-writes the span (and will set final_status on the last one)
         InternalTest.attempt_to_fix_finish_retry(
             test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
         )

@@ -120,7 +120,7 @@ def _atr_do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
         retry_num = InternalTest.atr_add_retry(test_id, start_immediately=True)
         retry_outcome = _get_outcome_from_retry(item, outcomes, retry_num)
 
-        # atr_finish_retry now auto-writes the span (and sets final_status on the last one)
+        # atr_finish_retry now auto-writes the span (and will set final_status on the last one)
         InternalTest.atr_finish_retry(
             test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
         )

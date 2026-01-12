@@ -132,7 +132,7 @@ def _efd_do_retries(item: pytest.Item) -> EFDTestStatus:
         retry_num = InternalTest.efd_add_retry(test_id, start_immediately=True)
         retry_outcome = _get_outcome_from_retry(item, outcomes, retry_num)
 
-        # efd_finish_retry now auto-writes the span (and sets final_status on the last one)
+        # efd_finish_retry now auto-writes the span (and will set final_status on the last one)
         InternalTest.efd_finish_retry(
             test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
         )

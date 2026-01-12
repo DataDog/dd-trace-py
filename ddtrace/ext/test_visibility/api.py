@@ -389,18 +389,18 @@ class Test(TestBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def mark_pass(item_id: TestId, final: bool = True):
-        log.debug("Marking test %s as passed, final: %s", item_id, final)
-        Test.finish(item_id, TestStatus.PASS, final=final)
+    def mark_pass(item_id: TestId):
+        log.debug("Marking test %s as passed", item_id)
+        Test.finish(item_id, TestStatus.PASS)
 
     @staticmethod
     @_catch_and_log_exceptions
-    def mark_fail(item_id: TestId, exc_info: Optional[TestExcInfo] = None, final: bool = True):
-        log.debug("Marking test %s as failed, exc_info: %s, final: %s", item_id, exc_info, final)
-        Test.finish(item_id, TestStatus.FAIL, exc_info=exc_info, final=final)
+    def mark_fail(item_id: TestId, exc_info: Optional[TestExcInfo] = None):
+        log.debug("Marking test %s as failed, exc_info: %s", item_id, exc_info)
+        Test.finish(item_id, TestStatus.FAIL, exc_info=exc_info)
 
     @staticmethod
     @_catch_and_log_exceptions
-    def mark_skip(item_id: TestId, skip_reason: Optional[str] = None, final: bool = True):
-        log.debug("Marking test %s as skipped, skip reason: %s, final: %s", item_id, skip_reason, final)
-        Test.finish(item_id, TestStatus.SKIP, skip_reason=skip_reason, final=final)
+    def mark_skip(item_id: TestId, skip_reason: Optional[str] = None, fina):
+        log.debug("Marking test %s as skipped, skip reason: %s", item_id, skip_reason)
+        Test.finish(item_id, TestStatus.SKIP, skip_reason=skip_reason)

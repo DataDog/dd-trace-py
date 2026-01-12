@@ -209,20 +209,20 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
     def prepare_for_finish(
         self,
-        override_status: Optional[TestStatus] = None,
-        override_finish_time: Optional[float] = None,
         status: Optional[TestStatus] = None,
         skip_reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
+        override_finish_time: Optional[float] = None,
+        override_status: Optional[TestStatus] = None,
     ) -> None:
         log.debug("Test Visibility: finishing %s, with status: %s, skip_reason: %s", self, status, skip_reason)
 
         self.set_tag(test.TYPE, SpanTypes.TEST)
 
         # Use override_status if provided, otherwise use status parameter
-        final_status = override_status if override_status is not None else status
-        if final_status is not None:
-            self.set_status(final_status)
+        _status = override_status if override_status is not None else status
+        if _status is not None:
+            self.set_status(_status)
         if skip_reason is not None:
             self.set_tag(test.SKIP_REASON, skip_reason)
         if exc_info is not None:
