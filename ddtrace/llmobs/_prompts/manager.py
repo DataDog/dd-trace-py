@@ -1,3 +1,4 @@
+import os
 import threading
 from typing import Dict
 from typing import List
@@ -20,6 +21,9 @@ from ddtrace.llmobs._prompts.prompt import ManagedPrompt
 
 
 log = get_logger(__name__)
+
+# Environment variable for custom prompts endpoint (for local development/testing)
+_PROMPTS_ENDPOINT_OVERRIDE = os.environ.get("DD_LLMOBS_PROMPTS_ENDPOINT")
 
 
 class PromptManager:
@@ -196,7 +200,13 @@ class PromptManager:
                 conn.close()
 
     def _get_intake_url(self) -> str:
-        """Get the base intake URL for the Prompt Registry."""
+        """Get the base intake URL for the Prompt Registry.
+
+        Supports DD_LLMOBS_PROMPTS_ENDPOINT env var for local development:
+            export DD_LLMOBS_PROMPTS_ENDPOINT=http://localhost:8080
+        """
+        if _PROMPTS_ENDPOINT_OVERRIDE:
+            return _PROMPTS_ENDPOINT_OVERRIDE
         return f"https://{PROMPTS_SUBDOMAIN}.{self._site}"
 
     def _build_path(self, prompt_id: str, label: str) -> str:
