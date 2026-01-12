@@ -352,6 +352,13 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         duration_s = (time_ns() - self._span.start_ns) / 1e9
         return duration_s > 300
 
+    def _get_duration_s(self):
+        # Calculate duration manually for plugin flow
+        from ddtrace.internal.utils.time import Time
+
+        duration_ns = Time.time_ns() - self._span.start_ns
+        return duration_ns / 1e9
+
     def efd_should_retry(self):
         efd_settings = self._session_settings.efd_settings
         if not efd_settings.enabled:
@@ -366,11 +373,22 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if not self.is_new():
             return False
 
-        if not self.is_finished():
-            log.debug("Early Flake Detection: efd_should_retry called but test is not finished")
-            return False
+        # Calculate duration
+        if self.is_finished():
+            duration_s = self._span.duration
+        else:
+            # Span hasn't been finished yet
+            # Only allow retry checking if status was explicitly set (plugin flow)
+            # Otherwise, this is likely direct API usage where test hasn't completed yet
+            if not self._status_set:
+                log.debug("Early Flake Detection: test not finished and status not explicitly set")
+                return False
 
-        duration_s = self._span.duration
+            if not hasattr(self._span, "start_ns") or self._span.start_ns is None:
+                log.debug("Early Flake Detection: span not started, cannot calculate duration")
+                return False
+
+            duration_s = self._get_duration_s()
 
         num_retries = len(self._efd_retries)
 
@@ -475,11 +493,13 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if self.get_session().atr_max_retries_reached():
             return False
 
-        if not self.is_finished():
-            log.debug("Auto Test Retries: atr_should_retry called but test is not finished")
+        # Only allow retry checking if test is finished OR status was explicitly set (plugin flow)
+        if not self.is_finished() and not self._status_set:
+            log.debug("Auto Test Retries: test not finished and status not explicitly set")
             return False
 
         # Only tests that are failing should be retried
+        # Note: atr_get_final_status() uses self._status which should be set before this is called
         if self.atr_get_final_status() != TestStatus.FAIL:
             return False
 

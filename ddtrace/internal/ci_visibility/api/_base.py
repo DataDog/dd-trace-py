@@ -137,6 +137,7 @@ class TestVisibilityItemBase(abc.ABC):
         self.name: str = name
         self.parent: Optional["TestVisibilityParentItem"] = parent
         self._status: TestStatus = TestStatus.FAIL
+        self._status_set: bool = False  # Track if status was explicitly set vs default
         self._session_settings: TestVisibilitySessionSettings = session_settings
         self._tracer: Tracer = session_settings.tracer
         self._service: str = session_settings.test_service
@@ -440,6 +441,7 @@ class TestVisibilityItemBase(abc.ABC):
             log.warning(error_msg)
             return
         self._status = status
+        self._status_set = True
 
     def count_itr_skipped(self) -> None:
         self._itr_skipped_count += 1

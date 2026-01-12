@@ -106,6 +106,23 @@ def _do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
 
         retry_outcome = _get_outcome_from_retry(item, outcomes, retry_num)
 
+        # Set status before checking if we should retry again
+        from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
+
+        test_obj = require_ci_visibility_service().get_test_by_id(test_id)
+        retry_test_obj = test_obj._attempt_to_fix_get_retry_test(retry_num)
+        retry_test_obj.set_status(retry_outcome.status)
+
+        # Check if this is the last retry
+        is_last_retry = not InternalTest.attempt_to_fix_should_retry(test_id)
+
+        # Set final_status tag on the last retry before finishing
+        if is_last_retry:
+            from ddtrace.internal.ci_visibility.constants import TEST_FINAL_STATUS
+
+            final_status = InternalTest.attempt_to_fix_get_final_status(test_id)
+            retry_test_obj.set_tag(TEST_FINAL_STATUS, final_status.value)
+
         InternalTest.attempt_to_fix_finish_retry(
             test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
         )
