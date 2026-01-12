@@ -40,7 +40,7 @@ class TestTwoPhaseFinish:
         assert test._finish_time is None
 
         # Call prepare_for_finish
-        test.prepare_for_finish(status=TestStatus.PASS)
+        test.prepare_for_finish(override_status=TestStatus.PASS)
 
         # After prepare_for_finish, test should be considered finished but span not sent
         assert test.is_finished()
@@ -53,7 +53,7 @@ class TestTwoPhaseFinish:
         """Test that finish() actually sends the span after prepare_for_finish()"""
         test = _get_test()
         test.start()
-        test.prepare_for_finish(status=TestStatus.PASS)
+        test.prepare_for_finish(override_status=TestStatus.PASS)
 
         # Before finish, span exists but not finished
         assert test._span is not None
@@ -84,12 +84,12 @@ class TestTwoPhaseFinish:
         test.start()
 
         # First call
-        test.prepare_for_finish(status=TestStatus.PASS)
+        test.prepare_for_finish(override_status=TestStatus.PASS)
         first_finish_time = test._finish_time
         first_status = test.get_status()
 
         # Second call with different status (should be ignored due to existing logic)
-        test.prepare_for_finish(status=TestStatus.FAIL)
+        test.prepare_for_finish(override_status=TestStatus.FAIL)
         second_finish_time = test._finish_time
 
         # Status should remain the same (first status wins), finish time may be updated
@@ -113,7 +113,8 @@ class TestTwoPhaseFinish:
         test.start()
 
         skip_reason = "Test was skipped for a reason"
-        test.prepare_for_finish(status=TestStatus.SKIP, skip_reason=skip_reason)
+        test.set_tag("test.skip_reason", skip_reason)
+        test.prepare_for_finish(override_status=TestStatus.SKIP)
 
         # Status and tags should be set
         assert test.get_status() == TestStatus.SKIP
@@ -132,7 +133,7 @@ class TestTwoPhaseFinish:
         test.start()
 
         custom_finish_time = 1234567890.0
-        test.prepare_for_finish(status=TestStatus.PASS, override_finish_time=custom_finish_time)
+        test.prepare_for_finish(override_status=TestStatus.PASS, override_finish_time=custom_finish_time)
 
         assert test._finish_time == custom_finish_time
 
@@ -142,15 +143,15 @@ class TestTwoPhaseFinish:
         test.start()
 
         # Start with PASS
-        test.prepare_for_finish(status=TestStatus.PASS)
+        test.prepare_for_finish(override_status=TestStatus.PASS)
         assert test.get_status() == TestStatus.PASS
 
         # Attempt to change to FAIL (should be ignored)
-        test.prepare_for_finish(status=TestStatus.FAIL)
+        test.prepare_for_finish(override_status=TestStatus.FAIL)
         assert test.get_status() == TestStatus.PASS  # Should remain PASS
 
         # Attempt to change to SKIP (should be ignored)
-        test.prepare_for_finish(status=TestStatus.SKIP, skip_reason="Changed mind")
+        test.prepare_for_finish(override_status=TestStatus.SKIP)
         assert test.get_status() == TestStatus.PASS  # Should remain PASS
 
         # Write and verify final status
@@ -164,7 +165,7 @@ class TestTwoPhaseFinish:
 
         assert not test.is_finished()
 
-        test.prepare_for_finish(status=TestStatus.PASS)
+        test.prepare_for_finish(override_status=TestStatus.PASS)
 
         # Should be considered finished even though span not sent yet
         assert test.is_finished()
@@ -180,7 +181,7 @@ class TestTwoPhaseFinish:
         test.start()
 
         # Prepare for finish but don't write yet
-        test.prepare_for_finish(status=TestStatus.FAIL)
+        test.prepare_for_finish(override_status=TestStatus.FAIL)
 
         # Should be able to check if retry is needed
         # (This tests that _finish_time is set, which retry logic depends on)

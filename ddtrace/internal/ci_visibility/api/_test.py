@@ -142,6 +142,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         """Overrides parent tags for cases where they need to be modified"""
         if self._is_benchmark:
             self.set_tag(test.TYPE, BENCHMARK)
+        else:
+            self.set_tag(test.TYPE, SpanTypes.TEST)
 
         if self._overwritten_suite_name is not None:
             self.set_tag(test.SUITE, self._overwritten_suite_name)
@@ -207,7 +209,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             is_auto_injected=self._session_settings.is_auto_injected,
         )
 
-    def finish_test(
+    def prepare_for_finish(
         self,
         override_status: Optional[TestStatus] = None,
         override_finish_time: Optional[float] = None,
@@ -238,6 +240,23 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             self._efd_abort_reason = "slow"
 
         super().prepare_for_finish(override_status=override_status, override_finish_time=override_finish_time)
+
+    def finish_test(
+        self,
+        override_status: Optional[TestStatus] = None,
+        override_finish_time: Optional[float] = None,
+        status: Optional[TestStatus] = None,
+        skip_reason: Optional[str] = None,
+        exc_info: Optional[TestExcInfo] = None,
+    ) -> None:
+        """Backward compatibility method that calls prepare_for_finish()."""
+        self.prepare_for_finish(
+            override_status=override_status,
+            override_finish_time=override_finish_time,
+            status=status,
+            skip_reason=skip_reason,
+            exc_info=exc_info,
+        )
 
     def finish(self, force: bool = False) -> None:
         """Send the test span to the backend.
