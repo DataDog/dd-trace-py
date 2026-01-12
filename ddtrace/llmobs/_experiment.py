@@ -568,19 +568,33 @@ class Experiment:
             evals_dict = {}
             for evaluator in self._evaluators:
                 eval_result: JSONType = None
-                eval_reasoning: str = ""
-                eval_assessment: str = ""
-                eval_metadata: Dict[str, JSONType] = {}
                 eval_err: JSONType = None
+                extra_return_values = {}
                 try:
                     eval_result = evaluator(input_data, output_data, expected_output)
 
                     # Apply special handling if the evaluator result supports dict-like access
                     # and has certain keys.
-                    eval_reasoning = try_dict_access(eval_result, "reasoning", "")
-                    eval_assessment = try_dict_access(eval_result, "assessment", "")
-                    eval_metadata = try_dict_access(eval_result, "metadata", {})
-                    eval_result = try_dict_access(eval_result, "result", eval_result)
+                    try:
+                        result = eval_result["result"]
+
+                        # If "result" key present, look for other keys
+                        try:
+                            extra_return_values["reasoning"] = eval_result["reasoning"]
+                        except (KeyError, TypeError):
+                            pass
+                        try:
+                            extra_return_values["assessment"] = eval_result["assessment"]
+                        except (KeyError, TypeError):
+                            pass
+                        try:
+                            extra_return_values["metadata"] = eval_result["metadata"]
+                        except (KeyError, TypeError):
+                            pass
+
+                        eval_result = result
+                    except (KeyError, TypeError):
+                        pass
 
                 except Exception as e:
                     exc_type, exc_value, exc_tb = sys.exc_info()
@@ -596,9 +610,7 @@ class Experiment:
                 evals_dict[evaluator.__name__] = {
                     "value": eval_result,
                     "error": eval_err,
-                    "reasoning": eval_reasoning,
-                    "assessment": eval_assessment,
-                    "metadata": eval_metadata,
+                    **extra_return_values,
                 }
             evaluation: EvaluationResult = {"idx": idx, "evaluations": evals_dict}
             evaluations.append(evaluation)
@@ -789,11 +801,3 @@ def _get_base_url() -> str:
         subdomain = "app."
 
     return f"https://{subdomain}{config._dd_site}"
-
-def try_dict_access(x: Any, key: str, default: Any) -> Any:
-    try:
-        return x[key]
-    except KeyError:
-        return default
-    except TypeError:
-        return default
