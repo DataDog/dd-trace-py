@@ -209,11 +209,11 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
     def prepare_for_finish(
         self,
+        override_status: Optional[TestStatus] = None,
+        override_finish_time: Optional[float] = None,
         status: Optional[TestStatus] = None,
         skip_reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
-        override_finish_time: Optional[float] = None,
-        override_status: Optional[TestStatus] = None,
     ) -> None:
         log.debug("Test Visibility: finishing %s, with status: %s, skip_reason: %s", self, status, skip_reason)
 
@@ -239,14 +239,14 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
         super().prepare_for_finish(override_status=override_status, override_finish_time=override_finish_time)
 
-    def finish(self) -> None:
+    def finish(self, force: bool = False) -> None:
         """Send the test span to the backend.
 
         This should be called after prepare_for_finish() has been called to prepare the span.
         If prepare_for_finish() hasn't been called yet, it will be called automatically for backward compatibility.
         """
         # Call the base class finish method which has the backward compatibility logic
-        super().finish()
+        super().finish(force=force)
 
     def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
         if self.efd_has_retries():

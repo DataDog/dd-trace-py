@@ -1,9 +1,5 @@
-import pytest
 from pathlib import Path
 
-from ddtrace.ext.test_visibility._test_visibility_base import TestId
-from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
-from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
 from ddtrace.ext.test_visibility.status import TestStatus
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest

@@ -439,7 +439,8 @@ class TestVisibilityItemBase(abc.ABC):
         self._finish_span()
 
     def is_finished(self) -> bool:
-        # With two-phase finish, a test is considered finished after prepare_for_finish() is called (_finish_time is set)
+        # With two-phase finish, a test is considered finished after prepare_for_finish() is called
+        # (_finish_time is set)
         # even if the span hasn't been sent yet (span.finished is False)
         return self._finish_time is not None or (self._span is not None and self._span.finished)
 

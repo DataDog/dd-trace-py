@@ -730,7 +730,6 @@ def _pytest_run_one_test(item, nextitem):
             is_quarantined=is_quarantined,
         )
     else:
-
         # If no retry handler, we log the reports ourselves.
         for report in reports:
             item.ihook.pytest_runtest_logreport(report=report)
