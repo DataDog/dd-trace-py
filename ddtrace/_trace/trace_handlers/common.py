@@ -1342,42 +1342,6 @@ def _on_aiokafka_getmany_message(
                     span.link_span(context)
 
 
-def _on_httpx_request_start(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
-    span = _start_span(ctx, call_trace, **kwargs)
-    span._metrics[_SPAN_MEASURED_KEY] = 1
-
-    request = ctx.get_item("request")
-
-    if trace_utils.distributed_tracing_enabled(config.httpx):
-        HTTPPropagator.inject(span.context, request.headers)
-
-
-def _on_httpx_send_completed(
-    ctx: core.ExecutionContext,
-    exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
-) -> None:
-    span = ctx.span
-
-    request = ctx.get_item("request")
-    response = ctx.get_item("response")
-    url = ctx.get_item("url")
-
-    try:
-        trace_utils.set_http_meta(
-            span,
-            config.httpx,
-            method=request.method,
-            url=url,
-            target_host=request.url.host,
-            status_code=response.status_code if response else None,
-            query=request.url.query,
-            request_headers=request.headers,
-            response_headers=response.headers if response else None,
-        )
-    finally:
-        _finish_span(ctx, exc_info)
-
-
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -1523,7 +1487,6 @@ def listen():
         "aiokafka.getmany",
     ):
         core.on(f"context.started.{context_name}", _start_span)
-    core.on("context.started.httpx.request", _on_httpx_request_start)
 
     for name in (
         "asgi.request",
@@ -1561,7 +1524,6 @@ def listen():
 
     # Special/extra handling before calling _finish_span
     core.on("context.ended.django.cache", _on_django_cache)
-    core.on("context.ended.httpx.request", _on_httpx_send_completed)
 
 
 listen()

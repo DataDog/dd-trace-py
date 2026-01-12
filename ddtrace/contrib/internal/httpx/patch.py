@@ -9,16 +9,11 @@ from wrapt import BoundFunctionWrapper
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import ext_service
-from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_binary
 from ddtrace.internal.compat import ensure_text
-from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
@@ -26,7 +21,6 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 
 
 HTTPX_VERSION = parse_version(httpx.__version__)
-HTTP_REQUEST_TAGS = {COMPONENT: config.httpx.integration_name, SPAN_KIND: SpanKind.CLIENT}
 
 
 def get_version() -> str:
@@ -80,14 +74,9 @@ async def _wrapped_async_send(
 ):
     req = get_argument_value(args, kwargs, 0, "request")
 
-    with core.context_with_data(
-        "httpx.request",
-        call_trace=True,
-        span_name=schematize_url_operation("http.request", protocol="http", direction=SpanDirection.OUTBOUND),
-        span_type=SpanTypes.HTTP,
+    with core.context_with_event(
+        HttpClientRequestEvent(req),
         service=_get_service_name(req),
-        tags=HTTP_REQUEST_TAGS,
-        request=req,
     ) as ctx:
         resp = None
         try:
@@ -103,14 +92,9 @@ def _wrapped_sync_send(
 ):
     req = get_argument_value(args, kwargs, 0, "request")
 
-    with core.context_with_data(
-        "httpx.request",
-        call_trace=True,
-        span_name=schematize_url_operation("http.request", protocol="http", direction=SpanDirection.OUTBOUND),
-        span_type=SpanTypes.HTTP,
+    with core.context_with_event(
+        HttpClientRequestEvent(req),
         service=_get_service_name(req),
-        tags=HTTP_REQUEST_TAGS,
-        request=req,
     ) as ctx:
         resp = None
         try:
