@@ -3,6 +3,7 @@ from google.adk.code_executors.unsafe_local_code_executor import UnsafeLocalCode
 import pytest
 
 from tests.contrib.google_adk.conftest import create_test_message
+from tests.utils import TracerSpanContainer
 
 
 @pytest.mark.asyncio
@@ -36,7 +37,7 @@ async def test_agent_run_async(test_runner, mock_tracer, request_vcr):
 
     assert output == "Found reference for: test\n{'product': 15}\n"
 
-    traces = mock_tracer.pop_traces()
+    traces = TracerSpanContainer(mock_tracer).pop_traces()
     spans = [s for t in traces for s in t]
 
     runner_spans = [s for s in spans if "InMemoryRunner.run_async" in s.resource]
@@ -77,7 +78,7 @@ async def test_agent_with_tool_usage(test_runner, mock_tracer, request_vcr):
 
     assert output == "Found reference for: recurring revenue\n"
 
-    traces = mock_tracer.pop_traces()
+    traces = TracerSpanContainer(mock_tracer).pop_traces()
     spans = [s for t in traces for s in t]
 
     runner_spans = [s for s in spans if "Runner.run_async" in s.resource]
@@ -140,7 +141,7 @@ async def test_agent_with_tool_calculation(test_runner, mock_tracer, request_vcr
     assert output.strip() != "", f"Expected some output but got: '{output}'"
     assert "1073" in output or "product" in output.lower(), f"Expected multiply tool result (1073) but got: '{output}'"
 
-    traces = mock_tracer.pop_traces()
+    traces = TracerSpanContainer(mock_tracer).pop_traces()
     spans = [s for t in traces for s in t]
 
     runner_spans = [s for s in spans if "Runner.run_async" in s.resource]
@@ -168,7 +169,7 @@ def test_execute_code_creates_span(mock_invocation_context, mock_tracer):
     code_input = CodeExecutionInput(code='print("hello world")')
     executor.execute_code(mock_invocation_context, code_input)
 
-    traces = mock_tracer.pop_traces()
+    traces = TracerSpanContainer(mock_tracer).pop_traces()
     spans = [s for t in traces for s in t]
     assert len(spans) == 1
     span = spans[0]
@@ -186,7 +187,7 @@ def test_execute_code_with_error_creates_span(mock_invocation_context, mock_trac
     code_input = CodeExecutionInput(code='raise ValueError("Test error")')
     executor.execute_code(mock_invocation_context, code_input)
 
-    traces = mock_tracer.pop_traces()
+    traces = TracerSpanContainer(mock_tracer).pop_traces()
     spans = [s for t in traces for s in t]
     assert len(spans) == 1
     span = spans[0]
@@ -226,7 +227,7 @@ async def test_error_handling_e2e(test_runner, mock_tracer, request_vcr):
         except Exception:
             pass
 
-    traces = mock_tracer.pop_traces()
+    traces = TracerSpanContainer(mock_tracer).pop_traces()
     spans = [s for t in traces for s in t]
 
     runner_spans = [s for s in spans if "Runner.run_async" in s.resource]
