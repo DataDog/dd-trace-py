@@ -178,7 +178,12 @@ class InternalTest(
 
     @staticmethod
     @_catch_and_log_exceptions
-    def finish(item_id: ext_api.TestId, status: t.Optional[ext_api.TestStatus] = None) -> None:
+    def finish(
+        item_id: ext_api.TestId,
+        status: t.Optional[ext_api.TestStatus] = None,
+        skip_reason: t.Optional[str] = None,
+        exc_info: t.Optional[ext_api.TestExcInfo] = None,
+    ) -> None:
         log.debug("Finishing test %s", item_id)
         test_obj = require_ci_visibility_service().get_test_by_id(item_id)
         if status is not None:
