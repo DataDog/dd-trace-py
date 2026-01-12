@@ -28,6 +28,7 @@ from ddtrace.internal.ci_visibility.constants import RETRY_REASON
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_ATTEMPT_TO_FIX_PASSED
 from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
+from ddtrace.internal.ci_visibility.constants import TEST_FINAL_STATUS
 from ddtrace.internal.ci_visibility.constants import TEST_HAS_FAILED_ALL_RETRIES
 from ddtrace.internal.ci_visibility.constants import TEST_IS_ATTEMPT_TO_FIX
 from ddtrace.internal.ci_visibility.constants import TEST_IS_DISABLED
@@ -120,8 +121,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             )
             self._main_tracer_context.__enter__()
 
-    def _finish_span(self, override_finish_time: Optional[float] = None) -> None:
-        super()._finish_span(override_finish_time)
+    def _finish_span(self) -> None:
+        super()._finish_span()
 
         if asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")) and self._main_tracer_context:
             self._main_tracer_context.__exit__(None, None, None)
@@ -209,17 +210,20 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
     def finish_test(
         self,
+        override_status: Optional[TestStatus] = None,
+        override_finish_time: Optional[float] = None,
         status: Optional[TestStatus] = None,
         skip_reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
-        override_finish_time: Optional[float] = None,
     ) -> None:
         log.debug("Test Visibility: finishing %s, with status: %s, skip_reason: %s", self, status, skip_reason)
 
         self.set_tag(test.TYPE, SpanTypes.TEST)
 
-        if status is not None:
-            self.set_status(status)
+        # Use override_status if provided, otherwise use status parameter
+        final_status = override_status if override_status is not None else status
+        if final_status is not None:
+            self.set_status(final_status)
         if skip_reason is not None:
             self.set_tag(test.SKIP_REASON, skip_reason)
         if exc_info is not None:
@@ -234,7 +238,14 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         ):
             self._efd_abort_reason = "slow"
 
-        super().finish(override_finish_time=override_finish_time)
+        super().finish_test(override_status=override_status, override_finish_time=override_finish_time)
+
+    def write_test(self) -> None:
+        """Send the test span to the backend.
+
+        This should be called after finish_test() has been called to prepare the span.
+        """
+        self._finish_span()
 
     def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
         if self.efd_has_retries():
@@ -263,7 +274,12 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if self._session_settings.itr_test_skipping_level == ITR_SKIPPING_LEVEL.TEST:
             self.count_itr_skipped()
         self.mark_itr_skipped()
-        self.finish_test(TestStatus.SKIP)
+        self.finish_test(status=TestStatus.SKIP)
+
+        # Set final_status for ITR skipped tests
+        self.set_final_status(TestStatus.SKIP)
+
+        self.finish()  # Actually send the span
 
     def overwrite_attributes(
         self,
@@ -366,11 +382,13 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if not self.is_new():
             return False
 
-        if not self.is_finished():
+        # Check if finish_test() has been called (sets _finish_time)
+        if self._finish_time is None:
             log.debug("Early Flake Detection: efd_should_retry called but test is not finished")
             return False
 
-        duration_s = self._span.duration
+        # Calculate duration from start time and finish time
+        duration_s = (self._finish_time - (self._span.start_ns / 1e9)) if self._span.start_ns else 0
 
         num_retries = len(self._efd_retries)
 
@@ -418,6 +436,17 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             retry_test.set_status(status)
 
         retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
+
+        # Check if there will be more retries after this one
+        will_retry_again = self.efd_should_retry()
+
+        # If this is the last retry, set final_status before writing
+        if not will_retry_again:
+            final_status = self.get_status()
+            if isinstance(final_status, TestStatus):
+                retry_test._add_tag_to_span(TEST_FINAL_STATUS, final_status.value)
+
+        retry_test.write_test()  # Auto-send the retry span
 
     def efd_get_final_status(self) -> EFDTestStatus:
         status_counts: Dict[TestStatus, int] = {
@@ -475,7 +504,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if self.get_session().atr_max_retries_reached():
             return False
 
-        if not self.is_finished():
+        # Check if finish_test() has been called (sets _finish_time)
+        if self._finish_time is None:
             log.debug("Auto Test Retries: atr_should_retry called but test is not finished")
             return False
 
@@ -522,6 +552,16 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
         retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
 
+        # Check if there will be more retries after this one
+        will_retry_again = self.atr_should_retry()
+
+        # If this is the last retry, set final_status before writing
+        if not will_retry_again:
+            final_status = self.atr_get_final_status()
+            retry_test._add_tag_to_span(TEST_FINAL_STATUS, final_status.value)
+
+        retry_test.write_test()  # Auto-send the retry span
+
     def atr_get_final_status(self) -> TestStatus:
         if self._status in [TestStatus.PASS, TestStatus.SKIP]:
             return self._status
@@ -558,7 +598,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if not self._session_settings.test_management_settings.enabled:
             return False
 
-        if not self.is_finished():
+        # Check if finish_test() has been called (sets _finish_time)
+        if self._finish_time is None:
             log.debug("Attempt To Fix: attempt_to_fix_should_retry called but test is not finished")
             return False
 
@@ -606,7 +647,17 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
             retry_test.set_tag(TEST_ATTEMPT_TO_FIX_PASSED, all_passed)
 
-        retry_test.finish_test(status, skip_reason=skip_reason, exc_info=exc_info)
+        retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
+
+        # Check if there will be more retries after this one
+        will_retry_again = self.attempt_to_fix_should_retry()
+
+        # If this is the last retry, set final_status before writing
+        if not will_retry_again:
+            final_status = self.attempt_to_fix_get_final_status()
+            retry_test._add_tag_to_span(TEST_FINAL_STATUS, final_status.value)
+
+        retry_test.write_test()  # Auto-send the retry span
 
     def attempt_to_fix_get_final_status(self) -> TestStatus:
         if all(retry._status == TestStatus.PASS for retry in self._attempt_to_fix_retries):
@@ -644,3 +695,27 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
                 value = getattr(self._benchmark_duration_data, tag)
                 if value is not None:
                     self.set_tag(attr, value)
+
+    def set_final_status(self, final_status: TestStatus):
+        """Set the final_status tag on the appropriate test span.
+
+        If this test has retries, the tag is set on the last retry span.
+        Otherwise, it's set on this test's span.
+
+        With the new two-phase approach (finish_test + write_test), this should be called
+        AFTER finish_test() but BEFORE write_test().
+        """
+        # For tests with retries, set the final_status on the last retry
+        if self._atr_retries:
+            last_retry = self._atr_retries[-1]
+            # Add tag directly to the span since finish_test() has already been called
+            last_retry._add_tag_to_span(TEST_FINAL_STATUS, final_status.value)
+        elif self._efd_retries:
+            last_retry = self._efd_retries[-1]
+            last_retry._add_tag_to_span(TEST_FINAL_STATUS, final_status.value)
+        elif self._attempt_to_fix_retries:
+            last_retry = self._attempt_to_fix_retries[-1]
+            last_retry._add_tag_to_span(TEST_FINAL_STATUS, final_status.value)
+        else:
+            # No retries, set on this test's span
+            self._add_tag_to_span(TEST_FINAL_STATUS, final_status.value)

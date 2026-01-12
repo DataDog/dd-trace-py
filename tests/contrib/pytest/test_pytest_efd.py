@@ -356,28 +356,43 @@ class PytestEFDTestCase(PytestTestCaseBase):
         new_fail_spans = _get_spans_from_list(spans, "test", "test_new_fails_01")
         assert len(new_fail_spans) == 11
         new_fail_retries = 0
-        for new_fail_span in new_fail_spans:
+        for idx, new_fail_span in enumerate(new_fail_spans):
             assert new_fail_span.get_tag("test.is_new") == "true"
             if new_fail_span.get_tag("test.is_retry") == "true":
                 new_fail_retries += 1
+            # Check final_status tag: only last span should have it
+            if idx == len(new_fail_spans) - 1:
+                assert new_fail_span.get_tag("test.final_status") == "fail"
+            else:
+                assert new_fail_span.get_tag("test.final_status") is None
         assert new_fail_retries == 10
 
         new_flaky_spans = _get_spans_from_list(spans, "test", "test_new_flaky_01")
         assert len(new_flaky_spans) == 11
         new_flaky_retries = 0
-        for new_flaky_span in new_flaky_spans:
+        for idx, new_flaky_span in enumerate(new_flaky_spans):
             assert new_flaky_span.get_tag("test.is_new") == "true"
             if new_flaky_span.get_tag("test.is_retry") == "true":
                 new_flaky_retries += 1
+            # Check final_status tag: only last span should have it (pass because EFD detects flake)
+            if idx == len(new_flaky_spans) - 1:
+                assert new_flaky_span.get_tag("test.final_status") == "pass"
+            else:
+                assert new_flaky_span.get_tag("test.final_status") is None
         assert new_flaky_retries == 10
 
         new_passes_spans = _get_spans_from_list(spans, "test", "test_new_passes_01")
         assert len(new_passes_spans) == 11
         new_passes_retries = 0
-        for new_passes_span in new_passes_spans:
+        for idx, new_passes_span in enumerate(new_passes_spans):
             assert new_passes_span.get_tag("test.is_new") == "true"
             if new_passes_span.get_tag("test.is_retry") == "true":
                 new_passes_retries += 1
+            # Check final_status tag: only last span should have it
+            if idx == len(new_passes_spans) - 1:
+                assert new_passes_span.get_tag("test.final_status") == "pass"
+            else:
+                assert new_passes_span.get_tag("test.final_status") is None
         assert new_passes_retries == 10
 
         # Skips are tested twice: once with a skip mark (skips during setup) and once using pytest.skip() in the
@@ -385,18 +400,28 @@ class PytestEFDTestCase(PytestTestCaseBase):
         new_skips_01_spans = _get_spans_from_list(spans, "test", "test_new_skips_01")
         assert len(new_skips_01_spans) == 11
         new_skips_01_retries = 0
-        for new_skips_span in new_skips_01_spans:
+        for idx, new_skips_span in enumerate(new_skips_01_spans):
             assert new_skips_span.get_tag("test.is_new") == "true"
             if new_skips_span.get_tag("test.is_retry") == "true":
                 new_skips_01_retries += 1
+            # Check final_status tag: only last span should have it
+            if idx == len(new_skips_01_spans) - 1:
+                assert new_skips_span.get_tag("test.final_status") == "skip"
+            else:
+                assert new_skips_span.get_tag("test.final_status") is None
         assert new_skips_01_retries == 10
         new_skips_02_spans = _get_spans_from_list(spans, "test", "test_new_skips_02")
         assert len(new_skips_02_spans) == 11
         new_skips_02_retries = 0
-        for new_skips_span in new_skips_02_spans:
+        for idx, new_skips_span in enumerate(new_skips_02_spans):
             assert new_skips_span.get_tag("test.is_new") == "true"
             if new_skips_span.get_tag("test.is_retry") == "true":
                 new_skips_02_retries += 1
+            # Check final_status tag: only last span should have it
+            if idx == len(new_skips_02_spans) - 1:
+                assert new_skips_span.get_tag("test.final_status") == "skip"
+            else:
+                assert new_skips_span.get_tag("test.final_status") is None
         assert new_skips_02_retries == 10
 
         assert len(spans) == 67
@@ -409,6 +434,16 @@ class PytestEFDTestCase(PytestTestCaseBase):
         assert rec.ret == 1
         assert len(spans) == 17
 
+        # Check final_status tag on the new failing test
+        new_fail_spans = _get_spans_from_list(spans, "test", "test_new_fails_01")
+        assert len(new_fail_spans) == 11
+        # Only the last span should have final_status:fail
+        for idx, span in enumerate(new_fail_spans):
+            if idx == len(new_fail_spans) - 1:
+                assert span.get_tag("test.final_status") == "fail"
+            else:
+                assert span.get_tag("test.final_status") is None
+
     def test_pytest_efd_passes_session_when_test_flakes(self):
         self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)
         self.testdir.makepyfile(test_new_pass=_TEST_NEW_PASS_CONTENT)
@@ -417,6 +452,26 @@ class PytestEFDTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         assert rec.ret == 0
         assert len(spans) == 29
+
+        # Check final_status tag on the flaky test - should be pass because flakiness is detected
+        new_flaky_spans = _get_spans_from_list(spans, "test", "test_new_flaky_01")
+        assert len(new_flaky_spans) == 11
+        # Only the last span should have final_status:pass
+        for idx, span in enumerate(new_flaky_spans):
+            if idx == len(new_flaky_spans) - 1:
+                assert span.get_tag("test.final_status") == "pass"
+            else:
+                assert span.get_tag("test.final_status") is None
+
+        # Check final_status tag on the passing test
+        new_pass_spans = _get_spans_from_list(spans, "test", "test_new_passes_01")
+        assert len(new_pass_spans) == 11
+        # Only the last span should have final_status:pass
+        for idx, span in enumerate(new_pass_spans):
+            if idx == len(new_pass_spans) - 1:
+                assert span.get_tag("test.final_status") == "pass"
+            else:
+                assert span.get_tag("test.final_status") is None
 
     def test_pytest_efd_does_not_retry_failed_setup(self):
         self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)
@@ -427,6 +482,8 @@ class PytestEFDTestCase(PytestTestCaseBase):
         assert len(fails_setup_spans) == 1
         assert fails_setup_spans[0].get_tag("test.is_new") == "true"
         assert fails_setup_spans[0].get_tag("test.is_retry") != "true"
+        # Check final_status tag: single span with no retries should have final_status:fail
+        assert fails_setup_spans[0].get_tag("test.final_status") == "fail"
         assert rec.ret == 1
         assert len(spans) == 7
 
@@ -439,6 +496,8 @@ class PytestEFDTestCase(PytestTestCaseBase):
         assert len(fails_teardown_spans) == 1
         assert fails_teardown_spans[0].get_tag("test.is_new") == "true"
         assert fails_teardown_spans[0].get_tag("test.is_retry") != "true"
+        # Check final_status tag: single span with no retries should have final_status:fail
+        assert fails_teardown_spans[0].get_tag("test.final_status") == "fail"
         assert rec.ret == 1
         assert len(spans) == 7
 

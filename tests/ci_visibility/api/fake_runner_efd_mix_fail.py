@@ -171,7 +171,7 @@ def run_tests():
     # m1_s1_t1 test expect 10 EFD retries
     api.InternalTest.start(m1_s1_t1_id)
     _hack_test_duration(m1_s1_t1_id, 1.23456)
-    api.InternalTest.finish(m1_s1_t1_id, TestStatus.FAIL)
+    api.InternalTest.finish(m1_s1_t1_id, TestStatus.FAIL, final=False)  # Not final - EFD retries will follow
     # Hack duration:
 
     m1_s1_t1_retry_count = 0
@@ -188,7 +188,7 @@ def run_tests():
     # m1_s1_t2 test: expect 5 EFD retries
     api.InternalTest.start(m1_s1_t2_id)
     _hack_test_duration(m1_s1_t2_id, 6.54321)
-    api.InternalTest.finish(m1_s1_t2_id, TestStatus.FAIL)
+    api.InternalTest.finish(m1_s1_t2_id, TestStatus.FAIL, final=False)  # Not final - EFD retries will follow
 
     m1_s1_t2_retry_count = 0
     while api.InternalTest.efd_should_retry(m1_s1_t2_id):
