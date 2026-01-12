@@ -904,6 +904,33 @@ class LLMObs(Service):
         return cls._instance._dne_client.dataset_delete(dataset_id)
 
     @classmethod
+    def _distributed_experiment(
+        cls,
+        name: str,
+        dataset: Optional[Dataset] = None,
+        description: str = "",
+        project_name: Optional[str] = None,
+        tags: Optional[Dict[str, str]] = None,
+        config: Optional[ExperimentConfigType] = None,
+        runs: Optional[int] = 1,
+    ):
+        experiment = Experiment(
+            name,
+            Experiment._NO_OP_TASK,
+            dataset,
+            [],
+            project_name=project_name or cls._project_name,
+            tags=tags,
+            description=description,
+            config=config,
+            _llmobs_instance=cls._instance,
+            runs=runs,
+            is_distributed=True,
+        )
+        experiment._init_experiment()
+        return experiment
+
+    @classmethod
     def experiment(
         cls,
         name: str,
