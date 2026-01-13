@@ -173,3 +173,59 @@ async def test_litellm_router_atext_completion(litellm, snapshot_context, reques
             if stream:
                 async for _ in resp:
                     pass
+
+
+def test_litellm_router_stream_handler_attribute(litellm, request_vcr, router, test_spans):
+    """
+    Regression test for litellm>=1.74.15 FallbackStreamWrapper compatibility.
+    Ensures spans are properly finished when handler attribute is not available.
+    """
+    with request_vcr.use_cassette(get_cassette_name(stream=True, n=1)):
+        messages = [{"content": "Hey, what is up?", "role": "user"}]
+        resp = router.completion(
+            model="gpt-3.5-turbo",
+            messages=messages,
+            stream=True,
+        )
+
+        # The response should be consumable without AttributeError
+        chunks_received = 0
+        for chunk in resp:
+            chunks_received += 1
+
+        assert chunks_received > 0, "Should have received at least one chunk"
+
+        # Verify that a span was created and finished
+        spans = test_spans.pop_traces()
+        assert len(spans) > 0, "Should have created at least one trace"
+        assert len(spans[0]) > 0, "Should have created at least one span"
+        span = spans[0][0]
+        assert span.duration > 0, "Span should be finished with a duration set"
+
+
+async def test_litellm_router_astream_handler_attribute(litellm, request_vcr, router, test_spans):
+    """
+    Regression test for litellm>=1.74.15 FallbackStreamWrapper compatibility (async).
+    Ensures spans are properly finished when handler attribute is not available.
+    """
+    with request_vcr.use_cassette(get_cassette_name(stream=True, n=1)):
+        messages = [{"content": "Hey, what is up?", "role": "user"}]
+        resp = await router.acompletion(
+            model="gpt-3.5-turbo",
+            messages=messages,
+            stream=True,
+        )
+
+        # The response should be consumable without AttributeError
+        chunks_received = 0
+        async for chunk in resp:
+            chunks_received += 1
+
+        assert chunks_received > 0, "Should have received at least one chunk"
+
+        # Verify that a span was created and finished
+        spans = test_spans.pop_traces()
+        assert len(spans) > 0, "Should have created at least one trace"
+        assert len(spans[0]) > 0, "Should have created at least one span"
+        span = spans[0][0]
+        assert span.duration > 0, "Span should be finished with a duration set"
