@@ -41,6 +41,7 @@ class PromptManager:
         api_key: str,
         site: str,
         ml_app: str,
+        app_key: Optional[str] = None,
         hot_cache: Optional[HotCache] = None,
         warm_cache: Optional[WarmCache] = None,
         cache_ttl: float = DEFAULT_PROMPTS_CACHE_TTL,
@@ -51,6 +52,7 @@ class PromptManager:
         cache_dir: Optional[str] = None,
     ) -> None:
         self._api_key = api_key
+        self._app_key = app_key
         self._site = site
         self._ml_app = ml_app
         self._sync_timeout = sync_timeout
@@ -223,10 +225,13 @@ class PromptManager:
         return f"{PROMPTS_ENDPOINT}/{encoded_prompt_id}?{query_params}"
 
     def _build_headers(self) -> Dict[str, str]:
-        return {
+        headers = {
             "DD-API-KEY": self._api_key,
             "Content-Type": "application/json",
         }
+        if self._app_key:
+            headers["dd-application-key"] = self._app_key
+        return headers
 
     def _parse_response(self, body: str, prompt_id: str, label: str) -> Optional[ManagedPrompt]:
         """Parse the API response into a ManagedPrompt."""

@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """
-Demo Part 3b: Registry Down - Cache Saves the Day
+Demo Part 3b: Network Failure Simulation
 
-Run this AFTER stopping the registry service (Ctrl+C in Terminal 1).
+Simulates network failure by pointing to an unreachable endpoint.
 Shows that the application keeps working from cached prompts.
+
+IMPORTANT: Run 03a_warmup_cache.py FIRST to populate the cache!
 """
 
 import os
 
-# Point to staging endpoint
-os.environ["DD_LLMOBS_PROMPTS_ENDPOINT"] = "https://api.datad0g.com"
+# Point to an UNREACHABLE endpoint - simulating Datadog being down
+os.environ["DD_LLMOBS_PROMPTS_ENDPOINT"] = "https://localhost:9999"
 
 from ddtrace.llmobs._prompts.manager import PromptManager
 
@@ -17,10 +19,11 @@ from ddtrace.llmobs._prompts.manager import PromptManager
 API_KEY = os.environ.get("DD_API_KEY", "test-api-key")
 APP_KEY = os.environ.get("DD_APP_KEY")
 
-# Same manager, same app - but now the registry is DOWN
+# Same manager, same app - but now the registry is UNREACHABLE
 manager = PromptManager(api_key=API_KEY, app_key=APP_KEY, site="datad0g.com", ml_app="customer-chatbot")
 
-print("Registry is down, but customers keep coming...")
+print("Simulating network failure - endpoint is UNREACHABLE")
+print("(pointing to https://localhost:9999)")
 print()
 
 # These calls work because prompts are cached!
@@ -33,4 +36,4 @@ print()
 print("Customer 3 arrives:")
 print(prompt.format(name="Customer 3", company="Acme"))
 print()
-print("Your application never skipped a beat.")
+print("Your application never skipped a beat - served from cache!")
