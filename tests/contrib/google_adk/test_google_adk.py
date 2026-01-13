@@ -3,11 +3,10 @@ from google.adk.code_executors.unsafe_local_code_executor import UnsafeLocalCode
 import pytest
 
 from tests.contrib.google_adk.conftest import create_test_message
-from tests.utils import TracerSpanContainer
 
 
 @pytest.mark.asyncio
-async def test_agent_run_async(test_runner, mock_tracer, request_vcr):
+async def test_agent_run_async(test_runner, test_spans, request_vcr):
     """Test agent run async creates proper spans with basic APM tags."""
     message = create_test_message("Say hello")
 
@@ -37,7 +36,7 @@ async def test_agent_run_async(test_runner, mock_tracer, request_vcr):
 
     assert output == "Found reference for: test\n{'product': 15}\n"
 
-    traces = TracerSpanContainer(mock_tracer).pop_traces()
+    traces = test_spans.pop_traces()
     spans = [s for t in traces for s in t]
 
     runner_spans = [s for s in spans if "InMemoryRunner.run_async" in s.resource]
@@ -51,7 +50,7 @@ async def test_agent_run_async(test_runner, mock_tracer, request_vcr):
 
 
 @pytest.mark.asyncio
-async def test_agent_with_tool_usage(test_runner, mock_tracer, request_vcr):
+async def test_agent_with_tool_usage(test_runner, test_spans, request_vcr):
     """Test E2E agent run that triggers tool usage."""
     message = create_test_message("Can you search for information about recurring revenue?")
 
@@ -78,7 +77,7 @@ async def test_agent_with_tool_usage(test_runner, mock_tracer, request_vcr):
 
     assert output == "Found reference for: recurring revenue\n"
 
-    traces = TracerSpanContainer(mock_tracer).pop_traces()
+    traces = test_spans.pop_traces()
     spans = [s for t in traces for s in t]
 
     runner_spans = [s for s in spans if "Runner.run_async" in s.resource]
@@ -101,7 +100,7 @@ async def test_agent_with_tool_usage(test_runner, mock_tracer, request_vcr):
 
 
 @pytest.mark.asyncio
-async def test_agent_with_tool_calculation(test_runner, mock_tracer, request_vcr):
+async def test_agent_with_tool_calculation(test_runner, test_spans, request_vcr):
     """Test E2E agent run that triggers tool usage for calculations."""
     message = create_test_message("Please use the multiply tool to calculate 37 times 29.")
 
@@ -141,7 +140,7 @@ async def test_agent_with_tool_calculation(test_runner, mock_tracer, request_vcr
     assert output.strip() != "", f"Expected some output but got: '{output}'"
     assert "1073" in output or "product" in output.lower(), f"Expected multiply tool result (1073) but got: '{output}'"
 
-    traces = TracerSpanContainer(mock_tracer).pop_traces()
+    traces = test_spans.pop_traces()
     spans = [s for t in traces for s in t]
 
     runner_spans = [s for s in spans if "Runner.run_async" in s.resource]
@@ -163,13 +162,13 @@ async def test_agent_with_tool_calculation(test_runner, mock_tracer, request_vcr
     assert tool_span.get_tag("component") == "google_adk"
 
 
-def test_execute_code_creates_span(mock_invocation_context, mock_tracer):
+def test_execute_code_creates_span(mock_invocation_context, test_spans):
     """Test that a span is created when code is executed."""
     executor = UnsafeLocalCodeExecutor()
     code_input = CodeExecutionInput(code='print("hello world")')
     executor.execute_code(mock_invocation_context, code_input)
 
-    traces = TracerSpanContainer(mock_tracer).pop_traces()
+    traces = test_spans.pop_traces()
     spans = [s for t in traces for s in t]
     assert len(spans) == 1
     span = spans[0]
@@ -181,13 +180,13 @@ def test_execute_code_creates_span(mock_invocation_context, mock_tracer):
     assert span.error == 0
 
 
-def test_execute_code_with_error_creates_span(mock_invocation_context, mock_tracer):
+def test_execute_code_with_error_creates_span(mock_invocation_context, test_spans):
     """Test that a span is created with error tags when code execution fails."""
     executor = UnsafeLocalCodeExecutor()
     code_input = CodeExecutionInput(code='raise ValueError("Test error")')
     executor.execute_code(mock_invocation_context, code_input)
 
-    traces = TracerSpanContainer(mock_tracer).pop_traces()
+    traces = test_spans.pop_traces()
     spans = [s for t in traces for s in t]
     assert len(spans) == 1
     span = spans[0]
@@ -201,7 +200,7 @@ def test_execute_code_with_error_creates_span(mock_invocation_context, mock_trac
 
 
 @pytest.mark.asyncio
-async def test_error_handling_e2e(test_runner, mock_tracer, request_vcr):
+async def test_error_handling_e2e(test_runner, test_spans, request_vcr):
     """Test error handling in E2E agent execution."""
     from google.adk.tools.function_tool import FunctionTool
 
@@ -227,7 +226,7 @@ async def test_error_handling_e2e(test_runner, mock_tracer, request_vcr):
         except Exception:
             pass
 
-    traces = TracerSpanContainer(mock_tracer).pop_traces()
+    traces = test_spans.pop_traces()
     spans = [s for t in traces for s in t]
 
     runner_spans = [s for s in spans if "Runner.run_async" in s.resource]
