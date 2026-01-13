@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING  # noqa:F401
 import pytest
 
 import ddtrace
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -61,9 +60,6 @@ class TestSQLite(TracerTestCase):
         services = ["db", "another"]
         for service in services:
             db = sqlite3.connect(":memory:")
-            pin = Pin.get_from(db)
-            assert pin
-            pin._clone(service=service, tracer=self.tracer).onto(db)
 
             # Ensure we can run a query and it's correctly traced
             q = "select * from sqlite_master"
@@ -226,9 +222,6 @@ class TestSQLite(TracerTestCase):
         patch()
 
         db = sqlite3.connect(":memory:")
-        pin = Pin.get_from(db)
-        assert pin
-        pin._clone(tracer=self.tracer).onto(db)
         db.cursor().execute("select 'blah'").fetchall()
 
         self.assert_structure(
@@ -248,9 +241,6 @@ class TestSQLite(TracerTestCase):
         patch()
 
         db = sqlite3.connect(":memory:")
-        pin = Pin.get_from(db)
-        assert pin
-        pin._clone(tracer=self.tracer).onto(db)
         db.cursor().execute("select 'blah'").fetchall()
 
         self.assert_structure(
@@ -259,7 +249,6 @@ class TestSQLite(TracerTestCase):
 
     def _given_a_traced_connection(self, tracer):
         db = sqlite3.connect(":memory:")
-        Pin.get_from(db)._clone(tracer=tracer).onto(db)
         return db
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))

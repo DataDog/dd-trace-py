@@ -4,7 +4,6 @@ from confluent_kafka import TopicPartition
 import mock
 import pytest
 
-from ddtrace._trace.pin import Pin
 import ddtrace.internal.datastreams  # noqa: F401 - used as part of mock patching
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
@@ -260,9 +259,6 @@ def test_data_streams_default_context_propagation(consumer, producer, kafka_topi
 
 
 def test_span_has_dsm_payload_hash(kafka_tracer, test_spans, consumer, producer, kafka_topic):
-    Pin._override(producer, tracer=kafka_tracer)
-    Pin._override(consumer, tracer=kafka_tracer)
-
     test_string = "payload hash test"
     PAYLOAD = bytes(test_string, encoding="utf-8")
 
@@ -286,6 +282,3 @@ def test_span_has_dsm_payload_hash(kafka_tracer, test_spans, consumer, producer,
 
     assert consume_span.name == "kafka.consume"
     assert consume_span.get_tag("pathway.hash") is not None
-
-    Pin._override(consumer, tracer=None)
-    Pin._override(producer, tracer=None)

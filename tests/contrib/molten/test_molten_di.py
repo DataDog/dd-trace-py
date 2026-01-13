@@ -1,9 +1,7 @@
 from inspect import Parameter
 
-import molten
 from molten import DependencyInjector
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.molten.patch import patch
 from ddtrace.contrib.internal.molten.patch import unpatch
 from tests.utils import TracerTestCase
@@ -80,12 +78,9 @@ class AccountsComponent:
 class TestMoltenDI(TracerTestCase):
     """Ensures Molten dependency injection is properly instrumented."""
 
-    TEST_SERVICE = "molten-patch-di"
-
     def setUp(self):
         super(TestMoltenDI, self).setUp()
         patch()
-        Pin._override(molten, tracer=self.tracer, service=self.TEST_SERVICE)
 
     def tearDown(self):
         unpatch()

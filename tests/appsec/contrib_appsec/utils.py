@@ -1,4 +1,3 @@
-from contextlib import contextmanager
 import itertools
 import json
 import sys
@@ -11,7 +10,6 @@ from urllib.parse import urlencode
 import pytest
 
 import ddtrace
-from ddtrace._trace.pin import Pin
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
 from ddtrace.appsec._utils import get_triggers
@@ -2076,12 +2074,3 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == 200, f"{self.status(response)} is not 200"
             c_tag = get_tag("_dd.appsec.trace.mark")
             assert c_tag == tag, f"[{c_tag}] is not [{tag}] {response.text[:50]}"
-
-
-@contextmanager
-def post_tracer(interface):
-    original_tracer = getattr(Pin.get_from(interface.framework), "tracer", None)
-    Pin._override(interface.framework, tracer=interface.tracer)
-    yield
-    if original_tracer is not None:
-        Pin._override(interface.framework, tracer=original_tracer)

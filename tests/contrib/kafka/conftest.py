@@ -6,7 +6,6 @@ import pytest
 
 from ddtrace import config
 from ddtrace._trace.filters import TraceFilter
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace.contrib.internal.kafka.patch import unpatch
 from tests.conftest import get_original_test_name
@@ -99,7 +98,6 @@ def kafka_tracer(patch_kafka, should_filter_empty_polls, tracer):
 @pytest.fixture
 def producer(kafka_tracer):
     _producer = confluent_kafka.Producer({"bootstrap.servers": BOOTSTRAP_SERVERS})
-    Pin._override(_producer, tracer=kafka_tracer)
     return _producer
 
 
@@ -116,7 +114,6 @@ def consumer(kafka_tracer, kafka_topic):
     tp = TopicPartition(kafka_topic, 0)
     tp.offset = 0  # we want to read the first message
     _consumer.commit(offsets=[tp])
-    Pin._override(_consumer, tracer=kafka_tracer)
     _consumer.subscribe([kafka_topic])
     yield _consumer
     _consumer.close()
@@ -135,7 +132,6 @@ def non_auto_commit_consumer(kafka_tracer, kafka_topic):
     tp = TopicPartition(kafka_topic, 0)
     tp.offset = 0  # we want to read the first message
     _consumer.commit(offsets=[tp])
-    Pin._override(_consumer, tracer=kafka_tracer)
     _consumer.subscribe([kafka_topic])
     yield _consumer
     _consumer.close()
@@ -146,7 +142,6 @@ def serializing_producer(kafka_tracer):
     _producer = confluent_kafka.SerializingProducer(
         {"bootstrap.servers": BOOTSTRAP_SERVERS, "value.serializer": lambda x, y: x}
     )
-    Pin._override(_producer, tracer=kafka_tracer)
     return _producer
 
 
@@ -160,7 +155,6 @@ def deserializing_consumer(kafka_tracer, kafka_topic):
             "value.deserializer": lambda x, y: x,
         }
     )
-    Pin._override(_consumer, tracer=kafka_tracer)
     _consumer.subscribe([kafka_topic])
     yield _consumer
     _consumer.close()

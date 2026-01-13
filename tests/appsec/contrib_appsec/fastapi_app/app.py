@@ -14,7 +14,6 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from ddtrace._trace.pin import Pin
 import ddtrace.constants
 from ddtrace.trace import tracer
 
@@ -142,7 +141,7 @@ def get_app():
     async def new_service(service_name: str, request: Request):  # noqa: B008
         import ddtrace
 
-        Pin._override(app, service=service_name, tracer=ddtrace.tracer)
+        ddtrace.config.fastapi._default_service = service_name
         return HTMLResponse(service_name, 200)
 
     async def slow_numbers(minimum, maximum):

@@ -11,7 +11,6 @@ from moto import mock_sns
 from moto import mock_sqs
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace._trace.utils_botocore import span_tags
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import patch_submodules
@@ -28,8 +27,6 @@ BOTOCORE_VERSION = parse_version(botocore.__version__)
 @pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
 class BotocoreDSMTest(TracerTestCase):
     """Botocore DSM (Data Streams Monitoring) integration tests"""
-
-    TEST_SERVICE = "test-botocore-tracing"
 
     @mock_sqs
     def setUp(self):
@@ -50,9 +47,6 @@ class BotocoreDSMTest(TracerTestCase):
 
         super(BotocoreDSMTest, self).setUp()
 
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(botocore.parsers.ResponseParser)
         # Setting the validated flag to False ensures the redaction paths configurations are re-validated
         # FIXME: Ensure AWSPayloadTagging._REQUEST_REDACTION_PATHS_DEFAULTS is always in sync with
         # config.botocore.payload_tagging_request
@@ -133,9 +127,6 @@ class BotocoreDSMTest(TracerTestCase):
                     AttributeValue="true",
                 )
 
-            Pin.get_from(sns)._clone(tracer=self.tracer).onto(sns)
-            Pin.get_from(self.sqs_client)._clone(tracer=self.tracer).onto(self.sqs_client)
-
             sns.publish(TopicArn=topic_arn, Message="test")
 
             self.get_spans()
@@ -146,8 +137,7 @@ class BotocoreDSMTest(TracerTestCase):
             # clean up resources
             sns.delete_topic(TopicArn=topic_arn)
 
-            pin = Pin.get_from(sns)
-            buckets = pin.tracer.data_streams_processor._buckets
+            buckets = self.tracer.data_streams_processor._buckets
             assert len(buckets) == 1, "Expected 1 bucket but found {}".format(len(buckets))
             first = list(buckets.values())[0].pathway_stats
 
@@ -212,9 +202,6 @@ class BotocoreDSMTest(TracerTestCase):
         ):
             mt.return_value = 1642544540
 
-            pin = Pin(service=self.TEST_SERVICE)
-            pin._tracer = self.tracer
-            pin.onto(self.sqs_client)
             message_attributes = {
                 "one": {"DataType": "String", "StringValue": "one"},
                 "two": {"DataType": "String", "StringValue": "two"},
@@ -237,8 +224,7 @@ class BotocoreDSMTest(TracerTestCase):
                 WaitTimeSeconds=2,
             )
 
-            pin = Pin.get_from(self.sqs_client)
-            buckets = pin.tracer.data_streams_processor._buckets
+            buckets = self.tracer.data_streams_processor._buckets
             assert len(buckets) == 1
             first = list(buckets.values())[0].pathway_stats
 
@@ -276,9 +262,6 @@ class BotocoreDSMTest(TracerTestCase):
         ):
             mt.return_value = 1642544540
 
-            pin = Pin(service=self.TEST_SERVICE)
-            pin._tracer = self.tracer
-            pin.onto(self.sqs_client)
             message_attributes = {
                 "one": {"DataType": "String", "StringValue": "one"},
                 "two": {"DataType": "String", "StringValue": "two"},
@@ -306,8 +289,7 @@ class BotocoreDSMTest(TracerTestCase):
                 WaitTimeSeconds=2,
             )
 
-            pin = Pin.get_from(self.sqs_client)
-            buckets = pin.tracer.data_streams_processor._buckets
+            buckets = self.tracer.data_streams_processor._buckets
             assert len(buckets) == 1
             first = list(buckets.values())[0].pathway_stats
 
@@ -359,9 +341,6 @@ class BotocoreDSMTest(TracerTestCase):
         ):
             mt.return_value = 1642544540
 
-            pin = Pin(service=self.TEST_SERVICE)
-            pin._tracer = self.tracer
-            pin.onto(self.sqs_client)
             message_attributes = {
                 "one": {"DataType": "String", "StringValue": "one"},
                 "two": {"DataType": "String", "StringValue": "two"},
@@ -385,8 +364,7 @@ class BotocoreDSMTest(TracerTestCase):
                 WaitTimeSeconds=2,
             )
 
-            pin = Pin.get_from(self.sqs_client)
-            buckets = pin.tracer.data_streams_processor._buckets
+            buckets = self.tracer.data_streams_processor._buckets
             assert len(buckets) == 1
             first = list(buckets.values())[0].pathway_stats
 
@@ -413,16 +391,12 @@ class BotocoreDSMTest(TracerTestCase):
             stream_name = "kinesis_put_records_data_streams"
             shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
 
-            pin = Pin(service=self.TEST_SERVICE)
-            pin._tracer = self.tracer
-            pin.onto(client)
             client.put_records(StreamName=stream_name, Records=records, StreamARN=stream_arn)
 
             shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
             client.get_records(ShardIterator=shard_iterator, StreamARN=stream_arn)
 
-            pin = Pin.get_from(client)
-            buckets = pin.tracer.data_streams_processor._buckets
+            buckets = self.tracer.data_streams_processor._buckets
             assert len(buckets) == 1
             first = list(buckets.values())[0].pathway_stats
 
@@ -517,16 +491,12 @@ class BotocoreDSMTest(TracerTestCase):
             shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
 
             partition_key = "1234"
-            pin = Pin(service=self.TEST_SERVICE)
-            pin._tracer = self.tracer
-            pin.onto(client)
             client.put_record(StreamName=stream_name, Data=data, PartitionKey=partition_key, StreamARN=stream_arn)
 
             shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
             client.get_records(ShardIterator=shard_iterator, StreamARN=stream_arn)
 
-            pin = Pin.get_from(client)
-            buckets = pin.tracer.data_streams_processor._buckets
+            buckets = self.tracer.data_streams_processor._buckets
             assert len(buckets) == 1
             first = list(buckets.values())[0].pathway_stats
             in_tags = ",".join(
@@ -621,9 +591,6 @@ class BotocoreDSMTest(TracerTestCase):
         data = json.dumps({"json": "string"})
         records = self._kinesis_generate_records(data, 5)
 
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(client)
         client.put_records(StreamName=stream_name, Records=records, StreamARN=stream_arn)
 
         shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
@@ -652,9 +619,6 @@ class BotocoreDSMTest(TracerTestCase):
         data = json.dumps({"json": "string"})
         records = self._kinesis_generate_records(data, 5)
 
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(client)
         client.put_records(StreamName=stream_name, Records=records, StreamARN=stream_arn)
 
         shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
@@ -683,9 +647,6 @@ class BotocoreDSMTest(TracerTestCase):
         data = json.dumps({"json": "string"})
         records = self._kinesis_generate_records(data, 5)
 
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(client)
         client.put_records(StreamName=stream_name, Records=records, StreamARN=stream_arn)
 
         shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)

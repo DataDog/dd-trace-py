@@ -8,7 +8,6 @@ from psycopg.sql import Composed
 from psycopg.sql import Identifier
 from psycopg.sql import Literal
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -24,9 +23,6 @@ TEST_PORT = POSTGRES_CONFIG["port"]
 
 
 class PsycopgCore(TracerTestCase):
-    # default service
-    TEST_SERVICE = "postgres"
-
     def setUp(self):
         super(PsycopgCore, self).setUp()
 
@@ -39,10 +35,6 @@ class PsycopgCore(TracerTestCase):
 
     def _get_conn(self, service=None):
         conn = psycopg.connect(**POSTGRES_CONFIG)
-        pin = Pin.get_from(conn)
-        if pin:
-            pin._clone(service=service, tracer=self.tracer).onto(conn)
-
         return conn
 
     def test_patch_unpatch(self):
@@ -138,7 +130,6 @@ class PsycopgCore(TracerTestCase):
         configs_arr.append("options='-c statement_timeout=1000 -c lock_timeout=250'")
         conn = psycopg.connect(" ".join(configs_arr))
 
-        Pin.get_from(conn)._clone(service="postgres", tracer=self.tracer).onto(conn)
         self.assert_conn_is_traced(conn, "postgres")
 
     def test_cursor_ctx_manager(self):
@@ -195,13 +186,13 @@ class PsycopgCore(TracerTestCase):
         conn = self._get_conn()
         conn.commit()
 
-        self.assert_structure(dict(name="psycopg.connection.commit", service=self.TEST_SERVICE))
+        self.assert_structure(dict(name="psycopg.connection.commit"))
 
     def test_rollback(self):
         conn = self._get_conn()
         conn.rollback()
 
-        self.assert_structure(dict(name="psycopg.connection.rollback", service=self.TEST_SERVICE))
+        self.assert_structure(dict(name="psycopg.connection.rollback"))
 
     def test_composed_query(self):
         """Checks whether execution of composed SQL string is traced"""
@@ -495,10 +486,6 @@ class PsycopgCore(TracerTestCase):
         other_conn = self._get_conn()
         conn = psycopg.Connection(other_conn.pgconn)
         connection = conn.connect(**POSTGRES_CONFIG)
-
-        pin = Pin.get_from(connection)
-        if pin:
-            pin._clone(service="postgres", tracer=self.tracer).onto(connection)
 
         query = SQL("""select 'one' as x""")
         cur = connection.execute(query)

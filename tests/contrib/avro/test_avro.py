@@ -3,7 +3,6 @@ from avro.datafile import DataFileWriter
 from avro.io import DatumReader
 from avro.io import DatumWriter
 
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.contrib.internal.avro.patch import patch
 from ddtrace.contrib.internal.avro.patch import unpatch
@@ -47,10 +46,6 @@ def test_patching(avro):
 def test_basic_schema_serialize(avro, tracer, test_spans):
     writer = DatumWriter()
 
-    pin = Pin.get_from(writer)
-    assert pin is not None
-    pin._clone(tags={"cheese": "camembert"}, tracer=tracer).onto(writer)
-
     with tracer.trace("basic_avro_schema.serialization") as span:
         span.context.sampling_priority = AUTO_KEEP
         schema = avro.schema.parse(open("tests/contrib/avro/schemas/user.avsc", "rb").read())
@@ -79,10 +74,6 @@ def test_basic_schema_serialize(avro, tracer, test_spans):
 
 def test_advanced_schema_serialize(avro, tracer, test_spans):
     writer = DatumWriter()
-
-    pin = Pin.get_from(writer)
-    assert pin is not None
-    pin._clone(tags={"cheese": "camembert"}, tracer=tracer).onto(writer)
 
     with tracer.trace("advanced_avro_schema.serialization") as span:
         span.context.sampling_priority = AUTO_KEEP
@@ -126,10 +117,6 @@ def test_advanced_schema_serialize(avro, tracer, test_spans):
 def test_basic_schema_deserialize(avro, tracer, test_spans):
     reader = DatumReader()
 
-    pin = Pin.get_from(reader)
-    assert pin is not None
-    pin._clone(tags={"cheese": "camembert"}, tracer=tracer).onto(reader)
-
     with tracer.trace("basic_avro_schema.deserialization") as span:
         span.context.sampling_priority = AUTO_KEEP
         reader = DataFileReader(open("tests/contrib/avro/schemas/users.avro", "rb"), reader)
@@ -157,10 +144,6 @@ def test_basic_schema_deserialize(avro, tracer, test_spans):
 
 def test_advanced_schema_deserialize(avro, tracer, test_spans):
     reader = DatumReader()
-
-    pin = Pin.get_from(reader)
-    assert pin is not None
-    pin._clone(tags={"cheese": "camembert"}, tracer=tracer).onto(reader)
 
     with tracer.trace("advanced_avro_schema.deserialization") as span:
         span.context.sampling_priority = AUTO_KEEP

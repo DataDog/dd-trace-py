@@ -5,7 +5,6 @@ import mock
 import pymysql
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.aiomysql.patch import patch
 from ddtrace.contrib.internal.aiomysql.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -60,25 +59,12 @@ async def test_queries(snapshot_conn):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
-async def test_pin_override(patched_conn, tracer):
-    Pin._override(patched_conn, service="db")
-    cursor = await patched_conn.cursor()
-    await cursor.execute("SELECT 1")
-    rows = await cursor.fetchall()
-    assert rows == ((1,),)
-
-
-@pytest.mark.asyncio
 async def test_patch_unpatch(tracer, test_spans):
     # Test patch idempotence
     patch()
     patch()
 
-    service = "fo"
-
     conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
-    Pin.get_from(conn)._clone(service=service, tracer=tracer).onto(conn)
     await (await conn.cursor()).execute("select 'dba4x4'")
     conn.close()
 
@@ -100,7 +86,6 @@ async def test_patch_unpatch(tracer, test_spans):
     patch()
 
     conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
-    Pin.get_from(conn)._clone(service=service, tracer=tracer).onto(conn)
     await (await conn.cursor()).execute("select 'dba4x4'")
     conn.close()
 
@@ -222,8 +207,6 @@ asyncio.run(test())""",
 
 
 class AioMySQLTestCase(AsyncioTestCase):
-    # default service
-    TEST_SERVICE = "mysql"
     conn = None
 
     async def _get_conn_tracer(self, tags=None):
@@ -232,12 +215,6 @@ class AioMySQLTestCase(AsyncioTestCase):
         if not self.conn:
             self.conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
             assert not self.conn.closed
-            # Ensure that the default pin is there, with its default value
-            pin = Pin.get_from(self.conn)
-            assert pin
-            # Customize the service
-            # we have to apply it on the existing one since new one won't inherit `app`
-            pin._clone(tracer=self.tracer, tags={**tags, **pin.tags}).onto(self.conn)
 
             return self.conn, self.tracer
 
@@ -386,26 +363,6 @@ class AioMySQLTestCase(AsyncioTestCase):
 
         await shared_tests._test_dbm_propagation_comment_integration_service_name_override(
             config=AIOMYSQL_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
-        )
-
-    @mark_asyncio
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
-            DD_AIOMYSQL_SERVICE="service-name-override",
-        )
-    )
-    async def test_aiomysql_dbm_propagation_comment_pin_service_name_override(self):
-        """tests if dbm comment is set in mysql"""
-        conn, tracer = await self._get_conn_tracer()
-        cursor = await conn.cursor()
-        cursor.__wrapped__ = mock.AsyncMock()
-
-        await shared_tests._test_dbm_propagation_comment_pin_service_name_override(
-            config=AIOMYSQL_CONFIG, cursor=cursor, conn=conn, tracer=tracer, wrapped_instance=cursor.__wrapped__
         )
 
     @mark_asyncio

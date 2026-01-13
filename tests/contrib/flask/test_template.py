@@ -1,6 +1,5 @@
 import flask
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.contrib.internal.flask.patch import unpatch
 
@@ -66,8 +65,7 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
             When the app's ``Pin`` is disabled
                 We do not create any spans
         """
-        pin = Pin.get_from(self.app)
-        pin.tracer.enabled = False
+        self.tracer.enabled = False
 
         with self.app.app_context():
             with self.app.test_request_context("/"):
@@ -110,8 +108,7 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
             When the app's ``Pin`` is disabled
                 We do not create any spans
         """
-        pin = Pin.get_from(self.app)
-        pin.tracer.enabled = False
+        self.tracer.enabled = False
 
         with self.app.app_context():
             with self.app.test_request_context("/"):

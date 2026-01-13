@@ -14,7 +14,6 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from ddtrace._trace.pin import Pin
 import ddtrace.constants
 from ddtrace.trace import tracer
 
@@ -296,7 +295,7 @@ def login_user_sdk(request):
 def new_service(request, service_name: str):
     import ddtrace
 
-    Pin._override(django, service=service_name, tracer=ddtrace.tracer)
+    ddtrace.config.django._default_service = service_name
     return HttpResponse(service_name, status=200)
 
 

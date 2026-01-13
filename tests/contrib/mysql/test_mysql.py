@@ -1,7 +1,6 @@
 import mock
 import mysql
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.mysql.patch import patch
 from ddtrace.contrib.internal.mysql.patch import unpatch
 from tests.contrib import shared_tests
@@ -324,13 +323,6 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         if not self.conn:
             self.conn = mysql.connector.connect(**MYSQL_CONFIG)
             assert self.conn.is_connected()
-            # Ensure that the default pin is there, with its default value
-            pin = Pin.get_from(self.conn)
-            assert pin
-            # assert pin.service == 'mysql'
-            # Customize the service
-            # we have to apply it on the existing one since new one won't inherit `app`
-            pin._clone(tracer=self.tracer).onto(self.conn)
 
             return self.conn, self.tracer
 
@@ -338,15 +330,11 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         unpatch()
         # assert we start unpatched
         conn = mysql.connector.connect(**MYSQL_CONFIG)
-        assert not Pin.get_from(conn)
         conn.close()
 
         patch()
         try:
             conn = mysql.connector.connect(**MYSQL_CONFIG)
-            pin = Pin.get_from(conn)
-            assert pin
-            pin._clone(service="pin-svc", tracer=self.tracer).onto(conn)
             assert conn.is_connected()
 
             cursor = conn.cursor()
@@ -357,7 +345,6 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             assert len(spans) == 1
 
             span = spans[0]
-            assert span.service == "pin-svc"
             assert span.name == "mysql.query"
             assert span.span_type == "sql"
             assert span.error == 0
@@ -380,7 +367,6 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
 
             # assert we finish unpatched
             conn = mysql.connector.connect(**MYSQL_CONFIG)
-            assert not Pin.get_from(conn)
             conn.close()
 
         patch()
@@ -486,16 +472,6 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             DD_AIOMYSQL_SERVICE="service-name-override",
         )
     )
-    def test_mysql_dbm_propagation_comment_pin_service_name_override(self):
-        """tests if dbm comment is set in mysql"""
-        conn, tracer = self._get_conn_tracer()
-        cursor = conn.cursor()
-        cursor.__wrapped__ = mock.Mock()
-
-        shared_tests._test_dbm_propagation_comment_pin_service_name_override(
-            config=MYSQL_CONFIG, cursor=cursor, conn=conn, tracer=tracer, wrapped_instance=cursor.__wrapped__
-        )
-
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(
             DD_DBM_PROPAGATION_MODE="service",

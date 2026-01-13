@@ -4,7 +4,6 @@ from unittest import mock
 import pytest
 import redis
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.redis.patch import patch
 from ddtrace.contrib.internal.redis.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -23,7 +22,6 @@ class TestRedisPatch(TracerTestCase):
         patch()
         r = redis.Redis(port=self.TEST_PORT)
         r.flushall()
-        Pin._override(r, tracer=self.tracer)
         self.r = r
 
     def tearDown(self):
@@ -197,14 +195,9 @@ class TestRedisPatch(TracerTestCase):
 
     def test_meta_override(self):
         r = self.r
-        pin = Pin.get_from(r)
-        if pin:
-            pin._clone(tags={"cheese": "camembert"}).onto(r)
-
         r.get("cheese")
         span = find_redis_span(self.get_spans(), resource="GET", raw_command="GET cheese")
         assert span.service == "redis"
-        assert "cheese" in span.get_tags() and span.get_tag("cheese") == "camembert"
 
     def test_patch_unpatch(self):
         # Test patch idempotence
@@ -212,7 +205,6 @@ class TestRedisPatch(TracerTestCase):
         patch()
 
         r = redis.Redis(port=REDIS_CONFIG["port"])
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         spans = self.pop_spans()
@@ -232,7 +224,6 @@ class TestRedisPatch(TracerTestCase):
         patch()
 
         r = redis.Redis(port=REDIS_CONFIG["port"])
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         spans = self.pop_spans()
@@ -411,7 +402,6 @@ class TestRedisPatch(TracerTestCase):
         self.reset()
 
         # Manual override
-        Pin._override(self.r, service="mysvc", tracer=self.tracer)
         self.r.get("cheese")
         span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "mysvc", span.service
@@ -429,7 +419,6 @@ class TestRedisPatch(TracerTestCase):
         self.reset()
 
         # Do a manual override
-        Pin._override(self.r, service="override-redis", tracer=self.tracer)
         self.r.get("cheese")
         span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "override-redis", span.service
@@ -481,9 +470,6 @@ class TestRedisPatchSnapshot(TracerTestCase):
     @snapshot()
     def test_meta_override(self):
         r = self.r
-        pin = Pin.get_from(r)
-        if pin:
-            pin._clone(tags={"cheese": "camembert"}).onto(r)
 
         r.get("cheese")
 
@@ -493,7 +479,6 @@ class TestRedisPatchSnapshot(TracerTestCase):
         patch()
 
         r = redis.Redis(port=REDIS_CONFIG["port"])
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         spans = self.pop_spans()
@@ -513,7 +498,6 @@ class TestRedisPatchSnapshot(TracerTestCase):
         patch()
 
         r = redis.Redis(port=REDIS_CONFIG["port"])
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         spans = self.pop_spans()
@@ -543,7 +527,6 @@ class TestRedisPatchSnapshot(TracerTestCase):
         self.reset()
 
         # Manual override
-        Pin._override(self.r, service="mysvc", tracer=self.tracer)
         self.r.get("cheese")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-redis"))
@@ -554,7 +537,6 @@ class TestRedisPatchSnapshot(TracerTestCase):
         self.reset()
 
         # Do a manual override
-        Pin._override(self.r, service="override-redis", tracer=self.tracer)
         self.r.get("cheese")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDIS_CMD_MAX_LENGTH="10"))

@@ -3,7 +3,6 @@ from async_generator import async_generator
 from async_generator import asynccontextmanager
 from async_generator import yield_
 
-from ddtrace._trace.pin import Pin
 from tests.contrib.config import MOTO_CONFIG
 
 
@@ -33,11 +32,9 @@ async def aiobotocore_client(service, tracer):
         client, aiobotocore.session.ClientCreatorContext
     ):
         async with client as client:
-            Pin._override(client, tracer=tracer)
             await yield_(client)
 
     else:
-        Pin._override(client, tracer=tracer)
         try:
             await yield_(client)
         finally:

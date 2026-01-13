@@ -7,7 +7,6 @@ import psycopg2
 from psycopg2 import extensions
 from psycopg2 import extras
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -31,9 +30,6 @@ TEST_PORT = POSTGRES_CONFIG["port"]
 
 
 class PsycopgCore(TracerTestCase):
-    # default service
-    TEST_SERVICE = "postgres"
-
     def setUp(self):
         super(PsycopgCore, self).setUp()
 
@@ -46,10 +42,6 @@ class PsycopgCore(TracerTestCase):
 
     def _get_conn(self, service=None):
         conn = psycopg2.connect(**POSTGRES_CONFIG)
-        pin = Pin.get_from(conn)
-        if pin:
-            pin._clone(service=service, tracer=self.tracer).onto(conn)
-
         return conn
 
     def test_patch_unpatch(self):
@@ -144,7 +136,6 @@ class PsycopgCore(TracerTestCase):
         configs_arr.append("options='-c statement_timeout=1000 -c lock_timeout=250'")
         conn = psycopg2.connect(" ".join(configs_arr))
 
-        Pin.get_from(conn)._clone(service="postgres", tracer=self.tracer).onto(conn)
         self.assert_conn_is_traced(conn, "postgres")
 
     @skipIf(PSYCOPG2_VERSION < (2, 5), "context manager not available in psycopg2==2.4")
@@ -243,13 +234,13 @@ class PsycopgCore(TracerTestCase):
         conn = self._get_conn()
         conn.commit()
 
-        self.assert_structure(dict(name="postgres.connection.commit", service=self.TEST_SERVICE))
+        self.assert_structure(dict(name="postgres.connection.commit"))
 
     def test_rollback(self):
         conn = self._get_conn()
         conn.rollback()
 
-        self.assert_structure(dict(name="postgres.connection.rollback", service=self.TEST_SERVICE))
+        self.assert_structure(dict(name="postgres.connection.rollback"))
 
     @skipIf(PSYCOPG2_VERSION < (2, 7), "SQL string composition not available in psycopg2<2.7")
     def test_composed_query(self):

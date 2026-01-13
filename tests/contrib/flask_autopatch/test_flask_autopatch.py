@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import flask
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.ext import http
 from ddtrace.internal.compat import is_wrapted
@@ -17,7 +16,6 @@ class FlaskAutopatchTestCase(TracerTestCase):
     def setUp(self):
         super(FlaskAutopatchTestCase, self).setUp()
         self.app = flask.Flask(__name__)
-        Pin._override(self.app, service="test-flask", tracer=self.tracer)
         self.client = self.app.test_client()
 
     def test_patched(self):

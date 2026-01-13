@@ -6,11 +6,9 @@ from unittest.case import SkipTest
 import pylibmc
 
 # project
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.pylibmc.client import TracedClient
 from ddtrace.contrib.internal.pylibmc.patch import patch
 from ddtrace.contrib.internal.pylibmc.patch import unpatch
-from ddtrace.ext import memcached
 from tests.contrib.config import MEMCACHED_CONFIG as cfg
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -22,8 +20,6 @@ class PylibmcCore(object):
     Shared tests between the patch and TracedClient interface.
     Will be merge back to a single class once the TracedClient is deprecated.
     """
-
-    TEST_SERVICE = memcached.SERVICE
 
     def get_client(self):
         # Implement me
@@ -228,7 +224,6 @@ class PylibmcCore(object):
         assert_is_measured(s)
         assert s.start > start
         assert s.start + s.duration < end
-        assert s.service == self.TEST_SERVICE
         assert s.span_type == "cache"
         assert s.name == "memcached.cmd"
         assert s.get_tag("out.host") == cfg["host"]
@@ -260,14 +255,12 @@ class PylibmcCore(object):
 class TestPylibmcLegacy(TracerTestCase, PylibmcCore):
     """Test suite for the tracing of pylibmc with the legacy TracedClient interface"""
 
-    TEST_SERVICE = "mc-legacy"
-
     def get_client(self):
         url = "%s:%s" % (cfg["host"], cfg["port"])
         raw_client = pylibmc.Client([url])
         raw_client.flush_all()
 
-        client = TracedClient(raw_client, tracer=self.tracer, service=self.TEST_SERVICE)
+        client = TracedClient(raw_client, tracer=self.tracer)
         return client, self.tracer
 
 
@@ -287,20 +280,14 @@ class TestPylibmcPatchDefault(TracerTestCase, PylibmcCore):
         client = pylibmc.Client([url])
         client.flush_all()
 
-        Pin.get_from(client)._clone(tracer=self.tracer).onto(client)
-
         return client, self.tracer
 
 
 class TestPylibmcPatch(TestPylibmcPatchDefault):
     """Test suite for the tracing of pylibmc with a configured lib patching"""
 
-    TEST_SERVICE = "mc-custom-patch"
-
     def get_client(self):
         client, tracer = TestPylibmcPatchDefault.get_client(self)
-
-        Pin.get_from(client)._clone(service=self.TEST_SERVICE).onto(client)
 
         return client, tracer
 
@@ -312,7 +299,6 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         patch()
 
         client = pylibmc.Client([url])
-        Pin.get_from(client)._clone(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
 
         client.set("a", 1)
 
@@ -333,9 +319,6 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         patch()
 
         client = pylibmc.Client([url])
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(client)
         client.set("a", 1)
 
         spans = self.pop_spans()
@@ -351,7 +334,6 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         patch()
         client = pylibmc.Client(servers=[url])
         assert client.addresses[0] is url
-        Pin.get_from(client)._clone(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
         client.set("a", 1)
         spans = self.pop_spans()
         assert spans, spans
@@ -366,7 +348,6 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         patch()
         client = pylibmc.Client([url])
         assert client.addresses[0] is url
-        Pin.get_from(client)._clone(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
         client.set("a", 1)
         spans = self.pop_spans()
         assert spans, spans
