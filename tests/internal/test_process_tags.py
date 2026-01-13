@@ -10,7 +10,6 @@ from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_TAG
 from ddtrace.internal.process_tags import ENTRYPOINT_WORKDIR_TAG
 from ddtrace.internal.process_tags import _compute_process_tag
 from ddtrace.internal.process_tags import normalize_tag_value
-from ddtrace.internal.settings.process_tags import process_tags_config as config
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import process_tag_reload
@@ -86,48 +85,79 @@ def test_compute_process_tag_excluded_values(excluded_value):
 class TestProcessTags(TracerTestCase):
     def setUp(self):
         super(TestProcessTags, self).setUp()
-        self._original_process_tags_enabled = config.enabled
         self._original_process_tags = process_tags.process_tags
         self._original_process_tags_list = process_tags.process_tags_list
 
     def tearDown(self):
-        config.enabled = self._original_process_tags_enabled
         process_tags.process_tags = self._original_process_tags
         process_tags.process_tags_list = self._original_process_tags_list
         super().tearDown()
 
-    @pytest.mark.snapshot
+    @run_in_subprocess(env_overrides=dict(DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="False"))
     def test_process_tags_deactivated(self):
-        config.enabled = False  # type: ignore[assignment]
-        process_tag_reload()
-
         with self.tracer.trace("test"):
             pass
 
-    @pytest.mark.snapshot
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert PROCESS_TAGS not in span._meta
+
+    @run_in_subprocess
+    def test_process_tags_enabled_by_default(self):
+        with self.tracer.trace("test"):
+            pass
+
+        span = self.get_spans()[0]
+
+        assert span is not None
+        assert PROCESS_TAGS in span._meta
+
     def test_process_tags_activated(self):
         with patch("sys.argv", [TEST_SCRIPT_PATH]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
-            config.enabled = True  # type: ignore[assignment]
             process_tag_reload()
 
             with self.tracer.trace("parent"):
                 with self.tracer.trace("child"):
                     pass
 
-    @pytest.mark.snapshot
+        spans = self.get_spans()
+        assert len(spans) == 2
+
+        parent_span = spans[0]
+        child_span = spans[1]
+
+        assert PROCESS_TAGS in parent_span._meta
+        process_tags_value = parent_span._meta[PROCESS_TAGS]
+        assert f"{ENTRYPOINT_BASEDIR_TAG}:to" in process_tags_value
+        assert f"{ENTRYPOINT_NAME_TAG}:test_script" in process_tags_value
+        assert f"{ENTRYPOINT_TYPE_TAG}:script" in process_tags_value
+        assert f"{ENTRYPOINT_WORKDIR_TAG}:workdir" in process_tags_value
+
+        assert PROCESS_TAGS not in child_span._meta
+
     def test_process_tags_edge_case(self):
         with patch("sys.argv", ["/test_script"]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
-            config.enabled = True  # type: ignore[assignment]
             process_tag_reload()
 
             with self.tracer.trace("span"):
                 pass
 
-    @pytest.mark.snapshot
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        # When script starts with '/', entrypoint.basedir should be excluded
+        assert PROCESS_TAGS in span._meta
+        process_tags_value = span._meta[PROCESS_TAGS]
+        assert ENTRYPOINT_BASEDIR_TAG not in process_tags_value
+        assert f"{ENTRYPOINT_NAME_TAG}:test_script" in process_tags_value
+        assert f"{ENTRYPOINT_TYPE_TAG}:script" in process_tags_value
+        assert f"{ENTRYPOINT_WORKDIR_TAG}:workdir" in process_tags_value
+
     def test_process_tags_error(self):
         with patch("sys.argv", []), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
-            config.enabled = True  # type: ignore[assignment]
-
             with self.override_global_config(dict(_telemetry_enabled=False)):
                 with patch("ddtrace.internal.process_tags.log") as mock_log:
                     process_tag_reload()
@@ -143,39 +173,57 @@ class TestProcessTags(TracerTestCase):
                     assert "failed to get process tag" in call_args1[0], (
                         f"Expected error message not found. Got: {call_args1[0]}"
                     )
-                    assert call_args1[1] == "entrypoint.basedir", f"Expected tag key not found. Got: {call_args1[1]}"
+                    assert call_args1[1] == ENTRYPOINT_BASEDIR_TAG, f"Expected tag key not found. Got: {call_args1[1]}"
 
                     assert "failed to get process tag" in call_args2[0], (
                         f"Expected error message not found. Got: {call_args2[0]}"
                     )
-                    assert call_args2[1] == "entrypoint.name", f"Expected tag key not found. Got: {call_args2[1]}"
+                    assert call_args2[1] == ENTRYPOINT_NAME_TAG, f"Expected tag key not found. Got: {call_args2[1]}"
 
-    @pytest.mark.snapshot
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+
+        assert PROCESS_TAGS in span._meta
+        process_tags_value = span._meta[PROCESS_TAGS]
+
+        # basedir and name should be missing due to errors
+        assert ENTRYPOINT_BASEDIR_TAG not in process_tags_value
+        assert ENTRYPOINT_NAME_TAG not in process_tags_value
+
+        # type and workdir should be present
+        assert f"{ENTRYPOINT_TYPE_TAG}:script" in process_tags_value
+        assert f"{ENTRYPOINT_WORKDIR_TAG}:workdir" in process_tags_value
+
     @run_in_subprocess(env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="2"))
     def test_process_tags_partial_flush(self):
         with patch("sys.argv", [TEST_SCRIPT_PATH]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
-            config.enabled = True  # type: ignore[assignment]
             process_tag_reload()
 
-            with self.override_global_config(dict(_partial_flush_enabled=True, _partial_flush_min_spans=2)):
-                with self.tracer.trace("parent"):
-                    with self.tracer.trace("child1"):
-                        pass
-                    with self.tracer.trace("child2"):
-                        pass
+            with self.tracer.trace("parent"):
+                with self.tracer.trace("child1"):
+                    pass
+                with self.tracer.trace("child2"):
+                    pass
 
-    @run_in_subprocess(env_overrides=dict(DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="True"))
-    def test_process_tags_activated_with_env(self):
-        with self.tracer.trace("test"):
-            pass
+        spans = self.get_spans()
+        assert len(spans) == 3
 
-        span = self.get_spans()[0]
+        child1 = spans[0]
+        child2 = spans[1]
+        parent = spans[2]
 
-        assert span is not None
-        assert PROCESS_TAGS in span._meta
+        # Verify parent span has process tags
+        assert PROCESS_TAGS in parent._meta
+        process_tags_value = parent._meta[PROCESS_TAGS]
+        assert f"{ENTRYPOINT_BASEDIR_TAG}:to" in process_tags_value
+        assert f"{ENTRYPOINT_NAME_TAG}:test_script" in process_tags_value
+        assert f"{ENTRYPOINT_TYPE_TAG}:script" in process_tags_value
+        assert f"{ENTRYPOINT_WORKDIR_TAG}:workdir" in process_tags_value
 
-        process_tags = span._meta[PROCESS_TAGS]
-        assert ENTRYPOINT_BASEDIR_TAG in process_tags
-        assert ENTRYPOINT_NAME_TAG in process_tags
-        assert ENTRYPOINT_TYPE_TAG in process_tags
-        assert ENTRYPOINT_WORKDIR_TAG in process_tags
+        # Verify child1 span has process tags and partial flush marker
+        assert PROCESS_TAGS in child1._meta
+        assert "_dd.py.partial_flush" in child1._metrics
+        assert child1._metrics["_dd.py.partial_flush"] == 2
+
+        assert PROCESS_TAGS not in child2._meta

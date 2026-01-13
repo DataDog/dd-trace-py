@@ -54,7 +54,17 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
         self.assertEqual(spans[0].resource, resource)  # FIXME: should always be 'test.html'?
         self.assertEqual(
             set(spans[0].get_tags().keys()),
-            set(["flask.template_name", "runtime-id", "_dd.p.tid", "_dd.p.dm", "component", "language"]),
+            set(
+                [
+                    "flask.template_name",
+                    "runtime-id",
+                    "_dd.p.tid",
+                    "_dd.p.dm",
+                    "component",
+                    "language",
+                    "_dd.tags.process",
+                ]
+            ),
         )
         self.assertEqual(spans[0].get_tag("flask.template_name"), resource)  # FIXME: should always be 'test.html'?
         self.assertEqual(spans[1].name, "flask.do_teardown_request")
@@ -98,7 +108,17 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
         self.assertEqual(spans[0].resource, resource)  # FIXME: should always be '<memory>'?
         self.assertEqual(
             set(spans[0].get_tags().keys()),
-            set(["flask.template_name", "runtime-id", "_dd.p.tid", "_dd.p.dm", "component", "language"]),
+            set(
+                [
+                    "flask.template_name",
+                    "runtime-id",
+                    "_dd.p.tid",
+                    "_dd.p.dm",
+                    "component",
+                    "language",
+                    "_dd.tags.process",
+                ]
+            ),
         )
         self.assertEqual(spans[0].get_tag("flask.template_name"), resource)  # FIXME: should always be '<memory>'?
         self.assertEqual(spans[1].name, "flask.do_teardown_request")
