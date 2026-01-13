@@ -15,8 +15,8 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     patch(asyncpg=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.asyncpg['service']
 
@@ -26,20 +26,4 @@ Global Configuration
    environment variable.
 
    Default: ``postgres``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-Service
-^^^^^^^
-
-To configure the service name used by the asyncpg integration on a per-instance
-basis use the ``Pin`` API::
-
-    import asyncpg
-    from ddtrace._trace.pin import Pin
-
-    conn = asyncpg.connect("postgres://localhost:5432")
-    Pin.override(conn, service="custom-service")
 """
