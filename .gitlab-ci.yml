@@ -158,7 +158,7 @@ macrobenchmarks:
   allow_failure: false
   rules:
     # Always run on nightly schedule or API triggered pipelines
-    - if: $NIGHTLY_BUILD == "true" || $CI_PIPELINE_SOURCE == "api"
+    - if: $NIGHTLY_BUILD == "true"
       when: always
     # Allow failures if explicitly asked
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
