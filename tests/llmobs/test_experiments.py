@@ -26,6 +26,7 @@ import pytest
 import ddtrace
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
+from ddtrace.llmobs._experiment import EvaluatorResult
 from ddtrace.llmobs._experiment import _ExperimentRunInfo
 from tests.utils import override_global_config
 
@@ -51,12 +52,13 @@ def dummy_evaluator(input_data, output_data, expected_output):
 
 
 def dummy_evaluator_with_extra_return_values(input_data, output_data, expected_output):
-    return {
-        "result": expected_output == output_data,
-        "reasoning": "it matches" if expected_output == output_data else "it doesn't match",
-        "assessment": "pass" if expected_output == output_data else "fail",
-        "metadata": {"difficulty": "easy"}
-    }
+    return EvaluatorResult(
+        value=expected_output == output_data,
+        reasoning="it matches" if expected_output == output_data else "it doesn't match",
+        assessment="pass" if expected_output == output_data else "fail",
+        metadata={"difficulty": "easy"},
+        tags={"task": "question_answering"},
+    )
 
 
 def faulty_evaluator(input_data, output_data, expected_output):
@@ -1505,13 +1507,14 @@ def test_experiment_run_evaluators_with_extra_return_values(llmobs, test_dataset
     assert len(eval_results) == 1
     assert eval_results[0] == {
         "idx": 0,
-        "evaluations": {"dummy_evaluator": {
-            "value": False,
-            "error": None,
-            "reasoning": "it doesn't match",
-            "assessment": "fail",
-            "metadata": {"difficulty": "easy"},
-        }},
+        "evaluations": {"dummy_evaluator_with_extra_return_values": dict(
+            value=False,
+            error=None,
+            reasoning="it doesn't match",
+            assessment="fail",
+            metadata={"difficulty": "easy"},
+            tags={"task": "question_answering"},
+        )},
     }
 
 
