@@ -14,6 +14,7 @@ import mock
 import pytest
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import http
@@ -287,52 +288,57 @@ class TestHeaders(object):
 
 
 @pytest.mark.parametrize(
-    "config_val,default,global_service,expected",
+    "pin,config_val,default,global_service,expected",
     [
-        (None, None, None, "tests.tracer"),
-        (None, None, "global-svc", "global-svc"),
-        (None, "default-svc", None, "default-svc"),
+        (Pin(), None, None, None, "tests.tracer"),
+        (Pin(), None, None, "global-svc", "global-svc"),
+        (Pin(), None, "default-svc", None, "default-svc"),
         # Global service should have higher priority than the integration default.
-        (None, "default-svc", "global-svc", "global-svc"),
-        ("config-svc", "default-svc", None, "config-svc"),
+        (Pin(), None, "default-svc", "global-svc", "global-svc"),
+        (Pin(), "config-svc", "default-svc", None, "config-svc"),
+        (Pin(service="pin-svc"), None, "default-svc", None, "pin-svc"),
+        (Pin(service="pin-svc"), "config-svc", "default-svc", None, "pin-svc"),
     ],
 )
-def test_int_service(int_config, config_val, default, global_service, expected):
+def test_int_service(int_config, pin, config_val, default, global_service, expected):
     if config_val:
         int_config.myint.service = config_val
 
     if global_service:
         int_config.service = global_service
 
-    assert trace_utils.int_service(None, int_config.myint, default) in [expected, "pytest"]
+    assert trace_utils.int_service(pin, int_config.myint, default) in [expected, "pytest"]
 
 
 def test_int_service_integration(int_config, tracer):
-    assert trace_utils.int_service(None, int_config.myint) in ["tests.tracer", "pytest"]
+    pin = Pin()
+    assert trace_utils.int_service(pin, int_config.myint) in ["tests.tracer", "pytest"]
 
     with override_global_config(dict(service="global-svc")):
         # ensure int config picks up overridden changes
         config.myint = int_config.myint
         config.myint.global_config = config
 
-        assert trace_utils.int_service(None, config.myint) == "global-svc"
+        assert trace_utils.int_service(pin, config.myint) == "global-svc"
 
-        with tracer.trace("something", service=trace_utils.int_service(None, config.myint)) as s:
+        with tracer.trace("something", service=trace_utils.int_service(pin, config.myint)) as s:
             assert s.service == "global-svc"
 
 
 @pytest.mark.parametrize(
-    "config_val,default,expected",
+    "pin,config_val,default,expected",
     [
-        (None, "default-svc", "default-svc"),
-        ("config-svc", "default-svc", "config-svc"),
+        (Pin(), None, "default-svc", "default-svc"),
+        (Pin(), "config-svc", "default-svc", "config-svc"),
+        (Pin(service="pin-svc"), None, "default-svc", "pin-svc"),
+        (Pin(service="pin-svc"), "config-svc", "default-svc", "pin-svc"),
     ],
 )
-def test_ext_service(int_config, config_val, default, expected):
+def test_ext_service(int_config, pin, config_val, default, expected):
     if config_val:
         int_config.myint.service = config_val
 
-    assert trace_utils.ext_service(None, int_config.myint, default) == expected
+    assert trace_utils.ext_service(pin, int_config.myint, default) == expected
 
 
 @pytest.mark.subprocess(
