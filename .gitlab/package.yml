@@ -110,7 +110,7 @@ variables:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: *PYTHON_TAGS
-            IMAGE_TAG: "${MANYLINUX_AMD64_IMAGE_TAG}"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
     - job: "package version"
   script:
     - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}" manylinux2014_x86_64
