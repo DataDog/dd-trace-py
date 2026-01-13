@@ -7,7 +7,7 @@ benchmark-serverless:
     project: DataDog/serverless-tools
     strategy: depend
   needs:
-    - job: publish-wheels-to-s3
+    - job: "upload all"
   rules:
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true
