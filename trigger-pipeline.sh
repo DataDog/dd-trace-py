@@ -2,8 +2,9 @@
 set -euo pipefail
 
 REF="$1"
-if [ -z "$REF" ]; then
-    echo "Usage: $0 <git-ref>"
+UNPIN="$2"
+if [ -z "$REF" || ( ! -z "$UNPIN" && "$UNPIN" != "--unpin-dependencies" ) ]; then
+    echo "Usage: $0 <git-ref> [--unpin-dependencies]"
     exit 1
 fi
 
@@ -51,6 +52,7 @@ if ! command -v jq 2>&1 > /dev/null; then
 fi
 
 API_URL="https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/pipeline/DataDog/dd-trace-py"
+UNPIN=$([ -z "$UNPIN" ] && echo "false" || echo "true")
 
 PAYLOAD=$(cat <<EOF
 {
@@ -58,6 +60,7 @@ PAYLOAD=$(cat <<EOF
     "variables": {
         "NIGHTLY_BENCHMARKS": "true",
         "NIGHTLY_BUILD": "true"
+        "UNPIN_DEPENDENCIES": "$UNPIN"
     }
 }
 EOF
