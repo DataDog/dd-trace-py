@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    profiling: Fixes a ``PicklingError`` when using ``multiprocessing.Manager()`` with lock profiling
+    enabled on Python 3.14+. Python 3.14 changed the default multiprocessing start method from
+    ``fork`` to ``forkserver``, which requires all objects to be pickleable. The lock profiler's
+    wrappers now properly support pickle serialization.
+
