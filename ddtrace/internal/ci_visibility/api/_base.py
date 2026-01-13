@@ -164,6 +164,11 @@ class TestVisibilityItemBase(abc.ABC):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.name})"
 
+    @_require_span
+    def _add_all_tags_to_span(self) -> None:
+        for tag, tag_value in self._tags.items():
+            self._add_tag_to_span(tag, tag_value)
+
     def _add_tag_to_span(self, tag, tag_value):
         if self._span is None:
             return
@@ -177,11 +182,6 @@ class TestVisibilityItemBase(abc.ABC):
                 self._span.set_tag(tag, tag_value)
         except Exception as e:
             log.debug("Error setting tag %s: %s", tag, e)
-
-    @_require_span
-    def _add_all_tags_to_span(self) -> None:
-        for tag, tag_value in self._tags.items():
-            self._add_tag_to_span(tag, tag_value)
 
     def _start_span(self, context: Optional[Context] = None) -> None:
         # Test items do not use a parent, and are instead their own trace's root span
