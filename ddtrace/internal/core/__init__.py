@@ -297,7 +297,22 @@ def context_with_event(event, parent=None, **kwargs):
     event_data = {k: v for k, v in vars(event).items() if k != "event_name"}
     event_data.update(kwargs)
 
+    if hasattr(event, "on_context_started"):
+        event_data["_event_on_context_started"] = event.on_context_started
+    if hasattr(event, "on_context_ended"):
+        event_data["_event_on_context_ended"] = event.on_context_ended
+
     return _CONTEXT_CLASS(event_name, parent=(parent or _CURRENT_CONTEXT.get()), **event_data)
+
+
+def dispatch_event(event, *extra_args):
+    event_name = getattr(event, "event_name", None)
+    if event_name is None:
+        raise ValueError("Event must have an 'event_name' attribute")
+
+    # Extract event data as a tuple for dispatch
+    args = (event,) + extra_args
+    dispatch(event_name, args)
 
 
 def add_suppress_exception(exc_type: type) -> None:

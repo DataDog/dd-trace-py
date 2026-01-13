@@ -22,6 +22,7 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 
 HTTPX_VERSION = parse_version(httpx.__version__)
 
+
 def get_version() -> str:
     return getattr(httpx, "__version__", "")
 
