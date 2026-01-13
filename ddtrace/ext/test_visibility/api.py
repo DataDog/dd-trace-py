@@ -364,7 +364,7 @@ class Test(TestBase):
     @_catch_and_log_exceptions
     def finish(
         item_id: TestId,
-        status: Optional[TestStatus] = None,
+        status: TestStatus,
         skip_reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
     ):
