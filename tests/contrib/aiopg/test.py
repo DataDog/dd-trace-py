@@ -61,7 +61,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert_is_measured(span)
         assert span.name == "postgres.query"
         assert span.resource == q
-        assert span.service == service
+        assert span.service == "postgres"
         assert span.error == 0
         assert span.span_type == "sql"
         assert start <= span.start <= end
@@ -84,7 +84,7 @@ class AiopgTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.name == "postgres.query"
         assert span.resource == q
-        assert span.service == service
+        assert span.service == "postgres"
         assert span.error == 1
         assert span.get_metric("network.destination.port") == TEST_PORT
         assert span.span_type == "sql"
