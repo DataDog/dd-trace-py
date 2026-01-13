@@ -150,6 +150,12 @@ class StringTable : public std::unordered_map<uintptr_t, std::string>
         return std::ref(it->second);
     };
 
+    [[nodiscard]] inline size_t size() const
+    {
+        const std::lock_guard<std::mutex> lock(table_lock);
+        return std::unordered_map<uintptr_t, std::string>::size();
+    };
+
     StringTable()
       : std::unordered_map<uintptr_t, std::string>()
     {
