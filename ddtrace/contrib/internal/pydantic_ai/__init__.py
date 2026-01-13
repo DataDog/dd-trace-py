@@ -26,8 +26,5 @@ Configuration
 
    The service name reported by default for PydanticAI requests.
 
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_PYDANTIC_AI_SERVICE`` environment
-   variables.
-
-   Default: ``DD_SERVICE``
+   Alternatively, set this option with the ``DD_PYDANTIC_AI_SERVICE`` environment variable.
 """  # noqa: E501

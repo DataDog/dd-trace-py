@@ -21,9 +21,7 @@ Configuration
 
 .. py:data:: ddtrace.config.mcp["service"]
    The service name reported by default for MCP requests.
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_MCP_SERVICE`` environment
-   variables.
-   Default: ``DD_SERVICE``
+   Alternatively, set this option with the ``DD_MCP_SERVICE`` environment variable.
 
 .. py:data:: ddtrace.config.mcp["distributed_tracing"]
    Whether or not to enable distributed tracing for MCP requests.
