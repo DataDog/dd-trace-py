@@ -2,12 +2,15 @@ import mock
 import pytest
 
 from ddtrace._trace.pin import Pin
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 
 
 @pytest.fixture(scope="function")
 def mock_integration_config(ddtrace_global_config):
-    yield mock.Mock()
+    myint = IntegrationConfig(ddtrace_global_config, "myint", service="dummy_service")
+    ddtrace_global_config.myint = myint
+    return myint
 
 
 @pytest.fixture(scope="function")

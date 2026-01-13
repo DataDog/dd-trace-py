@@ -858,7 +858,7 @@ def test_integration_sync(openai_api_key, ddtrace_run_python_code_in_subprocess)
         """
 import openai
 import ddtrace
-from ddtrace.tracer import tracer
+from ddtrace.trace import tracer
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
 tracer.configure(trace_processors=[FilterOrg()])
@@ -899,7 +899,7 @@ def test_integration_async(openai_api_key, ddtrace_run_python_code_in_subprocess
 import asyncio
 import openai
 import ddtrace
-from ddtrace.tracer import tracer
+from ddtrace.trace import tracer
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
 tracer.configure(trace_processors=[FilterOrg()])
@@ -1092,7 +1092,7 @@ def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_sub
             """
 import openai
 import ddtrace
-from ddtrace.tracer import tracer
+from ddtrace.trace import tracer
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
 tracer.configure(trace_processors=[FilterOrg()])
