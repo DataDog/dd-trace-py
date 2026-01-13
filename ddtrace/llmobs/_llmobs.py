@@ -906,11 +906,6 @@ class LLMObs(Service):
         return cls._instance._dne_client.dataset_delete(dataset_id)
 
     @classmethod
-    def prompt_optimization(cls, name:str) -> PromptOptimization:
-        return PromptOptimization(name)
-
-
-    @classmethod
     def prompt_optimization(
         cls,
         name: str,
@@ -921,18 +916,88 @@ class LLMObs(Service):
         project_name: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
         config: Optional[ExperimentConfigType] = None,
+        max_iterations: int = 5,
+        summary_evaluators: Optional[List[Callable]] = None,
     ) -> PromptOptimization:
-        """Initializes an Experiment to run a task on a Dataset and evaluators.
+        """Initialize a PromptOptimization to iteratively improve prompts using experiments.
 
-        :param name: The name of the experiment.
-        :param task: The task function to run. Must accept parameters ``input_data`` and ``config``.
-        :param optimization_task: ...
-        :param dataset: The dataset to run the experiment on, created with LLMObs.pull/create_dataset().
-        :param evaluators: A list of evaluator functions to evaluate the task output.
-                           Must accept parameters ``input_data``, ``output_data``, and ``expected_output``.
-        :param project_name: The name of the project to save the experiment to.
-        :param tags: A dictionary of string key-value tag pairs to associate with the experiment.
-        :param config: A configuration dictionary describing the experiment.
+        PromptOptimization runs a baseline experiment with an initial prompt, then uses an
+        optimization task to iteratively suggest improvements based on evaluation results.
+
+        :param name: The name of the prompt optimization run.
+        :param task: The task function to execute on the dataset. Must accept parameters ``input_data``
+                     (dict with input data for the task) and ``config`` (configuration dictionary).
+                     Should return the task output as a JSON-serializable value.
+        :param optimization_task: Function that calls an LLM to generate improved prompts.
+                                  Must accept parameters ``system_prompt`` (str) and ``user_prompt`` (str).
+                                  Should return a dict with keys ``new_prompt`` (str) and ``reasoning`` (str).
+                                  The system_prompt contains optimization instructions loaded from template,
+                                  and user_prompt contains the current prompt with evaluation examples.
+        :param dataset: The dataset to run experiments on, created with ``LLMObs.create_dataset()``
+                       or ``LLMObs.pull_dataset()``.
+        :param evaluators: A list of evaluator functions to measure task performance.
+                          Each evaluator must accept parameters ``input_data`` (dict), ``output_data``
+                          (task output), and ``expected_output`` (expected result from dataset).
+                          Should return a dict with evaluation metrics.
+        :param project_name: The name of the project to organize optimization runs. Defaults to the
+                            project name set in ``LLMObs.enable()``.
+        :param tags: A dictionary of string key-value tag pairs to associate with the optimization.
+        :param config: Configuration dictionary for the optimization. Must contain:
+                      - ``prompt``: Initial prompt template (string)
+                      - ``optimization_model_name``: Model to use for generating improvements (string)
+                      - ``model_name``: Model to use for executing the task (string)
+                      Additional config values are passed through to the task function.
+        :param max_iterations: Maximum number of optimization iterations to run. Default is 5.
+        :param summary_evaluators: Optional list of summary evaluator functions that aggregate results
+                                   across all dataset records. The first summary evaluator's first numeric
+                                   value will be used as the optimization score. Each function must accept:
+                                   inputs (list), outputs (list), expected_outputs (list), evaluations (dict)
+                                   and return a dict with aggregated metrics.
+        :return: PromptOptimization object. Call ``.run()`` to execute the optimization.
+        :raises TypeError: If task, optimization_task, evaluators, or dataset have incorrect types
+                          or signatures.
+        :raises ValueError: If config is missing required keys.
+
+        Example::
+
+            def my_task(input_data, config):
+                prompt = config["prompt"]
+                question = input_data["question"]
+                # Use prompt and question to generate answer
+                return {"answer": generate_answer(prompt, question)}
+
+            def optimization_task(system_prompt, user_prompt):
+                # Call LLM to analyze results and generate improved prompt
+                import openai
+                client = openai.OpenAI(api_key="your-api-key")
+                response = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    response_format={"type": "json_object"},
+                )
+                return json.loads(response.choices[0].message.content)
+
+            def accuracy_evaluator(input_data, output_data, expected_output):
+                is_correct = output_data["answer"] == expected_output["answer"]
+                return {"score": 1.0 if is_correct else 0.0}
+
+            dataset = LLMObs.create_dataset(name="qa_pairs", ...)
+            opt = LLMObs.prompt_optimization(
+                name="optimize_qa",
+                task=my_task,
+                optimization_task=optimize_prompt,
+                dataset=dataset,
+                evaluators=[accuracy_evaluator],
+                config={
+                    "prompt": "Answer the question: {question}",
+                    "optimization_model_name": "gpt-4",
+                    "model_name": "gpt-3.5-turbo"
+                }
+            )
+            results = opt.run()
         """
         if not callable(task):
             raise TypeError("task must be a callable function.")
@@ -943,10 +1008,13 @@ class LLMObs(Service):
 
         if not callable(optimization_task):
             raise TypeError("optimization_task must be a callable function.")
-        # sig = inspect.signature(optimization_task)
-        # params = sig.parameters
-        # if "input_data" not in params or "config" not in params:
-        #     raise TypeError("Task function must have 'input_data' and 'config' parameters.")
+        sig = inspect.signature(optimization_task)
+        params = sig.parameters
+        if "system_prompt" not in params or "user_prompt" not in params:
+            raise TypeError(
+                "optimization_task function must have 'system_prompt' and 'user_prompt' parameters. "
+                "It should call an LLM with these prompts and return a dict with 'new_prompt' and 'reasoning'."
+            )
 
         if not isinstance(dataset, Dataset):
             raise TypeError("Dataset must be an LLMObs Dataset object.")
@@ -969,6 +1037,8 @@ class LLMObs(Service):
             tags=tags,
             config=config,
             _llmobs_instance=cls._instance,
+            max_iterations=max_iterations,
+            summary_evaluators=summary_evaluators,
         )
 
     @classmethod
