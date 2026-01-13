@@ -1,38 +1,36 @@
 from pathlib import Path
 
+import pytest
+
 from ddtrace.ext.test_visibility.status import TestStatus
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
-from tests.utils import DummyTracer
 
 
-def _get_default_civisibility_settings():
-    return TestVisibilitySessionSettings(
-        tracer=DummyTracer(),
+
+@pytest.fixture
+def test(tracer):
+    return TestVisibilityTest("test_name", TestVisibilitySessionSettings(
+        tracer=tracer,
         test_service="test_service",
         test_command="test_command",
         test_framework="test_framework",
-        test_framework_version="1.2.3",
         test_framework_metric_name=TEST_FRAMEWORKS.MANUAL,
+        test_framework_version="1.2.3",
         session_operation_name="session_operation_name",
         module_operation_name="module_operation_name",
         suite_operation_name="suite_operation_name",
         test_operation_name="test_operation_name",
         workspace_path=Path("/absolute/path/to/root_dir"),
-    )
-
-
-def _get_test():
-    return TestVisibilityTest("test_name", _get_default_civisibility_settings())
+    ))
 
 
 class TestTwoPhaseFinish:
     """Test the two-phase finish refactor: prepare_for_finish() + finish()"""
 
-    def test_prepare_for_finish_sets_finish_time(self):
+    def test_prepare_for_finish_sets_finish_time(self, test):
         """Test that prepare_for_finish() sets the finish time but doesn't finish the span"""
-        test = _get_test()
         test.start()
 
         # Before prepare_for_finish, test should not be finished
@@ -49,9 +47,8 @@ class TestTwoPhaseFinish:
         assert not test._span.finished  # Span not actually sent yet
         assert test.get_status() == TestStatus.PASS
 
-    def test_finish_sends_span(self):
+    def test_finish_sends_span(self, test):
         """Test that finish() actually sends the span after prepare_for_finish()"""
-        test = _get_test()
         test.start()
         test.prepare_for_finish(override_status=TestStatus.PASS)
 
@@ -65,9 +62,8 @@ class TestTwoPhaseFinish:
         # After finish, span should be finished
         assert test._span.finished
 
-    def test_backward_compatibility_finish_without_prepare_for_finish(self):
+    def test_backward_compatibility_finish_without_prepare_for_finish(self, test):
         """Test that finish() still works without calling prepare_for_finish() first"""
-        test = _get_test()
         test.start()
 
         # Call finish() directly (old style)
@@ -78,9 +74,8 @@ class TestTwoPhaseFinish:
         assert test._finish_time is not None
         assert test._span.finished
 
-    def test_calling_prepare_for_finish_twice_is_safe(self):
+    def test_calling_prepare_for_finish_twice_is_safe(self, test):
         """Test that calling prepare_for_finish() twice doesn't cause issues"""
-        test = _get_test()
         test.start()
 
         # First call
@@ -96,9 +91,8 @@ class TestTwoPhaseFinish:
         assert test.get_status() == first_status  # Status doesn't change
         assert second_finish_time >= first_finish_time  # Time may be updated
 
-    def test_finish_without_prepare_for_finish_fails_gracefully(self):
+    def test_finish_without_prepare_for_finish_fails_gracefully(self, test):
         """Test that finish() without prepare_for_finish() works (calls it internally)"""
-        test = _get_test()
         test.start()
 
         # Call finish without prepare_for_finish
@@ -107,9 +101,8 @@ class TestTwoPhaseFinish:
         # Should still work because finish() has backward compatibility
         assert test._span.finished
 
-    def test_status_and_skip_reason_preserved(self):
+    def test_status_and_skip_reason_preserved(self, test):
         """Test that status and skip_reason are properly preserved through the two phases"""
-        test = _get_test()
         test.start()
 
         skip_reason = "Test was skipped for a reason"
@@ -127,9 +120,8 @@ class TestTwoPhaseFinish:
         assert test.get_status() == TestStatus.SKIP
         assert test._span.get_tag("test.skip_reason") == skip_reason
 
-    def test_override_finish_time_works(self):
+    def test_override_finish_time_works(self, test):
         """Test that override_finish_time parameter works in prepare_for_finish()"""
-        test = _get_test()
         test.start()
 
         custom_finish_time = 1234567890.0
@@ -137,9 +129,8 @@ class TestTwoPhaseFinish:
 
         assert test._finish_time == custom_finish_time
 
-    def test_status_cannot_be_changed_after_first_prepare_for_finish(self):
+    def test_status_cannot_be_changed_after_first_prepare_for_finish(self, test):
         """Test that status cannot be changed after first prepare_for_finish() call"""
-        test = _get_test()
         test.start()
 
         # Start with PASS
@@ -158,9 +149,8 @@ class TestTwoPhaseFinish:
         test.finish()
         assert test._span.get_tag("test.status") == TestStatus.PASS.value
 
-    def test_test_is_considered_finished_after_prepare_for_finish(self):
+    def test_test_is_considered_finished_after_prepare_for_finish(self, test):
         """Test that is_finished() returns True after prepare_for_finish() even if span not sent"""
-        test = _get_test()
         test.start()
 
         assert not test.is_finished()
@@ -175,9 +165,8 @@ class TestTwoPhaseFinish:
         # Should still be finished
         assert test.is_finished()
 
-    def test_retry_logic_with_prepare_for_finish(self):
+    def test_retry_logic_with_prepare_for_finish(self, test):
         """Test that retry decision logic works with prepare_for_finish()"""
-        test = _get_test()
         test.start()
 
         # Prepare for finish but don't write yet
@@ -192,9 +181,8 @@ class TestTwoPhaseFinish:
 
         assert test._span.finished
 
-    def test_finish_calls_prepare_for_finish_if_not_called(self):
+    def test_finish_calls_prepare_for_finish_if_not_called(self, test):
         """Test that finish() calls prepare_for_finish() internally if not called yet"""
-        test = _get_test()
         test.start()
 
         # Call finish() directly without prepare_for_finish()
