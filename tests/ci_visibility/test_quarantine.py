@@ -49,7 +49,7 @@ class TestCIVisibilityTestQuarantine:
         with mock.patch.object(test, "get_session", return_value=session):
             session.start()
             test.start()
-            test.prepare_for_finish(TestStatus.FAIL)
+            test.finish_test(TestStatus.FAIL)
             session.finish()
 
         assert test._span.get_tag("test.test_management.is_quarantined") == "true"

@@ -8,22 +8,24 @@ from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 
 
-
 @pytest.fixture
 def test(tracer):
-    return TestVisibilityTest("test_name", TestVisibilitySessionSettings(
-        tracer=tracer,
-        test_service="test_service",
-        test_command="test_command",
-        test_framework="test_framework",
-        test_framework_metric_name=TEST_FRAMEWORKS.MANUAL,
-        test_framework_version="1.2.3",
-        session_operation_name="session_operation_name",
-        module_operation_name="module_operation_name",
-        suite_operation_name="suite_operation_name",
-        test_operation_name="test_operation_name",
-        workspace_path=Path("/absolute/path/to/root_dir"),
-    ))
+    return TestVisibilityTest(
+        "test_name",
+        TestVisibilitySessionSettings(
+            tracer=tracer,
+            test_service="test_service",
+            test_command="test_command",
+            test_framework="test_framework",
+            test_framework_metric_name=TEST_FRAMEWORKS.MANUAL,
+            test_framework_version="1.2.3",
+            session_operation_name="session_operation_name",
+            module_operation_name="module_operation_name",
+            suite_operation_name="suite_operation_name",
+            test_operation_name="test_operation_name",
+            workspace_path=Path("/absolute/path/to/root_dir"),
+        ),
+    )
 
 
 class TestTwoPhaseFinish:
@@ -41,7 +43,7 @@ class TestTwoPhaseFinish:
         test.prepare_for_finish(override_status=TestStatus.PASS)
 
         # After prepare_for_finish, test should be considered finished but span not sent
-        assert test.is_finished()
+        assert not test.is_finished()
         assert test._finish_time is not None
         assert test._span is not None
         assert not test._span.finished  # Span not actually sent yet
@@ -149,21 +151,24 @@ class TestTwoPhaseFinish:
         test.finish()
         assert test._span.get_tag("test.status") == TestStatus.PASS.value
 
-    def test_test_is_considered_finished_after_prepare_for_finish(self, test):
-        """Test that is_finished() returns True after prepare_for_finish() even if span not sent"""
+    def test_test_is_not_considered_finished_after_prepare_for_finish(self, test):
+        """Test that is_finished() returns False after prepare_for_finish() but finish_time is set"""
         test.start()
 
         assert not test.is_finished()
+        assert test._finish_time is None
 
         test.prepare_for_finish(override_status=TestStatus.PASS)
 
-        # Should be considered finished even though span not sent yet
-        assert test.is_finished()
+        # Should not be considered finished, but finish_time set
+        assert not test.is_finished()
+        assert test._finish_time is not None
 
         test.finish()
 
-        # Should still be finished
+        # Should now be finished
         assert test.is_finished()
+        assert test._finish_time is not None
 
     def test_retry_logic_with_prepare_for_finish(self, test):
         """Test that retry decision logic works with prepare_for_finish()"""
