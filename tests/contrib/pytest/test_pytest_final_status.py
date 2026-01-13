@@ -1,7 +1,7 @@
-"""Comprehensive tests for the test.final_status tag feature.
+"""Tests for the test.final_status tag feature.
 
 This module tests that the test.final_status tag is correctly set on the last retry
-of a test for all retry mechanisms (ATR, EFD, Attempt to Fix) and for tests without retries.
+of a test for these retry mechanisms: ATR, Attempt to Fix and for tests without retries.
 
 The final_status tag should be present on every final execution of a test, either because
 there are no retries or because it's the last retry.
@@ -13,7 +13,6 @@ import pytest
 
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_attempt_to_fix
-from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
 from ddtrace.internal.ci_visibility._api_client import TestProperties
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
@@ -21,13 +20,6 @@ from tests.ci_visibility.api_client._util import _make_fqdn_internal_test_id
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 from tests.contrib.pytest.test_pytest import _get_spans_from_list
 
-
-_USE_PLUGIN_V2 = True
-
-pytestmark = pytest.mark.skipif(
-    not _USE_PLUGIN_V2,
-    reason="Final status requires v2 of the plugin",
-)
 
 # Test content definitions
 _TEST_PASS = """
@@ -54,15 +46,6 @@ def test_pass_on_retry_2():
     global count
     count += 1
     assert count == 2
-"""
-
-_TEST_PASS_ON_RETRY_5 = """
-count = 0
-
-def test_pass_on_retry_5():
-    global count
-    count += 1
-    assert count == 5
 """
 
 _TEST_SKIP_ON_RETRY_THEN_PASS = """
@@ -250,162 +233,6 @@ class TestFinalStatusATR(PytestTestCaseBase):
         final_span = test_spans[-1]
         assert final_span.get_tag("test.status") == "skip"
         assert final_span.get_tag("test.final_status") == "fail"  # Final status is fail, not skip
-
-
-@pytest.mark.skip(reason="EFD tests require a more complex test session setup - to be done")
-class TestFinalStatusEFD(PytestTestCaseBase):
-    """Test that final_status is set correctly for EFD (Early Flake Detection) scenarios."""
-
-    @pytest.fixture(autouse=True, scope="function")
-    def set_up_efd(self):
-        # Empty set means all tests are considered "new" and will be retried by EFD
-        with (
-            mock.patch(
-                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_known_tests",
-                return_value=set(),
-            ),
-            mock.patch(
-                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-                return_value=TestVisibilityAPISettings(
-                    early_flake_detection=EarlyFlakeDetectionSettings(
-                        enabled=True,
-                        slow_test_retries_5s=0,
-                        slow_test_retries_10s=0,
-                        slow_test_retries_30s=0,
-                        slow_test_retries_5m=0,
-                        faulty_session_threshold=100,
-                    ),
-                    known_tests_enabled=True,
-                ),
-            ),
-        ):
-            yield
-
-    def test_efd_final_status_all_pass(self):
-        """EFD: All attempts pass → final_status:pass"""
-        self.testdir.makepyfile(test_efd=_TEST_PASS)
-        rec = self.inline_run("--ddtrace", "-v")
-        assert rec.ret == 0
-
-        spans = self.pop_spans()
-        test_spans = _get_spans_from_list(spans, "test", "test_pass")
-        assert len(test_spans) == 11  # Original + 10 EFD retries
-
-        # Check that only the last span has final_status tag
-        for span in test_spans[:-1]:
-            assert span.get_tag("test.status") == "pass"
-            assert span.get_tag("test.final_status") is None
-
-        final_span = test_spans[-1]
-        assert final_span.get_tag("test.status") == "pass"
-        assert final_span.get_tag("test.final_status") == "pass"
-
-    def test_efd_final_status_all_fail(self):
-        """EFD: All attempts fail → final_status:fail"""
-        self.testdir.makepyfile(test_efd=_TEST_FAIL)
-        rec = self.inline_run("--ddtrace", "-v")
-        assert rec.ret == 1
-
-        spans = self.pop_spans()
-        test_spans = _get_spans_from_list(spans, "test", "test_fail")
-        assert len(test_spans) == 11  # Original + 10 EFD retries
-
-        # Check that only the last span has final_status tag
-        for span in test_spans[:-1]:
-            assert span.get_tag("test.status") == "fail"
-            assert span.get_tag("test.final_status") is None
-
-        final_span = test_spans[-1]
-        assert final_span.get_tag("test.status") == "fail"
-        assert final_span.get_tag("test.final_status") == "fail"
-
-    def test_efd_final_status_first_pass_later_fail(self):
-        """EFD: First attempt passes, later fails → final_status:pass (first pass wins)"""
-        test_content = """
-count = 0
-
-def test_first_pass_later_fail():
-    global count
-    count += 1
-    assert count == 1
-"""
-        self.testdir.makepyfile(test_efd=test_content)
-        rec = self.inline_run("--ddtrace", "-v")
-        assert rec.ret == 0  # Should pass because first attempt passed
-
-        spans = self.pop_spans()
-        test_spans = _get_spans_from_list(spans, "test", "test_first_pass_later_fail")
-        assert len(test_spans) == 11
-
-        # Check statuses
-        assert test_spans[0].get_tag("test.status") == "pass"
-        for span in test_spans[1:-1]:
-            assert span.get_tag("test.status") == "fail"
-            assert span.get_tag("test.final_status") is None
-
-        # Final span should have final_status:pass even though its own status is fail
-        final_span = test_spans[-1]
-        assert final_span.get_tag("test.status") == "fail"
-        assert final_span.get_tag("test.final_status") == "pass"
-
-    def test_efd_final_status_first_fail_later_pass(self):
-        """EFD: First attempt fails, later passes → final_status:pass (any pass wins)"""
-        self.testdir.makepyfile(test_efd=_TEST_PASS_ON_RETRY_5)
-        rec = self.inline_run("--ddtrace", "-v")
-        assert rec.ret == 0  # Should pass because a retry passed
-
-        spans = self.pop_spans()
-        test_spans = _get_spans_from_list(spans, "test", "test_pass_on_retry_5")
-        assert len(test_spans) == 11
-
-        # Check that only the last span has final_status tag
-        for span in test_spans[:-1]:
-            assert span.get_tag("test.final_status") is None
-
-        final_span = test_spans[-1]
-        assert final_span.get_tag("test.final_status") == "pass"
-
-    def test_efd_final_status_mixed_pass_fail_pass(self):
-        """EFD: Mix of pass, fail, pass → final_status:pass"""
-        test_content = """
-count = 0
-
-def test_mixed_outcomes():
-    global count
-    count += 1
-    # Pass on attempts 1, 3, 5, 7, 9, 11
-    # Fail on attempts 2, 4, 6, 8, 10
-    assert count % 2 == 1
-"""
-        self.testdir.makepyfile(test_efd=test_content)
-        rec = self.inline_run("--ddtrace", "-v")
-        assert rec.ret == 0  # Should pass because some attempts passed
-
-        spans = self.pop_spans()
-        test_spans = _get_spans_from_list(spans, "test", "test_mixed_outcomes")
-        assert len(test_spans) == 11
-
-        # Check that only the last span has final_status tag
-        for span in test_spans[:-1]:
-            assert span.get_tag("test.final_status") is None
-
-        final_span = test_spans[-1]
-        assert final_span.get_tag("test.status") == "pass"  # Last one happens to pass
-        assert final_span.get_tag("test.final_status") == "pass"
-
-    def test_efd_final_status_skip(self):
-        """EFD: Test skips → final_status:skip (no retries for skip)"""
-        self.testdir.makepyfile(test_efd=_TEST_SKIP)
-        rec = self.inline_run("--ddtrace", "-v")
-        assert rec.ret == 0
-
-        spans = self.pop_spans()
-        test_spans = _get_spans_from_list(spans, "test", "test_skip")
-        assert len(test_spans) == 1  # No retries for skip
-
-        final_span = test_spans[0]
-        assert final_span.get_tag("test.status") == "skip"
-        assert final_span.get_tag("test.final_status") == "skip"
 
 
 @pytest.mark.skipif(not _pytest_version_supports_attempt_to_fix(), reason="Attempt to Fix tests require pytest >=7.0")
