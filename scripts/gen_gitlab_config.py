@@ -19,7 +19,6 @@ file. The function will be called automatically when this script is run.
 
 from dataclasses import dataclass
 import datetime
-import os
 import re
 import subprocess
 import typing as t
@@ -200,25 +199,13 @@ def calculate_dynamic_parallelism(suite_name: str, suite_config: dict) -> t.Opti
 
 def gen_required_suites() -> None:
     """Generate the list of test suites that need to be run."""
-    from needs_testrun import extract_git_commit_selections
-    from needs_testrun import for_each_testrun_needed
     import suitespec
 
     suites = suitespec.get_suites()
 
-    required_suites: t.List[str] = []
-
-    for_each_testrun_needed(
-        suites=sorted(suites.keys()),
-        action=lambda suite: required_suites.append(suite),
-        git_selections=extract_git_commit_selections(os.getenv("CI_COMMIT_MESSAGE", "")),
-    )
-
-    # If the ci_visibility suite is in the list of required suites, we need to run all suites
-    ci_visibility_suites = {"ci_visibility", "pytest"}
-    # If any of them in required_suites:
-    if any(suite in required_suites for suite in ci_visibility_suites):
-        required_suites = sorted(suites.keys())
+    # HACK: Force only internal suite for debugging SIGSEGV crashes
+    required_suites = ["internal"]
+    LOGGER.warning("HACK: Forcing only 'internal' suite for crash debugging")
 
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
@@ -483,6 +470,7 @@ GITLAB = ROOT / ".gitlab"
 TESTS = ROOT / "tests"
 TESTS_GEN = GITLAB / "tests-gen.yml"
 # Make the scripts and tests folders available for importing.
+sys.path.append(str(ROOT))  # For riotfile.py
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))
 

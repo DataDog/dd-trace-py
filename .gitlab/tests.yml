@@ -22,6 +22,8 @@ include:
   # DEV: This is the max retries that GitLab currently allows for
   before_script:
     - !reference [.testrunner, before_script]
+  after_script:
+    - .gitlab/scripts/capture-crash-data.sh || true
   script:
     - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
     - export _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=true
@@ -37,6 +39,13 @@ include:
         echo "Running hatch env: ${env}:test"
         hatch run ${env}:test
       done
+  artifacts:
+    reports:
+      junit: test-results/junit*.xml
+    paths:
+      - core*
+    when: on_failure
+    expire_in: 7 days
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL = "12"
     CARGO_BUILD_JOBS = "12"
@@ -68,6 +77,8 @@ include:
     - unset DD_ENV
     - unset DD_TAGS
     - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
+  after_script:
+    - .gitlab/scripts/capture-crash-data.sh || true
   script:
     - |
       hashes=( $(.gitlab/scripts/get-riot-hashes.sh "${SUITE_NAME}") )
@@ -86,6 +97,13 @@ include:
         "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
       ./scripts/check-diff "ddtrace/contrib/integration_registry/registry.yaml" \
         "Registry YAML file (ddtrace/contrib/integration_registry/registry.yaml) was modified. Please run: scripts/integration_registry/update_and_format_registry.py and commit the changes."
+  artifacts:
+    reports:
+      junit: test-results/junit*.xml
+    paths:
+      - core*
+    when: on_failure
+    expire_in: 7 days
 
 
 .test_base_riot_snapshot:

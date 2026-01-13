@@ -15,9 +15,6 @@ variables:
     - pyenv global 3.12 3.9 3.10 3.11 3.13 3.14
     - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
   retry: 2
-  artifacts:
-    reports:
-      junit: test-results/junit*.xml
 
 .testrunner_gpu:
   extends: .testrunner
