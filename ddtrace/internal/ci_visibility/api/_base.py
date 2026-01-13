@@ -165,6 +165,9 @@ class TestVisibilityItemBase(abc.ABC):
         return f"{self.__class__.__name__}(name={self.name})"
 
     def _add_tag_to_span(self, tag, tag_value):
+        if self._span is None:
+            return
+
         try:
             if isinstance(tag_value, str):
                 self._span._set_tag_str(tag, tag_value)
@@ -177,9 +180,6 @@ class TestVisibilityItemBase(abc.ABC):
 
     @_require_span
     def _add_all_tags_to_span(self) -> None:
-        if self._span is None:
-            return
-
         for tag, tag_value in self._tags.items():
             self._add_tag_to_span(tag, tag_value)
 
@@ -439,10 +439,10 @@ class TestVisibilityItemBase(abc.ABC):
         self._finish_span()
 
     def is_finished(self) -> bool:
-        # With two-phase finish, a test is considered finished after prepare_for_finish() is called
-        # (_finish_time is set)
-        # even if the span hasn't been sent yet (span.finished is False)
-        return self._finish_time is not None or (self._span is not None and self._span.finished)
+        return self._span is not None and self._span.finished
+
+    def is_prepared_for_finish(self) -> bool:
+        return self._finish_time is not None
 
     def get_session(self) -> Optional["TestVisibilitySession"]:
         if self.parent is None:
@@ -455,7 +455,7 @@ class TestVisibilityItemBase(abc.ABC):
         return self._span.span_id
 
     def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
-        if self.is_finished():
+        if self.is_prepared_for_finish():
             return self._status
         if not self.is_started():
             return SPECIAL_STATUS.NONSTARTED
@@ -465,7 +465,7 @@ class TestVisibilityItemBase(abc.ABC):
         return self._status
 
     def set_status(self, status: TestStatus) -> None:
-        if self.is_finished():
+        if self.is_prepared_for_finish():
             error_msg = f"Status {self._status} already set for item {self}, not setting to {status}"
             log.warning(error_msg)
             return
@@ -682,7 +682,7 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
             self.set_status(self.get_raw_status())
 
         # Backward compatibility: if prepare_for_finish() wasn't called yet, call it now
-        if self._finish_time is None:
+        if not self.is_prepared_for_finish():
             self.prepare_for_finish(override_status=override_status, override_finish_time=override_finish_time)
 
         super().finish()
