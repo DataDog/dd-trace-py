@@ -70,6 +70,8 @@ class EFDTestMixin:
         item_id: TestId,
         retry_number: int,
         status: TestStatus,
+        is_final_retry: bool,
+        final_status: t.Optional[TestStatus] = None,
         skip_reason: t.Optional[str] = None,
         exc_info: t.Optional[TestExcInfo] = None,
     ):
@@ -82,7 +84,12 @@ class EFDTestMixin:
             exc_info,
         )
         require_ci_visibility_service().get_test_by_id(item_id).efd_finish_retry(
-            retry_number=retry_number, status=status, skip_reason=skip_reason, exc_info=exc_info
+            retry_number=retry_number,
+            status=status,
+            is_final_retry=is_final_retry,
+            final_status=final_status,
+            skip_reason=skip_reason,
+            exc_info=exc_info,
         )
 
     @staticmethod

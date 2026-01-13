@@ -28,6 +28,7 @@ from ddtrace.internal.ci_visibility.constants import RETRY_REASON
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_ATTEMPT_TO_FIX_PASSED
 from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
+from ddtrace.internal.ci_visibility.constants import TEST_FINAL_STATUS
 from ddtrace.internal.ci_visibility.constants import TEST_HAS_FAILED_ALL_RETRIES
 from ddtrace.internal.ci_visibility.constants import TEST_IS_ATTEMPT_TO_FIX
 from ddtrace.internal.ci_visibility.constants import TEST_IS_DISABLED
@@ -352,7 +353,17 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         duration_s = (time_ns() - self._span.start_ns) / 1e9
         return duration_s > 300
 
-    def efd_should_retry(self):
+    def efd_should_retry(self, require_finished=True):
+        """
+        Determines if EFD should retry this test.
+
+        Args:
+            require_finished: If True (default), requires the test to be finished before checking.
+                             If False, calculates duration manually from start_ns.
+
+        Returns:
+            True if EFD should retry, False otherwise.
+        """
         efd_settings = self._session_settings.efd_settings
         if not efd_settings.enabled:
             return False
@@ -366,11 +377,24 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if not self.is_new():
             return False
 
-        if not self.is_finished():
-            log.debug("Early Flake Detection: efd_should_retry called but test is not finished")
-            return False
+        if require_finished:
+            if not self.is_finished():
+                log.debug("Early Flake Detection: efd_should_retry called but test is not finished")
+                return False
+            duration_s = self._span.duration
+        else:
+            # Calculate duration manually before the test is finished
+            from ddtrace.internal.utils.time import Time
 
-        duration_s = self._span.duration
+            if not hasattr(self._span, "start_ns") or self._span.start_ns is None:
+                # Conservative: if we can't get start time, assume retry might happen
+                return True
+
+            duration_ns = Time.time_ns() - self._span.start_ns
+            duration_s = duration_ns / 1e9
+
+        if duration_s is None:
+            return True
 
         num_retries = len(self._efd_retries)
 
@@ -409,13 +433,20 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         self,
         retry_number: int,
         status: TestStatus,
+        is_final_retry: bool,
+        final_status: Optional[TestStatus] = None,
         skip_reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
     ) -> None:
         retry_test = self._efd_get_retry_test(retry_number)
 
+        # Set status first so should_retry() can see it
         if status is not None:
             retry_test.set_status(status)
+
+        # Set final_status tag on the final retry (before finishing the span)
+        if is_final_retry and final_status is not None:
+            retry_test.set_tag(TEST_FINAL_STATUS, final_status.value)
 
         retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
 
@@ -508,17 +539,33 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         self,
         retry_number: int,
         status: TestStatus,
+        is_final_retry: bool,
+        final_status: Optional[TestStatus] = None,
         skip_reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
     ):
         retry_test = self._atr_get_retry_test(retry_number)
 
-        if retry_number >= self._session_settings.atr_settings.max_retries:
-            if status is not None:
-                retry_test.set_status(status)
+        # Set status before finishing
+        if status is not None:
+            retry_test.set_status(status)
 
-            if self.atr_get_final_status() == TestStatus.FAIL:
-                retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
+        # Set final_status tag on the final retry (before finishing the span)
+        if is_final_retry:
+            if final_status is None:
+                # Debug: log when final_status is None
+                log.debug(
+                    "ATR final_status is None for test %s, retry %s is_final_retry=%s",
+                    self._test_id,
+                    retry_number,
+                    is_final_retry,
+                )
+            else:
+                retry_test.set_tag(TEST_FINAL_STATUS, final_status.value)
+                # Only set failed_all_retries when we've exhausted all retries and still failed
+                if retry_number >= self._session_settings.atr_settings.max_retries:
+                    if self.atr_get_final_status() == TestStatus.FAIL:
+                        retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
 
         retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
 
@@ -586,18 +633,17 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         self,
         retry_number: int,
         status: TestStatus,
+        is_final_retry: bool,
         skip_reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
     ):
         retry_test = self._attempt_to_fix_get_retry_test(retry_number)
 
-        if retry_number >= self._session_settings.test_management_settings.attempt_to_fix_retries:
-            # FIXME: the last retry wasn't finished yet, so it does not have the correct status.
-            # But we cannot do it after `retry_test.finish()`, because no tags can be added afterwards.
-            # For now, we force the status to be set here. This probably affects EFD and ATR as well.
-            if status is not None:
-                retry_test.set_status(status)
+        # Set status for every retry so final status calculation works correctly
+        if status is not None:
+            retry_test.set_status(status)
 
+        if retry_number >= self._session_settings.test_management_settings.attempt_to_fix_retries:
             all_passed = all(retry._status == TestStatus.PASS for retry in self._attempt_to_fix_retries)
             all_failed = all(retry._status == TestStatus.FAIL for retry in self._attempt_to_fix_retries)
 
@@ -605,6 +651,24 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
                 retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
 
             retry_test.set_tag(TEST_ATTEMPT_TO_FIX_PASSED, all_passed)
+
+            # Calculate final status based on all retry statuses
+            if is_final_retry:
+                if all_passed:
+                    calculated_final_status = TestStatus.PASS
+                elif all_failed:
+                    calculated_final_status = TestStatus.FAIL
+                else:
+                    # Mixed results or all skipped
+                    all_skipped = all(retry._status == TestStatus.SKIP for retry in self._attempt_to_fix_retries)
+                    if all_skipped:
+                        calculated_final_status = TestStatus.SKIP
+                    else:
+                        # Mixed: at least one pass means the test passes
+                        has_pass = any(retry._status == TestStatus.PASS for retry in self._attempt_to_fix_retries)
+                        calculated_final_status = TestStatus.PASS if has_pass else TestStatus.FAIL
+
+                retry_test.set_tag(TEST_FINAL_STATUS, calculated_final_status.value)
 
         retry_test.finish_test(status, skip_reason=skip_reason, exc_info=exc_info)
 

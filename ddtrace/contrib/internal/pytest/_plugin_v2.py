@@ -55,6 +55,7 @@ from ddtrace.ext.test_visibility.api import disable_test_visibility
 from ddtrace.ext.test_visibility.api import enable_test_visibility
 from ddtrace.ext.test_visibility.api import is_test_visibility_enabled
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
+from ddtrace.internal.ci_visibility.constants import TEST_FINAL_STATUS
 from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_empty
@@ -691,7 +692,25 @@ def _pytest_run_one_test(item, nextitem):
     is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
     setup_or_teardown_failed = False
 
+    # Check if retry mechanisms will be triggered (before finishing the test)
+    # ATR retries only failing tests
+    atr_will_retry = InternalTestSession.atr_is_enabled() and test_outcome.status == TestStatus.FAIL
+
+    # EFD retries only "new" tests, with duration-based retry limits
+    # Use require_finished=False to calculate duration before the test is finished
+    efd_will_retry = False
+    if InternalTestSession.efd_enabled():
+        test_obj = require_ci_visibility_service().get_test_by_id(test_id)
+        efd_will_retry = test_obj.efd_should_retry(require_finished=False)
+
+    # Attempt to fix always retries if the test is marked for it
+    attempt_to_fix_will_retry = is_attempt_to_fix and _pytest_version_supports_attempt_to_fix()
+
     if not InternalTest.is_finished(test_id):
+        if not (efd_will_retry or atr_will_retry or attempt_to_fix_will_retry):
+            test_obj = require_ci_visibility_service().get_test_by_id(test_id)
+            test_obj.set_tag(TEST_FINAL_STATUS, test_outcome.status.value)
+
         _handle_collected_coverage(item, test_id, _current_coverage_collector)
         InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
@@ -713,11 +732,11 @@ def _pytest_run_one_test(item, nextitem):
     if setup_or_teardown_failed:
         # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed.
         log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
-    elif is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
+    elif attempt_to_fix_will_retry:
         retry_handler = attempt_to_fix_handle_retries
-    elif InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
+    elif efd_will_retry and InternalTest.efd_should_retry(test_id):
         retry_handler = efd_handle_retries
-    elif InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
+    elif atr_will_retry and InternalTest.atr_should_retry(test_id):
         retry_handler = atr_handle_retries
 
     if retry_handler:

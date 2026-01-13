@@ -100,5 +100,6 @@ TEST_EFD_ABORT_REASON = "test.early_flake.abort_reason"
 TEST_EFD_ENABLED = "test.early_flake.enabled"
 TEST_HAS_FAILED_ALL_RETRIES = "test.has_failed_all_retries"
 TEST_ATTEMPT_TO_FIX_PASSED = "test.test_management.attempt_to_fix_passed"
+TEST_FINAL_STATUS = "test.final_status"
 
 TEST_MANAGEMENT_ENABLED = "test.test_management.enabled"

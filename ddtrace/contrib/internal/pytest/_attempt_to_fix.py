@@ -101,15 +101,30 @@ def attempt_to_fix_handle_retries(
 def _do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
     test_id = _get_test_id_from_item(item)
 
-    while InternalTest.attempt_to_fix_should_retry(test_id):
+    should_retry = InternalTest.attempt_to_fix_should_retry(test_id)
+    while should_retry:
         retry_num = InternalTest.attempt_to_fix_add_retry(test_id, start_immediately=True)
+
+        # If attempt_to_fix_add_retry failed (returned None), break out of the loop
+        if retry_num is None:
+            log.debug("Attempt to fix retry failed to start for test %s, stopping retries", test_id)
+            break
 
         retry_outcome = _get_outcome_from_retry(item, outcomes, retry_num)
 
+        # Check if we should continue after this retry
+        should_retry = InternalTest.attempt_to_fix_should_retry(test_id)
+
         InternalTest.attempt_to_fix_finish_retry(
-            test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
+            test_id,
+            retry_num,
+            retry_outcome.status,
+            not should_retry,
+            retry_outcome.skip_reason,
+            retry_outcome.exc_info,
         )
 
+    # After all retries are done, get the final status
     return InternalTest.attempt_to_fix_get_final_status(test_id)
 
 
