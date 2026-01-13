@@ -118,7 +118,6 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.get_tag("elasticsearch.url") == "/%s" % self.ES_INDEX
         assert span.get_tag("out.host") == self._get_es_config()["host"]
         assert span.get_tag("server.address") == self._get_es_config()["host"]
-        assert span.get_tag("custom_tag") == "bar"
         assert span.resource == "PUT /%s" % self.ES_INDEX
 
         args = self._get_index_args()

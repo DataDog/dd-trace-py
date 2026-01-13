@@ -199,13 +199,13 @@ class TestKombuSchematization(TracerTestCase):
     def test_schematized_unspecified_service_name_default(self):
         spans = self._create_schematized_spans()
         for span in spans:
-            assert span.service is None, "Expected None, got {}".format(span.service)
+            assert span.service == "kombu", "Expected kombu, got {}".format(span.service)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_name_v0(self):
         spans = self._create_schematized_spans()
         for span in spans:
-            assert span.service is None, "Expected None, got {}".format(span.service)
+            assert span.service == "kombu", "Expected kombu, got {}".format(span.service)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_name_v1(self):

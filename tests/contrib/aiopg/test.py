@@ -37,7 +37,7 @@ class AiopgTestCase(AsyncioTestCase):
         return conn, self.tracer
 
     @pytest.mark.asyncio
-    async def assert_conn_is_traced(self, tracer, db, service):
+    async def assert_conn_is_traced(self, tracer, db):
         # ensure the trace aiopg client doesn't add non-standard
         # methods
         try:
@@ -126,11 +126,9 @@ class AiopgTestCase(AsyncioTestCase):
 
     @pytest.mark.asyncio
     async def test_connect_factory(self):
-        services = ["db", "another"]
-        for service in services:
-            conn, _ = await self._get_conn_and_tracer()
-            await self.assert_conn_is_traced(self.tracer, conn, service)
-            conn.close()
+        conn, _ = await self._get_conn_and_tracer()
+        await self.assert_conn_is_traced(self.tracer, conn)
+        conn.close()
 
     @pytest.mark.asyncio
     async def test_patch_unpatch(self):

@@ -13,7 +13,7 @@ class CeleryPatchTest(unittest.TestCase):
         patch(celery=True)
 
         app = celery.Celery()
-        assert app.__datadog_patch
+        assert getattr(app, "__datadog_patch", False)
         unpatch()
 
     def test_patch_before_import(self):
@@ -24,7 +24,7 @@ class CeleryPatchTest(unittest.TestCase):
         import celery
 
         app = celery.Celery()
-        assert app.__datadog_patch
+        assert getattr(app, "__datadog_patch", False)
         unpatch()
 
     def test_and_emit_get_version(self):

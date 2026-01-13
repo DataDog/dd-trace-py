@@ -40,7 +40,7 @@ class PsycopgCore(TracerTestCase):
 
         unpatch()
 
-    def _get_conn(self, service=None):
+    def _get_conn(self):
         conn = psycopg2.connect(**POSTGRES_CONFIG)
         return conn
 
@@ -49,11 +49,9 @@ class PsycopgCore(TracerTestCase):
         patch()
         patch()
 
-        service = "fo"
-
-        conn = self._get_conn(service=service)
+        conn = self._get_conn()
         conn.cursor().execute("""select 'blah'""")
-        self.assert_structure(dict(name="postgres.query", service=service))
+        self.assert_structure(dict(name="postgres.query"))
         self.reset()
 
         # Test unpatch
@@ -66,9 +64,9 @@ class PsycopgCore(TracerTestCase):
         # Test patch again
         patch()
 
-        conn = self._get_conn(service=service)
+        conn = self._get_conn()
         conn.cursor().execute("""select 'blah'""")
-        self.assert_structure(dict(name="postgres.query", service=service))
+        self.assert_structure(dict(name="postgres.query"))
 
     def assert_conn_is_traced(self, db, service):
         # ensure the trace pscyopg client doesn't add non-standard
@@ -223,12 +221,6 @@ class PsycopgCore(TracerTestCase):
         #   TypeError: argument 2 must be a connection or a cursor
         conn = psycopg2.connect(**POSTGRES_CONFIG)
         quote_ident("foo", conn)
-
-    def test_connect_factory(self):
-        services = ["db", "another"]
-        for service in services:
-            conn = self._get_conn(service=service)
-            self.assert_conn_is_traced(conn, service)
 
     def test_commit(self):
         conn = self._get_conn()
@@ -398,10 +390,9 @@ class PsycopgCore(TracerTestCase):
 
     @skipIf(PSYCOPG2_VERSION < (2, 5), "Connection context managers not defined in <2.5.")
     def test_contextmanager_connection(self):
-        service = "fo"
-        with self._get_conn(service=service) as conn:
+        with self._get_conn() as conn:
             conn.cursor().execute("""select 'blah'""")
-            self.assert_structure(dict(name="postgres.query", service=service))
+            self.assert_structure(dict(name="postgres.query"))
 
     @snapshot()
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))

@@ -238,7 +238,6 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         assert span.service == "default-svc"
 
     @mark_asyncio
-    @mark_asyncio
     async def test_django_traced_cursor_backward_compatibility(self):
         cursor = self.cursor
         # Django integration used to have its own TracedAsyncCursor implementation. When we replaced such custom

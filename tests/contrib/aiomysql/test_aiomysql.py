@@ -209,14 +209,12 @@ asyncio.run(test())""",
 class AioMySQLTestCase(AsyncioTestCase):
     conn = None
 
-    async def _get_conn_tracer(self, tags=None):
-        tags = tags if tags is not None else {}
-
+    async def _get_conn(self):
         if not self.conn:
             self.conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
             assert not self.conn.closed
 
-            return self.conn, self.tracer
+        return self.conn
 
     def setUp(self):
         super().setUp()
@@ -235,7 +233,7 @@ class AioMySQLTestCase(AsyncioTestCase):
         env_overrides=dict(DD_AIOMYSQL_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
     )
     async def test_user_specified_service_integration_v0(self):
-        conn, tracer = await self._get_conn_tracer()
+        conn = await self._get_conn()
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
@@ -249,7 +247,7 @@ class AioMySQLTestCase(AsyncioTestCase):
         env_overrides=dict(DD_AIOMYSQL_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
     )
     async def test_user_specified_service_integration_v1(self):
-        conn, tracer = await self._get_conn_tracer()
+        conn = await self._get_conn()
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
@@ -261,7 +259,7 @@ class AioMySQLTestCase(AsyncioTestCase):
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     async def test_user_specified_service_v0(self):
-        conn, tracer = await self._get_conn_tracer()
+        conn = await self._get_conn()
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
@@ -273,7 +271,7 @@ class AioMySQLTestCase(AsyncioTestCase):
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_user_specified_service_v1(self):
-        conn, tracer = await self._get_conn_tracer()
+        conn = await self._get_conn()
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
@@ -285,7 +283,7 @@ class AioMySQLTestCase(AsyncioTestCase):
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_unspecified_service_v1(self):
-        conn, tracer = await self._get_conn_tracer()
+        conn = await self._get_conn()
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
@@ -297,7 +295,7 @@ class AioMySQLTestCase(AsyncioTestCase):
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     async def test_span_name_v0_schema(self):
-        conn, tracer = await self._get_conn_tracer()
+        conn = await self._get_conn()
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
@@ -309,7 +307,7 @@ class AioMySQLTestCase(AsyncioTestCase):
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_span_name_v1_schema(self):
-        conn, tracer = await self._get_conn_tracer()
+        conn = await self._get_conn()
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
@@ -321,10 +319,10 @@ class AioMySQLTestCase(AsyncioTestCase):
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     async def test_aiomysql_dbm_propagation_enabled(self):
-        conn, tracer = await self._get_conn_tracer()
+        conn = await self._get_conn()
         cursor = await conn.cursor()
 
-        await shared_tests._test_dbm_propagation_enabled(tracer, cursor, "mysql")
+        await shared_tests._test_dbm_propagation_enabled(self.tracer, cursor, "mysql")
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
@@ -337,7 +335,7 @@ class AioMySQLTestCase(AsyncioTestCase):
     )
     async def test_aiomysql_dbm_propagation_comment_with_global_service_name_configured(self):
         """tests if dbm comment is set in mysql"""
-        conn, tracer = await self._get_conn_tracer()
+        conn = await self._get_conn()
         cursor = await conn.cursor()
         cursor.__wrapped__ = mock.AsyncMock()
 
@@ -357,7 +355,7 @@ class AioMySQLTestCase(AsyncioTestCase):
     )
     async def test_aiomysql_dbm_propagation_comment_integration_service_name_override(self):
         """tests if dbm comment is set in mysql"""
-        conn, tracer = await self._get_conn_tracer()
+        conn = await self._get_conn()
         cursor = await conn.cursor()
         cursor.__wrapped__ = mock.AsyncMock()
 
@@ -377,7 +375,7 @@ class AioMySQLTestCase(AsyncioTestCase):
     )
     async def test_aiomysql_dbm_propagation_comment_peer_service_enabled(self):
         """tests if dbm comment is set in mysql"""
-        conn, tracer = await self._get_conn_tracer()
+        conn = await self._get_conn()
         cursor = await conn.cursor()
         cursor.__wrapped__ = mock.AsyncMock()
 
@@ -392,12 +390,13 @@ class AioMySQLTestCase(AsyncioTestCase):
             DD_SERVICE="orders-app",
             DD_ENV="staging",
             DD_VERSION="v7343437-d7ac743",
+            DD_TAGS="peer.service:peer_service_name",
             DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1",
         )
     )
     async def test_aiomysql_dbm_propagation_comment_with_peer_service_tag(self):
         """tests if dbm comment is set in mysql"""
-        conn, tracer = await self._get_conn_tracer({"peer.service": "peer_service_name"})
+        conn = await self._get_conn()
         cursor = await conn.cursor()
         cursor.__wrapped__ = mock.AsyncMock()
 

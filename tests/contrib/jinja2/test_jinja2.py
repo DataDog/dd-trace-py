@@ -141,7 +141,7 @@ class Jinja2Test(TracerTestCase):
         assert len(spans) == 5
 
         for span in spans:
-            assert span.service == "renderer"
+            assert span.service == "tests.contrib.jinja2"
 
     def test_inherit_service(self):
         # When there is a parent span and no custom service_name, the service name is inherited

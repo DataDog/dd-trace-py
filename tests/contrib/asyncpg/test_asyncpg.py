@@ -501,43 +501,6 @@ class AsyncPgTestCase(AsyncioTestCase):
             DD_SERVICE="orders-app",
             DD_ENV="staging",
             DD_VERSION="v7343437-d7ac743",
-            DD_ASYNCPG_SERVICE="service-name-override",
-        )
-    )
-    async def test_asyncpg_dbm_propagation_comment_pin_service_name_override(self):
-        """tests if dbm comment is set in postgres"""
-        db_name = POSTGRES_CONFIG["dbname"]
-        conn, tracer = await self._get_conn_tracer()
-
-        def mock_func(args, kwargs, sql_pos, sql_kw, sql_with_dbm_tags):
-            return args, kwargs
-
-        with mock.patch(
-            "ddtrace.propagation._database_monitoring.set_argument_value", side_effect=mock_func
-        ) as patched:
-            # test string queries
-            create_table_query = """
-                CREATE TABLE IF NOT EXISTS my_table(
-                    my_column text PRIMARY KEY
-                )
-            """
-
-            await conn.execute(create_table_query)
-            dbm_comment = (
-                f"/*dddb='{db_name}',dddbs='postgres',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-                "ddpv='v7343437-d7ac743'*/ "
-            )
-            assert patched.call_args_list[0][0][4] == dbm_comment + create_table_query, (
-                f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
-            )
-
-    @mark_asyncio
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
             DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED="True",
         )
     )

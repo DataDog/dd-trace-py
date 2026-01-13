@@ -30,7 +30,7 @@ class PylibmcCore(object):
         # add tests for touch, cas, gets etc
 
     def test_append_prepend(self):
-        client, tracer = self.get_client()
+        client = self.get_client()
         # test
         start = time.time()
         client.set("a", "crow")
@@ -56,7 +56,7 @@ class PylibmcCore(object):
         assert expected_resources == resources
 
     def test_incr_decr(self):
-        client, tracer = self.get_client()
+        client = self.get_client()
         # test
         start = time.time()
         client.set("a", 1)
@@ -75,7 +75,7 @@ class PylibmcCore(object):
 
     def test_clone(self):
         # ensure cloned connections are traced as well.
-        client, tracer = self.get_client()
+        client = self.get_client()
         cloned = client.clone()
         start = time.time()
         cloned.get("a")
@@ -88,7 +88,7 @@ class PylibmcCore(object):
         assert expected_resources == resources
 
     def test_get_set_multi(self):
-        client, tracer = self.get_client()
+        client = self.get_client()
         # test
         start = time.time()
         client.set_multi({"a": 1, "b": 2})
@@ -105,7 +105,7 @@ class PylibmcCore(object):
         assert expected_resources == resources
 
     def test_get_rowcount(self):
-        client, tracer = self.get_client()
+        client = self.get_client()
         # test
         start = time.time()
         client.set_multi({"a": 1, "b": 2})
@@ -128,7 +128,7 @@ class PylibmcCore(object):
         assert get_missing_key_span.get_metric("db.row_count") == 0
 
     def test_add(self):
-        client, tracer = self.get_client()
+        client = self.get_client()
         # test
         start = time.time()
         client.add("a", "first")
@@ -149,7 +149,7 @@ class PylibmcCore(object):
         assert spans[3].resource == "get"
 
     def test_get_multi_rowcount(self):
-        client, tracer = self.get_client()
+        client = self.get_client()
         # test
         start = time.time()
         client.set_multi({"a": 1, "b": 2})
@@ -177,7 +177,7 @@ class PylibmcCore(object):
         assert get_multi_0_keys_exist_span.get_metric("db.row_count") == 0
 
     def test_get_set_multi_prefix(self):
-        client, tracer = self.get_client()
+        client = self.get_client()
         # test
         start = time.time()
         client.set_multi({"a": 1, "b": 2}, key_prefix="foo")
@@ -197,7 +197,7 @@ class PylibmcCore(object):
         assert expected_resources == resources
 
     def test_get_set_delete(self):
-        client, tracer = self.get_client()
+        client = self.get_client()
         # test
         k = "cafe"
         v = "val-foo"
@@ -236,9 +236,9 @@ class PylibmcCore(object):
         """
         Ensure client works when the tracer is disabled
         """
-        client, tracer = self.get_client()
+        client = self.get_client()
         try:
-            tracer.enabled = False
+            self.tracer.enabled = False
 
             client.set("a", "crow")
 
@@ -249,7 +249,7 @@ class PylibmcCore(object):
 
             client.get_multi(["a"])
         finally:
-            tracer.enabled = True
+            self.tracer.enabled = True
 
 
 class TestPylibmcLegacy(TracerTestCase, PylibmcCore):
@@ -261,7 +261,7 @@ class TestPylibmcLegacy(TracerTestCase, PylibmcCore):
         raw_client.flush_all()
 
         client = TracedClient(raw_client, tracer=self.tracer)
-        return client, self.tracer
+        return client
 
 
 class TestPylibmcPatchDefault(TracerTestCase, PylibmcCore):
@@ -280,16 +280,14 @@ class TestPylibmcPatchDefault(TracerTestCase, PylibmcCore):
         client = pylibmc.Client([url])
         client.flush_all()
 
-        return client, self.tracer
+        return client
 
 
 class TestPylibmcPatch(TestPylibmcPatchDefault):
     """Test suite for the tracing of pylibmc with a configured lib patching"""
 
     def get_client(self):
-        client, tracer = TestPylibmcPatchDefault.get_client(self)
-
-        return client, tracer
+        return TestPylibmcPatchDefault.get_client(self)
 
     def test_patch_unpatch(self):
         url = "%s:%s" % (cfg["host"], cfg["port"])
@@ -366,7 +364,7 @@ class TestPylibmcPatchSchematization(TestPylibmcPatchDefault):
 
         assert config.service == "mysvc"
 
-        client, tracer = self.get_client()
+        client = self.get_client()
         client.set("a", "crow")
         spans = self.get_spans()
         assert len(spans) == 1
@@ -383,7 +381,7 @@ class TestPylibmcPatchSchematization(TestPylibmcPatchDefault):
 
         assert config.service == "mysvc"
 
-        client, tracer = self.get_client()
+        client = self.get_client()
         client.set("a", "crow")
         spans = self.get_spans()
         assert len(spans) == 1
@@ -394,7 +392,7 @@ class TestPylibmcPatchSchematization(TestPylibmcPatchDefault):
         """
         v0 schema: memcached.cmd
         """
-        client, tracer = self.get_client()
+        client = self.get_client()
         client.set("a", "crow")
         spans = self.get_spans()
         assert len(spans) == 1
@@ -405,7 +403,7 @@ class TestPylibmcPatchSchematization(TestPylibmcPatchDefault):
         """
         v1 schema: memcached.command
         """
-        client, tracer = self.get_client()
+        client = self.get_client()
         client.set("a", "crow")
         spans = self.get_spans()
         assert len(spans) == 1

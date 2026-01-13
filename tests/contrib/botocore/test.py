@@ -162,7 +162,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("span.kind"), "client"
         assert_span_http_status_code(span, 200)
         assert span.get_metric("retry_attempts") == 0
-        assert span.service == "test-botocore-tracing.ec2"
+        assert span.service == "aws.ec2"
         assert span.resource == "ec2.describeinstances"
         assert span.name == "ec2.command"
         assert span.span_type == "http"
@@ -264,14 +264,14 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("component") == "botocore"
         assert span.get_tag("span.kind"), "client"
         assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.dynamodb"
+        assert span.service == "aws.dynamodb"
         assert span.resource == "dynamodb.createtable"
 
         span = spans[1]
         assert span.name == "botocore.parsers.parse"
         assert span.get_tag("component") == "botocore"
         assert span.get_tag("span.kind"), "client"
-        assert span.service == "test-botocore-tracing.dynamodb"
+        assert span.service == "aws.dynamodb"
         assert span.resource == "botocore.parsers.parse"
 
         span = spans[2]
@@ -311,14 +311,14 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("component") == "botocore"
         assert span.get_tag("span.kind"), "client"
         assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.dynamodb"
+        assert span.service == "aws.dynamodb"
         assert span.resource == "dynamodb.createtable"
 
         span = spans[1]
         assert span.name == "botocore.parsers.parse"
         assert span.get_tag("component") == "botocore"
         assert span.get_tag("span.kind"), "client"
-        assert span.service == "test-botocore-tracing.dynamodb"
+        assert span.service == "aws.dynamodb"
         assert span.resource == "botocore.parsers.parse"
 
         span = spans[2]
@@ -368,14 +368,14 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("component") == "botocore"
         assert span.get_tag("span.kind"), "client"
         assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.dynamodb"
+        assert span.service == "aws.dynamodb"
         assert span.resource == "dynamodb.createtable"
 
         span = spans[1]
         assert span.name == "botocore.parsers.parse"
         assert span.get_tag("component") == "botocore"
         assert span.get_tag("span.kind"), "client"
-        assert span.service == "test-botocore-tracing.dynamodb"
+        assert span.service == "aws.dynamodb"
         assert span.resource == "botocore.parsers.parse"
 
         span = spans[2]
@@ -401,7 +401,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("component") == "botocore"
         assert span.get_tag("span.kind"), "client"
         assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.s3"
+        assert span.service == "aws.s3"
         assert span.resource == "s3.listbuckets"
 
         assert not span._links, "no links, i.e. no span pointers"
@@ -497,7 +497,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.s3"
+        assert span.service == "aws.s3"
         assert span.resource == "s3.createbucket"
         assert spans[1].get_tag("aws.operation") == "PutObject"
         assert spans[1].get_tag("component") == "botocore"
@@ -679,7 +679,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("component") == "botocore"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.sqs"
+        assert span.service == "aws.sqs"
         assert span.resource == "sqs.createqueue"
         return span
 
@@ -727,7 +727,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("span.kind"), "client"
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.sqs"
+            assert span.service == "aws.sqs"
             assert span.resource == "sqs.sendmessage"
             assert span.get_tag("params.MessageAttributes._datadog.StringValue") is None
             response = self.sqs_client.receive_message(
@@ -755,7 +755,7 @@ class BotocoreTest(TracerTestCase):
             assert produce_span.get_tag("span.kind"), "client"
             assert_is_measured(produce_span)
             assert_span_http_status_code(produce_span, 200)
-            assert produce_span.service == "test-botocore-tracing.sqs"
+            assert produce_span.service == "aws.sqs"
             assert produce_span.resource == "sqs.sendmessage"
             response = self.sqs_client.receive_message(
                 QueueUrl=self.sqs_test_queue["QueueUrl"],
@@ -885,7 +885,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.sqs"
+        assert span.service == "aws.sqs"
         assert span.resource == "sqs.sendmessage"
         trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
         assert trace_json is None
@@ -919,7 +919,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.sqs"
+        assert span.service == "aws.sqs"
         assert span.resource == "sqs.sendmessagebatch"
         response = self.sqs_client.receive_message(
             QueueUrl=self.sqs_test_queue["QueueUrl"],
@@ -965,7 +965,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.sqs"
+        assert span.service == "aws.sqs"
         assert span.resource == "sqs.sendmessagebatch"
         response = self.sqs_client.receive_message(
             QueueUrl=self.sqs_test_queue["QueueUrl"],
@@ -1012,7 +1012,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.sqs"
+        assert span.service == "aws.sqs"
         assert span.resource == "sqs.sendmessagebatch"
         response = self.sqs_client.receive_message(
             QueueUrl=self.sqs_test_queue["QueueUrl"],
@@ -1235,7 +1235,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.kinesis"
+        assert span.service == "aws.kinesis"
         assert span.resource == "kinesis.putrecords"
         return span
 
@@ -1328,7 +1328,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.lambda"
+        assert span.service == "aws.lambda"
         assert span.resource == "lambda.listfunctions"
         assert span.get_tag("params.ClientContext") is None
 
@@ -1368,7 +1368,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("span.kind"), "client"
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.lambda"
+            assert span.service == "aws.lambda"
             assert span.resource == "lambda.invoke"
             assert span.get_tag("params.ClientContext") is None
             lamb.delete_function(FunctionName="ironmaiden")
@@ -1743,7 +1743,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.kms"
+        assert span.service == "aws.kms"
         assert span.resource == "kms.listkeys"
 
         # checking for protection on sts against security leak
@@ -2045,7 +2045,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.sns"
+        assert span.service == "aws.sns"
         assert span.resource == "sns.publish"
         trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
         assert trace_json is None
@@ -2120,7 +2120,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.sns"
+        assert span.service == "aws.sns"
         assert span.resource == "sns.publish"
         trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
         assert trace_json is None
@@ -2192,7 +2192,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.sns"
+        assert span.service == "aws.sns"
         assert span.resource == "sns.publish"
         trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
         assert trace_json is None
@@ -2258,7 +2258,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("params.MessageBody") is None
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.sns"
+            assert span.service == "aws.sns"
             assert span.resource == "sns.publishbatch"
 
             # receive messages using SQS and ensure headers are present
@@ -2357,7 +2357,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("params.MessageBody") is None
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.sns"
+        assert span.service == "aws.sns"
         assert span.resource == "sns.publishbatch"
 
         # receive message using SQS and ensure headers are present
@@ -2429,7 +2429,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("params.MessageBody") is None
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.sns"
+        assert span.service == "aws.sns"
         assert span.resource == "sns.publishbatch"
         trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
         assert trace_json is None
@@ -2482,7 +2482,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("span.kind"), "client"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        assert span.service == "test-botocore-tracing.kinesis"
+        assert span.service == "aws.kinesis"
 
         return span
 
@@ -3125,7 +3125,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("span.kind"), "client"
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.sqs"
+            assert span.service == "aws.sqs"
             assert span.resource == "sqs.sendmessage"
             trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
             assert trace_json is None
@@ -3289,7 +3289,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("component") == "botocore"
             assert span.get_tag("span.kind"), "client"
             assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.s3"
+            assert span.service == "aws.s3"
             assert span.resource == "s3.listbuckets"
 
             assert not span._links, "no links, i.e. no span pointers"
@@ -3345,14 +3345,14 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("component") == "botocore"
             assert span.get_tag("span.kind"), "client"
             assert_span_http_status_code(span, 200)
-            assert span.service == "test-botocore-tracing.dynamodb"
+            assert span.service == "aws.dynamodb"
             assert span.resource == "dynamodb.createtable"
 
             span = spans[1]
             assert span.name == "botocore.parsers.parse"
             assert span.get_tag("component") == "botocore"
             assert span.get_tag("span.kind"), "client"
-            assert span.service == "test-botocore-tracing.dynamodb"
+            assert span.service == "aws.dynamodb"
             assert span.resource == "botocore.parsers.parse"
 
             span = spans[2]

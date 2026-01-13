@@ -87,12 +87,12 @@ class FlaskAutopatchTestCase(TracerTestCase):
 
         # Assert span services
         for span in spans:
-            self.assertEqual(span.service, "test-flask")
+            self.assertEqual(span.service, "test.flask.service")
 
         # Root request span
         req_span = spans[0]
         assert_is_measured(req_span)
-        self.assertEqual(req_span.service, "test-flask")
+        self.assertEqual(req_span.service, "test.flask.service")
         self.assertEqual(req_span.name, "flask.request")
         self.assertEqual(req_span.resource, "GET /")
         self.assertEqual(req_span.span_type, "web")
@@ -112,7 +112,7 @@ class FlaskAutopatchTestCase(TracerTestCase):
 
         # Handler span
         handler_span = spans[5]
-        self.assertEqual(handler_span.service, "test-flask")
+        self.assertEqual(handler_span.service, "test.flask.service")
 
         expected_span_name = (
             "flask.process_response"

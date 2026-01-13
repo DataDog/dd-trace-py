@@ -1,7 +1,7 @@
 [[
   {
     "name": "sns.command",
-    "service": "test-botocore-tracing.sns",
+    "service": "aws.sns",
     "resource": "sns.deletetopic",
     "trace_id": 0,
     "span_id": 1,
@@ -111,7 +111,7 @@
 [
   {
     "name": "sns.command",
-    "service": "test-botocore-tracing.sns",
+    "service": "aws.sns",
     "resource": "sns.publishbatch",
     "trace_id": 2,
     "span_id": 1,

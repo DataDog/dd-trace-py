@@ -33,7 +33,7 @@ class PsycopgCore(TracerTestCase):
 
         unpatch()
 
-    def _get_conn(self, service=None):
+    def _get_conn(self):
         conn = psycopg.connect(**POSTGRES_CONFIG)
         return conn
 
@@ -42,11 +42,9 @@ class PsycopgCore(TracerTestCase):
         patch()
         patch()
 
-        service = "fo"
-
-        conn = self._get_conn(service=service)
+        conn = self._get_conn()
         conn.cursor().execute("""select 'blah'""")
-        self.assert_structure(dict(name="postgres.query", service=service))
+        self.assert_structure(dict(name="postgres.query"))
         self.reset()
 
         # Test unpatch
@@ -59,9 +57,9 @@ class PsycopgCore(TracerTestCase):
         # Test patch again
         patch()
 
-        conn = self._get_conn(service=service)
+        conn = self._get_conn()
         conn.cursor().execute("""select 'blah'""")
-        self.assert_structure(dict(name="postgres.query", service=service))
+        self.assert_structure(dict(name="postgres.query"))
 
     def assert_conn_is_traced(self, db, service):
         # ensure the trace pscyopg client doesn't add non-standard
@@ -175,12 +173,6 @@ class PsycopgCore(TracerTestCase):
         conn.cursor().execute(query="""select 'blah'""")
         conn.cursor().execute("""select 'blah'""")
         self.assert_has_no_spans()
-
-    def test_connect_factory(self):
-        services = ["db", "another"]
-        for service in services:
-            conn = self._get_conn(service=service)
-            self.assert_conn_is_traced(conn, service)
 
     def test_commit(self):
         conn = self._get_conn()
@@ -381,10 +373,9 @@ class PsycopgCore(TracerTestCase):
         assert spans[0].name == "postgresql.query"
 
     def test_contextmanager_connection(self):
-        service = "fo"
-        with self._get_conn(service=service) as conn:
+        with self._get_conn() as conn:
             conn.cursor().execute("""select 'blah'""")
-            self.assert_structure(dict(name="postgres.query", service=service))
+            self.assert_structure(dict(name="postgres.query"))
 
     @snapshot()
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))

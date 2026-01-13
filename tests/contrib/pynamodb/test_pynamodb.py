@@ -260,15 +260,6 @@ class PynamodbTest(TracerTestCase):
             assert len(list_result["TableNames"]) == 1
             assert list_result["TableNames"][0] == "Test"
 
-        self.reset()
-
-        # Manual override
-        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
-        list_result = self.conn.list_tables()
-        span = self.get_spans()[0]
-        assert len(list_result["TableNames"]) == 1
-        assert list_result["TableNames"][0] == "Test"
-
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_PYNAMODB_SERVICE="env-pynamodb"))
     @mock_dynamodb
     def test_service_precedence(self):
@@ -276,14 +267,5 @@ class PynamodbTest(TracerTestCase):
         list_result = self.conn.list_tables()
         span = self.get_spans()[0]
         assert span.service == "env-pynamodb", span.service
-        assert len(list_result["TableNames"]) == 1
-        assert list_result["TableNames"][0] == "Test"
-
-        self.reset()
-
-        # Manual override
-        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
-        list_result = self.conn.list_tables()
-        span = self.get_spans()[0]
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"

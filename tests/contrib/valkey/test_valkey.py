@@ -447,15 +447,6 @@ class TestValkeyPatch(TracerTestCase):
             )
             assert span.service == "cfg-valkey", span.service
 
-        self.reset()
-
-        # Manual override
-        self.r.get("cheese")
-        span = find_redis_span(
-            self.get_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
-        )
-        assert span.service == "mysvc", span.service
-
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(
             DD_SERVICE="app-svc", DD_VALKEY_SERVICE="env-specified-valkey-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"
@@ -467,15 +458,6 @@ class TestValkeyPatch(TracerTestCase):
             self.get_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
         )
         assert span.service == "env-specified-valkey-svc", span.service
-
-        self.reset()
-
-        # Do a manual override
-        self.r.get("cheese")
-        span = find_redis_span(
-            self.get_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
-        )
-        assert span.service == "override-valkey", span.service
 
 
 class TestValkeyPatchSnapshot(TracerTestCase):
@@ -582,10 +564,7 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         # Global config
         with self.override_config("valkey", dict(service="cfg-valkey")):
             self.r.get("cheese")
-
         self.reset()
-
-        # Manual override
         self.r.get("cheese")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_VALKEY_SERVICE="env-valkey"))
@@ -594,8 +573,6 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         self.r.get("cheese")
 
         self.reset()
-
-        # Do a manual override
         self.r.get("cheese")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_VALKEY_CMD_MAX_LENGTH="10"))

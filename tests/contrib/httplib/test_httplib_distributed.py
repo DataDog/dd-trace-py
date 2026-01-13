@@ -73,6 +73,7 @@ class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):
         self.check_enabled()
 
     def test_propagation_connection_false(self):
+        self.tracer.enabled = False
         conn = self.get_http_connection(SOCKET)
 
         self.request(conn=conn)
