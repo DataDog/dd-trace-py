@@ -399,7 +399,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             return False
 
         # Check if prepare_for_finish() has been called (sets _finish_time)
-        if self._finish_time is None:
+        if not self.is_prepared_for_finish():
             log.debug("Early Flake Detection: efd_should_retry called but test is not finished")
             return False
 
@@ -596,7 +596,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             return False
 
         # Check if prepare_for_finish() has been called (sets _finish_time)
-        if self._finish_time is None:
+        if not self.is_prepared_for_finish():
             log.debug("Attempt To Fix: attempt_to_fix_should_retry called but test is not finished")
             return False
 
