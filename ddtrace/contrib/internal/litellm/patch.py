@@ -29,6 +29,23 @@ def _supported_versions() -> Dict[str, str]:
     return {"litellm": "*"}
 
 
+def _handle_router_stream_response(resp, span, kwargs, instance, integration, args, is_async=False):
+    """
+    Handle router streaming responses with fallback for different wrapper types.
+
+    In litellm>=1.74.15, router streaming responses may be wrapped in FallbackStreamWrapper
+    (for mid-stream fallback support) or other types that don't expose the .handler attribute.
+    """
+    if hasattr(resp, "handler") and hasattr(resp.handler, "add_span"):
+        resp.handler.add_span(span, kwargs, instance)
+        return resp
+
+    # Fallback: wrap the response in our own traced stream for compatibility
+    kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
+    handler_class = LiteLLMAsyncStreamHandler if is_async else LiteLLMStreamHandler
+    return make_traced_stream(resp, handler_class(integration, span, args, kwargs))
+
+
 @with_traced_module
 def traced_completion(litellm, pin, func, instance, args, kwargs):
     operation = func.__name__
@@ -110,7 +127,7 @@ def traced_router_completion(litellm, pin, func, instance, args, kwargs):
     try:
         resp = func(*args, **kwargs)
         if stream:
-            resp.handler.add_span(span, kwargs, instance)
+            return _handle_router_stream_response(resp, span, kwargs, instance, integration, args, is_async=False)
         return resp
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -141,7 +158,7 @@ async def traced_router_acompletion(litellm, pin, func, instance, args, kwargs):
     try:
         resp = await func(*args, **kwargs)
         if stream:
-            resp.handler.add_span(span, kwargs, instance)
+            return _handle_router_stream_response(resp, span, kwargs, instance, integration, args, is_async=True)
         return resp
     except Exception:
         span.set_exc_info(*sys.exc_info())
