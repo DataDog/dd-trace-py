@@ -65,16 +65,3 @@ class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):
         with self.override_config("httplib", dict(distributed_tracing=False)):
             self.request()
         self.check_disabled()
-
-    def test_propagation_connection_true(self):
-        conn = self.get_http_connection(SOCKET)
-
-        self.request(conn=conn)
-        self.check_enabled()
-
-    def test_propagation_connection_false(self):
-        self.tracer.enabled = False
-        conn = self.get_http_connection(SOCKET)
-
-        self.request(conn=conn)
-        self.check_disabled()

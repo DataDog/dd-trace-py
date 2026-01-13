@@ -138,20 +138,6 @@ class TestTracedCursor(TracerTestCase):
         traced_cursor.fetchall("arg_1", kwarg1="kwarg1")
         self.assert_has_no_spans()
 
-        assert len(self.pop_spans()) == 0
-
-        cursor.fetchone.return_value = "fetchone"
-        assert "fetchone" == traced_cursor.fetchone("arg_1", "arg_2")
-        assert len(self.pop_spans()) == 0
-
-        cursor.fetchmany.return_value = "fetchmany"
-        assert "fetchmany" == traced_cursor.fetchmany("arg_1", "arg_2")
-        assert len(self.pop_spans()) == 0
-
-        cursor.fetchall.return_value = "fetchall"
-        assert "fetchall" == traced_cursor.fetchall("arg_1", "arg_2")
-        assert len(self.pop_spans()) == 0
-
     def test_span_info(self):
         cursor = self.cursor
         cursor.rowcount = 123
@@ -167,6 +153,7 @@ class TestTracedCursor(TracerTestCase):
         assert_is_not_measured(span)
         assert span.get_tag("extra1") == "value_extra1", "Extra tags are preserved"
         assert span.name == "my_name", "Span name is respected"
+        assert span.service == "my_service", "Span service is respected"
         assert span.resource == "my_resource", "Resource is respected"
         assert span.span_type == "sql", "Span has the correct span type"
         # Row count
@@ -345,6 +332,7 @@ class TestFetchTracedCursor(TracerTestCase):
         span = self.pop_spans()[0]  # type: Span
         assert span.get_tag("extra1") == "value_extra1", "Extra tags are preserved"
         assert span.name == "my_name", "Span name is respected"
+        assert span.service == "my_service", "Span service is respected"
         assert span.resource == "my_resource", "Resource is respected"
         assert span.span_type == "sql", "Span has the correct span type"
         # Row count

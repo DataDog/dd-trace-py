@@ -31,10 +31,9 @@ class AiopgTestCase(AsyncioTestCase):
         unpatch()
 
     @pytest.mark.asyncio
-    async def _get_conn_and_tracer(self):
-        conn = self._conn = await aiopg.connect(**POSTGRES_CONFIG)
-
-        return conn, self.tracer
+    async def _get_conn(self):
+        self._conn = await aiopg.connect(**POSTGRES_CONFIG)
+        return self._conn
 
     @pytest.mark.asyncio
     async def assert_conn_is_traced(self, tracer, db):
@@ -93,7 +92,7 @@ class AiopgTestCase(AsyncioTestCase):
 
     @pytest.mark.asyncio
     async def test_async_generator(self):
-        conn, tracer = await self._get_conn_and_tracer()
+        conn = await self._get_conn()
         cursor = await conn.cursor()
         q = "select 'foobarblah'"
         await cursor.execute(q)
@@ -109,8 +108,8 @@ class AiopgTestCase(AsyncioTestCase):
 
     @pytest.mark.asyncio
     async def test_disabled_execute(self):
-        conn, tracer = await self._get_conn_and_tracer()
-        tracer.enabled = False
+        conn = await self._get_conn()
+        self.tracer.enabled = False
         # these calls were crashing with a previous version of the code.
         await (await conn.cursor()).execute(query="select 'blah'")
         await (await conn.cursor()).execute("select 'blah'")
@@ -118,7 +117,7 @@ class AiopgTestCase(AsyncioTestCase):
 
     @pytest.mark.asyncio
     async def test_manual_wrap_extension_types(self):
-        conn, _ = await self._get_conn_and_tracer()
+        conn = await self._get_conn()
         # NOTE: this will crash if it doesn't work.
         #   _ext.register_type(_ext.UUID, conn_or_curs)
         #   TypeError: argument 2 must be a connection, cursor or None
@@ -126,7 +125,7 @@ class AiopgTestCase(AsyncioTestCase):
 
     @pytest.mark.asyncio
     async def test_connect_factory(self):
-        conn, _ = await self._get_conn_and_tracer()
+        conn = await self._get_conn()
         await self.assert_conn_is_traced(self.tracer, conn)
         conn.close()
 
@@ -330,7 +329,7 @@ class AiopgTestCase(AsyncioTestCase):
 
 class AiopgAnalyticsTestCase(AiopgTestCase):
     async def trace_spans(self):
-        conn, _ = await self._get_conn_and_tracer()
+        conn = await self._get_conn()
 
         cursor = await conn.cursor()
         await cursor.execute("select 'foobar'")
@@ -340,7 +339,7 @@ class AiopgAnalyticsTestCase(AiopgTestCase):
         return self.get_spans()
 
     async def _test_cursor_ctx_manager(self):
-        conn, tracer = await self._get_conn_and_tracer()
+        conn = await self._get_conn()
         cur = await conn.cursor()
         t = type(cur)
 
