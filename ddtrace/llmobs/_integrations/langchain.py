@@ -13,7 +13,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
@@ -192,16 +191,12 @@ class LangChainIntegration(BaseLLMIntegration):
             elif operation == "chat" and model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
                 llmobs_integration = "anthropic"
 
-            is_workflow = (
-                LLMObs._integration_is_enabled(llmobs_integration) or span._get_ctx_item(PROXY_REQUEST) is True
-            )
+            is_workflow = llmobs_integration != "custom" or span._get_ctx_item(PROXY_REQUEST) is True
 
         if operation == "llm":
             self._llmobs_set_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)
             update_proxy_workflow_input_output_value(span, "workflow" if is_workflow else "llm")
         elif operation == "chat":
-            # langchain-openai will call a beta client "response_format" is passed in the kwargs, which we do not trace
-            is_workflow = is_workflow and not (llmobs_integration == "openai" and ("response_format" in kwargs))
             self._llmobs_set_tags_from_chat_model(span, args, kwargs, response, is_workflow=is_workflow)
             update_proxy_workflow_input_output_value(span, "workflow" if is_workflow else "llm")
         elif operation == "chain":
