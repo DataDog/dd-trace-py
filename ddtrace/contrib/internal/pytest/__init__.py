@@ -40,7 +40,6 @@ alongside ``--ddtrace`` or by adding this to your configuration::
 
 Global Configuration
 ~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.pytest["service"]
 
