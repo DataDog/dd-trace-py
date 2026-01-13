@@ -38,8 +38,8 @@ alongside ``--ddtrace`` or by adding this to your configuration::
    for more details.
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.pytest["service"]
 

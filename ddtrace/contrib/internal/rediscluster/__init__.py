@@ -4,7 +4,6 @@
 ::
 
     from ddtrace import patch
-    from ddtrace._trace.pin import Pin
     import rediscluster
 
     # If not patched yet, you can patch redis specifically
@@ -14,11 +13,8 @@
     client = rediscluster.StrictRedisCluster(startup_nodes=[{'host':'localhost', 'port':'7000'}])
     client.get('my-key')
 
-    # Use a pin to specify metadata related to this client
-    Pin.override(client, service='redis-queue')
-
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.rediscluster["service"]
    The service name reported by default for rediscluster spans

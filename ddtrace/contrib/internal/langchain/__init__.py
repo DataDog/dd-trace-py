@@ -52,8 +52,8 @@ Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the LangCh
     # patch(langchain=True, openai=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.langchain["service"]
 

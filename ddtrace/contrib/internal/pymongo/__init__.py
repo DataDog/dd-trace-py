@@ -9,7 +9,6 @@ network calls. Pymongo 3.0 and greater are the currently supported versions.
     # Be sure to import pymongo and not pymongo.MongoClient directly,
     # otherwise you won't have access to the patched version
     from ddtrace import patch
-    from ddtrace._trace.pin import Pin
     import pymongo
 
     # If not patched yet, you can patch pymongo specifically
@@ -21,12 +20,8 @@ network calls. Pymongo 3.0 and greater are the currently supported versions.
     db = client["test-db"]
     db.teams.find({"name": "Toronto Maple Leafs"})
 
-    # Use a pin to specify metadata related to this client
-    client = pymongo.MongoClient()
-    pin = Pin.override(client, service="mongo-master")
-
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.pymongo["service"]
    The service name reported by default for pymongo spans
