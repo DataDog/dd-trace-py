@@ -40,7 +40,7 @@ Here is the end result, in a sample app::
 
     import cherrypy
 
-    from ddtrace.trace import tracer, Pin
+    from ddtrace.trace import tracer
     from ddtrace.contrib.cherrypy import TraceMiddleware
     TraceMiddleware(cherrypy, tracer, service="my-cherrypy-app")
 

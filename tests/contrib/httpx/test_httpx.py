@@ -51,7 +51,8 @@ def test_patching():
     assert not is_wrapted(httpx.AsyncClient.send)
 
 
-def test_httpx_service_name(tracer, test_spans):
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+def test_httpx_service_name():
     """
     When using split_by_domain
         We set the span service name as a text type and not binary
@@ -61,13 +62,6 @@ def test_httpx_service_name(tracer, test_spans):
     with override_config("httpx", {"split_by_domain": True}):
         resp = client.get(get_url("/status/200"))
     assert resp.status_code == 200
-
-    traces = test_spans.pop_traces()
-    assert len(traces) == 1
-
-    spans = traces[0]
-    assert len(spans) == 1
-    assert isinstance(spans[0].service, str)
 
 
 @pytest.mark.asyncio

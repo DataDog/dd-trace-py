@@ -267,19 +267,13 @@ class TestKombuDsm(TracerTestCase):
         self.conn.connect()
         self.producer = self.conn.Producer()
 
-        self.patcher = mock.patch(
-            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
-        )
-        self.patcher.start()
         from ddtrace.internal.datastreams import data_streams_processor
 
         self.processor = data_streams_processor()
-        self.processor.stop()
 
         patch()
 
     def tearDown(self):
-        self.patcher.stop()
         unpatch()
         super(TestKombuDsm, self).tearDown()
 
