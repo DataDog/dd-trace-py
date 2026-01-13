@@ -1100,7 +1100,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         llm.invoke("When do you use 'whom' instead of 'who'?")
 
     @run_in_subprocess(env_overrides=openai_env_config)
-    def test_llmobs_with_openai(self):
+    def test_llmobs_with_openai_enabled(self):
         from langchain_openai import OpenAI
 
         patch(langchain=True, openai=True)
@@ -1109,7 +1109,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
 
     @run_in_subprocess(env_overrides=azure_openai_env_config)
-    def test_llmobs_with_azure_openai(self):
+    def test_llmobs_with_openai_enabled_azure(self):
         from langchain_openai import AzureChatOpenAI
 
         patch(langchain=True, openai=True)
@@ -1118,7 +1118,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
 
     @run_in_subprocess(env_overrides=openai_env_config)
-    def test_llmobs_with_openai_non_ascii_value(self):
+    def test_llmobs_with_openai_enabled_non_ascii_value(self):
         """Regression test to ensure that non-ascii text values for workflow spans are not encoded."""
         from langchain_openai import OpenAI
 
@@ -1130,7 +1130,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         assert langchain_span["meta"]["input"]["value"] == '[{"content": "안녕,\\n 지금 몇 시야?"}]'
 
     @run_in_subprocess(env_overrides=openai_env_config)
-    def test_llmobs_langchain_with_embedding_model_openai(self):
+    def test_llmobs_langchain_with_embedding_model_openai_enabled(self):
         patch(openai=True, langchain=True)
 
         from langchain_openai import OpenAIEmbeddings
@@ -1147,7 +1147,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_openai_embedding(OpenAIEmbeddings)
-        self._assert_trace_structure_from_writer_call_args(["workflow"])
+        self._assert_trace_structure_from_writer_call_args(["embedding"])
 
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_with_openai_disabled(self):
@@ -1157,20 +1157,20 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_openai_llm(OpenAI)
-        self._assert_trace_structure_from_writer_call_args(["workflow"])
+        self._assert_trace_structure_from_writer_call_args(["llm"])
 
     @run_in_subprocess(env_overrides=azure_openai_env_config)
-    def test_llmobs_with_azure_openai_disabled(self):
+    def test_llmobs_with_openai_disabled_azure(self):
         from langchain_openai import AzureChatOpenAI
 
         patch(langchain=True)
 
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_azure_openai_chat(AzureChatOpenAI)
-        self._assert_trace_structure_from_writer_call_args(["workflow"])
+        self._assert_trace_structure_from_writer_call_args(["llm"])
 
     @run_in_subprocess(env_overrides=anthropic_env_config)
-    def test_llmobs_with_anthropic(self):
+    def test_llmobs_with_anthropic_enabled(self):
         from langchain_anthropic import ChatAnthropic
 
         patch(langchain=True, anthropic=True)
@@ -1188,4 +1188,4 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
 
         self._call_anthropic_chat(ChatAnthropic)
-        self._assert_trace_structure_from_writer_call_args(["workflow"])
+        self._assert_trace_structure_from_writer_call_args(["llm"])
