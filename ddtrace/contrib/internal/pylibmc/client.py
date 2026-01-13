@@ -51,7 +51,8 @@ class TracedClient(ObjectProxy):
 
         schematized_service = schematize_service_name(service)
         pin = Pin(service=schematized_service)
-        pin._tracer = tracer
+        if tracer is not None:
+            pin._tracer = tracer
         pin.onto(self)
 
         # attempt to collect the pool of urls this client talks to
