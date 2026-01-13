@@ -238,7 +238,7 @@ def test_converse_stream(bedrock_client, request_vcr):
             pass
 
 
-def test_span_finishes_after_generator_exit(bedrock_client, request_vcr, mock_tracer):
+def test_span_finishes_after_generator_exit(bedrock_client, request_vcr, test_spans):
     body, model = json.dumps(_REQUEST_BODIES["anthropic_message"]), _MODELS["anthropic_message"]
     with request_vcr.use_cassette("anthropic_message_invoke_stream.yaml"):
         response = bedrock_client.invoke_model_with_response_stream(body=body, modelId=model)
@@ -248,7 +248,7 @@ def test_span_finishes_after_generator_exit(bedrock_client, request_vcr, mock_tr
                 if i >= 6:
                     raise GeneratorExit
                 i += 1
-    span = mock_tracer.pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
     assert span is not None
     assert span.name == "bedrock-runtime.command"
     assert span.resource == "InvokeModelWithResponseStream"

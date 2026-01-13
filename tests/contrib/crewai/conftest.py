@@ -15,7 +15,6 @@ from crewai.tools import tool
 import pytest
 import vcr
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.crewai.patch import patch
 from ddtrace.contrib.internal.crewai.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
@@ -24,8 +23,6 @@ from tests.contrib.crewai.utils import fun_fact_text
 from tests.contrib.crewai.utils import itinerary_text
 from tests.contrib.crewai.utils import welcome_email_text
 from tests.llmobs._utils import TestLLMObsSpanWriter
-from tests.utils import DummyTracer
-from tests.utils import DummyWriter
 from tests.utils import override_global_config
 
 
@@ -346,20 +343,12 @@ def crewai(monkeypatch):
 
 
 @pytest.fixture
-def mock_tracer(crewai):
-    pin = Pin.get_from(crewai)
-    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin._override(crewai, tracer=mock_tracer)
-    yield mock_tracer
-
-
-@pytest.fixture
-def crewai_llmobs(mock_tracer, llmobs_span_writer):
+def crewai_llmobs(tracer, llmobs_span_writer):
     llmobs_service.disable()
     with override_global_config(
         {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "tests.contrib.crewai"}
     ):
-        llmobs_service.enable(_tracer=mock_tracer, integrations_enabled=False)
+        llmobs_service.enable(_tracer=tracer, integrations_enabled=False)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         yield llmobs_service
     llmobs_service.disable()

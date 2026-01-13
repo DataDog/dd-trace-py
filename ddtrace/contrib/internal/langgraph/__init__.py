@@ -15,22 +15,10 @@ Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the LangGr
     from ddtrace import patch
     patch(langgraph=True)
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.langgraph["service"]
    The service name reported by default for LangGraph requests.
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_LANGGRAPH_SERVICE`` environment
-   variables.
-   Default: ``DD_SERVICE``
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure the LangGraph integration on a per-instance basis use the
-``Pin`` API::
-
-    import langgraph
-    from ddtrace._trace.pin import Pin
-    Pin.override(langgraph, service="my-langgraph-service")
+   Alternatively, set this option with the ``DD_LANGGRAPH_SERVICE`` environment variable.
 """

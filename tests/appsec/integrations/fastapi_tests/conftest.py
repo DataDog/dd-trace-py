@@ -1,32 +1,19 @@
 from fastapi.testclient import TestClient
 import pytest
 
-import ddtrace
 from ddtrace.contrib.internal.fastapi.patch import patch as fastapi_patch
 from ddtrace.contrib.internal.fastapi.patch import unpatch as fastapi_unpatch
-from tests.utils import DummyTracer
-from tests.utils import TracerSpanContainer
+from tests.utils import scoped_tracer
 
 from . import app
 
 
 @pytest.fixture
 def tracer():
-    original_tracer = ddtrace.tracer
-    tracer = DummyTracer()
-
-    ddtrace.tracer = tracer
     fastapi_patch()
-    yield tracer
-    ddtrace.tracer = original_tracer
+    with scoped_tracer() as tracer:
+        yield tracer
     fastapi_unpatch()
-
-
-@pytest.fixture
-def test_spans(tracer):
-    container = TracerSpanContainer(tracer)
-    yield container
-    container.reset()
 
 
 @pytest.fixture

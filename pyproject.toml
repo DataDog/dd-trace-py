@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
-version = "4.2.0.dev0"
+version = "4.3.0.dev0"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
@@ -68,6 +68,7 @@ ddtrace = "ddtrace.testing.internal.pytest.entry_point"
 "exception-replay" = "ddtrace.debugging._products.exception_replay"
 "live-debugger" = "ddtrace.debugging._products.live_debugger"
 "error-tracking" = "ddtrace.errortracking.product"
+"openfeature" = "ddtrace.internal.openfeature.product"
 "remote-configuration" = "ddtrace.internal.remoteconfig.products.client"
 "symbol-database" = "ddtrace.internal.symbol_db.product"
 "appsec" = "ddtrace.internal.appsec.product"

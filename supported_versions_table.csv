@@ -42,19 +42,19 @@ fastapi,fastapi,0.64.0,0.124.4,True
 flask,flask,1.1.4,3.1.2,True
 flask-cache,flask_cache,0.13.1,0.13.1,False
 flask-caching,flask_cache,1.10.1,2.3.0,False
-gevent,gevent,21.1.2,25.5.1,True
+gevent,gevent,21.1.2,25.9.1,True
 google-adk,google_adk,1.0.0,1.15.1,True
 google-genai,google_genai,1.21.1,1.41.0,True
 graphql-core,graphql,3.1.7,3.2.6,True
 grpcio,grpc,1.34.1,1.75.1,True
-httpx,httpx,0.17.1,0.28.1,True
+httpx,httpx,0.25.0,0.28.1,True
 jinja2,jinja2,2.10.3,3.1.6,True
 confluent-kafka,kafka,1.9.2,2.6.2,True
 kombu,kombu,4.6.11,5.5.4,False
 langchain-core,langchain,0.1.53,0.3.76,True
-langgraph,langgraph,0.2.23,0.6.10,True
-langgraph-checkpoint,langgraph,1.0.12,2.1.2,True
-langgraph-prebuilt,langgraph,0.1.8,0.6.4,True
+langgraph,langgraph,0.2.23,1.0.5,True
+langgraph-checkpoint,langgraph,1.0.12,3.0.1,True
+langgraph-prebuilt,langgraph,0.1.8,1.0.5,True
 litellm,litellm *,1.65.4,1.65.4,True
 logbook,logbook,1.0.0,1.8.2,True
 loguru,loguru,0.4.1,0.7.3,True
@@ -77,7 +77,7 @@ pymysql,pymysql,0.10.1,1.1.2,True
 pynamodb,pynamodb *,5.5.1,5.5.1,True
 pyodbc,pyodbc,4.0.39,5.3.0,True
 pyramid,pyramid,1.10.8,2.0.2,True
-pytest,pytest,6.2.5,8.4.2,False
+pytest,pytest,6.2.5,9.0.2,False
 pytest-bdd,pytest_bdd *,4.1.0,6.0.1,False
 ray,ray *,2.46.0,2.49.2,False
 redis,redis,4.6.0,6.4.0,True
@@ -93,8 +93,8 @@ structlog,structlog,20.2.0,25.4.0,True
 tornado,tornado *,6.1,6.5.1,False
 urllib3,urllib3,1.25.8,2.5.0,False
 valkey,valkey,6.0.2,6.1.1,True
-google-cloud-aiplatform,vertexai,1.71.1,1.130.0,True
-vertexai,vertexai,1.71.1,1.130.0,True
+google-cloud-aiplatform,vertexai,1.71.1,1.71.1,True
+vertexai,vertexai,1.71.1,1.71.1,True
 vertica-python,vertica *,0.6.14,0.7.4,True
-vllm,vllm,0.10.2,0.13.0,True
+vllm,vllm *,0.13.0,0.13.0,False
 yaaredis,yaaredis,2.0.4,3.0.0,True

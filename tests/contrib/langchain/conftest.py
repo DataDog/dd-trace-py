@@ -3,13 +3,11 @@ import os
 
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.langchain.patch import patch as langchain_core_patch
 from ddtrace.contrib.internal.langchain.patch import unpatch as langchain_core_unpatch
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs as llmobs_service
 from tests.llmobs._utils import TestLLMObsSpanWriter
-from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -25,16 +23,6 @@ def llmobs_env():
 @pytest.fixture
 def llmobs_span_writer():
     yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
-
-
-@pytest.fixture
-def tracer(langchain_core):
-    tracer = DummyTracer()
-
-    pin = Pin.get_from(langchain_core)
-    pin._override(langchain_core, tracer=tracer)
-
-    yield tracer
 
 
 @pytest.fixture

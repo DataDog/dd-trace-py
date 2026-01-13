@@ -30,7 +30,6 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.appsec.utils import asm_context
-from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 
@@ -74,7 +73,7 @@ def test_metric_verbosity(lvl, env_lvl, expected_result):
     ],
 )
 def test_metric_executed_sink(
-    deduplication_enabled, expected_num_metrics, no_request_sampling, telemetry_writer, caplog
+    deduplication_enabled, expected_num_metrics, no_request_sampling, telemetry_writer, caplog, tracer
 ):
     with override_global_config(
         dict(
@@ -86,7 +85,7 @@ def test_metric_executed_sink(
     ):
         weak_hash_patch()
 
-        tracer = DummyTracer(iast_enabled=True)
+        tracer.configure(iast_enabled=True)
 
         telemetry_writer._namespace.flush()
         with asm_context(tracer=tracer) as span:
@@ -150,12 +149,12 @@ def test_metric_instrumented_propagation(no_request_sampling, telemetry_writer):
     assert filtered_metrics == ["instrumented.propagation"]
 
 
-def test_metric_request_tainted(no_request_sampling, telemetry_writer):
+def test_metric_request_tainted(no_request_sampling, telemetry_writer, tracer):
     with override_global_config(
         dict(_iast_enabled=True, _iast_request_sampling=100.0, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)
     ):
         oce.reconfigure()
-        tracer = DummyTracer(iast_enabled=True)
+        tracer.configure(iast_enabled=True)
 
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             taint_pyobject(

@@ -224,7 +224,7 @@ def _translate_orchestration_trace(
     if invocation_input:
         return _invocation_input_span(invocation_input, trace_step_id, start_ns, root_span), False
     observation = orchestration_trace.get("observation", {})
-    if observation:
+    if observation and isinstance(observation, dict):
         return _observation_span(observation, root_span, current_active_span), True
     return None, False
 
@@ -346,7 +346,7 @@ def _translate_routing_classifier_trace(
     if invocation_input:
         return _invocation_input_span(invocation_input, trace_step_id, start_ns, root_span), False
     observation = routing_trace.get("observation", {})
-    if observation:
+    if observation and isinstance(observation, dict):
         return _observation_span(observation, root_span, current_active_span), True
     return None, False
 

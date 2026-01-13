@@ -31,9 +31,9 @@ from tests.utils import override_global_config
 class RCMockPubSub(PubSub):
     __subscriber_class__ = RemoteConfigSubscriber
     __publisher_class__ = RemoteConfigPublisher
-    __shared_data__ = PublisherSubscriberConnector()
 
     def __init__(self, _preprocess_results, callback):
+        self.__shared_data__ = PublisherSubscriberConnector()
         self._publisher = self.__publisher_class__(self.__shared_data__, _preprocess_results)
         self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, "TESTS")
 

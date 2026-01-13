@@ -17,13 +17,13 @@ IGNORE_FIELDS = [
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_basic(llmobs_events, mock_tracer, opt_125m_llm):
+def test_llmobs_basic(llmobs_events, test_spans, opt_125m_llm):
     from vllm import SamplingParams
 
     llm = opt_125m_llm
     sampling = SamplingParams(temperature=0.1, top_p=0.9, max_tokens=8, seed=42)
     llm.generate("The future of AI is", sampling)
-    span = mock_tracer.pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
 
     assert len(llmobs_events) == 1
     expected = _expected_llmobs_llm_span_event(
@@ -56,7 +56,7 @@ def test_llmobs_basic(llmobs_events, mock_tracer, opt_125m_llm):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_chat(llmobs_events, mock_tracer, opt_125m_llm):
+def test_llmobs_chat(llmobs_events, test_spans, opt_125m_llm):
     from vllm import SamplingParams
 
     llm = opt_125m_llm
@@ -70,7 +70,7 @@ def test_llmobs_chat(llmobs_events, mock_tracer, opt_125m_llm):
     ]
 
     llm.chat(conversation, sampling_params, chat_template=get_simple_chat_template(), use_tqdm=False)
-    span = mock_tracer.pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
 
     assert len(llmobs_events) == 1
     expected = _expected_llmobs_llm_span_event(
@@ -108,7 +108,7 @@ def test_llmobs_chat(llmobs_events, mock_tracer, opt_125m_llm):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_classify(llmobs_events, mock_tracer, bge_reranker_llm):
+def test_llmobs_classify(llmobs_events, test_spans, bge_reranker_llm):
     llm = bge_reranker_llm
 
     prompts = [
@@ -117,7 +117,7 @@ def test_llmobs_classify(llmobs_events, mock_tracer, bge_reranker_llm):
     ]
 
     llm.classify(prompts)
-    traces = mock_tracer.pop_traces()
+    traces = test_spans.pop_traces()
     spans = [s for t in traces for s in t]
 
     # Expect one event per input prompt
@@ -149,7 +149,7 @@ def test_llmobs_classify(llmobs_events, mock_tracer, bge_reranker_llm):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_embed(llmobs_events, mock_tracer, e5_small_llm):
+def test_llmobs_embed(llmobs_events, test_spans, e5_small_llm):
     llm = e5_small_llm
 
     prompts = [
@@ -158,7 +158,7 @@ def test_llmobs_embed(llmobs_events, mock_tracer, e5_small_llm):
     ]
 
     llm.embed(prompts)
-    traces = mock_tracer.pop_traces()
+    traces = test_spans.pop_traces()
     spans = [s for t in traces for s in t]
 
     # Expect one event per input prompt
@@ -190,7 +190,7 @@ def test_llmobs_embed(llmobs_events, mock_tracer, e5_small_llm):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_reward(llmobs_events, mock_tracer, bge_reranker_llm):
+def test_llmobs_reward(llmobs_events, test_spans, bge_reranker_llm):
     llm = bge_reranker_llm
 
     prompts = [
@@ -199,7 +199,7 @@ def test_llmobs_reward(llmobs_events, mock_tracer, bge_reranker_llm):
     ]
 
     llm.reward(prompts)
-    traces = mock_tracer.pop_traces()
+    traces = test_spans.pop_traces()
     spans = [s for t in traces for s in t]
 
     # Expect one event per input prompt
@@ -231,7 +231,7 @@ def test_llmobs_reward(llmobs_events, mock_tracer, bge_reranker_llm):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_llmobs_score(llmobs_events, mock_tracer, bge_reranker_llm):
+def test_llmobs_score(llmobs_events, test_spans, bge_reranker_llm):
     llm = bge_reranker_llm
 
     text_1 = "What is the capital of France?"
@@ -241,7 +241,7 @@ def test_llmobs_score(llmobs_events, mock_tracer, bge_reranker_llm):
     ]
 
     llm.score(text_1, texts_2)
-    traces = mock_tracer.pop_traces()
+    traces = test_spans.pop_traces()
     spans = [s for t in traces for s in t]
 
     # Expect one event per candidate document

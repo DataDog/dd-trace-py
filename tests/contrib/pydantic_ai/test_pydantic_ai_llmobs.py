@@ -23,7 +23,7 @@ PYDANTIC_AI_VERSION = parse_version(pydantic_ai.__version__)
     [dict(_llmobs_enabled=True, _llmobs_ml_app="<ml-app-name>", _llmobs_agentless_enabled=True)],
 )
 class TestLLMObsPydanticAI:
-    async def test_agent_run(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
+    async def test_agent_run(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
         model_settings = {"max_tokens": 100, "temperature": 0.5}
         instructions = "dummy instructions"
         system_prompt = "dummy system prompt"
@@ -37,7 +37,7 @@ class TestLLMObsPydanticAI:
                 model_settings=model_settings,
             )
             result = await agent.run("Hello, world!")
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(
             span,
@@ -48,27 +48,27 @@ class TestLLMObsPydanticAI:
             tools=expected_calculate_square_tool(),
         )
 
-    def test_agent_run_sync(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
+    def test_agent_run_sync(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
         with request_vcr.use_cassette("agent_iter.yaml"):
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
             result = agent.run_sync("Hello, world!")
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(span, result.output)
 
-    async def test_agent_run_stream(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
+    async def test_agent_run_stream(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
         output = ""
         with request_vcr.use_cassette("agent_run_stream.yaml"):
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
             async with agent.run_stream("Hello, world!") as result:
                 async for chunk in result.stream(debounce_by=None):
                     output = chunk
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(span, output)
 
     @pytest.mark.parametrize("delta", [False, True])
-    async def test_agent_run_stream_text(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer, delta):
+    async def test_agent_run_stream_text(self, pydantic_ai, request_vcr, llmobs_events, test_spans, delta):
         """
         delta determines whether each chunk represents the entire output up to the current point or just the
         delta from the previous chunk
@@ -79,11 +79,11 @@ class TestLLMObsPydanticAI:
             async with agent.run_stream("Hello, world!") as result:
                 async for chunk in result.stream_text(debounce_by=None, delta=delta):
                     output = output + chunk if delta else chunk
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(span, output)
 
-    async def test_agent_run_stream_structured(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
+    async def test_agent_run_stream_structured(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
         output = ""
         with request_vcr.use_cassette("agent_run_stream.yaml"):
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
@@ -91,21 +91,21 @@ class TestLLMObsPydanticAI:
                 async for chunk in result.stream_structured():
                     if chunk[1]:
                         output = chunk[0].parts[0].content
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(span, output)
 
-    async def test_agent_run_stream_get_output(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
+    async def test_agent_run_stream_get_output(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
         output = ""
         with request_vcr.use_cassette("agent_run_stream.yaml"):
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
             async with agent.run_stream("Hello, world!") as result:
                 output = await result.get_output()
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(span, output)
 
-    async def test_agent_run_stream_with_tool(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
+    async def test_agent_run_stream_with_tool(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
         instructions = "Use the provided tool to calculate the square of 2."
         with request_vcr.use_cassette("agent_run_stream_with_tools.yaml"):
             agent = pydantic_ai.Agent(
@@ -114,7 +114,7 @@ class TestLLMObsPydanticAI:
             async with agent.run_stream("What is the square of 2?") as result:
                 async for chunk in result.stream():
                     output = chunk
-        trace = mock_tracer.pop_traces()[0]
+        trace = test_spans.pop_traces()[0]
         agent_span = trace[0]
         tool_span = trace[1]
         assert len(llmobs_events) == 2
@@ -127,7 +127,7 @@ class TestLLMObsPydanticAI:
             tools=expected_calculate_square_tool(),
         )
 
-    async def test_agent_run_stream_structured_with_tool(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
+    async def test_agent_run_stream_structured_with_tool(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
         class Output(TypedDict):
             original_number: int
             square: int
@@ -144,7 +144,7 @@ class TestLLMObsPydanticAI:
             async with agent.run_stream("What is the square of 2?") as result:
                 async for chunk in result.stream_structured(debounce_by=None):
                     output = chunk
-        trace = mock_tracer.pop_traces()[0]
+        trace = test_spans.pop_traces()[0]
         agent_span = trace[0]
         tool_span = trace[1]
         assert len(llmobs_events) == 2
@@ -157,7 +157,7 @@ class TestLLMObsPydanticAI:
             tools=expected_calculate_square_tool(),
         )
 
-    async def test_agent_run_stream_error(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
+    async def test_agent_run_stream_error(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
         output = ""
         with request_vcr.use_cassette("agent_run_stream.yaml"):
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
@@ -168,7 +168,7 @@ class TestLLMObsPydanticAI:
                         output = chunk
                         raise Exception("test error")
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
             span,
@@ -182,7 +182,7 @@ class TestLLMObsPydanticAI:
             error_stack=mock.ANY,
         )
 
-    async def test_agent_iter(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
+    async def test_agent_iter(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
         output = ""
         with request_vcr.use_cassette("agent_iter.yaml"):
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
@@ -190,7 +190,7 @@ class TestLLMObsPydanticAI:
                 async for _ in agent_run:
                     pass
                 output = agent_run.result.output
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(span, output)
 
@@ -207,7 +207,7 @@ class TestLLMObsPydanticAI:
         assert llmobs_events[0]["meta"]["error"]["message"] == "test error"
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (0, 4, 4), reason="pydantic-ai < 0.4.4 does not support toolsets")
-    async def test_agent_run_with_toolset(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
+    async def test_agent_run_with_toolset(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
         """Test that the agent manifest includes tools from both the function toolset and the user-defined toolsets"""
         from pydantic_ai.toolsets import FunctionToolset
 
@@ -219,7 +219,7 @@ class TestLLMObsPydanticAI:
                 tools=[foo_tool],
             )
             result = await agent.run("Hello, world!")
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(
             span, result.output, tools=expected_calculate_square_tool() + expected_foo_tool()

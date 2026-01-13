@@ -807,6 +807,23 @@ def test_ephemeral_addresses(mock_run, persistent, ephemeral):
     assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:1"
 
 
+@mock.patch("ddtrace.appsec._ddwaf.DDWaf.run")
+def test_waf_action_null_ephemeral_addresses(mock_run):
+    from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_result
+    from ddtrace.appsec._utils import _observator
+    from ddtrace.trace import tracer
+
+    mock_run.return_value = DDWaf_result(0, [], {}, 0.0, 0.0, False, _observator(), {})
+
+    with asm_context(tracer=tracer, config=config_asm) as span:
+        processor = AppSecSpanProcessor._instance
+        assert processor
+        # None value for ephemeral addresses should not be discarded
+        processor._waf_action(span, None, {"LOGIN_FAILURE": None})
+        assert mock_run.call_args[0][1] == {}
+        assert mock_run.call_args[1]["ephemeral_data"] == {WAF_DATA_NAMES.LOGIN_FAILURE: None}
+
+
 @pytest.mark.parametrize("skip_event", [True, False])
 def test_lambda_unsupported_event(tracer, skip_event):
     """
