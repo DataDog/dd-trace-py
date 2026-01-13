@@ -13,8 +13,8 @@ Alternately, use :func:`patch()<ddtrace.patch>` to manually enable the integrati
     from ddtrace import patch
     patch(unittest=True)
 
-Configuration
-~~~~~~~~~~~~~
+Global Configuration
+~~~~~~~~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.unittest["operation_name"]
 
