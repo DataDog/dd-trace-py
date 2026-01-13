@@ -56,59 +56,70 @@ def _sca_detection_callback(payload_list: Sequence) -> None:
     Args:
         payload_list: List of Payload objects from Remote Configuration
     """
-    from ddtrace.appsec.sca._instrumenter import apply_instrumentation_updates
+    try:
+        from ddtrace.appsec.sca._instrumenter import apply_instrumentation_updates
 
-    if not payload_list:
-        log.debug("Received empty SCA detection payload list")
-        return
+        if not payload_list:
+            log.debug("Received empty SCA detection payload list")
+            return
 
-    targets_to_add = []
-    targets_to_remove = []
+        targets_to_add = []
+        targets_to_remove = []
 
-    for payload in payload_list:
-        log.debug(
-            "Processing SCA detection payload: path=%s, content=%s",
-            getattr(payload, "path", None),
-            bool(getattr(payload, "content", None)),
-        )
+        for payload in payload_list:
+            try:
+                log.debug(
+                    "Processing SCA detection payload: path=%s, content=%s",
+                    getattr(payload, "path", None),
+                    bool(getattr(payload, "content", None)),
+                )
 
-        # Get content and metadata safely
-        content = getattr(payload, "content", None)
-        metadata = getattr(payload, "metadata", {})
+                # Get content and metadata safely
+                content = getattr(payload, "content", None)
+                metadata = getattr(payload, "metadata", {})
 
-        if content is None:
-            # Deletion - remove instrumentation
-            # When content is None, it means this target file was deleted
-            if isinstance(metadata, dict) and "targets" in metadata:
-                targets = metadata["targets"]
-                if isinstance(targets, list):
-                    targets_to_remove.extend(targets)
-                    log.debug("Marked %d targets for removal", len(targets))
-        else:
-            # Addition/Update
-            if isinstance(content, dict):
-                targets = content.get("targets", [])
-                if isinstance(targets, list):
-                    targets_to_add.extend(targets)
-                    log.debug("Marked %d targets for addition", len(targets))
+                if content is None:
+                    # Deletion - remove instrumentation
+                    # When content is None, it means this target file was deleted
+                    if isinstance(metadata, dict) and "targets" in metadata:
+                        targets = metadata["targets"]
+                        if isinstance(targets, list):
+                            targets_to_remove.extend(targets)
+                            log.debug("Marked %d targets for removal", len(targets))
                 else:
-                    log.warning("Invalid targets format in payload (not a list): %s", type(targets))
-            else:
-                log.warning("Invalid content format in payload (not a dict): %s", type(content))
+                    # Addition/Update
+                    if isinstance(content, dict):
+                        targets = content.get("targets", [])
+                        if isinstance(targets, list):
+                            targets_to_add.extend(targets)
+                            log.debug("Marked %d targets for addition", len(targets))
+                        else:
+                            log.warning("Invalid targets format in payload (not a list): %s", type(targets))
+                    else:
+                        log.warning("Invalid content format in payload (not a dict): %s", type(content))
 
-    # Apply instrumentation updates
-    if targets_to_add or targets_to_remove:
-        log.info(
-            "Applying SCA instrumentation updates: %d to add, %d to remove",
-            len(targets_to_add),
-            len(targets_to_remove),
-        )
-        try:
-            apply_instrumentation_updates(targets_to_add, targets_to_remove)
-        except Exception:
-            log.error("Failed to apply SCA instrumentation updates", exc_info=True)
-    else:
-        log.debug("No instrumentation updates to apply")
+            except Exception:
+                # Don't let one bad payload stop processing others
+                log.error("Failed to process individual SCA detection payload", exc_info=True)
+                continue
+
+        # Apply instrumentation updates
+        if targets_to_add or targets_to_remove:
+            log.info(
+                "Applying SCA instrumentation updates: %d to add, %d to remove",
+                len(targets_to_add),
+                len(targets_to_remove),
+            )
+            try:
+                apply_instrumentation_updates(targets_to_add, targets_to_remove)
+            except Exception:
+                log.error("Failed to apply SCA instrumentation updates", exc_info=True)
+        else:
+            log.debug("No instrumentation updates to apply")
+
+    except Exception:
+        # Catch-all to prevent RC processing from dying
+        log.error("Fatal error in SCA detection callback", exc_info=True)
 
 
 def enable_sca_detection_rc() -> None:

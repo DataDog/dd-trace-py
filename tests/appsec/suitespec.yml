@@ -3,6 +3,9 @@ components:
   appsec:
     - ddtrace/appsec/*
     - ddtrace/internal/settings/asm.py
+  appsec_sca:
+    - ddtrace/appsec/sca/*
+    - ddtrace/internal/settings/asm.py
   appsec_iast:
     - ddtrace/appsec/iast/*
   urllib:
@@ -26,6 +29,18 @@ suites:
     retry: 2
     runner: riot
     snapshot: true
+  appsec_sca:
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_sca'
+      - '@remoteconfig'
+      - tests/appsec/sca/*
+    retry: 2
+    runner: riot
   appsec_iast_default:
     venvs_per_job: 1
     paths:

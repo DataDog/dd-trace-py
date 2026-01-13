@@ -280,6 +280,82 @@ def get_app():
 
         return StreamingResponse(stream_generator(), media_type="text/plain")
 
+    # SCA Detection endpoints
+    @app.get("/sca-vulnerable-function")
+    async def sca_vulnerable_function():
+        """Test endpoint that calls a vulnerable function that SCA will instrument.
+
+        This endpoint calls os.path.join which will be instrumented by SCA.
+        """
+        import os.path
+
+        result = os.path.join("path", "to", "file")
+        return {"result": result}
+
+    @app.post("/sca-vulnerable-request")
+    async def sca_vulnerable_request(data: str = Form(...)):
+        """Test endpoint that uses form data with a vulnerable function.
+
+        This endpoint demonstrates SCA detection with user input.
+        """
+        import os.path
+
+        result = os.path.join("/base", data)
+        return {"result": result, "data": data}
+
+    @app.get("/sca-multiple-calls")
+    async def sca_multiple_calls():
+        """Test endpoint that makes multiple calls to instrumented functions.
+
+        Tests that SCA correctly tracks multiple invocations.
+        """
+        import os.path
+
+        results = []
+        for i in range(3):
+            result = os.path.join(f"path{i}", f"file{i}")
+            results.append(result)
+
+        # Also call os.path.exists
+        exists = os.path.exists("/tmp")
+        results.append(f"exists: {exists}")
+
+        return {"results": results}
+
+    @app.get("/sca-async-vulnerable")
+    async def sca_async_vulnerable():
+        """Test endpoint for async function with SCA instrumentation.
+
+        Demonstrates that SCA works with async endpoints.
+        """
+        import os.path
+
+        # Async operations
+        await asyncio.sleep(0.01)
+
+        # Call instrumented function
+        result = os.path.join("async", "path")
+
+        await asyncio.sleep(0.01)
+
+        return {"result": result, "async": True}
+
+    @app.get("/sca-nested-calls")
+    async def sca_nested_calls():
+        """Test endpoint with nested calls to instrumented functions.
+
+        Tests SCA detection in more complex call patterns.
+        """
+        import os.path
+
+        def nested_helper():
+            return os.path.dirname("/path/to/file")
+
+        result1 = os.path.join("base", "path")
+        result2 = nested_helper()
+
+        return {"result1": result1, "result2": result2}
+
     return app
 
 

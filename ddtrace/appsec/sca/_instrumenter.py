@@ -39,31 +39,55 @@ def sca_detection_hook(qualified_name: str) -> None:
     It records the hit in the registry, adds span tags for observability,
     and sends telemetry metrics.
 
+    CRITICAL: This hook runs in customer code and MUST NOT throw exceptions.
+    All operations are wrapped in try-except to ensure customer code is never broken.
+
     Args:
         qualified_name: Fully qualified name of the instrumented function
     """
-    if _registry:
-        # Record hit in registry
-        _registry.record_hit(qualified_name)
+    try:
+        if not _registry:
+            return
 
-        # Add span tags for observability
-        span = core.get_span()
-        if span:
-            # Mark span as having SCA instrumentation
-            span._set_tag_str(SCA.TAG_INSTRUMENTED, "true")
-            # Mark span as having a detection hit
-            span._set_tag_str(SCA.TAG_DETECTION_HIT, "true")
-            # Tag with the specific target that was hit
-            span._set_tag_str(SCA.TAG_TARGET, qualified_name)
+        # Record hit in registry - wrapped for safety
+        try:
+            _registry.record_hit(qualified_name)
+        except Exception:
+            # Silent failure - don't break customer code
+            # Error is logged at DEBUG level to avoid noise
+            log.debug("Failed to record hit for %s", qualified_name, exc_info=True)
 
-        # Send telemetry metric for detection hit
-        telemetry_writer.add_count_metric(
-            TELEMETRY_NAMESPACE.APPSEC, "sca.detection.hook_hits", 1, tags=(("target", qualified_name),)
-        )
+        # Add span tags for observability - wrapped for safety
+        try:
+            span = core.get_span()
+            if span:
+                # Mark span as having SCA instrumentation
+                span._set_tag_str(SCA.TAG_INSTRUMENTED, "true")
+                # Mark span as having a detection hit
+                span._set_tag_str(SCA.TAG_DETECTION_HIT, "true")
+                # Tag with the specific target that was hit
+                span._set_tag_str(SCA.TAG_TARGET, qualified_name)
+        except Exception:
+            # Silent failure - don't break customer code
+            log.debug("Failed to add span tags for %s", qualified_name, exc_info=True)
+
+        # Send telemetry metric for detection hit - wrapped for safety
+        try:
+            telemetry_writer.add_count_metric(
+                TELEMETRY_NAMESPACE.APPSEC, "sca.detection.hook_hits", 1, tags=(("target", qualified_name),)
+            )
+        except Exception:
+            # Silent failure - don't break customer code
+            log.debug("Failed to send telemetry for %s", qualified_name, exc_info=True)
 
         # TODO: Add vulnerability detection logic here
         # - Check if function execution indicates a known vulnerability
         # - Send additional telemetry for specific vulnerabilities
+
+    except Exception:
+        # Ultimate safety net - NEVER let exceptions escape to customer code
+        # Log at DEBUG to avoid noise from expected errors
+        log.debug("Unexpected error in SCA detection hook for %s", qualified_name, exc_info=True)
 
 
 class Instrumenter:
@@ -157,63 +181,88 @@ def apply_instrumentation_updates(targets_to_add: list[str], targets_to_remove: 
     This function is called when RC sends updated target lists. It processes
     additions and removals, resolving symbols and applying bytecode patches.
 
+    Each target is processed independently - one failure does not stop the batch.
+
     Args:
         targets_to_add: New targets to instrument (qualified names)
         targets_to_remove: Existing targets to uninstrument (qualified names)
     """
-    from ddtrace.appsec.sca._registry import get_global_registry
-    from ddtrace.appsec.sca._resolver import LazyResolver
-    from ddtrace.appsec.sca._resolver import SymbolResolver
+    try:
+        from ddtrace.appsec.sca._registry import get_global_registry
+        from ddtrace.appsec.sca._resolver import LazyResolver
+        from ddtrace.appsec.sca._resolver import SymbolResolver
 
-    registry = get_global_registry()
-    resolver = SymbolResolver()
-    lazy_resolver = LazyResolver()
-    instrumenter = Instrumenter(registry)
+        registry = get_global_registry()
+        resolver = SymbolResolver()
+        lazy_resolver = LazyResolver()
+        instrumenter = Instrumenter(registry)
 
-    # Process removals
-    for target in targets_to_remove:
-        log.debug("Processing removal: %s", target)
-        instrumenter.uninstrument(target)
-        registry.remove_target(target)
+        # Process removals - don't let one failure stop others
+        for target in targets_to_remove:
+            try:
+                log.debug("Processing removal: %s", target)
+                instrumenter.uninstrument(target)
+                registry.remove_target(target)
+            except Exception:
+                log.error("Failed to remove target: %s", target, exc_info=True)
+                continue  # Keep processing other removals
 
-    # Process additions
-    for target in targets_to_add:
-        # Skip if already tracked
-        if registry.has_target(target):
-            log.debug("Target already tracked: %s", target)
-            continue
+        # Process additions - don't let one failure stop others
+        for target in targets_to_add:
+            try:
+                # Skip if already tracked
+                if registry.has_target(target):
+                    log.debug("Target already tracked: %s", target)
+                    continue
 
-        # Attempt resolution
-        result = resolver.resolve(target)
-        if result:
-            qualified_name, func = result
-            registry.add_target(qualified_name, pending=False)
-            success = instrumenter.instrument(qualified_name, func)
-            if success:
-                log.info("Successfully instrumented: %s", qualified_name)
-            else:
-                log.warning("Instrumentation failed: %s", qualified_name)
-        else:
-            # Module not yet imported, add to lazy resolution
-            registry.add_target(target, pending=True)
-            lazy_resolver.add_pending(target)
-            log.debug("Deferred instrumentation (module not loaded): %s", target)
+                # Attempt resolution
+                result = resolver.resolve(target)
+                if result:
+                    qualified_name, func = result
+                    registry.add_target(qualified_name, pending=False)
+                    success = instrumenter.instrument(qualified_name, func)
+                    if success:
+                        log.info("Successfully instrumented: %s", qualified_name)
+                    else:
+                        log.warning("Instrumentation failed: %s", qualified_name)
+                else:
+                    # Module not yet imported, add to lazy resolution
+                    registry.add_target(target, pending=True)
+                    lazy_resolver.add_pending(target)
+                    log.debug("Deferred instrumentation (module not loaded): %s", target)
 
-    # Log summary and send telemetry
-    if targets_to_add or targets_to_remove:
-        stats = registry.get_stats()
-        instrumented_count = sum(1 for s in stats.values() if s["is_instrumented"])
-        pending_count = sum(1 for s in stats.values() if s["is_pending"])
-        total_count = len(stats)
+            except Exception:
+                log.error("Failed to process target: %s", target, exc_info=True)
+                continue  # Keep processing other additions
 
-        log.info("Instrumentation update complete: %d instrumented, %d pending", instrumented_count, pending_count)
+        # Log summary and send telemetry - wrapped for safety
+        if targets_to_add or targets_to_remove:
+            try:
+                stats = registry.get_stats()
+                instrumented_count = sum(1 for s in stats.values() if s["is_instrumented"])
+                pending_count = sum(1 for s in stats.values() if s["is_pending"])
+                total_count = len(stats)
 
-        # Send gauge metrics for current state
-        telemetry_writer.add_gauge_metric(TELEMETRY_NAMESPACE.APPSEC, "sca.detection.targets_total", total_count)
-        telemetry_writer.add_gauge_metric(
-            TELEMETRY_NAMESPACE.APPSEC, "sca.detection.targets_instrumented", instrumented_count
-        )
-        telemetry_writer.add_gauge_metric(TELEMETRY_NAMESPACE.APPSEC, "sca.detection.targets_pending", pending_count)
+                log.info(
+                    "Instrumentation update complete: %d instrumented, %d pending", instrumented_count, pending_count
+                )
+
+                # Send gauge metrics for current state
+                telemetry_writer.add_gauge_metric(
+                    TELEMETRY_NAMESPACE.APPSEC, "sca.detection.targets_total", total_count
+                )
+                telemetry_writer.add_gauge_metric(
+                    TELEMETRY_NAMESPACE.APPSEC, "sca.detection.targets_instrumented", instrumented_count
+                )
+                telemetry_writer.add_gauge_metric(
+                    TELEMETRY_NAMESPACE.APPSEC, "sca.detection.targets_pending", pending_count
+                )
+            except Exception:
+                log.error("Failed to send telemetry metrics", exc_info=True)
+
+    except Exception:
+        # Catch-all to prevent RC processing from dying
+        log.error("Fatal error in apply_instrumentation_updates", exc_info=True)
 
     # TODO: Hook into ModuleWatchdog for lazy instrumentation
     # When modules are imported, retry pending targets:

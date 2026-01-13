@@ -240,7 +240,7 @@ The hook fires when `vulnerable_query()` is called (coroutine creation), not dur
                            │ (writes func.__code__)
                            │
 ┌─────────────────────────────────────────────────────────────┐
-│  Remote Configuration Worker Thread                          │
+│  Remote Configuration Worker Thread                          │z
 │  (RemoteConfigPoller - periodic background thread)           │
 │  - Polls agent for RC payloads                               │
 │  - Invokes product callbacks when payloads arrive            │

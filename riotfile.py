@@ -164,6 +164,14 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_sca",
+            pys=select_pys(min_version="3.11"),
+            command="pytest {cmdargs} tests/appsec/sca/",
+            pkgs={
+                "requests": latest,
+            },
+        ),
+        Venv(
             name="appsec_integrations_packages",
             pys=select_pys(),
             command="pytest -v tests/appsec/integrations/packages_tests/",
