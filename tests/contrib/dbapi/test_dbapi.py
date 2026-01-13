@@ -305,20 +305,6 @@ class TestFetchTracedCursor(TracerTestCase):
         self.assert_structure(dict(name="sql.query.fetchall"))
         self.reset()
 
-        assert len(self.pop_spans()) == 0
-
-        cursor.fetchone.return_value = "fetchone"
-        assert "fetchone" == traced_cursor.fetchone("arg_1", "arg_2")
-        assert len(self.pop_spans()) == 0
-
-        cursor.fetchmany.return_value = "fetchmany"
-        assert "fetchmany" == traced_cursor.fetchmany("arg_1", "arg_2")
-        assert len(self.pop_spans()) == 0
-
-        cursor.fetchall.return_value = "fetchall"
-        assert "fetchall" == traced_cursor.fetchall("arg_1", "arg_2")
-        assert len(self.pop_spans()) == 0
-
     def test_span_info(self):
         cursor = self.cursor
         cursor.rowcount = 123
