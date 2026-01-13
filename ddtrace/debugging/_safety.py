@@ -65,9 +65,8 @@ def safe_getitem(obj, index):
 
 def _safe_dict(o: Any) -> Dict[str, Any]:
     try:
-        __dict__ = object.__getattribute__(o, "__dict__")
-        if type(__dict__) is dict:
-            return __dict__
+        if type(__dict__ := object.__getattribute__(o, "__dict__")) is dict:
+            return __dict__.copy()
     except Exception:
         pass  # nosec
 
