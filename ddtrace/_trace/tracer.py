@@ -34,7 +34,6 @@ from ddtrace.internal import core
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
-from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import LOG_ATTR_ENV
 from ddtrace.internal.constants import LOG_ATTR_SERVICE
 from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
@@ -56,9 +55,11 @@ from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.peer_service import _ps_config
 from ddtrace.internal.utils import _get_metas_to_propagate
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import HTTPWriter
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.version import __version__
 
 
@@ -146,13 +147,6 @@ class Tracer(object):
             partial_flush_min_spans=config._partial_flush_min_spans,
             dd_processors=[PeerServiceProcessor(_ps_config), BaseServiceProcessor()],
         )
-        if config._data_streams_enabled:
-            # Inline the import to avoid pulling in ddsketch or protobuf
-            # when importing ddtrace.
-            from ddtrace.internal.datastreams.processor import DataStreamsProcessor
-
-            self.data_streams_processor = DataStreamsProcessor()
-            register_on_exit_signal(self._atexit)
 
         # Ensure that tracer exit hooks are registered and unregistered once per instance
         forksafe.register_before_fork(self._sample_before_fork)
@@ -217,6 +211,26 @@ class Tracer(object):
         finally:
             context._reactivate = False
             self.context_provider.activate(prev_active)
+
+    @property
+    def data_streams_processor(self):
+        from ddtrace.internal.datastreams import data_streams_processor
+
+        deprecate(
+            prefix="Tracer.data_streams_processor is deprecated",
+            message="Use ddtrace.data_streams.data_streams_processor() instead.",
+            removal_version="5.0.0",
+            category=DDTraceDeprecationWarning,
+        )
+        return data_streams_processor()
+
+    @data_streams_processor.setter
+    def data_streams_processor(self, value):
+        deprecate(
+            prefix="Setting Tracer.data_streams_processor is unsupported",
+            removal_version="5.0.0",
+            category=DDTraceDeprecationWarning,
+        )
 
     @property
     def _sampler(self):
