@@ -28,8 +28,5 @@ Configuration
 
    The service name reported by default for LiteLLM requests.
 
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_LITELLM_SERVICE`` environment
-   variables.
-
-   Default: ``DD_SERVICE``
+   Alternatively, set this option with the ``DD_LITELLM_SERVICE`` environment variable.
 """  # noqa: E501
