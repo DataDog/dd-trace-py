@@ -79,6 +79,22 @@ class TaskResult(TypedDict):
     error: Dict[str, Optional[str]]
 
 
+class EvaluatorResult:
+    def __init__(
+        self,
+        value: JSONType,
+        reasoning: Optional[str] = None,
+        assessment: Optional[str] = None,
+        metadata: Optional[Dict[str, JSONType]] = None,
+        tags: Optional[Dict[str, str]] = None,
+        ) -> None:
+        self.value = value
+        self.reasoning = reasoning
+        self.assessment = assessment
+        self.metadata = metadata
+        self.tags = tags
+
+
 class EvaluationResult(TypedDict):
     idx: int
     evaluations: Dict[str, Dict[str, JSONType]]
@@ -573,28 +589,16 @@ class Experiment:
                 try:
                     eval_result = evaluator(input_data, output_data, expected_output)
 
-                    # Apply special handling if the evaluator result supports dict-like access
-                    # and has certain keys.
-                    try:
-                        result = eval_result["result"]
-
-                        # If "result" key present, look for other keys
-                        try:
-                            extra_return_values["reasoning"] = eval_result["reasoning"]
-                        except (KeyError, TypeError):
-                            pass
-                        try:
-                            extra_return_values["assessment"] = eval_result["assessment"]
-                        except (KeyError, TypeError):
-                            pass
-                        try:
-                            extra_return_values["metadata"] = eval_result["metadata"]
-                        except (KeyError, TypeError):
-                            pass
-
-                        eval_result = result
-                    except (KeyError, TypeError):
-                        pass
+                    if isinstance(eval_result, EvaluatorResult):
+                        if eval_result.reasoning:
+                            extra_return_values["reasoning"] = eval_result.reasoning
+                        if eval_result.assessment:
+                            extra_return_values["assessment"] = eval_result.assessment
+                        if eval_result.metadata:
+                            extra_return_values["metadata"] = eval_result.metadata
+                        if eval_result.tags:
+                            extra_return_values["tags"] = eval_result.tags
+                        eval_result = eval_result.value
 
                 except Exception as e:
                     exc_type, exc_value, exc_tb = sys.exc_info()
@@ -719,6 +723,7 @@ class Experiment:
         reasoning: Optional[str] = None,
         assessment: Optional[str] = None,
         metadata: Optional[Dict[str, JSONType]] = None,
+        tags: Optional[Dict[str, str]] = None,
     ) -> "LLMObsExperimentEvalMetricEvent":
         if eval_value is None:
             metric_type = "categorical"
@@ -747,6 +752,8 @@ class Experiment:
             eval_metric["assessment"] = assessment
         if metadata:
             eval_metric["metadata"] = metadata
+        if tags:
+            eval_metric["tags"] = tags
         return eval_metric
 
     def _generate_metrics_from_exp_results(
@@ -776,6 +783,7 @@ class Experiment:
                     reasoning=eval_data.get("reasoning"),
                     assessment=eval_data.get("assessment"),
                     metadata=eval_data.get("metadata"),
+                    tags=eval_data.get("tags"),
                 )
                 eval_metrics.append(eval_metric)
 

@@ -107,6 +107,7 @@ class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
     reasoning: str
     assessment: str
     metadata: Dict[str, JSONType]
+    tags: Dict[str, str]
 
 
 def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
