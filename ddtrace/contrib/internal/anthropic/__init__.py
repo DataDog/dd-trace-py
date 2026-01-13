@@ -24,8 +24,8 @@ Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the Anthro
     patch(anthropic=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.anthropic["service"]
 
@@ -35,17 +35,4 @@ Global Configuration
    variables.
 
    Default: ``DD_SERVICE``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure the Anthropic integration on a per-instance basis use the
-``Pin`` API::
-
-    import anthropic
-    from ddtrace import config
-    from ddtrace._trace.pin import Pin
-
-    Pin.override(anthropic, service="my-anthropic-service")
 """  # noqa: E501
