@@ -260,7 +260,7 @@ def test_crashtracker_simple_sigbus():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::"})
 def test_crashtracker_raise_sigsegv():
     import os
     import signal
@@ -290,7 +290,7 @@ def test_crashtracker_raise_sigsegv():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::"})
 def test_crashtracker_raise_sigbus():
     import os
     import signal
