@@ -29,6 +29,12 @@ cpdef pyframe_to_frames(frame, max_nframes):
     nframes = 0
 
     while frame is not None:
+        # TODO(taegyunkim): consider propagating the fact that there could be
+        # more frames to unwind and/or we're truncating the frames so that we
+        # can insert a shim frame in the flamegraph.
+        if nframes >= max_nframes:
+            break
+
         IF PY_VERSION_HEX >= 0x030b0000:
             if not isinstance(frame, FrameType):
                 log.warning(

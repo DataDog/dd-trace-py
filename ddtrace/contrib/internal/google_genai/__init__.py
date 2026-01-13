@@ -28,8 +28,5 @@ Configuration
 
    The service name reported by default for Google GenAI requests.
 
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_GOOGLE_GENAI_SERVICE`` environment
-   variables.
-
-   Default: ``DD_SERVICE``
+   Alternatively, set this option with the ``DD_GOOGLE_GENAI_SERVICE`` environment variable.
 """

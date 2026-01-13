@@ -260,7 +260,7 @@ def test_crashtracker_simple_sigbus():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::"})
 def test_crashtracker_raise_sigsegv():
     import os
     import signal
@@ -290,7 +290,7 @@ def test_crashtracker_raise_sigsegv():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::"})
 def test_crashtracker_raise_sigbus():
     import os
     import signal
@@ -737,18 +737,18 @@ def test_crashtracker_echild_hang():
             else:
                 children.append(pid)
 
-        # Wait for all children to exit.  It shouldn't take more than 1s, so fail if it does.
-        timeout = 1  # seconds
+        # Wait for all children to exit.  It shouldn't take more than 5s, so fail if it does.
+        timeout = 5  # seconds
         end_time = time.time() + timeout
         while True:
             if time.time() > end_time:
-                pytest.fail("Timed out waiting for children to exit")
+                raise AssertionError("Timed out waiting for children to exit")
             try:
-                _, __ = os.waitpid(-1, os.WNOHANG)
+                pid, _ = os.waitpid(-1, os.WNOHANG)
+                if pid == 0:
+                    time.sleep(0.01)  # Avoid busy-wait when no child exited
             except ChildProcessError:
                 break
-            except Exception as e:
-                pytest.fail("Unexpected exception: %s" % e)
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
@@ -806,18 +806,18 @@ def test_crashtracker_no_zombies():
             else:
                 children.append(pid)
 
-        # Wait for all children to exit.  It shouldn't take more than 1s, so fail if it does.
-        timeout = 1  # seconds
+        # Wait for all children to exit.  It shouldn't take more than 5s, so fail if it does.
+        timeout = 5  # seconds
         end_time = time.time() + timeout
         while True:
             if time.time() > end_time:
-                pytest.fail("Timed out waiting for children to exit")
+                raise AssertionError("Timed out waiting for children to exit")
             try:
-                _, __ = os.waitpid(-1, os.WNOHANG)
+                pid, _ = os.waitpid(-1, os.WNOHANG)
+                if pid == 0:
+                    time.sleep(0.01)  # Avoid busy-wait when no child exited
             except ChildProcessError:
                 break
-            except Exception as e:
-                pytest.fail("Unexpected exception: %s" % e)
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")

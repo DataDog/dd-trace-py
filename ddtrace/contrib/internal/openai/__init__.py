@@ -56,8 +56,5 @@ Configuration
 
    The service name reported by default for OpenAI requests.
 
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_OPENAI_SERVICE`` environment
-   variables.
-
-   Default: ``DD_SERVICE``
+   Alternatively, set this option with the ``DD_OPENAI_SERVICE`` environment variable.
 """  # noqa: E501
