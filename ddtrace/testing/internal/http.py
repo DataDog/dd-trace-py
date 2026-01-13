@@ -288,7 +288,7 @@ class BackendConnector(threading.local):
                 result.error_type = ErrorType.BAD_JSON
                 result.error_description = str(e)
             except Exception as e:
-                log.exception("Error parsing respose for %s %s", method, path)
+                log.exception("Error parsing response for %s %s", method, path)
                 result.error_type = ErrorType.UNKNOWN
                 result.error_description = str(e)
 
