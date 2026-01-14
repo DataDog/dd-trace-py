@@ -34,7 +34,7 @@ jobs:
           python-version: '3.13'
 
       - name: Install Dependencies
-        run: pip install reno docutils
+        run: pip install -r ci/requirements/ci.txt
 
       - name: Lint changelog notes
         run: reno lint

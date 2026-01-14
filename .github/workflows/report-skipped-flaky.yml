@@ -31,7 +31,7 @@ jobs:
 
       - name: Install codeowners
         run: |
-            pip install codeowners
+            pip install -r ci/requirements/ci.txt
 
       - name: Run flaky tests report script
         run: python scripts/report_skipped_flaky.py

@@ -1,0 +1,182 @@
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# dependencies = []
+# ///
+"""
+Validate that all CI pip install commands use locked requirements files.
+
+This script checks that CI workflows don't install dependencies directly via
+`pip install package`, which can pull in unexpected versions of transitive
+dependencies. Instead, all CI dependencies should be locked in requirements.txt
+files.
+
+The script scans:
+- .github/workflows/*.yml (GitHub Actions)
+- .gitlab/*.yml (GitLab CI)
+
+And ensures no pip install commands install packages directly.
+
+If violations are found, the script instructs to run:
+    scripts/update-ci-dependencies
+"""
+
+from pathlib import Path
+import re
+import sys
+from typing import List
+from typing import Tuple
+
+
+def find_yaml_files() -> List[Path]:
+    """Find all CI YAML configuration files."""
+    files = []
+
+    # GitHub Actions workflows
+    github_workflows = Path(".github/workflows")
+    if github_workflows.exists():
+        files.extend(github_workflows.glob("*.yml"))
+        files.extend(github_workflows.glob("*.yaml"))
+
+    # GitLab CI files
+    gitlab_dir = Path(".gitlab")
+    if gitlab_dir.exists():
+        files.extend(gitlab_dir.glob("*.yml"))
+        files.extend(gitlab_dir.glob("*.yaml"))
+
+    return sorted(files)
+
+
+def extract_pip_install_commands(content: str, file_path: Path) -> List[Tuple[int, str]]:
+    """
+    Extract pip install commands from YAML content.
+
+    Returns list of (line_number, command) tuples.
+    """
+    commands = []
+    lines = content.split("\n")
+
+    for line_num, line in enumerate(lines, 1):
+        # Skip comments
+        if line.strip().startswith("#"):
+            continue
+
+        # Look for pip install commands
+        # Match: pip install, python -m pip install, python3 -m pip install
+        if re.search(r"\bpip\s+install\b", line) or re.search(r"\bpython3?\s+-m\s+pip\s+install\b", line):
+            commands.append((line_num, line.strip()))
+
+    return commands
+
+
+def is_allowed_pip_install(command: str) -> bool:
+    """
+    Check if a pip install command is allowed.
+
+    Allowed patterns:
+    - pip install -r requirements.txt (or any .txt file)
+    - pip install --upgrade pip (upgrading pip itself)
+    - pip install -e . (installing the current package)
+    - pip install . (installing the current package)
+    - pip install $VAR or ${VAR} (shell variables, typically built packages)
+    - pip install /path/to/file (local file paths)
+
+    Disallowed:
+    - pip install package_name (direct package installation)
+    """
+    # Remove leading python -m pip or python3 -m pip
+    normalized = re.sub(r"python3?\s+-m\s+pip\s+install", "pip install", command)
+
+    # Allowed: pip install -r <file>.txt
+    if re.search(r"pip\s+install.*-r\s+[^\s]+\.txt", normalized):
+        return True
+
+    # Allowed: pip install --upgrade pip
+    if re.search(r"pip\s+install.*--upgrade\s+pip\b", normalized):
+        return True
+
+    # Allowed: pip install -e .
+    if re.search(r"pip\s+install\s+-e\s+\.", normalized):
+        return True
+
+    # Allowed: pip install .
+    if re.search(r"pip\s+install\s+\.\s*$", normalized):
+        return True
+
+    # Allowed: pip install $VAR or ${VAR} (shell variables)
+    if re.search(r"pip\s+install.*\$\{?[\w_]+\}?", normalized):
+        return True
+
+    # Allowed: pip install /path/to/file or ./path/to/file (local paths)
+    if re.search(r"pip\s+install.*[/.][\w/.-]+\.(whl|tar\.gz|zip)", normalized):
+        return True
+
+    # Allowed: pip install (no packages specified, likely reading from stdin or setup file)
+    if re.match(r"^\s*pip\s+install\s*$", normalized):
+        return True
+
+    return False
+
+
+def check_ci_files() -> List[str]:
+    """
+    Check all CI files for direct pip install commands.
+
+    Returns list of violation messages.
+    """
+    violations = []
+    yaml_files = find_yaml_files()
+
+    if not yaml_files:
+        print("Warning: No CI YAML files found")
+        return violations
+
+    for file_path in yaml_files:
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            commands = extract_pip_install_commands(content, file_path)
+
+            for line_num, command in commands:
+                if not is_allowed_pip_install(command):
+                    violations.append(f"{file_path}:{line_num}: Direct pip install detected: {command}")
+
+        except Exception as e:
+            print(f"Warning: Error processing {file_path}: {e}")
+            continue
+
+    return violations
+
+
+def main() -> int:
+    """Main entry point."""
+    violations = check_ci_dependencies()
+
+    if violations:
+        print("❌ CI dependency validation failed:\n")
+        print("The following CI workflows install packages directly without locking:\n")
+        for violation in violations:
+            print(f"  {violation}")
+
+        print("\n" + "=" * 80)
+        print("To fix this issue, run:")
+        print("  scripts/update-ci-dependencies")
+        print("\nThis will:")
+        print("  1. Extract all CI dependencies to ci/requirements/ci.in")
+        print("  2. Generate locked ci/requirements/ci.txt")
+        print("  3. Update CI workflows to use the locked requirements")
+        print("=" * 80)
+        return 1
+
+    print("✅ All CI dependencies are properly locked")
+    return 0
+
+
+def check_ci_dependencies() -> List[str]:
+    """Public function for integration with other tools."""
+    return check_ci_files()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

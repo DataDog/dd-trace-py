@@ -56,10 +56,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install packaging
-          pip install requests
-          pip install riot==0.20.1
-          pip install wrapt==1.16.0
+          pip install -r ci/requirements/ci.txt
 
       - name: Install ddtrace
         run: |
