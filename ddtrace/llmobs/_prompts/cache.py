@@ -47,6 +47,9 @@ class HotCache:
         ttl_seconds: float = DEFAULT_PROMPTS_CACHE_TTL,
     ) -> None:
         self._cache: OrderedDict[str, CacheEntry] = OrderedDict()
+        if max_size <= 0:
+            log.warning("Invalid prompt cache max size %d; using minimum size of 1.", max_size)
+            max_size = 1
         self._max_size = max_size
         self._ttl = ttl_seconds
         self._lock = RLock()
