@@ -51,7 +51,6 @@ if ! command -v jq 2>&1 > /dev/null; then
 fi
 
 API_URL="https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/pipeline/DataDog/dd-trace-py"
-UNPIN=$([ -z "$UNPIN" ] && echo "false" || echo "true")
 
 PAYLOAD=$(cat <<EOF
 {
