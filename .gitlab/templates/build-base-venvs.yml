@@ -18,10 +18,10 @@ build_base_venvs:
     - when: always
   script: |
     set -e -o pipefail
-    if [ ! -z "$UNPIN_DEPENDENCIES" && "$UNPIN_DEPENDENCIES" == "true" ]; then
+    #if [ ! -z "$UNPIN_DEPENDENCIES" && "$UNPIN_DEPENDENCIES" == "true" ]; then
       # sed the deps
-      export PIP_PRE=true
-    fi
+      #  export PIP_PRE=true
+      #fi
     export PIP_PRE=true
     riot -P -v generate --python=$PYTHON_VERSION
     echo "Running smoke tests"
