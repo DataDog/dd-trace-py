@@ -3,7 +3,7 @@ import os
 import sys
 
 
-def f():
+def f() -> None:
     import ddtrace.profiling.bootstrap
 
     profiler = ddtrace.profiling.bootstrap.profiler  # pyright: ignore[reportAttributeAccessIssue]

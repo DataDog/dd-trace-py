@@ -3,6 +3,7 @@ import sys
 import sysconfig
 
 import jsonschema
+from jsonschema.exceptions import ValidationError
 import pytest
 
 from ddtrace.internal.datadog.profiling.code_provenance import json_str_to_export
@@ -50,7 +51,7 @@ def is_valid_json(s: str) -> bool:
         json_obj = json.loads(s)
         try:
             jsonschema.validate(json_obj, SCHEMA)
-        except jsonschema.exceptions.ValidationError as e:
+        except ValidationError as e:
             print(f"Validation error: {e.message}")
             return False
         return True

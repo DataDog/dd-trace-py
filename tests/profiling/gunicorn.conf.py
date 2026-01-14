@@ -1,21 +1,22 @@
 from datetime import datetime
 from datetime import timezone
 import logging
+from typing import Optional
 
 
-def post_fork(server, worker):
+def post_fork(server, worker) -> None:
     """Log the startup time of each worker."""
     logging.info("Worker %s started", worker.pid)
 
 
-def post_worker_init(worker):
+def post_worker_init(worker) -> None:
     logging.info("Worker %s initialized", worker.pid)
 
 
 class CustomFormatter(logging.Formatter):
     """Custom formatter to include timezone offset in the log message."""
 
-    def formatTime(self, record, datefmt=None):
+    def formatTime(self, record: logging.LogRecord, datefmt: Optional[str] = None) -> str:
         dt = datetime.fromtimestamp(record.created, tz=timezone.utc).astimezone()
         milliseconds = int(record.msecs)
         offset = dt.strftime("%z")  # Get timezone offset in the form +0530
