@@ -150,12 +150,8 @@ class TestManagedPrompt:
         assert result["tags"]["dd.prompt.source"] == "registry"
         assert result["tags"]["dd.prompt.label"] == "prod"
 
-    def test_to_annotation_dict_variables_are_empty(self):
-        """Test that to_annotation_dict() returns empty variables.
-
-        Variables should be passed separately via prompt_variables= in annotation_context(),
-        not through to_annotation_dict(). This keeps the Prompt object immutable.
-        """
+    def test_to_annotation_dict_with_variables(self):
+        """Test that to_annotation_dict() accepts variables via kwargs."""
         prompt = ManagedPrompt(
             prompt_id="greeting",
             version="abc123",
@@ -164,10 +160,15 @@ class TestManagedPrompt:
             template="Hello {{user}}, welcome to {{place}}!",
         )
 
-        result = prompt.to_annotation_dict()
+        # Without variables
+        result_no_vars = prompt.to_annotation_dict()
+        assert result_no_vars["id"] == "greeting"
+        assert result_no_vars["variables"] == {}
 
-        assert result["id"] == "greeting"
-        assert result["variables"] == {}  # Empty - variables come from prompt_variables param
+        # With variables
+        result_with_vars = prompt.to_annotation_dict(user="Alice", place="Paris")
+        assert result_with_vars["id"] == "greeting"
+        assert result_with_vars["variables"] == {"user": "Alice", "place": "Paris"}
 
 
 class TestHotCache:
