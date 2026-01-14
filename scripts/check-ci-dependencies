@@ -17,6 +17,16 @@ The script scans:
 
 And ensures no pip install commands install packages directly.
 
+Exception mechanism:
+You can explicitly allow specific pip install commands by adding a comment:
+    pip install 'twine>=5.0,<6'  # ci-deps: allow (requires version)
+    pip install twine  # ci-deps: allow-no-version (no version required)
+Or on the line before:
+    # ci-deps: allow
+    pip install 'some-package>=1.0'
+
+Note: 'ci-deps: allow' requires a version specifier, use 'allow-no-version' to skip.
+
 Additionally, it validates that the locked requirements file can be installed
 in --require-hashes mode by doing a dry-run installation.
 
@@ -51,24 +61,47 @@ def find_yaml_files() -> List[Path]:
     return sorted(files)
 
 
-def extract_pip_install_commands(content: str, file_path: Path) -> List[Tuple[int, str]]:
+def extract_pip_install_commands(content: str, file_path: Path) -> List[Tuple[int, str, str]]:
     """
     Extract pip install commands from YAML content.
 
-    Returns list of (line_number, command) tuples.
+    Returns list of (line_number, command, allow_type) tuples where allow_type is:
+    - "" (empty string) if not allowed
+    - "allow" if explicitly allowed but must have version
+    - "allow-no-version" if explicitly allowed without version requirement
+
+    Commands can be explicitly allowed with comment markers:
+    - # ci-deps: allow (requires version specifier)
+    - # ci-deps: allow-no-version (no version required)
     """
     commands = []
     lines = content.split("\n")
 
     for line_num, line in enumerate(lines, 1):
-        # Skip comments
+        # Skip pure comment lines
         if line.strip().startswith("#"):
             continue
 
         # Look for pip install commands
         # Match: pip install, python -m pip install, python3 -m pip install
         if re.search(r"\bpip\s+install\b", line) or re.search(r"\bpython3?\s+-m\s+pip\s+install\b", line):
-            commands.append((line_num, line.strip()))
+            allow_type = ""
+
+            # Check for exception comment on same line
+            if "# ci-deps: allow-no-version" in line or "#ci-deps: allow-no-version" in line:
+                allow_type = "allow-no-version"
+            elif "# ci-deps: allow" in line or "#ci-deps: allow" in line:
+                allow_type = "allow"
+
+            # Check for exception comment on previous line
+            if not allow_type and line_num > 1:
+                prev_line = lines[line_num - 2]  # line_num is 1-indexed
+                if "# ci-deps: allow-no-version" in prev_line or "#ci-deps: allow-no-version" in prev_line:
+                    allow_type = "allow-no-version"
+                elif "# ci-deps: allow" in prev_line or "#ci-deps: allow" in prev_line:
+                    allow_type = "allow"
+
+            commands.append((line_num, line.strip(), allow_type))
 
     return commands
 
@@ -122,6 +155,21 @@ def is_allowed_pip_install(command: str) -> bool:
     return False
 
 
+def has_version_specifier(command: str) -> bool:
+    """
+    Check if a pip install command includes version specifiers.
+
+    Returns True if the command has explicit version pins (==, >=, <=, ~=, etc.)
+    """
+    # Remove pip install prefix and common flags
+    normalized = re.sub(r"python3?\s+-m\s+pip\s+install", "pip install", command)
+    normalized = re.sub(r"pip\s+install\s+(--upgrade\s+|--no-cache-dir\s+|-U\s+)*", "", normalized)
+
+    # Check if any package has a version specifier
+    # Look for patterns like: package==1.0, package>=1.0, package~=1.0, etc.
+    return bool(re.search(r"\w+[<>=!~]+[\d.]+", normalized))
+
+
 def check_ci_files() -> List[str]:
     """
     Check all CI files for direct pip install commands.
@@ -142,7 +190,17 @@ def check_ci_files() -> List[str]:
 
             commands = extract_pip_install_commands(content, file_path)
 
-            for line_num, command in commands:
+            for line_num, command, allow_type in commands:
+                # Check if explicitly allowed by comment
+                if allow_type:
+                    # If "allow" (not "allow-no-version"), require version specifiers
+                    if allow_type == "allow" and not has_version_specifier(command):
+                        violations.append(
+                            f"{file_path}:{line_num}: Must specify version or use 'allow-no-version': {command}"
+                        )
+                    continue
+
+                # Check if command matches allowed patterns
                 if not is_allowed_pip_install(command):
                     violations.append(f"{file_path}:{line_num}: Direct pip install detected: {command}")
 
@@ -345,8 +403,11 @@ def main() -> int:
             print(f"  {violation}")
 
         print("\n" + "=" * 80)
-        print("To fix this issue, run:")
-        print("  scripts/update-ci-dependencies")
+        print("To fix this issue:")
+        print("\n1. Add dependencies to locked requirements:")
+        print("     scripts/update-ci-dependencies --compile --update-workflows")
+        print("\n2. Or allow specific exceptions (for minimal installs like twine):")
+        print("     Add comment: pip install twine  # ci-deps: allow")
         print("\nThis will:")
         print("  1. Extract all CI dependencies to ci/requirements/ci.in")
         print("  2. Generate locked ci/requirements/ci.txt")

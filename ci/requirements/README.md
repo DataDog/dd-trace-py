@@ -55,6 +55,24 @@ git add ci/requirements/ .github/ .gitlab/
 git commit -m "chore: update locked CI dependencies"
 ```
 
+### Allowing Exceptions
+
+In special cases where a job needs to install a package directly (e.g., a minimal test that only needs `twine`), you can mark it as allowed:
+
+```yaml
+# With version (recommended):
+pip install 'twine>=5.0,<6'  # ci-deps: allow
+
+# Without version (use sparingly):
+pip install twine  # ci-deps: allow-no-version
+
+# Or on the line before:
+# ci-deps: allow
+pip install 'some-package>=1.0'
+```
+
+**Note:** Using `# ci-deps: allow` requires a version specifier for safety. Use `# ci-deps: allow-no-version` only when necessary.
+
 ## Troubleshooting
 
 **"CI validation failed" in CI but passes locally?**
