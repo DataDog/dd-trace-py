@@ -179,7 +179,8 @@ class TestSession(_TestVisibilityAPIBase):
         log.debug("Finishing session, force_finish_session_modules: %s", force_finish_children)
 
         session = require_ci_visibility_service().get_session()
-        session.finish(force=force_finish_children, override_status=override_status)
+        session.prepare_for_finish(override_status=override_status)
+        session.finish(force=force_finish_children)
 
     @staticmethod
     def get_tag(tag_name: str) -> Any:
@@ -241,9 +242,9 @@ class TestModule(TestBase):
             force_finish_children,
         )
 
-        require_ci_visibility_service().get_module_by_id(item_id).finish(
-            force=force_finish_children, override_status=override_status
-        )
+        test_obj = require_ci_visibility_service().get_module_by_id(item_id)
+        test_obj.prepare_for_finish(override_status=override_status)
+        test_obj.finish(force=force_finish_children)
 
 
 class TestSuite(TestBase):
@@ -291,9 +292,9 @@ class TestSuite(TestBase):
             override_status,
         )
 
-        require_ci_visibility_service().get_suite_by_id(item_id).finish(
-            force=force_finish_children, override_status=override_status
-        )
+        test_suite_obj = require_ci_visibility_service().get_suite_by_id(item_id)
+        test_suite_obj.prepare_for_finish(override_status=override_status)
+        test_suite_obj.finish(force=force_finish_children)
 
 
 class Test(TestBase):
@@ -375,9 +376,9 @@ class Test(TestBase):
             exc_info,
         )
 
-        require_ci_visibility_service().get_test_by_id(item_id).finish_test(
-            status=status, skip_reason=skip_reason, exc_info=exc_info
-        )
+        test_obj = require_ci_visibility_service().get_test_by_id(item_id)
+        test_obj.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
+        test_obj.finish()
 
     @staticmethod
     @_catch_and_log_exceptions

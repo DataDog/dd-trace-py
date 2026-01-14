@@ -43,6 +43,7 @@ variables:
     paths:
       - "pywheels/*.whl"
       - "pywheels/*.tar.gz"
+      - "debugwheelhouse/*.log"
 
 "build sdist":
   extends: .build_base
@@ -85,14 +86,25 @@ variables:
   tags: [ "macos:sonoma-$ARCH_TAG", "specific:true" ]
   parallel:
     matrix:
-      - ARCH_TAG: "amd64"
-        UV_PYTHON: *PYTHON_VERSIONS
-      - ARCH_TAG: "arm64"
-        UV_PYTHON: *PYTHON_VERSIONS
+      - ARCH_TAG:
+          - "amd64"
+          - "arm64"
+        PYTHON_VERSIONS:
+          - "3.9 3.10"
+          - "3.11 3.12"
+          - "3.13 3.14"
   variables:
     SYSTEM_VERSION_COMPAT: "0"
-  script:
-    - .gitlab/scripts/build-wheel.sh
+  script: |
+    set -euo pipefail
+    for python_version in ${PYTHON_VERSIONS}; do
+      echo -e "\e[0Ksection_start:`date +%s`:build_macos_${python_version}\r\e[0KBuilding macOS wheel for Python ${python_version}"
+
+      export UV_PYTHON="${python_version}"
+      .gitlab/scripts/build-wheel.sh
+
+      echo -e "\e[0Ksection_end:`date +%s`:build_macos_${python_version}\r\e[0K"
+    done
 
 "test sdist":
   image: registry.ddbuild.io/images/mirror/python:3.9.6-alpine3.14
