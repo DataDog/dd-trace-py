@@ -25,6 +25,7 @@ Options:
     --update-workflows  Update CI workflow files to use locked requirements
 """
 
+import argparse
 from pathlib import Path
 import re
 import subprocess
@@ -520,10 +521,46 @@ def update_workflow_files(
     return updated_count
 
 
+def parse_arguments() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="""
+Extract CI dependencies and generate locked requirements files.
+
+This script scans all CI configuration files (GitHub Actions, GitLab CI) for
+pip install commands, extracts the package names and version specifiers, and
+creates locked requirements files.
+
+Process:
+1. Scan .github/workflows/*.yml and .gitlab/*.yml for pip install commands
+2. Extract package names and version constraints
+3. Create ci/requirements/ci.in with all dependencies
+4. Run pip-compile to generate ci/requirements/ci.txt
+5. Report what was found and what to do next
+        """.strip(),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    parser.add_argument(
+        "--compile",
+        action="store_true",
+        help="Run pip-compile to generate ci.txt (requires pip-tools or uv)",
+    )
+
+    parser.add_argument(
+        "--update-workflows",
+        action="store_true",
+        help="Update CI workflow files to use locked requirements",
+    )
+
+    return parser.parse_args()
+
+
 def main() -> int:
     """Main entry point."""
-    compile_requirements = "--compile" in sys.argv
-    update_workflows = "--update-workflows" in sys.argv
+    args = parse_arguments()
+    compile_requirements = args.compile
+    update_workflows = args.update_workflows
 
     print("Scanning CI workflows for pip install commands...")
     package_sources = scan_ci_files()
