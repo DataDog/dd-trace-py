@@ -408,6 +408,7 @@ class TestTag:
 
     SOURCE_FILE = "test.source.file"
     SOURCE_START = "test.source.start"
+    SOURCE_END = "test.source.end"
 
     CODEOWNERS = "test.codeowners"
 

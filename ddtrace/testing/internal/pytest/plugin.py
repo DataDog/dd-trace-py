@@ -247,16 +247,47 @@ class TestOptPlugin:
             pass
 
         def _on_new_test(test: Test) -> None:
-            path, start_line, _test_name = item.reportinfo()
+            # Try to get source info from the test function object (like old plugin)
+            test_obj = getattr(item, "obj", None) or getattr(item, "function", None)
 
-            # Convert path to relative like the old plugin
-            try:
-                abs_path = Path(path).absolute()
-                relative_path = abs_path.relative_to(self.manager.workspace_path)
-                test.set_location(path=str(relative_path), start_line=start_line or 0)
-            except (ValueError, OSError):
-                # If not within workspace or other error, use original path
-                test.set_location(path=path, start_line=start_line or 0)
+            if test_obj:
+                # Use inspect module like the old plugin to get source file and line info
+                import inspect
+
+                try:
+                    # Get source file from the test function object
+                    source_file = inspect.getfile(test_obj)
+                    # Convert to relative path
+                    abs_path = Path(source_file).absolute()
+                    relative_path = abs_path.relative_to(self.manager.workspace_path)
+
+                    # Get source lines info
+                    source_lines_tuple = inspect.getsourcelines(test_obj)
+                    start_line = source_lines_tuple[1]
+                    end_line = start_line + len(source_lines_tuple[0])
+
+                    test.set_location(path=str(relative_path), start_line=start_line)
+                    # Add end line as a metric like the old plugin
+                    test.metrics[TestTag.SOURCE_END] = end_line
+
+                except (ValueError, OSError, TypeError):
+                    # Fallback to reportinfo if inspect fails
+                    path, start_line, _test_name = item.reportinfo()
+                    try:
+                        abs_path = Path(path).absolute()
+                        relative_path = abs_path.relative_to(self.manager.workspace_path)
+                        test.set_location(path=str(relative_path), start_line=start_line or 0)
+                    except (ValueError, OSError):
+                        test.set_location(path=path, start_line=start_line or 0)
+            else:
+                # Fallback to original approach if no test object
+                path, start_line, _test_name = item.reportinfo()
+                try:
+                    abs_path = Path(path).absolute()
+                    relative_path = abs_path.relative_to(self.manager.workspace_path)
+                    test.set_location(path=str(relative_path), start_line=start_line or 0)
+                except (ValueError, OSError):
+                    test.set_location(path=path, start_line=start_line or 0)
 
             if parameters := _get_test_parameters_json(item):
                 test.set_parameters(parameters)
