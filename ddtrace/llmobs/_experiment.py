@@ -87,7 +87,7 @@ class EvaluatorResult:
         assessment: Optional[str] = None,
         metadata: Optional[Dict[str, JSONType]] = None,
         tags: Optional[Dict[str, str]] = None,
-        ) -> None:
+    ) -> None:
         self.value = value
         self.reasoning = reasoning
         self.assessment = assessment
