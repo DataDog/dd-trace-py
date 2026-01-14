@@ -7,12 +7,14 @@ Shows fetching a multi-turn conversation template (system + user messages).
 
 import os
 
+
 # Configure environment for staging (DD_API_KEY should be set via dd-auth)
 os.environ.setdefault("DD_API_KEY", "test-api-key")
 os.environ.setdefault("DD_LLMOBS_PROMPTS_ENDPOINT", "https://api.datad0g.com")
 os.environ.setdefault("DD_LLMOBS_ML_APP", "customer-chatbot")
 
 from ddtrace.llmobs import LLMObs
+
 
 prompt = LLMObs.get_prompt("assistant", label="prod")
 

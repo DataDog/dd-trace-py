@@ -8,12 +8,14 @@ Shows the speed difference between cold cache (network fetch) and hot cache (ins
 import os
 import time
 
+
 # Configure environment for staging (DD_API_KEY should be set via dd-auth)
 os.environ.setdefault("DD_API_KEY", "test-api-key")
 os.environ.setdefault("DD_LLMOBS_PROMPTS_ENDPOINT", "https://api.datad0g.com")
 os.environ.setdefault("DD_LLMOBS_ML_APP", "caching-demo")
 
 from ddtrace.llmobs import LLMObs
+
 
 # Clear cache to show true cold start behavior
 LLMObs.clear_prompt_cache(l1=True, l2=True)

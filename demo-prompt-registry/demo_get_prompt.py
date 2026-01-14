@@ -22,6 +22,7 @@ Usage:
 
 import os
 
+
 # Set required environment variables for local testing
 os.environ.setdefault("DD_API_KEY", "test-api-key")
 os.environ.setdefault("DD_LLMOBS_ML_APP", "demo-app")

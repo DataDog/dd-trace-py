@@ -10,12 +10,14 @@ IMPORTANT: Run 03a_warmup_cache.py FIRST to populate the cache!
 
 import os
 
+
 # Point to an UNREACHABLE endpoint - simulating Datadog being down
 os.environ.setdefault("DD_API_KEY", "test-api-key")
 os.environ["DD_LLMOBS_PROMPTS_ENDPOINT"] = "https://localhost:9999"
 os.environ.setdefault("DD_LLMOBS_ML_APP", "customer-chatbot")
 
 from ddtrace.llmobs import LLMObs
+
 
 print("Simulating network failure - endpoint is UNREACHABLE")
 print("(pointing to https://localhost:9999)")
