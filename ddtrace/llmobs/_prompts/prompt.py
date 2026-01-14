@@ -7,6 +7,9 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 
+from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import PromptLike
+
 
 class ManagedPrompt:
     """
@@ -25,7 +28,7 @@ class ManagedPrompt:
     _version: str
     _label: str
     _source: Literal["registry", "cache", "fallback"]
-    _template: Union[str, List[Dict[str, str]]]
+    _template: Union[str, List[Dict[str, str]], List[Message]]
     _variables: List[str]
 
     def __init__(
@@ -34,7 +37,7 @@ class ManagedPrompt:
         version: str,
         label: str,
         source: Literal["registry", "cache", "fallback"],
-        template: Union[str, List[Dict[str, str]]],
+        template: Union[str, List[Dict[str, str]], List[Message]],
         variables: Optional[List[str]] = None,
     ) -> None:
         # Use object.__setattr__ to bypass our immutability guard
@@ -68,7 +71,7 @@ class ManagedPrompt:
         return self._source
 
     @property
-    def template(self) -> Union[str, List[Dict[str, str]]]:
+    def template(self) -> Union[str, List[Dict[str, str]], List[Message]]:
         return self._template
 
     @property
@@ -166,13 +169,14 @@ class ManagedPrompt:
         """Render a text template with safe substitution."""
         return _safe_substitute(template, variables)
 
-    def _render_chat(self, messages: List[Dict[str, str]], variables: Dict[str, str]) -> List[Dict[str, str]]:
+    def _render_chat(
+        self, messages: Union[List[Dict[str, str]], List[Message]], variables: Dict[str, str]
+    ) -> List[Dict[str, str]]:
         """Render each message's content with safe substitution."""
-        rendered = []
+        rendered: List[Dict[str, str]] = []
         for msg in messages:
-            rendered_msg = dict(msg)
-            if "content" in rendered_msg:
-                rendered_msg["content"] = _safe_substitute(rendered_msg["content"], variables)
+            rendered_msg: Dict[str, str] = {"role": str(msg.get("role", "")), "content": str(msg.get("content", ""))}
+            rendered_msg["content"] = _safe_substitute(rendered_msg["content"], variables)
             rendered.append(rendered_msg)
         return rendered
 
@@ -192,6 +196,53 @@ class ManagedPrompt:
             source=source,
             template=self._template,
             variables=list(self._variables),
+        )
+
+    @classmethod
+    def from_fallback(
+        cls,
+        prompt_id: str,
+        label: str,
+        fallback: PromptLike = None,
+    ) -> "ManagedPrompt":
+        """Create a ManagedPrompt from a fallback value.
+
+        Args:
+            prompt_id: The prompt identifier.
+            label: The prompt label.
+            fallback: A string, message list, Prompt dict, or callable returning any of those.
+
+        Returns:
+            A ManagedPrompt with source="fallback".
+        """
+        if fallback is None:
+            return cls(
+                prompt_id=prompt_id,
+                version="fallback",
+                label=label,
+                source="fallback",
+                template="",
+                variables=[],
+            )
+
+        value = fallback() if callable(fallback) else fallback
+
+        if isinstance(value, dict):
+            template: Union[str, List[Dict[str, str]], List[Message]] = (
+                value.get("template") or value.get("chat_template") or ""
+            )
+            version = value.get("version", "fallback") or "fallback"
+        else:
+            template = value
+            version = "fallback"
+
+        return cls(
+            prompt_id=prompt_id,
+            version=version,
+            label=label,
+            source="fallback",
+            template=template,
+            variables=[],
         )
 
 
