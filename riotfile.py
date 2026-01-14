@@ -527,8 +527,9 @@ venv = Venv(
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED": "0",  # DEV: Temporary, remove once merged
+                "DD_CRASHTRACKING_ENABLED": "0",  # HACK: Disable to get core dumps of shutdown crashes
             },
-            command="pytest -v {cmdargs} tests/internal/",
+            command="pytest -v {cmdargs} tests/internal/ --ignore=tests/internal/crashtracker/",
             pkgs={
                 "httpretty": latest,
                 "gevent": latest,

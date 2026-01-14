@@ -33,7 +33,6 @@ import pytest
 
 import ddtrace
 from ddtrace._trace.provider import _DD_CONTEXTVAR
-from ddtrace.internal.core import crashtracking
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
@@ -171,12 +170,13 @@ def auto_enable_crashtracking():
     yield platform.system() == "Linux"
 
 
-@pytest.fixture(autouse=True)
-def enable_crashtracking(auto_enable_crashtracking):
-    if auto_enable_crashtracking:
-        crashtracking.start()
-        assert crashtracking.is_started()
-    yield
+# HACK: Disabled for crash debugging - crashtracking intercepts SIGSEGV and prevents core dumps
+# @pytest.fixture(autouse=True)
+# def enable_crashtracking(auto_enable_crashtracking):
+#     if auto_enable_crashtracking:
+#         crashtracking.start()
+#         assert crashtracking.is_started()
+#     yield
 
 
 @pytest.fixture
