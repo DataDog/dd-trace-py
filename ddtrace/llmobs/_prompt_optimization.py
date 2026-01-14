@@ -95,11 +95,10 @@ class OptimizationIteration:
         user_prompt = self._build_user_prompt()
 
         # Step 3 & 4: Call optimization LLM
-        # Expected signature: optimization_task(system_prompt: str, user_prompt: str) -> dict
-        # Expected return: dict with keys "new_prompt" and "reasoning"
         result = self._optimization_task(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
+            model=self._config["optimization_model_name"],
         )
 
         # Parse the result dict
@@ -196,12 +195,12 @@ class OptimizationIteration:
         if summary_evals:
             prompt_parts.append("Performance Metrics:")
             for summary_metric_name, summary_metric_data in summary_evals.items():
-                for metric_name, metric_data in summary_metric_data.items():
+                for metric_name, metric_data in summary_metric_data["value"].items():
                     prompt_parts.append(f"- {metric_name}: {metric_data}")
             prompt_parts.append("")
 
         # Get individual results to find examples
-        individual_results = results.get("results", [])
+        individual_results = results.get("rows", [])
 
         if individual_results:
             # Find examples of each type
@@ -233,6 +232,9 @@ class OptimizationIteration:
     def _find_example(self, results: List[Dict[str, Any]], example_type: str) -> Optional[Dict[str, Any]]:
         """Find an example of specified type from results.
 
+        The evaluators in evaluations are like this:
+        {'evaluator_function_name': {'value': 'returned_value', 'error': None}}
+
         :param results: List of experiment results.
         :param example_type: Type to find (false_positive, false_negative, true_positive, true_negative).
         :return: Example dict or None.
@@ -240,11 +242,10 @@ class OptimizationIteration:
         for result in results:
             evaluations = result.get("evaluations", {})
             # Check if any evaluation matches the type
-            for eval_data in evaluations.values():
-                if isinstance(eval_data, dict):
-                    label = eval_data.get("label", "").lower()
-                    if example_type.replace("_", " ") in label:
-                        return result
+            for eval_name, eval_data in evaluations.items():
+                label = eval_data.get("value", "")
+                if example_type in label:
+                    return result
         return None
 
     def _format_example(self, example: Dict[str, Any]) -> str:
@@ -602,6 +603,23 @@ class PromptOptimization:
                 logger.info("Next iteration will optimize from best prompt (iteration %d)", best_iteration)
                 print(f"Next iteration will optimize from best prompt (iteration {best_iteration})")
             print()  # Blank line for readability
+
+            # Check if target score has been reached
+            target_score = self._config.get("target")
+            if target_score is not None and best_score is not None and best_score >= target_score:
+                logger.info("=" * 80)
+                logger.info("🎯 TARGET REACHED!")
+                logger.info("Target score: %.4f", target_score)
+                logger.info("Achieved score: %.4f (iteration %d)", best_score, best_iteration)
+                logger.info("Stopping optimization early - target achieved")
+                logger.info("=" * 80)
+                print(f"{'=' * 80}")
+                print("🎯 TARGET REACHED!")
+                print(f"Target score: {target_score:.4f}")
+                print(f"Achieved score: {best_score:.4f} (iteration {best_iteration})")
+                print("Stopping optimization early - target achieved")
+                print(f"{'=' * 80}\n")
+                break
 
         logger.info("=" * 80)
         logger.info("OPTIMIZATION COMPLETE")
