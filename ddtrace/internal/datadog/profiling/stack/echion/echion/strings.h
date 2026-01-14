@@ -164,6 +164,12 @@ class StringTable : public std::unordered_map<uintptr_t, std::string>
         this->emplace(UNKNOWN, "<unknown>");
     };
 
+    void postfork_child()
+    {
+        // NB placement-new to re-init and leak the mutex because doing anything else is UB
+        new (&table_lock) std::mutex();
+    }
+
   private:
     mutable std::mutex table_lock;
 };
