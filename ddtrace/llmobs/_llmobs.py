@@ -1233,7 +1233,7 @@ class LLMObs(Service):
     def annotation_context(
         cls,
         tags: Optional[Dict[str, Any]] = None,
-        prompt: Optional[Union[dict, Prompt]] = None,
+        prompt: Optional[Union[dict, Prompt, "ManagedPrompt"]] = None,
         name: Optional[str] = None,
         _linked_spans: Optional[List[ExportedLLMObsSpan]] = None,
     ) -> AnnotationContext:
@@ -1251,7 +1251,9 @@ class LLMObs(Service):
                             "variables": {"variable_1": "...", ...}}`.
                             "tags": {"key1": "value1", "key2": "value2"},
                         }`
-                        Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
+                        Can also be set using:
+                        - A `ManagedPrompt` object returned by `LLMObs.get_prompt()` (recommended for managed prompts)
+                        - The `ddtrace.llmobs.utils.Prompt` constructor class
                         - This argument is only applicable to LLM spans.
                         - The dictionary may contain optional keys relevant to Templates and RAG applications:
                             `rag_context_variables` - a list of variable key names that contain ground
@@ -1388,7 +1390,7 @@ class LLMObs(Service):
             # Clear file cache even if manager is not initialized
             from ddtrace.llmobs._prompts.cache import WarmCache
 
-            cache_dir = _get_config("DD_LLMOBS_PROMPTS_CACHE_DIR")
+            cache_dir = os.getenv("DD_LLMOBS_PROMPTS_CACHE_DIR")
             warm_cache = WarmCache(cache_dir=cache_dir)
             warm_cache.clear()
 
