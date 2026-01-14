@@ -81,6 +81,13 @@ done
 [[ -n "${CFORMAT_ALL:-}" ]] && ENUM_ALL=true
 [[ -n "${CFORMAT_BIN:-}" ]] && CLANG_FORMAT="$CFORMAT_BIN"
 
+# Always print the clang-format version for easier debugging in CI/dev envs.
+if command -v "$CLANG_FORMAT" >/dev/null 2>&1; then
+    echo "$(${CLANG_FORMAT} --version)"
+else
+    echo "clang-format version: <not found> (CLANG_FORMAT=${CLANG_FORMAT})"
+fi
+
 if [[ "$UPDATE_MODE" == "true" ]]; then
     # Update mode: Format files in-place
     enumerate_files \
@@ -108,9 +115,6 @@ else
         fi
         rm -f "$CFORMAT_TMP"
     done < <(enumerate_files | exclude_patterns)
-    if [[ $has_diff -ne 0 ]]; then
-        echo "clang-format version: $(${CLANG_FORMAT} --version)"
-    fi
     exit $has_diff
 fi
 
