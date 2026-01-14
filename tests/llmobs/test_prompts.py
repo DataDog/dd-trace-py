@@ -244,6 +244,28 @@ class TestCacheControl:
         prompt2 = LLMObs.get_prompt("greeting")
         assert prompt2.version == "v2"
 
+    def test_refresh_prompt_evicts_on_404(self):
+        """refresh_prompt() evicts cache when prompt is deleted (404)."""
+        # Initial fetch and cache
+        with mock_api(200, TEXT_PROMPT_RESPONSE):
+            prompt1 = LLMObs.get_prompt("greeting")
+        assert prompt1.source == "registry"
+
+        # Verify cached
+        prompt2 = LLMObs.get_prompt("greeting")
+        assert prompt2.source == "cache"
+
+        # Prompt is deleted from registry (404)
+        with mock_api(404, "Not Found"):
+            result = LLMObs.refresh_prompt("greeting")
+        assert result is None
+
+        # Cache should be evicted, next call uses fallback
+        with mock_api(404, "Not Found"):
+            prompt3 = LLMObs.get_prompt("greeting", fallback="Fallback: {{name}}")
+        assert prompt3.source == "fallback"
+        assert prompt3.format(name="Bob") == "Fallback: Bob"
+
 
 class TestAnnotationContext:
     """Integration with LLMObs observability."""

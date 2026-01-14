@@ -77,6 +77,11 @@ class HotCache:
                 self._cache.popitem(last=False)
             self._cache[key] = CacheEntry(prompt=prompt, timestamp=time())
 
+    def delete(self, key: str) -> None:
+        """Remove a specific entry from cache."""
+        with self._lock:
+            self._cache.pop(key, None)
+
     def clear(self) -> None:
         """Clear all entries from cache."""
         with self._lock:
@@ -163,6 +168,19 @@ class WarmCache:
                 os.chmod(path, 0o600)
         except OSError as e:
             log.debug("Failed to write prompt to cache: %s", e)
+
+    def delete(self, key: str) -> None:
+        """Remove a specific prompt from file cache."""
+        if not self._enabled:
+            return
+
+        path = self._key_to_path(key)
+        with self._lock:
+            try:
+                if path.exists():
+                    path.unlink()
+            except OSError as e:
+                log.debug("Failed to delete prompt from cache: %s", e)
 
     def clear(self) -> None:
         """Clear all cached prompts."""
