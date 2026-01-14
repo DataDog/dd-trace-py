@@ -193,6 +193,143 @@ class TestSkippingAndITRFeatures:
         assert len(tm_skip_calls) == 1, "Disabled test should be skipped with test management reason"
 
 
+class TestFinalStatusFeatures:
+    """Test final status tag functionality."""
+
+    def test_final_status_set_for_single_test_run(self) -> None:
+        """Test that final status is set for tests without retries."""
+        # Create test references using TestDataFactory
+        test_ref = TestDataFactory.create_test_ref("test_module", "test_suite.py", "test_function")
+
+        # Create mock session manager
+        mock_manager = session_manager_mock().build_mock()
+        mock_manager.is_auto_injected = False
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        # Create test
+        test = mock_test(test_ref)
+        mock_manager.discover_test.return_value = (test.module, test.suite, test)
+
+        # Store test in plugin's dictionary
+        plugin.tests_by_nodeid = {"test_module/test_suite.py::test_function": test}
+
+        # Create mock pytest item and reports
+        mock_config = Mock()
+        mock_config.get_terminal_writer.return_value = Mock()
+        mock_item = (
+            pytest_item_mock("test_module/test_suite.py::test_function")
+            .with_attribute("fixturenames", [])
+            .with_attribute("config", mock_config)
+            .build()
+        )
+
+        # Mock _get_test_outcome to return a passing test
+        with patch.object(plugin, "_get_test_outcome", return_value=(TestStatus.PASS, {})):
+            # Mock trace_context
+            with patch("ddtrace.testing.internal.tracer_api.context.trace_context") as mock_trace_context:
+                mock_context = Mock()
+                mock_trace_context.return_value.__enter__.return_value = mock_context
+
+                # Call _do_test_runs (simulating a test without retries)
+                plugin._do_test_runs(mock_item, None)
+
+        # Verify that final status was set on the test run
+        assert len(test.test_runs) == 1
+        test_run = test.test_runs[0]
+        assert TestTag.FINAL_STATUS in test_run.tags
+        assert test_run.tags[TestTag.FINAL_STATUS] == TestStatus.PASS.value
+
+    def test_final_status_set_for_retry_scenario(self) -> None:
+        """Test that final status is set only on the last retry."""
+        from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
+
+        # Create test references using TestDataFactory
+        test_ref = TestDataFactory.create_test_ref("test_module", "test_suite.py", "test_function")
+
+        # Create mock session manager with retry handler
+        mock_manager = session_manager_mock().build_mock()
+        mock_manager.is_auto_injected = False
+        retry_handler = Mock(spec=AutoTestRetriesHandler)
+        retry_handler.should_apply.return_value = True
+        retry_handler.should_retry.side_effect = [True, False]  # Retry once, then stop
+        retry_handler.get_final_status.return_value = TestStatus.PASS
+        retry_handler.get_pretty_name.return_value = "Auto Test Retries"
+        retry_handler.set_tags_for_test_run = Mock()
+
+        mock_manager.retry_handlers = [retry_handler]
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        # Create test
+        test = mock_test(test_ref)
+        mock_manager.discover_test.return_value = (test.module, test.suite, test)
+
+        # Store test in plugin's dictionary
+        plugin.tests_by_nodeid = {"test_module/test_suite.py::test_function": test}
+
+        # Create mock pytest item
+        mock_config = Mock()
+        mock_config.get_terminal_writer.return_value = Mock()
+        mock_item = (
+            pytest_item_mock("test_module/test_suite.py::test_function")
+            .with_attribute("fixturenames", [])
+            .with_attribute("config", mock_config)
+            .build()
+        )
+
+        # Mock _get_test_outcome to return different statuses for retries
+        with patch.object(plugin, "_get_test_outcome", side_effect=[(TestStatus.FAIL, {}), (TestStatus.PASS, {})]):
+            # Mock trace_context
+            with patch("ddtrace.testing.internal.tracer_api.context.trace_context") as mock_trace_context:
+                mock_context = Mock()
+                mock_trace_context.return_value.__enter__.return_value = mock_context
+
+                # Mock other methods to avoid side effects
+                with (
+                    patch.object(plugin, "_log_test_reports"),
+                    patch.object(plugin, "_mark_test_reports_as_retry"),
+                ):
+                    # Call _do_test_runs (simulating a test with retries)
+                    plugin._do_test_runs(mock_item, None)
+
+        # Verify that we have 2 test runs (initial + 1 retry)
+        assert len(test.test_runs) == 2
+
+        # Verify that final status is set only on the last test run
+        first_run = test.test_runs[0]
+        last_run = test.test_runs[1]
+
+        assert TestTag.FINAL_STATUS not in first_run.tags
+        assert TestTag.FINAL_STATUS in last_run.tags
+        assert last_run.tags[TestTag.FINAL_STATUS] == TestStatus.PASS.value
+
+
+class TestModuleNaming:
+    """Test module name handling and path normalization."""
+
+    def test_module_path_slash_replacement(self) -> None:
+        """Test that forward slashes in module paths are replaced with dots."""
+        from ddtrace.testing.internal.pytest.utils import nodeid_to_names
+
+        # Test typical pytest nodeid with nested directories
+        module, suite, test = nodeid_to_names("tests/unit/contrib/test_example.py::TestClass::test_method")
+
+        assert module == "tests.unit.contrib"  # Slashes should be replaced with dots
+        assert suite == "test_example.py"
+        assert test == "TestClass::test_method"
+
+        # Test single directory
+        module, suite, test = nodeid_to_names("tests/test_simple.py::test_function")
+        assert module == "tests"  # Single directory should still be replaced
+        assert suite == "test_simple.py"
+        assert test == "test_function"
+
+        # Test no directory (root level)
+        module, suite, test = nodeid_to_names("test_root.py::test_function")
+        assert module == "."  # Should be EMPTY_NAME for root level
+        assert suite == "test_root.py"
+        assert test == "test_function"
+
+
 class TestSessionManagement:
     """Test session lifecycle and configuration."""
 
