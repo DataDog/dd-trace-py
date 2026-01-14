@@ -321,7 +321,7 @@ auto_inject trigger:
     branch: brettlangdon/python.ci.override
     strategy: depend
   variables:
-    DD_TRACE_PY_OCI_IMAGE: registry.ddbuild.io/ci/remote-updates/datadog-apm-library-python:pipeline-${CI_PIPELINE_ID}-1
+    DD_TRACE_PY_OCI_IMAGE: "oci://registry.ddbuild.io/ci/remote-updates/datadog-apm-library-python:pipeline-${CI_PIPELINE_ID}-1"
     DD_TRACE_PY_VERSION: "${PACKAGE_VERSION}"
 
 package-oci:
