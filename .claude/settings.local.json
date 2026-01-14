@@ -26,7 +26,6 @@
       "Bash(git grep:*)",
       "Bash(ast-grep scan:*)",
       "Bash(awk:*)",
-      "Bash(jj:*)",
       "WebFetch(domain:ast-grep.github.io)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
