@@ -149,7 +149,7 @@ variables:
       apk add curl git gcc g++ musl-dev libffi-dev openssl-dev bash cargo make cmake patchelf
       curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       export PATH="$HOME/.cargo/bin:$PATH"
-      pip install -r ci/requirements/ci.txt
+      pip install -r ${CI_PROJECT_DIR}/ci/requirements/ci.txt
     - twine check ${SDIST_FILE}
     - pip install ${SDIST_FILE}
     - python ${CI_PROJECT_DIR}/tests/smoke_test.py
