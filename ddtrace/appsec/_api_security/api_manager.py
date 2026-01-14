@@ -122,8 +122,8 @@ class APIManager(Service):
 
         # Framework is not fully supported
         if method is None or route is None or status is None:
-            if is_404:
-                # We should not report missing route on 404
+            if is_404 or env.blocked:
+                # We should not report missing route on 404 or blocked requests
                 return False
             log.debug(
                 "unsupported groupkey for api security [method %s] [route %s] [status %s]",
