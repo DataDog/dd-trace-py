@@ -1,4 +1,5 @@
 import threading
+from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -16,6 +17,8 @@ from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._prompts.cache import HotCache
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
+from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import Prompt
 
 
 log = get_logger(__name__)
@@ -66,7 +69,7 @@ class PromptManager:
         self,
         prompt_id: str,
         label: Optional[str] = None,
-        fallback: Optional[Union[str, List[Dict[str, str]]]] = None,
+        fallback: Optional[Union[str, List[Message], Prompt, Callable[[], Union[str, List[Message], Prompt]]]] = None,
     ) -> ManagedPrompt:
         """
         Retrieve a prompt template from the registry.
@@ -287,19 +290,33 @@ class PromptManager:
         self,
         prompt_id: str,
         label: str,
-        fallback: Optional[Union[str, List[Dict[str, str]]]] = None,
+        fallback: Optional[Union[str, List[Message], Prompt, Callable[[], Union[str, List[Message], Prompt]]]] = None,
     ) -> ManagedPrompt:
         """Create a fallback prompt when fetch fails."""
-        if fallback is not None:
-            log.warning("Using user-provided fallback for prompt %s (label=%s)", prompt_id, label)
-            template: Union[str, List[Dict[str, str]]] = fallback
-        else:
+        if fallback is None:
             log.warning("Using empty fallback for prompt %s (label=%s)", prompt_id, label)
-            template = ""
+            return ManagedPrompt(
+                prompt_id=prompt_id,
+                version="fallback",
+                label=label,
+                source="fallback",
+                template="",
+                variables=[],
+            )
+
+        log.warning("Using user-provided fallback for prompt %s (label=%s)", prompt_id, label)
+        value = fallback() if callable(fallback) else fallback
+
+        if isinstance(value, dict) and ("template" in value or "chat_template" in value):
+            template = value.get("template") or value.get("chat_template")
+            version = value.get("version", "fallback")
+        else:
+            template = value
+            version = "fallback"
 
         return ManagedPrompt(
             prompt_id=prompt_id,
-            version="fallback",
+            version=version,
             label=label,
             source="fallback",
             template=template,

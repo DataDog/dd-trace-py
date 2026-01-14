@@ -1354,15 +1354,16 @@ class LLMObs(Service):
         cls,
         prompt_id: str,
         label: Optional[str] = None,
-        fallback: Optional[Union[str, List[Dict[str, str]]]] = None,
+        fallback: Optional[Union[str, List[Message], Prompt, Callable[[], Union[str, List[Message], Prompt]]]] = None,
     ) -> "ManagedPrompt":
         """
         Retrieve a prompt template from the Datadog Prompt Registry.
 
         :param prompt_id: The unique identifier of the prompt in the registry
         :param label: Deployment label (e.g., "prod", "dev"). Defaults to "prod"
-        :param fallback: Template string or message list to use if prompt cannot be
-                         fetched (cold start + API failure). If None, returns empty prompt.
+        :param fallback: Fallback to use if prompt cannot be fetched (cold start + API failure).
+                         Can be a template string, message list, Prompt dict, or a callable that
+                         returns any of those. If None, returns empty prompt.
 
         :returns: A ManagedPrompt object with template and rendering methods
 
