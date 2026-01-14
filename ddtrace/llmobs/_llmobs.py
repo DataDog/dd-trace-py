@@ -1321,7 +1321,13 @@ class LLMObs(Service):
                     (
                         annotation_id,
                         ctx_id,
-                        {"tags": tags, "prompt": prompt, "prompt_variables": prompt_variables, "_name": name, "_linked_spans": _linked_spans},
+                        {
+                            "tags": tags,
+                            "prompt": prompt,
+                            "prompt_variables": prompt_variables,
+                            "_name": name,
+                            "_linked_spans": _linked_spans,
+                        },
                     )
                 )
 
