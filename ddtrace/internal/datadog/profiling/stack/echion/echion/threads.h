@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 
 #if defined PL_LINUX
@@ -221,8 +222,9 @@ ThreadInfo::unwind(PyThreadState* tstate)
 inline Result<void>
 ThreadInfo::unwind_tasks(PyThreadState* tstate)
 {
-    // The size of the "pure Python" stack (before asyncio Frames), computed later by walking the Python Stack
-    size_t upper_python_stack_size = 0;
+    // The size of the "pure Python" stack (before asyncio Frames).
+    // Defaults to the full Python stack size (and updated if we find the "_run" Frame)
+    size_t upper_python_stack_size = python_stack.size();
 
     // Check if the Python stack contains "_run".
     // To avoid having to do string comparisons every time we unwind Tasks, we keep track
@@ -678,8 +680,20 @@ ThreadInfo::unwind_greenlets(PyThreadState* tstate, unsigned long cur_native_id)
 
         greenlet->unwind(frame, tstate, stack);
 
+        std::unordered_set<GreenletInfo::ID> visited;
+
         // Unwind the parent greenlets
-        for (;;) {
+        // The limit here is arbitrary, but it should be more than enough for
+        // most use cases.
+        const size_t MAX_GREENLET_DEPTH = 512;
+        // Safety: prevent infinite loops from cycles or corrupted parent maps
+        for (size_t iteration_count = 0; iteration_count < MAX_GREENLET_DEPTH; ++iteration_count) {
+            // Check for cycles
+            if (visited.contains(greenlet_id)) {
+                break;
+            }
+            visited.insert(greenlet_id);
+
             auto parent_greenlet_info = greenlet_parent_map.find(greenlet_id);
             if (parent_greenlet_info == greenlet_parent_map.end())
                 break;

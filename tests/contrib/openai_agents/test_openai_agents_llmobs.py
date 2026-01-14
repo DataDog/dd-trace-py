@@ -196,7 +196,7 @@ def _assert_expected_agent_run(
 
 
 @pytest.mark.asyncio
-async def test_llmobs_single_agent(agents, mock_tracer, test_spans, request_vcr, llmobs_events, simple_agent):
+async def test_llmobs_single_agent(agents, test_spans, request_vcr, llmobs_events, simple_agent):
     """Test tracing with a simple agent with no tools or handoffs"""
     with request_vcr.use_cassette("test_simple_agent.yaml"):
         result = await agents.Runner.run(simple_agent, "What is the capital of France?")
@@ -237,7 +237,7 @@ async def test_llmobs_single_agent(agents, mock_tracer, test_spans, request_vcr,
 
 
 @pytest.mark.asyncio
-async def test_llmobs_streamed_single_agent(agents, mock_tracer, test_spans, request_vcr, llmobs_events, simple_agent):
+async def test_llmobs_streamed_single_agent(agents, test_spans, request_vcr, llmobs_events, simple_agent):
     from openai.types.responses import ResponseTextDeltaEvent
 
     final_output = ""
@@ -283,7 +283,7 @@ async def test_llmobs_streamed_single_agent(agents, mock_tracer, test_spans, req
     )
 
 
-def test_llmobs_single_agent_sync(agents, mock_tracer, test_spans, request_vcr, llmobs_events, simple_agent):
+def test_llmobs_single_agent_sync(agents, test_spans, request_vcr, llmobs_events, simple_agent):
     """Test tracing with a simple agent with no tools or handoffs"""
     with request_vcr.use_cassette("test_simple_agent.yaml"):
         result = agents.Runner.run_sync(simple_agent, "What is the capital of France?")
@@ -324,7 +324,7 @@ def test_llmobs_single_agent_sync(agents, mock_tracer, test_spans, request_vcr, 
 
 
 @pytest.mark.asyncio
-async def test_llmobs_manual_tracing_llmobs(agents, mock_tracer, test_spans, request_vcr, llmobs_events, simple_agent):
+async def test_llmobs_manual_tracing_llmobs(agents, test_spans, request_vcr, llmobs_events, simple_agent):
     from agents.tracing import custom_span
     from agents.tracing import trace
 
@@ -378,7 +378,7 @@ async def test_llmobs_manual_tracing_llmobs(agents, mock_tracer, test_spans, req
 
 @pytest.mark.asyncio
 async def test_llmobs_single_agent_with_tool_calls_llmobs(
-    agents, mock_tracer, test_spans, request_vcr, llmobs_events, addition_agent
+    agents, test_spans, request_vcr, llmobs_events, addition_agent
 ):
     with request_vcr.use_cassette("test_single_agent_with_tool_calls.yaml"):
         result = await agents.Runner.run(addition_agent, "What is the sum of 1 and 2?")
@@ -451,9 +451,7 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
 
 
 @pytest.mark.asyncio
-async def test_llmobs_single_agent_with_ootb_tools(
-    agents, mock_tracer, test_spans, request_vcr, llmobs_events, weather_agent
-):
+async def test_llmobs_single_agent_with_ootb_tools(agents, test_spans, request_vcr, llmobs_events, weather_agent):
     with request_vcr.use_cassette("test_single_agent_with_ootb_tools.yaml"):
         result = await agents.Runner.run(weather_agent, "What is the weather like in New York right now?")
 
@@ -496,9 +494,7 @@ async def test_llmobs_single_agent_with_ootb_tools(
 
 
 @pytest.mark.asyncio
-async def test_llmobs_multiple_agent_handoffs(
-    agents, mock_tracer, test_spans, request_vcr, llmobs_events, research_workflow
-):
+async def test_llmobs_multiple_agent_handoffs(agents, test_spans, request_vcr, llmobs_events, research_workflow):
     with request_vcr.use_cassette("test_multiple_agent_handoffs.yaml"):
         result = await agents.Runner.run(
             research_workflow, "What is a brief summary of what happened yesterday in the soccer world??"
@@ -703,7 +699,7 @@ async def test_llmobs_single_agent_with_tool_errors(
 
 @pytest.mark.asyncio
 async def test_llmobs_oai_agents_with_chat_completions_span_linking(
-    agents, mock_tracer_chat_completions, test_spans, request_vcr, llmobs_events, research_workflow
+    agents, openai, test_spans, request_vcr, llmobs_events, research_workflow
 ):
     with request_vcr.use_cassette("test_multiple_agent_handoffs_with_chat_completions.yaml"):
         result = await agents.Runner.run(
@@ -752,7 +748,7 @@ async def test_llmobs_oai_agents_with_chat_completions_span_linking(
 
 
 async def test_llmobs_oai_agents_with_guardrail_spans(
-    agents, mock_tracer_chat_completions, test_spans, request_vcr, llmobs_events, simple_agent_with_guardrail
+    agents, openai, test_spans, request_vcr, llmobs_events, simple_agent_with_guardrail
 ):
     with request_vcr.use_cassette("test_oai_agents_with_guardrail_spans.yaml"):
         await agents.Runner.run(simple_agent_with_guardrail, "What is the sum of 1 and 2?")
@@ -770,7 +766,7 @@ async def test_llmobs_oai_agents_with_guardrail_spans(
 
 
 @pytest.mark.asyncio
-async def test_no_error_when_current_span_is_none(agents, mock_tracer, simple_agent):
+async def test_no_error_when_current_span_is_none(agents, test_spans, simple_agent):
     """Regression test: tag_agent_manifest should not raise AttributeError when current_span is None."""
     from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.openai_agents.patch import _patched_run_single_turn

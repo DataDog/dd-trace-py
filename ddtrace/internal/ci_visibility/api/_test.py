@@ -454,6 +454,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             retry_test.set_status(status)
 
         retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
+        retry_test.finish()  # Send the retry span
 
         # Check if there will be more retries after this one
         will_retry_again = self.efd_should_retry()
@@ -569,6 +570,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
                 retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
 
         retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
+        retry_test.finish()  # Send the retry span
 
         # Check if there will be more retries after this one
         will_retry_again = self.atr_should_retry()

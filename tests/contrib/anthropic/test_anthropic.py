@@ -4,7 +4,6 @@ import anthropic as anthropic_module
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
-from tests.utils import TracerSpanContainer
 from tests.utils import override_global_config
 
 from .utils import tools
@@ -13,7 +12,7 @@ from .utils import tools
 ANTHROPIC_VERSION = parse_version(anthropic_module.__version__)
 
 
-def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, mock_tracer):
+def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, test_spans):
     """
     When the global config UST tags are set
         The service name should be used for all data
@@ -30,7 +29,7 @@ def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, mock_trac
                 messages=[{"role": "user", "content": "What does Nietzsche mean by 'God is dead'?"}],
             )
 
-    span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
     assert span.resource == "Messages.create"
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"
@@ -278,7 +277,7 @@ def test_anthropic_llm_sync_tools_full_use(anthropic, request_vcr, snapshot_cont
 
 
 @pytest.mark.asyncio
-async def test_global_tags_async(ddtrace_config_anthropic, anthropic, request_vcr, mock_tracer):
+async def test_global_tags_async(ddtrace_config_anthropic, anthropic, request_vcr, test_spans):
     """
     When the global config UST tags are set
         The service name should be used for all data
@@ -295,7 +294,7 @@ async def test_global_tags_async(ddtrace_config_anthropic, anthropic, request_vc
                 messages=[{"role": "user", "content": "What does Nietzsche mean by 'God is dead'?"}],
             )
 
-    span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
     assert span.resource == "AsyncMessages.create"
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"

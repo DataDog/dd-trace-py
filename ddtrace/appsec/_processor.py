@@ -287,8 +287,8 @@ class AppSecSpanProcessor(SpanProcessor):
                 continue
             # ensure ephemeral addresses are sent, event when value is None
             if waf_name not in WAF_DATA_NAMES.PERSISTENT_ADDRESSES and custom_data:
-                if value := custom_data.get(key):
-                    ephemeral_data[waf_name] = _serialize_address_values(waf_name, value)
+                if key in custom_data:
+                    ephemeral_data[waf_name] = _serialize_address_values(waf_name, custom_data.get(key))
 
             elif self._is_needed(waf_name) or force_keys:
                 value = None

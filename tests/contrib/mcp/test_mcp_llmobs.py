@@ -7,13 +7,12 @@ from textwrap import dedent
 import mock
 
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
-from tests.utils import TracerSpanContainer
 from tests.utils import override_config
 
 
-def _assert_distributed_trace(mock_tracer, llmobs_events, expected_tool_name):
+def _assert_distributed_trace(test_spans, llmobs_events, expected_tool_name):
     """Assert that client and server spans have the same trace ID and return client/server spans and LLM Obs events."""
-    traces = TracerSpanContainer(mock_tracer).pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) >= 1
 
     all_spans = [span for trace in traces for span in trace]
@@ -35,13 +34,13 @@ def _assert_distributed_trace(mock_tracer, llmobs_events, expected_tool_name):
     return all_spans, client_events, server_events, client_spans, server_spans
 
 
-def test_llmobs_mcp_client_calls_server(mcp_setup, mock_tracer, llmobs_events, mcp_call_tool):
+def test_llmobs_mcp_client_calls_server(mcp_setup, test_spans, llmobs_events, mcp_call_tool):
     """Test that LLMObs records are emitted for both client and server MCP operations."""
     asyncio.run(mcp_call_tool("calculator", {"operation": "add", "a": 20, "b": 22}))
 
     llmobs_events.sort(key=lambda event: event["start_ns"])
     all_spans, client_events, server_events, client_spans, server_spans = _assert_distributed_trace(
-        mock_tracer, llmobs_events, "calculator"
+        test_spans, llmobs_events, "calculator"
     )
 
     # Sort all_spans by start_ns to match llmobs_events order
@@ -149,12 +148,12 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mock_tracer, llmobs_events, m
     )
 
 
-def test_llmobs_client_server_tool_error(mcp_setup, mock_tracer, llmobs_events, mcp_call_tool):
+def test_llmobs_client_server_tool_error(mcp_setup, test_spans, llmobs_events, mcp_call_tool):
     """Test error handling in both client and server MCP operations."""
     asyncio.run(mcp_call_tool("failing_tool", {"param": "value"}))
 
     all_spans, client_events, server_events, client_spans, server_spans = _assert_distributed_trace(
-        mock_tracer, llmobs_events, "failing_tool"
+        test_spans, llmobs_events, "failing_tool"
     )
 
     # session, client initialize, server initialize, client tool call, server tool call (no list tools)
@@ -226,9 +225,9 @@ def test_llmobs_client_server_tool_error(mcp_setup, mock_tracer, llmobs_events, 
     )
 
 
-def test_server_initialization_span_created(mcp_setup, mock_tracer, llmobs_events, mcp_server_initialized):
+def test_server_initialization_span_created(mcp_setup, test_spans, llmobs_events, mcp_server_initialized):
     """Test that server initialization creates a span and LLMObs event with custom client info."""
-    traces = TracerSpanContainer(mock_tracer).pop_traces()
+    traces = test_spans.pop_traces()
     all_spans = [span for trace in traces for span in trace]
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
@@ -328,7 +327,7 @@ def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subproc
     assert client_trace["spans"][0]["_dd"]["apm_trace_id"] != server_trace["spans"][0]["_dd"]["apm_trace_id"]
 
 
-def test_intent_capture_tool_schema_injection(mcp_setup, mock_tracer, llmobs_events, mcp_server):
+def test_intent_capture_tool_schema_injection(mcp_setup, llmobs_events, mcp_server):
     """Test that intent capture adds ddtrace property to tool input schemas."""
     from mcp.shared.memory import create_connected_server_and_client_session
 
@@ -366,7 +365,7 @@ def test_intent_capture_tool_schema_injection(mcp_setup, mock_tracer, llmobs_eve
     assert "b" in schema["required"]
 
 
-def test_intent_capture_records_intent_on_span_meta(mcp_setup, mock_tracer, llmobs_events, mcp_server):
+def test_intent_capture_records_intent_on_span_meta(mcp_setup, test_spans, llmobs_events, mcp_server):
     """Test that intent is recorded on the span meta and ddtrace argument is excluded from input."""
     from mcp.shared.memory import create_connected_server_and_client_session
 
@@ -405,7 +404,7 @@ def test_intent_capture_records_intent_on_span_meta(mcp_setup, mock_tracer, llmo
     assert "b" in arguments
 
 
-def test_intent_capture_disabled_by_default(mcp_setup, mock_tracer, llmobs_events, mcp_server):
+def test_intent_capture_disabled_by_default(mcp_setup, test_spans, llmobs_events, mcp_server):
     """Test that intent capture is disabled by default and ddtrace property is not injected."""
     from mcp.shared.memory import create_connected_server_and_client_session
 

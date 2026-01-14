@@ -695,14 +695,15 @@ def test_long_running_websocket_session(snapshot_app):
             assert "bye" in farewell
 
 
-def test_dont_trace_websocket_by_default(client, test_spans):
+def test_dont_trace_websocket_when_disabled(client, test_spans):
     initial_event_count = len(test_spans.pop_traces())
-    with client.websocket_connect("/ws") as websocket:
-        data = websocket.receive_json()
-        assert data == {"test": "Hello WebSocket"}
-        websocket.send_text("ping")
-        spans = test_spans.pop_traces()
-        assert len(spans) <= initial_event_count
+    with override_config("fastapi", dict(trace_asgi_websocket_messages=False)):
+        with client.websocket_connect("/ws") as websocket:
+            data = websocket.receive_json()
+            assert data == {"test": "Hello WebSocket"}
+            websocket.send_text("ping")
+            spans = test_spans.pop_traces()
+            assert len(spans) <= initial_event_count
 
 
 def _run_websocket_context_propagation_test():
