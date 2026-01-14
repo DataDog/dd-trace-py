@@ -143,3 +143,61 @@ class TestLLMObsGetPrompt:
                 prompt_data = span._get_ctx_item(INPUT_PROMPT)
                 assert prompt_data["id"] == "greeting"
                 assert prompt_data["variables"] == {"name": "Alice"}
+
+    def test_callable_fallback_returns_string(self):
+        """Callable fallback returning string is invoked when API fails."""
+        call_count = 0
+
+        def get_fallback():
+            nonlocal call_count
+            call_count += 1
+            return "Lazy fallback: {{name}}"
+
+        with mock_api(500, "Error")[0]:
+            prompt = LLMObs.get_prompt("greeting", fallback=get_fallback)
+
+        assert call_count == 1
+        assert prompt.source == "fallback"
+        assert prompt.format(name="Bob") == "Lazy fallback: Bob"
+
+    def test_callable_fallback_returns_prompt_dict(self):
+        """Callable fallback returning Prompt dict extracts template and version."""
+
+        def get_fallback():
+            return {"template": "From dict: {{name}}", "version": "local-v1"}
+
+        with mock_api(500, "Error")[0]:
+            prompt = LLMObs.get_prompt("greeting", fallback=get_fallback)
+
+        assert prompt.source == "fallback"
+        assert prompt.version == "local-v1"
+        assert prompt.format(name="Alice") == "From dict: Alice"
+
+    def test_callable_fallback_returns_chat_template(self):
+        """Callable fallback returning Prompt dict with chat_template."""
+
+        def get_fallback():
+            return {"chat_template": [{"role": "user", "content": "Hello {{name}}"}], "version": "chat-v1"}
+
+        with mock_api(500, "Error")[0]:
+            prompt = LLMObs.get_prompt("greeting", fallback=get_fallback)
+
+        assert prompt.source == "fallback"
+        assert prompt.version == "chat-v1"
+        assert prompt.format(name="World") == [{"role": "user", "content": "Hello World"}]
+
+    def test_callable_fallback_not_called_on_success(self):
+        """Callable fallback is NOT invoked when API succeeds."""
+        call_count = 0
+
+        def get_fallback():
+            nonlocal call_count
+            call_count += 1
+            return "Should not be used"
+
+        with mock_api(200, GREETING_RESPONSE)[0]:
+            prompt = LLMObs.get_prompt("greeting", fallback=get_fallback)
+
+        assert call_count == 0
+        assert prompt.source == "registry"
+        assert prompt.format(name="Alice") == "Hello Alice!"
