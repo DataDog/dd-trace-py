@@ -1,9 +1,6 @@
 import threading
-from typing import Callable
 from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Union
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import _telemetry as telemetry
@@ -17,8 +14,7 @@ from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._prompts.cache import HotCache
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
-from ddtrace.llmobs.types import Message
-from ddtrace.llmobs.types import Prompt
+from ddtrace.llmobs.types import PromptLike
 
 
 log = get_logger(__name__)
@@ -69,7 +65,7 @@ class PromptManager:
         self,
         prompt_id: str,
         label: Optional[str] = None,
-        fallback: Optional[Union[str, List[Message], Prompt, Callable[[], Union[str, List[Message], Prompt]]]] = None,
+        fallback: PromptLike = None,
     ) -> ManagedPrompt:
         """
         Retrieve a prompt template from the registry.
@@ -140,9 +136,7 @@ class PromptManager:
         try:
             prompt = self._fetch_from_registry(prompt_id, label, timeout=self._timeout)
             if prompt is not None:
-                cached_prompt = prompt._with_source("cache")
-                self._hot_cache.set(key, cached_prompt)
-                self._warm_cache.set(key, cached_prompt)
+                self._update_caches(key, prompt)
                 return prompt
         except Exception as e:
             log.debug("Failed to refresh prompt %s: %s", prompt_id, e)
@@ -152,16 +146,18 @@ class PromptManager:
     def _cache_key(self, prompt_id: str, label: str) -> str:
         return f"{self._ml_app}:{prompt_id}:{label}"
 
+    def _update_caches(self, key: str, prompt: ManagedPrompt) -> None:
+        """Store a prompt in both L1 and L2 caches with source='cache'."""
+        cached_prompt = prompt._with_source("cache")
+        self._hot_cache.set(key, cached_prompt)
+        self._warm_cache.set(key, cached_prompt)
+
     def _sync_fetch(self, prompt_id: str, label: str, key: str) -> Optional[ManagedPrompt]:
         """Synchronous fetch with timeout for cold starts."""
         try:
             prompt = self._fetch_from_registry(prompt_id, label, timeout=self._timeout)
             if prompt is not None:
-                # Store cached version (source="cache") for future retrievals
-                cached_prompt = prompt._with_source("cache")
-                self._hot_cache.set(key, cached_prompt)
-                self._warm_cache.set(key, cached_prompt)
-                # Return original with source="registry" for this call
+                self._update_caches(key, prompt)
                 return prompt
         except Exception as e:
             log.debug("Sync fetch failed for prompt %s: %s", prompt_id, e)
@@ -194,10 +190,7 @@ class PromptManager:
         try:
             prompt = self._fetch_from_registry(prompt_id, label, timeout=self._timeout)
             if prompt is not None:
-                # Store cached version (source="cache") for future retrievals
-                cached_prompt = prompt._with_source("cache")
-                self._hot_cache.set(key, cached_prompt)
-                self._warm_cache.set(key, cached_prompt)
+                self._update_caches(key, prompt)
         except Exception as e:
             log.debug("Background refresh failed for prompt %s: %s", prompt_id, e)
             telemetry.record_prompt_fetch_error(prompt_id, type(e).__name__)
@@ -290,35 +283,11 @@ class PromptManager:
         self,
         prompt_id: str,
         label: str,
-        fallback: Optional[Union[str, List[Message], Prompt, Callable[[], Union[str, List[Message], Prompt]]]] = None,
+        fallback: PromptLike = None,
     ) -> ManagedPrompt:
         """Create a fallback prompt when fetch fails."""
         if fallback is None:
             log.warning("Using empty fallback for prompt %s (label=%s)", prompt_id, label)
-            return ManagedPrompt(
-                prompt_id=prompt_id,
-                version="fallback",
-                label=label,
-                source="fallback",
-                template="",
-                variables=[],
-            )
-
-        log.warning("Using user-provided fallback for prompt %s (label=%s)", prompt_id, label)
-        value = fallback() if callable(fallback) else fallback
-
-        if isinstance(value, dict) and ("template" in value or "chat_template" in value):
-            template = value.get("template") or value.get("chat_template")
-            version = value.get("version", "fallback")
         else:
-            template = value
-            version = "fallback"
-
-        return ManagedPrompt(
-            prompt_id=prompt_id,
-            version=version,
-            label=label,
-            source="fallback",
-            template=template,
-            variables=[],
-        )
+            log.warning("Using user-provided fallback for prompt %s (label=%s)", prompt_id, label)
+        return ManagedPrompt.from_fallback(prompt_id, label, fallback)
