@@ -126,10 +126,12 @@ class OptimizationIteration:
         """Load and prepare the optimization system prompt.
 
         Loads the template from _prompt_optimization.md and replaces placeholders.
+        Adds evaluation model information and random tip at the end.
 
         :return: System prompt string with output format injected.
         """
         import os
+        import random
 
         # Get the directory of this file
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -143,6 +145,26 @@ class OptimizationIteration:
         output_format = self._get_evaluation_output_format()
         system_prompt = template.replace("{{EVALUATION_OUTPUT_FORMAT}}", output_format)
 
+        # Add evaluation model information at the end
+        additional_parts = []
+        if "optimization_model_name" in self._config:
+            eval_model = self._config.get("model_name", "unknown")
+            additional_parts.append(
+                f"\n\nIMPORTANT: The improved prompt will be applied to this evaluation model: {eval_model}"
+            )
+            additional_parts.append(
+                "Consider the capabilities, limitations, and characteristics of this specific model "
+                "when optimizing the prompt."
+            )
+
+        # Add random tip at the end
+        tip_key = random.choice(list(TIPS.keys()))
+        tip_text = TIPS[tip_key]
+        additional_parts.append(f"\n\n**TIP: {tip_text}**")
+
+        if additional_parts:
+            system_prompt += "\n".join(additional_parts)
+
         return system_prompt
 
     def _get_evaluation_output_format(self) -> str:
@@ -151,42 +173,20 @@ class OptimizationIteration:
         :return: String describing the expected output format.
         """
         # Try to get from config
-        if "evaluation_output_format" in self._config:
-            return str(self._config["evaluation_output_format"])
+        return self._config["evaluation_output_format"]
 
-        # Default format if not specified
-        return """```json
-{
-  "value": "boolean: true or false evaluation result",
-  "reasoning": "string: detailed explanation for the evaluation decision"
-}
-```"""
 
     def _build_user_prompt(self) -> str:
         """Build user prompt with current prompt and evaluation examples.
 
         Includes:
         - Current prompt being optimized
-        - Evaluation model information
+        - Performance metrics
         - Examples from results (TP, TN, FP, FN if available)
-        - Random optimization tip
 
         :return: User prompt string.
         """
-        import random
-
         prompt_parts = [f"Initial Prompt:\n{self.current_prompt}\n"]
-
-        # Add evaluation model information
-        if "optimization_model_name" in self._config:
-            eval_model = self._config.get("model_name", "unknown")
-            prompt_parts.append(
-                f"IMPORTANT: The improved prompt will be applied to this evaluation model: {eval_model}"
-            )
-            prompt_parts.append(
-                "Consider the capabilities, limitations, and characteristics of this specific model "
-                "when optimizing the prompt.\n"
-            )
 
         # Extract examples from evaluation results
         results = self.current_results
@@ -195,10 +195,9 @@ class OptimizationIteration:
         # Add performance metrics if available
         if summary_evals:
             prompt_parts.append("Performance Metrics:")
-            for metric_name, metric_data in summary_evals.items():
-                if isinstance(metric_data, dict):
-                    score = metric_data.get("score") or metric_data.get("mean", "N/A")
-                    prompt_parts.append(f"- {metric_name}: {score}")
+            for summary_metric_name, summary_metric_data in summary_evals.items():
+                for metric_name, metric_data in summary_metric_data.items():
+                    prompt_parts.append(f"- {metric_name}: {metric_data}")
             prompt_parts.append("")
 
         # Get individual results to find examples
@@ -228,11 +227,6 @@ class OptimizationIteration:
             if tp_example:
                 prompt_parts.append("GOOD EXAMPLE (True Positive):")
                 prompt_parts.append(self._format_example(tp_example))
-
-        # Add random tip
-        tip_key = random.choice(list(TIPS.keys()))
-        tip_text = TIPS[tip_key]
-        prompt_parts.append(f"**TIP: {tip_text}**")
 
         return "\n\n".join(prompt_parts)
 
@@ -654,11 +648,10 @@ class PromptOptimization:
         logger.debug("Running experiment: %s", iteration_name)
 
         # Update config with current prompt
-        experiment_config = {
-            "model_name": self._model_name,
-            "prompt": prompt,
-        }
+        # Start with base config, then override prompt with the new one
+        experiment_config = {"model_name": self._model_name}
         experiment_config.update(self._config)
+        experiment_config["prompt"] = prompt  # Override with the optimized prompt
 
         experiment = Experiment(
             name=f"{self.name}_{iteration_name}",
@@ -689,9 +682,8 @@ class PromptOptimization:
         """
         # Try to extract from summary_evaluations
         summary_evals = results.get("summary_evaluations", {})
-        print(summary_evals)
         if not summary_evals:
-            return None
+            raise "No summary evaluations provided."
 
         # If we have summary evaluators, get the first numeric value from the first evaluator's result
         if self._summary_evaluators and summary_evals:
