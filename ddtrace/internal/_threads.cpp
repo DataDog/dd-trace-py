@@ -79,7 +79,52 @@ class PyRef
     {
         Py_INCREF(_obj);
     }
-    inline ~PyRef() { Py_DECREF(_obj); }
+    inline ~PyRef()
+    {
+        // Check if Python is finalizing before decrefing to avoid crashes.
+        // During finalization, _PyThreadState_GET() in _Py_Dealloc may return
+        // NULL or an invalid pointer, leading to crashes when accessing tstate
+        // (see cpython/Objects/object.c:3183-3184).
+        //
+        // NOTE: There's a time-of-check to time-of-use (TOCTOU) race condition
+        // here: Python could start finalizing between the check and the decref.
+        // See PEP 788 (https://peps.python.org/pep-0788/) for details. However,
+        // in practice this is mitigated because:
+        // 1. PyRef is destroyed before GILGuard (destructors run in reverse order),
+        //    so the GIL should be held when this destructor runs
+        // 2. Holding the GIL provides protection: threads already attached can
+        //    continue using Python APIs even after finalization starts. The
+        //    finalization flag prevents NEW attachments, not existing ones.
+        // 3. However, once runtime->initialized = 0, some runtime state may
+        //    become invalid, so we still check finalization as a safety measure
+        // 4. For a more robust solution, PEP 788's PyInterpreterGuard should
+        //    be used (Python 3.15+), but that's not available yet
+        //
+        // Py_IsFinalizing() uses atomic loads (_Py_atomic_load_ptr_relaxed) and
+        // is safe to call from any thread without holding the GIL.
+#if PY_VERSION_HEX >= 0x30d0000
+        if (Py_IsFinalizing()) {
+#else
+        if (_Py_IsFinalizing()) {
+#endif
+            // Skip decref during finalization. The object will be cleaned up
+            // by Python's finalization process anyway. See _threadmodule.c:377-378
+            // for similar handling: "Py_DECREF() cannot be called because the GIL
+            // is not held: leak references on purpose. Python is being finalized anyway."
+            return;
+        }
+        // Only decref if we have the GIL. In normal operation, the GIL should
+        // be held because PyRef is destroyed before GILGuard in the thread lambda
+        // (destructors run in reverse order). PyGILState_Check() accesses thread-local
+        // storage which may be invalid during finalization, so we only call it
+        // after checking finalization.
+        if (PyGILState_Check()) {
+            // Small TOCTOU window here, but mitigated by already holding GIL
+            Py_DECREF(_obj);
+        }
+        // If GIL is not held and Python is not finalizing, skip decref to avoid
+        // crashes (acceptable leak during abnormal shutdown scenarios).
+    }
 
   private:
     PyObject* _obj;
@@ -269,67 +314,73 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
     self->_thread = std::make_unique<std::thread>([self]() {
         GILGuard _gil;
 
-        PyRef _((PyObject*)self);
-
-        // Retrieve the thread ID
         {
-            Py_DECREF(self->ident);
-            self->ident = PyLong_FromLong((long)PyThreadState_Get()->thread_id);
+            PyRef _((PyObject*)self);
 
-            // Map the PeriodicThread object to its thread ID
-            PyDict_SetItem(_periodic_threads, self->ident, (PyObject*)self);
-        }
-
-        // Mark the thread as started from this point.
-        self->_started->set();
-
-        bool error = false;
-        auto interval = std::chrono::milliseconds((long long)(self->interval * 1000));
-        if (self->_no_wait_at_start)
-            self->_request->set();
-
-        while (!self->_stopping) {
+            // Retrieve the thread ID
             {
-                AllowThreads _;
+                Py_DECREF(self->ident);
+                self->ident = PyLong_FromLong((long)PyThreadState_Get()->thread_id);
 
-                if (self->_request->wait(interval)) {
-                    if (self->_stopping)
-                        break;
+                // Map the PeriodicThread object to its thread ID
+                PyDict_SetItem(_periodic_threads, self->ident, (PyObject*)self);
+            }
 
-                    // Awake signal
-                    self->_request->clear();
-                    self->_served->set();
+            // Mark the thread as started from this point.
+            self->_started->set();
+
+            bool error = false;
+            auto interval = std::chrono::milliseconds((long long)(self->interval * 1000));
+            if (self->_no_wait_at_start)
+                self->_request->set();
+
+            while (!self->_stopping) {
+                {
+                    AllowThreads _;
+
+                    if (self->_request->wait(interval)) {
+                        if (self->_stopping)
+                            break;
+
+                        // Awake signal
+                        self->_request->clear();
+                        self->_served->set();
+                    }
+                }
+
+#if PY_VERSION_HEX >= 0x30d0000
+                if (Py_IsFinalizing()) {
+#else
+                if (_Py_IsFinalizing()) {
+#endif
+                    break;
+                }
+
+                if (PeriodicThread__periodic(self)) {
+                    // Error
+                    error = true;
+                    break;
                 }
             }
 
+            // Run the shutdown callback if there was no error and we are not
+            // at Python shutdown.
+            if (!self->_atexit && !error && self->_on_shutdown != Py_None) {
 #if PY_VERSION_HEX >= 0x30d0000
-            if (Py_IsFinalizing()) {
+                if (!Py_IsFinalizing()) {
 #else
-            if (_Py_IsFinalizing()) {
+                if (!_Py_IsFinalizing()) {
 #endif
-                break;
+                    PeriodicThread__on_shutdown(self);
+                }
             }
 
-            if (PeriodicThread__periodic(self)) {
-                // Error
-                error = true;
-                break;
-            }
+            // PyRef destructor runs here, ensuring decref completes before we signal done
         }
 
-        // Run the shutdown callback if there was no error and we are not
-        // at Python shutdown.
-        if (!self->_atexit && !error && self->_on_shutdown != Py_None) {
-#if PY_VERSION_HEX >= 0x30d0000
-            if (!Py_IsFinalizing()) {
-#else
-            if (!_Py_IsFinalizing()) {
-#endif
-                PeriodicThread__on_shutdown(self);
-            }
-        }
-
-        // Notify the join method that the thread has stopped
+        // Notify the join method that the thread has stopped.
+        // This happens AFTER PyRef destructor has completed, ensuring the decref
+        // is done before any code waiting on _stopped proceeds.
         self->_stopped->set();
     });
 
