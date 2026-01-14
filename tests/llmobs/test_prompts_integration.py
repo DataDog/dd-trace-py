@@ -14,7 +14,6 @@ import pytest
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
-from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 
@@ -131,9 +130,9 @@ class TestLLMObsGetPrompt:
         assert prompt.source == "fallback"
         assert prompt.format() == [{"role": "user", "content": "Hi"}]
 
-    def test_annotation_context_requires_enable(self):
+    def test_annotation_context_requires_enable(self, tracer):
         """annotation_context with spans requires LLMObs.enable()."""
-        LLMObs.enable(_tracer=DummyTracer(), agentless_enabled=False)
+        LLMObs.enable(_tracer=tracer, agentless_enabled=False)
 
         with mock_api(200, GREETING_RESPONSE)[0]:
             prompt = LLMObs.get_prompt("greeting")
