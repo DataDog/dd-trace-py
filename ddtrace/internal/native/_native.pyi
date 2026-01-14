@@ -511,3 +511,18 @@ class ffe:
     class Configuration:
         def __init__(self, config_bytes: bytes) -> None: ...
         def resolve_value(self, flag_key: str, expected_type: ffe.FlagType, context: dict) -> ffe.ResolutionDetails: ...
+
+class SpanData:
+    def __init__(
+        self,
+        name: str,
+        service: Optional[str] = None,
+        resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+        trace_id: Optional[int] = None,
+        span_id: Optional[int] = None,
+        parent_id: Optional[int] = None,
+        start: Optional[int] = None,
+        span_api: str = "",
+        links: Optional[List[Any]] = None,
+    ): ...

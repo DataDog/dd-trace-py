@@ -51,6 +51,7 @@ from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils.time import Time
+from ddtrace.internal.native._native import SpanData
 
 
 class SpanEvent:
@@ -101,7 +102,7 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
     return f"{large_int:032x}"[:16]
 
 
-class Span(object):
+class Span(SpanData):
     __slots__ = [
         # Public span attributes
         "service",
