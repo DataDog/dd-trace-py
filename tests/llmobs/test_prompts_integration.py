@@ -137,7 +137,7 @@ class TestLLMObsGetPrompt:
         with mock_api(200, GREETING_RESPONSE)[0]:
             prompt = LLMObs.get_prompt("greeting")
 
-        with LLMObs.annotation_context(prompt=prompt.to_annotation_dict(), prompt_variables={"name": "Alice"}):
+        with LLMObs.annotation_context(prompt=prompt.to_annotation_dict(name="Alice")):
             with LLMObs.llm(model_name="test-model", name="test") as span:
                 prompt_data = span._get_ctx_item(INPUT_PROMPT)
                 assert prompt_data["id"] == "greeting"

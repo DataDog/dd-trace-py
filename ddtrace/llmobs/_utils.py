@@ -52,7 +52,6 @@ STANDARD_INTEGRATION_SPAN_NAMES = (
 def _validate_prompt(
     prompt: Union[Dict[str, Any], Prompt, ManagedPrompt],
     strict_validation: bool,
-    prompt_variables: Optional[Dict[str, Any]] = None,
 ) -> ValidatedPromptDict:
     if isinstance(prompt, ManagedPrompt):
         prompt = prompt.to_annotation_dict()
@@ -64,13 +63,7 @@ def _validate_prompt(
     prompt_id = prompt.get("id")
     version = prompt.get("version")
     tags = prompt.get("tags")
-    # Merge prompt_variables with any existing variables from the prompt dict
-    # prompt_variables takes precedence (allows overriding)
-    existing_variables: Dict[str, Any] = prompt.get("variables") or {}
-    if prompt_variables:
-        variables: Optional[Dict[str, Any]] = {**existing_variables, **prompt_variables}
-    else:
-        variables = existing_variables if existing_variables else None
+    variables: Optional[Dict[str, Any]] = prompt.get("variables") or None
     template = prompt.get("template")
     chat_template = prompt.get("chat_template")
     ctx_variable_keys = prompt.get("rag_context_variables")

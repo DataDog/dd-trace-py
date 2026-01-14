@@ -139,19 +139,21 @@ class ManagedPrompt:
         system_message = "\n".join(system_messages) if system_messages else None
         return system_message, filtered_messages
 
-    def to_annotation_dict(self) -> Dict[str, Any]:
+    def to_annotation_dict(self, **variables: Any) -> Dict[str, Any]:
         """
         Convert to the format expected by annotation_context.
 
-        Note: Variables are NOT included here. They should be passed separately
-        via the prompt_variables= parameter in annotation_context().
+        Args:
+            **variables: Variable names and values used in the prompt template.
+                         Pass the same kwargs here that you use with format().
 
-        This matches the existing Prompt TypedDict in ddtrace/llmobs/types.py
+        Example:
+            prompt.to_annotation_dict(name="Alice", topic="weather")
         """
         result: Dict[str, Any] = {
             "id": self._id,
             "version": self._version,
-            "variables": {},  # Variables come from prompt_variables= param
+            "variables": variables if variables else {},
             "tags": {
                 "dd.prompt.source": self._source,
                 "dd.prompt.label": self._label,
