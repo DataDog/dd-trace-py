@@ -881,6 +881,7 @@ def test_native_logs(tmp_path):
     flare.prepare("DEBUG")
 
     native_logger.log("debug", "debug log")
+    native_logger.disable("file")  # Flush the non-blocking writer
 
     native_flare_file_path = tmp_path / f"tracer_native_{os.getpid()}.log"
     assert os.path.exists(native_flare_file_path)
