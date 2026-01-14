@@ -70,6 +70,7 @@ RESPONSE=$(
     -H "Authorization: Bearer $AUTH_TOKEN" \
     -H "Content-Type: application/vnd.api+json" \
     -d "$PAYLOAD"
+    -vv
 )
 
 echo "Response from API:"
