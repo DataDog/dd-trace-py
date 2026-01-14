@@ -45,6 +45,7 @@ def _id_not_zero(self, attribute_name, value):
         raise ValueError(f"{attribute_name} must be > 0. Value is {value}")
 
 
+@dataclasses.dataclass
 class SpanLink(SpanLinkData):
     """
     TraceId [required]: The span's 128-bit Trace ID
