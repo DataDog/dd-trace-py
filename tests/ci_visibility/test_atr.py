@@ -11,7 +11,6 @@ from ddtrace.internal.ci_visibility.api._session import TestVisibilitySession
 from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
-from tests.utils import DummyTracer
 
 
 class TestCIVisibilityTestATR:
@@ -21,10 +20,10 @@ class TestCIVisibilityTestATR:
     """
 
     def _get_session_settings(
-        self, atr_settings: AutoTestRetriesSettings, efd_enabled: bool = False
+        self, tracer, atr_settings: AutoTestRetriesSettings, efd_enabled: bool = False
     ) -> TestVisibilitySessionSettings:
         return TestVisibilitySessionSettings(
-            tracer=DummyTracer(),
+            tracer=tracer,
             test_service="efd_test_service",
             test_command="efd_test_command",
             test_framework="efd_test_framework",
@@ -61,7 +60,7 @@ class TestCIVisibilityTestATR:
         ),
     )
     @pytest.mark.parametrize("efd_enabled", (True, False))
-    def test_atr_max_retries(self, num_tests, atr_settings, atr_expected_retries, efd_enabled):
+    def test_atr_max_retries(self, tracer, num_tests, atr_settings, atr_expected_retries, efd_enabled):
         """Tests that the Test class retries the expected number of times"""
 
         expected_total_retries_count = sum(atr_expected_retries)
@@ -70,7 +69,7 @@ class TestCIVisibilityTestATR:
         total_retries = 0
         retried_tests = set()
         session = TestVisibilitySession(
-            session_settings=self._get_session_settings(atr_settings, efd_enabled=efd_enabled)
+            session_settings=self._get_session_settings(tracer, atr_settings, efd_enabled=efd_enabled)
         )
         session.efd_is_faulty_session = lambda: False
 
@@ -79,7 +78,7 @@ class TestCIVisibilityTestATR:
         for test_number, test_name in enumerate(test_names):
             atr_test = TestVisibilityTest(
                 name=test_name,
-                session_settings=self._get_session_settings(atr_settings, efd_enabled=efd_enabled),
+                session_settings=self._get_session_settings(tracer, atr_settings, efd_enabled=efd_enabled),
             )
 
             with mock.patch.object(atr_test, "get_session", return_value=session):
@@ -163,14 +162,14 @@ class TestCIVisibilityTestATR:
             ),
         ),
     )
-    def test_atr_final_status(self, test_result, retry_results: t.Iterable[TestStatus], expected_status):
+    def test_atr_final_status(self, tracer, test_result, retry_results: t.Iterable[TestStatus], expected_status):
         """Tests that the EFD API correctly reports the final statuses of a test"""
         atr_settings = AutoTestRetriesSettings(enabled=True)
-        session = TestVisibilitySession(session_settings=self._get_session_settings(atr_settings))
+        session = TestVisibilitySession(session_settings=self._get_session_settings(tracer, atr_settings))
         session.efd_is_faulty_session = lambda: False
 
         atr_test = TestVisibilityTest(
-            name="atr_test", session_settings=self._get_session_settings(atr_settings, efd_enabled=True)
+            name="atr_test", session_settings=self._get_session_settings(tracer, atr_settings, efd_enabled=True)
         )
 
         atr_test.get_session = lambda: session
@@ -187,10 +186,10 @@ class TestCIVisibilityTestATR:
             atr_test.atr_finish_retry(added_retry_number, test_result)
         assert atr_test.atr_get_final_status() == expected_status
 
-    def test_atr_does_not_retry_if_disabled(self):
+    def test_atr_does_not_retry_if_disabled(self, tracer):
         atr_test = TestVisibilityTest(
             name="atr_test",
-            session_settings=self._get_session_settings(atr_settings=AutoTestRetriesSettings(enabled=False)),
+            session_settings=self._get_session_settings(tracer, atr_settings=AutoTestRetriesSettings(enabled=False)),
         )
         atr_test.start()
         atr_test.finish_test(TestStatus.FAIL)

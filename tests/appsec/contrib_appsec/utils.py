@@ -19,7 +19,6 @@ from ddtrace.internal import constants
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.http import _format_template
 import tests.appsec.rules as rules
-from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -2077,22 +2076,6 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == 200, f"{self.status(response)} is not 200"
             c_tag = get_tag("_dd.appsec.trace.mark")
             assert c_tag == tag, f"[{c_tag}] is not [{tag}] {response.text[:50]}"
-
-
-@contextmanager
-def test_tracer():
-    from ddtrace.internal import core
-
-    tracer = DummyTracer()
-    original_tracer = ddtrace.tracer
-    ddtrace.tracer = tracer
-    core.tracer = tracer
-
-    # Yield to our test
-    yield tracer
-    tracer.pop()
-    ddtrace.tracer = original_tracer
-    core.tracer = original_tracer
 
 
 @contextmanager

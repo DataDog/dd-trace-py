@@ -7,6 +7,7 @@
 #include "echion/errors.h"
 #include "echion/greenlets.h"
 #include "echion/interp.h"
+#include "echion/strings.h"
 #include "echion/tasks.h"
 #include "echion/threads.h"
 #include "echion/vm.h"
@@ -182,6 +183,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
         });
 
         Sample::profile_borrow().stats().increment_sampling_event_count();
+        Sample::profile_borrow().stats().set_string_table_count(string_table.size());
 
         if (do_adaptive_sampling) {
             // Adjust the sampling interval at most every second

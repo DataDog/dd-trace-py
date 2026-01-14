@@ -14,8 +14,8 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     from ddtrace import patch, config
     patch(pynamodb=True)
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.pynamodb["service"]
 

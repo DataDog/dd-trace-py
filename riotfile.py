@@ -562,7 +562,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/lib_injection/",
             venvs=[
                 Venv(
-                    pys=select_pys(max_version="3.13"),
+                    pys=select_pys(),
                     pkgs={
                         "PyYAML": latest,
                         "pytest-randomly": latest,
@@ -2141,8 +2141,8 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
                 "httpx": [
-                    "~=0.17.0",
-                    "~=0.23.0",
+                    "~=0.25.0",
+                    "~=0.27.0",
                     latest,
                 ],
             },

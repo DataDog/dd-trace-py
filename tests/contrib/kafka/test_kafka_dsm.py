@@ -1,19 +1,15 @@
 import time
 
 from confluent_kafka import TopicPartition
-import mock
 import pytest
 
 from ddtrace._trace.pin import Pin
-import ddtrace.internal.datastreams  # noqa: F401 - used as part of mock patching
+from ddtrace.internal.datastreams import data_streams_processor
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.native import DDSketch
-from ddtrace.internal.service import ServiceStatus
-from ddtrace.internal.service import ServiceStatusError
-from tests.datastreams.test_public_api import MockedTracer
 
 
 DSM_TEST_PATH_HEADER_SIZE = 28
@@ -24,25 +20,12 @@ class CustomError(Exception):
 
 
 @pytest.fixture
-def dsm_processor(tracer):
-    processor = tracer.data_streams_processor
-    # Clean up any existing context to prevent test pollution
-    try:
-        del processor._current_context.value
-    except AttributeError:
-        pass
-
-    with mock.patch("ddtrace.internal.datastreams.data_streams_processor", return_value=processor):
-        yield processor
-        # flush buckets for the next test run
-        processor.periodic()
-
-        try:
-            processor.shutdown(timeout=5)
-        except ServiceStatusError as e:
-            # Expected: processor already stopped by tracer shutdown during test teardown
-            if e.current_status == ServiceStatus.RUNNING:
-                raise
+def dsm_processor():
+    processor = data_streams_processor(reset=True)
+    assert processor is not None, "Datastream Monitoring is not enabled"
+    yield processor
+    # Processor should be recreated by the tracer fixture
+    processor.shutdown(timeout=5)
 
 
 @pytest.mark.parametrize("payload_and_length", [("test", 4), ("你".encode("utf-8"), 3), (b"test2", 5)])
@@ -95,7 +78,7 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
     buckets = dsm_processor._buckets
     assert len(buckets) == 1
     first = list(buckets.values())[0].pathway_stats
-    ctx = DataStreamsCtx(MockedTracer().data_streams_processor, 0, 0, 0)
+    ctx = DataStreamsCtx(dsm_processor, 0, 0, 0)
     parent_hash = ctx._compute_hash(
         sorted(
             ["direction:out", "kafka_cluster_id:5L6g3nShT-eMCtK--X86sw", "type:kafka", "topic:{}".format(kafka_topic)]
@@ -274,9 +257,9 @@ def test_data_streams_default_context_propagation(consumer, producer, kafka_topi
     assert message.headers()[0][1] is not None
 
 
-def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, kafka_topic):
-    Pin._override(producer, tracer=dummy_tracer)
-    Pin._override(consumer, tracer=dummy_tracer)
+def test_span_has_dsm_payload_hash(kafka_tracer, test_spans, consumer, producer, kafka_topic):
+    Pin._override(producer, tracer=kafka_tracer)
+    Pin._override(consumer, tracer=kafka_tracer)
 
     test_string = "payload hash test"
     PAYLOAD = bytes(test_string, encoding="utf-8")
@@ -291,7 +274,7 @@ def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, kafka_topic
     # message comes back with expected test string
     assert message.value() == b"payload hash test"
 
-    traces = dummy_tracer.pop_traces()
+    traces = test_spans.pop_traces()
     produce_span = traces[0][0]
     consume_span = traces[len(traces) - 1][0]
 
