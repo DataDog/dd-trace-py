@@ -20,12 +20,6 @@ _registry = []  # type: typing.List[typing.Callable[[], None]]
 _registry_before_fork = []  # type: typing.List[typing.Callable[[], None]]
 _registry_after_parent = []  # type: typing.List[typing.Callable[[], None]]
 
-# Some integrations might require after-fork hooks to be executed after the
-# actual call to os.fork with earlier versions of Python (<= 3.6), else issues
-# like SIGSEGV will occur. Setting this to True will cause the after-fork hooks
-# to be executed after the actual fork, which seems to prevent the issue.
-_soft = True
-
 
 # Flag to determine, from the parent process, if fork has been called
 _forked = False
