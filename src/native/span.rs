@@ -15,7 +15,7 @@ impl SpanEventData {
         **_py_kwargs,
     ))]
     #[allow(clippy::too_many_arguments)]
-    pub fn __new__<'py>(
+    pub fn __new__(
         _py_args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
         _py_kwargs: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
     ) -> Self {
@@ -87,6 +87,7 @@ impl SpanData {
     ///
     /// This can not be put on new, because otherwise the signature needs to match
     /// for every inherited class
+    #[allow(clippy::too_many_arguments)]
     fn __init__<'p>(
         &mut self,
         _py: Python<'p>,

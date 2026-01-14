@@ -28,8 +28,8 @@ import dataclasses
 from enum import Enum
 from typing import Optional
 
-from ddtrace.internal.utils.formats import flatten_key_value
 from ddtrace.internal.native._native import SpanLinkData
+from ddtrace.internal.utils.formats import flatten_key_value
 
 
 class SpanLinkKind(Enum):
