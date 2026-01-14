@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 
 # This script enables "0 click onboarding" for new fuzzer in the dd-trace-py repository.
-# This means that any new fuzzer should be automatically detected and run in the internal infrastructure with enrichments, reporting, triaging, auto fix etc..
+# This means that any new fuzzer should be automatically detected and run in the internal
+# infrastructure with enrichments, reporting, triaging, auto fix etc...
 # Reports are submitted via Slack, with the channel defined by SLACK_CHANNEL
 #
 # Requirements:
 #
 # This scripts assumes that:
-# - Each fuzz target is built in a separate build directory named `fuzz` and having a `build.sh` script that builds the target.
-# - The build script appends the path to the built binary to a "MANIFEST_FILE", allowing the discovery of each fuzz target by the script.
+# - Each fuzz target is built in a separate build directory named `fuzz` and having a `build.sh` script that builds
+# the target.
+# - The build script appends the path to the built binary to a "MANIFEST_FILE", allowing the discovery of each fuzz
+# target by the script.
 
 from __future__ import annotations
 
@@ -20,6 +23,7 @@ import sys
 from typing import List
 
 import requests
+
 
 # TODO: replace me to dd-trace-py ops' slack channel once initial onboarding is done
 SLACK_CHANNEL = "fuzzing-ops"
