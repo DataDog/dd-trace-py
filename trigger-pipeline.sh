@@ -66,11 +66,10 @@ EOF
 
 echo "Triggering pipeline for ref: $REF"
 RESPONSE=$(
-    curl -s -X POST "$API_URL" \
+    curl -s -vv -X POST "$API_URL" \
     -H "Authorization: Bearer $AUTH_TOKEN" \
     -H "Content-Type: application/vnd.api+json" \
     -d "$PAYLOAD"
-    -vv
 )
 
 echo "Response from API:"
