@@ -22,6 +22,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import deep_getattr
+from ddtrace.trace import tracer
 
 
 # Pynamodb connection class
@@ -63,7 +64,7 @@ def patched_api_call(original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_cloud_api_operation("pynamodb.command", cloud_provider="aws", cloud_service="dynamodb"),
         service=trace_utils.ext_service(pin, config.pynamodb, "pynamodb"),
         span_type=SpanTypes.HTTP,

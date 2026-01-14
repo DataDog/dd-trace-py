@@ -47,9 +47,7 @@ The integration code finds all of the library-specific objects that products nee
 the context tree it's building via ``context_with_data``. Product code then accesses the data it needs
 by calling ``ExecutionContext.get_item`` like this::
 
-
-    pin = ctx.get_item("pin")
-    current_span = pin.tracer.current_span()
+    current_span = tracer.current_span()
     ctx.set_item("current_span", current_span)
     flask_config = ctx.get_item("flask_config")
     _set_request_tags(ctx.get_item("flask_request"), current_span, flask_config)

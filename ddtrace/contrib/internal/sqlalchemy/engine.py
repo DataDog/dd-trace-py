@@ -30,6 +30,7 @@ from ddtrace.ext import sql as sqlx
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.trace import tracer
 
 
 def trace_engine(engine, tracer=None, service=None):
@@ -68,7 +69,6 @@ class EngineTracer(object):
 
         # attach the PIN
         pin = Pin(service=self.service)
-        pin._tracer = self.tracer
         pin.onto(engine)
 
         listen(engine, "before_cursor_execute", self._before_cur_exec)
@@ -88,7 +88,7 @@ class EngineTracer(object):
             # don't trace the execution
             return
 
-        span = pin.tracer.trace(
+        span = tracer.trace(
             self.name,
             service=pin.service,
             span_type=SpanTypes.SQL,
@@ -111,7 +111,7 @@ class EngineTracer(object):
             # don't trace the execution
             return
 
-        span = pin.tracer.current_span()
+        span = tracer.current_span()
         if not span:
             return
 
@@ -127,7 +127,7 @@ class EngineTracer(object):
             # don't trace the execution
             return
 
-        span = pin.tracer.current_span()
+        span = tracer.current_span()
         if not span:
             return
 

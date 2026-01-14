@@ -27,6 +27,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.trace import tracer
 
 from .parse import parse_msg
 from .parse import parse_query
@@ -131,7 +132,7 @@ def _datadog_trace_operation(operation, wrapped):
     if not cmd or not pin or not pin.enabled():
         return None
 
-    span = pin.tracer.trace(
+    span = tracer.trace(
         schematize_database_operation("pymongo.cmd", database_provider="mongodb"),
         span_type=SpanTypes.MONGODB,
         service=trace_utils.ext_service(pin, config.pymongo),
@@ -254,7 +255,7 @@ def _trace_socket_write_command(func, args, kwargs):
 
 def _trace_cmd(cmd, socket_instance, address):
     pin = Pin.get_from(socket_instance)
-    s = pin.tracer.trace(
+    s = tracer.trace(
         schematize_database_operation("pymongo.cmd", database_provider="mongodb"),
         span_type=SpanTypes.MONGODB,
         service=trace_utils.ext_service(pin, config.pymongo),

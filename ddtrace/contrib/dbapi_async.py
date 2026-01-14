@@ -4,6 +4,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.trace import tracer
 
 from .._trace.pin import Pin
 from ..constants import _SPAN_MEASURED_KEY
@@ -59,7 +60,7 @@ class TracedAsyncCursor(TracedCursor):
             return await method(*args, **kwargs)
         measured = name == self._self_datadog_name
 
-        with pin.tracer.trace(
+        with tracer.trace(
             name, service=ext_service(pin, self._self_config), resource=resource, span_type=SpanTypes.SQL
         ) as s:
             if measured:
@@ -234,7 +235,7 @@ class TracedAsyncConnection(TracedConnection):
         if not pin or not pin.enabled():
             return await method(*args, **kwargs)
 
-        with pin.tracer.trace(name, service=ext_service(pin, self._self_config)) as s:
+        with tracer.trace(name, service=ext_service(pin, self._self_config)) as s:
             s._set_tag_str(COMPONENT, self._self_config.integration_name)
 
             # set span.kind to the type of request being performed

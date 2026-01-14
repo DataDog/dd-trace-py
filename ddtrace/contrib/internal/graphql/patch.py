@@ -43,6 +43,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
+from ddtrace.trace import tracer
 
 
 _graphql_version_str = graphql.__version__
@@ -137,7 +138,7 @@ def _traced_parse(func, args, kwargs):
     source_str = _get_source_str(source)
     # If graphql.parse() is called outside graphql.graphql(), graphql.parse will
     # be a top level span. Therefore we must explicitly set the service name.
-    with pin.tracer.trace(
+    with tracer.trace(
         name="graphql.parse",
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
@@ -157,7 +158,7 @@ def _traced_validate(func, args, kwargs):
     source_str = _get_source_str(document)
     # If graphql.validate() is called outside graphql.graphql(), graphql.validate will
     # be a top level span. Therefore we must explicitly set the service name.
-    with pin.tracer.trace(
+    with tracer.trace(
         name="graphql.validate",
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
@@ -186,7 +187,7 @@ def _traced_execute(func, args, kwargs):
         document = get_argument_value(args, kwargs, 1, "document")
     source_str = _get_source_str(document)
 
-    with pin.tracer.trace(
+    with tracer.trace(
         name="graphql.execute",
         resource=source_str,
         service=trace_utils.int_service(pin, config.graphql),
@@ -216,7 +217,7 @@ def _traced_query(func, args, kwargs):
     source = get_argument_value(args, kwargs, 1, "source")
     resource = _get_source_str(source)
 
-    with pin.tracer.trace(
+    with tracer.trace(
         name=schematize_url_operation("graphql.request", protocol="graphql", direction=SpanDirection.INBOUND),
         resource=resource,
         service=trace_utils.int_service(pin, config.graphql),
@@ -246,7 +247,7 @@ def _resolver_middleware(next_middleware, root, info, **args):
     if not pin or not pin.enabled():
         return next_middleware(root, info, **args)
 
-    with pin.tracer.trace(
+    with tracer.trace(
         name="graphql.resolve",
         resource=info.field_name,
         span_type=SpanTypes.GRAPHQL,

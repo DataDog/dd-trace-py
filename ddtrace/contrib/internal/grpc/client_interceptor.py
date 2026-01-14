@@ -24,6 +24,7 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -201,8 +202,6 @@ class _ClientInterceptor(
         if is_otlp_export(metadata):
             return None, client_call_details
 
-        tracer: Tracer = self._pin.tracer
-
         # Instead of using .trace, create the span and activate it at points where we call the continuations
         # This avoids the issue of spans being leaked when using the .future interface.
         parent = tracer.context_provider.active()
@@ -253,7 +252,7 @@ class _ClientInterceptor(
         )
         if span is None:
             return continuation(client_call_details, request)
-        with _activated_span(self._pin.tracer, span):
+        with _activated_span(tracer, span):
             try:
                 response = continuation(client_call_details, request)
                 _handle_response(span, response)
@@ -273,9 +272,9 @@ class _ClientInterceptor(
         )
         if span is None:
             return continuation(client_call_details, request)
-        with _activated_span(self._pin.tracer, span):
+        with _activated_span(tracer, span):
             response_iterator = continuation(client_call_details, request)
-            response_iterator = _WrappedResponseCallFuture(response_iterator, span, self._pin.tracer)
+            response_iterator = _WrappedResponseCallFuture(response_iterator, span, tracer)
         return response_iterator
 
     def intercept_stream_unary(self, continuation, client_call_details, request_iterator):
@@ -285,7 +284,7 @@ class _ClientInterceptor(
         )
         if span is None:
             return continuation(client_call_details, request_iterator)
-        with _activated_span(self._pin.tracer, span):
+        with _activated_span(tracer, span):
             try:
                 response = continuation(client_call_details, request_iterator)
                 _handle_response(span, response)
@@ -305,7 +304,7 @@ class _ClientInterceptor(
         )
         if span is None:
             return continuation(client_call_details, request_iterator)
-        with _activated_span(self._pin.tracer, span):
+        with _activated_span(tracer, span):
             response_iterator = continuation(client_call_details, request_iterator)
-            response_iterator = _WrappedResponseCallFuture(response_iterator, span, self._pin.tracer)
+            response_iterator = _WrappedResponseCallFuture(response_iterator, span, tracer)
         return response_iterator
