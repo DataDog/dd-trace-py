@@ -20,6 +20,12 @@ from ddtrace.llmobs.types import PromptLike
 log = get_logger(__name__)
 
 
+class PromptNotFoundError(Exception):
+    """Raised when a prompt is not found in the registry (404)."""
+
+    pass
+
+
 class PromptManager:
     """
     Manages prompt retrieval with Stale-While-Revalidate caching.
@@ -122,13 +128,14 @@ class PromptManager:
         """Force refresh a specific prompt from the registry.
 
         Fetches the prompt synchronously and updates both caches.
+        If the prompt no longer exists (404), evicts it from cache.
 
         Args:
             prompt_id: The prompt identifier.
             label: The prompt label. Defaults to DEFAULT_PROMPTS_LABEL.
 
         Returns:
-            The refreshed prompt, or None if fetch failed.
+            The refreshed prompt, or None if fetch failed or prompt not found.
         """
         label = label or DEFAULT_PROMPTS_LABEL
         key = self._cache_key(prompt_id, label)
@@ -138,6 +145,11 @@ class PromptManager:
             if prompt is not None:
                 self._update_caches(key, prompt)
                 return prompt
+        except PromptNotFoundError:
+            # Prompt was deleted - evict from cache
+            log.debug("Prompt %s was deleted, evicting from cache", prompt_id)
+            self._evict_caches(key)
+            telemetry.record_prompt_fetch_error(prompt_id, "PromptNotFoundError")
         except Exception as e:
             log.debug("Failed to refresh prompt %s: %s", prompt_id, e)
             telemetry.record_prompt_fetch_error(prompt_id, type(e).__name__)
@@ -152,6 +164,11 @@ class PromptManager:
         self._hot_cache.set(key, cached_prompt)
         self._warm_cache.set(key, cached_prompt)
 
+    def _evict_caches(self, key: str) -> None:
+        """Remove a prompt from both L1 and L2 caches."""
+        self._hot_cache.delete(key)
+        self._warm_cache.delete(key)
+
     def _sync_fetch(self, prompt_id: str, label: str, key: str) -> Optional[ManagedPrompt]:
         """Synchronous fetch with timeout for cold starts."""
         try:
@@ -159,6 +176,9 @@ class PromptManager:
             if prompt is not None:
                 self._update_caches(key, prompt)
                 return prompt
+        except PromptNotFoundError:
+            # Prompt doesn't exist - fall through to fallback
+            telemetry.record_prompt_fetch_error(prompt_id, "PromptNotFoundError")
         except Exception as e:
             log.debug("Sync fetch failed for prompt %s: %s", prompt_id, e)
             telemetry.record_prompt_fetch_error(prompt_id, type(e).__name__)
@@ -191,6 +211,11 @@ class PromptManager:
             prompt = self._fetch_from_registry(prompt_id, label, timeout=self._timeout)
             if prompt is not None:
                 self._update_caches(key, prompt)
+        except PromptNotFoundError:
+            # Prompt was deleted from registry - evict from cache so fallback is used
+            log.debug("Prompt %s was deleted, evicting from cache", prompt_id)
+            self._evict_caches(key)
+            telemetry.record_prompt_fetch_error(prompt_id, "PromptNotFoundError")
         except Exception as e:
             log.debug("Background refresh failed for prompt %s: %s", prompt_id, e)
             telemetry.record_prompt_fetch_error(prompt_id, type(e).__name__)
@@ -220,7 +245,7 @@ class PromptManager:
                 return None
             elif response.status == 404:
                 log.warning("Prompt not found: %s (label=%s)", prompt_id, label)
-                return None
+                raise PromptNotFoundError(f"Prompt not found: {prompt_id} (label={label})")
             else:
                 log.warning("Failed to fetch prompt %s: status=%d", prompt_id, response.status)
                 return None
