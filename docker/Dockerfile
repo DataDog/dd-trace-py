@@ -27,7 +27,6 @@ RUN apt-get update \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
       apt-transport-https \
-      bc \
       build-essential \
       clang-format \
       gdb \
@@ -56,7 +55,6 @@ RUN apt-get update \
       patch \
       sccache \
       unixodbc-dev \
-      valgrind \
       wget \
       zlib1g-dev \
       awscli \

@@ -16,6 +16,9 @@ variables:
   # Automatically managed, use scripts/update-system-tests-version to update
   SYSTEM_TESTS_REF: "e1cd85f960c713cf6a7e9caa61094b5914d0e386"
 
+  # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
+  PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v90830366-2b17cbb-profiling_native"
+
 default:
   interruptible: true
 
@@ -405,13 +408,14 @@ lib_injection_tests:
     - python lib-injection/sources/sitecustomize.py
 
 # Profiling native tests with sanitizers
-# Uses the testrunner image which has Python, Rust, valgrind, and bc pre-installed
+# Uses dedicated profiling-native image with Python, Rust, valgrind, and clang pre-installed
+# Image built from: dd/images/dd-trace-py/profiling_native
 # Only runs when profiling-related files change
 .profiling_native_base:
   needs: []
   stage: tests
   tags: [ "arch:amd64" ]
-  image: ${TESTRUNNER_IMAGE}
+  image: ${PROFILING_NATIVE_IMAGE}
   timeout: 90m
   allow_failure: true
   variables:
@@ -420,7 +424,7 @@ lib_injection_tests:
   before_script:
     - ulimit -c unlimited
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
-    - pyenv global ${PYTHON_VERSION}
+    - export PYENV_VERSION=${PYTHON_VERSION}
   script:
     - python --version
     - if [ "${MEMCPY_MODE}" == "fast" ]; then export ECHION_USE_FAST_COPY_MEMORY=1; else export ECHION_USE_FAST_COPY_MEMORY=0; fi
@@ -433,6 +437,7 @@ profiling_native:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"
     - changes:
+        - .gitlab-ci.yml
         - ddtrace/internal/datadog/profiling/**/*
         - ddtrace/profiling/**/*
         - src/native/**/*
