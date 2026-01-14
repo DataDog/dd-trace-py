@@ -89,7 +89,7 @@ serverless lambda tests:
     strategy: depend
     branch: main
   needs:
-    - job: publish-wheels-to-s3
+    - job: "upload all"
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
