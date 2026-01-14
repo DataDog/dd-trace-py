@@ -62,16 +62,18 @@ add_library(
     src/echion/frame.cc
     src/echion/greenlets.cc
     src/echion/interp.cc
+    src/echion/long.cc
     src/echion/mirrors.cc
-    src/echion/tasks.cc
-    src/echion/strings.cc
+    src/echion/stack_chunk.cc
     src/echion/stacks.cc
+    src/echion/strings.cc
+    src/echion/tasks.cc
     src/echion/threads.cc
     src/echion/timing.cc
     src/echion/vm.cc
     src/sampler.cpp
-    src/stack_renderer.cpp
     src/stack.cpp
+    src/stack_renderer.cpp
     src/thread_span_links.cpp)
 
 # Add common config
