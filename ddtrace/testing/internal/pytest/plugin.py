@@ -278,7 +278,8 @@ class TestOptPlugin:
 
                 # Add end line if available
                 if end_line:
-                    test.metrics[TestTag.SOURCE_END] = end_line
+                    # test.metrics[TestTag.SOURCE_END] = end_line
+                    test.tags[TestTag.SOURCE_END] = str(end_line)
 
             except (ValueError, OSError, Exception):
                 # Ultimate fallback to original approach
