@@ -44,6 +44,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
@@ -147,30 +148,6 @@ from ddtrace.version import __version__
 
 
 log = get_logger(__name__)
-
-
-def _safe_float_env(name: str, default: float) -> float:
-    """Safely parse a float from an environment variable, returning default on error."""
-    value = os.getenv(name)
-    if value is None:
-        return default
-    try:
-        return float(value)
-    except ValueError:
-        log.warning("Invalid value for %s: %r, using default %s", name, value, default)
-        return default
-
-
-def _safe_int_env(name: str, default: int) -> int:
-    """Safely parse an int from an environment variable, returning default on error."""
-    value = os.getenv(name)
-    if value is None:
-        return default
-    try:
-        return int(value)
-    except ValueError:
-        log.warning("Invalid value for %s: %r, using default %s", name, value, default)
-        return default
 
 
 SUPPORTED_LLMOBS_INTEGRATIONS = {
@@ -1086,7 +1063,7 @@ class LLMObs(Service):
     def annotation_context(
         cls,
         tags: Optional[Dict[str, Any]] = None,
-        prompt: Optional[Union[dict, Prompt, "ManagedPrompt"]] = None,
+        prompt: Optional[Union[dict, Prompt]] = None,
         name: Optional[str] = None,
         _linked_spans: Optional[List[ExportedLLMObsSpan]] = None,
     ) -> AnnotationContext:
@@ -1104,9 +1081,7 @@ class LLMObs(Service):
                             "variables": {"variable_1": "...", ...}}`.
                             "tags": {"key1": "value1", "key2": "value2"},
                         }`
-                        Can also be set using:
-                        - A `ManagedPrompt` object returned by `LLMObs.get_prompt()` (recommended for managed prompts)
-                        - The `ddtrace.llmobs.utils.Prompt` constructor class
+                        Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
                         - This argument is only applicable to LLM spans.
                         - The dictionary may contain optional keys relevant to Templates and RAG applications:
                             `rag_context_variables` - a list of variable key names that contain ground
@@ -1146,12 +1121,7 @@ class LLMObs(Service):
                     (
                         annotation_id,
                         ctx_id,
-                        {
-                            "tags": tags,
-                            "prompt": prompt,
-                            "_name": name,
-                            "_linked_spans": _linked_spans,
-                        },
+                        {"tags": tags, "prompt": prompt, "_name": name, "_linked_spans": _linked_spans},
                     )
                 )
 
@@ -1248,7 +1218,7 @@ class LLMObs(Service):
             # Clear file cache even if manager is not initialized
             from ddtrace.llmobs._prompts.cache import WarmCache
 
-            cache_dir = os.getenv("DD_LLMOBS_PROMPTS_CACHE_DIR")
+            cache_dir = _get_config("DD_LLMOBS_PROMPTS_CACHE_DIR")
             warm_cache = WarmCache(cache_dir=cache_dir)
             warm_cache.clear()
 
@@ -1292,12 +1262,12 @@ class LLMObs(Service):
             log.warning("DD_LLMOBS_ML_APP not set. Prompt registry will not be available.")
             return None
 
-        cache_ttl = _safe_float_env("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL)
-        cache_max_size = _safe_int_env("DD_LLMOBS_PROMPTS_CACHE_MAX_SIZE", DEFAULT_PROMPTS_CACHE_MAX_SIZE)
-        file_cache_enabled = asbool(os.getenv("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", "true"))
-        cache_dir = os.getenv("DD_LLMOBS_PROMPTS_CACHE_DIR")
-        endpoint_override = os.getenv("DD_LLMOBS_PROMPTS_ENDPOINT")
-        timeout = _safe_float_env("DD_LLMOBS_PROMPTS_TIMEOUT", DEFAULT_PROMPTS_TIMEOUT)
+        cache_ttl = _get_config("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL, float)
+        cache_max_size = _get_config("DD_LLMOBS_PROMPTS_CACHE_MAX_SIZE", DEFAULT_PROMPTS_CACHE_MAX_SIZE, int)
+        file_cache_enabled = _get_config("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", True, asbool)
+        cache_dir = _get_config("DD_LLMOBS_PROMPTS_CACHE_DIR")
+        endpoint_override = _get_config("DD_LLMOBS_PROMPTS_ENDPOINT")
+        timeout = _get_config("DD_LLMOBS_PROMPTS_TIMEOUT", DEFAULT_PROMPTS_TIMEOUT, float)
 
         return PromptManager(
             api_key=api_key,
