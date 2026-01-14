@@ -1,0 +1,3 @@
+fixes:
+  - |
+    profiling: A rare crash caused by a memory corruption in the profile upload logic has been fixed.

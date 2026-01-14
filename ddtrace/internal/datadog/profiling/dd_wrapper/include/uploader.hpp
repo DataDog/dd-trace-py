@@ -27,6 +27,7 @@ class Uploader
     std::string process_tags;
 
     bool export_to_file(ddog_prof_EncodedProfile& encoded, std::string_view internal_metadata_json);
+    static void cancel_inflight_locked();
 
   public:
     bool upload();

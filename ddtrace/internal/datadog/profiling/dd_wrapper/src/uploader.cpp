@@ -223,4 +223,8 @@ Datadog::Uploader::postfork_child()
 {
     // NB placement-new to re-init and leak the mutex because doing anything else is UB
     new (&upload_lock) std::mutex();
+
+    // Do not call into Rust in the child after fork. Just reset our view of the
+    // global cancellation token state.
+    cancel = { .inner = nullptr };
 }

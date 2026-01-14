@@ -31,6 +31,31 @@ TEST(UploadDeathTest, SingleSample)
 }
 
 void
+double_upload_single_sample()
+{
+    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
+
+    // Collect and flush one sample
+    auto h = ddup_start_sample();
+    ddup_push_walltime(h, 1.0, 1);
+    ddup_flush_sample(h);
+    ddup_drop_sample(h);
+    h = nullptr;
+
+    // Upload twice. The second call used to be able to hit a stale/dropped
+    // cancellation token in the uploader glue.
+    ddup_upload();
+    ddup_upload();
+
+    std::exit(0);
+}
+
+TEST(UploadDeathTest, DoubleUploadSingleSample)
+{
+    EXPECT_EXIT(double_upload_single_sample(), ::testing::ExitedWithCode(0), "");
+}
+
+void
 single_oneframe_sample()
 {
     configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
