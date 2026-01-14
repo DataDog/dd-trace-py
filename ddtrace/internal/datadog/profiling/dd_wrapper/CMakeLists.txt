@@ -1,4 +1,12 @@
 cmake_minimum_required(VERSION 3.19)
+
+# Disable testing by default (can be overridden with -DBUILD_TESTING=ON) Don't use FORCE to allow command-line overrides
+if(NOT DEFINED BUILD_TESTING)
+    set(BUILD_TESTING
+        OFF
+        CACHE BOOL "Build the testing tree")
+endif()
+
 project(
     dd_wrapper
     VERSION 0.1.1
@@ -46,6 +54,8 @@ add_library(
     src/code_provenance_interface.cpp
     src/ddup_interface.cpp
     src/profile.cpp
+    src/profile_borrow.cpp
+    src/profiler_stats.cpp
     src/sample.cpp
     src/sample_manager.cpp
     src/static_sample_pool.cpp

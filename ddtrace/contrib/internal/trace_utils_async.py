@@ -3,6 +3,7 @@ async tracing utils
 
 Note that this module should only be imported in Python 3.5+.
 """
+
 from ddtrace._trace.pin import Pin
 from ddtrace.internal.logger import get_logger
 

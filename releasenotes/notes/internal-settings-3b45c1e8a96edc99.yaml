@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    This change removes the `ddtrace.settings` package and replaces it with `ddtrace.internal.settings`.
+    Environment variables can be used to adjust settings.

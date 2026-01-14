@@ -36,7 +36,6 @@ components:
   core:
     - ddtrace/internal/__init__.py
     - ddtrace/internal/_exceptions.py
-    - ddtrace/internal/_file_queue.py
     - ddtrace/internal/_rand.pyi
     - ddtrace/internal/_rand.pyx
     - ddtrace/internal/_stdint.h
@@ -53,6 +52,7 @@ components:
     - ddtrace/internal/forksafe.py
     - ddtrace/internal/gitmetadata.py
     - ddtrace/internal/glob_matching.py
+    - ddtrace/internal/ipc.py
     - ddtrace/internal/logger.py
     - ddtrace/_logger.py
     - ddtrace/internal/hostname.py
@@ -76,7 +76,7 @@ components:
     - ddtrace/__init__.py
     - ddtrace/py.typed
     - ddtrace/version.py
-    - ddtrace/settings/_config.py
+    - ddtrace/internal/settings/_config.py
     - src/native/*
   datastreams:
     - ddtrace/internal/datastreams/*
@@ -93,13 +93,11 @@ components:
   opentelemetry:
     - ddtrace/opentelemetry/*
     - ddtrace/internal/opentelemetry/*
-  opentracer:
-    - ddtrace/opentracer/*
   profiling:
     - ddtrace/profiling/*
     - ddtrace/internal/datadog/profiling/*
     - ddtrace/internal/processor/endpoint_call_counter.py
-    - ddtrace/settings/profiling.py
+    - ddtrace/internal/settings/profiling.py
   remoteconfig:
     - ddtrace/internal/remoteconfig/*
   runtime:
@@ -107,26 +105,24 @@ components:
   serverless:
     - ddtrace/internal/serverless/*
   settings:
-    - ddtrace/settings/*
+    - ddtrace/internal/settings/*
   sourcecode:
     - ddtrace/sourcecode/*
   symbol_db:
     - ddtrace/internal/symbol_db/*
-    - ddtrace/settings/symbol_db.py
+    - ddtrace/internal/settings/symbol_db.py
   telemetry:
     - ddtrace/internal/telemetry/*
   tracing:
-    - ddtrace/_hooks.py
     - ddtrace/_logger.py
     - ddtrace/_monkey.py
     - ddtrace/_trace/*
     - ddtrace/trace/*
     - ddtrace/constants.py
-    - ddtrace/settings/__init__.py
-    - ddtrace/settings/_config.py
-    - ddtrace/settings/http.py
-    - ddtrace/settings/exceptions.py
-    - ddtrace/settings/integration.py
+    - ddtrace/internal/settings/__init__.py
+    - ddtrace/internal/settings/_config.py
+    - ddtrace/internal/settings/http.py
+    - ddtrace/internal/settings/integration.py
     - ddtrace/internal/_encoding.py*
     - ddtrace/internal/_tagset.py*
     - ddtrace/internal/_utils.*
@@ -136,7 +132,7 @@ components:
     - ddtrace/internal/pack.h
     - ddtrace/internal/pack_template.h
     - ddtrace/internal/peer_service/*
-    - ddtrace/settings/peer_service.py
+    - ddtrace/internal/settings/peer_service.py
     - ddtrace/internal/processor/__init__.py
     - ddtrace/internal/processor/stats.py
     - ddtrace/internal/runtime/*
@@ -175,6 +171,7 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@contrib'
+      - '@vendor'
       - tests/integration/*
       - tests/snapshots/tests.integration.*
     pattern: integration-latest*
@@ -186,6 +183,7 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@contrib'
+      - '@vendor'
       - tests/integration/*
       - tests/snapshots/tests.integration.*
     pattern: integration-snapshot*
@@ -198,16 +196,18 @@ suites:
       - ddtrace/contrib/integration_registry/*
     runner: riot
   internal:
-    parallelism: 2
+    venvs_per_job: 3
     paths:
       - '@core'
       - '@remoteconfig'
       - '@symbol_db'
       - '@tracing'
+      - '@vendor'
       - ddtrace/internal/*
       - tests/internal/*
       - tests/submod/*
       - tests/cache/*
+      - tests/snapshots/tests.internal.*
     runner: riot
     snapshot: true
   lib_injection:
@@ -220,17 +220,12 @@ suites:
     parallelism: 2
     runner: riot
     pattern: ^lib_injection$
-  slotscheck:
-    parallelism: 1
-    paths:
-      - 'ddtrace/**/*.py'
-    runner: riot
-    snapshot: false
   runtime:
     paths:
       - '@bootstrap'
       - '@core'
       - '@runtime'
+      - '@vendor'
       - tests/runtime/*
     runner: riot
     skip: true
@@ -252,6 +247,7 @@ suites:
       - '@tracing'
       - '@settings'
       - '@profiling'
+      - '@vendor'
       - tests/telemetry/*
       - tests/snapshots/tests.telemetry.*
     runner: riot
@@ -259,7 +255,8 @@ suites:
   tracer:
     env:
       DD_TRACE_AGENT_URL: http://localhost:8126
-    parallelism: 9
+      KUBERNETES_MEMORY_REQUEST: "4Gi"
+      KUBERNETES_MEMORY_LIMIT: "4Gi"
     paths:
       - '@tracing'
       - '@bootstrap'
@@ -270,10 +267,12 @@ suites:
       - '@remoteconfig'
       - '@futures'
       - '@ci_visibility'
+      - '@vendor'
       - tests/tracer/*
       - tests/snapshots/test_*
     retry: 2
     runner: riot
+    venvs_per_job: 1
   vendor:
     parallelism: 1
     paths:

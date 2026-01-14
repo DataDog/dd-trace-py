@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    This change removes deprecated methods and method parameters from the `Span` class.

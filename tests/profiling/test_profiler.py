@@ -1,10 +1,12 @@
 import logging
+import sys
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 import ddtrace
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
@@ -105,7 +107,7 @@ def test_failed_start_collector(caplog, monkeypatch):
 
     class TestProfiler(profiler._ProfilerInstance):
         def _build_default_exporters(self, *args, **kargs):
-            return []
+            return None
 
     p = TestProfiler()
     err_collector = mock.MagicMock(wraps=ErrCollect())
@@ -136,12 +138,193 @@ def test_default_collectors():
         pass
     else:
         assert any(isinstance(c, asyncio.AsyncioLockCollector) for c in p._profiler._collectors)
+        assert any(isinstance(c, asyncio.AsyncioSemaphoreCollector) for c in p._profiler._collectors)
+        assert any(isinstance(c, asyncio.AsyncioBoundedSemaphoreCollector) for c in p._profiler._collectors)
+        assert any(isinstance(c, asyncio.AsyncioConditionCollector) for c in p._profiler._collectors)
     p.stop(flush=False)
 
 
 def test_profiler_serverless(monkeypatch):
-    # type: (...) -> None
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "foobar")
     p = profiler.Profiler()
     assert isinstance(p._scheduler, scheduler.ServerlessScheduler)
     assert p.tags["functionname"] == "foobar"
+
+
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
+@pytest.mark.subprocess()
+def test_profiler_ddtrace_deprecation():
+    """
+    ddtrace interfaces loaded by the profiler can be marked deprecated, and we should update
+    them when this happens.  As reported by https://github.com/DataDog/dd-trace-py/issues/8881
+    """
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        from ddtrace.profiling import _threading  # noqa:F401
+        from ddtrace.profiling import event  # noqa:F401
+        from ddtrace.profiling import profiler  # noqa:F401
+        from ddtrace.profiling import scheduler  # noqa:F401
+        from ddtrace.profiling.collector import _lock  # noqa:F401
+        from ddtrace.profiling.collector import _task  # noqa:F401
+        from ddtrace.profiling.collector import _traceback  # noqa:F401
+        from ddtrace.profiling.collector import memalloc  # noqa:F401
+        from ddtrace.profiling.collector import stack  # noqa:F401
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_ENABLED="true"),
+    err="Failed to load ddup module (mock failure message), disabling profiling\n",
+)
+def test_libdd_failure_telemetry_logging():
+    """Test that libdd initialization failures log to telemetry. This mimics
+    one of the two scenarios where profiling can be configured.
+    1) using ddtrace-run with DD_PROFILNG_ENABLED=true
+    2) import ddtrace.profiling.auto
+    """
+
+    from unittest import mock
+
+    with (
+        mock.patch.multiple(
+            "ddtrace.internal.datadog.profiling.ddup",
+            failure_msg="mock failure message",
+            is_available=False,
+        ),
+        mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log,
+    ):
+        from ddtrace.internal.settings.profiling import config  # noqa:F401
+        from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+
+        mock_add_log.assert_called_once()
+        call_args = mock_add_log.call_args
+        assert call_args[0][0] == TELEMETRY_LOG_LEVEL.ERROR
+        message = call_args[0][1]
+        assert "Failed to load ddup module" in message
+        assert "mock failure message" in message
+
+
+@pytest.mark.subprocess(
+    # We'd like to check the stderr, but it somehow leads to triggering the
+    # upload code path on macOS
+    err=None
+)
+def test_libdd_failure_telemetry_logging_with_auto():
+    from unittest import mock
+
+    with (
+        mock.patch.multiple(
+            "ddtrace.internal.datadog.profiling.ddup",
+            failure_msg="mock failure message",
+            is_available=False,
+        ),
+        mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log,
+    ):
+        from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+        import ddtrace.profiling.auto  # noqa: F401
+
+        mock_add_log.assert_called_once()
+        call_args = mock_add_log.call_args
+        assert call_args[0][0] == TELEMETRY_LOG_LEVEL.ERROR
+        message = call_args[0][1]
+        assert "Failed to load ddup module" in message
+        assert "mock failure message" in message
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_ENABLED="true"),
+    err="Failed to load stack module (mock failure message), falling back to v1 stack sampler\n",
+)
+def test_stack_failure_telemetry_logging():
+    # Test that stack initialization failures log to telemetry. This is
+    # mimicking the behavior of ddtrace-run, where the config is imported to
+    # determine if profiling/stack is enabled
+
+    from unittest import mock
+
+    with (
+        mock.patch.multiple(
+            "ddtrace.internal.datadog.profiling.stack",
+            failure_msg="mock failure message",
+            is_available=False,
+        ),
+        mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log,
+    ):
+        from ddtrace.internal.settings.profiling import config  # noqa: F401
+        from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+
+        mock_add_log.assert_called_once()
+        call_args = mock_add_log.call_args
+        assert call_args[0][0] == TELEMETRY_LOG_LEVEL.ERROR
+        message = call_args[0][1]
+        assert "Failed to load stack module" in message
+        assert "mock failure message" in message
+
+
+@pytest.mark.subprocess(
+    # We'd like to check the stderr, but it somehow leads to triggering the
+    # upload code path on macOS.
+    err=None,
+)
+def test_stack_failure_telemetry_logging_with_auto():
+    from unittest import mock
+
+    with (
+        mock.patch.multiple(
+            "ddtrace.internal.datadog.profiling.stack",
+            failure_msg="mock failure message",
+            is_available=False,
+        ),
+        mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log,
+    ):
+        from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+        import ddtrace.profiling.auto  # noqa: F401
+
+        mock_add_log.assert_called_once()
+        call_args = mock_add_log.call_args
+        assert call_args[0][0] == TELEMETRY_LOG_LEVEL.ERROR
+        message = call_args[0][1]
+        assert "Failed to load stack module" in message
+        assert "mock failure message" in message
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
+@pytest.mark.subprocess(err=None)
+# For macOS: Could print 'Error uploading' but okay to ignore since we are checking if native_id is set
+def test_user_threads_have_native_id():
+    from os import getpid
+    from threading import Thread
+    from threading import _MainThread  # pyright: ignore[reportAttributeAccessIssue]
+    from threading import current_thread
+    from time import sleep
+
+    from ddtrace.profiling import profiler
+
+    p = profiler.Profiler()
+    p.start()
+
+    main = current_thread()
+    assert isinstance(main, _MainThread)
+    # We expect the current thread to have the same ID as the PID
+    assert main.native_id == getpid(), (main.native_id, getpid())
+
+    t = Thread(target=lambda: None)
+    t.start()
+
+    for _ in range(10):
+        try:
+            # The TID should be higher than the PID, but not too high
+            assert 0 < t.native_id - getpid() < 100, (t.native_id, getpid())  # pyright: ignore[reportOptionalOperand]
+        except AttributeError:
+            # The native_id attribute is set by the thread so we might have to
+            # wait a bit for it to be set.
+            sleep(0.1)
+        else:
+            break
+    else:
+        raise AssertionError("Thread.native_id not set")
+
+    t.join()
+
+    p.stop()

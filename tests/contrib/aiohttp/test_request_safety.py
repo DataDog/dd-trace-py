@@ -3,10 +3,12 @@ Ensure that if the ``AsyncioTracer`` is not properly configured,
 bad traces are produced but the ``Context`` object will not
 leak memory.
 """
+
 import asyncio
 import threading
 from urllib import request
 
+from tests.utils import TracerSpanContainer
 from tests.utils import assert_is_measured
 
 
@@ -19,7 +21,7 @@ async def test_full_request(patched_app_tracer, aiohttp_client):
     assert 200 == request.status
     await request.text()
     # the trace is created
-    traces = tracer.pop_traces()
+    traces = TracerSpanContainer(tracer).pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
     request_span = traces[0][0]
@@ -61,5 +63,5 @@ async def test_multiple_full_request(patched_app_tracer, aiohttp_client):
         t.join()
 
     # the trace is wrong but the spans are finished and written
-    spans = tracer.pop()
+    spans = TracerSpanContainer(tracer).pop()
     assert NUMBER_REQUESTS == len(spans)

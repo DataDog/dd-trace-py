@@ -2,6 +2,7 @@ import os
 import typing as t
 
 from ddtrace.internal.forksafe import has_forked
+from ddtrace.internal.ipc import SharedStringFile
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.products import manager as product_manager
 from ddtrace.internal.remoteconfig import Payload
@@ -18,20 +19,35 @@ DI_PRODUCT_KEY = "dynamic-instrumentation"
 
 log = get_logger(__name__)
 
+# Use a shared file to keep track of which PIDs have Symbol DB enabled. This way
+# we can ensure that at most two processes are emitting symbols under a large
+# range of scenarios.
+shared_pid_file = SharedStringFile(f"{os.getppid()}-symdb-pids")
 
-def _rc_callback(data: t.List[Payload], test_tracer=None):
-    if get_ancestor_runtime_id() is not None and has_forked():
-        log.debug("[PID %d] SymDB: Disabling Symbol DB in forked process", os.getpid())
-        # We assume that forking is being used for spawning child worker
-        # processes. Therefore, we avoid uploading the same symbols from each
-        # child process. We restrict the enablement of Symbol DB to just the
-        # parent process and the first fork child.
-        remoteconfig_poller.unregister("LIVE_DEBUGGING_SYMBOL_DB")
+MAX_CHILD_UPLOADERS = 1  # max one child
 
-        if SymbolDatabaseUploader.is_installed():
-            SymbolDatabaseUploader.uninstall()
 
-        return
+def _rc_callback(data: t.Sequence[Payload]):
+    with shared_pid_file.lock_exclusive() as f:
+        if (pid := str(os.getpid())) not in (pids := set(shared_pid_file.peekall_unlocked(f))):
+            # Store the PID of the current process so that we know which processes
+            # have Symbol DB enabled.
+            shared_pid_file.put_unlocked(f, pid)
+
+        if (get_ancestor_runtime_id() is not None and has_forked()) or len(
+            pids - {pid, str(os.getppid())}
+        ) >= MAX_CHILD_UPLOADERS:
+            log.debug("[PID %d] SymDB: Disabling Symbol DB in child process", os.getpid())
+            # We assume that forking is being used for spawning child worker
+            # processes. Therefore, we avoid uploading the same symbols from each
+            # child process. We restrict the enablement of Symbol DB to just the
+            # parent process and the first fork child.
+            remoteconfig_poller.unregister("LIVE_DEBUGGING_SYMBOL_DB")
+
+            if SymbolDatabaseUploader.is_installed():
+                SymbolDatabaseUploader.uninstall()
+
+            return
 
     for payload in data:
         if payload.metadata is None:

@@ -120,8 +120,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             )
             self._main_tracer_context.__enter__()
 
-    def _finish_span(self, override_finish_time: Optional[float] = None) -> None:
-        super()._finish_span(override_finish_time)
+    def _finish_span(self) -> None:
+        super()._finish_span()
 
         if asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")) and self._main_tracer_context:
             self._main_tracer_context.__exit__(None, None, None)
@@ -142,6 +142,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         """Overrides parent tags for cases where they need to be modified"""
         if self._is_benchmark:
             self.set_tag(test.TYPE, BENCHMARK)
+        else:
+            self.set_tag(test.TYPE, SpanTypes.TEST)
 
         if self._overwritten_suite_name is not None:
             self.set_tag(test.SUITE, self._overwritten_suite_name)
@@ -207,19 +209,22 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             is_auto_injected=self._session_settings.is_auto_injected,
         )
 
-    def finish_test(
+    def prepare_for_finish(
         self,
+        override_status: Optional[TestStatus] = None,
+        override_finish_time: Optional[float] = None,
         status: Optional[TestStatus] = None,
         skip_reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
-        override_finish_time: Optional[float] = None,
     ) -> None:
         log.debug("Test Visibility: finishing %s, with status: %s, skip_reason: %s", self, status, skip_reason)
 
         self.set_tag(test.TYPE, SpanTypes.TEST)
 
-        if status is not None:
-            self.set_status(status)
+        # Use override_status if provided, otherwise use status parameter
+        _status = override_status if override_status is not None else status
+        if _status is not None:
+            self.set_status(_status)
         if skip_reason is not None:
             self.set_tag(test.SKIP_REASON, skip_reason)
         if exc_info is not None:
@@ -234,7 +239,33 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         ):
             self._efd_abort_reason = "slow"
 
-        super().finish(override_finish_time=override_finish_time)
+        super().prepare_for_finish(override_status=override_status, override_finish_time=override_finish_time)
+
+    def finish_test(
+        self,
+        override_status: Optional[TestStatus] = None,
+        override_finish_time: Optional[float] = None,
+        status: Optional[TestStatus] = None,
+        skip_reason: Optional[str] = None,
+        exc_info: Optional[TestExcInfo] = None,
+    ) -> None:
+        """Backward compatibility method that calls prepare_for_finish()."""
+        self.prepare_for_finish(
+            override_status=override_status,
+            override_finish_time=override_finish_time,
+            status=status,
+            skip_reason=skip_reason,
+            exc_info=exc_info,
+        )
+
+    def finish(self, force: bool = False) -> None:
+        """Send the test span to the backend.
+
+        This should be called after prepare_for_finish() has been called to prepare the span.
+        If prepare_for_finish() hasn't been called yet, it will be called automatically for backward compatibility.
+        """
+        # Call the base class finish method which has the backward compatibility logic
+        super().finish(force=force)
 
     def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
         if self.efd_has_retries():
@@ -263,7 +294,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if self._session_settings.itr_test_skipping_level == ITR_SKIPPING_LEVEL.TEST:
             self.count_itr_skipped()
         self.mark_itr_skipped()
-        self.finish_test(TestStatus.SKIP)
+        self.finish_test(status=TestStatus.SKIP)
+        self.finish()  # Actually send the span
 
     def overwrite_attributes(
         self,
@@ -366,11 +398,13 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if not self.is_new():
             return False
 
-        if not self.is_finished():
+        # Check if prepare_for_finish() has been called (sets _finish_time)
+        if not self.is_prepared_for_finish():
             log.debug("Early Flake Detection: efd_should_retry called but test is not finished")
             return False
 
-        duration_s = self._span.duration
+        # Calculate duration from start time and finish time
+        duration_s = (self._finish_time - (self._span.start_ns / 1e9)) if self._span.start_ns else 0
 
         num_retries = len(self._efd_retries)
 
@@ -418,6 +452,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             retry_test.set_status(status)
 
         retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
+        retry_test.finish()  # Send the retry span
 
     def efd_get_final_status(self) -> EFDTestStatus:
         status_counts: Dict[TestStatus, int] = {
@@ -475,7 +510,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if self.get_session().atr_max_retries_reached():
             return False
 
-        if not self.is_finished():
+        # Check if prepare_for_finish() has been called (sets _finish_time)
+        if self._finish_time is None:
             log.debug("Auto Test Retries: atr_should_retry called but test is not finished")
             return False
 
@@ -521,6 +557,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
                 retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
 
         retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
+        retry_test.finish()  # Send the retry span
 
     def atr_get_final_status(self) -> TestStatus:
         if self._status in [TestStatus.PASS, TestStatus.SKIP]:
@@ -558,7 +595,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if not self._session_settings.test_management_settings.enabled:
             return False
 
-        if not self.is_finished():
+        # Check if prepare_for_finish() has been called (sets _finish_time)
+        if not self.is_prepared_for_finish():
             log.debug("Attempt To Fix: attempt_to_fix_should_retry called but test is not finished")
             return False
 
@@ -606,7 +644,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
             retry_test.set_tag(TEST_ATTEMPT_TO_FIX_PASSED, all_passed)
 
-        retry_test.finish_test(status, skip_reason=skip_reason, exc_info=exc_info)
+        retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
+        retry_test.finish()  # Send the retry span
 
     def attempt_to_fix_get_final_status(self) -> TestStatus:
         if all(retry._status == TestStatus.PASS for retry in self._attempt_to_fix_retries):
@@ -623,7 +662,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
     def _is_rum(self):
         if self._span is None:
             return False
-        return self._span.get_tag("is_rum_active") == "true"
+        return self._span.get_tag("test.is_rum_active") == "true"
 
     def _get_browser_driver(self):
         if self._span is None:

@@ -3,15 +3,15 @@ from functools import lru_cache as cached
 from functools import singledispatch
 import inspect
 import logging
+from pathlib import Path
 import sys
 import sysconfig
 from types import ModuleType
 import typing as t
 
-from ddtrace.internal.compat import Path
 from ddtrace.internal.module import origin
+from ddtrace.internal.settings.third_party import config as tp_config
 from ddtrace.internal.utils.cache import callonce
-from ddtrace.settings.third_party import config as tp_config
 
 
 LOG = logging.getLogger(__name__)
@@ -142,11 +142,11 @@ def _root_module(path: Path) -> str:
             pass
 
     # Bazel runfiles support: we assume that these paths look like
-    # /some/path.runfiles/.../site-packages/<root_module>/...
-    if any(p.suffix == ".runfiles" for p in path.parents):
-        for s in path.parents:
-            if s.parent.name == "site-packages":
-                return s.name
+    # /some/path.runfiles/<distribution_name>/site-packages/<root_module>/...
+    # /usr/local/runfiles/<distribution_name>/site-packages/<root_module>/...
+    for s in path.parents:
+        if s.parent.name == "site-packages":
+            return s.name
 
     msg = f"Could not find root module for path {path}"
     raise ValueError(msg)
@@ -358,8 +358,7 @@ def _get_toplevel_name(name) -> str:
     """
     return _topmost(name) or (
         # python/typeshed#10328
-        inspect.getmodulename(name)
-        or str(name)
+        inspect.getmodulename(name) or str(name)
     )
 
 

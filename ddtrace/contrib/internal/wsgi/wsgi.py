@@ -12,7 +12,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Optional  # noqa:F401
 
     from ddtrace._trace.pin import Pin  # noqa:F401
-    from ddtrace.settings._config import Config  # noqa:F401
+    from ddtrace.internal.settings._config import Config  # noqa:F401
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.trace import Tracer  # noqa:F401
 
@@ -288,19 +288,22 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
         self.span_modifier = span_modifier
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
-        with core.context_with_data(
-            "wsgi.response",
-            middleware=self,
-            request_span=request_span,
-            parent_call=app_span,
-            status=status,
-            environ=environ,
-            span_type=SpanTypes.WEB,
-            span_name="wsgi.start_response",
-            service=trace_utils.int_service(None, self._config),
-            start_span=True,
-            tags={COMPONENT: self._config.integration_name, SPAN_KIND: SpanKind.SERVER},
-        ) as ctx, ctx.span:
+        with (
+            core.context_with_data(
+                "wsgi.response",
+                middleware=self,
+                request_span=request_span,
+                parent_call=app_span,
+                status=status,
+                environ=environ,
+                span_type=SpanTypes.WEB,
+                span_name="wsgi.start_response",
+                service=trace_utils.int_service(None, self._config),
+                start_span=True,
+                tags={COMPONENT: self._config.integration_name, SPAN_KIND: SpanKind.SERVER},
+            ) as ctx,
+            ctx.span,
+        ):
             return start_response(status, environ, exc_info)
 
     def _request_span_modifier(self, req_span, environ, parsed_headers=None):

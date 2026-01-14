@@ -262,7 +262,7 @@ class AioMySQLTestCase(AsyncioTestCase):
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "mysvc"
@@ -276,7 +276,7 @@ class AioMySQLTestCase(AsyncioTestCase):
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "mysvc"
@@ -288,7 +288,7 @@ class AioMySQLTestCase(AsyncioTestCase):
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "mysql"
@@ -300,7 +300,7 @@ class AioMySQLTestCase(AsyncioTestCase):
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "mysvc"
@@ -312,7 +312,7 @@ class AioMySQLTestCase(AsyncioTestCase):
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
@@ -324,7 +324,7 @@ class AioMySQLTestCase(AsyncioTestCase):
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.name == "mysql.query"
@@ -336,7 +336,7 @@ class AioMySQLTestCase(AsyncioTestCase):
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.name == "mysql.query"

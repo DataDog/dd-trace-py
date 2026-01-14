@@ -9,6 +9,7 @@ from ddtrace.llmobs._constants import BILLABLE_CHARACTER_COUNT_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
@@ -53,9 +54,8 @@ def extract_provider_and_model_name(
     Function to extract provider and model name from either kwargs or instance attributes.
     Args:
         kwargs: Dictionary containing model information (used for google_genai)
-        instance: Model instance with attributes (used for vertexai and google_generativeai)
-        model_name_attr: Attribute name to extract from instance (e.g., "_model_name", "model_name", used for vertexai
-                         and google_generativeai)
+        instance: Model instance with attributes (used for vertexai)
+        model_name_attr: Attribute name to extract from instance (e.g., "_model_name", "model_name", used for vertexai)
 
     Returns:
         Tuple of (provider_name, model_name)
@@ -151,6 +151,8 @@ def extract_generation_metrics_google_genai(response) -> Dict[str, Any]:
         usage[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
     if total_tokens is not None:
         usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
+    if thought_tokens is not None:
+        usage[REASONING_OUTPUT_TOKENS_METRIC_KEY] = thought_tokens
 
     return usage
 
@@ -237,7 +239,7 @@ def extract_message_from_part_google_genai(part, role: str) -> Message:
     return Message(content="Unsupported file type: {}".format(type(part)), role=role)
 
 
-def llmobs_get_metadata_gemini_vertexai(kwargs, instance):
+def llmobs_get_metadata_vertexai(kwargs, instance):
     metadata = {}
     model_config = getattr(instance, "_generation_config", {}) or {}
     model_config = model_config.to_dict() if hasattr(model_config, "to_dict") else model_config
@@ -253,7 +255,7 @@ def llmobs_get_metadata_gemini_vertexai(kwargs, instance):
     return metadata
 
 
-def extract_message_from_part_gemini_vertexai(part, role=None) -> Message:
+def extract_message_from_part_vertexai(part, role=None) -> Message:
     text = _get_attr(part, "text", "")
     function_call = _get_attr(part, "function_call", None)
     function_response = _get_attr(part, "function_response", None)
@@ -289,7 +291,7 @@ def extract_message_from_part_gemini_vertexai(part, role=None) -> Message:
     return message
 
 
-def get_system_instructions_gemini_vertexai(model_instance):
+def get_system_instructions_vertexai(model_instance):
     """
     Extract system instructions from model and convert to []str for tagging.
     """

@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    cassandra: The Cassandra integration is removed because it is only compatible with Python 3.8,
+    which is a year past its end-of-life.

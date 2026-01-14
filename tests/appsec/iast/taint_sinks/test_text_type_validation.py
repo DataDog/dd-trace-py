@@ -69,9 +69,9 @@ def test_text_types_still_trigger_vulnerabilities(iast_context_defaults):
         _iast_report_unvalidated_redirect(tainted_obj)
         span_report = get_iast_reporter()
         assert span_report is not None, f"No unvalidated redirect vulnerability reported for {text_type.__name__}"
-        assert (
-            len(span_report.vulnerabilities) > 0
-        ), f"No unvalidated redirect vulnerabilities found for {text_type.__name__}"
+        assert len(span_report.vulnerabilities) > 0, (
+            f"No unvalidated redirect vulnerabilities found for {text_type.__name__}"
+        )
 
         # Clear vulnerabilities for next test
         span_report.vulnerabilities.clear()

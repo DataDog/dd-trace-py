@@ -6,6 +6,7 @@ from inspect import signature
 import sys
 from typing import Callable
 from typing import Optional
+from typing import OrderedDict
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
@@ -26,6 +27,10 @@ def _get_llmobs_span_options(name, model_name, func):
         span_name = func.__name__
 
     return traced_model_name, span_name
+
+
+def _get_span_inputs(args: OrderedDict) -> dict:
+    return {arg: value for arg, value in args.items() if arg != "self"}
 
 
 async def yield_from_async_gen(func, span, args, kwargs):
@@ -176,7 +181,7 @@ def _llmobs_decorator(operation_kind):
                     func_signature = signature(func)
                     bound_args = func_signature.bind_partial(*args, **kwargs)
                     if _automatic_io_annotation and bound_args.arguments:
-                        LLMObs.annotate(span=span, input_data=dict(bound_args.arguments))
+                        LLMObs.annotate(span=span, input_data=_get_span_inputs(bound_args.arguments))
                     return yield_from_async_gen(func, span, args, kwargs)
 
                 @wraps(func)
@@ -192,7 +197,7 @@ def _llmobs_decorator(operation_kind):
                         func_signature = signature(func)
                         bound_args = func_signature.bind_partial(*args, **kwargs)
                         if _automatic_io_annotation and bound_args.arguments:
-                            LLMObs.annotate(span=span, input_data=dict(bound_args.arguments))
+                            LLMObs.annotate(span=span, input_data=_get_span_inputs(bound_args.arguments))
                         resp = await func(*args, **kwargs)
                         if (
                             _automatic_io_annotation
@@ -217,7 +222,7 @@ def _llmobs_decorator(operation_kind):
                         func_signature = signature(func)
                         bound_args = func_signature.bind_partial(*args, **kwargs)
                         if _automatic_io_annotation and bound_args.arguments:
-                            LLMObs.annotate(span=span, input_data=dict(bound_args.arguments))
+                            LLMObs.annotate(span=span, input_data=_get_span_inputs(bound_args.arguments))
                         try:
                             yield from func(*args, **kwargs)
                         except (StopIteration, GeneratorExit):
@@ -242,7 +247,7 @@ def _llmobs_decorator(operation_kind):
                         func_signature = signature(func)
                         bound_args = func_signature.bind_partial(*args, **kwargs)
                         if _automatic_io_annotation and bound_args.arguments:
-                            LLMObs.annotate(span=span, input_data=dict(bound_args.arguments))
+                            LLMObs.annotate(span=span, input_data=_get_span_inputs(bound_args.arguments))
                         resp = func(*args, **kwargs)
                         if (
                             _automatic_io_annotation

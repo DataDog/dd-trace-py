@@ -29,6 +29,8 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings.integration import IntegrationConfig
+from ddtrace.internal.utils import Block_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import http as http_utils
@@ -36,7 +38,6 @@ from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
-from ddtrace.settings.integration import IntegrationConfig
 
 from . import utils
 
@@ -119,27 +120,24 @@ def traced_get_response(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[
 
         response = None
 
-        def blocked_response():
-            block_config = get_blocked() or {}
-            desired_type = block_config.get("type", "auto")
-            status = block_config.get("status_code", 403)
-            if desired_type == "none":
-                response = HttpResponse("", status=status)
-                location = block_config.get("location", "")
-                if location:
-                    response["location"] = location
+        def blocked_response(block_config: Block_config):
+            if block_config.type == "none":
+                response = HttpResponse("", status=block_config.status_code)
+                if block_config.location:
+                    response["location"] = block_config.location
             else:
-                ctype = block_config.get("content-type", "application/json")
-                content = http_utils._get_blocked_template(ctype)
-                response = HttpResponse(content, content_type=ctype, status=status)
+                content = http_utils._get_blocked_template(block_config.content_type, block_config.block_id)
+                response = HttpResponse(
+                    content, content_type=block_config.content_type, status=block_config.status_code
+                )
                 response.content = content
                 response["Content-Length"] = len(content.encode())
             utils._after_request_tags(pin, ctx.span, request, response)
             return response
 
         try:
-            if get_blocked():
-                response = blocked_response()
+            if block_config := get_blocked():
+                response = blocked_response(block_config)
             else:
                 query = request.META.get("QUERY_STRING", "")
                 uri = utils.get_request_uri(request)
@@ -158,25 +156,25 @@ def traced_get_response(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[
                 )
                 core.dispatch("django.start_response.post", ("Django",))
 
-                if get_blocked():
-                    response = blocked_response()
+                if block_config := get_blocked():
+                    response = blocked_response(block_config)
                 else:
                     try:
                         response = func(*args, **kwargs)
                     except BlockingException as e:
                         set_blocked(e.args[0])
-                        response = blocked_response()
+                        response = blocked_response(e.args[0])
                         return response
 
-                    if get_blocked():
-                        response = blocked_response()
+                    if block_config := get_blocked():
+                        response = blocked_response(block_config)
 
         finally:
             core.dispatch("django.finalize_response.pre", (ctx, utils._after_request_tags, request, response))
             if not get_blocked():
                 core.dispatch("django.finalize_response", ("Django",))
-                if get_blocked():
-                    response = blocked_response()
+                if block_config := get_blocked():
+                    response = blocked_response(block_config)
         return response
 
 

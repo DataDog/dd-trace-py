@@ -769,7 +769,7 @@ class PytestTestCase(PytestTestCaseBase):
             """
             import pytest
             import ddtrace
-            from ddtrace.trace import Pin
+            from ddtrace._trace.pin import Pin
 
             def test_service(ddtracer):
                 with ddtracer.trace("SPAN2") as span2:
@@ -783,12 +783,12 @@ class PytestTestCase(PytestTestCaseBase):
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
         # Check if spans tagged with dd_origin after encoding and decoding as the tagging occurs at encode time
-        encoder = self.tracer.encoder
+        encoder = self.tracer._span_aggregator.writer.msgpack_encoder
         encoder.put(spans)
         encoded_results = encoder.encode()
         assert encoded_results, "Expected encoded traces but got empty list"
         [(trace, _)] = encoded_results
-        (decoded_trace,) = self.tracer.encoder._decode(trace)
+        (decoded_trace,) = self.tracer._span_aggregator.writer.msgpack_encoder._decode(trace)
         assert len(decoded_trace) == 7
         for span in decoded_trace:
             assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"
@@ -798,7 +798,7 @@ class PytestTestCase(PytestTestCaseBase):
         encoded_results = ci_agentless_encoder.encode()
         assert encoded_results, "Expected encoded traces but got empty list"
         [(event_payload, _)] = encoded_results
-        decoded_event_payload = self.tracer.encoder._decode(event_payload)
+        decoded_event_payload = self.tracer._span_aggregator.writer.msgpack_encoder._decode(event_payload)
         assert len(decoded_event_payload[b"events"]) == 7
         for event in decoded_event_payload[b"events"]:
             assert event[b"content"][b"meta"][b"_dd.origin"] == b"ciapp-test"
@@ -837,7 +837,7 @@ class PytestTestCase(PytestTestCaseBase):
                 assert span.get_tag(test.SUITE) == file_name
         test_session_span = _get_spans_from_list(spans, "session")[0]
         assert test_session_span.get_tag("test.command") == (
-            "pytest -p no:randomly --ddtrace --doctest-modules " "test_pytest_doctest_module.py"
+            "pytest -p no:randomly --ddtrace --doctest-modules test_pytest_doctest_module.py"
         )
 
     def test_pytest_sets_sample_priority(self):
@@ -1709,12 +1709,15 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(True, False, False, True),
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(True, False, False, True),
+            ),
         ):
             self.inline_run(
                 "--ddtrace",
@@ -1801,15 +1804,19 @@ class PytestTestCase(PytestTestCaseBase):
             )
         )
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(True, True, False, True),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
-            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(True, True, False, True),
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+                side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+            ),
         ):
             self.inline_run(
                 "--ddtrace",
@@ -1893,12 +1900,15 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(True, False, False, True),
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(True, False, False, True),
+            ),
         ):
             self.inline_run(
                 "--ddtrace",
@@ -1977,12 +1987,15 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(True, False, False, True),
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(True, False, False, True),
+            ),
         ):
             self.inline_run(
                 "--ddtrace",
@@ -2041,12 +2054,15 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(True, False, False, True),
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(True, False, False, True),
+            ),
         ):
             self.inline_run(
                 "--ddtrace",
@@ -2180,18 +2196,23 @@ class PytestTestCase(PytestTestCaseBase):
             )
         )
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
-            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+                side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig",
+                _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
+            ),
         ):
             self.inline_run("--ddtrace")
 
@@ -2280,18 +2301,23 @@ class PytestTestCase(PytestTestCaseBase):
             )
         )
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
-            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig",
+                _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+                side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+            ),
         ):
             self.inline_run("--ddtrace")
 
@@ -2371,17 +2397,20 @@ class PytestTestCase(PytestTestCaseBase):
                 )
             )
         self.testdir.chdir()
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+                return_value=True,
+            ),
+            mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig",
+                _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+            ),
         ):
             self.inline_run("--ddtrace")
 
@@ -2438,19 +2467,21 @@ class PytestTestCase(PytestTestCaseBase):
                 )
             )
         self.testdir.chdir()
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder._is_item_itr_skippable", return_value=True
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+                return_value=True,
+            ),
+            mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig",
+                _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+            ),
+            mock.patch("ddtrace.internal.ci_visibility.recorder._is_item_itr_skippable", return_value=True),
         ):
             self.inline_run("--ddtrace")
 
@@ -2513,19 +2544,21 @@ class PytestTestCase(PytestTestCaseBase):
                 )
             )
         self.testdir.chdir()
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_item_itr_skippable", return_value=True
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+                return_value=True,
+            ),
+            mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"),
+            mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility.is_item_itr_skippable", return_value=True),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig",
+                _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
+            ),
         ):
             self.inline_run("--ddtrace")
 
@@ -2605,19 +2638,21 @@ class PytestTestCase(PytestTestCaseBase):
             )
         self.testdir.chdir()
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_item_itr_skippable", return_value=True
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+                return_value=True,
+            ),
+            mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"),
+            mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility.is_item_itr_skippable", return_value=True),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig",
+                _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+            ),
         ):
             self.inline_run("--ddtrace")
 
@@ -2634,9 +2669,9 @@ class PytestTestCase(PytestTestCaseBase):
         # This is the regression test: should count tests (4), not suites (2)
         expected_test_count = 4  # 4 individual tests were skipped
         actual_count = session_span.get_metric("test.itr.tests_skipping.count")
-        assert (
-            actual_count == expected_test_count
-        ), f"Expected {expected_test_count} tests skipped but got {actual_count}"
+        assert actual_count == expected_test_count, (
+            f"Expected {expected_test_count} tests skipped but got {actual_count}"
+        )
 
         # Verify all test spans were skipped by ITR
         skipped_test_spans = [x for x in spans if x.get_tag("test.status") == "skip" and x.get_tag("type") == "test"]
@@ -2686,19 +2721,21 @@ class PytestTestCase(PytestTestCaseBase):
             )
         self.testdir.chdir()
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_item_itr_skippable", return_value=True
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+                return_value=True,
+            ),
+            mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"),
+            mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility.is_item_itr_skippable", return_value=True),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig",
+                _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
+            ),
         ):
             self.inline_run("--ddtrace")
 
@@ -2715,9 +2752,9 @@ class PytestTestCase(PytestTestCaseBase):
         # This is the regression test: should count suites (2), not tests (4)
         expected_suite_count = 2  # 4 individual tests were skipped
         actual_count = session_span.get_metric("test.itr.tests_skipping.count")
-        assert (
-            actual_count == expected_suite_count
-        ), f"Expected {expected_suite_count} suites skipped but got {actual_count}"
+        assert actual_count == expected_suite_count, (
+            f"Expected {expected_suite_count} suites skipped but got {actual_count}"
+        )
 
         # Verify all test spans were skipped by ITR
         skipped_test_spans = [x for x in spans if x.get_tag("test.status") == "skip" and x.get_tag("type") == "test"]
@@ -2756,17 +2793,20 @@ class PytestTestCase(PytestTestCaseBase):
                 )
             )
         self.testdir.chdir()
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+                return_value=True,
+            ),
+            mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig",
+                _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
+            ),
         ):
             self.inline_run("--ddtrace")
 
@@ -2886,15 +2926,19 @@ class PytestTestCase(PytestTestCaseBase):
             )
         )
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
-            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+                side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig",
+                _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
+            ),
         ):
             self.inline_run("--ddtrace")
 
@@ -2959,12 +3003,15 @@ class PytestTestCase(PytestTestCaseBase):
             )
         )
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
-            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+                side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+                return_value=True,
+            ),
         ):
             self.inline_run("--ddtrace")
 
@@ -3052,18 +3099,23 @@ class PytestTestCase(PytestTestCaseBase):
             )
         )
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
-            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+                side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig",
+                _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+            ),
         ):
             self.inline_run("--ddtrace")
 
@@ -3194,18 +3246,23 @@ class PytestTestCase(PytestTestCaseBase):
             )
         )
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
-            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+                side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig",
+                _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
+            ),
         ):
             self.inline_run("--ddtrace")
 
@@ -3332,18 +3389,23 @@ class PytestTestCase(PytestTestCaseBase):
             )
         )
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
-            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+                side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig",
+                _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+            ),
         ):
             self.inline_run("--ddtrace")
 
@@ -3440,18 +3502,23 @@ class PytestTestCase(PytestTestCaseBase):
             )
         )
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
-            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+                side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig",
+                _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+            ),
         ):
             self.inline_run("--ddtrace")
 
@@ -3582,18 +3649,23 @@ class PytestTestCase(PytestTestCaseBase):
             )
         )
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
-            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+                side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig",
+                _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
+            ),
         ):
             self.inline_run("--ddtrace")
 
@@ -3719,18 +3791,23 @@ class PytestTestCase(PytestTestCaseBase):
             )
         )
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
-            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+                side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+                return_value=True,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig",
+                _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
+            ),
         ):
             self.inline_run("--ddtrace")
 
@@ -4528,10 +4605,13 @@ class PytestTestCase(PytestTestCaseBase):
             )
 
         self.testdir.chdir()
-        with mock.patch("ddtrace.ext.git._get_executable_path", return_value=None), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(),
-        ) as mock_ddconfig:
+        with (
+            mock.patch("ddtrace.ext.git._get_executable_path", return_value=None),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig",
+                _get_default_civisibility_ddconfig(),
+            ) as mock_ddconfig,
+        ):
             mock_ddconfig._ci_visibility_agentless_enabled = True
             self.inline_run("--ddtrace")
 
@@ -4557,7 +4637,7 @@ class PytestTestCase(PytestTestCaseBase):
             def test_dependency_collection_disabled():
                 # Check that the config is set to disable telemetry dependency collection
                 # The pytest plugin should have done this earlier in the process
-                from ddtrace.settings._telemetry import config as telemetry_config
+                from ddtrace.internal.settings._telemetry import config as telemetry_config
                 assert telemetry_config.DEPENDENCY_COLLECTION is False, "Dependency collection should be disabled"
         """
         )
@@ -4705,30 +4785,35 @@ def test_coverage_target():
         )
 
         # Mock settings to enable ITR test-level + coverage + EFD
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(
-                coverage_enabled=True,
-                itr_enabled=True,
-                skipping_enabled=True,
-                flaky_test_retries_enabled=False,
-                known_tests_enabled=True,  # This is required for EFD to work
-                early_flake_detection=EarlyFlakeDetectionSettings(
-                    enabled=True,
-                    slow_test_retries_5s=3,
-                    slow_test_retries_10s=2,
-                    slow_test_retries_30s=1,
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(
+                    coverage_enabled=True,
+                    itr_enabled=True,
+                    skipping_enabled=True,
+                    flaky_test_retries_enabled=False,
+                    known_tests_enabled=True,  # This is required for EFD to work
+                    early_flake_detection=EarlyFlakeDetectionSettings(
+                        enabled=True,
+                        slow_test_retries_5s=3,
+                        slow_test_retries_10s=2,
+                        slow_test_retries_30s=1,
+                    ),
                 ),
             ),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
-            return_value=ITRData(skippable_items=set()),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_known_tests",
-            return_value=set(),  # All tests are new so EFD can retry them
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+                return_value=ITRData(skippable_items=set()),
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_known_tests",
+                return_value=set(),  # All tests are new so EFD can retry them
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig",
+                _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+            ),
         ):
             # Run with ITR test-level mode enabled
             rec = self.inline_run(
@@ -4796,21 +4881,25 @@ def test_coverage_target():
         )
 
         # Mock settings to enable ITR test-level + coverage + ATR
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(
-                coverage_enabled=True,
-                itr_enabled=True,
-                skipping_enabled=True,
-                flaky_test_retries_enabled=True,  # Enable ATR
-                early_flake_detection=EarlyFlakeDetectionSettings(enabled=False),
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(
+                    coverage_enabled=True,
+                    itr_enabled=True,
+                    skipping_enabled=True,
+                    flaky_test_retries_enabled=True,  # Enable ATR
+                    early_flake_detection=EarlyFlakeDetectionSettings(enabled=False),
+                ),
             ),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
-            return_value=ITRData(skippable_items=set()),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+                return_value=ITRData(skippable_items=set()),
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig",
+                _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+            ),
         ):
             # Run with ITR test-level mode enabled
             self.inline_run(
@@ -4881,21 +4970,25 @@ def test_simple():
         )
 
         # Mock settings to enable ITR test-level + coverage (no retry for simplicity)
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(
-                coverage_enabled=True,
-                itr_enabled=True,
-                skipping_enabled=True,
-                flaky_test_retries_enabled=False,
-                early_flake_detection=EarlyFlakeDetectionSettings(enabled=False),
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(
+                    coverage_enabled=True,
+                    itr_enabled=True,
+                    skipping_enabled=True,
+                    flaky_test_retries_enabled=False,
+                    early_flake_detection=EarlyFlakeDetectionSettings(enabled=False),
+                ),
             ),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
-            return_value=ITRData(skippable_items=set()),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+                return_value=ITRData(skippable_items=set()),
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddconfig",
+                _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+            ),
         ):
             # Run with ITR test-level mode enabled
             rec = self.inline_run(
@@ -4933,28 +5026,33 @@ def test_pytest_coverage_data_format_handling_none_value():
     ci_visibility_instance = mock.MagicMock(spec=CIVisibility)
 
     # Test case 1: coverage data is None
-    with mock.patch(
-        "ddtrace.contrib.internal.pytest._plugin_v2._coverage_data",
-        {PCT_COVERED_KEY: None},
-    ), mock.patch(
-        "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
-        return_value=ci_visibility_instance,
-    ), mock.patch(
-        "ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled",
-        return_value=True,
-    ), mock.patch(
-        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_patched",
-        return_value=True,
-    ), mock.patch(
-        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run",
-        return_value=True,
-    ), mock.patch(
-        "ddtrace.contrib.internal.pytest._plugin_v2.run_coverage_report"
-    ), mock.patch(
-        "ddtrace.internal.test_visibility.api.InternalTestSession.set_covered_lines_pct"
-    ) as mock_set_covered_lines_pct, mock.patch(
-        "ddtrace.contrib.internal.pytest._plugin_v2.log"
-    ) as mock_log:
+    with (
+        mock.patch(
+            "ddtrace.contrib.internal.pytest._plugin_v2._coverage_data",
+            {PCT_COVERED_KEY: None},
+        ),
+        mock.patch(
+            "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
+            return_value=ci_visibility_instance,
+        ),
+        mock.patch(
+            "ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled",
+            return_value=True,
+        ),
+        mock.patch(
+            "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_patched",
+            return_value=True,
+        ),
+        mock.patch(
+            "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run",
+            return_value=True,
+        ),
+        mock.patch("ddtrace.contrib.internal.pytest._plugin_v2.run_coverage_report"),
+        mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTestSession.set_covered_lines_pct"
+        ) as mock_set_covered_lines_pct,
+        mock.patch("ddtrace.contrib.internal.pytest._plugin_v2.log") as mock_log,
+    ):
         _pytest_sessionfinish(mock_session, 0)
 
         mock_log.debug.assert_called_with("Unable to retrieve coverage data for the session span")
@@ -4974,28 +5072,33 @@ def test_pytest_coverage_data_format_handling_invalid_type():
 
     # Test case 2: coverage data is not a float (e.g., string)
     invalid_value = "not_a_float"
-    with mock.patch(
-        "ddtrace.contrib.internal.pytest._plugin_v2._coverage_data",
-        {PCT_COVERED_KEY: invalid_value},
-    ), mock.patch(
-        "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
-        return_value=ci_visibility_instance,
-    ), mock.patch(
-        "ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled",
-        return_value=True,
-    ), mock.patch(
-        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_patched",
-        return_value=True,
-    ), mock.patch(
-        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run",
-        return_value=True,
-    ), mock.patch(
-        "ddtrace.contrib.internal.pytest._plugin_v2.run_coverage_report"
-    ), mock.patch(
-        "ddtrace.internal.test_visibility.api.InternalTestSession.set_covered_lines_pct"
-    ) as mock_set_covered_lines_pct, mock.patch(
-        "ddtrace.contrib.internal.pytest._plugin_v2.log"
-    ) as mock_log:
+    with (
+        mock.patch(
+            "ddtrace.contrib.internal.pytest._plugin_v2._coverage_data",
+            {PCT_COVERED_KEY: invalid_value},
+        ),
+        mock.patch(
+            "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
+            return_value=ci_visibility_instance,
+        ),
+        mock.patch(
+            "ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled",
+            return_value=True,
+        ),
+        mock.patch(
+            "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_patched",
+            return_value=True,
+        ),
+        mock.patch(
+            "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run",
+            return_value=True,
+        ),
+        mock.patch("ddtrace.contrib.internal.pytest._plugin_v2.run_coverage_report"),
+        mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTestSession.set_covered_lines_pct"
+        ) as mock_set_covered_lines_pct,
+        mock.patch("ddtrace.contrib.internal.pytest._plugin_v2.log") as mock_log,
+    ):
         _pytest_sessionfinish(mock_session, 0)
 
         mock_log.warning.assert_called_with(
@@ -5019,27 +5122,30 @@ def test_pytest_coverage_data_format_handling_valid_values(valid_value):
 
     ci_visibility_instance = mock.MagicMock(spec=CIVisibility)
 
-    with mock.patch(
-        "ddtrace.contrib.internal.pytest._plugin_v2._coverage_data", {PCT_COVERED_KEY: valid_value}
-    ), mock.patch(
-        "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
-        return_value=ci_visibility_instance,
-    ), mock.patch(
-        "ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled",
-        return_value=True,
-    ), mock.patch(
-        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_patched",
-        return_value=True,
-    ), mock.patch(
-        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run",
-        return_value=True,
-    ), mock.patch(
-        "ddtrace.contrib.internal.pytest._plugin_v2.run_coverage_report"
-    ), mock.patch(
-        "ddtrace.internal.test_visibility.api.InternalTestSession.set_covered_lines_pct"
-    ) as mock_set_covered_lines_pct, mock.patch(
-        "ddtrace.contrib.internal.pytest._plugin_v2.log"
-    ) as mock_log:
+    with (
+        mock.patch("ddtrace.contrib.internal.pytest._plugin_v2._coverage_data", {PCT_COVERED_KEY: valid_value}),
+        mock.patch(
+            "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
+            return_value=ci_visibility_instance,
+        ),
+        mock.patch(
+            "ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled",
+            return_value=True,
+        ),
+        mock.patch(
+            "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_patched",
+            return_value=True,
+        ),
+        mock.patch(
+            "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run",
+            return_value=True,
+        ),
+        mock.patch("ddtrace.contrib.internal.pytest._plugin_v2.run_coverage_report"),
+        mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTestSession.set_covered_lines_pct"
+        ) as mock_set_covered_lines_pct,
+        mock.patch("ddtrace.contrib.internal.pytest._plugin_v2.log") as mock_log,
+    ):
         _pytest_sessionfinish(mock_session, 0)
 
         # No warning or debug should be called for valid case

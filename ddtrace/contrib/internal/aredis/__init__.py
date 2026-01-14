@@ -14,8 +14,8 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     patch(aredis=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.aredis["service"]
 
@@ -45,23 +45,4 @@ Global Configuration
    variable.
 
    Default: ``True``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure particular aredis instances use the :class:`Pin <ddtrace.trace.Pin>` API::
-
-    import aredis
-    from ddtrace.trace import Pin
-
-    client = aredis.StrictRedis(host="localhost", port=6379)
-
-    # Override service name for this instance
-    Pin.override(client, service="my-custom-queue")
-
-    # Traces reported for this client will now have "my-custom-queue"
-    # as the service name.
-    async def example():
-        await client.get("my-key")
 """

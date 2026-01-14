@@ -5,12 +5,14 @@ import logging
 import subprocess
 import time
 from urllib.parse import parse_qs
+from urllib.parse import urlparse
 
 from fastapi import FastAPI
 from fastapi import Form
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from fastapi.responses import Response
+from fastapi.responses import StreamingResponse
 import requests
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.base import RequestResponseEndpoint
@@ -106,17 +108,15 @@ def get_app():
 
     @app.post("/iast/ssrf/test_secure", response_class=PlainTextResponse)
     async def view_iast_ssrf_secure(url: str = Form(...)):
-        from urllib.parse import urlparse
-
         # Validate the URL and enforce whitelist
         allowed_domains = ["example.com", "api.example.com", "www.datadoghq.com", "localhost"]
-        if type(url) == bytes:
+        if isinstance(url, bytes):
             url = url.decode("utf-8")
         parsed_url = urlparse(url)
         if parsed_url.hostname not in allowed_domains:
             return PlainTextResponse("Forbidden", status_code=403)
         try:
-            requests.get(parsed_url.geturl())
+            requests.get(url)
         except Exception:
             pass
 
@@ -247,6 +247,38 @@ def get_app():
         # Sending a GET request and getting back response as HTTPResponse object.
         response = http_.request("GET", f"http://0.0.0.0:{port}/returnheaders")
         return response.data
+
+    @app.get("/iast-stream")
+    async def iast_stream(data: str = "stream_data"):
+        """Test endpoint for streaming response with IAST.
+
+        Returns a streaming response using tainted data to test IAST with streaming.
+        """
+
+        async def stream_generator():
+            # Yield tainted data in chunks
+            yield data.encode()
+            yield b" "
+            yield b"streamed"
+
+        return StreamingResponse(stream_generator(), media_type="text/plain")
+
+    @app.post("/iast-stream-cmdi")
+    async def iast_stream_cmdi(command: str = Form(...)):
+        """Test endpoint for streaming response with CMDI vulnerability.
+
+        Accepts form data and uses it in a command injection sink, then returns streaming response.
+        """
+        # Trigger CMDI vulnerability
+        subp = subprocess.Popen(args=["ls", "-la", command])
+        subp.communicate()
+        subp.wait()
+
+        async def stream_generator():
+            yield b"Command executed: "
+            yield command.encode()
+
+        return StreamingResponse(stream_generator(), media_type="text/plain")
 
     return app
 

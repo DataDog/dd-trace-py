@@ -1,4 +1,5 @@
 """This imports the parent package's constants"""
+
 from ..normal_import_const import NORMAL
 
 

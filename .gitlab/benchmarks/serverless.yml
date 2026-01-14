@@ -6,7 +6,8 @@ benchmark-serverless:
   trigger:
     project: DataDog/serverless-tools
     strategy: depend
-  needs: []
+  needs:
+    - job: "upload all"
   rules:
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true

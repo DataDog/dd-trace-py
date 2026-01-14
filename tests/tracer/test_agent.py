@@ -3,8 +3,8 @@ import pytest
 
 from ddtrace.internal import agent
 from ddtrace.internal.agent import info
+from ddtrace.internal.settings._agent import is_ipv6_hostname
 from ddtrace.internal.utils.http import verify_url
-from ddtrace.settings._agent import is_ipv6_hostname
 
 
 @pytest.mark.parametrize(
@@ -32,7 +32,7 @@ def test_hostname():
     import os
     from urllib.parse import urlparse
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     assert urlparse(config.trace_agent_url).hostname == os.environ.get("DD_AGENT_HOST")
     assert urlparse(config.dogstatsd_url).hostname == os.environ.get("DD_AGENT_HOST"), urlparse(config.dogstatsd_url)
@@ -44,7 +44,7 @@ def test_hostname():
 def test_trace_hostname():
     from urllib.parse import urlparse
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     assert urlparse(config.trace_agent_url).hostname == "monkey"
 
@@ -53,7 +53,7 @@ def test_trace_hostname():
 def test_hostname_not_set():
     from urllib.parse import urlparse
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     assert urlparse(config.trace_agent_url).hostname == "localhost"
 
@@ -62,7 +62,7 @@ def test_hostname_not_set():
 def test_trace_port():
     from urllib.parse import urlparse
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     assert urlparse(config.trace_agent_url).port == 9999
 
@@ -71,7 +71,7 @@ def test_trace_port():
 def test_agent_port():
     from urllib.parse import urlparse
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     assert urlparse(config.trace_agent_url).port == 1235
 
@@ -80,7 +80,7 @@ def test_agent_port():
 def test_trace_port_not_set():
     from urllib.parse import urlparse
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     assert urlparse(config.trace_agent_url).port == 8126
 
@@ -89,7 +89,7 @@ def test_trace_port_not_set():
 def test_stats_port():
     from urllib.parse import urlparse
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     assert urlparse(config.dogstatsd_url).port == 1235
 
@@ -98,7 +98,7 @@ def test_stats_port():
 def test_stats_port_not_set():
     from urllib.parse import urlparse
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     assert urlparse(config.dogstatsd_url).port == 8125
 
@@ -117,7 +117,7 @@ def test_trace_url_uds():
     import mock
 
     with mock.patch("os.path.exists", return_value=True):
-        from ddtrace.settings._agent import config
+        from ddtrace.internal.settings._agent import config
 
         assert config.trace_agent_url == "unix:///var/run/datadog/apm.socket"
 
@@ -135,7 +135,7 @@ def test_trace_url_default():
     # with nothing set by user, and the default UDS unavailable, we choose default http address
     import mock
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     with mock.patch("os.path.exists", return_value=False):
         assert config.trace_agent_url == "http://localhost:8126"
@@ -148,7 +148,7 @@ def test_trace_url_with_port():
     # with port set by user, and default UDS unavailable, we choose user settings
     import mock
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     with mock.patch("os.path.exists", return_value=False):
         url = config.trace_agent_url
@@ -168,7 +168,7 @@ def test_trace_url_with_host():
     # with host set by user, and default UDS unavailable, we choose user settings
     import mock
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     with mock.patch("os.path.exists", return_value=False):
         assert config.trace_agent_url == "http://mars:8126", config.trace_agent_url
@@ -186,7 +186,7 @@ def test_trace_url_with_host_and_port():
     # with host and port set by user, and default UDS unavailable, we choose user settings
     import mock
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     with mock.patch("os.path.exists", return_value=False):
         assert config.trace_agent_url == "http://mars:1235"
@@ -199,7 +199,7 @@ def test_trace_url_with_uds_and_port():
     # with port set by user, and default UDS available, we choose user settings
     import mock
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     with mock.patch("os.path.exists", return_value=True):
         assert config.trace_agent_url == "http://localhost:1235"
@@ -218,7 +218,7 @@ def test_trace_url_with_uds_and_host():
     # with host set by user, and default UDS available, we choose user settings
     import mock
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     with mock.patch("os.path.exists", return_value=True):
         assert config.trace_agent_url == "http://mars:8126"
@@ -236,7 +236,7 @@ def test_trace_url_with_uds_host_and_port():
     # with host and port set by user, and default UDS available, we choose user settings
     import mock
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     with mock.patch("os.path.exists", return_value=True):
         assert config.trace_agent_url == "http://mars:1235"
@@ -249,7 +249,7 @@ def test_trace_url_with_uds_url_host_and_port():
     # with port, host, and url set by user, and default UDS available, we choose url
     import mock
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     with mock.patch("os.path.exists", return_value=True):
         assert config.trace_agent_url == "http://saturn:1111"
@@ -262,7 +262,7 @@ def test_trace_url_with_url_host_and_port():
     # with port, host, and url set by user, and default UDS unavailable, we choose url
     import mock
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     with mock.patch("os.path.exists", return_value=False):
         assert config.trace_agent_url == "http://saturn:1111"
@@ -281,7 +281,7 @@ def test_stats_url_default():
     # with nothing set by user, and the default UDS unavailable, we choose default http address
     import mock
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     with mock.patch("os.path.exists", return_value=False):
         assert config.dogstatsd_url == "udp://localhost:8125"
@@ -300,7 +300,7 @@ def test_stats_url_with_port():
     # with port set by user, and default UDS unavailable, we choose user settings
     import mock
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     with mock.patch("os.path.exists", return_value=False):
         assert config.dogstatsd_url == "udp://localhost:1235"
@@ -319,7 +319,7 @@ def test_stats_url_with_host():
     # with host set by user, and default UDS unavailable, we choose user settings
     import mock
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     with mock.patch("os.path.exists", return_value=False):
         assert config.dogstatsd_url == "udp://mars:8125"
@@ -332,7 +332,7 @@ def test_stats_url_with_host_and_port():
     # with host and port set by user, and default UDS unavailable, we choose user settings
     import mock
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     with mock.patch("os.path.exists", return_value=False):
         assert config.dogstatsd_url == "udp://mars:1235"
@@ -351,7 +351,7 @@ def test_stats_url_with_uds_and_port():
     # with port set by user, and default UDS available, we choose user settings
     import mock
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     with mock.patch("os.path.exists", return_value=True):
         assert config.dogstatsd_url == "udp://localhost:1235"
@@ -370,7 +370,7 @@ def test_stats_url_with_uds_and_host():
     # with host set by user, and default UDS available, we choose user settings
     import mock
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     with mock.patch("os.path.exists", return_value=True):
         assert config.dogstatsd_url == "udp://mars:8125"
@@ -383,7 +383,7 @@ def test_stats_url_with_uds_host_and_port():
     # with host and port set by user, and default UDS available, we choose user settings
     import mock
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     with mock.patch("os.path.exists", return_value=True):
         assert config.dogstatsd_url == "udp://mars:1235"
@@ -396,7 +396,7 @@ def test_stats_url_with_uds_url_host_and_port():
     # with port, host, and url set by user, and default UDS available, we choose url
     import mock
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     with mock.patch("os.path.exists", return_value=True):
         assert config.dogstatsd_url == "udp://saturn:1111"
@@ -409,7 +409,7 @@ def test_stats_url_with_url_host_and_port():
     # with port, host, and url set by user, and default UDS unavailable, we choose url
     import mock
 
-    from ddtrace.settings._agent import config
+    from ddtrace.internal.settings._agent import config
 
     with mock.patch("os.path.exists", return_value=False):
         assert config.dogstatsd_url == "udp://saturn:1111"
@@ -466,6 +466,58 @@ def test_verify_url():
 
 def _mock_raise(ex):
     raise ex
+
+
+def test_process_info_headers_updates_container_tags_hash():
+    resp = mock.Mock()
+    resp.getheader.return_value = "abc123"
+    resp.status = 200
+    resp.read.return_value = b"{}"
+
+    conn = mock.Mock()
+    conn.getresponse.return_value = resp
+
+    with mock.patch("ddtrace.internal.agent.get_connection", return_value=conn):
+        with mock.patch("ddtrace.internal.agent.compute_base_hash") as mock_update_container_hash:
+            agent.info()
+
+    resp.getheader.assert_called_once_with(agent.CONTAINER_TAGS_HASH)
+    mock_update_container_hash.assert_called_once_with("abc123")
+
+
+def test_process_info_headers_missing_header():
+    resp = mock.Mock()
+    resp.getheader.return_value = None
+    resp.status = 200
+    resp.read.return_value = b"{}"
+
+    conn = mock.Mock()
+    conn.getresponse.return_value = resp
+
+    with mock.patch("ddtrace.internal.agent.get_connection", return_value=conn):
+        with mock.patch("ddtrace.internal.agent.compute_base_hash") as mock_update_container_hash:
+            agent.info()
+
+    resp.getheader.assert_called_once_with(agent.CONTAINER_TAGS_HASH)
+    mock_update_container_hash.assert_not_called()
+
+
+def test_process_info_headers_handles_errors():
+    resp = mock.Mock()
+    resp.getheader.side_effect = RuntimeError("foo")
+
+    resp.status = 200
+    resp.read.return_value = b"{}"
+
+    conn = mock.Mock()
+    conn.getresponse.return_value = resp
+
+    with mock.patch("ddtrace.internal.agent.get_connection", return_value=conn):
+        with mock.patch("ddtrace.internal.agent.compute_base_hash") as mock_update_container_hash:
+            agent.info()
+
+    resp.getheader.assert_called_once_with(agent.CONTAINER_TAGS_HASH)
+    mock_update_container_hash.assert_not_called()
 
 
 @pytest.mark.parametrize(

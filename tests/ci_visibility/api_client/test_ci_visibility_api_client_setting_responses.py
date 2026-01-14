@@ -139,8 +139,10 @@ class TestTestVisibilityAPIClientSettingResponses(TestTestVisibilityAPIClientBas
     def test_civisibility_api_client_setting_errors(self, do_request_side_effect, expected_exception):
         """Tests that the client reports errors correctly based on the API response"""
         client = self._get_test_client()
-        with mock.patch.object(client, "_do_request", side_effect=[do_request_side_effect] * 5), pytest.raises(
-            expected_exception
-        ), mock.patch("ddtrace.internal.ci_visibility.utils.sleep"):
+        with (
+            mock.patch.object(client, "_do_request", side_effect=[do_request_side_effect] * 5),
+            pytest.raises(expected_exception),
+            mock.patch("ddtrace.internal.ci_visibility.utils.sleep"),
+        ):
             settings = client.fetch_settings(read_from_cache=False)
             assert settings is None

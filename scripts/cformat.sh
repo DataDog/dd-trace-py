@@ -34,6 +34,7 @@ enumerate_files() {
         '*.c'
         '*.h'
         '*.cpp'
+        '*.cc'
         '*.hpp'
     )
 
@@ -42,17 +43,22 @@ enumerate_files() {
         for ext in "${extensions[@]}"; do
             find_conditions+=("-o" "-name" "$ext")
         done
-        unset 'find_conditions[-1]'
+        find_conditions=("${find_conditions[@]:1}")  # Remove first -o
         find "$BASE_DIR" -type f \( "${find_conditions[@]}" \)
     else
-        git ls-files "${extensions[@]}"
+        # Only check modified files (staged, unstaged, and committed in current branch vs main)
+        {
+            git diff --name-only "$(git merge-base origin/main HEAD)"
+            git diff --name-only --cached
+            git diff --name-only
+        } | sort -u | grep -E '\.(c|h|cpp|cc|hpp)$' || true
     fi
 }
 
 # Script defaults
 UPDATE_MODE=false
 ENUM_ALL=false
-BASE_DIR=$(dirname "$(realpath "$0")")
+BASE_DIR=$(dirname "$(dirname "$(realpath "$0")")")
 CLANG_FORMAT=clang-format
 
 # NB: consumes the arguments
@@ -67,25 +73,34 @@ while (( "$#" )); do
         *)
             ;;
     esac
+    shift
 done
 
 # Environment variable overrides
 [[ -n "${CFORMAT_FIX:-}" ]] && UPDATE_MODE=true
 [[ -n "${CFORMAT_ALL:-}" ]] && ENUM_ALL=true
-[[ -n "${CFORMAT_BIN:-}" ]] && CLANG_FORMAT="$CLANG_FORMAT_BIN"
+[[ -n "${CFORMAT_BIN:-}" ]] && CLANG_FORMAT="$CFORMAT_BIN"
 
 if [[ "$UPDATE_MODE" == "true" ]]; then
     # Update mode: Format files in-place
     enumerate_files \
         | exclude_patterns \
         | while IFS= read -r file; do
+            # Skip files that don't exist (e.g., deleted but still in git ls-files)
+            if [[ ! -f "$file" ]]; then
+                continue
+            fi
+            echo "Formatting $file";
             ${CLANG_FORMAT} -i "$file"
-            echo "Formatting $file"
         done
 else
     # Check mode: Compare formatted output to existing files
     has_diff=0
     while IFS= read -r filename; do
+        # Skip files that don't exist (e.g., deleted but still in git ls-files)
+        if [[ ! -f "$filename" ]]; then
+            continue
+        fi
         CFORMAT_TMP=$(mktemp)
         ${CLANG_FORMAT} "$filename" > "$CFORMAT_TMP"
         if ! diff -u "$filename" "$CFORMAT_TMP"; then

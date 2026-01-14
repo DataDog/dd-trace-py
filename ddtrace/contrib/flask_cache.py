@@ -43,6 +43,7 @@ Use a specific ``Cache`` implementation with::
     Cache = get_traced_cache(tracer, service='my-flask-cache-app', cache_cls=Cache)
 
 """
+
 from ddtrace.contrib.internal.flask_cache.patch import get_traced_cache
 
 

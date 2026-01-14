@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    data_streams: This fix resolves an issue where payload size statistics were not being sent to
+    the backend for Data Streams Monitoring (DSM).

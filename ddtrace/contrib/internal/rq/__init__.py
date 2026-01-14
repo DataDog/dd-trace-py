@@ -23,26 +23,8 @@ Worker Usage
 
 
 
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To override the service name for a queue::
-
-    from ddtrace.trace import Pin
-
-    connection = redis.Redis()
-    queue = rq.Queue(connection=connection)
-    Pin.override(queue, service="custom_queue_service")
-
-
-To override the service name for a particular worker::
-
-    worker = rq.SimpleWorker([queue], connection=queue.connection)
-    Pin.override(worker, service="custom_worker_service")
-
-
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.rq['distributed_tracing_enabled']
 .. py:data:: ddtrace.config.rq_worker['distributed_tracing_enabled']

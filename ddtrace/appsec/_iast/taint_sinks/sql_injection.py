@@ -9,7 +9,7 @@ from ddtrace.appsec._iast._taint_utils import DBAPI_PREFIXES
 from ddtrace.appsec._iast.constants import DBAPI_INTEGRATIONS
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 class SqlInjection(VulnerabilityBase):

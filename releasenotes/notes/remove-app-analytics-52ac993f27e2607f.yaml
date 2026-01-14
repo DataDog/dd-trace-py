@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    tracing: This change removes the deprecated functionality that controls ingestion via analytics.

@@ -7,11 +7,13 @@ import pytest
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.utils import _est_tokens
 from ddtrace.llmobs._utils import safe_json
+from tests.contrib.openai.utils import assert_prompt_tracking
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
 from tests.contrib.openai.utils import get_openai_vcr
 from tests.contrib.openai.utils import mock_openai_chat_completions_response
 from tests.contrib.openai.utils import mock_openai_completions_response
+from tests.contrib.openai.utils import mock_response_mcp_tool_call
 from tests.contrib.openai.utils import multi_message_input
 from tests.contrib.openai.utils import response_tool_function
 from tests.contrib.openai.utils import response_tool_function_expected_output
@@ -57,7 +59,7 @@ EXPECTED_TOOL_DEFINITIONS = [
 class TestLLMObsOpenaiV1:
     @mock.patch("openai._base_client.SyncAPIClient.post")
     def test_completion_proxy(
-        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
     ):
         # mock out the completions response
         mock_completions_post.return_value = mock_openai_completions_response
@@ -72,7 +74,7 @@ class TestLLMObsOpenaiV1:
             max_tokens=10,
             user="ddtrace-test",
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_non_llm_span_event(
@@ -108,11 +110,11 @@ class TestLLMObsOpenaiV1:
             max_tokens=10,
             user="ddtrace-test",
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
 
-    def test_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Ensure llmobs records are emitted for completion endpoints when configured.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -129,7 +131,7 @@ class TestLLMObsOpenaiV1:
                 max_tokens=10,
                 user="ddtrace-test",
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -150,7 +152,7 @@ class TestLLMObsOpenaiV1:
     )
     @mock.patch("openai._base_client.SyncAPIClient.post")
     def test_completion_azure_proxy(
-        self, mock_completions_post, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+        self, mock_completions_post, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, test_spans
     ):
         prompt = "Hello world"
         mock_completions_post.return_value = mock_openai_completions_response
@@ -162,7 +164,7 @@ class TestLLMObsOpenaiV1:
         azure_client.completions.create(
             model="gpt-3.5-turbo", prompt=prompt, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_non_llm_span_event(
@@ -195,7 +197,7 @@ class TestLLMObsOpenaiV1:
         azure_client.completions.create(
             model="gpt-3.5-turbo", prompt=prompt, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
 
@@ -203,11 +205,11 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) >= (1, 60),
         reason="latest openai versions use modified azure requests",
     )
-    def test_completion_azure(
-        self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
-    ):
+    def test_completion_azure(self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, test_spans):
         prompt = "why do some languages have words that can't directly be translated to other languages?"
-        expected_output = '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
+        expected_output = (
+            '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
+        )
         with get_openai_vcr(subdirectory_name="v1").use_cassette("azure_completion.yaml"):
             azure_client = openai.AzureOpenAI(
                 api_version=azure_openai_config["api_version"],
@@ -218,7 +220,7 @@ class TestLLMObsOpenaiV1:
             resp = azure_client.completions.create(
                 model="gpt-35-turbo", prompt=prompt, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -238,10 +240,12 @@ class TestLLMObsOpenaiV1:
         reason="latest openai versions use modified azure requests",
     )
     async def test_completion_azure_async(
-        self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+        self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, test_spans
     ):
         prompt = "why do some languages have words that can't directly be translated to other languages?"
-        expected_output = '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
+        expected_output = (
+            '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
+        )
         with get_openai_vcr(subdirectory_name="v1").use_cassette("azure_completion.yaml"):
             azure_client = openai.AsyncAzureOpenAI(
                 api_version=azure_openai_config["api_version"],
@@ -252,7 +256,7 @@ class TestLLMObsOpenaiV1:
             resp = await azure_client.completions.create(
                 model="gpt-35-turbo", prompt=prompt, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -267,19 +271,17 @@ class TestLLMObsOpenaiV1:
             )
         )
 
-    def test_completion_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_completion_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("completion_streamed.yaml"):
-            with mock.patch("ddtrace.llmobs._integrations.utils.encoding_for_model", create=True) as mock_encoding:
-                with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
-                    mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
-                    mock_est.return_value = 2
-                    model = "ada"
-                    expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
-                    client = openai.OpenAI()
-                    resp = client.completions.create(model=model, prompt="Hello world", stream=True)
-                    for _ in resp:
-                        pass
-        span = mock_tracer.pop_traces()[0][0]
+            with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
+                mock_est.return_value = 2
+                model = "ada"
+                expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
+                client = openai.OpenAI()
+                resp = client.completions.create(model=model, prompt="Hello world", stream=True)
+                for _ in resp:
+                    pass
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -296,14 +298,14 @@ class TestLLMObsOpenaiV1:
 
     @mock.patch("openai._base_client.SyncAPIClient.post")
     def test_chat_completion_proxy(
-        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
     ):
         mock_completions_post.return_value = mock_openai_chat_completions_response
         model = "gpt-3.5-turbo"
         input_messages = multi_message_input
         client = openai.OpenAI(base_url="http://localhost:4000")
         client.chat.completions.create(model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test")
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_non_llm_span_event(
@@ -335,11 +337,11 @@ class TestLLMObsOpenaiV1:
         # span created from request with non-proxy URL should result in an LLM span
         client = openai.OpenAI(base_url="http://localhost:8000")
         client.chat.completions.create(model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test")
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
 
-    def test_chat_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_chat_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Ensure llmobs records are emitted for chat completion endpoints when configured.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -351,7 +353,7 @@ class TestLLMObsOpenaiV1:
             resp = client.chat.completions.create(
                 model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test"
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -372,7 +374,7 @@ class TestLLMObsOpenaiV1:
     )
     @mock.patch("openai._base_client.SyncAPIClient.post")
     def test_chat_completion_azure_proxy(
-        self, mock_completions_post, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+        self, mock_completions_post, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, test_spans
     ):
         input_messages = [
             {"content": "Where did the Los Angeles Dodgers play to win the world series in 2020?", "role": "user"}
@@ -386,7 +388,7 @@ class TestLLMObsOpenaiV1:
         azure_client.chat.completions.create(
             model="gpt-3.5-turbo", messages=input_messages, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         expected_event = _expected_llmobs_non_llm_span_event(
             span,
@@ -424,7 +426,7 @@ class TestLLMObsOpenaiV1:
         azure_client.chat.completions.create(
             model="gpt-3.5-turbo", messages=input_messages, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
 
@@ -433,7 +435,7 @@ class TestLLMObsOpenaiV1:
         reason="latest openai versions use modified azure requests",
     )
     def test_chat_completion_azure(
-        self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+        self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, test_spans
     ):
         input_messages = [{"role": "user", "content": "What's the weather like in NYC right now?"}]
         expected_output = "I'm sorry, as an AI language model, I do not have real-time information. Please check"
@@ -447,7 +449,7 @@ class TestLLMObsOpenaiV1:
             resp = azure_client.chat.completions.create(
                 model="gpt-35-turbo", messages=input_messages, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -467,7 +469,7 @@ class TestLLMObsOpenaiV1:
         reason="latest openai versions use modified azure requests",
     )
     def test_chat_completion_azure_streamed(
-        self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+        self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, test_spans
     ):
         input_messages = [{"role": "user", "content": "What's the weather like in NYC right now?"}]
         expected_output = (
@@ -492,7 +494,7 @@ class TestLLMObsOpenaiV1:
             )
             for chunk in resp:
                 pass
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
 
         expected_metadata = {
@@ -524,7 +526,7 @@ class TestLLMObsOpenaiV1:
         reason="latest openai versions use modified azure requests",
     )
     async def test_chat_completion_azure_async(
-        self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+        self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, test_spans
     ):
         input_messages = [{"role": "user", "content": "What's the weather like in NYC right now?"}]
         expected_output = "I'm sorry, as an AI language model, I do not have real-time information. Please check"
@@ -538,7 +540,7 @@ class TestLLMObsOpenaiV1:
             resp = await azure_client.chat.completions.create(
                 model="gpt-35-turbo", messages=input_messages, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -557,7 +559,7 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
     )
     def test_chat_completion_stream_explicit_no_tokens(
-        self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+        self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
     ):
         """Ensure llmobs records are emitted for chat completion endpoints when configured.
 
@@ -565,25 +567,23 @@ class TestLLMObsOpenaiV1:
         """
 
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
-            with mock.patch("ddtrace.llmobs._integrations.utils.encoding_for_model", create=True) as mock_encoding:
-                with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
-                    mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
-                    mock_est.return_value = 8
-                    model = "gpt-3.5-turbo"
-                    resp_model = model
-                    input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
-                    expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
-                    client = openai.OpenAI()
-                    resp = client.chat.completions.create(
-                        model=model,
-                        messages=input_messages,
-                        stream=True,
-                        user="ddtrace-test",
-                        stream_options={"include_usage": False},
-                    )
-                    for chunk in resp:
-                        resp_model = chunk.model
-        span = mock_tracer.pop_traces()[0][0]
+            with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
+                mock_est.return_value = 8
+                model = "gpt-3.5-turbo"
+                resp_model = model
+                input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+                expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
+                client = openai.OpenAI()
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=input_messages,
+                    stream=True,
+                    user="ddtrace-test",
+                    stream_options={"include_usage": False},
+                )
+                for chunk in resp:
+                    resp_model = chunk.model
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -601,7 +601,7 @@ class TestLLMObsOpenaiV1:
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26, 0), reason="Streamed tokens available in 1.26.0+"
     )
-    def test_chat_completion_stream_tokens(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_chat_completion_stream_tokens(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Assert that streamed token chunk extraction logic works when options are not explicitly passed from user."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed_tokens.yaml"):
             model = "gpt-3.5-turbo"
@@ -612,7 +612,7 @@ class TestLLMObsOpenaiV1:
             resp = client.chat.completions.create(model=model, messages=input_messages, stream=True)
             for chunk in resp:
                 resp_model = chunk.model
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -631,7 +631,7 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) < (1, 40, 0),
         reason="`client.beta.chat.completions.stream` available in 1.40.0+",
     )
-    def test_chat_completion_stream_tokens_beta(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_chat_completion_stream_tokens_beta(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Assert that streamed token chunk extraction logic works when options are not explicitly passed from user."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed_tokens.yaml"):
             model = "gpt-3.5-turbo"
@@ -643,7 +643,7 @@ class TestLLMObsOpenaiV1:
                 for chunk in stream:
                     if hasattr(chunk, "chunk") and hasattr(chunk.chunk, "model"):
                         resp_model = chunk.chunk.model
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         llmobs_span_event = mock_llmobs_writer.enqueue.call_args_list[0][0][0]
         assert llmobs_span_event["meta"]["metadata"]["stream_options"]["include_usage"] is True
@@ -660,7 +660,7 @@ class TestLLMObsOpenaiV1:
             )
         )
 
-    def test_chat_completion_function_call(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_chat_completion_function_call(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Test that function call chat completion calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_function_call.yaml"):
             model = "gpt-3.5-turbo"
@@ -688,7 +688,7 @@ class TestLLMObsOpenaiV1:
                 }
             ],
         }
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -707,7 +707,7 @@ class TestLLMObsOpenaiV1:
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
     )
-    def test_chat_completion_tool_call(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_chat_completion_tool_call(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Test that tool call chat completion calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_tool_call.yaml"):
             model = "gpt-3.5-turbo"
@@ -718,7 +718,7 @@ class TestLLMObsOpenaiV1:
                 messages=[{"role": "user", "content": chat_completion_input_description}],
                 user="ddtrace-test",
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -738,7 +738,7 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
     )
     def test_chat_completion_tool_call_with_follow_up(
-        self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+        self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
     ):
         """Test a conversation flow where a tool call response is used in a follow-up message."""
         model = "gpt-3.5-turbo"
@@ -772,7 +772,7 @@ class TestLLMObsOpenaiV1:
                 user="ddtrace-test",
             )
 
-        spans = mock_tracer.pop_traces()
+        spans = test_spans.pop_traces()
         span1, span2 = spans[0][0], spans[1][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
 
@@ -872,6 +872,7 @@ class TestLLMObsOpenaiV1:
                             "output_tokens": 36,
                             "total_tokens": 179,
                             "cache_read_input_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -883,7 +884,7 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) < (1, 66),
         reason="Responses API with custom tools available after v1.66.0",
     )
-    def test_response_custom_tool_call(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_response_custom_tool_call(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Test that custom tool calls in responses API are recorded as LLMObs events correctly."""
         grammar = """
         start: expr
@@ -916,7 +917,7 @@ class TestLLMObsOpenaiV1:
                 ],
             )
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -946,6 +947,7 @@ class TestLLMObsOpenaiV1:
                     "output_tokens": 275,
                     "total_tokens": 434,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 256,
                 },
                 tool_definitions=[
                     {
@@ -964,7 +966,6 @@ class TestLLMObsOpenaiV1:
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}, "verbosity": "medium"},
-                    "reasoning_tokens": 256,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -974,7 +975,7 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) < (1, 1),
         reason="Tool calls available after v1.1.0",
     )
-    def test_chat_completion_custom_tool_call(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_chat_completion_custom_tool_call(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Test that custom tool calls in chat completions API are recorded as LLMObs events correctly."""
         grammar = """
 start: expr
@@ -1008,7 +1009,7 @@ MUL: "*"
                 ],
             )
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1035,6 +1036,7 @@ MUL: "*"
                     "output_tokens": 214,
                     "total_tokens": 455,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 192,
                 },
                 tool_definitions=[
                     {
@@ -1050,7 +1052,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26, 0), reason="Streamed tokens available in 1.26.0+"
     )
-    def test_chat_completion_tool_call_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_chat_completion_tool_call_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Test that tool call chat completion calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_tool_call_streamed.yaml"):
             model = "gpt-3.5-turbo"
@@ -1064,7 +1066,7 @@ MUL: "*"
             )
             for chunk in resp:
                 resp_model = chunk.model
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1080,7 +1082,7 @@ MUL: "*"
             )
         )
 
-    def test_completion_error(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_completion_error(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Ensure erroneous llmobs records are emitted for completion endpoints when configured."""
         with pytest.raises(Exception):
             with get_openai_vcr(subdirectory_name="v1").use_cassette("completion_error.yaml"):
@@ -1095,7 +1097,7 @@ MUL: "*"
                     max_tokens=10,
                     user="ddtrace-test",
                 )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1113,7 +1115,7 @@ MUL: "*"
             )
         )
 
-    def test_chat_completion_error(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_chat_completion_error(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Ensure erroneous llmobs records are emitted for chat completion endpoints when configured."""
         with pytest.raises(Exception):
             with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_error.yaml"):
@@ -1123,7 +1125,7 @@ MUL: "*"
                 client.chat.completions.create(
                     model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test"
                 )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1141,7 +1143,7 @@ MUL: "*"
             )
         )
 
-    def test_chat_completion_prompt_caching(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_chat_completion_prompt_caching(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Test that prompt caching metrics are properly captured"""
         model = "gpt-4o"
         client = openai.OpenAI()
@@ -1160,7 +1162,7 @@ MUL: "*"
                 max_tokens=100,
                 temperature=0.1,
             )
-        spans = mock_tracer.pop_traces()
+        spans = test_spans.pop_traces()
         span1, span2 = spans[0][0], spans[1][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
 
@@ -1180,6 +1182,7 @@ MUL: "*"
                             "output_tokens": 100,
                             "total_tokens": 1321,
                             "cache_read_input_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1198,6 +1201,7 @@ MUL: "*"
                             "output_tokens": 100,
                             "total_tokens": 1320,
                             "cache_read_input_tokens": 1152,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1205,11 +1209,11 @@ MUL: "*"
             ]
         )
 
-    def test_embedding_string(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_embedding_string(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding.yaml"):
             client = openai.OpenAI()
             resp = client.embeddings.create(input="hello world", model="text-embedding-ada-002")
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1225,11 +1229,11 @@ MUL: "*"
             )
         )
 
-    def test_embedding_string_array(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_embedding_string_array(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_string_array.yaml"):
             client = openai.OpenAI()
             resp = client.embeddings.create(input=["hello world", "hello again"], model="text-embedding-ada-002")
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1245,11 +1249,11 @@ MUL: "*"
             )
         )
 
-    def test_embedding_token_array(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_embedding_token_array(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_token_array.yaml"):
             client = openai.OpenAI()
             resp = client.embeddings.create(input=[1111, 2222, 3333], model="text-embedding-ada-002")
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1265,13 +1269,13 @@ MUL: "*"
             )
         )
 
-    def test_embedding_array_of_token_arrays(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_embedding_array_of_token_arrays(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_array_of_token_arrays.yaml"):
             client = openai.OpenAI()
             resp = client.embeddings.create(
                 input=[[1111, 2222, 3333], [4444, 5555, 6666], [7777, 8888, 9999]], model="text-embedding-ada-002"
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1294,13 +1298,13 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 10, 0), reason="Embedding dimensions available in 1.10.0+"
     )
-    def test_embedding_string_base64(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_embedding_string_base64(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_b64.yaml"):
             client = openai.OpenAI()
             resp = client.embeddings.create(
                 input="hello world", model="text-embedding-3-small", encoding_format="base64", dimensions=512
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1316,7 +1320,7 @@ MUL: "*"
             )
         )
 
-    def test_deepseek_as_provider(self, openai, mock_llmobs_writer, mock_tracer):
+    def test_deepseek_as_provider(self, openai, mock_llmobs_writer, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("deepseek_completion.yaml"):
             client = openai.OpenAI(api_key="<not-a-real-key>", base_url="https://api.deepseek.com")
 
@@ -1338,7 +1342,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
     )
-    def test_completion_stream_no_resp(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_completion_stream_no_resp(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Test that None responses from streamed chat completions results in a finished span regardless."""
         client = openai.OpenAI()
         with mock.patch.object(client.completions, "_post", return_value=None):
@@ -1346,7 +1350,7 @@ MUL: "*"
             resp_model = model
             resp = client.completions.create(model=model, prompt="Hello world", stream=True)
             assert resp is None
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1363,9 +1367,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
     )
-    def test_chat_completion_stream_prompt_caching(
-        self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
-    ):
+    def test_chat_completion_stream_prompt_caching(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         client = openai.OpenAI()
         """Test that prompt caching metrics are properly captured for streamed chat completions."""
         input_messages = [
@@ -1402,7 +1404,7 @@ MUL: "*"
                 if hasattr(chunk, "model"):
                     resp_model = chunk.model
 
-        spans = mock_tracer.pop_traces()
+        spans = test_spans.pop_traces()
         span1, span2 = spans[0][0], spans[1][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         mock_llmobs_writer.enqueue.assert_has_calls(
@@ -1426,6 +1428,7 @@ MUL: "*"
                             "output_tokens": 100,
                             "total_tokens": 1521,
                             "cache_read_input_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1449,6 +1452,7 @@ MUL: "*"
                             "output_tokens": 100,
                             "total_tokens": 1520,
                             "cache_read_input_tokens": 1280,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1459,7 +1463,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
     )
-    def test_chat_stream_no_resp(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_chat_stream_no_resp(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Test that None responses from streamed chat completions results in a finished span regardless."""
         client = openai.OpenAI()
         with mock.patch.object(client.chat.completions, "_post", return_value=None):
@@ -1474,7 +1478,7 @@ MUL: "*"
                 stream_options={"include_usage": False},
             )
             assert resp is None
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1491,7 +1495,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_response(self, openai, mock_llmobs_writer, mock_tracer):
+    def test_response(self, openai, mock_llmobs_writer, test_spans):
         """Ensure llmobs records are emitted for response endpoints when configured.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -1503,7 +1507,7 @@ MUL: "*"
             resp = client.responses.create(
                 model=model, input=input_messages, top_p=0.9, max_output_tokens=100, user="ddtrace-test"
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1520,13 +1524,13 @@ MUL: "*"
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
-                    "reasoning_tokens": 0,
                 },
                 token_metrics={
                     "input_tokens": 53,
                     "output_tokens": 40,
                     "total_tokens": 93,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -1535,7 +1539,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_response_stream_tokens(self, openai, mock_llmobs_writer, mock_tracer):
+    def test_response_stream_tokens(self, openai, mock_llmobs_writer, test_spans):
         """Assert that streamed token chunk extraction logic works when options are not explicitly passed from user."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_stream.yaml"):
             model = "gpt-4.1"
@@ -1547,7 +1551,7 @@ MUL: "*"
             for chunk in resp:
                 resp_response = getattr(chunk, "response", {})
                 resp_model = getattr(resp_response, "model", "")
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1563,13 +1567,13 @@ MUL: "*"
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
-                    "reasoning_tokens": 0,
                 },
                 token_metrics={
                     "input_tokens": 9,
                     "output_tokens": 12,
                     "total_tokens": 21,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -1578,7 +1582,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_response_stream_incomplete(self, openai, mock_llmobs_writer, mock_tracer):
+    def test_response_stream_incomplete(self, openai, mock_llmobs_writer, test_spans):
         client = openai.OpenAI()
         request_args = {
             "model": "gpt-4o",
@@ -1594,7 +1598,7 @@ MUL: "*"
             for chunk in resp1:
                 if hasattr(chunk, "response") and hasattr(chunk.response, "model"):
                     resp_model = chunk.response.model
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1618,9 +1622,14 @@ MUL: "*"
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
-                    "reasoning_tokens": 0,
                 },
-                token_metrics={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "cache_read_input_tokens": 0},
+                token_metrics={
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "total_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
+                },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
@@ -1628,7 +1637,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_response_function_call(self, openai, mock_llmobs_writer, mock_tracer, snapshot_tracer):
+    def test_response_function_call(self, openai, mock_llmobs_writer, test_spans, snapshot_tracer):
         """Test that function call response calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_function_call.yaml"):
             model = "gpt-4.1"
@@ -1637,7 +1646,7 @@ MUL: "*"
             resp = client.responses.create(
                 tools=response_tool_function, model=model, input=input_messages, tool_choice="auto"
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1652,13 +1661,13 @@ MUL: "*"
                     "top_p": 1.0,
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
-                    "reasoning_tokens": 0,
                 },
                 token_metrics={
                     "input_tokens": 75,
                     "output_tokens": 23,
                     "total_tokens": 98,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tool_definitions=[
                     {
@@ -1684,7 +1693,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_response_function_call_stream(self, openai, mock_llmobs_writer, mock_tracer, snapshot_tracer):
+    def test_response_function_call_stream(self, openai, mock_llmobs_writer, test_spans, snapshot_tracer):
         """Test that Response tool calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_function_call_streamed.yaml"):
             model = "gpt-4.1"
@@ -1700,7 +1709,7 @@ MUL: "*"
             for chunk in resp:
                 if hasattr(chunk, "response") and hasattr(chunk.response, "model"):
                     resp_model = chunk.response.model
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1717,7 +1726,6 @@ MUL: "*"
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
-                    "reasoning_tokens": 0,
                 },
                 tool_definitions=[
                     {
@@ -1741,6 +1749,7 @@ MUL: "*"
                     "output_tokens": 23,
                     "total_tokens": 98,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -1749,7 +1758,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_response_error(self, openai, mock_llmobs_writer, mock_tracer, snapshot_tracer):
+    def test_response_error(self, openai, mock_llmobs_writer, test_spans, snapshot_tracer):
         """Ensure erroneous llmobs records are emitted for response function call stream endpoints when configured."""
         with pytest.raises(Exception):
             with get_openai_vcr(subdirectory_name="v1").use_cassette("response_error.yaml"):
@@ -1757,7 +1766,7 @@ MUL: "*"
                 client = openai.OpenAI()
                 input_messages = "Hello world"
                 client.responses.create(model=model, input=input_messages, user="ddtrace-test")
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1778,7 +1787,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    async def test_response_async(self, openai, mock_llmobs_writer, mock_tracer):
+    async def test_response_async(self, openai, mock_llmobs_writer, test_spans):
         input_messages = multi_message_input
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response.yaml"):
             model = "gpt-4.1"
@@ -1786,7 +1795,7 @@ MUL: "*"
             client = openai.AsyncOpenAI()
             resp = await client.responses.create(model=model, input=input_messages, top_p=0.9, max_output_tokens=100)
 
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -1803,13 +1812,13 @@ MUL: "*"
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
                     "user": "ddtrace-test",
-                    "reasoning_tokens": 0,
                 },
                 token_metrics={
                     "input_tokens": 53,
                     "output_tokens": 40,
                     "total_tokens": 93,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -1818,7 +1827,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_responses_prompt_caching(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_responses_prompt_caching(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         client = openai.OpenAI()
         """Test that prompt caching metrics are properly captured for responses API"""
         model = "gpt-4o"
@@ -1839,7 +1848,7 @@ MUL: "*"
                 temperature=0.1,
                 user="ddtrace-test",
             )
-        spans = mock_tracer.pop_traces()
+        spans = test_spans.pop_traces()
         span1, span2 = spans[0][0], spans[1][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
 
@@ -1859,7 +1868,6 @@ MUL: "*"
                             "tool_choice": "auto",
                             "truncation": "disabled",
                             "text": {"format": {"type": "text"}},
-                            "reasoning_tokens": 0,
                             "user": "ddtrace-test",
                         },
                         token_metrics={
@@ -1867,6 +1875,7 @@ MUL: "*"
                             "output_tokens": 14,
                             "total_tokens": 1529,
                             "cache_read_input_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1885,7 +1894,6 @@ MUL: "*"
                             "tool_choice": "auto",
                             "truncation": "disabled",
                             "text": {"format": {"type": "text"}},
-                            "reasoning_tokens": 0,
                             "user": "ddtrace-test",
                         },
                         token_metrics={
@@ -1893,6 +1901,7 @@ MUL: "*"
                             "output_tokens": 8,
                             "total_tokens": 1523,
                             "cache_read_input_tokens": 1390,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1903,7 +1912,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_responses_stream_prompt_caching(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_responses_stream_prompt_caching(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         client = openai.OpenAI()
         """Test that prompt caching metrics are properly captured for streamed responses API"""
         base_input = "hello " * 1500
@@ -1930,7 +1939,7 @@ MUL: "*"
                 if hasattr(chunk, "response") and hasattr(chunk.response, "model"):
                     resp_model = chunk.response.model
 
-        spans = mock_tracer.pop_traces()
+        spans = test_spans.pop_traces()
         span1, span2 = spans[0][0], spans[1][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         mock_llmobs_writer.enqueue.assert_has_calls(
@@ -1949,7 +1958,6 @@ MUL: "*"
                             "tool_choice": "auto",
                             "truncation": "disabled",
                             "text": {"format": {"type": "text"}},
-                            "reasoning_tokens": 0,
                             "stream": True,
                         },
                         token_metrics={
@@ -1957,6 +1965,7 @@ MUL: "*"
                             "output_tokens": 14,
                             "total_tokens": 1529,
                             "cache_read_input_tokens": 0,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1975,7 +1984,6 @@ MUL: "*"
                             "tool_choice": "auto",
                             "truncation": "disabled",
                             "text": {"format": {"type": "text"}},
-                            "reasoning_tokens": 0,
                             "stream": True,
                         },
                         token_metrics={
@@ -1983,6 +1991,7 @@ MUL: "*"
                             "output_tokens": 8,
                             "total_tokens": 1523,
                             "cache_read_input_tokens": 1390,
+                            "reasoning_output_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
@@ -1993,7 +2002,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_responses_reasoning_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_responses_reasoning_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         client = openai.OpenAI(base_url="http://127.0.0.1:9126/vcr/openai")
 
         stream = client.responses.create(
@@ -2016,7 +2025,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_responses_tool_message_input(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_responses_tool_message_input(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         client = openai.OpenAI(base_url="http://127.0.0.1:9126/vcr/openai")
 
         client.responses.create(
@@ -2048,7 +2057,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
     )
-    def test_chat_completion_parse(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_chat_completion_parse(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         from typing import List
 
         from pydantic import BaseModel
@@ -2071,7 +2080,7 @@ MUL: "*"
                 ],
                 response_format=MathResponse,
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -2089,6 +2098,7 @@ MUL: "*"
                     "output_tokens": 93,
                     "total_tokens": 220,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -2097,7 +2107,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
     )
-    def test_response_parse(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    def test_response_parse(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
         from typing import List
 
         from pydantic import BaseModel
@@ -2117,7 +2127,7 @@ MUL: "*"
                 input="solve 8x + 31 = 2",
                 text_format=MathResponse,
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -2142,13 +2152,390 @@ MUL: "*"
                         },
                         "verbosity": "medium",
                     },
-                    "reasoning_tokens": 0,
                 },
                 token_metrics={
                     "input_tokens": 113,
                     "output_tokens": 99,
                     "total_tokens": 212,
                     "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 0,
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 80),
+        reason="Full OpenAI MCP support only available with openai >= 1.80",
+    )
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_response_mcp_tool_call(
+        self, mock_response_post, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
+    ):
+        mock_response_post.return_value = mock_response_mcp_tool_call()
+
+        client = openai.OpenAI()
+        client.responses.create(
+            model="gpt-5",
+            tools=[
+                {
+                    "type": "mcp",
+                    "server_label": "dice_roller",
+                    "server_description": "Public dice-roller MCP server for testing.",
+                    "server_url": "https://dice-rolling-mcp.vercel.app/sse",
+                    "require_approval": "never",
+                },
+            ],
+            input="Roll 2d4+1",
+        )
+
+        traces = test_spans.pop_traces()
+        assert len(traces[0]) == 2
+
+        response_span = traces[0][0]
+        tool_span = traces[0][1]
+
+        assert mock_llmobs_writer.enqueue.call_count == 2
+
+        assert mock_llmobs_writer.enqueue.call_args_list[0][0][0] == _expected_llmobs_non_llm_span_event(
+            tool_span,
+            "tool",
+            input_value=safe_json(
+                {"notation": "2d4+1", "label": "2d4+1 roll", "verbose": True},
+                ensure_ascii=False,
+            ),
+            output_value="You rolled 2d4+1 for 2d4+1 roll:\n🎲 Total: 8\n📊 Breakdown: 2d4:[3,4] + 1",
+            metadata={"tool_id": "mcp_0f873afd7ff4f5b30168ffa1f7ddec81a0a114abda192da6b3"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+        )
+        assert tool_span.parent_id == response_span.span_id
+
+        assert mock_llmobs_writer.enqueue.call_args_list[1][0][0] == _expected_llmobs_llm_span_event(
+            response_span,
+            model_name="gpt-5-2025-08-07",
+            model_provider="openai",
+            input_messages=[{"role": "user", "content": "Roll 2d4+1"}],
+            output_messages=[
+                {
+                    "role": "reasoning",
+                    "content": (
+                        '{"summary": [], "encrypted_content": null, '
+                        '"id": "rs_0f873afd7ff4f5b30168ffa1f5d91c81a0890e78a4873fbc1b"}'
+                    ),
+                },
+                {
+                    "tool_calls": [
+                        {
+                            "name": "dice_roll",
+                            "type": "mcp_call",
+                            "tool_id": "mcp_0f873afd7ff4f5b30168ffa1f7ddec81a0a114abda192da6b3",
+                            "arguments": {"notation": "2d4+1", "label": "2d4+1 roll", "verbose": True},
+                        }
+                    ],
+                    "tool_results": [
+                        {
+                            "name": "dice_roll",
+                            "type": "mcp_tool_result",
+                            "tool_id": "mcp_0f873afd7ff4f5b30168ffa1f7ddec81a0a114abda192da6b3",
+                            "result": "You rolled 2d4+1 for 2d4+1 roll:\n🎲 Total: 8\n📊 Breakdown: 2d4:[3,4] + 1",
+                        }
+                    ],
+                    "role": "assistant",
+                },
+                {"role": "assistant", "content": "You rolled 2d4+1:\n- Total: 8\n- Breakdown: 2d4 → [3, 4] + 1"},
+            ],
+            metadata={
+                "temperature": 1.0,
+                "top_p": 1.0,
+                "tool_choice": "auto",
+                "truncation": "disabled",
+                "text": {"format": {"type": "text"}, "verbosity": "medium"},
+            },
+            token_metrics={
+                "input_tokens": 642,
+                "output_tokens": 206,
+                "total_tokens": 848,
+                "cache_read_input_tokens": 0,
+                "reasoning_output_tokens": 128,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            tool_definitions=[
+                {
+                    "name": "dice_roll",
+                    "description": (
+                        "Roll dice using standard notation. IMPORTANT: For D&D advantage use '2d20kh1' (NOT '2d20')"
+                    ),
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "notation": {
+                                "type": "string",
+                                "description": (
+                                    'Dice notation. Examples: "1d20+5" (basic), "2d20kh1" (advantage), '
+                                    '"2d20kl1" (disadvantage), "4d6kh3" (stats), "3d6!" (exploding), '
+                                    '"4d6r1" (reroll 1s), "5d10>7" (successes)'
+                                ),
+                            },
+                            "label": {
+                                "type": "string",
+                                "description": 'Optional label e.g., "Attack roll", "Fireball damage"',
+                            },
+                            "verbose": {
+                                "type": "boolean",
+                                "description": "Show detailed breakdown of individual dice results",
+                            },
+                        },
+                        "required": ["notation"],
+                        "additionalProperties": False,
+                        "$schema": "http://json-schema.org/draft-07/schema#",
+                    },
+                }
+            ],
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 87),
+        reason="Reusable prompts only available in openai >= 1.87",
+    )
+    def test_response_with_prompt_tracking(self, openai, mock_llmobs_writer, test_spans):
+        """Test that prompt metadata (id, version, variables) is captured for reusable prompts."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_with_prompt.yaml"):
+            client = openai.OpenAI()
+            client.responses.create(
+                prompt={
+                    "id": "pmpt_690b24669d8c81948acc0e98da10e6490190feb3a62eee0b",
+                    "version": "4",
+                    "variables": {"question": "What is machine learning?"},
+                }
+            )
+        test_spans.pop_traces()
+        assert mock_llmobs_writer.enqueue.call_count == 1
+
+        assert_prompt_tracking(
+            span_event=mock_llmobs_writer.enqueue.call_args[0][0],
+            prompt_id="pmpt_690b24669d8c81948acc0e98da10e6490190feb3a62eee0b",
+            prompt_version="4",
+            variables={"question": "What is machine learning?"},
+            expected_chat_template=[
+                {"role": "developer", "content": "Direct & Conversational tone"},
+                {"role": "user", "content": "You are a helpful assistant. Please answer this question: {{question}}"},
+            ],
+            expected_messages=[
+                {"role": "developer", "content": "Direct & Conversational tone"},
+                {
+                    "role": "user",
+                    "content": "You are a helpful assistant. Please answer this question: What is machine learning?",
+                },
+            ],
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 87),
+        reason="Reusable prompts only available in openai >= 1.87",
+    )
+    def test_response_with_mixed_input_prompt_tracking_url_stripped(self, openai, mock_llmobs_writer, test_spans):
+        """Test default behavior: image_url is stripped, file_id is preserved."""
+        from openai.types.responses import ResponseInputFile
+        from openai.types.responses import ResponseInputImage
+        from openai.types.responses import ResponseInputText
+
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_with_mixed_prompt_url_stripped.yaml"):
+            client = openai.OpenAI()
+            client.responses.create(
+                prompt={
+                    "id": "pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
+                    "version": "2",
+                    "variables": {
+                        "user_message": ResponseInputText(type="input_text", text="Analyze these images and document"),
+                        "user_image_1": ResponseInputImage(
+                            type="input_image",
+                            image_url="https://raw.githubusercontent.com/github/explore/main/topics/python/python.png",
+                            detail="auto",
+                        ),
+                        "user_file": ResponseInputFile(
+                            type="input_file",
+                            file_url="https://www.berkshirehathaway.com/letters/2024ltr.pdf",
+                        ),
+                        "user_image_2": ResponseInputImage(
+                            type="input_image",
+                            file_id="file-BCuhT1HQ24kmtsuuzF1mh2",
+                            detail="auto",
+                        ),
+                    },
+                },
+            )
+        test_spans.pop_traces()
+        assert mock_llmobs_writer.enqueue.call_count == 1
+
+        assert_prompt_tracking(
+            span_event=mock_llmobs_writer.enqueue.call_args[0][0],
+            prompt_id="pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
+            prompt_version="2",
+            variables={
+                "user_message": "Analyze these images and document",
+                "user_image_1": "https://raw.githubusercontent.com/github/explore/main/topics/python/python.png",
+                "user_file": "https://www.berkshirehathaway.com/letters/2024ltr.pdf",
+                "user_image_2": "file-BCuhT1HQ24kmtsuuzF1mh2",
+            },
+            expected_chat_template=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Analyze the following content from the user:\n\n"
+                        "Text message: {{user_message}}\n"
+                        "Image reference 1: [image]\n"
+                        "Document reference: {{user_file}}\n"
+                        "Image reference 2: {{user_image_2}}\n\n"
+                        "Please provide a comprehensive analysis."
+                    ),
+                }
+            ],
+            expected_messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Analyze the following content from the user:\n\n"
+                        "Text message: Analyze these images and document\n"
+                        "Image reference 1: [image]\n"
+                        "Document reference: https://www.berkshirehathaway.com/letters/2024ltr.pdf\n"
+                        "Image reference 2: file-BCuhT1HQ24kmtsuuzF1mh2\n\n"
+                        "Please provide a comprehensive analysis."
+                    ),
+                }
+            ],
+            prompt_multimodal=True,
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 87),
+        reason="Reusable prompts only available in openai >= 1.87",
+    )
+    def test_response_with_mixed_input_prompt_tracking_url_preserved(self, openai, mock_llmobs_writer, test_spans):
+        """Test with include parameter: image_url is preserved."""
+        from openai.types.responses import ResponseInputFile
+        from openai.types.responses import ResponseInputImage
+        from openai.types.responses import ResponseInputText
+
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_with_mixed_prompt_url_preserved.yaml"):
+            client = openai.OpenAI()
+            client.responses.create(
+                include=["message.input_image.image_url"],
+                prompt={
+                    "id": "pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
+                    "version": "2",
+                    "variables": {
+                        "user_message": ResponseInputText(type="input_text", text="Analyze these images and document"),
+                        "user_image_1": ResponseInputImage(
+                            type="input_image",
+                            image_url="https://raw.githubusercontent.com/github/explore/main/topics/python/python.png",
+                            detail="auto",
+                        ),
+                        "user_file": ResponseInputFile(
+                            type="input_file",
+                            file_url="https://www.berkshirehathaway.com/letters/2024ltr.pdf",
+                        ),
+                        "user_image_2": ResponseInputImage(
+                            type="input_image",
+                            file_id="file-BCuhT1HQ24kmtsuuzF1mh2",
+                            detail="auto",
+                        ),
+                    },
+                },
+            )
+        test_spans.pop_traces()
+        assert mock_llmobs_writer.enqueue.call_count == 1
+
+        assert_prompt_tracking(
+            span_event=mock_llmobs_writer.enqueue.call_args[0][0],
+            prompt_id="pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
+            prompt_version="2",
+            variables={
+                "user_message": "Analyze these images and document",
+                "user_image_1": "https://raw.githubusercontent.com/github/explore/main/topics/python/python.png",
+                "user_file": "https://www.berkshirehathaway.com/letters/2024ltr.pdf",
+                "user_image_2": "file-BCuhT1HQ24kmtsuuzF1mh2",
+            },
+            expected_chat_template=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Analyze the following content from the user:\n\n"
+                        "Text message: {{user_message}}\n"
+                        "Image reference 1: {{user_image_1}}\n"
+                        "Document reference: {{user_file}}\n"
+                        "Image reference 2: {{user_image_2}}\n\n"
+                        "Please provide a comprehensive analysis."
+                    ),
+                }
+            ],
+            expected_messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Analyze the following content from the user:\n\n"
+                        "Text message: Analyze these images and document\n"
+                        "Image reference 1: "
+                        "https://raw.githubusercontent.com/github/explore/main/topics/python/python.png\n"
+                        "Document reference: https://www.berkshirehathaway.com/letters/2024ltr.pdf\n"
+                        "Image reference 2: file-BCuhT1HQ24kmtsuuzF1mh2\n\n"
+                        "Please provide a comprehensive analysis."
+                    ),
+                }
+            ],
+            prompt_multimodal=True,
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
+    def test_response_reasoning_tokens(self, openai, mock_llmobs_writer, test_spans):
+        """Test that reasoning tokens are captured in response endpoints."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_reasoning_tokens.yaml"):
+            model = "gpt-5-mini"
+            input_messages = multi_message_input
+            client = openai.OpenAI()
+            resp = client.responses.create(
+                model=model, input=input_messages, max_output_tokens=500, user="ddtrace-test"
+            )
+        span = test_spans.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+
+        # Extract output messages including reasoning items
+        output_messages = []
+        for output in resp.output:
+            if output.type == "reasoning":
+                # Extract both reasoning and assistant messages
+                reasoning_content = {
+                    "summary": output.summary if hasattr(output, "summary") else [],
+                    "encrypted_content": output.encrypted_content if hasattr(output, "encrypted_content") else "",
+                    "id": output.id if hasattr(output, "id") else "",
+                }
+                output_messages.append({"role": "reasoning", "content": safe_json(reasoning_content)})
+            elif output.type == "message":
+                output_messages.append({"role": "assistant", "content": output.content[0].text})
+
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp.model,
+                model_provider="openai",
+                input_messages=input_messages,
+                output_messages=output_messages,
+                metadata={
+                    "max_output_tokens": 500,
+                    "user": "ddtrace-test",
+                    "temperature": 1.0,
+                    "top_p": 1.0,
+                    "tool_choice": "auto",
+                    "truncation": "disabled",
+                    "text": {"format": {"type": "text"}, "verbosity": "medium"},
+                },
+                token_metrics={
+                    "input_tokens": 54,
+                    "output_tokens": 164,
+                    "total_tokens": 218,
+                    "cache_read_input_tokens": 0,
+                    "reasoning_output_tokens": 128,
                 },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -2160,7 +2547,7 @@ MUL: "*"
     [dict(_llmobs_enabled=True, _llmobs_ml_app="<ml-app-name>", _llmobs_agentless_enabled=True)],
 )
 @pytest.mark.skipif(parse_version(openai_module.version.VERSION) < (1, 0), reason="These tests are for openai >= 1.0")
-def test_agentless_enabled_does_not_submit_metrics(openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+def test_agentless_enabled_does_not_submit_metrics(openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
     """Ensure openai metrics are not emitted when agentless mode is enabled."""
     with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
         model = "ada"

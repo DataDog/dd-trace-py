@@ -97,9 +97,9 @@ def test_log_injection_disabled():
 
     output = gcf.logger.calls
     for key in json.loads(output[0].args[0]).keys():
-        assert not key.startswith(
-            "dd."
-        ), f"Expected no dd.* keys in log output when DD_LOGS_INJECTION is False, key={key}"
+        assert not key.startswith("dd."), (
+            f"Expected no dd.* keys in log output when DD_LOGS_INJECTION is False, key={key}"
+        )
 
 
 def test_log_trace_global_values():

@@ -3,6 +3,7 @@ pandas==1.3.5
 
 https://pypi.org/project/pandas/
 """
+
 import os
 
 from flask import Blueprint

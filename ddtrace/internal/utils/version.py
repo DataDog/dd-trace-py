@@ -2,7 +2,7 @@ import typing  # noqa:F401
 from typing import Optional  # noqa:F401
 
 import ddtrace.vendor.packaging.version as packaging_version
-from ddtrace.version import get_version
+from ddtrace.version import __version__
 
 
 def parse_version(version):
@@ -71,7 +71,7 @@ def _pep440_to_semver(version=None):
     #
     # e.g. 1.7.1-rc2.dev3+gf258c7d9 is valid
 
-    tracer_version = version or get_version()
+    tracer_version = version or __version__
     if "rc" in tracer_version and "-rc" not in tracer_version:
         tracer_version = tracer_version.replace("rc", "-rc", 1)
     elif ".dev" in tracer_version:

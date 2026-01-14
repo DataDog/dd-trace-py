@@ -3,6 +3,7 @@ import hashlib
 from itertools import chain
 import os
 import platform
+import random
 import re
 import shutil
 import subprocess
@@ -31,7 +32,7 @@ from distutils.dep_util import newer_group
 try:
     # ORDER MATTERS
     # Import this after setuptools or it will fail
-    from Cython.Build import cythonize  # noqa: I100
+    from Cython.Build import cythonize
     import Cython.Distutils
 except ImportError:
     raise ImportError(
@@ -41,7 +42,9 @@ except ImportError:
         "https://ddtrace.readthedocs.io/en/stable/installation_quickstart.html"
     )
 
+from functools import wraps
 from urllib.error import HTTPError
+from urllib.error import URLError
 from urllib.request import urlretrieve
 
 
@@ -84,13 +87,18 @@ if FAST_BUILD:
 
 SCCACHE_COMPILE = os.getenv("DD_USE_SCCACHE", "0").lower() in ("1", "yes", "on", "true")
 
+# Retry configuration for downloads (handles GitHub API failures like 503, 429)
+DOWNLOAD_MAX_RETRIES = int(os.getenv("DD_DOWNLOAD_MAX_RETRIES", "10"))
+DOWNLOAD_INITIAL_DELAY = float(os.getenv("DD_DOWNLOAD_INITIAL_DELAY", "1.0"))
+DOWNLOAD_MAX_DELAY = float(os.getenv("DD_DOWNLOAD_MAX_DELAY", "120"))
+
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 IS_EDITABLE = False  # Set to True if the package is being installed in editable mode
 
 LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
-STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
+STACK_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack"
 NATIVE_CRATE = HERE / "src" / "native"
 CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
 
@@ -98,7 +106,7 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.29.0"
+LIBDDWAF_VERSION = "1.30.1"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v15.0.0 requires rust 1.78.
@@ -137,6 +145,71 @@ def interpose_sccache():
         if cxx_path:
             os.environ["DD_CXX_OLD"] = cxx_path
             os.environ["CXX"] = str(sccache_path) + " " + str(cxx_path)
+
+
+def retry_download(
+    max_attempts=DOWNLOAD_MAX_RETRIES,
+    initial_delay=DOWNLOAD_INITIAL_DELAY,
+    max_delay=DOWNLOAD_MAX_DELAY,
+    backoff_factor=1.618,
+):
+    """
+    Decorator to retry downloads with exponential backoff.
+    Handles HTTP 503, 429, network errors from GitHub API, and cargo install failures.
+    Retriable errors: HTTP 429 (rate limit), 502, 503, 504, network timeouts, and subprocess errors.
+    """
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_attempts):
+                try:
+                    return func(*args, **kwargs)
+                except (HTTPError, URLError, TimeoutError, OSError, subprocess.CalledProcessError) as e:
+                    # Check if it's a retriable error
+                    is_retriable = False
+                    if isinstance(e, HTTPError):
+                        # Retry on 429 (rate limit), 502/503/504 (server errors)
+                        is_retriable = e.code in (429, 502, 503, 504)
+                        error_code = f"HTTP {e.code}"
+                    elif isinstance(e, (URLError, TimeoutError)):
+                        # Retry on network errors and timeouts
+                        is_retriable = True
+                        error_code = type(e).__name__
+                    elif isinstance(e, OSError):
+                        # Retry on connection errors
+                        is_retriable = True
+                        error_code = type(e).__name__
+                    elif isinstance(e, subprocess.CalledProcessError):
+                        # Retry on subprocess errors (e.g., cargo install network failures)
+                        # These often indicate temporary network issues
+                        is_retriable = True
+                        error_code = f"subprocess exit code {e.returncode}"
+                    else:
+                        error_code = type(e).__name__
+
+                    if not is_retriable:
+                        print(f"ERROR: Operation failed (non-retriable {error_code}): {e}")
+                        raise
+
+                    if attempt == max_attempts - 1:
+                        print(f"ERROR: Operation failed after {max_attempts} attempts (last error: {error_code})")
+                        raise
+
+                    # Calculate delay with jitter
+                    delay = min(initial_delay * (backoff_factor**attempt), max_delay)
+                    jitter = random.uniform(0, delay * 0.1)
+                    total_delay = delay + jitter
+
+                    print(f"WARNING: Operation failed (attempt {attempt + 1}/{max_attempts}): {error_code} - {e}")
+                    print(f"  Retrying in {total_delay:.1f} seconds...")
+                    time.sleep(total_delay)
+
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 def verify_checksum_from_file(sha256_filename, filename):
@@ -196,8 +269,7 @@ def is_64_bit_python():
 rust_features = []
 if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
     rust_features.append("crashtracker")
-    if sys.version_info[:2] < (3, 14):
-        rust_features.append("profiling")
+    rust_features.append("profiling")
 
 
 class PatchedDistribution(Distribution):
@@ -205,11 +277,8 @@ class PatchedDistribution(Distribution):
         super().__init__(attrs)
         # Tell ext_hashes about your manually-built Rust artifact
 
-        # setuptools-rust started to support passing extra env vars from 1.11.0
-        # but at the same time dropped support for Python 3.8. So we'd need to
-        # make sure that this env var is set to install the ffi headers in the
-        # right place.
-        os.environ["CARGO_TARGET_DIR"] = str(CARGO_TARGET_DIR)
+        rust_env = os.environ.copy()
+        rust_env["CARGO_TARGET_DIR"] = str(CARGO_TARGET_DIR)
         self.rust_extensions = [
             RustExtension(
                 # The Python import path of your extension:
@@ -220,6 +289,7 @@ class PatchedDistribution(Distribution):
                 binding=Binding.PyO3,
                 debug=COMPILE_MODE.lower() == "debug",
                 features=rust_features,
+                env=rust_env,
             )
         ]
 
@@ -298,18 +368,24 @@ class CustomBuildRust(build_rust):
     def install_dedup_headers(self):
         """Install dedup_headers if not already installed."""
         if not self.is_installed("dedup_headers"):
-            subprocess.run(
-                [
-                    "cargo",
-                    "install",
-                    "--git",
-                    "https://github.com/DataDog/libdatadog",
-                    "--bin",
-                    "dedup_headers",
-                    "tools",
-                ],
-                check=True,
-            )
+            # Create retry-wrapped cargo install function
+            @retry_download(max_attempts=DOWNLOAD_MAX_RETRIES, initial_delay=2.0)
+            def cargo_install_with_retry():
+                """Run cargo install with retry on network failures."""
+                subprocess.run(
+                    [
+                        "cargo",
+                        "install",
+                        "--git",
+                        "https://github.com/DataDog/libdatadog",
+                        "--bin",
+                        "dedup_headers",
+                        "tools",
+                    ],
+                    check=True,
+                )
+
+            cargo_install_with_retry()
 
     def run(self):
         """Run the build process with additional post-processing."""
@@ -347,7 +423,7 @@ class CustomBuildRust(build_rust):
 
 
 class LibraryDownload:
-    CACHE_DIR = HERE / ".download_cache"
+    CACHE_DIR = Path(os.getenv("DD_SETUP_CACHE_DIR", HERE / ".download_cache"))
     USE_CACHE = os.getenv("DD_SETUP_CACHE_DOWNLOADS", "1").lower() in ("1", "yes", "on", "true")
 
     name = None
@@ -411,16 +487,20 @@ class LibraryDownload:
             if not (cls.USE_CACHE and download_dest.exists()):
                 print(f"Downloading {archive_name} to {download_dest}")
                 start_ns = time.time_ns()
-                try:
-                    filename, _ = urlretrieve(download_address, str(download_dest))
-                except HTTPError as e:
-                    print("No archive found for dynamic library {}: {}".format(cls.name, archive_dir))
-                    raise e
+
+                # Create retry-wrapped download function
+                @retry_download()
+                def download_file(url, dest):
+                    """Download file with automatic retry on transient errors."""
+                    return urlretrieve(url, str(dest))
+
+                filename, _ = download_file(download_address, download_dest)
 
                 # Verify checksum of downloaded file
                 if cls.expected_checksums is None:
                     sha256_address = download_address + ".sha256"
-                    sha256_filename, _ = urlretrieve(sha256_address, str(download_dest) + ".sha256")
+                    sha256_dest = str(download_dest) + ".sha256"
+                    sha256_filename, _ = download_file(sha256_address, sha256_dest)
                     verify_checksum_from_file(sha256_filename, str(download_dest))
                 else:
                     expected_checksum = cls.expected_checksums[CURRENT_OS][arch]
@@ -537,7 +617,7 @@ class CustomBuildExt(build_ext):
         self.build_rust()
 
         # Build libdd_wrapper before building other extensions that depend on it
-        if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 14):
+        if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
             self.build_libdd_wrapper()
 
         super().run()
@@ -583,8 +663,15 @@ class CustomBuildExt(build_ext):
                 if src_file.exists():
                     newest_source_time = max(newest_source_time, src_file.stat().st_mtime)
 
-            # Only rebuild if source files are newer than the destination
-            should_build = newest_source_time > library_mtime
+            required_headers = ["common.h"]
+            if "profiling" in rust_features:
+                required_headers.append("profiling.h")
+
+            include_dir = CARGO_TARGET_DIR / "include" / "datadog"
+            headers_exist = include_dir.exists() and all((include_dir / header).exists() for header in required_headers)
+
+            # Only rebuild if source files are newer than the destination OR if any required header is missing
+            should_build = newest_source_time > library_mtime or not headers_exist
 
         if should_build:
             # Create and run the CustomBuildRust command
@@ -720,6 +807,7 @@ class CustomBuildExt(build_ext):
             f"-DEXTENSION_NAME={extension_name}",
             f"-DEXTENSION_SUFFIX={self.suffix}",
             f"-DNATIVE_EXTENSION_LOCATION={self.output_dir}",
+            f"-DRUST_GENERATED_HEADERS_DIR={CARGO_TARGET_DIR / 'include'}",
         ]
 
         # Add sccache support if available
@@ -792,6 +880,8 @@ class CustomBuildExt(build_ext):
 
         if BUILD_PROFILING_NATIVE_TESTS:
             cmake_args += ["-DBUILD_TESTING=ON"]
+        else:
+            cmake_args += ["-DBUILD_TESTING=OFF"]
 
         # If this is an inplace build, propagate this fact to CMake in case it's helpful
         # In particular, this is needed for build products which are not otherwise managed
@@ -1040,37 +1130,16 @@ else:
 if not IS_PYSTON:
     ext_modules: t.List[t.Union[Extension, Cython.Distutils.Extension, RustExtension]] = [
         Extension(
-            "ddtrace.profiling.collector._memalloc",
-            sources=[
-                "ddtrace/profiling/collector/_memalloc.c",
-                "ddtrace/profiling/collector/_memalloc_tb.c",
-                "ddtrace/profiling/collector/_memalloc_heap.c",
-                "ddtrace/profiling/collector/_memalloc_reentrant.c",
-                "ddtrace/profiling/collector/_memalloc_heap_map.c",
-            ],
-            extra_compile_args=(
-                debug_compile_args
-                # If NDEBUG is set, assert statements are compiled out. Make
-                # sure we explicitly set this for normal builds, and explicitly
-                # _unset_ it for debug builds in case the CFLAGS from sysconfig
-                # include -DNDEBUG
-                + (["-DNDEBUG"] if not debug_compile_args else ["-UNDEBUG"])
-                + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"]
-                + fast_build_args
-                if CURRENT_OS != "Windows"
-                else ["/std:c11", "/experimental:c11atomics"]
-            ),
-        ),
-        Extension(
             "ddtrace.internal._threads",
             sources=["ddtrace/internal/_threads.cpp"],
             extra_compile_args=(
-                ["-std=c++17", "-Wall", "-Wextra"] + fast_build_args
+                ["-std=c++20", "-Wall", "-Wextra"] + fast_build_args
                 if CURRENT_OS != "Windows"
                 else ["/std:c++20", "/MT"]
             ),
         ),
     ]
+
     if platform.system() not in ("Windows", ""):
         ext_modules.append(
             Extension(
@@ -1095,61 +1164,48 @@ if not IS_PYSTON:
         )
 
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
-        if sys.version_info < (3, 14):
-            ext_modules.append(
-                CMakeExtension(
-                    "ddtrace.internal.datadog.profiling.ddup._ddup",
-                    source_dir=DDUP_DIR,
-                    extra_source_dirs=[
-                        DDUP_DIR / ".." / "cmake",
-                        DDUP_DIR / ".." / "dd_wrapper",
-                    ],
-                    optional=False,
-                )
+        # Memory profiler now uses CMake to support Abseil dependency
+        MEMALLOC_DIR = HERE / "ddtrace" / "profiling" / "collector"
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.profiling.collector._memalloc",
+                source_dir=MEMALLOC_DIR,
+                optional=False,
             )
+        )
 
-            ext_modules.append(
-                CMakeExtension(
-                    "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
-                    source_dir=STACK_V2_DIR,
-                    extra_source_dirs=[
-                        STACK_V2_DIR / ".." / "cmake",
-                        STACK_V2_DIR / ".." / "dd_wrapper",
-                    ],
-                    optional=False,
-                ),
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.ddup._ddup",
+                source_dir=DDUP_DIR,
+                extra_source_dirs=[
+                    DDUP_DIR / ".." / "cmake",
+                    DDUP_DIR / ".." / "dd_wrapper",
+                ],
+                optional=False,
             )
+        )
+
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.stack._stack",
+                source_dir=STACK_DIR,
+                extra_source_dirs=[
+                    STACK_DIR / ".." / "cmake",
+                    STACK_DIR / ".." / "dd_wrapper",
+                ],
+                optional=False,
+            ),
+        )
 
 
 else:
     ext_modules = []
 
-interpose_sccache()
-setup(
-    name="ddtrace",
-    packages=find_packages(exclude=["tests*", "benchmarks*", "scripts*"]),
-    package_data={
-        "ddtrace": ["py.typed"],
-        "ddtrace.appsec": ["rules.json"],
-        "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
-        "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
-        "ddtrace.internal.datadog.profiling": (
-            ["libdd_wrapper*.*"] + ["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else []
-        ),
-    },
-    zip_safe=False,
-    # enum34 is an enum backport for earlier versions of python
-    # funcsigs backport required for vendored debtcollector
-    cmdclass={
-        "build_ext": CustomBuildExt,
-        "build_py": LibraryDownloader,
-        "build_rust": CustomBuildRust,
-        "clean": CleanLibraries,
-        "ext_hashes": ExtensionHashes,
-    },
-    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
-    ext_modules=ext_modules
-    + cythonize(
+
+cython_exts = []
+if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
+    cython_exts = cythonize(
         [
             Cython.Distutils.Extension(
                 "ddtrace.internal._rand",
@@ -1172,16 +1228,6 @@ setup(
                 "ddtrace.internal.telemetry.metrics_namespaces",
                 ["ddtrace/internal/telemetry/metrics_namespaces.pyx"],
                 language="c",
-            ),
-            Cython.Distutils.Extension(
-                "ddtrace.profiling.collector.stack",
-                sources=["ddtrace/profiling/collector/stack.pyx"],
-                language="c",
-                # cython generated code errors on build in toolchains that are strict about int->ptr conversion
-                # OTOH, the MSVC toolchain is different.  In a perfect world we'd deduce the underlying
-                # toolchain and emit the right flags, but as a compromise we assume Windows implies MSVC and
-                # everything else is on a GNU-like toolchain
-                extra_compile_args=extra_compile_args + (["-Wno-int-conversion"] if CURRENT_OS != "Windows" else []),
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling.collector._traceback",
@@ -1208,7 +1254,34 @@ setup(
         force=os.getenv("DD_SETUP_FORCE_CYTHONIZE", "0") == "1",
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
         compiler_directives={"language_level": "3"},
+        cache=True,
     )
-    + get_exts_for("psutil"),
+
+interpose_sccache()
+setup(
+    name="ddtrace",
+    packages=find_packages(exclude=["tests*", "benchmarks*", "scripts*"]),
+    package_data={
+        "ddtrace": ["py.typed"],
+        "ddtrace.appsec": ["rules.json"],
+        "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
+        "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
+        "ddtrace.internal.datadog.profiling": (
+            ["libdd_wrapper*.*"]
+            + (["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
+        ),
+    },
+    zip_safe=False,
+    # enum34 is an enum backport for earlier versions of python
+    # funcsigs backport required for vendored debtcollector
+    cmdclass={
+        "build_ext": CustomBuildExt,
+        "build_py": LibraryDownloader,
+        "build_rust": CustomBuildRust,
+        "clean": CleanLibraries,
+        "ext_hashes": ExtensionHashes,
+    },
+    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust<2"],
+    ext_modules=ext_modules + cython_exts + get_exts_for("psutil"),
     distclass=PatchedDistribution,
 )

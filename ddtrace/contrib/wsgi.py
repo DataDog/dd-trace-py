@@ -14,8 +14,8 @@ The middleware can be used manually via the following command::
     application = DDWSGIMiddleware(application)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.wsgi["service"]
 
@@ -36,6 +36,7 @@ Global Configuration
 :ref:`All HTTP tags <http-tagging>` are supported for this integration.
 
 """
+
 from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 
 

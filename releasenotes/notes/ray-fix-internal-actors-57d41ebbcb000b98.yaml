@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    ray: This fix stops instrumenting internal Ray actors (those starting with underscore) that were
+    causing excessive noise, and adds ``ray.data._internal`` to the module denylist.

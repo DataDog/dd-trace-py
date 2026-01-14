@@ -8,7 +8,6 @@ import django
 import pytest
 
 from tests.utils import _build_env
-from tests.utils import override_config
 from tests.utils import package_installed
 from tests.utils import snapshot
 from tests.webclient import Client
@@ -108,7 +107,7 @@ def test_middleware_trace_callable_view(client):
 
 @pytest.mark.skipif(
     sys.version_info >= (3, 10, 0),
-    reason=("func_name changed with Python 3.10 which changes the resource name." "TODO: new snapshot required."),
+    reason=("func_name changed with Python 3.10 which changes the resource name.TODO: new snapshot required."),
 )
 @snapshot(
     variants={
@@ -151,105 +150,50 @@ def test_404_exceptions(client):
     assert client.get("/404-view/").status_code == 404
 
 
-@pytest.fixture()
-def always_create_database_spans():
-    # Default value
-    yield True
+@pytest.mark.skipif(
+    django.VERSION >= (4, 2, 0) and package_installed("psycopg"),
+    reason="Django 4.2.0 prefers psycopg3 if both are installed",
+)
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES + ["meta.out.host", "metrics._dd.tracer_kr"])
+@pytest.mark.subprocess(ddtrace_run=True, env={"DD_DJANGO_INSTRUMENT_DATABASES": "true"})
+def test_psycopg2_query_default():
+    """Execute a psycopg2 query on a Django database wrapper."""
+    from tests.contrib.django.utils import setup_django
 
-
-@pytest.fixture()
-def psycopg2_patched(always_create_database_spans: bool, transactional_db):
-    from django.db import connections
-
-    from ddtrace.contrib.internal.psycopg.patch import patch
-    from ddtrace.contrib.internal.psycopg.patch import unpatch
-
-    with override_config("django", {"always_create_database_spans": always_create_database_spans}):
-        patch()
-
-        # # force recreate connection to ensure psycopg2 patching has occurred
-        del connections["postgres"]
-        connections["postgres"].close()
-        connections["postgres"].connect()
-
-        yield
-
-        unpatch()
-
-
-@pytest.mark.django_db
-@pytest.mark.parametrize("always_create_database_spans", (True, False))
-def test_psycopg2_query_default(always_create_database_spans: bool, client, snapshot_context, psycopg2_patched):
-    """Execute a psycopg2 query on a Django database wrapper.
-
-    If we use @snapshot decorator in a Django snapshot test, the first test adds DB creation traces
-    """
-    if django.VERSION >= (4, 2, 0) and package_installed("psycopg"):
-        # skip test if both versions are available as psycopg2.sql.SQL statement will cause an error from psycopg3
-        pytest.skip(reason="Django versions over 4.2.0 use psycopg3 if both psycopg3 and psycopg2 are installed.")
+    setup_django()
 
     from django.db import connections
     from psycopg2.sql import SQL as SQL2
 
-    with snapshot_context(ignores=SNAPSHOT_IGNORES + ["meta.out.host", "metrics._dd.tracer_kr"]):
-        query = SQL2("""select 'one' as x""")
-        conn = connections["postgres"]
-        with conn.cursor() as cur:
-            cur.execute(query)
-            rows = cur.fetchall()
-            assert len(rows) == 1, rows
-            assert rows[0][0] == "one"
+    query = SQL2("""select 'one' as x""")
+    conn = connections["postgres"]
+    with conn.cursor() as cur:
+        cur.execute(query)
+        rows = cur.fetchall()
+        assert len(rows) == 1, rows
+        assert rows[0][0] == "one"
 
 
-@pytest.fixture()
-def psycopg3_patched(always_create_database_spans: bool, transactional_db):
-    # If Django version >= 4.2.0, check if psycopg3 is installed,
-    # as we test Django>=4.2 with psycopg2 solely installed and not psycopg3 to ensure both work.
-    if django.VERSION < (4, 2, 0):
-        pytest.skip(reason="Psycopg3 not supported in django<4.2")
-    else:
-        from django.db import connections
-
-        from ddtrace.contrib.internal.psycopg.patch import patch
-        from ddtrace.contrib.internal.psycopg.patch import unpatch
-
-        with override_config("django", {"always_create_database_spans": always_create_database_spans}):
-            patch()
-
-            # # force recreate connection to ensure psycopg3 patching has occurred
-            del connections["postgres"]
-            connections["postgres"].close()
-            connections["postgres"].connect()
-
-            yield
-
-            unpatch()
-
-
-@pytest.mark.django_db
 @pytest.mark.skipif(django.VERSION < (4, 2, 0), reason="Psycopg3 not supported in django<4.2")
-@pytest.mark.parametrize("always_create_database_spans", (True, False))
-def test_psycopg3_query_default(always_create_database_spans: bool, client, snapshot_context, psycopg3_patched):
-    """Execute a psycopg3 query on a Django database wrapper.
+@pytest.mark.skipif(not package_installed("psycopg"), reason="Psycopg3 not installed")
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES + ["meta.out.host", "metrics._dd.tracer_kr"])
+@pytest.mark.subprocess(ddtrace_run=True, env={"DD_DJANGO_INSTRUMENT_DATABASES": "true"})
+def test_psycopg3_query_default():
+    """Execute a psycopg3 query on a Django database wrapper."""
+    from tests.contrib.django.utils import setup_django
 
-    If we use @snapshot decorator in a Django snapshot test, the first test adds DB creation traces
-    """
-
-    if not package_installed("psycopg"):
-        # skip test if psycopg3 is not installed as we need to test psycopg2 standalone with Django>=4.2.0
-        pytest.skip(reason="Psycopg3 not installed. Focusing on testing psycopg2 with Django>=4.2.0")
+    setup_django()
 
     from django.db import connections
     from psycopg.sql import SQL
 
-    with snapshot_context(ignores=SNAPSHOT_IGNORES + ["meta.out.host", "metrics._dd.tracer_kr"]):
-        query = SQL("""select 'one' as x""")
-        conn = connections["postgres"]
-        with conn.cursor() as cur:
-            cur.execute(query)
-            rows = cur.fetchall()
-            assert len(rows) == 1, rows
-            assert rows[0][0] == "one"
+    query = SQL("""select 'one' as x""")
+    conn = connections["postgres"]
+    with conn.cursor() as cur:
+        cur.execute(query)
+        rows = cur.fetchall()
+        assert len(rows) == 1, rows
+        assert rows[0][0] == "one"
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
@@ -311,7 +255,7 @@ def test_asgi_500():
 )
 def test_templates_enabled():
     """Default behavior to compare with disabled variant"""
-    with daphne_client("application") as (client, _):
+    with daphne_client("application", additional_env={"DD_DJANGO_INSTRUMENT_TEMPLATES": "true"}) as (client, _):
         resp = client.get("/template-view/", timeout=10)
         assert resp.status_code == 200
         assert resp.content == b"some content\n"

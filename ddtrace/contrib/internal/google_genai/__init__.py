@@ -21,27 +21,12 @@ Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the Google
 
     patch(google_genai=True)
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.google_genai["service"]
 
    The service name reported by default for Google GenAI requests.
 
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_GOOGLE_GENAI_SERVICE`` environment
-   variables.
-
-   Default: ``DD_SERVICE``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure the Google GenAI integration on a per-instance basis use the
-``Pin`` API::
-
-    from google import genai
-    from ddtrace.trace import Pin
-
-    Pin.override(genai, service="my-google-genai-service")
+   Alternatively, set this option with the ``DD_GOOGLE_GENAI_SERVICE`` environment variable.
 """

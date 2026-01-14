@@ -23,6 +23,7 @@ def test_coverage_namespace_package_import_normal():
     imports_ns_dot_normal()
     ModuleCodeCollector.stop_coverage()
 
+    assert ModuleCodeCollector._instance is not None
     executable = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
     covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
     covered_with_imports = _get_relpath_dict(
@@ -47,13 +48,14 @@ def test_coverage_namespace_package_import_normal():
         "tests/coverage/included_path/nsb/normal_import_const.py": {1},
     }
 
-    assert (
-        executable == expected_executable
-    ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    assert executable == expected_executable, (
+        f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    )
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-    assert (
-        covered_with_imports == expected_covered_with_imports
-    ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+    assert covered_with_imports == expected_covered_with_imports, (
+        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+        f"vs actual={covered_with_imports}"
+    )
 
 
 @pytest.mark.subprocess
@@ -78,6 +80,7 @@ def test_coverage_namespace_package_import_late():
     imports_ns_dot_late()
     ModuleCodeCollector.stop_coverage()
 
+    assert ModuleCodeCollector._instance is not None
     executable = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
     covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
     covered_with_imports = _get_relpath_dict(
@@ -117,13 +120,14 @@ def test_coverage_namespace_package_import_late():
         "tests/coverage/included_path/nsb/normal_import_const.py": {1},
     }
 
-    assert (
-        executable == expected_executable
-    ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    assert executable == expected_executable, (
+        f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    )
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-    assert (
-        covered_with_imports == expected_covered_with_imports
-    ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+    assert covered_with_imports == expected_covered_with_imports, (
+        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+        f"vs actual={covered_with_imports}"
+    )
 
 
 @pytest.mark.subprocess
@@ -148,6 +152,7 @@ def test_coverage_namespace_package_nsa_import_parent_normal():
     nsa_imports_parent_normal()
     ModuleCodeCollector.stop_coverage()
 
+    assert ModuleCodeCollector._instance is not None
     executable = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
     covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
     covered_with_imports = _get_relpath_dict(
@@ -156,23 +161,24 @@ def test_coverage_namespace_package_nsa_import_parent_normal():
 
     expected_executable = {
         "tests/coverage/included_path/normal_import_const.py": {1},
-        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {1, 2, 5, 6, 9, 10, 12},
+        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {1, 3, 6, 7, 10, 11, 13},
     }
     expected_covered = {
-        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {6},
+        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {7},
     }
     expected_covered_with_imports = {
         "tests/coverage/included_path/normal_import_const.py": {1},
-        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {1, 2, 5, 6, 9},
+        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {1, 3, 6, 7, 10},
     }
 
-    assert (
-        executable == expected_executable
-    ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    assert executable == expected_executable, (
+        f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    )
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-    assert (
-        covered_with_imports == expected_covered_with_imports
-    ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+    assert covered_with_imports == expected_covered_with_imports, (
+        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+        f"vs actual={covered_with_imports}"
+    )
 
 
 @pytest.mark.subprocess
@@ -197,6 +203,7 @@ def test_coverage_namespace_package_nsa_import_parent_late():
     nsa_imports_parent_late()
     ModuleCodeCollector.stop_coverage()
 
+    assert ModuleCodeCollector._instance is not None
     executable = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
     covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
     covered_with_imports = _get_relpath_dict(
@@ -206,25 +213,26 @@ def test_coverage_namespace_package_nsa_import_parent_late():
     expected_executable = {
         "tests/coverage/included_path/late_import_const.py": {1},
         "tests/coverage/included_path/normal_import_const.py": {1},
-        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {1, 2, 5, 6, 9, 10, 12},
+        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {1, 3, 6, 7, 10, 11, 13},
     }
     expected_covered = {
         "tests/coverage/included_path/late_import_const.py": {1},
-        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {10, 12},
+        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {11, 13},
     }
     expected_covered_with_imports = {
         "tests/coverage/included_path/late_import_const.py": {1},
         "tests/coverage/included_path/normal_import_const.py": {1},
-        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {1, 2, 5, 9, 10, 12},
+        "tests/coverage/included_path/nsa/nsa_imports_parent.py": {1, 3, 6, 10, 11, 13},
     }
 
-    assert (
-        executable == expected_executable
-    ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    assert executable == expected_executable, (
+        f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    )
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-    assert (
-        covered_with_imports == expected_covered_with_imports
-    ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+    assert covered_with_imports == expected_covered_with_imports, (
+        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+        f"vs actual={covered_with_imports}"
+    )
 
 
 @pytest.mark.subprocess
@@ -249,6 +257,7 @@ def test_coverage_namespace_package_nsa_import_dot_normal():
     nsa_imports_dot_normal()
     ModuleCodeCollector.stop_coverage()
 
+    assert ModuleCodeCollector._instance is not None
     executable = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
     covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
     covered_with_imports = _get_relpath_dict(
@@ -271,13 +280,14 @@ def test_coverage_namespace_package_nsa_import_dot_normal():
         "tests/coverage/included_path/nsa/nsb/normal_import_const.py": {1},
     }
 
-    assert (
-        executable == expected_executable
-    ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    assert executable == expected_executable, (
+        f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    )
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-    assert (
-        covered_with_imports == expected_covered_with_imports
-    ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+    assert covered_with_imports == expected_covered_with_imports, (
+        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+        f"vs actual={covered_with_imports}"
+    )
 
 
 @pytest.mark.subprocess
@@ -302,6 +312,7 @@ def test_coverage_namespace_package_nsa_import_dot_late():
     nsa_imports_dot_late()
     ModuleCodeCollector.stop_coverage()
 
+    assert ModuleCodeCollector._instance is not None
     executable = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance.lines)
     covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=False))
     covered_with_imports = _get_relpath_dict(
@@ -333,10 +344,11 @@ def test_coverage_namespace_package_nsa_import_dot_late():
         "tests/coverage/included_path/nsa/nsb/normal_import_const.py": {1},
     }
 
-    assert (
-        executable == expected_executable
-    ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    assert executable == expected_executable, (
+        f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+    )
     assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
-    assert (
-        covered_with_imports == expected_covered_with_imports
-    ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+    assert covered_with_imports == expected_covered_with_imports, (
+        f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
+        f"vs actual={covered_with_imports}"
+    )

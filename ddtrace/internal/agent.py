@@ -2,14 +2,25 @@ import abc
 import json
 import typing as t
 
+from ddtrace.internal.constants import CONTAINER_TAGS_HASH
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
-from ddtrace.settings._agent import config
+from ddtrace.internal.process_tags import compute_base_hash
+from ddtrace.internal.settings._agent import config
 
 from .utils.http import get_connection
 
 
 log = get_logger(__name__)
+
+
+def process_info_headers(resp):
+    try:
+        container_tags_hash = resp.getheader(CONTAINER_TAGS_HASH)
+        if container_tags_hash:
+            compute_base_hash(container_tags_hash)
+    except Exception as e:
+        log.debug("Could not compute base hash: %s", e)
 
 
 def info(url=None):
@@ -19,6 +30,7 @@ def info(url=None):
     try:
         _conn.request("GET", "info", headers={"content-type": "application/json"})
         resp = _conn.getresponse()
+        process_info_headers(resp)
         data = resp.read()
     finally:
         _conn.close()
@@ -41,8 +53,7 @@ class AgentCheckPeriodicService(ForksafeAwakeablePeriodicService, metaclass=abc.
         self._state = self._agent_check
 
     @abc.abstractmethod
-    def info_check(self, agent_info: t.Optional[dict]) -> bool:
-        ...
+    def info_check(self, agent_info: t.Optional[dict]) -> bool: ...
 
     def _agent_check(self) -> None:
         try:
@@ -62,8 +73,7 @@ class AgentCheckPeriodicService(ForksafeAwakeablePeriodicService, metaclass=abc.
             log.debug("Error during online operation, reverting to agent check", exc_info=True)
 
     @abc.abstractmethod
-    def online(self) -> None:
-        ...
+    def online(self) -> None: ...
 
     def periodic(self) -> None:
         return self._state()

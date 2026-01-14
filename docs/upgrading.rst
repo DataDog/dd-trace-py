@@ -96,3 +96,20 @@ Legacy tracing interfaces
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Reference the [3.0 release note](https://github.com/DataDog/dd-trace-py/releases/tag/v3.0.0) to identify and update deprecated interfaces in ddtrace products.
+
+
+Upgrade to 4.0
+**************
+
+Environment variables
+^^^^^^^^^^^^^^^^^^^^^
+
+Use the following patterns to identify the deprecated environment variables in a code base. These configurations will not be supported in v3.0. Refer to the migration guide below for next steps::
+
+    git grep -P -e "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_FLUSH_INTERVAL" \
+    -e "DD_EXCEPTION_DEBUGGING_ENABLED" \
+    -e "DD_PROFILING_STACK_V2_ENABLED" \
+    -e "DEFAULT_RUNTIME_METRICS_INTERVAL"
+
+Reference the [4.0 release note](https://github.com/DataDog/dd-trace-py/releases/tag/v4.0.0) to identify and update deprecated interfaces in ddtrace products. The major changes to the tracing
+interface include the removal of `Pin` and `Span.set_tag_str`. Python 3.8 support has also been dropped.

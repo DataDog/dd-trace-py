@@ -1,44 +1,90 @@
 # -*- encoding: utf-8 -*-
 from functools import partial
 import sys
-from types import ModuleType  # noqa: F401
+from types import ModuleType
 import typing
 
 
 if typing.TYPE_CHECKING:
     import asyncio
+    import asyncio as aio
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
-from ddtrace.internal.datadog.profiling import stack_v2
+from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import wrap
-from ddtrace.settings.profiling import config
 
 from . import _threading
 
 
-THREAD_LINK = None  # type: typing.Optional[_threading._ThreadLink]
+THREAD_LINK: typing.Optional["_threading._ThreadLink"] = None
+
+ASYNCIO_IMPORTED: bool = False
 
 
-def current_task(loop: typing.Union["asyncio.AbstractEventLoop", None] = None) -> typing.Union["asyncio.Task", None]:
+def current_task(
+    loop: typing.Optional["asyncio.AbstractEventLoop"] = None,
+) -> typing.Optional["asyncio.Task[typing.Any]"]:
     return None
 
 
 def all_tasks(
-    loop: typing.Union["asyncio.AbstractEventLoop", None] = None,
-) -> typing.Union[typing.List["asyncio.Task"], None]:
+    loop: typing.Optional["asyncio.AbstractEventLoop"] = None,
+) -> typing.List["asyncio.Task[typing.Any]"]:
     return []
 
 
-def _task_get_name(task: "asyncio.Task") -> str:
+def _task_get_name(task: "asyncio.Task[typing.Any]") -> str:
     return "Task-%d" % id(task)
 
 
+def _call_init_asyncio(asyncio: ModuleType) -> None:
+    from asyncio import tasks as asyncio_tasks
+
+    if sys.hexversion >= 0x030C0000:
+        scheduled_tasks = asyncio_tasks._scheduled_tasks.data  # type: ignore[attr-defined]
+        eager_tasks = asyncio_tasks._eager_tasks  # type: ignore[attr-defined]
+    else:
+        scheduled_tasks = asyncio_tasks._all_tasks.data  # type: ignore[attr-defined]
+        eager_tasks = None
+
+    stack.init_asyncio(asyncio_tasks._current_tasks, scheduled_tasks, eager_tasks)  # type: ignore[attr-defined]
+
+
+def link_existing_loop_to_current_thread() -> None:
+    global ASYNCIO_IMPORTED
+
+    # Only proceed if asyncio is actually imported and available
+    # Don't rely solely on ASYNCIO_IMPORTED global since it persists across forks
+    if not ASYNCIO_IMPORTED or "asyncio" not in sys.modules:
+        return
+
+    import asyncio
+
+    # Only track if there's actually a running loop
+    running_loop: typing.Optional["asyncio.AbstractEventLoop"] = None
+    try:
+        running_loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No existing loop to track, nothing to do
+        return
+
+    # We have a running loop, track it
+    assert THREAD_LINK is not None  # nosec: assert is used for typing
+    THREAD_LINK.clear_threads(set(sys._current_frames().keys()))
+    THREAD_LINK.link_object(running_loop)
+    stack.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), running_loop)
+    _call_init_asyncio(asyncio)
+
+
 @ModuleWatchdog.after_module_imported("asyncio")
-def _(asyncio):
-    # type: (ModuleType) -> None
+def _(asyncio: ModuleType) -> None:
     global THREAD_LINK
+    global ASYNCIO_IMPORTED
+
+    ASYNCIO_IMPORTED = True
 
     if hasattr(asyncio, "current_task"):
         globals()["current_task"] = asyncio.current_task
@@ -50,32 +96,44 @@ def _(asyncio):
     elif hasattr(asyncio.Task, "all_tasks"):
         globals()["all_tasks"] = asyncio.Task.all_tasks
 
-    if hasattr(asyncio.Task, "get_name"):
-        # `get_name` is only available in Python ≥ 3.8
-        globals()["_task_get_name"] = lambda task: task.get_name()
+    globals()["_task_get_name"] = lambda task: task.get_name()
 
     if THREAD_LINK is None:
         THREAD_LINK = _threading._ThreadLink()
 
-    init_stack_v2 = config.stack.v2_enabled and stack_v2.is_available
+    init_stack: bool = config.stack.enabled and stack.is_available
 
-    @partial(wrap, sys.modules["asyncio.events"].BaseDefaultEventLoopPolicy.set_event_loop)
-    def _(f, args, kwargs):
-        loop = typing.cast("asyncio.AbstractEventLoop", get_argument_value(args, kwargs, 1, "loop"))
-        try:
-            if init_stack_v2:
-                stack_v2.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
-            return f(*args, **kwargs)
-        finally:
-            assert THREAD_LINK is not None  # nosec: assert is used for typing
-            THREAD_LINK.clear_threads(set(sys._current_frames().keys()))
-            if loop is not None:
-                THREAD_LINK.link_object(loop)
+    # Python 3.14+: BaseDefaultEventLoopPolicy was renamed to _BaseDefaultEventLoopPolicy
+    # Try both names for compatibility
+    events_module = sys.modules["asyncio.events"]
+    if sys.hexversion >= 0x030E0000:
+        # Python 3.14+: Use _BaseDefaultEventLoopPolicy
+        policy_class = getattr(events_module, "_BaseDefaultEventLoopPolicy", None)
+    else:
+        # Python < 3.14: Use BaseDefaultEventLoopPolicy
+        policy_class = getattr(events_module, "BaseDefaultEventLoopPolicy", None)
 
-    if init_stack_v2:
+    if policy_class is not None:
+
+        @partial(wrap, policy_class.set_event_loop)
+        def _(
+            f: typing.Callable[..., typing.Any], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]
+        ) -> typing.Any:
+            loop: typing.Optional["aio.AbstractEventLoop"] = get_argument_value(args, kwargs, 1, "loop")
+            try:
+                if init_stack:
+                    stack.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
+                return f(*args, **kwargs)
+            finally:
+                assert THREAD_LINK is not None  # nosec: assert is used for typing
+                THREAD_LINK.clear_threads(set(sys._current_frames().keys()))
+                if loop is not None:
+                    THREAD_LINK.link_object(loop)
+
+    if init_stack:
 
         @partial(wrap, sys.modules["asyncio"].tasks._GatheringFuture.__init__)
-        def _(f, args, kwargs):
+        def _(f: typing.Callable[..., None], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]) -> None:
             try:
                 return f(*args, **kwargs)
             finally:
@@ -89,19 +147,98 @@ def _(asyncio):
                 parent = globals()["current_task"](loop)
 
                 for child in children:
-                    stack_v2.link_tasks(parent, child)
+                    stack.link_tasks(parent, child)
 
-        if sys.hexversion >= 0x030C0000:
-            scheduled_tasks = asyncio.tasks._scheduled_tasks.data
-            eager_tasks = asyncio.tasks._eager_tasks
-        else:
-            scheduled_tasks = asyncio.tasks._all_tasks.data
-            eager_tasks = None
+        @partial(wrap, sys.modules["asyncio"].tasks._wait)
+        def _(
+            f: typing.Callable[
+                ..., typing.Tuple[typing.Set["aio.Future[typing.Any]"], typing.Set["aio.Future[typing.Any]"]]
+            ],
+            args: tuple[typing.Any, ...],
+            kwargs: dict[str, typing.Any],
+        ) -> typing.Any:
+            try:
+                return f(*args, **kwargs)
+            finally:
+                futures = typing.cast(typing.Set["aio.Future[typing.Any]"], get_argument_value(args, kwargs, 0, "fs"))
+                loop = typing.cast("aio.AbstractEventLoop", get_argument_value(args, kwargs, 3, "loop"))
 
-        stack_v2.init_asyncio(asyncio.tasks._current_tasks, scheduled_tasks, eager_tasks)  # type: ignore[attr-defined]
+                # Link the parent gathering task to the gathered children
+                parent = typing.cast("aio.Task[typing.Any]", globals()["current_task"](loop))
+                for future in futures:
+                    stack.link_tasks(parent, future)
+
+        @partial(wrap, sys.modules["asyncio"].tasks.as_completed)
+        def _(
+            f: typing.Callable[..., typing.Generator["aio.Future[typing.Any]", typing.Any, None]],
+            args: tuple[typing.Any, ...],
+            kwargs: dict[str, typing.Any],
+        ) -> typing.Any:
+            loop = typing.cast(typing.Optional["aio.AbstractEventLoop"], kwargs.get("loop"))
+            parent: typing.Optional["aio.Task[typing.Any]"] = globals()["current_task"](loop)
+
+            if parent is not None:
+                fs = typing.cast(typing.Iterable["aio.Future[typing.Any]"], get_argument_value(args, kwargs, 0, "fs"))
+                futures: typing.Set["aio.Future"] = {asyncio.ensure_future(f, loop=loop) for f in set(fs)}
+                for future in futures:
+                    stack.link_tasks(parent, future)
+
+                # Replace fs with the ensured futures to avoid double-wrapping
+                args = (futures,) + args[1:]
+
+            return f(*args, **kwargs)
+
+        # Wrap asyncio.shield to link parent task to shielded future
+        @partial(wrap, sys.modules["asyncio"].tasks.shield)
+        def _(
+            f: typing.Callable[..., "aio.Future[typing.Any]"],
+            args: tuple[typing.Any, ...],
+            kwargs: dict[str, typing.Any],
+        ) -> typing.Any:
+            loop = typing.cast(typing.Optional["aio.AbstractEventLoop"], kwargs.get("loop"))
+            awaitable = typing.cast("aio.Future[typing.Any]", get_argument_value(args, kwargs, 0, "arg"))
+            future = asyncio.ensure_future(awaitable, loop=loop)
+
+            parent = globals()["current_task"]()
+            if parent is not None:
+                stack.link_tasks(parent, future)
+
+            args = (future,) + args[1:]
+
+            return f(*args, **kwargs)
+
+        # Wrap asyncio.TaskGroup.create_task to link parent task to created tasks (Python 3.11+)
+        if sys.hexversion >= 0x030B0000:  # Python 3.11+
+            taskgroups_module = sys.modules.get("asyncio.taskgroups")
+            if taskgroups_module is not None:
+                taskgroup_class = getattr(taskgroups_module, "TaskGroup", None)
+                if taskgroup_class is not None and hasattr(taskgroup_class, "create_task"):
+
+                    @partial(wrap, taskgroup_class.create_task)
+                    def _(
+                        f: typing.Callable[..., "aio.Task[typing.Any]"],
+                        args: tuple[typing.Any, ...],
+                        kwargs: dict[str, typing.Any],
+                    ) -> typing.Any:
+                        result = f(*args, **kwargs)
+
+                        parent = globals()["current_task"]()
+                        if parent is not None and result is not None:
+                            # Link parent task to the task created by TaskGroup
+                            stack.link_tasks(parent, result)
+
+                        return result
+
+        # Note: asyncio.timeout and asyncio.timeout_at don't create child tasks.
+        # They are context managers that schedule a callback to cancel the current task
+        # if it times out. The timeout._task is the same as the current task, so there's
+        # no parent-child relationship to link. The timeout mechanism is handled by the
+        # event loop's timeout handler, not by creating new tasks.
+
+        _call_init_asyncio(asyncio)
 
 
-def get_event_loop_for_thread(thread_id: int) -> typing.Union["asyncio.AbstractEventLoop", None]:
+def get_event_loop_for_thread(thread_id: int) -> typing.Optional["asyncio.AbstractEventLoop"]:
     global THREAD_LINK
 
     return THREAD_LINK.get_object(thread_id) if THREAD_LINK is not None else None

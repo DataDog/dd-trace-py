@@ -1,6 +1,7 @@
 """
 Datadog trace code for cherrypy.
 """
+
 import logging
 import os
 from typing import Dict

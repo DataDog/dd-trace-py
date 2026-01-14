@@ -1,7 +1,5 @@
 #include "aspect_join.h"
 
-#include "helpers.h"
-
 PyObject*
 aspect_join_str(PyObject* sep,
                 PyObject* result,
@@ -26,10 +24,10 @@ aspect_join_str(PyObject* sep,
 
     if (len_sep == 0 and to_iterable_str) {
         // Empty separator: the result is identical to iterable_str
-        result_to = initializer->allocate_tainted_object_copy(to_iterable_str);
+        result_to = safe_allocate_tainted_object_copy(to_iterable_str);
     } else if (len_sep > 0 and to_joiner and to_iterable_str == nullptr) {
         // Iterable str is not tainted, only add n-times the joiner taints
-        result_to = initializer->allocate_tainted_object();
+        result_to = safe_allocate_tainted_object();
         for (size_t i = 0; i < len_iterable - 1; i++) {
             current_pos += element_len;
             result_to->add_ranges_shifted(to_joiner, current_pos);
@@ -37,7 +35,7 @@ aspect_join_str(PyObject* sep,
         }
     } else {
         // General case, iterable and joiner may be tainted
-        result_to = initializer->allocate_tainted_object();
+        result_to = safe_allocate_tainted_object();
         for (size_t i = 0; i < len_iterable; i++) {
             if (to_iterable_str) {
                 result_to->add_ranges_shifted(to_iterable_str, current_pos, element_len, i);
@@ -103,7 +101,7 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, const 
                 } else {
                     if (result_to == nullptr) {
                         // If first_tainted_to is null, it's ranges won't be copied
-                        result_to = initializer->allocate_tainted_object_copy(first_tainted_to);
+                        result_to = safe_allocate_tainted_object_copy(first_tainted_to);
                         first_tainted_to = nullptr;
                     }
                     result_to->add_ranges_shifted(to_element, current_pos);
@@ -115,7 +113,7 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, const 
         if (len_sep > 0 and i < len_iterable - 1 and to_joiner) {
             if (result_to == nullptr) {
                 // If first_tainted_to is null, it's ranges won't be copied
-                result_to = initializer->allocate_tainted_object_copy(first_tainted_to);
+                result_to = safe_allocate_tainted_object_copy(first_tainted_to);
                 first_tainted_to = nullptr;
             }
             result_to->add_ranges_shifted(to_joiner, current_pos);
@@ -125,7 +123,7 @@ aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, const 
 
     if (result_to == nullptr) {
         if (first_tainted_to) {
-            result_to = initializer->allocate_tainted_object_copy(first_tainted_to);
+            result_to = safe_allocate_tainted_object_copy(first_tainted_to);
         } else {
             // No taints at all
             return result;
@@ -186,8 +184,11 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         }
         return nullptr;
     }
+
+    CHECK_IAST_INITIALIZED_OR_RETURN(result);
+
     TRY_CATCH_ASPECT("join_aspect", return result, , {
-        auto ctx_map = taint_engine_context->get_tainted_object_map_from_list_of_pyobjects({ sep, arg0 });
+        auto ctx_map = safe_get_tainted_object_map_from_list_of_pyobjects({ sep, arg0 });
         if (not ctx_map or ctx_map->empty() or get_pyobject_size(result) == 0) {
             // Empty result cannot have taint ranges
             if (decref_arg0) {

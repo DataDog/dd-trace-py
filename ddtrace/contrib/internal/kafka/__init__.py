@@ -15,8 +15,8 @@ Or use :func:`patch() <ddtrace.patch>` to manually enable the integration::
     import confluent_kafka
     ...
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.kafka["service"]
 
@@ -35,20 +35,6 @@ Global Configuration
    variable.
 
    Default: ``"False"``
-
-
-To configure the kafka integration using the
-``Pin`` API::
-
-    from ddtrace.trace import Pin
-    from ddtrace import patch
-
-    # Make sure to patch before importing confluent_kafka
-    patch(kafka=True)
-
-    import confluent_kafka
-
-    Pin.override(confluent_kafka, service="custom-service-name")
 
 **Note**: `Data Streams Monitoring <https://docs.datadoghq.com/data_streams/>`_ (``DD_DATA_STREAMS_ENABLED=true``) or
 distributed tracing (``DD_KAFKA_PROPAGATION_ENABLED=true``) will only work if Kafka message headers are supported.

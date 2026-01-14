@@ -7,8 +7,6 @@ build:
   commands:
     - cargo install --force --root /home/docs/.asdf --git https://github.com/DataDog/libdatadog --bin dedup_headers tools
     - git fetch --unshallow || true
-    - curl -L https://github.com/pypa/hatch/releases/download/hatch-v1.12.0/hatch-x86_64-unknown-linux-gnu.tar.gz | tar zx
-    - install -t $HOME/.asdf/bin hatch
-    - hatch -q
-    - hatch -v run docs:sphinx-build -W -b html docs docs/_build/html
+    - pip install riot
+    - READTHEDOCS=1 riot -v run --pass-env build_docs
     - mv docs/_build $READTHEDOCS_OUTPUT

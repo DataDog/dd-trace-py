@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    LLM Observability: manual instrumentation methods, including ``LLMObs.annotate()``, ``LLMObs.export_span()``, ``LLMObs.submit_evaluation()``, ``LLMObs.inject_distributed_headers()``, and ``LLMObs.activate_distributed_headers()`` now raise exceptions instead of logging. LLM Observability auto-instrumentation is not affected.
+

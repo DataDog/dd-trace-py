@@ -231,7 +231,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             span._set_ctx_item(INPUT_MESSAGES, messages)
 
         if oai_span.response and oai_span.response.output:
-            messages, tool_call_outputs = oai_span.llmobs_output_messages()
+            messages, tool_call_outputs, _ = oai_span.llmobs_output_messages()
 
             for tool_call_output in tool_call_outputs:
                 core.dispatch(

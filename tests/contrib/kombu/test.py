@@ -8,6 +8,7 @@ from ddtrace.contrib.internal.kombu.patch import patch
 from ddtrace.contrib.internal.kombu.patch import unpatch
 from ddtrace.ext import kombu as kombux
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
+from ddtrace.internal.native import DDSketch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -219,9 +220,9 @@ class TestKombuSchematization(TracerTestCase):
     def test_schematized_unspecified_service_name_v1(self):
         spans = self._create_schematized_spans()
         for span in spans:
-            assert (
-                span.service == DEFAULT_SPAN_SERVICE_NAME
-            ), "Expected internal.schema.DEFAULT_SPAN_SERVICE_NAME got {}".format(span.service)
+            assert span.service == DEFAULT_SPAN_SERVICE_NAME, (
+                "Expected internal.schema.DEFAULT_SPAN_SERVICE_NAME got {}".format(span.service)
+            )
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0(self):
@@ -277,19 +278,13 @@ class TestKombuDsm(TracerTestCase):
         self.producer = self.conn.Producer()
         Pin._override(self.producer, tracer=self.tracer)
 
-        self.patcher = mock.patch(
-            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
-        )
-        self.patcher.start()
         from ddtrace.internal.datastreams import data_streams_processor
 
         self.processor = data_streams_processor()
-        self.processor.stop()
 
         patch()
 
     def tearDown(self):
-        self.patcher.stop()
         unpatch()
         super(TestKombuDsm, self).tearDown()
 
@@ -352,12 +347,11 @@ class TestKombuDsm(TracerTestCase):
 
             first = list(buckets.values())[0].pathway_stats
             for _bucket_name, bucket in first.items():
-                print(payload)
-                print(payload_size)
                 assert bucket.payload_size.count >= 1
-                assert (
-                    bucket.payload_size.sum == expected_payload_size
-                ), f"Actual payload size: {bucket.payload_size.sum} != Expected payload size: {expected_payload_size}"
+
+                expected_sketch = DDSketch()
+                expected_sketch.add(expected_payload_size)
+                assert bucket.payload_size.to_proto() == expected_sketch.to_proto()
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))

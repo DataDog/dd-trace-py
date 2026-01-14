@@ -1,11 +1,10 @@
 #pragma once
 
-#include "sample.hpp"
-#include "types.hpp"
+#include "profiler_stats.hpp"
 
 #include <atomic>
-#include <memory>
 #include <mutex>
+#include <string>
 
 extern "C"
 {
@@ -23,11 +22,14 @@ class Uploader
     static inline std::atomic<uint64_t> upload_seq{ 0 };
     std::string output_filename;
     ddog_prof_ProfileExporter ddog_exporter{ .inner = nullptr };
+    ddog_prof_EncodedProfile encoded_profile{};
+    Datadog::ProfilerStats profiler_stats;
+    std::string process_tags;
 
-    bool export_to_file(ddog_prof_EncodedProfile* encoded);
+    bool export_to_file(ddog_prof_EncodedProfile& encoded, std::string_view internal_metadata_json);
 
   public:
-    bool upload(ddog_prof_Profile& profile);
+    bool upload();
     static void cancel_inflight();
     static void lock();
     static void unlock();
@@ -35,7 +37,11 @@ class Uploader
     static void postfork_parent();
     static void postfork_child();
 
-    Uploader(std::string_view _url, ddog_prof_ProfileExporter ddog_exporter);
+    Uploader(std::string_view _url,
+             ddog_prof_ProfileExporter ddog_exporter,
+             ddog_prof_EncodedProfile encoded,
+             Datadog::ProfilerStats stats,
+             std::string_view _process_tags);
     ~Uploader()
     {
         // We need to call _drop() on the exporter and the cancellation token,
@@ -45,6 +51,7 @@ class Uploader
         ddog_CancellationToken_cancel(&cancel);
         ddog_prof_Exporter_drop(&ddog_exporter);
         ddog_CancellationToken_drop(&cancel);
+        ddog_prof_EncodedProfile_drop(&encoded_profile);
     }
 
     // Disable copy constructor and copy assignment operator to avoid double-free
@@ -68,18 +75,27 @@ class Uploader
     {
         ddog_exporter = other.ddog_exporter;
         other.ddog_exporter = { .inner = nullptr };
+        encoded_profile = other.encoded_profile;
+        other.encoded_profile = { .inner = nullptr };
+        profiler_stats = std::move(other.profiler_stats);
         output_filename = std::move(other.output_filename);
         errmsg = std::move(other.errmsg);
+        process_tags = std::move(other.process_tags);
     }
 
     Uploader& operator=(Uploader&& other) noexcept
     {
         if (this != &other) {
             ddog_prof_Exporter_drop(&ddog_exporter);
+            ddog_prof_EncodedProfile_drop(&encoded_profile);
             ddog_exporter = other.ddog_exporter;
             other.ddog_exporter = { .inner = nullptr };
+            encoded_profile = other.encoded_profile;
+            other.encoded_profile = { .inner = nullptr };
+            profiler_stats = std::move(other.profiler_stats);
             output_filename = std::move(other.output_filename);
             errmsg = std::move(other.errmsg);
+            process_tags = std::move(other.process_tags);
         }
         return *this;
     }

@@ -147,8 +147,9 @@ class GrpcTestIASTCase(GrpcBaseTestCase):
 
     @pytest.mark.skip
     def test_address_server_data(self):
-        with override_config("grpc", dict(service_name="myclientsvc")), override_config(
-            "grpc_server", dict(service_name="myserversvc")
+        with (
+            override_config("grpc", dict(service_name="myclientsvc")),
+            override_config("grpc_server", dict(service_name="myserversvc")),
         ):
             with mock.patch("ddtrace.appsec._asm_request_context.set_waf_address") as mock_set_waf_addr:
                 channel1 = grpc.insecure_channel("localhost:%d" % (_GRPC_PORT))

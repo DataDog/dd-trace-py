@@ -13,11 +13,11 @@ from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAP
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
-from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
-from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH_V4
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.git_data import GitData
-from ddtrace.settings._config import Config
+from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
+from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH_V4
+from ddtrace.internal.settings._config import Config
 from tests.ci_visibility.api_client._util import _AGENTLESS
 from tests.ci_visibility.api_client._util import _EVP_PROXY
 from tests.ci_visibility.api_client._util import TestTestVisibilityAPIClientBase
@@ -32,28 +32,32 @@ from tests.ci_visibility.util import _ci_override_env
 @contextmanager
 def _patch_env_for_testing():
     """Patches a bunch of things to make the environment more predictable for testing"""
-    with _dummy_noop_git_client(), mock.patch(
-        "ddtrace.ext.ci._get_runtime_and_os_metadata",
-        return_value={
-            "os.architecture": "testarch64",
-            "os.platform": "Not Actually Linux",
-            "os.version": "1.2.3-test",
-            "runtime.name": "CPythonTest",
-            "runtime.version": "1.2.3",
-        },
-    ), mock.patch(
-        "ddtrace.ext.ci.tags",
-        return_value={
-            "git.repository_url": "git@github.com:TestDog/dd-test-py.git",
-            "git.commit.sha": "mytestcommitsha1234",
-            "git.branch": "notmainbranch",
-            "git.commit.message": "message",
-        },
-    ), mock.patch(
-        "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-        return_value=TestVisibilityAPISettings(),
-    ), mock.patch(
-        "ddtrace.config._ci_visibility_agentless_enabled", True
+    with (
+        _dummy_noop_git_client(),
+        mock.patch(
+            "ddtrace.ext.ci._get_runtime_and_os_metadata",
+            return_value={
+                "os.architecture": "testarch64",
+                "os.platform": "Not Actually Linux",
+                "os.version": "1.2.3-test",
+                "runtime.name": "CPythonTest",
+                "runtime.version": "1.2.3",
+            },
+        ),
+        mock.patch(
+            "ddtrace.ext.ci.tags",
+            return_value={
+                "git.repository_url": "git@github.com:TestDog/dd-test-py.git",
+                "git.commit.sha": "mytestcommitsha1234",
+                "git.branch": "notmainbranch",
+                "git.commit.message": "message",
+            },
+        ),
+        mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(),
+        ),
+        mock.patch("ddtrace.config._ci_visibility_agentless_enabled", True),
     ):
         # Rebuild the config (yes, this is horrible)
         new_ddconfig = Config()
@@ -487,14 +491,20 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             _expected_config["dd_service"] = "dd-test-py"
 
         git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234", "message")
-        with _ci_override_env(_env_vars, full_clear=True), _patch_env_for_testing(), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_base_url",
-            return_value=EVP_PROXY_AGENT_BASE_PATH,
-        ), mock.patch(
-            "ddtrace.settings._agent.config.trace_agent_url", return_value="http://shouldntbeused:6218"
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._span_aggregator.writer.intake_url",
-            "http://patchedagenturl:6218",
+        with (
+            _ci_override_env(_env_vars, full_clear=True),
+            _patch_env_for_testing(),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_base_url",
+                return_value=EVP_PROXY_AGENT_BASE_PATH,
+            ),
+            mock.patch(
+                "ddtrace.internal.settings._agent.config.trace_agent_url", return_value="http://shouldntbeused:6218"
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._span_aggregator.writer.intake_url",
+                "http://patchedagenturl:6218",
+            ),
         ):
             try:
                 expected_client = EVPProxyTestVisibilityAPIClient(
@@ -592,20 +602,23 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         }
 
         git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234", "message")
-        with _ci_override_env(
-            {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "false"}, full_clear=True
-        ), _patch_env_for_testing(), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_base_url",
-            return_value=EVP_PROXY_AGENT_BASE_PATH,
-        ), mock.patch(
-            "ddtrace.internal.agent.info", return_value=agent_info_response
-        ), mock.patch(
-            "ddtrace.settings._agent.config.trace_agent_url",
-            new_callable=mock.PropertyMock,
-            return_value="http://shouldntbeused:6218",
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._span_aggregator.writer.intake_url",
-            "http://patchedagenturl:6218",
+        with (
+            _ci_override_env({"_DD_CIVISIBILITY_ITR_SUITE_MODE": "false"}, full_clear=True),
+            _patch_env_for_testing(),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_base_url",
+                return_value=EVP_PROXY_AGENT_BASE_PATH,
+            ),
+            mock.patch("ddtrace.internal.agent.info", return_value=agent_info_response),
+            mock.patch(
+                "ddtrace.internal.settings._agent.config.trace_agent_url",
+                new_callable=mock.PropertyMock,
+                return_value="http://shouldntbeused:6218",
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._span_aggregator.writer.intake_url",
+                "http://patchedagenturl:6218",
+            ),
         ):
             try:
                 expected_client = EVPProxyTestVisibilityAPIClient(

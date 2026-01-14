@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    profiling: This removes the ``wrapt`` library dependency from the Lock Profiler implementation, improving performance and reducing overhead during lock instrumentation.

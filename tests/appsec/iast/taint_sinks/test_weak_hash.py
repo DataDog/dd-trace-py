@@ -84,7 +84,6 @@ def test_weak_hash_hashlib(iast_context_defaults, hash_func, method):
     assert list(span_report.vulnerabilities)[0].hash == hash_value
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9), reason="usedforsecurity was introduced in 3.9")
 @pytest.mark.parametrize(
     "hash_func,method",
     [
@@ -234,6 +233,7 @@ def test_weak_hash_md5_builtin_py3_only_sha1_configured(iast_context_only_sha1):
     assert span_report is None
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="pycryptodome is not compatible with Python 3.14")
 def test_weak_hash_pycryptodome_hashes_md5(iast_context_defaults):
     from Crypto.Hash import MD5
 
@@ -247,6 +247,7 @@ def test_weak_hash_pycryptodome_hashes_md5(iast_context_defaults):
     assert list(span_report.vulnerabilities)[0].evidence.value == "md5"
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="pycryptodome is not compatible with Python 3.14")
 def test_weak_hash_pycryptodome_hashes_sha1_defaults(iast_context_defaults):
     from Crypto.Hash import SHA1
 
@@ -261,6 +262,7 @@ def test_weak_hash_pycryptodome_hashes_sha1_defaults(iast_context_defaults):
     assert list(span_report.vulnerabilities)[0].evidence.value == "sha1"
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="pycryptodome is not compatible with Python 3.14")
 def test_weak_hash_pycryptodome_hashes_sha1_only_md5_configured(iast_context_only_md5):
     from Crypto.Hash import SHA1
 
@@ -273,6 +275,7 @@ def test_weak_hash_pycryptodome_hashes_sha1_only_md5_configured(iast_context_onl
     assert span_report is None
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="pycryptodome is not compatible with Python 3.14")
 def test_weak_hash_pycryptodome_hashes_sha1_only_sha1_configured(iast_context_only_sha1):
     from Crypto.Hash import SHA1
 

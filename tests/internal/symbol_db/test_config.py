@@ -1,4 +1,4 @@
-from ddtrace.settings.symbol_db import SymbolDatabaseConfig
+from ddtrace.internal.settings.symbol_db import SymbolDatabaseConfig
 
 
 def test_symbol_db_includes_pattern(monkeypatch):

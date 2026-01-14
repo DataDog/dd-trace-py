@@ -1,0 +1,4 @@
+---
+features:
+  - |
+     feat(asgi): Enable context propagation between websocket message spans.

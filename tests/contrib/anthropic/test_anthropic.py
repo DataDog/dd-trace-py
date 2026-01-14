@@ -12,7 +12,7 @@ from .utils import tools
 ANTHROPIC_VERSION = parse_version(anthropic_module.__version__)
 
 
-def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, mock_tracer):
+def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, test_spans):
     """
     When the global config UST tags are set
         The service name should be used for all data
@@ -29,7 +29,7 @@ def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, mock_trac
                 messages=[{"role": "user", "content": "What does Nietzsche mean by 'God is dead'?"}],
             )
 
-    span = mock_tracer.pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
     assert span.resource == "Messages.create"
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"
@@ -277,7 +277,7 @@ def test_anthropic_llm_sync_tools_full_use(anthropic, request_vcr, snapshot_cont
 
 
 @pytest.mark.asyncio
-async def test_global_tags_async(ddtrace_config_anthropic, anthropic, request_vcr, mock_tracer):
+async def test_global_tags_async(ddtrace_config_anthropic, anthropic, request_vcr, test_spans):
     """
     When the global config UST tags are set
         The service name should be used for all data
@@ -294,7 +294,7 @@ async def test_global_tags_async(ddtrace_config_anthropic, anthropic, request_vc
                 messages=[{"role": "user", "content": "What does Nietzsche mean by 'God is dead'?"}],
             )
 
-    span = mock_tracer.pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
     assert span.resource == "AsyncMessages.create"
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"
@@ -597,4 +597,110 @@ async def test_anthropic_llm_async_tools_stream_full_use(anthropic, request_vcr,
                     stream=True,
                 )
                 async for _ in stream:
+                    pass
+
+
+BETA_SKIP_REASON = "Anthropic Beta API not available until 0.37.0, skipping."
+
+
+@pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
+@pytest.mark.snapshot(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm", ignores=["resource"])
+def test_anthropic_beta_llm_sync_create(anthropic, request_vcr):
+    llm = anthropic.Anthropic()
+    with request_vcr.use_cassette("anthropic_completion.yaml"):
+        llm.beta.messages.create(
+            model="claude-3-opus-20240229",
+            max_tokens=15,
+            messages=[
+                {"role": "user", "content": "Can you explain what Descartes meant by 'I think, therefore I am'?"}
+            ],
+        )
+
+
+@pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
+@pytest.mark.snapshot(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream", ignores=["resource"])
+def test_anthropic_beta_llm_sync_stream(anthropic, request_vcr):
+    llm = anthropic.Anthropic()
+    with request_vcr.use_cassette("anthropic_completion_stream.yaml"):
+        stream = llm.beta.messages.create(
+            model="claude-3-opus-20240229",
+            max_tokens=15,
+            messages=[
+                {"role": "user", "content": "Can you explain what Descartes meant by 'I think, therefore I am'?"}
+            ],
+            stream=True,
+        )
+        for _ in stream:
+            pass
+
+
+@pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
+@pytest.mark.snapshot(
+    token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream_helper", ignores=["resource"]
+)
+def test_anthropic_beta_llm_sync_stream_helper(anthropic, request_vcr):
+    llm = anthropic.Anthropic()
+    with request_vcr.use_cassette("anthropic_completion_stream_helper.yaml"):
+        with llm.beta.messages.stream(
+            max_tokens=15,
+            messages=[
+                {"role": "user", "content": "Can you explain what Descartes meant by 'I think, therefore I am'?"}
+            ],
+            model="claude-3-opus-20240229",
+        ) as stream:
+            for _ in stream.text_stream:
+                pass
+
+
+@pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
+@pytest.mark.asyncio
+async def test_anthropic_beta_llm_async_create(anthropic, request_vcr, snapshot_context):
+    with snapshot_context(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm", ignores=["resource"]):
+        llm = anthropic.AsyncAnthropic()
+        with request_vcr.use_cassette("anthropic_completion.yaml"):
+            await llm.beta.messages.create(
+                model="claude-3-opus-20240229",
+                max_tokens=15,
+                messages=[
+                    {"role": "user", "content": "Can you explain what Descartes meant by 'I think, therefore I am'?"}
+                ],
+            )
+
+
+@pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
+@pytest.mark.asyncio
+async def test_anthropic_beta_llm_async_stream(anthropic, request_vcr, snapshot_context):
+    with snapshot_context(
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream", ignores=["resource"]
+    ):
+        llm = anthropic.AsyncAnthropic()
+        with request_vcr.use_cassette("anthropic_completion_stream.yaml"):
+            stream = await llm.beta.messages.create(
+                model="claude-3-opus-20240229",
+                max_tokens=15,
+                messages=[
+                    {"role": "user", "content": "Can you explain what Descartes meant by 'I think, therefore I am'?"}
+                ],
+                stream=True,
+            )
+            async for _ in stream:
+                pass
+
+
+@pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
+@pytest.mark.asyncio
+async def test_anthropic_beta_llm_async_stream_helper(anthropic, request_vcr, snapshot_context):
+    with snapshot_context(
+        token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm_stream_helper", ignores=["resource"]
+    ):
+        llm = anthropic.AsyncAnthropic()
+        with request_vcr.use_cassette("anthropic_completion_stream_helper.yaml"):
+            async with llm.beta.messages.stream(
+                max_tokens=15,
+                messages=[
+                    {"role": "user", "content": "Can you explain what Descartes meant by 'I think, therefore I am'?"}
+                ],
+                model="claude-3-opus-20240229",
+            ) as stream:
+                async for _ in stream.text_stream:
                     pass

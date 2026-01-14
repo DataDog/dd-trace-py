@@ -18,8 +18,8 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     patch(aiohttp=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.aiohttp_client['distributed_tracing']
 
@@ -91,6 +91,7 @@ to the ``request`` object, so that it can be used in the application code::
 :ref:`All HTTP tags <http-tagging>` are supported for this integration.
 
 """
+
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
 
 

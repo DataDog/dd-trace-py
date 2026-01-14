@@ -16,12 +16,14 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import constants
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.utils.http import _format_template
 import tests.appsec.rules as rules
-from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
 
+
+SECID: str = "[security_response_id]"
 
 try:
     from ddtrace.appsec import track_user_sdk as _track_user_sdk  # noqa: F401
@@ -86,7 +88,7 @@ class Contrib_TestClass_For_Threats:
         raise NotImplementedError
 
     def get_stack_trace(self, entry_span, namespace):
-        appsec_traces = entry_span().get_struct_tag(asm_constants.STACK_TRACE.TAG) or {}
+        appsec_traces = entry_span()._get_struct_tag(asm_constants.STACK_TRACE.TAG) or {}
         stacks = appsec_traces.get(namespace, [])
         return stacks
 
@@ -98,11 +100,12 @@ class Contrib_TestClass_For_Threats:
         assert stack_ids == stack_id_in_triggers, f"stack_ids={stack_ids}, stack_id_in_triggers={stack_id_in_triggers}"
         return exploit
 
-    def check_single_rule_triggered(self, rule_id: str, entry_span):
+    def check_single_rule_triggered(self, rule_id: str, entry_span) -> str:
         triggers = get_triggers(entry_span())
         assert triggers is not None, "no appsec struct in root span"
         result = [t["rule"]["id"] for t in triggers]
         assert result == [rule_id], f"result={result}, expected={[rule_id]}"
+        return triggers[0].get("security_response_id", None)
 
     def check_rules_triggered(self, rule_id: List[str], entry_span):
         triggers = get_triggers(entry_span())
@@ -144,7 +147,7 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/")
             assert self.status(response) == 200, "healthcheck failed"
             assert self.body(response) == "ok ASM"
-            from ddtrace.settings.asm import config as asm_config
+            from ddtrace.internal.settings.asm import config as asm_config
 
             assert asm_config._asm_enabled is asm_enabled
             assert get_entry_span_tag("http.status_code") == "200"
@@ -165,11 +168,14 @@ class Contrib_TestClass_For_Threats:
 
         import ddtrace.internal.telemetry
 
-        with override_global_config(dict(_asm_enabled=True, _waf_timeout=0.001)), mock_patch.object(
-            ddtrace.internal.telemetry.telemetry_writer,
-            "_namespace",
-            MagicMock(),
-        ) as mocked:
+        with (
+            override_global_config(dict(_asm_enabled=True, _waf_timeout=0.001)),
+            mock_patch.object(
+                ddtrace.internal.telemetry.telemetry_writer,
+                "_namespace",
+                MagicMock(),
+            ) as mocked,
+        ):
             self.update_tracer(interface)
             query_params = urlencode({"q": "1"})
             url = f"/?{query_params}"
@@ -299,11 +305,14 @@ class Contrib_TestClass_For_Threats:
 
         import ddtrace.internal.telemetry
 
-        with override_global_config(dict(_asm_enabled=True)), mock_patch.object(
-            ddtrace.internal.telemetry.telemetry_writer,
-            "_namespace",
-            MagicMock(),
-        ) as mocked:
+        with (
+            override_global_config(dict(_asm_enabled=True)),
+            mock_patch.object(
+                ddtrace.internal.telemetry.telemetry_writer,
+                "_namespace",
+                MagicMock(),
+            ) as mocked,
+        ):
             self.update_tracer(interface)
             body: Dict[str, Any] = {"val": "x" * 5000}
             body.update({f"a_{i}": i for i in range(517)})
@@ -428,8 +437,9 @@ class Contrib_TestClass_For_Threats:
         # Ensure no crash when body is not parsable
         import logging
 
-        with caplog.at_level(logging.DEBUG), override_global_config(
-            dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)
+        with (
+            caplog.at_level(logging.DEBUG),
+            override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)),
         ):
             self.update_tracer(interface)
             payload = '{"attack": "bad_payload",}</attack>&='
@@ -532,12 +542,14 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/", headers=headers)
             if blocked and asm_enabled:
                 assert self.status(response) == 403
-                assert self.body(response) == getattr(constants, body, None)
                 assert get_entry_span_tag("actor.ip") == rules._IP.BLOCKED
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
                 assert get_entry_span_tag(http.URL) == "http://localhost:8000/"
                 assert get_entry_span_tag(http.METHOD) == "GET"
-                self.check_single_rule_triggered("blk-001-001", entry_span)
+                block_id = self.check_single_rule_triggered("blk-001-001", entry_span)
+                assert self.body(response) == _format_template(getattr(constants, body, ""), block_id), self.body(
+                    response
+                )
                 assert (
                     get_entry_span_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
                     == content_type
@@ -584,17 +596,17 @@ class Contrib_TestClass_For_Threats:
             code = 403 if not bypassed and not monitored and asm_enabled and blocked else 200
             rule = "tst-421-001" if blocked else "tst-421-002"
             assert self.status(response) == code, f"status={self.status(response)}, expected={code}"
-            assert get_entry_span_tag(http.STATUS_CODE) == str(
-                code
-            ), f"status_code={get_entry_span_tag(http.STATUS_CODE)}, expected={code}"
+            assert get_entry_span_tag(http.STATUS_CODE) == str(code), (
+                f"status_code={get_entry_span_tag(http.STATUS_CODE)}, expected={code}"
+            )
             if asm_enabled and not bypassed:
                 assert get_entry_span_tag(http.URL) == f"http://localhost:8000/{query}"
-                assert (
-                    get_entry_span_tag(http.METHOD) == "GET"
-                ), f"method={get_entry_span_tag(http.METHOD)}, expected=GET"
-                assert (
-                    get_entry_span_tag("actor.ip") == headers["X-Real-Ip"]
-                ), f"actor.ip={get_entry_span_tag('actor.ip')}, expected={headers['X-Real-Ip']}"
+                assert get_entry_span_tag(http.METHOD) == "GET", (
+                    f"method={get_entry_span_tag(http.METHOD)}, expected=GET"
+                )
+                assert get_entry_span_tag("actor.ip") == headers["X-Real-Ip"], (
+                    f"actor.ip={get_entry_span_tag('actor.ip')}, expected={headers['X-Real-Ip']}"
+                )
                 if monitored:
                     self.check_rules_triggered(["blk-001-010", rule], entry_span)
                 else:
@@ -638,9 +650,9 @@ class Contrib_TestClass_For_Threats:
             if event and ip == self.SUSPICIOUS_IP:
                 status = 402
             assert self.status(response) == status, f"status={self.status(response)}, expected={status}"
-            assert get_entry_span_tag(http.STATUS_CODE) == str(
-                status
-            ), f"status_code={self.status(response)}, expected={status}"
+            assert get_entry_span_tag(http.STATUS_CODE) == str(status), (
+                f"status_code={self.status(response)}, expected={status}"
+            )
             if event:
                 self.check_single_rule_triggered(
                     "ua0-600-56x" if agent == "dd-test-scanner-log-block" else "ua0-600-12x", entry_span
@@ -671,8 +683,8 @@ class Contrib_TestClass_For_Threats:
             if asm_enabled and method == "get":
                 assert self.status(response) == 403
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
-                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered("tst-037-006", entry_span)
+                block_id = self.check_single_rule_triggered("tst-037-006", entry_span)
+                assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
                     get_entry_span_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
                     == "application/json"
@@ -704,8 +716,8 @@ class Contrib_TestClass_For_Threats:
             if asm_enabled and blocked:
                 assert self.status(response) == 403
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
-                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered("tst-037-002", entry_span)
+                block_id = self.check_single_rule_triggered("tst-037-002", entry_span)
+                assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
                     get_entry_span_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
                     == "application/json"
@@ -767,8 +779,8 @@ class Contrib_TestClass_For_Threats:
             if asm_enabled and blocked:
                 assert self.status(response) == 403
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
-                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered("tst-037-007", entry_span)
+                block_id = self.check_single_rule_triggered("tst-037-007", entry_span)
+                assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
                     get_entry_span_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
                     == "application/json"
@@ -811,8 +823,8 @@ class Contrib_TestClass_For_Threats:
             if asm_enabled and blocked:
                 assert self.status(response) == 403
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
-                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered("tst-037-001", entry_span)
+                block_id = self.check_single_rule_triggered("tst-037-001", entry_span)
+                assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
                     get_entry_span_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
                     == "application/json"
@@ -850,8 +862,8 @@ class Contrib_TestClass_For_Threats:
             if asm_enabled and blocked:
                 assert self.status(response) == 403
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
-                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered("tst-037-004", entry_span)
+                block_id = self.check_single_rule_triggered("tst-037-004", entry_span)
+                assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
                     get_entry_span_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
                     == "application/json"
@@ -889,8 +901,8 @@ class Contrib_TestClass_For_Threats:
             if asm_enabled and blocked:
                 assert self.status(response) == 403
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
-                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered("tst-037-008", entry_span)
+                block_id = self.check_single_rule_triggered("tst-037-008", entry_span)
+                assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
                     get_entry_span_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
                     == "application/json"
@@ -932,8 +944,8 @@ class Contrib_TestClass_For_Threats:
             if asm_enabled and blocked:
                 assert self.status(response) == 403
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
-                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered(blocked, entry_span)
+                block_id = self.check_single_rule_triggered(blocked, entry_span)
+                assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
                     get_entry_span_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
                     == "application/json"
@@ -985,8 +997,8 @@ class Contrib_TestClass_For_Threats:
             if asm_enabled and blocked:
                 assert self.status(response) == 403
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
-                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered(blocked, entry_span)
+                block_id = self.check_single_rule_triggered(blocked, entry_span)
+                assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
                     get_entry_span_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
                     == "application/json"
@@ -1056,8 +1068,8 @@ class Contrib_TestClass_For_Threats:
             if asm_enabled and blocked:
                 assert self.status(response) == 403
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
-                assert self.body(response) == constants.BLOCKED_RESPONSE_JSON
-                self.check_single_rule_triggered(blocked, entry_span)
+                block_id = self.check_single_rule_triggered(blocked, entry_span)
+                assert self.body(response) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
                 assert (
                     get_entry_span_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")
                     == "application/json"
@@ -1115,17 +1127,20 @@ class Contrib_TestClass_For_Threats:
         http_cache._JSON_BLOCKED_TEMPLATE_CACHE = None
         try:
             uri = f"/?param={query}"
-            with override_global_config(
-                dict(
-                    _asm_enabled=asm_enabled,
-                    _use_metastruct_for_triggers=metastruct,
-                    _asm_static_rule_file=rules.RULES_SRBCA,
-                )
-            ), override_env(
-                dict(
-                    DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON=rules.RESPONSE_CUSTOM_JSON,
-                    DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML=rules.RESPONSE_CUSTOM_HTML,
-                )
+            with (
+                override_global_config(
+                    dict(
+                        _asm_enabled=asm_enabled,
+                        _use_metastruct_for_triggers=metastruct,
+                        _asm_static_rule_file=rules.RULES_SRBCA,
+                    )
+                ),
+                override_env(
+                    dict(
+                        DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON=rules.RESPONSE_CUSTOM_JSON,
+                        DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML=rules.RESPONSE_CUSTOM_HTML,
+                    )
+                ),
             ):
                 self.update_tracer(interface)
                 response = interface.client.get(uri, headers=headers)
@@ -1275,13 +1290,16 @@ class Contrib_TestClass_For_Threats:
         from ddtrace.ext import http
         import ddtrace.internal.telemetry
 
-        with override_global_config(
-            dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _apm_tracing_enabled=apm_tracing_enabled)
-        ), mock_patch.object(
-            ddtrace.internal.telemetry.telemetry_writer,
-            "_namespace",
-            MagicMock(),
-        ) as mocked:
+        with (
+            override_global_config(
+                dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _apm_tracing_enabled=apm_tracing_enabled)
+            ),
+            mock_patch.object(
+                ddtrace.internal.telemetry.telemetry_writer,
+                "_namespace",
+                MagicMock(),
+            ) as mocked,
+        ):
             self.update_tracer(interface)
             response = interface.client.post(
                 "/asm/324/huj/?x=1&y=2",
@@ -1325,12 +1343,12 @@ class Contrib_TestClass_For_Threats:
                 if not apm_tracing_enabled:
                     span_sampling_priority = entry_span()._span.context.sampling_priority
                     sampling_decision = get_entry_span_tag(constants.SAMPLING_DECISION_TRACE_TAG_KEY)
-                    assert (
-                        span_sampling_priority == constants.USER_KEEP
-                    ), f"Expected 2 (USER_KEEP), got {span_sampling_priority}"
-                    assert (
-                        sampling_decision == f"-{constants.SamplingMechanism.APPSEC}"
-                    ), f"Expected '-5' (APPSEC), got {sampling_decision}"
+                    assert span_sampling_priority == constants.USER_KEEP, (
+                        f"Expected 2 (USER_KEEP), got {span_sampling_priority}"
+                    )
+                    assert sampling_decision == f"-{constants.SamplingMechanism.APPSEC}", (
+                        f"Expected '-5' (APPSEC), got {sampling_decision}"
+                    )
             else:
                 assert value is None, name
 
@@ -1658,9 +1676,12 @@ class Contrib_TestClass_For_Threats:
                 asm_config._iast_enabled and top_function.endswith("ast_function")
             )
 
-        with override_global_config(
-            dict(_asm_enabled=asm_enabled, _ep_enabled=ep_enabled, _asm_static_rule_file=rule_file)
-        ), mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as mocked:
+        with (
+            override_global_config(
+                dict(_asm_enabled=asm_enabled, _ep_enabled=ep_enabled, _asm_static_rule_file=rule_file)
+            ),
+            mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as mocked,
+        ):
             self.update_tracer(interface)
             assert asm_config._asm_enabled == asm_enabled
             response = interface.client.get(f"/rasp/{endpoint}/?{parameters}")
@@ -1677,9 +1698,9 @@ class Contrib_TestClass_For_Threats:
                 assert self.check_for_stack_trace(entry_span)
                 for trace in self.check_for_stack_trace(entry_span):
                     assert "frames" in trace
-                    assert validate_top_function(
-                        trace
-                    ), f"unknown top function {trace['frames'][0]} {[t['function'] for t in trace['frames'][:4]]}"
+                    assert validate_top_function(trace), (
+                        f"unknown top function {trace['frames'][0]} {[t['function'] for t in trace['frames'][:4]]}"
+                    )
                 # assert mocked.call_args_list == []
                 expected_rule_type = "command_injection" if endpoint == "shell_injection" else endpoint
                 expected_variant = (
@@ -1856,14 +1877,17 @@ class Contrib_TestClass_For_Threats:
         if not USER_SDK_V2:
             raise pytest.skip("SDK v2 not available")
 
-        with override_global_config(
-            dict(
-                _asm_enabled=asm_enabled,
-                _auto_user_instrumentation_local_mode=local_mode,
-                _auto_user_instrumentation_rc_mode=rc_mode,
-                _auto_user_instrumentation_enabled=auto_events_enabled,
-            )
-        ), mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as telemetry_mock:
+        with (
+            override_global_config(
+                dict(
+                    _asm_enabled=asm_enabled,
+                    _auto_user_instrumentation_local_mode=local_mode,
+                    _auto_user_instrumentation_rc_mode=rc_mode,
+                    _auto_user_instrumentation_enabled=auto_events_enabled,
+                )
+            ),
+            mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as telemetry_mock,
+        ):
             self.update_tracer(interface)
             metadata = json.dumps(
                 {
@@ -1937,9 +1961,9 @@ class Contrib_TestClass_For_Threats:
             assert get_entry_span_tag(f"appsec.events.users.login.{success}.a") == "a", entry_span()._meta
             assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.b") == "true", entry_span()._meta
             assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.c") == "3", entry_span()._meta
-            assert (
-                get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.load_c.load_d.e") == "1.32"
-            ), entry_span()._meta
+            assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.load_c.load_d.e") == "1.32", (
+                entry_span()._meta
+            )
             assert (
                 get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.load_c.load_d.load_e.f") is None
             ), entry_span()._meta
@@ -2052,22 +2076,6 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == 200, f"{self.status(response)} is not 200"
             c_tag = get_tag("_dd.appsec.trace.mark")
             assert c_tag == tag, f"[{c_tag}] is not [{tag}] {response.text[:50]}"
-
-
-@contextmanager
-def test_tracer():
-    from ddtrace.internal import core
-
-    tracer = DummyTracer()
-    original_tracer = ddtrace.tracer
-    ddtrace.tracer = tracer
-    core.tracer = tracer
-
-    # Yield to our test
-    yield tracer
-    tracer.pop()
-    ddtrace.tracer = original_tracer
-    core.tracer = original_tracer
 
 
 @contextmanager

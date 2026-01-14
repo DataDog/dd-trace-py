@@ -1,23 +1,40 @@
 from typing import Dict
+from typing import Mapping
 from typing import Optional
 from typing import Union
-from .._types import StringType
+
+import ddtrace
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
 
+from .._types import StringType
+
 def config(
-    env: StringType,
-    service: StringType,
-    version: StringType,
-    tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]],
-    max_nframes: Optional[int],
-    timeline_enabled: Optional[bool],
-    output_filename: Optional[str],
-    sample_pool_capacity: Optional[int],
-    timeout: Optional[int],
+    env: StringType = None,
+    service: StringType = None,
+    version: StringType = None,
+    tags: Optional[Mapping[Union[str, bytes], Union[str, bytes]]] = None,
+    max_nframes: Optional[int] = None,
+    timeline_enabled: Optional[bool] = None,
+    output_filename: Optional[str] = None,
+    sample_pool_capacity: Optional[int] = None,
+    timeout: Optional[int] = None,
+    process_tags: Optional[str] = None,
 ) -> None: ...
 def start() -> None: ...
-def upload(tracer: Optional[Tracer], enable_code_provenance: Optional[bool]) -> None: ...
+def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Optional[bool] = None) -> None: ...
+def init(
+    service: str,
+    env: str,
+    version: str,
+    tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
+    max_nframes: Optional[int] = None,
+    timeline_enabled: Optional[bool] = None,
+    output_filename: Optional[str] = None,
+    sample_pool_capacity: Optional[int] = None,
+    timeout: Optional[int] = None,
+    url: Optional[str] = None,
+) -> None: ...
 
 class SampleHandle:
     def flush_sample(self) -> None: ...
@@ -36,7 +53,7 @@ class SampleHandle:
     def push_lock_name(self, lock_name: StringType) -> None: ...
     def push_monotonic_ns(self, monotonic_ns: int) -> None: ...
     def push_release(self, value: int, count: int) -> None: ...
-    def push_span(self, span: Optional[Span]) -> None: ...
+    def push_span(self, span: Optional[Span] = None) -> None: ...
     def push_task_id(self, task_id: Optional[int]) -> None: ...
     def push_task_name(self, task_name: StringType) -> None: ...
     def push_threadinfo(self, thread_id: int, thread_native_id: int, thread_name: StringType) -> None: ...

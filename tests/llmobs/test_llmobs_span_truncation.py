@@ -1,7 +1,7 @@
 import json
 
+from ddtrace.internal.evp_proxy.constants import EVP_EVENT_SIZE_LIMIT
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
-from ddtrace.llmobs._constants import EVP_EVENT_SIZE_LIMIT
 from ddtrace.llmobs._writer import _truncate_span_event
 from tests.llmobs._utils import _oversized_llm_event
 from tests.llmobs._utils import _oversized_retrieval_event

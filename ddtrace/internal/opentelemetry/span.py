@@ -7,6 +7,7 @@ from opentelemetry.trace import SpanContext
 from opentelemetry.trace import SpanKind
 from opentelemetry.trace import Status
 from opentelemetry.trace import StatusCode
+from opentelemetry.trace.span import DEFAULT_TRACE_OPTIONS
 from opentelemetry.trace.span import TraceFlags
 from opentelemetry.trace.span import TraceState
 
@@ -15,6 +16,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
+from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import flatten_key_value
 from ddtrace.internal.utils.formats import is_sequence
@@ -38,14 +40,33 @@ log = get_logger(__name__)
 
 
 def _ddmap(span, attribute, value):
-    # type: (DDSpan, str, Union[bytes, NumericType]) -> DDSpan
+    # type: (DDSpan, str, Union[str, bytes, NumericType]) -> DDSpan
     if attribute.startswith("meta") or attribute.startswith("metrics"):
         meta_key = attribute.split("'")[1] if len(attribute.split("'")) == 3 else None
         if meta_key:
-            span.set_tag(meta_key, value)
+            if meta_key == "http.status_code":
+                if isinstance(value, (int, float)):
+                    value = str(value)
+
+            if isinstance(value, (str, bytes)):
+                span.set_tag(meta_key, ensure_text(value))
+            if isinstance(value, (int, float)):
+                span.set_metric(meta_key, value)
     else:
         setattr(span, attribute, value)
     return span
+
+
+def _get_trace_flags(sampling_priority):
+    """Returns the trace flags for a given sampling priority.
+    Note - DEFAULT_TRACE_OPTIONS is equivalent to 'span is not sampled YET'
+    """
+    if sampling_priority is None:
+        return DEFAULT_TRACE_OPTIONS
+    elif sampling_priority > 0:
+        return TraceFlags(TraceFlags.SAMPLED)
+    else:
+        return TraceFlags(TraceFlags.DEFAULT)
 
 
 _OTelDatadogMapping = {
@@ -142,18 +163,9 @@ class Span(OtelSpan):
             # decision is made. Since the default sampling decision is to unsample spans this can result
             # in missing spans. To resolve this issue, a sampling decision must be made the first time
             # the span context is accessed.
-            ddtracer.sample(self._ddspan._local_root or self._ddspan)
+            ddtracer.sample(self._ddspan._local_root)
 
-        if self._ddspan.context.sampling_priority is None:
-            tf = TraceFlags.get_default()
-            log.warning(
-                "Span context is missing a sampling decision, defaulting to unsampled: %s", str(self._ddspan.context)
-            )
-        elif self._ddspan.context.sampling_priority > 0:
-            tf = TraceFlags(TraceFlags.SAMPLED)
-        else:
-            tf = TraceFlags.get_default()
-
+        tf = _get_trace_flags(self._ddspan.context.sampling_priority)
         # Evaluate the tracestate header after the sampling decision has been made
         ts_str = w3c_tracestate_add_p(self._ddspan.context._tracestate, self._ddspan.span_id)
         ts = TraceState.from_header([ts_str])
@@ -182,7 +194,17 @@ class Span(OtelSpan):
             for k, v in flatten_key_value(key, value).items():
                 self._ddspan.set_tag(k, v)
             return
-        self._ddspan.set_tag(key, value)
+        if key == "http.status_code":
+            if isinstance(value, (int, float)):
+                value = str(value)
+        if isinstance(value, (str, bytes)):
+            value = ensure_text(value)
+            self._ddspan.set_tag(key, value)
+        elif isinstance(value, (int, float)):
+            self._ddspan.set_metric(key, value)
+        else:
+            # TODO: get rid of this usage, `set_tag` only takes str values
+            self._ddspan.set_tag(key, value)
 
     def add_event(self, name, attributes=None, timestamp=None):
         # type: (str, Optional[Attributes], Optional[int]) -> None

@@ -5,6 +5,7 @@ agentless
 aiobotocore
 aiohttp
 aiomysql
+aiokafka
 aiopg
 aioredis
 algolia
@@ -40,6 +41,7 @@ AWS
 ARN
 backend
 backends
+backoff
 backport
 backported
 backporting
@@ -203,6 +205,7 @@ namespace
 NeedsAppKey
 NSight
 obfuscator
+observability
 ObjectProxy
 oce
 openai
@@ -225,6 +228,7 @@ posix
 postgres
 pre
 preconfigured
+Prefill
 preload
 prepend
 prepended
@@ -333,6 +337,7 @@ vendored
 versioned
 vertexai
 vertica
+vLLM
 w3c
 Webbrowser
 websocket
@@ -346,3 +351,5 @@ xfail
 yaaredis
 openai-agents
 validators
+jitter
+durations

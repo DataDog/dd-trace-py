@@ -55,7 +55,7 @@ def test_iast_cmdi_bodies(body, content_type, server):
         token=token,
         env={
             "_DD_IAST_PATCH_MODULES": (
-                "benchmarks.," "tests.appsec.," "tests.appsec.integrations.django_tests.django_app.views."
+                "benchmarks.,tests.appsec.,tests.appsec.integrations.django_tests.django_app.views."
             ),
         },
     ) as context:
@@ -110,7 +110,7 @@ def test_iast_untrusted_serialization_yaml(server, iast_test_token):
         token=iast_test_token,
         env={
             "_DD_IAST_PATCH_MODULES": (
-                "benchmarks.," "tests.appsec.," "tests.appsec.integrations.django_tests.django_app.views."
+                "benchmarks.,tests.appsec.,tests.appsec.integrations.django_tests.django_app.views."
             ),
         },
     ) as context:
@@ -229,33 +229,7 @@ def test_iast_vulnerable_request_downstream_django(server, config, iast_test_tok
     cfg_env.update(env)
     config = dict(config)
     config["env"] = cfg_env
-    # TODO(APPSEC-59081): without use_ddtrace_cmd=False it raises a `NameError: name 'sys' is not defined`
-    #   File "/proj/dd-trace-py/ddtrace/internal/module.py", line 301, in _exec_module
-    #     self.loader.exec_module(module)
-    #   File "<frozen importlib._bootstrap_external>", line 883, in exec_module
-    #   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
-    #   File "/proj/dd-trace-py/tests/appsec/integrations/django_tests/django_app/wsgi.py", line 13, in <module>
-    #     application = get_wsgi_application()
-    #   File "/proj/venv310/site-packages/django/core/wsgi.py", line 12, in get_wsgi_application
-    #     django.setup(set_prefix=False)
-    #   File "/proj/venv310/site-packages/django/__init__.py", line 24, in setup
-    #     apps.populate(settings.INSTALLED_APPS)
-    #   File "/proj/dd-trace-py/ddtrace/contrib/internal/trace_utils.py", line 315, in wrapper
-    #     return func(mod, pin, wrapped, instance, args, kwargs)
-    #   File "/proj/dd-trace-py/ddtrace/contrib/internal/django/patch.py", line 124, in traced_populate
-    #     ret = func(*args, **kwargs)
-    #   File "/proj/venv310/site-packages/django/apps/registry.py", line 91, in populate
-    #     app_config = AppConfig.create(entry)
-    #   File "/proj/venv310/site-packages/django/apps/config.py", line 121, in create
-    #     if module_has_submodule(app_module, APPS_MODULE_NAME):
-    #   File "/proj/venv310/site-packages/django/utils/module_loading.py", line 85, in module_has_submodule
-    #     return importlib_find(full_module_name, package_path) is not None
-    #   File "/python310importlib/util.py", line 103, in find_spec
-    #     return _find_spec(fullname, parent_path)
-    #   File "/python310importlib/_bootstrap.py", line 923, in _find_spec
-    #     meta_path = sys.meta_path
-    #  NameError: name 'sys' is not defined
-    with server(use_ddtrace_cmd=False, iast_enabled="true", token=iast_test_token, port=8050, **config) as context:
+    with server(use_ddtrace_cmd=True, iast_enabled="true", token=iast_test_token, port=8050, **config) as context:
         _, django_client, pid = context
 
         trace_id = 1212121212121212121
@@ -339,7 +313,7 @@ def test_iast_header_injection(iast_test_token):
         token=iast_test_token,
         env={
             "_DD_IAST_PATCH_MODULES": (
-                "benchmarks.," "tests.appsec.," "tests.appsec.integrations.django_tests.django_app.views."
+                "benchmarks.,tests.appsec.,tests.appsec.integrations.django_tests.django_app.views."
             ),
         },
     ) as context:

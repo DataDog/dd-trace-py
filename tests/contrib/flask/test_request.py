@@ -211,6 +211,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         span = self.find_span_by_name(self.get_spans(), "flask.request")
         self.assertEqual(span.trace_id, 678910)
         self.assertEqual(span.parent_id, 12345)
+        self.reset()  # Clear spans before next request
 
         # Explicitly enable distributed tracing
         with self.override_config("flask", dict(distributed_tracing_enabled=True)):
@@ -228,6 +229,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         span = self.find_span_by_name(self.get_spans(), "flask.request")
         self.assertEqual(span.trace_id, 678910)
         self.assertEqual(span.parent_id, 12345)
+        self.reset()  # Clear spans before next request
 
         # With distributed tracing disabled
         with self.override_config("flask", dict(distributed_tracing_enabled=False)):
@@ -309,7 +311,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 api_gateway_resource="GET /",
                 method="GET",
                 status_code="200",
-                url="local/",
+                url="https://local/",
                 start=1736973768,
             )
 
@@ -330,7 +332,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 api_gateway_resource="GET /",
                 method="GET",
                 status_code="500",
-                url="local/",
+                url="https://local/",
                 start=1736973768,
             )
 
@@ -351,7 +353,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 api_gateway_resource="GET /",
                 method="GET",
                 status_code="599",
-                url="local/",
+                url="https://local/",
                 start=1736973768,
             )
 
@@ -405,7 +407,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 api_gateway_resource="GET /",
                 method="GET",
                 status_code="200",
-                url="local/",
+                url="https://local/",
                 start=1736973768,
                 is_distributed=True,
                 distributed_trace_id=1,
@@ -1170,9 +1172,7 @@ class TestCase(BaseFlaskTestCase):
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_service_name
-    )
+    """.format(expected_service_name)
     env = os.environ.copy()
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
@@ -1214,9 +1214,7 @@ class TestCase(BaseFlaskTestCase):
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_operation_name
-    )
+    """.format(expected_operation_name)
     env = os.environ.copy()
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version

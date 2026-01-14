@@ -1,8 +1,7 @@
 # -*- encoding: utf-8 -*-
 import logging
 import time
-
-import mock
+from unittest import mock
 
 from ddtrace.profiling import scheduler
 
@@ -15,6 +14,7 @@ def test_exporter_failure():
 def test_thread_name():
     s = scheduler.Scheduler()
     s.start()
+    assert s._worker is not None
     assert s._worker.name == "ddtrace.profiling.scheduler:Scheduler"
     s.stop()
 
@@ -37,7 +37,7 @@ def test_before_flush_failure(caplog):
     s = scheduler.Scheduler(before_flush=call_me)
     s.flush()
     assert caplog.record_tuples == [
-        ("ddtrace.profiling.scheduler", logging.ERROR, "Scheduler before_flush hook failed")
+        (("ddtrace.profiling.scheduler", logging.ERROR, "Scheduler before_flush hook failed"))
     ]
 
 

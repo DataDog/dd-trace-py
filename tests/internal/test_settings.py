@@ -6,17 +6,19 @@ import pytest
 
 from ddtrace._trace.product import apm_tracing_rc
 from ddtrace.internal.remoteconfig import Payload
-from ddtrace.settings._config import Config
+from ddtrace.internal.settings._config import Config
 from tests.utils import remote_config_build_payload as build_payload
+from tests.utils import scoped_tracer
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def config():
     import ddtrace
 
     original_config = ddtrace.config
     ddtrace.config = Config()
-    yield ddtrace.config
+    with scoped_tracer():
+        yield ddtrace.config
     # Reset the config to its original state
     ddtrace.config = original_config
 
@@ -606,7 +608,7 @@ assert span3.get_tag("env_set_tag_name") == "helloworld"
 def test_config_public_properties_and_methods():
     # Regression test to prevent unexpected changes to public attributes in Config
     # By default most attributes should be private and set via Environment Variables
-    from ddtrace.settings._config import Config
+    from ddtrace.internal.settings._config import Config
 
     public_attrs = set()
     c = Config()
@@ -682,6 +684,6 @@ def test_remoteconfig_debug_logging():
             rc_configs,
         ),
     ]
-    assert sorted(mock_log.debug.call_args_list) == sorted(
-        expected_logs
-    ), f"expected: {expected_logs} got: {mock_log.debug.call_args_list}"
+    assert sorted(mock_log.debug.call_args_list) == sorted(expected_logs), (
+        f"expected: {expected_logs} got: {mock_log.debug.call_args_list}"
+    )

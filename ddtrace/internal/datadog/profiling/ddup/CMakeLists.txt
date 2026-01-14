@@ -57,10 +57,6 @@ add_library(${EXTENSION_NAME} SHARED ${DDUP_CPP_SRC})
 add_ddup_config(${EXTENSION_NAME})
 # Cython generates code that produces errors for the following, so relax compile options
 target_compile_options(${EXTENSION_NAME} PRIVATE -Wno-old-style-cast -Wno-shadow -Wno-address)
-# tp_print is marked deprecated in Python 3.8, but cython still generates code using it
-if("${Python3_VERSION_MINOR}" STREQUAL "8")
-    target_compile_options(${EXTENSION_NAME} PRIVATE -Wno-deprecated-declarations)
-endif()
 
 # cmake may mutate the name of the library (e.g., lib- and -.so for dynamic libraries). This suppresses that behavior,
 # which is required to ensure all paths can be inferred correctly by setup.py.
@@ -68,11 +64,23 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES PREFIX "")
 set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 
 # RPATH is needed for sofile discovery at runtime, since Python packages are not installed in the system path. This is
-# typical.
+# typical. Use BUILD_WITH_INSTALL_RPATH to avoid rpath manipulation during install phase which can cause conflicts For
+# standalone/test builds, also include LIB_INSTALL_DIR so tests can find libdd_wrapper
 if(APPLE)
-    set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "@loader_path/..")
+    if(BUILD_TESTING AND LIB_INSTALL_DIR)
+        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "@loader_path/..;${LIB_INSTALL_DIR}"
+                                                           BUILD_WITH_INSTALL_RPATH TRUE)
+    else()
+        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "@loader_path/.." BUILD_WITH_INSTALL_RPATH
+                                                                                           TRUE)
+    endif()
 elseif(UNIX)
-    set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
+    if(BUILD_TESTING AND LIB_INSTALL_DIR)
+        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..;${LIB_INSTALL_DIR}"
+                                                           BUILD_WITH_INSTALL_RPATH TRUE)
+    else()
+        set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/.." BUILD_WITH_INSTALL_RPATH TRUE)
+    endif()
 endif()
 target_include_directories(
     ${EXTENSION_NAME}

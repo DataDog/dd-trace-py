@@ -1,0 +1,5 @@
+fixes:
+  - |
+    profiling: This improves stack unwinding for asyncio workloads running Python 3.13+ by replicating
+    the official PyGen_yf function from CPython 3.13. Previously, the sampler would use the version from an older
+    version of CPython, which could lead to incomplete asyncio stacks.

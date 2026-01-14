@@ -7,6 +7,25 @@ import pytest
 from ddtrace.internal.native._native import logger
 
 
+@pytest.fixture(autouse=True)
+def cleanup_native_logger():
+    """Disable all native logging after the test to avoid unwanted logging in other tests"""
+    yield
+    try:
+        logger.disable("file")
+    except ValueError:
+        # If the logging output has not been enabled the native code returns a value error
+        pass
+    try:
+        logger.disable("stdout")
+    except ValueError:
+        pass
+    try:
+        logger.disable("stderr")
+    except ValueError:
+        pass
+
+
 @pytest.mark.parametrize(
     "output, expected",
     [
@@ -68,7 +87,7 @@ LEVELS = ["trace", "debug", "info", "warning", "error"]
 cases = [(config, msg, LEVELS.index(msg) >= LEVELS.index(config)) for config in LEVELS for msg in LEVELS]
 
 
-@pytest.mark.parametrize("backend", ["stdout", "stderr", "file"])
+@pytest.mark.parametrize("backend", ["", "stdout", "stderr", "file"])
 @pytest.mark.parametrize("configured_level, message_level, should_log", cases)
 def test_logger_subprocess(
     backend, configured_level, message_level, should_log, tmp_path, ddtrace_run_python_code_in_subprocess
@@ -87,13 +106,15 @@ from ddtrace.internal.native._native import logger
 
 message_level = f"{}"
 logger.log(message_level, f"{}")
-    """.format(
-        message_level, message
-    )
+    """.format(message_level, message)
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
 
     assert status == 0
-    if backend == "stdout":
+    if backend == "":
+        assert out == b""
+        assert err == b""
+        assert not log_path.exists()
+    elif backend == "stdout":
         found = message in out.decode("utf8")
         assert err == b""
         assert found == should_log

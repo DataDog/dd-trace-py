@@ -1,4 +1,4 @@
-from ddtrace.settings.symbol_db import config
+from ddtrace.internal.settings.symbol_db import config
 
 
 requires = ["remote-configuration"]

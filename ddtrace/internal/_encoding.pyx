@@ -21,14 +21,16 @@ from ._utils cimport PyBytesLike_Check
 from ..constants import _ORIGIN_KEY as ORIGIN_KEY
 from .constants import SPAN_LINKS_KEY
 from .constants import SPAN_EVENTS_KEY
-from .constants import MAX_UINT_64BITS
+from .logger import get_logger
 from .._trace._limits import MAX_SPAN_META_VALUE_LEN
 from .._trace._limits import TRUNCATED_SPAN_ATTRIBUTE_LEN
-from ..settings._agent import config as agent_config
+from .settings._agent import config as agent_config
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
 DEF MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE = 6
+
+cdef object log = get_logger(__name__)
 
 
 cdef extern from "Python.h":
@@ -699,63 +701,85 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                         return ret
         return ret
 
-    cdef inline int _pack_meta(self, object meta, char *dd_origin, str span_events) except? -1:
+    cdef inline int _pack_meta(
+        self, object meta, char *dd_origin, str span_events, uint64_t span_id,
+    ) except? -1:
         cdef Py_ssize_t L
         cdef int ret
         cdef dict d
+        cdef list m
 
-        if PyDict_CheckExact(meta):
-            d = <dict> meta
-            L = len(d) + (dd_origin is not NULL) + (len(span_events) > 0)
-            if L > ITEM_LIMIT:
-                raise ValueError("dict is too large")
+        if not PyDict_CheckExact(meta):
+            raise TypeError("Unhandled meta type: %r" % type(meta))
 
-            ret = msgpack_pack_map(&self.pk, L)
-            if ret == 0:
-                for k, v in d.items():
-                    ret = pack_text(&self.pk, k)
-                    if ret != 0:
-                        break
-                    ret = pack_text(&self.pk, v)
-                    if ret != 0:
-                        break
-                if dd_origin is not NULL:
-                    ret = pack_bytes(&self.pk, _ORIGIN_KEY, _ORIGIN_KEY_LEN)
-                    if ret == 0:
-                        ret = pack_bytes(&self.pk, dd_origin, strlen(dd_origin))
-                    if ret != 0:
-                        return ret
-                if span_events:
-                    ret = pack_text(&self.pk, SPAN_EVENTS_KEY)
-                    if ret == 0:
-                        ret = pack_text(&self.pk, span_events)
-            return ret
+        d = <dict> meta
 
-        raise TypeError("Unhandled meta type: %r" % type(meta))
+        # Filter meta to only str/bytes values
+        m = []
+        for k, v in d.items():
+            if PyUnicode_Check(v) or PyBytesLike_Check(v):
+                m.append((k, v))
+            else:
+                log.warning("[span ID %d] Meta key %r has non-string value %r, skipping", span_id, k, v)
 
-    cdef inline int _pack_metrics(self, object metrics) except? -1:
+        L = len(m) + (dd_origin is not NULL) + (len(span_events) > 0)
+        if L > ITEM_LIMIT:
+            raise ValueError("dict is too large")
+
+        ret = msgpack_pack_map(&self.pk, L)
+        if ret == 0:
+            for k, v in m:
+                ret = pack_text(&self.pk, k)
+                if ret != 0:
+                    break
+                ret = pack_text(&self.pk, v)
+                if ret != 0:
+                    break
+            if dd_origin is not NULL:
+                ret = pack_bytes(&self.pk, _ORIGIN_KEY, _ORIGIN_KEY_LEN)
+                if ret == 0:
+                    ret = pack_bytes(&self.pk, dd_origin, strlen(dd_origin))
+                if ret != 0:
+                    return ret
+            if span_events:
+                ret = pack_text(&self.pk, SPAN_EVENTS_KEY)
+                if ret == 0:
+                    ret = pack_text(&self.pk, span_events)
+        return ret
+
+    cdef inline int _pack_metrics(self, object metrics, uint64_t span_id) except? -1:
         cdef Py_ssize_t L
         cdef int ret
         cdef dict d
+        cdef list m
 
-        if PyDict_CheckExact(metrics):
-            d = <dict> metrics
-            L = len(d)
-            if L > ITEM_LIMIT:
-                raise ValueError("dict is too large")
+        if not PyDict_CheckExact(metrics):
+            raise TypeError("Unhandled metrics type: %r" % type(metrics))
 
-            ret = msgpack_pack_map(&self.pk, L)
-            if ret == 0:
-                for k, v in d.items():
-                    ret = pack_text(&self.pk, k)
-                    if ret != 0:
-                        break
-                    ret = pack_number(&self.pk, v)
-                    if ret != 0:
-                        break
-            return ret
+        d = <dict> metrics
+        m = []
 
-        raise TypeError("Unhandled metrics type: %r" % type(metrics))
+        # Filter metrics to only number values
+        for k, v in d.items():
+            if PyLong_Check(v) or PyFloat_Check(v):
+                m.append((k, v))
+            else:
+                log.warning("[span ID %d] Metric key %r has non-numeric value %r, skipping", span_id, k, v)
+
+        L = len(m)
+        if L > ITEM_LIMIT:
+            raise ValueError("dict is too large")
+
+        ret = msgpack_pack_map(&self.pk, L)
+        if ret == 0:
+            for k, v in m:
+                ret = pack_text(&self.pk, k)
+                if ret != 0:
+                    break
+                ret = pack_number(&self.pk, v)
+                if ret != 0:
+                    break
+        return ret
 
     cdef int pack_span(self, object span, unsigned long long trace_id_64bits, void *dd_origin) except? -1:
         cdef int ret
@@ -763,6 +787,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         cdef int has_span_type
         cdef int has_meta
         cdef int has_metrics
+        cdef uint64_t span_id = span.span_id
 
         has_error = <bint> (span.error != 0)
         has_span_type = <bint> (span.span_type is not None)
@@ -803,7 +828,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
             ret = pack_bytes(&self.pk, <char *> b"span_id", 7)
             if ret != 0:
                 return ret
-            ret = pack_number(&self.pk, span.span_id)
+            ret = pack_number(&self.pk, span_id)
             if ret != 0:
                 return ret
 
@@ -882,7 +907,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 span_events = ""
                 if has_span_events and not self.top_level_span_event_encoding:
                     span_events = json_dumps([vars(event)()  for event in span._events])
-                ret = self._pack_meta(span._meta, <char *> dd_origin, span_events)
+                ret = self._pack_meta(span._meta, <char *> dd_origin, span_events, span_id)
                 if ret != 0:
                     return ret
 
@@ -909,7 +934,8 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 ret = pack_bytes(&self.pk, <char *> b"metrics", 7)
                 if ret != 0:
                     return ret
-                ret = self._pack_metrics(span._metrics)
+
+                ret = self._pack_metrics(span._metrics, span_id)
                 if ret != 0:
                     return ret
 
@@ -1035,6 +1061,8 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
 
     cdef int pack_span(self, object span, unsigned long long trace_id_64bits, void *dd_origin) except? -1:
         cdef int ret
+        cdef list meta, metrics
+        cdef uint64_t span_id = span.span_id
 
         ret = msgpack_pack_array(&self.pk, 12)
         if ret != 0:
@@ -1054,8 +1082,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         if ret != 0:
             return ret
 
-        _ = span.span_id
-        ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
+        ret = msgpack_pack_uint64(&self.pk, span_id if span_id is not None else 0)
         if ret != 0:
             return ret
 
@@ -1089,14 +1116,22 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         if span._events:
             span_events = json_dumps([vars(event)() for event in span._events])
 
+        # Filter meta to only str/bytes values
+        meta = []
+        for k, v in span._meta.items():
+            if PyUnicode_Check(v) or PyBytesLike_Check(v):
+                meta.append((k, v))
+            else:
+                log.warning("[span ID %d] Meta key %r has non-string value %r, skipping", span_id, k, v)
+
         ret = msgpack_pack_map(
             &self.pk,
-            len(span._meta) + (dd_origin is not NULL) + (len(span_links) > 0) + (len(span_events) > 0)
+            len(meta) + (dd_origin is not NULL) + (len(span_links) > 0) + (len(span_events) > 0)
         )
         if ret != 0:
             return ret
-        if span._meta:
-            for k, v in span._meta.items():
+        if meta:
+            for k, v in meta:
                 ret = self._pack_string(k)
                 if ret != 0:
                     return ret
@@ -1125,11 +1160,19 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             if ret != 0:
                 return ret
 
-        ret = msgpack_pack_map(&self.pk, len(span._metrics))
+        # Filter metrics to only number values
+        metrics = []
+        for k, v in span._metrics.items():
+            if PyLong_Check(v) or PyFloat_Check(v):
+                metrics.append((k, v))
+            else:
+                log.warning("[span ID %d] Metric key %r has non-numeric value %r, skipping", span_id, k, v)
+
+        ret = msgpack_pack_map(&self.pk, len(metrics))
         if ret != 0:
             return ret
-        if span._metrics:
-            for k, v in span._metrics.items():
+        if metrics:
+            for k, v in metrics:
                 ret = self._pack_string(k)
                 if ret != 0:
                     return ret
@@ -1190,7 +1233,6 @@ cdef class Packer(object):
     cdef int _pack(self, object o) except -1:
         cdef long long llval
         cdef unsigned long long ullval
-        cdef long longval
         cdef double dval
         cdef char* rawval
         cdef int ret
@@ -1215,7 +1257,8 @@ cdef class Packer(object):
                         default_used = True
                         continue
                     else:
-                        raise OverflowError("Integer value out of range")
+                        o = "Integer value out of range"
+                        continue
             elif PyFloat_CheckExact(o):
                 dval = o
                 ret = msgpack_pack_double(&self.pk, dval)
@@ -1231,12 +1274,14 @@ cdef class Packer(object):
                 if self.encoding == NULL:
                     ret = msgpack_pack_unicode(&self.pk, o, ITEM_LIMIT)
                     if ret == -2:
-                        raise ValueError("unicode string is too large")
+                        o = f"Unicode string is too large {L}"
+                        continue
                 else:
                     o = PyUnicode_AsEncodedString(o, self.encoding, self.unicode_errors)
                     L = len(o)
                     if L > ITEM_LIMIT:
-                        raise ValueError("unicode string is too large")
+                        o = f"Unicode string is too large {L}"
+                        continue
                     ret = msgpack_pack_raw(&self.pk, L)
                     if ret == 0:
                         rawval = o
@@ -1245,7 +1290,8 @@ cdef class Packer(object):
                 d = <dict>o
                 L = len(d)
                 if L > ITEM_LIMIT:
-                    raise ValueError("dict is too large")
+                    o = f"Dictionnary is too large {L}"
+                    continue
                 ret = msgpack_pack_map(&self.pk, L)
                 if ret == 0:
                     for k, v in d.items():
@@ -1258,7 +1304,8 @@ cdef class Packer(object):
             elif PyList_CheckExact(o):
                 L = Py_SIZE(o)
                 if L > ITEM_LIMIT:
-                    raise ValueError("list is too large")
+                    o = f"List is too large {L}"
+                    continue
                 ret = msgpack_pack_array(&self.pk, L)
                 if ret == 0:
                     for v in o:
@@ -1271,7 +1318,8 @@ cdef class Packer(object):
                 else:
                     ret = msgpack_pack_false(&self.pk)
             else:
-                PyErr_Format(TypeError, b"can not serialize '%.200s' object", Py_TYPE(o).tp_name)
+                o = f"Can not serialize [{type(o).__name__}] object"
+                continue
             return ret
 
     cpdef pack(self, object obj):

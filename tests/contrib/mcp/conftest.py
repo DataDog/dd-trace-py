@@ -8,13 +8,11 @@ from mcp.server.fastmcp import FastMCP
 from mcp.shared.memory import create_connected_server_and_client_session
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.mcp.patch import patch
 from ddtrace.contrib.internal.mcp.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._constants import SPAN_ENDPOINT as LLMOBS_SPAN_ENDPOINT
 from tests.llmobs._utils import TestLLMObsSpanWriter
-from tests.utils import DummyTracer
-from tests.utils import DummyWriter
 from tests.utils import override_global_config
 
 
@@ -31,6 +29,10 @@ class LLMObsServer(BaseHTTPRequestHandler):
         super().__init__(*args, **kwargs)
 
     def do_POST(self) -> None:
+        if LLMOBS_SPAN_ENDPOINT not in self.path:
+            self.send_response(404)
+            self.end_headers()
+            return
         content_length = int(self.headers["Content-Length"])
         body = self.rfile.read(content_length).decode("utf-8")
         self.requests.append({"path": self.path, "headers": dict(self.headers), "body": body})
@@ -49,20 +51,12 @@ def mcp_setup():
 
 
 @pytest.fixture
-def mock_tracer(mcp_setup):
-    pin = Pin.get_from(mcp_setup)
-    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin._override(mcp_setup, tracer=mock_tracer)
-    yield mock_tracer
-
-
-@pytest.fixture
-def mcp_llmobs(mock_tracer, llmobs_span_writer):
+def mcp_llmobs(tracer, llmobs_span_writer):
     llmobs_service.disable()
     with override_global_config(
         {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "mcptest"}
     ):
-        llmobs_service.enable(_tracer=mock_tracer, integrations_enabled=False)
+        llmobs_service.enable(_tracer=tracer, integrations_enabled=False)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         yield llmobs_service
     llmobs_service.disable()
@@ -139,6 +133,24 @@ async def mcp_client(mcp_server):
     """Connected MCP client-server session."""
     async with create_connected_server_and_client_session(mcp_server._mcp_server) as client:
         yield client
+
+
+@pytest.fixture
+def mcp_server_initialized():
+    """Run MCP server initialization with custom client info."""
+    import asyncio
+
+    from mcp.types import Implementation
+
+    mcp_server = FastMCP("TestInitServer")
+
+    async def run_init():
+        client_info = Implementation(name="test-client", version="1.2.3")
+        async with create_connected_server_and_client_session(mcp_server._mcp_server, client_info=client_info):
+            pass
+
+    asyncio.run(run_init())
+    return mcp_server
 
 
 @pytest.fixture

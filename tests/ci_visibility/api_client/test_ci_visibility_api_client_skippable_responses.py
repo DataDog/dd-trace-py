@@ -577,8 +577,9 @@ class TestTestVisibilityAPIClientSkippableResponses(TestTestVisibilityAPIClientB
     def test_civisibility_api_client_skippable_errors(self, do_request_side_effect):
         """Tests that the client reports errors correctly gives a None item without crashing"""
         client = self._get_test_client()
-        with mock.patch.object(client, "_do_request", side_effect=[do_request_side_effect] * 5), mock.patch(
-            "ddtrace.internal.utils.retry.sleep"
+        with (
+            mock.patch.object(client, "_do_request", side_effect=[do_request_side_effect] * 5),
+            mock.patch("ddtrace.internal.utils.retry.sleep"),
         ):
             skippable_items = client.fetch_skippable_items(read_from_cache=False)
             assert skippable_items is None

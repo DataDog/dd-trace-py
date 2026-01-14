@@ -2,7 +2,9 @@ include(FetchContent)
 FetchContent_Declare(
     googletest
     GIT_REPOSITORY https://github.com/google/googletest.git
-    GIT_TAG v1.15.2)
+    GIT_TAG v1.15.2
+    TIMEOUT 180
+    INACTIVITY_TIMEOUT 120)
 set(gtest_force_shared_crt
     ON
     CACHE BOOL "" FORCE)
@@ -40,13 +42,22 @@ function(dd_wrapper_add_test name)
     add_ddup_config(${name})
     target_link_options(${name} PRIVATE -Wl,--no-as-needed)
 
+    # Test executable needs to find libdd_wrapper in parent directory Append to INSTALL_RPATH instead of replacing to
+    # preserve sanitizer library paths set by add_ddup_config
+    get_target_property(EXISTING_INSTALL_RPATH ${name} INSTALL_RPATH)
+    if(EXISTING_INSTALL_RPATH)
+        set_target_properties(${name} PROPERTIES INSTALL_RPATH "${EXISTING_INSTALL_RPATH};$ORIGIN/.."
+                                                 BUILD_WITH_INSTALL_RPATH TRUE)
+    else()
+        set_target_properties(${name} PROPERTIES INSTALL_RPATH "$ORIGIN/.." BUILD_WITH_INSTALL_RPATH TRUE)
+    endif()
+
     gtest_discover_tests(
-        ${name}
+        ${name} DISCOVERY_MODE PRE_TEST # Delay test discovery until test execution to avoid running sanitizer-built
+                                        # executables during build
         PROPERTIES # We start new threads after fork(), and we want to continue running the tests after that instead of
                    # dying.
                    ENVIRONMENT "TSAN_OPTIONS=die_after_fork=0:suppressions=${CMAKE_CURRENT_SOURCE_DIR}/TSan.supp")
-
-    set_target_properties(${name} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 
     if(LIB_INSTALL_DIR)
         install(TARGETS ${name} RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test)

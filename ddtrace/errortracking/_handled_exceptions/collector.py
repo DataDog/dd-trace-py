@@ -8,7 +8,7 @@ from ddtrace.internal.constants import COLLECTOR_MAX_SIZE_PER_SPAN
 from ddtrace.internal.constants import SPAN_EVENTS_HAS_EXCEPTION
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
-from ddtrace.settings.errortracking import config
+from ddtrace.internal.settings.errortracking import config
 
 
 log = get_logger(__name__)
@@ -21,7 +21,8 @@ def _add_span_events(span: Span) -> None:
     a span event for every handled exceptions, we store them in the span
     and add them when the span finishes.
     """
-    span_exc_events = list(HandledExceptionCollector.get_exception_events(span.span_id).values())
+    exception_data = HandledExceptionCollector.get_exception_events(span.span_id).values()
+    span_exc_events = [event for _exc, event in exception_data]
     if span_exc_events:
         span._set_tag_str(SPAN_EVENTS_HAS_EXCEPTION, "true")
         span._events.extend(span_exc_events)
@@ -30,13 +31,14 @@ def _add_span_events(span: Span) -> None:
 
 def _on_span_exception(span, _exc_msg, exc_val, _exc_tb):
     exception_events = HandledExceptionCollector.get_exception_events(span.span_id)
-    if exception_events and exc_val in exception_events:
-        del exception_events[exc_val]
+    exc_id = id(exc_val)
+    if exception_events and exc_id in exception_events:
+        del exception_events[exc_id]
 
 
 class HandledExceptionCollector(Service):
     _instance: t.Optional["HandledExceptionCollector"] = None
-    _span_exception_events: t.Dict[int, t.Dict[Exception, SpanEvent]] = {}
+    _span_exception_events: t.Dict[int, t.Dict[int, t.Tuple[Exception, SpanEvent]]] = {}
 
     def __init__(self) -> None:
         super(HandledExceptionCollector, self).__init__()
@@ -111,8 +113,10 @@ class HandledExceptionCollector(Service):
         events_dict = cls._span_exception_events.setdefault(span_id, {})
         if not events_dict:
             span._add_on_finish_exception_callback(_add_span_events)
-        if exc in events_dict or len(events_dict) < COLLECTOR_MAX_SIZE_PER_SPAN:
-            events_dict[exc] = event
+        exc_id = id(exc)
+        if exc_id in events_dict or len(events_dict) < COLLECTOR_MAX_SIZE_PER_SPAN:
+            # Store both exception and event to keep exception alive and prevent ID reuse
+            events_dict[exc_id] = (exc, event)
 
     @classmethod
     def get_exception_events(cls, span_id: int):

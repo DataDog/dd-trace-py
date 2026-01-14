@@ -17,9 +17,9 @@ import urllib.parse as parse
 from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._telemetry import config
 from ddtrace.internal.utils.http import get_connection
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings._telemetry import config
 
 from ...internal import atexit
 from ...internal import forksafe
@@ -338,7 +338,7 @@ class TelemetryWriter(PeriodicService):
 
     def _report_endpoints(self) -> Optional[Dict[str, Any]]:
         """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
-        import ddtrace.settings.asm as asm_config_module
+        import ddtrace.internal.settings.asm as asm_config_module
 
         if not asm_config_module.config._api_security_endpoint_collection or not self._enabled:
             return None
@@ -433,10 +433,23 @@ class TelemetryWriter(PeriodicService):
         if config.LOG_COLLECTION_ENABLED:
             stack_trace = None if exc is None else self._format_stack_trace(exc)
 
+            error_type = "unknown"
+            try:
+                if exc is not None:
+                    if isinstance(exc, tuple) and len(exc) == 3:
+                        error_type = exc[0].__name__
+                    else:
+                        error_type = type(exc).__name__
+            except Exception:
+                log.debug("Failed to extract error type from exception: %r", (exc,), exc_info=True)
+
             self.add_log(
                 TELEMETRY_LOG_LEVEL.ERROR,
                 msg,
                 stack_trace=stack_trace if stack_trace is not None else "",
+                tags={
+                    "error_type": error_type,
+                },
             )
 
     def _format_stack_trace(self, exc: Union[BaseException, tuple]) -> Optional[str]:
@@ -450,7 +463,8 @@ class TelemetryWriter(PeriodicService):
 
         tb = traceback.extract_tb(exc_traceback)
         formatted_tb = ["Traceback (most recent call last):"]
-        for filename, lineno, funcname, srcline in tb:
+        # Only include the last 20 frames
+        for filename, lineno, funcname, srcline in tb[-20:]:
             if is_user_code(filename):
                 formatted_tb.append("  <REDACTED>")
                 formatted_tb.append("    <REDACTED>")

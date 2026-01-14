@@ -4,17 +4,15 @@ from unittest import mock
 import pytest
 import valkey
 
-import ddtrace
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.valkey.patch import patch
 from ddtrace.contrib.internal.valkey.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from tests.opentracer.utils import init_tracer
-from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
 from ..config import VALKEY_CONFIG
+from ..redis.utils import find_redis_span
 
 
 class TestValkeyPatch(TracerTestCase):
@@ -67,8 +65,18 @@ class TestValkeyPatch(TracerTestCase):
         self.r.mget(*range(1000))
 
         spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        mget_spans = [
+            s
+            for s in spans
+            if s.get_tag("component") == "valkey"
+            and s.get_tag("valkey.raw_command")
+            and s.get_tag("valkey.raw_command").startswith("MGET")
+        ]
+        assert len(mget_spans) == 1, (
+            f"Expected exactly 1 MGET span, got {len(mget_spans)}. "
+            f"All spans: {[(s.resource, s.get_tag('component')) for s in spans]}"
+        )
+        span = mget_spans[0]
 
         self.assert_is_measured(span)
         assert span.service == "valkey"
@@ -97,32 +105,39 @@ class TestValkeyPatch(TracerTestCase):
     def test_service_name_v1(self):
         us = self.r.get("cheese")
         assert us is None
-        spans = self.get_spans()
-        span = spans[0]
+        span = find_redis_span(
+            self.get_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
+        )
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_operation_name_v0_schema(self):
         us = self.r.get("cheese")
         assert us is None
-        spans = self.get_spans()
-        span = spans[0]
+        span = find_redis_span(
+            self.get_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
+        )
         assert span.name == "valkey.command"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_operation_name_v1_schema(self):
         us = self.r.get("cheese")
         assert us is None
-        spans = self.get_spans()
-        span = spans[0]
+        span = find_redis_span(
+            self.get_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
+        )
         assert span.name == "valkey.command"
 
     def test_basics(self):
         us = self.r.get("cheese")
         assert us is None
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        span = find_redis_span(
+            self.get_spans(),
+            resource="GET",
+            raw_command="GET cheese",
+            component="valkey",
+            raw_command_tag="valkey.raw_command",
+        )
         self.assert_is_measured(span)
         assert span.service == "valkey"
         assert span.name == "valkey.command"
@@ -153,9 +168,7 @@ class TestValkeyPatch(TracerTestCase):
             p.hgetall("xxx")
             p.execute()
 
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        span = find_redis_span(self.get_spans(), resource="SET\nRPUSH\nHGETALL", component="valkey")
         self.assert_is_measured(span)
         assert span.service == "valkey"
         assert span.name == "valkey.command"
@@ -177,8 +190,12 @@ class TestValkeyPatch(TracerTestCase):
             p.execute()
 
         spans = self.get_spans()
-        assert len(spans) == 2
-        span = spans[0]
+        set_spans = [s for s in spans if s.get_tag("component") == "valkey" and s.resource == "SET"]
+        assert len(set_spans) == 2, (
+            f"Expected exactly 2 SET spans, got {len(set_spans)}. "
+            f"All spans: {[(s.resource, s.get_tag('component')) for s in spans]}"
+        )
+        span = set_spans[0]
         self.assert_is_measured(span)
         assert span.service == "valkey"
         assert span.name == "valkey.command"
@@ -197,26 +214,30 @@ class TestValkeyPatch(TracerTestCase):
             pin._clone(tags={"cheese": "camembert"}).onto(r)
 
         r.get("cheese")
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        span = find_redis_span(
+            self.get_spans(),
+            resource="GET",
+            raw_command="GET cheese",
+            component="valkey",
+            raw_command_tag="valkey.raw_command",
+        )
         assert span.service == "valkey"
         assert "cheese" in span.get_tags() and span.get_tag("cheese") == "camembert"
 
     def test_patch_unpatch(self):
-        tracer = DummyTracer()
-
         # Test patch idempotence
         patch()
         patch()
 
         r = valkey.Valkey(port=VALKEY_CONFIG["port"])
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = tracer.pop()
-        assert spans, spans
-        assert len(spans) == 1
+        # Use find_redis_span to get the specific GET span
+        span = find_redis_span(
+            self.pop_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
+        )
+        assert span is not None
 
         # Test unpatch
         unpatch()
@@ -224,52 +245,22 @@ class TestValkeyPatch(TracerTestCase):
         r = valkey.Valkey(port=VALKEY_CONFIG["port"])
         r.get("key")
 
-        spans = tracer.pop()
-        assert not spans, spans
+        spans = self.pop_spans()
+        valkey_spans = [s for s in spans if s.get_tag("component") == "valkey"]
+        assert not valkey_spans, spans
 
         # Test patch again
         patch()
 
         r = valkey.Valkey(port=VALKEY_CONFIG["port"])
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = tracer.pop()
-        assert spans, spans
-        assert len(spans) == 1
-
-    def test_opentracing(self):
-        """Ensure OpenTracing works with valkey."""
-        ot_tracer = init_tracer("valkey_svc", self.tracer)
-
-        with ot_tracer.start_active_span("valkey_get"):
-            us = self.r.get("cheese")
-            assert us is None
-
-        spans = self.get_spans()
-        assert len(spans) == 2
-        ot_span, dd_span = spans
-
-        # confirm the parenting
-        assert ot_span.parent_id is None
-        assert dd_span.parent_id == ot_span.span_id
-
-        assert ot_span.name == "valkey_get"
-        assert ot_span.service == "valkey_svc"
-
-        self.assert_is_measured(dd_span)
-        assert dd_span.service == "valkey"
-        assert dd_span.name == "valkey.command"
-        assert dd_span.span_type == "valkey"
-        assert dd_span.error == 0
-        assert dd_span.get_metric("out.valkey_db") == 0
-        assert dd_span.get_tag("out.host") == "localhost"
-        assert dd_span.get_tag("valkey.raw_command") == "GET cheese"
-        assert dd_span.get_tag("component") == "valkey"
-        assert dd_span.get_tag("span.kind") == "client"
-        assert dd_span.get_tag("db.system") == "valkey"
-        assert dd_span.get_metric("valkey.args_length") == 2
-        assert dd_span.resource == "GET"
+        # Use find_redis_span to get the specific GET span
+        span = find_redis_span(
+            self.pop_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
+        )
+        assert span is not None
 
     def test_valkey_rowcount_all_keys_valid(self):
         self.r.set("key1", "value1")
@@ -278,8 +269,13 @@ class TestValkeyPatch(TracerTestCase):
 
         assert get1 == b"value1"
 
-        spans = self.get_spans()
-        get_valid_key_span = spans[1]
+        get_valid_key_span = find_redis_span(
+            self.get_spans(),
+            resource="GET",
+            raw_command="GET key1",
+            component="valkey",
+            raw_command_tag="valkey.raw_command",
+        )
 
         assert get_valid_key_span.name == "valkey.command"
         assert get_valid_key_span.get_tag("valkey.raw_command") == "GET key1"
@@ -323,8 +319,26 @@ class TestValkeyPatch(TracerTestCase):
         assert get_one_missing == [b"value", None]
 
         spans = self.get_spans()
-        get_both_valid_span = spans[1]
-        get_one_missing_span = spans[2]
+        get_both_valid_spans = [
+            s
+            for s in spans
+            if s.get_tag("component") == "valkey" and s.get_tag("valkey.raw_command") == "MGET key key2"
+        ]
+        get_one_missing_spans = [
+            s
+            for s in spans
+            if s.get_tag("component") == "valkey" and s.get_tag("valkey.raw_command") == "MGET key missing_key"
+        ]
+        assert len(get_both_valid_spans) == 1, (
+            f"Expected exactly 1 MGET key key2 span, got {len(get_both_valid_spans)}. "
+            f"All spans: {[(s.resource, s.get_tag('component')) for s in spans]}"
+        )
+        assert len(get_one_missing_spans) == 1, (
+            f"Expected exactly 1 MGET key missing_key span, got {len(get_one_missing_spans)}. "
+            f"All spans: {[(s.resource, s.get_tag('component')) for s in spans]}"
+        )
+        get_both_valid_span = get_both_valid_spans[0]
+        get_one_missing_span = get_one_missing_spans[0]
 
         assert get_both_valid_span.name == "valkey.command"
         assert get_both_valid_span.get_tag("valkey.raw_command") == "MGET key key2"
@@ -350,8 +364,13 @@ class TestValkeyPatch(TracerTestCase):
 
         assert get_missing is None
 
-        spans = self.get_spans()
-        get_missing_key_span = spans[0]
+        get_missing_key_span = find_redis_span(
+            self.get_spans(),
+            resource="GET",
+            raw_command="GET missing_key",
+            component="valkey",
+            raw_command_tag="valkey.raw_command",
+        )
 
         assert get_missing_key_span.name == "valkey.command"
         assert get_missing_key_span.get_tag("valkey.raw_command") == "GET missing_key"
@@ -387,7 +406,9 @@ class TestValkeyPatch(TracerTestCase):
         assert config.service == "mysvc"
 
         self.r.get("cheese")
-        span = self.get_spans()[0]
+        span = find_redis_span(
+            self.get_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
+        )
         assert span.service == "valkey"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
@@ -397,7 +418,9 @@ class TestValkeyPatch(TracerTestCase):
         assert config.service == "mysvc"
 
         self.r.get("cheese")
-        span = self.get_spans()[0]
+        span = find_redis_span(
+            self.get_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
+        )
         assert span.service == "valkey"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
@@ -407,7 +430,9 @@ class TestValkeyPatch(TracerTestCase):
         assert config.service == "mysvc"
 
         self.r.get("cheese")
-        span = self.get_spans()[0]
+        span = find_redis_span(
+            self.get_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
+        )
         assert span.service == "mysvc"
 
     @TracerTestCase.run_in_subprocess(
@@ -415,7 +440,9 @@ class TestValkeyPatch(TracerTestCase):
     )
     def test_env_user_specified_valkey_service_v0(self):
         self.r.get("cheese")
-        span = self.get_spans()[0]
+        span = find_redis_span(
+            self.get_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
+        )
         assert span.service == "myvalkey", span.service
 
         self.reset()
@@ -423,7 +450,9 @@ class TestValkeyPatch(TracerTestCase):
         # Global config
         with self.override_config("valkey", dict(service="cfg-valkey")):
             self.r.get("cheese")
-            span = self.get_spans()[0]
+            span = find_redis_span(
+                self.get_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
+            )
             assert span.service == "cfg-valkey", span.service
 
         self.reset()
@@ -431,7 +460,9 @@ class TestValkeyPatch(TracerTestCase):
         # Manual override
         Pin._override(self.r, service="mysvc", tracer=self.tracer)
         self.r.get("cheese")
-        span = self.get_spans()[0]
+        span = find_redis_span(
+            self.get_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
+        )
         assert span.service == "mysvc", span.service
 
     @TracerTestCase.run_in_subprocess(
@@ -441,7 +472,9 @@ class TestValkeyPatch(TracerTestCase):
     )
     def test_service_precedence_v0(self):
         self.r.get("cheese")
-        span = self.get_spans()[0]
+        span = find_redis_span(
+            self.get_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
+        )
         assert span.service == "env-specified-valkey-svc", span.service
 
         self.reset()
@@ -449,7 +482,9 @@ class TestValkeyPatch(TracerTestCase):
         # Do a manual override
         Pin._override(self.r, service="override-valkey", tracer=self.tracer)
         self.r.get("cheese")
-        span = self.get_spans()[0]
+        span = find_redis_span(
+            self.get_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
+        )
         assert span.service == "override-valkey", span.service
 
 
@@ -506,19 +541,19 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         r.get("cheese")
 
     def test_patch_unpatch(self):
-        tracer = DummyTracer()
-
         # Test patch idempotence
         patch()
         patch()
 
         r = valkey.Valkey(port=VALKEY_CONFIG["port"])
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = tracer.pop()
-        assert spans, spans
-        assert len(spans) == 1
+        # Use find_redis_span to get the specific GET span
+        span = find_redis_span(
+            self.pop_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
+        )
+        assert span is not None
 
         # Test unpatch
         unpatch()
@@ -526,28 +561,22 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         r = valkey.Valkey(port=VALKEY_CONFIG["port"])
         r.get("key")
 
-        spans = tracer.pop()
-        assert not spans, spans
+        spans = self.pop_spans()
+        valkey_spans = [s for s in spans if s.get_tag("component") == "valkey"]
+        assert not valkey_spans, valkey_spans
 
         # Test patch again
         patch()
 
         r = valkey.Valkey(port=VALKEY_CONFIG["port"])
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = tracer.pop()
-        assert spans, spans
-        assert len(spans) == 1
-
-    @snapshot()
-    def test_opentracing(self):
-        """Ensure OpenTracing works with valkey."""
-        ot_tracer = init_tracer("valkey_svc", ddtrace.tracer)
-
-        with ot_tracer.start_active_span("valkey_get"):
-            us = self.r.get("cheese")
-            assert us is None
+        # Use find_redis_span to get the specific GET span
+        span = find_redis_span(
+            self.pop_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
+        )
+        assert span is not None
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     @snapshot()

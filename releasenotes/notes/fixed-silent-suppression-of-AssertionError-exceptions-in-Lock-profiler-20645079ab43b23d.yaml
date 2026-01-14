@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: This fix resolves an issue where AssertionError exceptions were silently suppressed in the `_acquire` method of the Lock profiler (note: this only occurs when assertions are enabled.)

@@ -47,6 +47,12 @@ aiohttp-jinja2
 ^^^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.internal.aiohttp_jinja2
 
+.. _aiokafka:
+
+aiokafka
+^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.aiokafka
+
 .. _aiomysql:
 
 aiomysql
@@ -108,13 +114,6 @@ boto2
 Bottle
 ^^^^^^
 .. automodule:: ddtrace.contrib.bottle
-
-
-.. _cassandra:
-
-Cassandra
-^^^^^^^^^
-.. automodule:: ddtrace.contrib.internal.cassandra
 
 
 .. _celery:
@@ -216,13 +215,6 @@ Flask Cache
 .. automodule:: ddtrace.contrib.flask_cache
 
 
-.. _freezegun:
-
-FreezeGun
-^^^^^^^^^
-.. automodule:: ddtrace.contrib.internal.freezegun
-
-
 .. _futures:
 
 futures
@@ -249,12 +241,6 @@ google-adk
 google-genai
 ^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.internal.google_genai
-
-.. _google_generativeai:
-
-google-generativeai
-^^^^^^^^^^^^^^^^^^^
-.. automodule:: ddtrace.contrib.internal.google_generativeai
 
 
 .. _graphql:
@@ -373,13 +359,6 @@ MariaDB
 Molten
 ^^^^^^
 .. automodule:: ddtrace.contrib.internal.molten
-
-
-.. _mongoengine:
-
-Mongoengine
-^^^^^^^^^^^
-.. automodule:: ddtrace.contrib.internal.mongoengine
 
 
 .. _mysql-connector:
@@ -587,7 +566,7 @@ Subprocess
 
 Tornado
 ^^^^^^^
-.. automodule:: ddtrace.contrib.tornado
+.. automodule:: ddtrace.contrib.internal.tornado
 
 
 .. _unittest:
@@ -632,6 +611,13 @@ Vertica
 .. automodule:: ddtrace.contrib.internal.vertica
 
 .. _webbrowser:
+
+vLLM
+^^^^
+.. automodule:: ddtrace.contrib.internal.vllm
+
+
+.. _vllm:
 
 Webbrowser
 ^^^^^^^^^^

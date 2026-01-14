@@ -12,22 +12,27 @@ instrumentation interferes with Gevent's monkey patching mechanism.
 
 Root Cause:
 -----------
-IAST relies on modules like `importlib.metadata`, `importlib`, `subprocess`, and `inspect`
+IAST relies on modules like `importlib.metadata`, `importlib`, and `subprocess`
 which, when loaded at module level, cannot be properly released from memory. This creates
 conflicts between the in-memory versions of these modules and Gevent's monkey patching,
 leading to sporadic blocking operations that can cause worker timeouts.
 
 
 Caveat:
-Adding incorrect top-level imports (especially `importlib.metadata`, `inspect`, or
-`subprocess`) could reintroduce the flaky gevent timeout errors. Always import these
-modules locally within functions when needed.
+Adding incorrect top-level imports (especially `importlib.metadata` or `subprocess`)
+could reintroduce the flaky gevent timeout errors. Always import these modules locally
+within functions when needed.
+
+Note on inspect module:
+While the `inspect` module can also cause gevent conflicts, we cannot drop it from
+sys.modules as it breaks pytest's test collection phase. Pytest creates inspect.Signature
+objects that must remain valid throughout its lifecycle.
 """
 
 import sys
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -81,7 +86,9 @@ def post_preload():
         # These modules must be cleaned up to prevent memory conflicts that
         # lead to sporadic worker timeouts in Gevent-based applications
         _drop_safe("importlib.metadata")  # Used by native C extensions, conflicts with gevent
-        _drop_safe("inspect")  # Used by taint sinks, must be imported locally
+        # NOTE: We do NOT drop "inspect" here as it breaks pytest's test collection phase.
+        # Pytest relies on inspect.signature objects remaining consistent across its lifecycle.
+        # Dropping inspect causes: "unexpected object <Signature> in __signature__ attribute"
 
 
 def start():

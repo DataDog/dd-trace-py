@@ -3,6 +3,7 @@ tomlkit==0.12.5
 
 https://pypi.org/project/tomlkit/
 """
+
 from flask import Blueprint
 from flask import request
 

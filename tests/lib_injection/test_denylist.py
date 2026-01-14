@@ -215,14 +215,14 @@ def test_non_python_executable_with_m_flag_allowed(mock_sitecustomize):
             result = mock_sitecustomize.get_first_incompatible_sysarg()
 
             if result is not None:
-                assert result == executable or result == os.path.basename(
-                    executable
-                ), f"Expected '{executable}' itself to be denied (if at all), not '-m py_compile'. Got: '{result}'"
+                assert result == executable or result == os.path.basename(executable), (
+                    f"Expected '{executable}' itself to be denied (if at all), not '-m py_compile'. Got: '{result}'"
+                )
 
         with patch.object(sys, "argv", [executable, "-m", "some_other_module"]):
             result = mock_sitecustomize.get_first_incompatible_sysarg()
 
             if result is not None:
-                assert result == executable or result == os.path.basename(
-                    executable
-                ), f"Non-Python executable '{executable}' should not be denied for -m patterns. Got: '{result}'"
+                assert result == executable or result == os.path.basename(executable), (
+                    f"Non-Python executable '{executable}' should not be denied for -m patterns. Got: '{result}'"
+                )

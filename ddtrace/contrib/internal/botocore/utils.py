@@ -1,6 +1,7 @@
 """
 Trace queries monitoring to aws api done via botocore client
 """
+
 import base64
 import json
 from typing import Any

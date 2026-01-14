@@ -18,8 +18,7 @@ class DummyException(Exception):
 
 
 def test_raise_on_find_unsupported_value():
-    with raises(TypeError):
-        packb(datetime.datetime.now())
+    assert unpackb(packb(datetime.datetime.now())) == "Can not serialize [datetime] object"
 
 
 def test_raise_from_object_hook():

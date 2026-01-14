@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    This change removes the deprecated non_active_span parameter to `HttpPropagator.inject`

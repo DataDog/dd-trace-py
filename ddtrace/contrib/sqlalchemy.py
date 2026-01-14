@@ -8,7 +8,6 @@ using the patch method that **must be called before** importing sqlalchemy::
 
     # patch before importing `create_engine`
     from ddtrace import patch
-    from ddtrace.trace import Pin
     patch(sqlalchemy=True)
 
     # use SQLAlchemy as usual
@@ -16,10 +15,8 @@ using the patch method that **must be called before** importing sqlalchemy::
 
     engine = create_engine('sqlite:///:memory:')
     engine.connect().execute("SELECT COUNT(*) FROM users")
-
-    # Use a PIN to specify metadata related to this engine
-    Pin.override(engine, service='replica-db')
 """
+
 from ddtrace.contrib.internal.sqlalchemy.engine import trace_engine
 
 

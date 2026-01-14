@@ -6,8 +6,6 @@ import pytest
 
 from ddtrace.contrib.internal.futures.patch import patch
 from ddtrace.contrib.internal.futures.patch import unpatch
-from tests.opentracer.utils import init_tracer
-from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 
 
@@ -408,33 +406,6 @@ class PropagationTestCase(TracerTestCase):
         assert spans[1].trace_id == spans[0].trace_id
         assert spans[1].parent_id == spans[0].span_id
 
-    def test_propagation_ot(self):
-        """OpenTracing version of test_propagation."""
-        # it must propagate the tracing context if available
-        ot_tracer = init_tracer("my_svc", self.tracer)
-
-        def fn():
-            # an active context must be available
-            self.assertTrue(self.tracer.context_provider.active() is not None)
-            with self.tracer.trace("executor.thread"):
-                return 42
-
-        with self.override_global_tracer():
-            with ot_tracer.start_active_span("main.thread"):
-                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                    future = executor.submit(fn)
-                    result = future.result()
-                    # assert the right result
-                    self.assertEqual(result, 42)
-
-        # the trace must be completed
-        self.assert_span_count(2)
-        spans = self.get_spans()
-        assert spans[0].name == "main.thread"
-        assert spans[1].name == "executor.thread"
-        assert spans[1].trace_id == spans[0].trace_id
-        assert spans[1].parent_id == spans[0].span_id
-
 
 @pytest.mark.skipif(sys.version_info > (3, 12), reason="Fails on 3.13")
 @pytest.mark.subprocess(ddtrace_run=True, timeout=5)
@@ -470,7 +441,7 @@ def test_concurrent_futures_with_gevent():
     os.waitpid(pid, 0)
 
 
-def test_submit_no_wait(tracer: DummyTracer):
+def test_submit_no_wait(tracer, test_spans):
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
     futures = []
@@ -503,7 +474,7 @@ def test_submit_no_wait(tracer: DummyTracer):
         assert future.exception() is None
         assert future.result() is None
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 4
 
     assert len(traces[0]) == 3

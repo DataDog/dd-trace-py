@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    tornado: Deprecates programmatic tracing configuration via the ``ddtrace.contrib.tornado`` module. Configure tracing using environment variables and ``import ddtrace.auto`` instead.

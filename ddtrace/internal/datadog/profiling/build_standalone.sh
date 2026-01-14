@@ -21,6 +21,12 @@ if [[ $OSTYPE == 'darwin'* ]]; then
   export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
 fi
 
+# Make sure bc is installed
+if ! command -v bc &> /dev/null; then
+  echo "Error: bc not found. Please install bc."
+  exit 1
+fi
+
 # Function to find the highest version of compilers
 # Note that the product of this check is ignored if the user passes CC/CXX
 find_highest_compiler_version() {
@@ -76,7 +82,7 @@ CLANGTIDY_CMD=${highest_clangxx/clang++/clang-tidy}
 # Targets to target dirs
 declare -A target_dirs
 target_dirs["ddup"]="ddup"
-target_dirs["stack_v2"]="stack_v2"
+target_dirs["stack"]="stack"
 target_dirs["dd_wrapper"]="dd_wrapper"
 
 # Compiler options
@@ -94,7 +100,7 @@ compiler_args["cppcheck"]="-DDO_CPPCHECK=ON"
 compiler_args["infer"]="-DDO_INFER=ON"
 compiler_args["clangtidy"]="-DDO_CLANGTIDY=ON"
 compiler_args["clangtidy_cmd"]="-DCLANGTIDY_CMD=${CLANGTIDY_CMD}"
-compiler_args["valgrind"]="-DDO_VALGRIND=ON"
+compiler_args["valgrind"]="-DDO_VALGRIND=ON -DCMAKE_CXX_FLAGS=-gdwarf-4 -DCMAKE_C_FLAGS=-gdwarf-4"
 
 ctest_args=()
 
@@ -126,6 +132,12 @@ set_cc() {
 
 # Helper functions for finding the compiler(s)
 set_clang() {
+  # Check that clang is available (required for most build modes)
+  if [[ -z "$highest_clang" ]] || [[ -z "$highest_clangxx" ]]; then
+    echo "Error: clang/clang++ not found. This build mode requires clang."
+    exit 1
+  fi
+
   if [ -z "${CC:-}" ]; then
     export CC=$highest_clang
   fi
@@ -139,6 +151,12 @@ set_clang() {
 }
 
 set_gcc() {
+  # Check that gcc/g++ is available (required for most build modes)
+  if [[ -z "$highest_gcc" ]] || [[ -z "$highest_gxx" ]]; then
+    echo "Error: gcc/g++ not found. This build mode requires gcc."
+    exit 1
+  fi
+
   # Only set CC or CXX if they're not set
   if [ -z "${CC:-}" ]; then
     export CC=$highest_gcc
@@ -197,7 +215,8 @@ print_help() {
   echo "  -C  --cppcheck    Clang + " ${compiler_args["cppcheck"]}
   echo "  -I  --infer       Clang + " ${compiler_args["infer"]}
   echo "  -T  --clangtidy   Clang + " ${compiler_args["clangtidy"]}
-  echo "  -f, --fanalyze    GCC + " ${compiler_args["fanalyzer"]}
+  echo "  -f, --fanalyze    GCC   + " ${compiler_args["fanalyzer"]}
+  echo "  -v, --valgrind    Clang + Valgrind + " ${compiler_args["valgrind"]}
   echo "  -c, --clang       Clang (alone)"
   echo "  -g, --gcc         GCC (alone)"
   echo "  --                Don't do anything special"
@@ -207,14 +226,12 @@ print_help() {
   echo "  Release"
   echo "  RelWithDebInfo"
   echo ""
-  echo "(any possible others, depending on what cmake supports for"
-  echo "BUILD_TYPE out of the box)"
+  echo "(any possible others, depending on what cmake supports for BUILD_TYPE out of the box)"
   echo ""
   echo "Targets:"
-  echo "  all"
   echo "  all_test (default)"
-  echo "  stack_v2 (also builds dd_wrapper)"
-  echo "  stack_v2_test (also builds dd_wrapper_test)"
+  echo "  stack (also builds dd_wrapper)"
+  echo "  stack_test (also builds dd_wrapper_test)"
   echo "  ddup (also builds dd_wrapper)"
   echo "  ddup_test (also builds dd_wrapper_test)"
 }
@@ -268,7 +285,7 @@ add_compiler_args() {
       cmake_args+=(${compiler_args["memory"]})
       set_clang
       ;;
-    --valgrind)
+    -v|--valgrind)
       cmake_args+=(${compiler_args["valgrind"]})
       ctest_args+="-T memcheck"
       set_clang
@@ -339,11 +356,11 @@ add_target() {
 
   case "${target}" in
     all|--)
-      targets+=("stack_v2")
+      targets+=("stack")
       targets+=("ddup")
       ;;
-    stack_v2)
-      targets+=("stack_v2")
+    stack)
+      targets+=("stack")
       ;;
     ddup)
       targets+=("ddup")
@@ -366,6 +383,12 @@ build_rust() {
 # Check for basic input validity
 if [ $# -eq 0 ]; then
   echo "No arguments given.  At least one is needed, otherwise I'd (a m b i g u o u s l y) do a lot of work!"
+  print_help
+  exit 1
+fi
+
+if [ $# -ne 3 ]; then
+  echo "Error: Expected exactly 3 arguments"
   print_help
   exit 1
 fi

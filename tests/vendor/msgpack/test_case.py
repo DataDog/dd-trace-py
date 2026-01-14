@@ -100,7 +100,7 @@ def test_match():
                 b"\x8f\x00\x00\x01\x01\x02\x02\x03\x03\x04"
                 b"\x04\x05\x05\x06\x06\x07\x07\x08\x08\t\t"
                 b"\n\n\x0b\x0b\x0c\x0c\r\r\x0e\x0e"
-            )
+            ),
         ),
         (
             dict([(x, x) for x in range(16)]),
@@ -108,7 +108,7 @@ def test_match():
                 b"\xde\x00\x10\x00\x00\x01\x01\x02\x02\x03\x03"
                 b"\x04\x04\x05\x05\x06\x06\x07\x07\x08\x08\t\t"
                 b"\n\n\x0b\x0b\x0c\x0c\r\r\x0e\x0e\x0f\x0f"
-            )
+            ),
         ),
     ]
 

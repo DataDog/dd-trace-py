@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: This updates the stack sampler to fix a bug that would lead to OOMs when the sampler read
+    invalid data from the Python process.

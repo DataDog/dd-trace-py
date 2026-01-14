@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    dynamic instrumentation: removed the deprecated
+    ``DD_DYNAMIC_INSTRUMENTATION_UPLOAD_FLUSH_INTERVAL`` variable.

@@ -14,8 +14,8 @@ Or use :func:`patch() <ddtrace.patch>` to manually enable the integration::
     import graphql
     ...
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.graphql["service"]
 
@@ -40,13 +40,4 @@ Global Configuration
    Enable setting user-provided error extensions on span events for graphql errors.
 
    Default: ``None``
-
-
-To configure the graphql integration using the
-``Pin`` API::
-
-    from ddtrace.trace import Pin
-    import graphql
-
-    Pin.override(graphql, service="mygraphql")
 """

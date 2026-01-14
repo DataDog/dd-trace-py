@@ -4,18 +4,16 @@ import django
 from django.conf import settings
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.appsec._iast import enable_iast_propagation
 from ddtrace.appsec._iast import load_iast
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast.main import patch_iast
 from ddtrace.contrib.internal.django.patch import patch as django_patch
+from ddtrace.contrib.internal.psycopg.patch import patch as psycopg_patch
 from ddtrace.contrib.internal.requests.patch import patch as requests_patch
-from ddtrace.internal import core
-from tests.utils import DummyTracer
+from ddtrace.contrib.internal.sqlite3.patch import patch as sqlite3_patch
 from tests.utils import TracerSpanContainer
-from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -25,17 +23,22 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tests.appsec.integrations.djang
 
 # `pytest` automatically calls this function once when tests are run.
 def pytest_configure():
-    with override_global_config(
-        dict(
-            _iast_enabled=True,
-            _iast_deduplication_enabled=False,
-            _iast_request_sampling=100.0,
-        )
-    ), override_env(dict(_DD_IAST_PATCH_MODULES="tests.appsec.integrations")):
+    with (
+        override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
+        ),
+        override_env(dict(_DD_IAST_PATCH_MODULES="tests.appsec.integrations")),
+    ):
         settings.DEBUG = False
         patch_iast()
         load_iast()
+        psycopg_patch()
         requests_patch()
+        sqlite3_patch()
         django_patch()
         enable_iast_propagation()
         django.setup()
@@ -49,33 +52,6 @@ def debug_mode():
     settings.DEBUG = True
     yield
     settings.DEBUG = original_debug
-
-
-@pytest.fixture
-def tracer():
-    tracer = DummyTracer()
-    # Patch Django and override tracer to be our test tracer
-    pin = Pin.get_from(django)
-    original_tracer = pin.tracer
-    Pin._override(django, tracer=tracer)
-
-    # Yield to our test
-    core.tracer = tracer
-    with override_config("django", dict(_tracer=tracer)):
-        yield tracer
-    tracer.pop()
-    core.tracer = original_tracer
-    # Reset the tracer pinned to Django and unpatch
-    # DEV: unable to properly unpatch and reload django app with each test
-    # unpatch()
-    Pin._override(django, tracer=original_tracer)
-
-
-@pytest.fixture
-def test_spans(tracer):
-    container = TracerSpanContainer(tracer)
-    yield container
-    container.reset()
 
 
 @pytest.fixture

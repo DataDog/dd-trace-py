@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: this fix resolves an issue where repo tags would be fetched while unshallowing to extract commit
+    metadata, causing performance issues for repos with a large number of tags.

@@ -168,6 +168,8 @@ static PyMemberDef PeriodicThread_members[] = {
       0,
       "whether to ignore the thread for profiling" },
 
+    { "_is_after_fork", T_BOOL, offsetof(PeriodicThread, _after_fork), READONLY, "whether the thread is after fork" },
+
     { NULL } /* Sentinel */
 };
 
@@ -247,6 +249,14 @@ PeriodicThread__on_shutdown(PeriodicThread* self)
 static PyObject*
 PeriodicThread_start(PeriodicThread* self, PyObject* args)
 {
+    // After fork, the child process should not restart threads that were running in the parent
+    // until properly reinitialized through forksafe handlers. This prevents crashes when
+    // pthread_create is called before threading state is safe (e.g., in uvloop's _after_fork).
+    // Check this first because after fork, self->_thread is non-null but the thread doesn't exist.
+    if (self->_after_fork) {
+        Py_RETURN_NONE;
+    }
+
     if (self->_thread != nullptr) {
         PyErr_SetString(PyExc_RuntimeError, "Thread already started");
         return NULL;
@@ -366,8 +376,12 @@ PeriodicThread_stop(PeriodicThread* self, PyObject* args)
         return NULL;
     }
 
-    self->_stopping = true;
-    self->_request->set();
+    if (!self->_after_fork) {
+        // The thread is no longer running so it makes no sense to stop it.
+        // Attempting to acquire the Event lock could deadlock.
+        self->_stopping = true;
+        self->_request->set();
+    }
 
     Py_RETURN_NONE;
 }

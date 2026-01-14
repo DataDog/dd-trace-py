@@ -185,19 +185,26 @@ services:
         # build:
         #  context: ./docker
         #  dockerfile: Dockerfile
-        image: ghcr.io/datadog/dd-trace-py/testrunner:adc7896c0901c0589e45776d9e409c3d1b15cd51@sha256:5fa1b0062e20c753cd5da590df3841b74b9ead5b4531a7ec9f5cacd2b95386e3
+        image: ghcr.io/datadog/dd-trace-py/testrunner:1802bf8a83c7826f8414f7dcc18cb29067f7e690@sha256:8ca2c0c6b34db4e0ef7f5ab55f717908ed2b9ae197b2c11b48b7359a1549a202
         command: bash
+        # Resource limits: defaults to 0 (unlimited, uses all available system resources)
+        # Set DD_TEST_CPUS (e.g., "4") and DD_TEST_MEMORY (e.g., "8g") to apply limits
+        cpus: "${DD_TEST_CPUS:-0}"
+        mem_limit: "${DD_TEST_MEMORY:-0}"
         environment:
           DD_FAST_BUILD: "1"
           CMAKE_BUILD_PARALLEL_LEVEL: "12"
           CARGO_BUILD_JOBS: "12"
+          CYTHON_CACHE_DIR: "/home/bits/.cache/cython"
+          DD_USE_SCCACHE: "1"
+          SCCACHE_DIR: "/home/bits/.cache/sccache"
         network_mode: host
         userns_mode: host
         working_dir: /home/bits/project/
         volumes:
           - ddagent:/tmp/ddagent
+          - ./.cache:/home/bits/.cache
           - ./:/home/bits/project
-          - ./.riot:/home/bits/project/.riot
 
     localstack:
         image: localstack/localstack:1.4.0

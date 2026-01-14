@@ -68,9 +68,16 @@ log = get_logger(__name__)
 RAY_SERVICE_NAME = os.environ.get(RAY_JOB_NAME)
 
 # Ray modules that should be excluded from tracing
-RAY_MODULE_DENYLIST = {
-    "ray.dag",
+RAY_COMMON_MODULE_DENYLIST = {
+    "ray.data._internal",
+}
+
+RAY_TASK_MODULE_DENYLIST = {*RAY_COMMON_MODULE_DENYLIST}
+
+RAY_ACTOR_MODULE_DENYLIST = {
+    *RAY_COMMON_MODULE_DENYLIST,
     "ray.experimental",
+    "ray.data._internal",
 }
 
 
@@ -142,6 +149,11 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
 
 def traced_submit_task(wrapped, instance, args, kwargs):
     """Trace task submission, i.e the func.remote() call"""
+
+    # Tracing doesn't work for cross lang yet.
+    if instance._function.__module__ in RAY_TASK_MODULE_DENYLIST or instance._is_cross_language:
+        return wrapped(*args, **kwargs)
+
     if tracer.current_span() is None:
         log.debug(
             "No active span found in %s.remote(), activating trace context from environment", instance._function_name
@@ -152,11 +164,10 @@ def traced_submit_task(wrapped, instance, args, kwargs):
     # This is done under a lock as multiple task could be submit at the same time
     # and thus try to modify the signature as the same time
     with instance._inject_lock:
-        if not getattr(instance._function, "_dd_trace_wrapped", False):
+        if instance._function_signature is None:
             instance._function = _wrap_remote_function_execution(instance._function)
             instance._function.__signature__ = _inject_dd_trace_ctx_kwarg(instance._function)
             instance._function_signature = extract_signature(instance._function)
-            instance._function._dd_trace_wrapped = True
 
     with tracer.trace(
         "task.submit",
@@ -196,22 +207,25 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     """
     from ray.dashboard.modules.job.job_manager import generate_job_id
 
-    # Three ways of specifying the job name, in order of precedence:
-    # 1. Metadata JSON: ray job submit --metadata_json '{"job_name": "train.cool.model"}' train.py
-    # 2. Special submission ID format: ray job submit --submission_id "job:train.cool.model,run:38" train.py
-    # 3. Ray entrypoint: ray job submit train_cool_model.py
+    # Three ways of setting the service name of the spans, in order of precedence:
+    # - DD_SERVICE environment variable
+    # - The name of the entrypoint if DD_TRACE_RAY_USE_ENTRYPOINT_AS_SERVICE_NAME is True
+    # - Metadata JSON: ray job submit --metadata_json '{"job_name": "train.cool.model"}'
+    # Otherwise set to unnamed.ray.job
     submission_id = kwargs.get("submission_id") or generate_job_id()
     kwargs["submission_id"] = submission_id
-    entrypoint = kwargs.get("entrypoint", "")
-    if entrypoint and config.ray.redact_entrypoint_paths:
-        entrypoint = redact_paths(entrypoint)
-    job_name = config.service or kwargs.get("metadata", {}).get("job_name", "")
 
-    if not job_name:
-        if config.ray.use_entrypoint_as_service_name:
-            job_name = get_dd_job_name_from_entrypoint(entrypoint) or DEFAULT_JOB_NAME
-        else:
-            job_name = DEFAULT_JOB_NAME
+    entrypoint = kwargs.get("entrypoint", "")
+    if config.ray.redact_entrypoint_paths:
+        entrypoint = redact_paths(entrypoint)
+
+    metadata = kwargs.get("metadata", {}) or {}
+    if config.ray.use_entrypoint_as_service_name:
+        job_name = get_dd_job_name_from_entrypoint(entrypoint) or DEFAULT_JOB_NAME
+    else:
+        user_provided_service = config.service if config._is_user_provided_service else None
+        metadata_job_name = metadata.get("job_name", None)
+        job_name = user_provided_service or metadata_job_name or DEFAULT_JOB_NAME
 
     job_span = tracer.start_span("ray.job", service=job_name or DEFAULT_JOB_NAME, span_type=SpanTypes.RAY)
     try:
@@ -221,7 +235,6 @@ def traced_submit_job(wrapped, instance, args, kwargs):
         if entrypoint:
             job_span._set_tag_str(RAY_ENTRYPOINT, entrypoint)
 
-        metadata = kwargs.get("metadata", {})
         dot_paths = flatten_metadata_dict(metadata)
         for k, v in dot_paths.items():
             set_tag_or_truncate(job_span, k, v)
@@ -379,12 +392,12 @@ def traced_wait(wrapped, instance, args, kwargs):
 
 
 def _job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
-    async def _traced_run_method(self: Any, *args: Any, _dd_ray_trace_ctx, **kwargs: Any) -> Any:
+    async def _traced_run_method(self: Any, *args: Any, _dd_ray_trace_ctx=None, **kwargs: Any) -> Any:
         import ray.exceptions
 
         from ddtrace.ext import SpanTypes
 
-        context = _TraceContext._extract(_dd_ray_trace_ctx)
+        context = _TraceContext._extract(_dd_ray_trace_ctx) if _dd_ray_trace_ctx else None
         submission_id = os.environ.get(RAY_SUBMISSION_ID)
 
         with long_running_ray_span(
@@ -496,7 +509,11 @@ def inject_tracing_into_actor_class(wrapped, instance, args, kwargs):
     class_name = str(cls.__name__)
 
     # Skip tracing for certain ray modules
-    if any(module_name.startswith(denied_module) for denied_module in RAY_MODULE_DENYLIST):
+    if any(module_name.startswith(denied_module) for denied_module in RAY_ACTOR_MODULE_DENYLIST):
+        return cls
+
+    # Actor beginning with _ are considered internal and will not be traced
+    if class_name.startswith("_"):
         return cls
 
     # Determine if the class is a JobSupervisor
@@ -551,6 +568,10 @@ def patch():
         return
 
     ray._datadog_patch = True
+
+    from ray.util.tracing import tracing_helper
+
+    tracing_helper._global_is_tracing_enabled = False
 
     @ModuleWatchdog.after_module_imported("ray.actor")
     def _(m):

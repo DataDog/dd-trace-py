@@ -13,10 +13,10 @@ except ImportError:
 
 import pytest
 
-from ddtrace.version import get_version
+from ddtrace import __version__
 
 
-HOST_DDTRACE_VERSION = get_version()
+HOST_DDTRACE_VERSION = __version__
 LIBS_INJECTION_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../lib-injection"))
 LIBS_INJECTION_SRC_DIR = os.path.join(LIBS_INJECTION_DIR, "sources")
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
@@ -156,6 +156,9 @@ def test_venv(ddtrace_injection_artifact):
                 for package, version in packages_to_install.items():
                     spec = f"{package}=={version}" if version else package
                     install_specs.append(spec)
+
+                    if package == "bottle" and sys.version_info >= (3, 13):
+                        install_specs.append("legacy-cgi")
 
                 if install_specs:
                     test_install_cmd = [pip_executable, "install", "--no-cache-dir"] + install_specs

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Prevent startup failure when a temporary directory is not available.

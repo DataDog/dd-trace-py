@@ -19,14 +19,13 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     # use requests like usual
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.requests['service']
 
    The service name reported by default for requests queries. This value will
-   be overridden by an instance override or if the split_by_domain setting is
-   enabled.
+   be overridden if the split_by_domain setting is enabled.
 
    This option can also be set with the ``DD_REQUESTS_SERVICE`` environment
    variable.
@@ -51,26 +50,11 @@ Global Configuration
 
 .. py:data:: ddtrace.config.requests['split_by_domain']
 
-   Whether or not to use the domain name of requests as the service name. This
-   setting can be overridden with session overrides (described in the Instance
-   Configuration section).
+   Whether or not to use the domain name of requests as the service name.
 
    Default: ``False``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To set configuration options for all requests made with a ``requests.Session`` object
-use the config API::
-
-    from ddtrace import config
-    from ddtrace.trace import Pin
-    from requests import Session
-
-    session = Session()
-    Pin.override(session, service='auth-api')
 """
+
 from ddtrace.contrib.internal.requests.patch import TracedSession
 
 

@@ -591,8 +591,9 @@ def test_ddwaf_run_contained_typeerror(tracer, caplog):
     config = rules.Config()
     config.http_tag_query_string = True
 
-    with caplog.at_level(logging.DEBUG), mock.patch(
-        "ddtrace.appsec._ddwaf.waf.ddwaf_run", side_effect=TypeError("expected c_long instead of int")
+    with (
+        caplog.at_level(logging.DEBUG),
+        mock.patch("ddtrace.appsec._ddwaf.waf.ddwaf_run", side_effect=TypeError("expected c_long instead of int")),
     ):
         with asm_context(tracer=tracer, config=config_asm) as span:
             set_http_meta(
@@ -627,8 +628,9 @@ def test_ddwaf_run_contained_oserror(tracer, caplog):
     config = rules.Config()
     config.http_tag_query_string = True
 
-    with caplog.at_level(logging.DEBUG), mock.patch(
-        "ddtrace.appsec._ddwaf.waf.ddwaf_run", side_effect=OSError("ddwaf run failed")
+    with (
+        caplog.at_level(logging.DEBUG),
+        mock.patch("ddtrace.appsec._ddwaf.waf.ddwaf_run", side_effect=OSError("ddwaf run failed")),
     ):
         with asm_context(tracer=tracer, config=config_asm) as span:
             set_http_meta(
@@ -712,6 +714,27 @@ CUSTOM_RULE_METHOD = [
                     "tags": {"category": "attack_attempt", "custom": "1", "type": "custom"},
                     "transformers": [],
                 },
+                {
+                    "conditions": [
+                        {
+                            "operator": "equals",
+                            "parameters": {
+                                "inputs": [
+                                    {"address": "server.business_logic.payment.creation", "key_path": ["id"]},
+                                    {"address": "server.business_logic.payment.cancellation", "key_path": ["id"]},
+                                    {"address": "server.business_logic.payment.failure", "key_path": ["id"]},
+                                    {"address": "server.business_logic.payment.success", "key_path": ["id"]},
+                                ],
+                                "type": "string",
+                                "value": "stripe",
+                            },
+                        }
+                    ],
+                    "id": "stripe",
+                    "name": "required to test payment addresses",
+                    "tags": {"category": "attack_attempt", "custom": "2", "type": "custom"},
+                    "transformers": [],
+                },
             ]
         },
     )
@@ -747,6 +770,10 @@ def test_required_addresses():
         "server.request.path_params",
         "server.request.query",
         "server.response.headers.no_cookies",
+        "server.business_logic.payment.cancellation",
+        "server.business_logic.payment.creation",
+        "server.business_logic.payment.success",
+        "server.business_logic.payment.failure",
         "usr.id",
         "usr.login",
     }
@@ -780,6 +807,23 @@ def test_ephemeral_addresses(mock_run, persistent, ephemeral):
     assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:1"
 
 
+@mock.patch("ddtrace.appsec._ddwaf.DDWaf.run")
+def test_waf_action_null_ephemeral_addresses(mock_run):
+    from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_result
+    from ddtrace.appsec._utils import _observator
+    from ddtrace.trace import tracer
+
+    mock_run.return_value = DDWaf_result(0, [], {}, 0.0, 0.0, False, _observator(), {})
+
+    with asm_context(tracer=tracer, config=config_asm) as span:
+        processor = AppSecSpanProcessor._instance
+        assert processor
+        # None value for ephemeral addresses should not be discarded
+        processor._waf_action(span, None, {"LOGIN_FAILURE": None})
+        assert mock_run.call_args[0][1] == {}
+        assert mock_run.call_args[1]["ephemeral_data"] == {WAF_DATA_NAMES.LOGIN_FAILURE: None}
+
+
 @pytest.mark.parametrize("skip_event", [True, False])
 def test_lambda_unsupported_event(tracer, skip_event):
     """
@@ -805,16 +849,25 @@ def test_lambda_unsupported_event(tracer, skip_event):
         assert span.get_metric(APPSEC.UNSUPPORTED_EVENT_TYPE) is None
 
 
-def test_lambda_inferred_span(tracer):
+@pytest.mark.parametrize("inferred_span_name", ["aws.apigateway", "aws.httpapi"])
+def test_lambda_inferred_span(tracer, inferred_span_name):
     """
-    Ensure that when the service entry span is not the root span, the service entry span is tagged
-    and not the root span
+    Ensure that when the service entry span is below an inferred span, both spans have
+    AppSec enabled and contain the waf triggers.
     """
-    config = {"_asm_enabled": True, "_asm_processed_span_types": {SpanTypes.SERVERLESS}}
+    config = {
+        "_asm_enabled": True,
+        "_asm_processed_span_types": {SpanTypes.WEB, SpanTypes.SERVERLESS},
+        "_asm_http_span_types": {SpanTypes.WEB, SpanTypes.SERVERLESS},
+    }
 
-    with asm_context(tracer=tracer, config=config, span_type=SpanTypes.HTTP, span_name="aws-apigateway") as root_span:
-        with tracer.trace("aws.lambda", service="test_function", span_type=SpanTypes.SERVERLESS) as entry_span:
-            pass
+    with override_global_config(config):
+        tracer._recreate()
+        with tracer.trace(inferred_span_name, span_type=SpanTypes.WEB, service="api_gateway") as gateway_span:
+            with tracer.trace("aws.lambda", span_type=SpanTypes.SERVERLESS, service="test_function") as lambda_span:
+                set_http_meta(lambda_span, {}, raw_uri="http://example.com/.git", status_code="404")
 
-    assert root_span.get_metric(APPSEC.ENABLED) is None
-    assert entry_span.get_metric(APPSEC.ENABLED) == 1.0
+    assert lambda_span.get_metric(APPSEC.ENABLED) == 1.0
+    assert gateway_span.get_metric(APPSEC.ENABLED) == 1.0
+    assert get_triggers(lambda_span)
+    assert get_triggers(gateway_span)

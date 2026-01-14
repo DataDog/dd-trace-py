@@ -2,9 +2,8 @@
 detached = true
 python = "3.10"
 dependencies = [
-    "black==23.10.1",
     "click==8.1.7",
-    "cython-lint==0.15.0",
+    "cython-lint==0.18.1",
     "codespell==2.4.1",
     "bandit==1.8.2",
     "mypy==1.15.0",
@@ -18,7 +17,7 @@ dependencies = [
     "packaging==23.1",
     "pygments==2.16.1",
     "riot==0.20.1",
-    "ruff==0.11.11",
+    "ruff==0.14.10",
     "clang-format==18.1.5",
     "cmake-format==0.6.13",
     "ruamel.yaml==0.18.6",
@@ -26,8 +25,8 @@ dependencies = [
 ]
 
 [envs.lint.scripts]
-black_check = [
-    "black --check {args:.}",
+format_check = [
+    "ruff format --check --no-cache {args:.}",
 ]
 cmakeformat_check = [
     "bash scripts/cmake-format.sh"
@@ -36,15 +35,15 @@ cformat_check = [
     "bash scripts/cformat.sh"
 ]
 style = [
-    "black_check",
-    "ruff check {args:.}",
+    "format_check",
+    "ruff check --no-cache {args:.}",
     "cython-lint {args:.}",
     "cformat_check",
     "cmakeformat_check",
 ]
 fmt = [
-    "black {args:.}",
-    "ruff check --fix {args:.}",
+    "ruff format --no-cache {args:.}",
+    "ruff check --fix --no-cache {args:.}",
     "style",
 ]
 # checks should encapsulate all rules used in pre-check
@@ -86,46 +85,6 @@ sg = [
 ]
 sg-test = [
     "ast-grep test {args}",
-]
-
-[envs.docs]
-template = "docs"
-dev-mode = false
-python = "3.10"
-features = ["opentracing"]
-dependencies = [  # copied from library dependencies
-    "protobuf>=3",
-    "xmltodict>=0.12",
-    "envier==0.6.1",
-    "opentelemetry-api>=1",
-    "opentracing>=2.0.0",
-    "bytecode",
-]
-extra-dependencies = [
-    "reno~=3.5.0",
-    "sphinx~=4.0",
-    "sphinxcontrib-applehelp<1.0.8",
-    "sphinxcontrib-devhelp<1.0.6",
-    "sphinxcontrib-htmlhelp<2.0.5",
-    "sphinxcontrib-devhelp<1.0.6",
-    "sphinxcontrib-serializinghtml<1.1.10",
-    "sphinxcontrib-qthelp<1.0.7",
-    "sphinxcontrib-spelling==7.7.0",
-    "PyEnchant==3.2.2",
-    "sphinx-copybutton==0.5.1",
-    # Later release of furo breaks formatting for code blocks
-    "furo<=2023.05.20",
-    "standard-imghdr",
-]
-pre-install-commands = [
-    "scripts/docs/install.sh",
-]
-[envs.docs.env-vars]
-DD_TRACE_ENABLED = "false"
-
-[envs.docs.scripts]
-build = [
-    "scripts/docs/build.sh",
 ]
 
 [envs.scripts]
@@ -182,13 +141,14 @@ python = ["3.10", "3.11", "3.12"]
 
 [envs.profiling_pytorch]
 dependencies = [
+    "protobuf",
     "pytest",
     "pytest-cov",
     "requests",
     "hypothesis",
     "torch>=1.8.1",
     "torchvision",
-    "lz4",
+    "zstandard",
 ]
 
 [envs.profiling_pytorch.env-vars]
@@ -199,7 +159,7 @@ DD_PROFILING_PYTORCH_ENABLED = "true"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest tests/profiling_v2/test_pytorch.py -vvv --capture=tee-sys",
+    "python -m pytest tests/profiling/test_pytorch.py -vvv --capture=tee-sys",
 ]
 
 [[envs.profiling_pytorch.matrix]]
@@ -234,7 +194,7 @@ test = [
 ]
 
 [[envs.multiple_os_tests.matrix]]
-python = ["3.14", "3.12", "3.10", "3.8"]
+python = ["3.14", "3.12", "3.10"]
 
 [envs.snapshot_viewer]
 dev-mode = false

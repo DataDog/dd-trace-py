@@ -13,7 +13,6 @@ from tests.utils import override_global_config
 from tests.utils import snapshot_context
 
 
-TIKTOKEN_AVAILABLE = os.getenv("TIKTOKEN_AVAILABLE", False)
 pytestmark = pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 0), reason="This module only tests openai >= 1.0"
 )
@@ -174,7 +173,7 @@ async def test_acompletion(api_key_in_env, request_api_key, openai, openai_vcr, 
     mock_llmobs_writer.enqueue.assert_not_called()
 
 
-def test_global_tags(openai_vcr, openai, mock_tracer):
+def test_global_tags(openai_vcr, openai, test_spans):
     """
     When the global config UST tags are set
         The service name should be used for all data
@@ -190,7 +189,7 @@ def test_global_tags(openai_vcr, openai, mock_tracer):
                 model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
             )
 
-    span = mock_tracer.pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"
     assert span.get_tag("version") == "1234"
@@ -220,25 +219,25 @@ def test_completion_raw_response(openai, openai_vcr, snapshot_tracer):
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
 )
-def test_completion_raw_response_stream(openai, openai_vcr, mock_tracer):
+def test_completion_raw_response_stream(openai, openai_vcr, test_spans):
     """Assert that no spans are created when streaming and with_raw_response is used."""
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         client = openai.OpenAI()
         client.completions.with_raw_response.create(model="ada", prompt="Hello world", stream=True, n=None)
 
-    assert len(mock_tracer.pop_traces()) == 0
+    assert len(test_spans.pop_traces()) == 0
 
 
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
 )
-async def test_acompletion_raw_response_stream(openai, openai_vcr, mock_tracer):
+async def test_acompletion_raw_response_stream(openai, openai_vcr, test_spans):
     """Assert that no spans are created when streaming and with_raw_response is used."""
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         client = openai.AsyncOpenAI()
         await client.completions.with_raw_response.create(model="ada", prompt="Hello world", stream=True, n=None)
 
-    assert len(mock_tracer.pop_traces()) == 0
+    assert len(test_spans.pop_traces()) == 0
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
@@ -347,7 +346,7 @@ def test_chat_completion_raw_response(openai, openai_vcr, snapshot_tracer):
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
 )
-def test_chat_completion_raw_response_stream(openai, openai_vcr, mock_tracer):
+def test_chat_completion_raw_response_stream(openai, openai_vcr, test_spans):
     """Assert that no spans are created when streaming and with_raw_response is used."""
     with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
         client = openai.OpenAI()
@@ -361,13 +360,13 @@ def test_chat_completion_raw_response_stream(openai, openai_vcr, mock_tracer):
             n=None,
         )
 
-    assert len(mock_tracer.pop_traces()) == 0
+    assert len(test_spans.pop_traces()) == 0
 
 
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
 )
-async def test_achat_completion_raw_response_stream(openai, openai_vcr, mock_tracer):
+async def test_achat_completion_raw_response_stream(openai, openai_vcr, test_spans):
     """Assert that no spans are created when streaming and with_raw_response is used."""
     with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
         client = openai.AsyncOpenAI()
@@ -381,7 +380,7 @@ async def test_achat_completion_raw_response_stream(openai, openai_vcr, mock_tra
             n=None,
         )
 
-    assert len(mock_tracer.pop_traces()) == 0
+    assert len(test_spans.pop_traces()) == 0
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
@@ -753,51 +752,32 @@ def test_span_finish_on_stream_error(openai, openai_vcr, snapshot_tracer):
             )
 
 
-@pytest.mark.snapshot
-@pytest.mark.skipif(TIKTOKEN_AVAILABLE, reason="This test estimates token counts")
-def test_completion_stream_est_tokens(openai, openai_vcr, snapshot_tracer):
-    with openai_vcr.use_cassette("completion_streamed.yaml"):
-        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
-            mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
-            client = openai.OpenAI()
-            resp = client.completions.create(model="ada", prompt="Hello world", stream=True, n=None)
-            _ = [c for c in resp]
-
-
-@pytest.mark.skipif(not TIKTOKEN_AVAILABLE, reason="This test computes token counts using tiktoken")
 @pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_completion_stream")
 def test_completion_stream(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
-        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
-            mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
-            client = openai.OpenAI()
-            resp = client.completions.create(model="ada", prompt="Hello world", stream=True, n=None)
-            _ = [c for c in resp]
+        client = openai.OpenAI()
+        resp = client.completions.create(model="ada", prompt="Hello world", stream=True, n=None)
+        _ = [c for c in resp]
 
 
-@pytest.mark.skipif(not TIKTOKEN_AVAILABLE, reason="This test computes token counts using tiktoken")
 @pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_completion_stream")
 async def test_completion_async_stream(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
-        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
-            mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
-            client = openai.AsyncOpenAI()
-            resp = await client.completions.create(model="ada", prompt="Hello world", stream=True, n=None)
-            _ = [c async for c in resp]
+        client = openai.AsyncOpenAI()
+        resp = await client.completions.create(model="ada", prompt="Hello world", stream=True, n=None)
+        _ = [c async for c in resp]
 
 
 @pytest.mark.skipif(
-    parse_version(openai_module.version.VERSION) < (1, 6, 0) or not TIKTOKEN_AVAILABLE,
+    parse_version(openai_module.version.VERSION) < (1, 6, 0),
     reason="Streamed response context managers are only available v1.6.0+",
 )
 @pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_completion_stream")
 def test_completion_stream_context_manager(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("completion_streamed.yaml"):
-        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
-            mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
-            client = openai.OpenAI()
-            with client.completions.create(model="ada", prompt="Hello world", stream=True, n=None) as resp:
-                _ = [c for c in resp]
+        client = openai.OpenAI()
+        with client.completions.create(model="ada", prompt="Hello world", stream=True, n=None) as resp:
+            _ = [c for c in resp]
 
 
 @pytest.mark.skipif(
@@ -807,17 +787,15 @@ def test_completion_stream_context_manager(openai, openai_vcr, snapshot_tracer):
 def test_chat_completion_stream(openai, openai_vcr, snapshot_tracer):
     """Assert that streamed token chunk extraction logic works automatically."""
     with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
-        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
-            mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
-            client = openai.OpenAI()
-            resp = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": "Who won the world series in 2020?"}],
-                stream=True,
-                user="ddtrace-test",
-                n=None,
-            )
-            _ = [c for c in resp]
+        client = openai.OpenAI()
+        resp = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": "Who won the world series in 2020?"}],
+            stream=True,
+            user="ddtrace-test",
+            n=None,
+        )
+        _ = [c for c in resp]
 
 
 @pytest.mark.skipif(
@@ -826,19 +804,17 @@ def test_chat_completion_stream(openai, openai_vcr, snapshot_tracer):
 @pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_chat_completion_stream")
 async def test_chat_completion_async_stream(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
-        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
-            mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
-            client = openai.AsyncOpenAI()
-            resp = await client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "user", "content": "Who won the world series in 2020?"},
-                ],
-                stream=True,
-                n=None,
-                user="ddtrace-test",
-            )
-            _ = [c async for c in resp]
+        client = openai.AsyncOpenAI()
+        resp = await client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "user", "content": "Who won the world series in 2020?"},
+            ],
+            stream=True,
+            n=None,
+            user="ddtrace-test",
+        )
+        _ = [c async for c in resp]
 
 
 @pytest.mark.skipif(
@@ -848,19 +824,17 @@ async def test_chat_completion_async_stream(openai, openai_vcr, snapshot_tracer)
 @pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_chat_completion_stream")
 async def test_chat_completion_async_stream_context_manager(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
-        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
-            mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
-            client = openai.AsyncOpenAI()
-            async with await client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "user", "content": "Who won the world series in 2020?"},
-                ],
-                stream=True,
-                user="ddtrace-test",
-                n=None,
-            ) as resp:
-                _ = [c async for c in resp]
+        client = openai.AsyncOpenAI()
+        async with await client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "user", "content": "Who won the world series in 2020?"},
+            ],
+            stream=True,
+            user="ddtrace-test",
+            n=None,
+        ) as resp:
+            _ = [c async for c in resp]
 
 
 @pytest.mark.snapshot(
@@ -886,7 +860,7 @@ import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-pin = ddtrace.trace.Pin.get_from(openai)
+pin = ddtrace._trace.pin.Pin.get_from(openai)
 pin.tracer.configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()
@@ -927,7 +901,7 @@ import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-pin = ddtrace.trace.Pin.get_from(openai)
+pin = ddtrace._trace.pin.Pin.get_from(openai)
 pin.tracer.configure(trace_processors=[FilterOrg()])
 async def task():
     with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
@@ -943,16 +917,6 @@ asyncio.run(task())
     assert status == 0, err
     assert out == b""
     assert err == b""
-
-
-@pytest.mark.parametrize("ddtrace_config_openai", [dict(span_prompt_completion_sample_rate=0)])
-def test_embedding_unsampled_prompt_completion(openai, openai_vcr, ddtrace_config_openai, mock_tracer):
-    with openai_vcr.use_cassette("embedding.yaml"):
-        client = openai.OpenAI()
-        client.embeddings.create(input="hello world", model="text-embedding-ada-002")
-    traces = mock_tracer.pop_traces()
-    assert len(traces) == 1
-    assert traces[0][0].get_tag("openai.request.input") is None
 
 
 @pytest.mark.skipif(
@@ -1130,7 +1094,7 @@ import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-pin = ddtrace.trace.Pin.get_from(openai)
+pin = ddtrace._trace.pin.Pin.get_from(openai)
 pin.tracer.configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()

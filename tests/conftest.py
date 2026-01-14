@@ -24,6 +24,7 @@ from typing import Dict
 from typing import Generator  # noqa:F401
 from typing import List
 from typing import Tuple  # noqa:F401
+from unittest import TestCase
 from unittest import mock
 from urllib import parse
 import warnings
@@ -40,17 +41,59 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import TelemetryWriter
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from tests import utils
-from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
 from tests.utils import request_token
+from tests.utils import scoped_tracer
 from tests.utils import snapshot_context as _snapshot_context
+
+
+try:
+    from pytest import StashKey
+except ImportError:
+    StashKey = None
 
 
 code_to_pyc = getattr(importlib._bootstrap_external, "_code_to_timestamp_pyc")
 
 
 DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME = "ddtrace_subprocess_dir"
+
+# Stash keys for storing original test name and nodeid before Python version suffix is added
+# For pytest >= 7.1.0, use StashKey; for older versions, use attribute names
+if StashKey:
+    original_test_name_key = StashKey[str]()
+    original_test_nodeid_key = StashKey[str]()
+else:
+    # Fallback attribute names for pytest < 7.1.0
+    original_test_name_key = "_ddtrace_original_name"
+    original_test_nodeid_key = "_ddtrace_original_nodeid"
+
+
+def get_original_test_name(request_or_item):
+    """Get the original test name (before Python version suffix was added).
+
+    Works with both pytest >= 7.1.0 (using stash) and older versions (using attributes).
+
+    Args:
+        request_or_item: Either a pytest.FixtureRequest or pytest.Item
+
+    Returns:
+        The original test name string, or the current name if not found
+    """
+    if hasattr(request_or_item, "node"):
+        # It's a FixtureRequest
+        item = request_or_item.node
+    else:
+        # It's an Item
+        item = request_or_item
+
+    if StashKey:
+        # pytest >= 7.1.0: use stash
+        return item.stash.get(original_test_name_key, item.name)
+    else:
+        # pytest < 7.1.0: use attribute
+        return getattr(item, original_test_name_key, item.name)
 
 
 # Hack to try and capture more logging data from pytest failing on `internal` jobs on
@@ -117,8 +160,8 @@ def pytest_configure(config):
 
 
 @pytest.fixture
-def use_global_tracer():
-    yield False
+def use_dummy_writer():
+    yield True
 
 
 @pytest.fixture
@@ -137,11 +180,9 @@ def enable_crashtracking(auto_enable_crashtracking):
 
 
 @pytest.fixture
-def tracer(use_global_tracer):
-    if use_global_tracer:
-        return ddtrace.tracer
-    else:
-        return DummyTracer()
+def tracer(use_dummy_writer):
+    with scoped_tracer(use_dummy_writer) as tracer:
+        yield tracer
 
 
 @pytest.fixture
@@ -404,7 +445,13 @@ def run_function_from_file(item, params=None):
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(session, config, items):
-    """Don't let ITR skip tests that use the subprocess marker because coverage collection in subprocesses is broken"""
+    """
+    Don't let ITR skip tests that use the subprocess marker
+    because coverage collection in subprocesses is broken.
+
+    Also: add py39 - py314 suffix as parametrization in test names
+    """
+    py_tag = f"py{sys.version_info.major}.{sys.version_info.minor}"
     for item in items:
         if item.get_closest_marker("subprocess"):
             if item.get_closest_marker("skipif"):
@@ -412,6 +459,26 @@ def pytest_collection_modifyitems(session, config, items):
                 continue
             unskippable = pytest.mark.skipif(False, reason="datadog_itr_unskippable")
             item.add_marker(unskippable)
+
+        # Store original name and nodeid before modification
+        if StashKey:
+            # pytest >= 7.1.0: use stash
+            item.stash[original_test_name_key] = item.name
+            item.stash[original_test_nodeid_key] = item.nodeid
+        else:
+            # pytest < 7.1.0: use attributes
+            setattr(item, original_test_name_key, item.name)
+            setattr(item, original_test_nodeid_key, item.nodeid)
+
+        name_base = item.name
+        nodeid_base = item.nodeid
+
+        item._nodeid = f"{nodeid_base}[{py_tag}]"
+
+        cls = getattr(item, "cls", None)
+        is_unittest = isinstance(cls, type) and issubclass(cls, TestCase)
+        if not is_unittest:
+            item.name = f"{name_base}[{py_tag}]"
 
 
 def pytest_generate_tests(metafunc):

@@ -19,18 +19,18 @@ from ddtrace.vendor import debtcollector
 from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
 from .internal.compat import PYTHON_VERSION_INFO  # noqa: E402
+from .internal.settings._config import config
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
-from .settings._config import config
-from .version import get_version  # noqa: E402
+from .version import __version__
 
-
-__version__ = get_version()
 
 # TODO: Deprecate accessing tracer from ddtrace.__init__ module in v4.0
 if os.environ.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
     from ddtrace.trace import tracer  # noqa: F401
 
+
 __all__ = [
+    "__version__",
     "patch",
     "patch_all",
     "config",
@@ -39,12 +39,12 @@ __all__ = [
 
 
 def check_supported_python_version():
-    if PYTHON_VERSION_INFO < (3, 9):
+    if PYTHON_VERSION_INFO < (3, 10):
         deprecation_message = (
-            "Support for ddtrace with Python version %d.%d is deprecated and will be removed in 4.0.0."
+            "Support for ddtrace with Python version %d.%d is deprecated and will be removed in 5.0.0."
         )
-        if PYTHON_VERSION_INFO < (3, 8):
-            deprecation_message = "Support for ddtrace with Python version %d.%d was removed in 3.0.0."
+        if PYTHON_VERSION_INFO < (3, 9):
+            deprecation_message = "Support for ddtrace with Python version %d.%d was removed in 4.0.0."
         debtcollector.deprecate(
             (deprecation_message % (PYTHON_VERSION_INFO[0], PYTHON_VERSION_INFO[1])),
             category=DDTraceDeprecationWarning,

@@ -3,6 +3,7 @@ decorator==5.1.1
 
 https://pypi.org/project/decorator/
 """
+
 from flask import Blueprint
 from flask import jsonify
 from flask import request

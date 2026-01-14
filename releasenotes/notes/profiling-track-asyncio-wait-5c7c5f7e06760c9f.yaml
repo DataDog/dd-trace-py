@@ -1,0 +1,4 @@
+features:
+  - |
+    profiling: This introduces tracking for ``asyncio.wait`` in the Profiler.
+    This makes it possible to track dependencies between Tasks/Coroutines that await/are awaited through ``asyncio.wait``.

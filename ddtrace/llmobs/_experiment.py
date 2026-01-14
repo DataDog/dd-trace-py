@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+import itertools
 import sys
 import traceback
 from typing import TYPE_CHECKING
@@ -16,7 +17,6 @@ from typing import cast
 from typing import overload
 import uuid
 
-import ddtrace
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -24,8 +24,10 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
+from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.version import __version__
 
 
 if TYPE_CHECKING:
@@ -82,6 +84,13 @@ class EvaluationResult(TypedDict):
     evaluations: Dict[str, Dict[str, JSONType]]
 
 
+class _ExperimentRunInfo:
+    def __init__(self, run_interation: int):
+        self._id = uuid.uuid4()
+        # always increment the representation of iteration by 1 for readability
+        self._run_iteration = run_interation + 1
+
+
 class ExperimentRowResult(TypedDict):
     idx: int
     record_id: Optional[str]
@@ -96,9 +105,24 @@ class ExperimentRowResult(TypedDict):
     error: Dict[str, Optional[str]]
 
 
+class ExperimentRun:
+    def __init__(
+        self,
+        run: _ExperimentRunInfo,
+        summary_evaluations: Dict[str, Dict[str, JSONType]],
+        rows: List[ExperimentRowResult],
+    ):
+        self.run_id = run._id
+        self.run_iteration = run._run_iteration
+        self.summary_evaluations = summary_evaluations or {}
+        self.rows = rows or []
+
+
 class ExperimentResult(TypedDict):
+    # TODO: remove these fields (summary_evaluations, rows) in the next major release (5.x)
     summary_evaluations: Dict[str, Dict[str, JSONType]]
     rows: List[ExperimentRowResult]
+    runs: List[ExperimentRun]
 
 
 class Dataset:
@@ -163,7 +187,10 @@ class Dataset:
             logger.debug("dataset delta is %d, using batch update", delta_size)
             updated_records = list(self._updated_record_ids_to_new_fields.values())
             new_version, new_record_ids = self._dne_client.dataset_batch_update(
-                self._id, list(self._new_records_by_record_id.values()), updated_records, self._deleted_record_ids
+                self._id,
+                list(self._new_records_by_record_id.values()),
+                updated_records,
+                self._deleted_record_ids,
             )
 
             # attach record ids to newly created records
@@ -191,7 +218,11 @@ class Dataset:
             **record,
             "record_id": record_id,
         }
-        self._records[index] = {**self._records[index], **record, "record_id": record_id}
+        self._records[index] = {
+            **self._records[index],
+            **record,
+            "record_id": record_id,
+        }
 
     def append(self, record: DatasetRecordRaw) -> None:
         record_id: str = uuid.uuid4().hex
@@ -246,12 +277,10 @@ class Dataset:
         return size
 
     @overload
-    def __getitem__(self, index: int) -> DatasetRecord:
-        ...
+    def __getitem__(self, index: int) -> DatasetRecord: ...
 
     @overload
-    def __getitem__(self, index: slice) -> List[DatasetRecord]:
-        ...
+    def __getitem__(self, index: slice) -> List[DatasetRecord]: ...
 
     def __getitem__(self, index: Union[int, slice]) -> Union[DatasetRecord, List[DatasetRecord]]:
         return self._records.__getitem__(index)
@@ -326,10 +355,17 @@ class Experiment:
         summary_evaluators: Optional[
             List[
                 Callable[
-                    [List[DatasetRecordInputType], List[JSONType], List[JSONType], Dict[str, List[JSONType]]], JSONType
+                    [
+                        List[DatasetRecordInputType],
+                        List[JSONType],
+                        List[JSONType],
+                        Dict[str, List[JSONType]],
+                    ],
+                    JSONType,
                 ]
             ]
         ] = None,
+        runs: Optional[int] = None,
     ) -> None:
         self.name = name
         self._task = task
@@ -338,8 +374,12 @@ class Experiment:
         self._summary_evaluators = summary_evaluators or []
         self._description = description
         self._tags: Dict[str, str] = tags or {}
-        self._tags["ddtrace.version"] = str(ddtrace.__version__)
+        self._tags["ddtrace.version"] = str(__version__)
+        self._tags["project_name"] = project_name
+        self._tags["dataset_name"] = dataset.name
+        self._tags["experiment_name"] = name
         self._config: Dict[str, JSONType] = config or {}
+        self._runs: int = runs or 1
         self._llmobs_instance = _llmobs_instance
 
         if not project_name:
@@ -354,7 +394,12 @@ class Experiment:
         self._id: Optional[str] = None
         self._run_name: Optional[str] = None
 
-    def run(self, jobs: int = 1, raise_errors: bool = False, sample_size: Optional[int] = None) -> ExperimentResult:
+    def run(
+        self,
+        jobs: int = 1,
+        raise_errors: bool = False,
+        sample_size: Optional[int] = None,
+    ) -> ExperimentResult:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             raise ValueError(
                 "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
@@ -363,8 +408,12 @@ class Experiment:
 
         project = self._llmobs_instance._dne_client.project_create_or_get(self._project_name)
         self._project_id = project.get("_id", "")
+        self._tags["project_id"] = self._project_id
 
-        experiment_id, experiment_run_name = self._llmobs_instance._dne_client.experiment_create(
+        (
+            experiment_id,
+            experiment_run_name,
+        ) = self._llmobs_instance._dne_client.experiment_create(
             self.name,
             self._dataset._id,
             self._project_id,
@@ -372,31 +421,54 @@ class Experiment:
             self._config,
             convert_tags_dict_to_list(self._tags),
             self._description,
+            self._runs,
         )
         self._id = experiment_id
         self._tags["experiment_id"] = str(experiment_id)
         self._run_name = experiment_run_name
-        task_results = self._run_task(jobs, raise_errors, sample_size)
-        evaluations = self._run_evaluators(task_results, raise_errors=raise_errors)
-        summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors)
-        experiment_results = self._merge_results(task_results, evaluations, summary_evals)
-        experiment_evals = self._generate_metrics_from_exp_results(experiment_results)
-        self._llmobs_instance._dne_client.experiment_eval_post(
-            self._id, experiment_evals, convert_tags_dict_to_list(self._tags)
-        )
+        run_results = []
+        # for backwards compatibility
+        for run_iteration in range(self._runs):
+            run = _ExperimentRunInfo(run_iteration)
+            self._tags["run_id"] = str(run._id)
+            self._tags["run_iteration"] = str(run._run_iteration)
+            task_results = self._run_task(jobs, run, raise_errors, sample_size)
+            evaluations = self._run_evaluators(task_results, raise_errors=raise_errors)
+            summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors)
+            run_result = self._merge_results(run, task_results, evaluations, summary_evals)
+            experiment_evals = self._generate_metrics_from_exp_results(run_result)
+            self._llmobs_instance._dne_client.experiment_eval_post(
+                self._id, experiment_evals, convert_tags_dict_to_list(self._tags)
+            )
+            run_results.append(run_result)
 
-        return experiment_results
+        experiment_result: ExperimentResult = {
+            # for backwards compatibility, the first result fills the old fields of rows and summary evals
+            "summary_evaluations": run_results[0].summary_evaluations if len(run_results) > 0 else {},
+            "rows": run_results[0].rows if len(run_results) > 0 else [],
+            "runs": run_results,
+        }
+        return experiment_result
 
     @property
     def url(self) -> str:
         # FIXME: will not work for subdomain orgs
         return f"{_get_base_url()}/llm/experiments/{self._id}"
 
-    def _process_record(self, idx_record: Tuple[int, DatasetRecord]) -> Optional[TaskResult]:
+    def _process_record(self, idx_record: Tuple[int, DatasetRecord], run: _ExperimentRunInfo) -> Optional[TaskResult]:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return None
         idx, record = idx_record
-        with self._llmobs_instance._experiment(name=self._task.__name__, experiment_id=self._id) as span:
+        with self._llmobs_instance._experiment(
+            name=self._task.__name__,
+            experiment_id=self._id,
+            run_id=str(run._id),
+            run_iteration=run._run_iteration,
+            dataset_name=self._dataset.name,
+            project_name=self._project_name,
+            project_id=self._project_id,
+            experiment_name=self.name,
+        ) as span:
             span_context = self._llmobs_instance.export_span(span=span)
             if span_context:
                 span_id = span_context.get("span_id", "")
@@ -417,7 +489,11 @@ class Experiment:
             except Exception:
                 span.set_exc_info(*sys.exc_info())
             self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
-            span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, safe_json(record["expected_output"]))
+
+            span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
+            if "metadata" in record:
+                span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
+
             return {
                 "idx": idx,
                 "span_id": span_id,
@@ -436,7 +512,13 @@ class Experiment:
                 },
             }
 
-    def _run_task(self, jobs: int, raise_errors: bool = False, sample_size: Optional[int] = None) -> List[TaskResult]:
+    def _run_task(
+        self,
+        jobs: int,
+        run: _ExperimentRunInfo,
+        raise_errors: bool = False,
+        sample_size: Optional[int] = None,
+    ) -> List[TaskResult]:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return []
         if sample_size is not None and sample_size < len(self._dataset):
@@ -456,7 +538,11 @@ class Experiment:
             subset_dataset = self._dataset
         task_results = []
         with ThreadPoolExecutor(max_workers=jobs) as executor:
-            for result in executor.map(self._process_record, enumerate(subset_dataset)):
+            for result in executor.map(
+                self._process_record,
+                enumerate(subset_dataset),
+                itertools.repeat(run, len(subset_dataset)),
+            ):
                 if not result:
                     continue
                 task_results.append(result)
@@ -489,16 +575,26 @@ class Experiment:
                     exc_type, exc_value, exc_tb = sys.exc_info()
                     exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
                     exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-                    eval_err = {"message": str(exc_value), "type": exc_type_name, "stack": exc_stack}
+                    eval_err = {
+                        "message": str(exc_value),
+                        "type": exc_type_name,
+                        "stack": exc_stack,
+                    }
                     if raise_errors:
                         raise RuntimeError(f"Evaluator {evaluator.__name__} failed on row {idx}") from e
-                evals_dict[evaluator.__name__] = {"value": eval_result, "error": eval_err}
+                evals_dict[evaluator.__name__] = {
+                    "value": eval_result,
+                    "error": eval_err,
+                }
             evaluation: EvaluationResult = {"idx": idx, "evaluations": evals_dict}
             evaluations.append(evaluation)
         return evaluations
 
     def _run_summary_evaluators(
-        self, task_results: List[TaskResult], eval_results: List[EvaluationResult], raise_errors: bool = False
+        self,
+        task_results: List[TaskResult],
+        eval_results: List[EvaluationResult],
+        raise_errors: bool = False,
     ) -> List[EvaluationResult]:
         evaluations: List[EvaluationResult] = []
         inputs: List[DatasetRecordInputType] = []
@@ -532,10 +628,17 @@ class Experiment:
                 exc_type, exc_value, exc_tb = sys.exc_info()
                 exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
                 exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-                eval_err = {"message": str(exc_value), "type": exc_type_name, "stack": exc_stack}
+                eval_err = {
+                    "message": str(exc_value),
+                    "type": exc_type_name,
+                    "stack": exc_stack,
+                }
                 if raise_errors:
                     raise RuntimeError(f"Summary evaluator {summary_evaluator.__name__} failed") from e
-            evals_dict[summary_evaluator.__name__] = {"value": eval_result, "error": eval_err}
+            evals_dict[summary_evaluator.__name__] = {
+                "value": eval_result,
+                "error": eval_err,
+            }
             evaluation: EvaluationResult = {"idx": idx, "evaluations": evals_dict}
             evaluations.append(evaluation)
 
@@ -543,10 +646,11 @@ class Experiment:
 
     def _merge_results(
         self,
+        run: _ExperimentRunInfo,
         task_results: List[TaskResult],
         evaluations: List[EvaluationResult],
         summary_evaluations: Optional[List[EvaluationResult]],
-    ) -> ExperimentResult:
+    ) -> ExperimentRun:
         experiment_results = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
@@ -575,11 +679,7 @@ class Experiment:
                 for name, eval_data in summary_evaluation["evaluations"].items():
                     summary_evals[name] = eval_data
 
-        result: ExperimentResult = {
-            "summary_evaluations": summary_evals,
-            "rows": experiment_results,
-        }
-        return result
+        return ExperimentRun(run, summary_evals, experiment_results)
 
     def _generate_metric_from_evaluation(
         self,
@@ -615,11 +715,11 @@ class Experiment:
         }
 
     def _generate_metrics_from_exp_results(
-        self, experiment_result: ExperimentResult
+        self, experiment_result: ExperimentRun
     ) -> List["LLMObsExperimentEvalMetricEvent"]:
         eval_metrics = []
         latest_timestamp: int = 0
-        for exp_result in experiment_result["rows"]:
+        for exp_result in experiment_result.rows:
             evaluations = exp_result.get("evaluations") or {}
             span_id = exp_result.get("span_id", "")
             trace_id = exp_result.get("trace_id", "")
@@ -632,11 +732,16 @@ class Experiment:
                     continue
                 eval_value = eval_data.get("value")
                 eval_metric = self._generate_metric_from_evaluation(
-                    eval_name, eval_value, eval_data.get("error"), span_id, trace_id, timestamp_ns
+                    eval_name,
+                    eval_value,
+                    eval_data.get("error"),
+                    span_id,
+                    trace_id,
+                    timestamp_ns,
                 )
                 eval_metrics.append(eval_metric)
 
-        for name, summary_eval_data in experiment_result.get("summary_evaluations", {}).items():
+        for name, summary_eval_data in experiment_result.summary_evaluations.items():
             if not summary_eval_data:
                 continue
             eval_metric = self._generate_metric_from_evaluation(

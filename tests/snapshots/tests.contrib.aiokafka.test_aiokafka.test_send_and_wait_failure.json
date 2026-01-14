@@ -1,0 +1,39 @@
+[[
+  {
+    "name": "kafka.produce",
+    "service": "kafka",
+    "resource": "kafka.produce",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 1,
+    "meta": {
+      "_dd.base_service": "tests.contrib.aiokafka",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6911b89c00000000",
+      "component": "aiokafka",
+      "error.message": "[Error 10] MessageSizeTooLargeError: The message is 10485790 bytes when serialized which is larger than the maximum request size you have configured with the max_request_size configuration",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/aiokafka/patch.py\", line 96, in traced_send\n    result = await func(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_pytest-randomly_aiokafka~090/lib/python3.13/site-packages/aiokafka/producer/producer.py\", line 458, in send\n    key_bytes, value_bytes = self._serialize(topic, key, value)\n                             ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py3138_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_pytest-randomly_aiokafka~090/lib/python3.13/site-packages/aiokafka/producer/producer.py\", line 367, in _serialize\n    raise MessageSizeTooLargeError(\n    ...<2 lines>...\n        \" max_request_size configuration\" % message_size)\naiokafka.errors.MessageSizeTooLargeError: [Error 10] MessageSizeTooLargeError: The message is 10485790 bytes when serialized which is larger than the maximum request size you have configured with the max_request_size configuration\n",
+      "error.type": "aiokafka.errors.MessageSizeTooLargeError",
+      "kafka.message_key": "test_key",
+      "kafka.tombstone": "False",
+      "kafka.topic": "nonexistent_topic",
+      "language": "python",
+      "messaging.destination.name": "nonexistent_topic",
+      "messaging.kafka.bootstrap.servers": "['127.0.0.1:29092']",
+      "messaging.system": "kafka",
+      "runtime-id": "490caac0109647009afd7509bc66828d",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "kafka.partition": -1,
+      "process_id": 605
+    },
+    "duration": 1716750,
+    "start": 1762769052706674050
+  }]]

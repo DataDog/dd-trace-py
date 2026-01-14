@@ -17,7 +17,6 @@ from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
-from tests.utils import DummyTracer
 from tests.utils import override_global_config
 from tests.utils import override_http_config
 
@@ -58,12 +57,6 @@ def scope(request):
     }
     s.update(request.param)
     return {k: v for (k, v) in s.items() if v is not None}
-
-
-@pytest.fixture
-def tracer():
-    tracer = DummyTracer()
-    yield tracer
 
 
 async def basic_app(scope, receive, send):
@@ -197,7 +190,6 @@ import pytest
 from tests.conftest import *
 from tests.contrib.asgi.test_asgi import basic_app
 from tests.contrib.asgi.test_asgi import scope
-from tests.contrib.asgi.test_asgi import tracer
 from asgiref.testing import ApplicationCommunicator
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
@@ -229,9 +221,7 @@ async def test(scope, tracer, test_spans):
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_span_name
-    )
+    """.format(expected_span_name)
     env = os.environ.copy()
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
@@ -256,7 +246,6 @@ import pytest
 from tests.conftest import *
 from tests.contrib.asgi.test_asgi import basic_app
 from tests.contrib.asgi.test_asgi import scope
-from tests.contrib.asgi.test_asgi import tracer
 from asgiref.testing import ApplicationCommunicator
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
@@ -288,9 +277,7 @@ async def test(scope, tracer, test_spans):
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_service_name
-    )
+    """.format(expected_service_name)
     env = os.environ.copy()
     if global_service_name:
         env["DD_SERVICE"] = global_service_name
@@ -812,7 +799,7 @@ async def test_inferred_spans_api_gateway_default(scope, tracer, test_spans, app
                     api_gateway_resource="GET /",
                     method="GET",
                     status_code=app_type["status_code"],
-                    url="local/",
+                    url="https://local/",
                     start=1736973768,
                     is_distributed=headers == distributed_headers,
                     distributed_trace_id=1,

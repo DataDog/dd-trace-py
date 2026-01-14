@@ -2,6 +2,7 @@ from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import Protocol  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
@@ -78,7 +79,22 @@ def _get_metas_to_propagate(context):
     return [(k, v) for k, v in context._meta.items() if isinstance(k, str) and k.startswith("_dd.p.")]
 
 
-def get_blocked() -> Optional[Dict[str, Any]]:
+class Block_config(Protocol):
+    block_id: str
+    grpc_status_code: int
+    status_code: int
+    type: str
+    location: str
+    content_type: str
+
+    def get(self, key: str, default: Any = None) -> Union[str, int]: ...
+
+    def __getitem__(self, key: str) -> Optional[Union[str, int]]: ...
+
+    def __contains__(self, key: str) -> bool: ...
+
+
+def get_blocked() -> Optional[Block_config]:
     # local import to avoid circular dependency
     from ddtrace.internal import core
 

@@ -1,7 +1,8 @@
 # DEV: Use `debian:slim` instead of an `alpine` image to support installing wheels from PyPI
 #      this drastically improves test execution time since python dependencies don't all
 #      have to be built from source all the time (grpcio takes forever to install)
-FROM debian:bookworm-slim
+# Note: Using trixie for GLIBC 2.38+ support (required for Python 3.14 native extensions)
+FROM debian:trixie-slim
 
 ARG TARGETARCH
 ARG HATCH_VERSION=1.14.2
@@ -22,7 +23,7 @@ RUN useradd -ms /bin/bash bits
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
     && curl https://mariadb.org/mariadb_release_signing_key.pgp | gpg --dearmor > /etc/apt/trusted.gpg.d/mariadb.gpg \
-    && echo "deb [arch=amd64,arm64] https://mirror.mariadb.org/repo/11.rolling/debian/ bookworm main" > /etc/apt/sources.list.d/mariadb.list \
+    && echo "deb [arch=amd64,arm64] https://mirror.mariadb.org/repo/11.rolling/debian/ trixie main" > /etc/apt/sources.list.d/mariadb.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
       apt-transport-https \
@@ -48,15 +49,18 @@ RUN apt-get update \
       libsqlite3-dev \
       libsqliteodbc \
       libssh-dev \
+      python3.13-dev \
       nodejs \
       npm \
       patch \
+      sccache \
       unixodbc-dev \
       wget \
       zlib1g-dev \
       awscli \
     # Install azure-functions-core-tools-4, only supported on amd64 architecture for Linux
     # https://github.com/Azure/azure-functions-core-tools/issues/3112
+    # Note: Using bookworm repo as trixie is not yet available
     && if [ "$TARGETARCH" = "amd64" ]; \
     then \
       curl https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > microsoft.gpg \
@@ -98,7 +102,7 @@ COPY .python-version /home/bits/
 RUN npm install -g @datadog/datadog-ci
 
 # Install pyenv and necessary Python versions
-RUN git clone --depth 1 --branch "v2.6.9" https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
+RUN git clone --depth 1 --branch "v2.6.17" https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
   && pyenv local | xargs -L 1 pyenv install \
   && cd -
 

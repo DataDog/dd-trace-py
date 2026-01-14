@@ -10,9 +10,9 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import azure_eventhubs as azure_eventhubsx
 from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.settings._config import _get_config
 
 from .utils import create_context
 from .utils import wrap_function_with_tracing

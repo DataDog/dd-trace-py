@@ -37,30 +37,32 @@ from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 
 def test_source_origin_refcount():
     s1 = Source(name="name", value="val", origin=OriginType.COOKIE)
-    assert sys.getrefcount(s1) - 1 == 1  # getrefcount takes 1 while counting
+    if sys.version_info >= (3, 14):
+        diff = 0
+    else:
+        diff = 1
+
+    assert sys.getrefcount(s1) - diff == 1  # getrefcount takes 1 while counting
     s2 = s1
-    assert sys.getrefcount(s1) - 1 == 2
+    assert sys.getrefcount(s1) - diff == 2
     s3 = s1
-    assert sys.getrefcount(s1) - 1 == 3
+    assert sys.getrefcount(s1) - diff == 3
     del s2
-    assert sys.getrefcount(s1) - 1 == 2
+    assert sys.getrefcount(s1) - diff == 2
     # TaintRange does not increase refcount but should keep it alive
     tr_sub = TaintRange(0, 1, s1)
-    assert sys.getrefcount(s1) - 1 == 2
+    assert sys.getrefcount(s1) - diff == 2
     del s1
-    assert sys.getrefcount(s3) - 1 == 1
-    assert sys.getrefcount(tr_sub.source) - 1 == 1
+    assert sys.getrefcount(s3) - diff == 1
+    assert sys.getrefcount(tr_sub.source) - diff == 1
     del s3
-    assert sys.getrefcount(tr_sub.source) - 1 == 1
+    assert sys.getrefcount(tr_sub.source) - diff == 1
     _ = TaintRange(1, 2, tr_sub.source)
-    assert sys.getrefcount(tr_sub.source) - 1 == 1
+    assert sys.getrefcount(tr_sub.source) - diff == 1
 
 
 _SOURCE1 = Source(name="name", value="value", origin=OriginType.COOKIE)
 _SOURCE2 = Source(name="name2", value="value2", origin=OriginType.BODY)
-
-_RANGE1 = TaintRange(0, 2, _SOURCE1)
-_RANGE2 = TaintRange(1, 3, _SOURCE2)
 
 
 def test_unicode_fast_tainting():
@@ -304,6 +306,8 @@ def test_collisions_bytearray():
 
 
 def test_set_get_ranges_str():
+    _RANGE1 = TaintRange(0, 2, _SOURCE1)
+    _RANGE2 = TaintRange(1, 3, _SOURCE2)
     s1 = "abcde😁"
     s2 = "defg"
     assert taint_pyobject_with_ranges(s1, [_RANGE1, _RANGE2])
@@ -313,6 +317,8 @@ def test_set_get_ranges_str():
 
 
 def test_set_get_ranges_other():
+    _RANGE1 = TaintRange(0, 2, _SOURCE1)
+    _RANGE2 = TaintRange(1, 3, _SOURCE2)
     s1 = 12345
     s2 = None
     assert set_ranges(s1, [_RANGE1, _RANGE2], _get_iast_context_id()) is False
@@ -323,6 +329,8 @@ def test_set_get_ranges_other():
 
 
 def test_set_get_ranges_bytes():
+    _RANGE1 = TaintRange(0, 2, _SOURCE1)
+    _RANGE2 = TaintRange(1, 3, _SOURCE2)
     b1 = b"ABCDE"
     b2 = b"DEFG"
     assert taint_pyobject_with_ranges(b1, [_RANGE2, _RANGE1])
@@ -331,6 +339,8 @@ def test_set_get_ranges_bytes():
 
 
 def test_set_get_ranges_bytearray():
+    _RANGE1 = TaintRange(0, 2, _SOURCE1)
+    _RANGE2 = TaintRange(1, 3, _SOURCE2)
     b1 = bytearray(b"abcdef")
     b2 = bytearray(b"abcdef")
     assert taint_pyobject_with_ranges(b1, [_RANGE1, _RANGE2])
@@ -418,6 +428,8 @@ def test_shift_taint_ranges(source, vulnerability_type):
 
 
 def test_are_all_text_all_ranges():
+    _RANGE1 = TaintRange(0, 2, _SOURCE1)
+    _RANGE2 = TaintRange(1, 3, _SOURCE2)
     s1 = "abc123"
     s2 = "ghijk"
     s3 = "xyzv"
@@ -454,6 +466,8 @@ def test_are_all_text_all_ranges():
 
 
 def test_get_range_by_hash():
+    _RANGE1 = TaintRange(0, 2, _SOURCE1)
+    _RANGE2 = TaintRange(1, 3, _SOURCE2)
     hash_r1 = hash(_RANGE1)
     assert hash_r1 == _RANGE1.__hash__()
     hash_r2_call = hash(_RANGE2)
@@ -602,13 +616,23 @@ def test_context_race_conditions_threads(caplog, telemetry_writer):
     destroying contexts
     """
     _end_iast_context_and_oce()
+    # Clear telemetry logs from previous tests
+    telemetry_writer._logs.clear()
+
     pool = ThreadPool(processes=3)
     results_async = [pool.apply_async(reset_contexts_loop) for _ in range(20)]
     results = [res.get() for res in results_async]
+    pool.close()
+    pool.join()
+
     assert results.count(True) <= 2
     log_messages = [record.message for record in caplog.get_records("call")]
     assert len([message for message in log_messages if IAST_VALID_LOG.search(message)]) == 0
-    list_metrics_logs = list(telemetry_writer._logs)
+
+    # Filter out telemetry connection errors which are expected in test environment
+    list_metrics_logs = [
+        log for log in telemetry_writer._logs if not log["message"].startswith("failed to send, dropping")
+    ]
     assert len(list_metrics_logs) == 0
 
 

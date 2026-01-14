@@ -2,32 +2,32 @@ from contextlib import contextmanager
 
 import pytest
 
+from ddtrace import __version__
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings.dynamic_instrumentation import DynamicInstrumentationConfig
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings.dynamic_instrumentation import DynamicInstrumentationConfig
-from ddtrace.version import get_version
 from tests.utils import override_env
 
 
 @contextmanager
 def debugger_config(**kwargs):
     with override_env(kwargs, replace_os_env=True):
-        from ddtrace.settings._config import Config
-        import ddtrace.settings.dynamic_instrumentation
+        from ddtrace.internal.settings._config import Config
+        import ddtrace.internal.settings.dynamic_instrumentation
 
-        old_config = ddtrace.settings.dynamic_instrumentation.ddconfig
-        old_di_config = ddtrace.settings.dynamic_instrumentation.config.__dict__
+        old_config = ddtrace.internal.settings.dynamic_instrumentation.ddconfig
+        old_di_config = ddtrace.internal.settings.dynamic_instrumentation.config.__dict__
 
         try:
-            ddtrace.settings.dynamic_instrumentation.ddconfig = Config()
+            ddtrace.internal.settings.dynamic_instrumentation.ddconfig = Config()
             new_config = DynamicInstrumentationConfig()
-            ddtrace.settings.dynamic_instrumentation.config.__dict__ = new_config.__dict__
+            ddtrace.internal.settings.dynamic_instrumentation.config.__dict__ = new_config.__dict__
 
-            yield ddtrace.settings.dynamic_instrumentation.config
+            yield ddtrace.internal.settings.dynamic_instrumentation.config
 
         finally:
-            ddtrace.settings.dynamic_instrumentation.config.__dict__ = old_di_config
-            ddtrace.settings.dynamic_instrumentation.ddconfig = old_config
+            ddtrace.internal.settings.dynamic_instrumentation.config.__dict__ = old_di_config
+            ddtrace.internal.settings.dynamic_instrumentation.ddconfig = old_config
 
 
 def test_tags():
@@ -39,7 +39,7 @@ def test_tags():
             c="d",
             env="test-env",
             version="test-version",
-            debugger_version=get_version(),
+            debugger_version=__version__,
         )
 
 

@@ -3,16 +3,16 @@ import sys
 import threading
 
 from ddtrace.internal import service
-import ddtrace.profiling.auto
+import ddtrace.profiling.auto  # noqa: F401
 import ddtrace.profiling.bootstrap
-import ddtrace.profiling.profiler
+import ddtrace.profiling.profiler  # noqa: F401
 
 
 lock = threading.Lock()
 lock.acquire()
 
 
-assert ddtrace.profiling.bootstrap.profiler.status == service.ServiceStatus.RUNNING
+assert ddtrace.profiling.bootstrap.profiler.status == service.ServiceStatus.RUNNING  # pyright: ignore[reportAttributeAccessIssue]
 
 
 child_pid = os.fork()
@@ -26,7 +26,7 @@ if child_pid == 0:
     lock.release()
 else:
     lock.release()
-    assert ddtrace.profiling.bootstrap.profiler.status == service.ServiceStatus.RUNNING
+    assert ddtrace.profiling.bootstrap.profiler.status == service.ServiceStatus.RUNNING  # pyright: ignore[reportAttributeAccessIssue]
     print(child_pid)
     pid, status = os.waitpid(child_pid, 0)
     sys.exit(os.WEXITSTATUS(status))

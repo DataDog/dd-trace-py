@@ -11,7 +11,8 @@ import mock
 import pytest
 
 from ddtrace import config
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.settings._agent import get_agent_hostname
+from ddtrace.internal.settings._telemetry import config as telemetry_config
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -20,8 +21,6 @@ from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
-from ddtrace.settings._agent import get_agent_hostname
-from ddtrace.settings._telemetry import config as telemetry_config
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import call_program
 from tests.utils import override_global_config
@@ -80,9 +79,10 @@ def test_app_started_event_configuration_override(test_agent_session, run_python
 # most configurations are reported when ddtrace.auto is imported
 import ddtrace.auto
 # report configurations not used by ddtrace.auto
-import ddtrace.settings.symbol_db
-import ddtrace.settings.dynamic_instrumentation
-import ddtrace.settings.exception_replay
+import ddtrace.internal.settings.symbol_db
+import ddtrace.internal.settings.dynamic_instrumentation
+import ddtrace.internal.settings.exception_replay
+import opentelemetry
     """
 
     env = os.environ.copy()
@@ -243,6 +243,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE", "origin": "default", "value": ""},
         {"name": "DD_EXCEPTION_REPLAY_CAPTURE_MAX_FRAMES", "origin": "default", "value": 8},
         {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "env_var", "value": True},
+        {"name": "DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED", "origin": "default", "value": False},
         {"name": "DD_FASTAPI_ASYNC_BODY_TIMEOUT_SECONDS", "origin": "default", "value": 0.1},
         {"name": "DD_IAST_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_IAST_ENABLED", "origin": "default", "value": False},
@@ -272,6 +273,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_IAST_SECURITY_CONTROLS_CONFIGURATION", "origin": "default", "value": ""},
         {"name": "DD_IAST_STACK_TRACE_ENABLED", "origin": "default", "value": True},
         {"name": "DD_IAST_TELEMETRY_VERBOSITY", "origin": "default", "value": "INFORMATION"},
+        {"name": "DD_IAST_TRUNCATION_MAX_VALUE_LENGTH", "origin": "default", "value": 250},
         {"name": "DD_IAST_VULNERABILITIES_PER_REQUEST", "origin": "default", "value": 2},
         {"name": "DD_INJECTION_ENABLED", "origin": "env_var", "value": "tracer"},
         {"name": "DD_INJECT_FORCE", "origin": "env_var", "value": True},
@@ -288,7 +290,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_PROFILING_AGENTLESS", "origin": "default", "value": False},
         {"name": "DD_PROFILING_API_TIMEOUT_MS", "origin": "default", "value": 10000},
         {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "env_var", "value": 5.0},
-        {"name": "DD_PROFILING_ENABLED", "origin": "env_var", "value": PYTHON_VERSION_INFO < (3, 14)},
+        {"name": "DD_PROFILING_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_PROFILING_ENABLE_ASSERTS", "origin": "default", "value": False},
         {"name": "DD_PROFILING_ENABLE_CODE_PROVENANCE", "origin": "default", "value": True},
         {"name": "DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
@@ -306,7 +308,6 @@ import ddtrace.settings.exception_replay
         {"name": "DD_PROFILING_PYTORCH_EVENTS_LIMIT", "origin": "default", "value": 1000000},
         {"name": "DD_PROFILING_SAMPLE_POOL_CAPACITY", "origin": "default", "value": 4},
         {"name": "DD_PROFILING_STACK_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_PROFILING_STACK_V2_ENABLED", "origin": "default", "value": PYTHON_VERSION_INFO < (3, 14)},
         {"name": "DD_PROFILING_TAGS", "origin": "default", "value": ""},
         {"name": "DD_PROFILING_TIMELINE_ENABLED", "origin": "default", "value": True},
         {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "env_var", "value": 10.0},
@@ -473,8 +474,9 @@ import ddtrace.settings.exception_replay
         {"name": "_DD_APPSEC_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
         {"name": "_DD_IAST_USE_ROOT_SPAN", "origin": "default", "value": False},
+        {"name": "_DD_NATIVE_LOGGING_BACKEND", "origin": "default", "value": None},
         {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
-        {"name": "_DD_TRACE_WRITER_NATIVE", "origin": "default", "value": False},
+        {"name": "_DD_TRACE_WRITER_NATIVE", "origin": "default", "value": True},
         {"name": "instrumentation_source", "origin": "code", "value": "manual"},
         {"name": "python_build_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("BUILD_GNU_TYPE")},
         {"name": "python_host_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("HOST_GNU_TYPE")},
@@ -680,9 +682,9 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
     telemetry_writer.periodic(force_flush=True)
     """asserts that queuing a configuration sends a valid telemetry request"""
     with override_global_config(dict()):
-        telemetry_writer.add_configuration("appsec_enabled", True, "env_var")
+        telemetry_writer.add_configuration("product_enabled", True, "env_var")
         telemetry_writer.add_configuration("DD_TRACE_PROPAGATION_STYLE_EXTRACT", "datadog", "default")
-        telemetry_writer.add_configuration("appsec_enabled", False, "code")
+        telemetry_writer.add_configuration("product_enabled", False, "code")
 
         telemetry_writer.periodic(force_flush=True)
 
@@ -695,13 +697,13 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
             < received_configurations[2]["seq_id"]
         )
         # assert that all configuration values are sent to the agent in the order they were added (by seq_id)
-        assert received_configurations[0]["name"] == "appsec_enabled"
+        assert received_configurations[0]["name"] == "product_enabled"
         assert received_configurations[0]["origin"] == "env_var"
         assert received_configurations[0]["value"] is True
         assert received_configurations[1]["name"] == "DD_TRACE_PROPAGATION_STYLE_EXTRACT"
         assert received_configurations[1]["origin"] == "default"
         assert received_configurations[1]["value"] == "datadog"
-        assert received_configurations[2]["name"] == "appsec_enabled"
+        assert received_configurations[2]["name"] == "product_enabled"
         assert received_configurations[2]["origin"] == "code"
         assert received_configurations[2]["value"] is False
 
@@ -994,6 +996,7 @@ def test_add_error_log(mock_time, telemetry_writer, test_agent_session):
         log_entry = logs[0]
         assert log_entry["level"] == TELEMETRY_LOG_LEVEL.ERROR.value
         assert log_entry["message"] == "Test error message"
+        assert log_entry["tags"] == "error_type:jsondecodeerror"
 
         stack_trace = log_entry["stack_trace"]
         expected_lines = [
@@ -1009,6 +1012,77 @@ def test_add_error_log(mock_time, telemetry_writer, test_agent_session):
         ]
         for expected_line in expected_lines:
             assert expected_line in stack_trace
+
+
+def test_add_error_log_large_stack(mock_time, telemetry_writer, test_agent_session):
+    """Test add_integration_error_log functionality with real stack trace"""
+    try:
+
+        def _(n):
+            if n == 200:
+                raise ValueError("Test exception for large stack trace")
+            return _(n + 1)
+
+        _(0)
+    except Exception as e:
+        telemetry_writer.add_error_log("Test error message", e)
+        telemetry_writer.periodic(force_flush=True)
+
+        log_events = test_agent_session.get_events("logs")
+        assert len(log_events) == 1
+
+        logs = log_events[0]["payload"]["logs"]
+        assert len(logs) == 1
+
+        log_entry = logs[0]
+        assert log_entry["level"] == TELEMETRY_LOG_LEVEL.ERROR.value
+        assert log_entry["message"] == "Test error message"
+        assert log_entry["tags"] == "error_type:valueerror"
+
+        stack_trace = log_entry["stack_trace"]
+        expected_lines = """Traceback (most recent call last):
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+  <REDACTED>
+    <REDACTED>
+builtins.ValueError: <REDACTED>"""
+        assert stack_trace == expected_lines
 
 
 def test_add_integration_error_log_with_log_collection_disabled(mock_time, telemetry_writer, test_agent_session):
@@ -1027,6 +1101,35 @@ def test_add_integration_error_log_with_log_collection_disabled(mock_time, telem
             assert len(log_events) == 0
     finally:
         telemetry_config.LOG_COLLECTION_ENABLED = original_value
+
+
+def test_error_log_handler_strips_skipped_suffix(mock_time, telemetry_writer, test_agent_session):
+    """Test that DDTelemetryErrorHandler strips [x skipped] suffix from error messages"""
+    import logging
+
+    ddtrace_logger = logging.getLogger("ddtrace")
+
+    ddtrace_logger.error("Error message [123 skipped]")
+    telemetry_writer.periodic(force_flush=True)
+
+    log_events = test_agent_session.get_events("logs")
+    assert len(log_events) == 1
+
+    logs = log_events[0]["payload"]["logs"]
+    assert len(logs) == 1
+    assert logs[0]["message"] == "Error message"
+
+    test_agent_session.clear()
+
+    ddtrace_logger.error("Normal error message [something]")
+    telemetry_writer.periodic(force_flush=True)
+
+    log_events = test_agent_session.get_events("logs")
+    assert len(log_events) == 1
+
+    logs = log_events[0]["payload"]["logs"]
+    assert len(logs) == 1
+    assert logs[0]["message"] == "Normal error message [something]"
 
 
 @pytest.mark.parametrize(

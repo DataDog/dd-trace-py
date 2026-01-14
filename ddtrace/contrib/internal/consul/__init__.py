@@ -6,7 +6,6 @@ Only supports tracing for the synchronous client.
 ::
 
     from ddtrace import patch
-    from ddtrace.trace import Pin
     import consul
 
     # If not patched yet, you can patch consul specifically
@@ -16,6 +15,15 @@ Only supports tracing for the synchronous client.
     client = consul.Consul(host="127.0.0.1", port=8500)
     client.get("my-key")
 
-    # Use a pin to specify metadata related to this client
-    Pin.override(client, service='consul-kv')
+Configuration
+~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.consul["service"]
+
+   The service name reported by default for consul spans.
+
+   This option can also be set with the ``DD_CONSUL_SERVICE`` environment
+   variable.
+
+   Default: ``"consul"``
 """

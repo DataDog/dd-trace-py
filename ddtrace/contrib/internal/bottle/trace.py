@@ -37,19 +37,24 @@ class TracePlugin(object):
 
             resource = "{} {}".format(request.method, route.rule)
 
-            with core.context_with_data(
-                "bottle.request",
-                span_name=schematize_url_operation("bottle.request", protocol="http", direction=SpanDirection.INBOUND),
-                span_type=SpanTypes.WEB,
-                service=self.service,
-                resource=resource,
-                tags={},
-                tracer=self.tracer,
-                distributed_headers=request.headers,
-                integration_config=config.bottle,
-                headers_case_sensitive=True,
-                activate_distributed_headers=True,
-            ) as ctx, ctx.span as req_span:
+            with (
+                core.context_with_data(
+                    "bottle.request",
+                    span_name=schematize_url_operation(
+                        "bottle.request", protocol="http", direction=SpanDirection.INBOUND
+                    ),
+                    span_type=SpanTypes.WEB,
+                    service=self.service,
+                    resource=resource,
+                    tags={},
+                    tracer=self.tracer,
+                    distributed_headers=request.headers,
+                    integration_config=config.bottle,
+                    headers_case_sensitive=True,
+                    activate_distributed_headers=True,
+                ) as ctx,
+                ctx.span as req_span,
+            ):
                 ctx.set_item("req_span", req_span)
                 core.dispatch("web.request.start", (ctx, config.bottle))
 

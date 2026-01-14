@@ -1,6 +1,24 @@
 import asyncio
 
 
+class UnhashableException(Exception):
+    def __init__(self, message, mutable_data):
+        super().__init__(message)
+        self.mutable_data = mutable_data
+
+    def __eq__(self, other):
+        # This makes the exception unhashable if __hash__ is not defined
+        return isinstance(other, UnhashableException) and str(self) == str(other)
+
+
+def test_unhashable_exception_f(value):
+    try:
+        raise UnhashableException("unhashable error", {"key": "value"})
+    except UnhashableException:
+        value = 10
+    return value
+
+
 def test_basic_try_except_f(value):
     try:
         raise ValueError("auto caught error")

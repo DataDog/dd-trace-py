@@ -8,10 +8,10 @@ from ddtrace.contrib.internal.aws_lambda._cold_start import is_cold_start
 from ddtrace.contrib.internal.aws_lambda._cold_start import set_cold_start
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.serverless import in_aws_lambda
+from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
-from ddtrace.settings._config import _get_config
 from ddtrace.trace import tracer
 
 
@@ -103,7 +103,7 @@ class TimeoutChannel:
 
         current_span = tracer.current_span()
         if current_span is not None:
-            current_span.finish_with_ancestors()
+            current_span._finish_with_ancestors()
 
     def _remove_alarm_signal(self):
         """Removes the handler set for the signal `SIGALRM`."""
