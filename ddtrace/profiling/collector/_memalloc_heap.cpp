@@ -13,6 +13,7 @@
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
 #include "_pymacro.h"
+#include "vendor/bloom_filter.hpp"
 
 /* Use Abseil's flat_hash_map for tracking sampled allocations.
  * flat_hash_map provides excellent performance with low memory overhead,
@@ -131,6 +132,9 @@ class heap_tracker_t
     uint64_t current_sample_size;
     /* Tracked allocations - using unique_ptr for automatic memory management */
     HeapMapType<void*, std::unique_ptr<traceback_t>> allocs_m;
+    /* Bloom filter for fast membership testing - filters out non-tracked allocations
+     * before expensive hash map lookup. Reduces overhead for allocation-heavy workloads. */
+    bloom_filter tracked_allocs_bloom_;
     /* Bytes allocated since the last sample was collected */
     uint64_t allocated_memory;
 
@@ -199,6 +203,17 @@ heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
   , allocated_memory(0)
 {
     pool.reserve(POOL_CAPACITY); // Pre-allocate pool capacity to avoid reallocations
+
+    // Initialize Bloom filter for fast membership testing.
+    // We track up to TRACEBACK_ARRAY_MAX_COUNT (65535) allocations.
+    // Use 1% false positive rate - this means 99% of non-tracked allocations
+    // will skip the expensive hash map lookup.
+    bloom_parameters params;
+    params.projected_element_count = TRACEBACK_ARRAY_MAX_COUNT;
+    params.false_positive_probability = 0.01; // 1% false positive rate
+    params.random_seed = 0xA5A5A5A55A5A5A5AULL;
+    params.compute_optimal_parameters();
+    tracked_allocs_bloom_ = bloom_filter(params);
 }
 
 void
@@ -206,8 +221,17 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
+    // Fast path: Check Bloom filter first. If it says "not present", skip expensive hash map lookup.
+    // Bloom filters have no false negatives, so if it says "not present", we can safely return.
+    // False positives are rare (1% in our configuration) and will still check the hash map.
+    if (!tracked_allocs_bloom_.contains(ptr)) {
+        return;
+    }
+
     auto node = allocs_m.extract(ptr);
     if (node.empty()) {
+        // False positive from Bloom filter - pointer was not actually tracked.
+        // This is expected and acceptable (1% false positive rate).
         return;
     }
 
@@ -219,6 +243,11 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
         tb->reported = true;
     }
     pool_put_no_cpython(std::move(tb));
+    // Note: We don't remove from Bloom filter on untrack. Bloom filters don't support removal,
+    // and this is acceptable because:
+    // 1. False positives are rare (1%)
+    // 2. The hash map lookup will correctly determine the pointer is not tracked
+    // 3. Removing would require a counting Bloom filter or rebuilding, which adds complexity
 }
 
 bool
@@ -255,6 +284,13 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
 
     /* This should always be a new insertion. If not, we failed to properly untrack a previous allocation. */
     assert(inserted && "add_sample: found existing entry for key that should have been removed");
+
+    // Add pointer to Bloom filter for fast membership testing in untrack_no_cpython.
+    // Only insert if it's a new allocation (inserted == true). While Bloom filters are
+    // idempotent, this avoids unnecessary work.
+    if (inserted) {
+        tracked_allocs_bloom_.insert(ptr);
+    }
 
     // Get ready for the next sample
     allocated_memory = 0;

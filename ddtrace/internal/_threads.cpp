@@ -81,17 +81,49 @@ class PyRef
     }
     inline ~PyRef()
     {
-        // Avoid calling Py_DECREF during finalization as the thread state
-        // may be NULL, causing crashes in Python 3.14+ where _Py_Dealloc
-        // dereferences tstate immediately. This check uses relaxed atomics
-        // so it's not perfectly synchronized, but provides a safety net.
-#if PY_VERSION_HEX >= 0x030d0000
-        if (!Py_IsFinalizing()) {
+        // Check if Python is finalizing before decrefing to avoid crashes.
+        // During finalization, _PyThreadState_GET() in _Py_Dealloc may return
+        // NULL or an invalid pointer, leading to crashes when accessing tstate
+        // (see cpython/Objects/object.c:3183-3184).
+        //
+        // NOTE: There's a time-of-check to time-of-use (TOCTOU) race condition
+        // here: Python could start finalizing between the check and the decref.
+        // See PEP 788 (https://peps.python.org/pep-0788/) for details. However,
+        // in practice this is mitigated because:
+        // 1. PyRef is destroyed before GILGuard (destructors run in reverse order),
+        //    so the GIL should be held when this destructor runs
+        // 2. Holding the GIL provides protection: threads already attached can
+        //    continue using Python APIs even after finalization starts. The
+        //    finalization flag prevents NEW attachments, not existing ones.
+        // 3. However, once runtime->initialized = 0, some runtime state may
+        //    become invalid, so we still check finalization as a safety measure
+        // 4. For a more robust solution, PEP 788's PyInterpreterGuard should
+        //    be used (Python 3.15+), but that's not available yet
+        //
+        // Py_IsFinalizing() uses atomic loads (_Py_atomic_load_ptr_relaxed) and
+        // is safe to call from any thread without holding the GIL.
+#if PY_VERSION_HEX >= 0x30d0000
+        if (Py_IsFinalizing()) {
 #else
-        if (!_Py_IsFinalizing()) {
+        if (_Py_IsFinalizing()) {
 #endif
+            // Skip decref during finalization. The object will be cleaned up
+            // by Python's finalization process anyway. See _threadmodule.c:377-378
+            // for similar handling: "Py_DECREF() cannot be called because the GIL
+            // is not held: leak references on purpose. Python is being finalized anyway."
+            return;
+        }
+        // Only decref if we have the GIL. In normal operation, the GIL should
+        // be held because PyRef is destroyed before GILGuard in the thread lambda
+        // (destructors run in reverse order). PyGILState_Check() accesses thread-local
+        // storage which may be invalid during finalization, so we only call it
+        // after checking finalization.
+        if (PyGILState_Check()) {
+            // Small TOCTOU window here, but mitigated by already holding GIL
             Py_DECREF(_obj);
         }
+        // If GIL is not held and Python is not finalizing, skip decref to avoid
+        // crashes (acceptable leak during abnormal shutdown scenarios).
     }
 
   private:
