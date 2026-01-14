@@ -1267,6 +1267,14 @@ class LLMObs(Service):
         Returns:
             The refreshed prompt, or None if fetch failed or prompt manager is not available.
         """
+        # Double-checked locking for thread-safe initialization
+        if not cls._prompt_manager_initialized:
+            with cls._prompt_manager_lock:
+                if not cls._prompt_manager_initialized:
+                    cls._prompt_manager = cls._initialize_prompt_manager()
+                    if cls._prompt_manager is not None:
+                        cls._prompt_manager_initialized = True
+
         if cls._prompt_manager is None:
             log.warning("Cannot refresh prompt: prompt manager not initialized")
             return None
