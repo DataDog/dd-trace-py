@@ -29,18 +29,20 @@ uv pip compile --generate-hashes --upgrade ci/requirements/ci.in -o ci/requireme
 
 **On macOS:** Requirements must be compiled on Linux to include platform-specific dependencies (e.g., `keyring` needs `SecretStorage` on Linux but not macOS).
 
+**Python Version:** Compile for Python 3.9 to ensure compatibility across all CI jobs (the project supports Python 3.9+).
+
 Run this in Docker:
 
 ```bash
-docker run --rm -v $(pwd):/work -w /work python:3.13 \
+docker run --rm -v $(pwd):/work -w /work python:3.9 \
   bash -c 'pip install uv && uv pip compile --generate-hashes \
-  --python-platform linux ci/requirements/ci.in -o ci/requirements/ci.txt'
+  --python-platform linux --python-version 3.9 ci/requirements/ci.in -o ci/requirements/ci.txt'
 ```
 
-Or use the `--python-platform linux` flag with uv locally:
+Or use uv locally with platform/version flags:
 
 ```bash
-uv pip compile --generate-hashes --python-platform linux ci/requirements/ci.in -o ci/requirements/ci.txt
+uv pip compile --generate-hashes --python-platform linux --python-version 3.9 ci/requirements/ci.in -o ci/requirements/ci.txt
 ```
 
 ## CI Validation
