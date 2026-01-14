@@ -1218,11 +1218,13 @@ class LLMObs(Service):
                 )
         """
         # Double-checked locking for thread-safe initialization
+        # Only mark as initialized if manager was successfully created
         if not cls._prompt_manager_initialized:
             with cls._prompt_manager_lock:
                 if not cls._prompt_manager_initialized:
                     cls._prompt_manager = cls._initialize_prompt_manager()
-                    cls._prompt_manager_initialized = True
+                    if cls._prompt_manager is not None:
+                        cls._prompt_manager_initialized = True
 
         if cls._prompt_manager is None:
             return cls._create_fallback_prompt(prompt_id, label, fallback)
