@@ -12,6 +12,7 @@ add_executable(fuzz_echion_remote_read
     ../src/echion/danger.cc
     ../src/echion/stack_chunk.cc
     ../src/echion/strings.cc
+    ../src/echion/long.cc
 )
 
 target_include_directories(fuzz_echion_remote_read PRIVATE ../include)
