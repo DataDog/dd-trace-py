@@ -246,7 +246,7 @@ class ManagedPrompt:
         )
 
 
-_VARIABLE_PATTERN = re.compile(r"\{\{(\w+)\}\}")
+_VARIABLE_PATTERN = re.compile(r"\{\{\s*(\w+)\s*\}\}")
 
 
 def _safe_substitute(template: str, variables: Dict[str, str]) -> str:
