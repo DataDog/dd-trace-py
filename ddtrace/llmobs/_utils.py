@@ -49,13 +49,7 @@ STANDARD_INTEGRATION_SPAN_NAMES = (
 )
 
 
-def _validate_prompt(
-    prompt: Union[Dict[str, Any], Prompt, ManagedPrompt],
-    strict_validation: bool,
-) -> ValidatedPromptDict:
-    if isinstance(prompt, ManagedPrompt):
-        prompt = prompt.to_annotation_dict()
-
+def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: bool) -> ValidatedPromptDict:
     if not isinstance(prompt, dict):
         raise TypeError(f"Prompt must be a dictionary, received {type(prompt).__name__}.")
 
@@ -63,7 +57,7 @@ def _validate_prompt(
     prompt_id = prompt.get("id")
     version = prompt.get("version")
     tags = prompt.get("tags")
-    variables: Optional[Dict[str, Any]] = prompt.get("variables") or None
+    variables = prompt.get("variables")
     template = prompt.get("template")
     chat_template = prompt.get("chat_template")
     ctx_variable_keys = prompt.get("rag_context_variables")
