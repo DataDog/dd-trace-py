@@ -1,0 +1,72 @@
+[
+  {
+    "flag": "json-config-flag",
+    "variationType": "JSON",
+    "defaultValue": {
+      "foo": "bar"
+    },
+    "targetingKey": "alice",
+    "attributes": {
+      "email": "alice@mycompany.com",
+      "country": "US"
+    },
+    "result": {
+      "value": {
+        "integer": 1,
+        "string": "one",
+        "float": 1.0
+      }
+    }
+  },
+  {
+    "flag": "json-config-flag",
+    "variationType": "JSON",
+    "defaultValue": {
+      "foo": "bar"
+    },
+    "targetingKey": "bob",
+    "attributes": {
+      "email": "bob@example.com",
+      "country": "Canada"
+    },
+    "result": {
+      "value": {
+        "integer": 2,
+        "string": "two",
+        "float": 2.0
+      }
+    }
+  },
+  {
+    "flag": "json-config-flag",
+    "variationType": "JSON",
+    "defaultValue": {
+      "foo": "bar"
+    },
+    "targetingKey": "charlie",
+    "attributes": {
+      "age": 50
+    },
+    "result": {
+      "value": {
+        "integer": 2,
+        "string": "two",
+        "float": 2.0
+      }
+    }
+  },
+  {
+    "flag": "json-config-flag",
+    "variationType": "JSON",
+    "defaultValue": {
+      "foo": "bar"
+    },
+    "targetingKey": "diana",
+    "attributes": {
+      "Force Empty": true
+    },
+    "result": {
+      "value": {}
+    }
+  }
+]

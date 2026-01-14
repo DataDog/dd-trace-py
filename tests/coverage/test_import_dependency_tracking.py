@@ -60,14 +60,14 @@ def test_direct_import_dependency():
     )
 
     # Verify the main file is covered
-    assert (
-        "tests/coverage/included_path/import_time_callee.py" in covered_no_imports
-    ), "Main executed file should be in coverage without imports"
+    assert "tests/coverage/included_path/import_time_callee.py" in covered_no_imports, (
+        "Main executed file should be in coverage without imports"
+    )
 
     # CRITICAL: Verify dependency is only included with include_imported=True
-    assert (
-        "tests/coverage/included_path/import_time_lib.py" in covered_with_imports
-    ), "Import dependency should be included when include_imported=True"
+    assert "tests/coverage/included_path/import_time_lib.py" in covered_with_imports, (
+        "Import dependency should be included when include_imported=True"
+    )
 
     # Note: import_time_lib may be in covered_no_imports if it was imported before coverage started
     # The key test is that it's definitely in covered_with_imports
@@ -112,9 +112,9 @@ def test_transitive_import_dependency():
     ]
 
     for module in expected_modules:
-        assert (
-            module in covered_with_imports
-        ), f"Transitive dependency {module} should be tracked with include_imported=True"
+        assert module in covered_with_imports, (
+            f"Transitive dependency {module} should be tracked with include_imported=True"
+        )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
@@ -151,9 +151,9 @@ def test_import_inside_function():
     )
 
     # CRITICAL: The module imported inside the function should be tracked
-    assert (
-        "tests/coverage/included_path/imported_in_function_lib.py" in covered_with_imports
-    ), "Module imported inside function should be tracked with include_imported=True"
+    assert "tests/coverage/included_path/imported_in_function_lib.py" in covered_with_imports, (
+        "Module imported inside function should be tracked with include_imported=True"
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
@@ -191,9 +191,9 @@ def test_import_tracking_persists_across_contexts():
     # Both contexts should have the main file (re-instrumentation test)
     assert "tests/coverage/included_path/import_time_callee.py" in context1_covered, "Context 1 should have main file"
 
-    assert (
-        "tests/coverage/included_path/import_time_callee.py" in context2_covered
-    ), "Context 2 should have main file (re-instrumentation test)"
+    assert "tests/coverage/included_path/import_time_callee.py" in context2_covered, (
+        "Context 2 should have main file (re-instrumentation test)"
+    )
 
     # Import dependencies are tracked at the module level (via _import_time_covered)
     # Verify they're available
@@ -208,9 +208,9 @@ def test_import_tracking_persists_across_contexts():
 
     # If import-time tracking is enabled, we should have the callee file in import_time_covered
     if callee_path:
-        assert (
-            len(import_time_covered[callee_path]) > 0
-        ), "Import time covered should track lines for import_time_callee.py"
+        assert len(import_time_covered[callee_path]) > 0, (
+            "Import time covered should track lines for import_time_callee.py"
+        )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
@@ -257,9 +257,9 @@ def test_import_names_by_path_populated():
 
     # Check that the import entries reference import_time_lib
     import_names_str = str(import_entries)
-    assert (
-        "import_time_lib" in import_names_str
-    ), f"Import entries should reference import_time_lib, got: {import_entries}"
+    assert "import_time_lib" in import_names_str, (
+        f"Import entries should reference import_time_lib, got: {import_entries}"
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
@@ -297,12 +297,12 @@ def test_no_false_dependencies():
     # (it's only used in a different function that we didn't call)
     # Note: This may be present if module_level_constant was evaluated at import time
     # So we just verify the core dependencies are correct
-    assert (
-        "tests/coverage/included_path/import_time_lib.py" in covered_with_imports
-    ), "Should track actual import dependency"
-    assert (
-        "tests/coverage/included_path/nested_import_time_lib.py" in covered_with_imports
-    ), "Should track transitive import dependency"
+    assert "tests/coverage/included_path/import_time_lib.py" in covered_with_imports, (
+        "Should track actual import dependency"
+    )
+    assert "tests/coverage/included_path/nested_import_time_lib.py" in covered_with_imports, (
+        "Should track transitive import dependency"
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")

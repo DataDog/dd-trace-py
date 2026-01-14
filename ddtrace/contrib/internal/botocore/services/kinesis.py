@@ -6,7 +6,7 @@ from typing import Dict
 from typing import List
 from typing import Tuple
 
-import botocore.client
+import botocore.client  # noqa: F401
 import botocore.exceptions
 
 from ddtrace import config
@@ -134,26 +134,29 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
     child_of = parent_ctx.get_item("distributed_context")
 
     if should_instrument:
-        with core.context_with_data(
-            "botocore.patched_kinesis_api_call",
-            parent=parent_ctx,
-            instance=instance,
-            args=args,
-            params=params,
-            endpoint_name=endpoint_name,
-            child_of=child_of if child_of is not None else pin.tracer.context_provider.active(),
-            operation=operation,
-            service=schematize_service_name(
-                "{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)
-            ),
-            call_trace=False,
-            pin=pin,
-            span_name=span_name,
-            span_type=SpanTypes.HTTP,
-            activate=True,
-            func_run=is_getrecords_call,
-            start_ns=start_ns,
-        ) as ctx, ctx.span:
+        with (
+            core.context_with_data(
+                "botocore.patched_kinesis_api_call",
+                parent=parent_ctx,
+                instance=instance,
+                args=args,
+                params=params,
+                endpoint_name=endpoint_name,
+                child_of=child_of if child_of is not None else pin.tracer.context_provider.active(),
+                operation=operation,
+                service=schematize_service_name(
+                    "{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)
+                ),
+                call_trace=False,
+                pin=pin,
+                span_name=span_name,
+                span_type=SpanTypes.HTTP,
+                activate=True,
+                func_run=is_getrecords_call,
+                start_ns=start_ns,
+            ) as ctx,
+            ctx.span,
+        ):
             core.dispatch("botocore.patched_kinesis_api_call.started", [ctx])
 
             if is_kinesis_put_operation:

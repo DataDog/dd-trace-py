@@ -3,6 +3,7 @@ setuptools==70.0.0
 
 https://pypi.org/project/setuptools/
 """
+
 from flask import Blueprint
 from flask import request
 

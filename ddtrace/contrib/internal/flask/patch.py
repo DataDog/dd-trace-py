@@ -503,14 +503,17 @@ def _build_render_template_wrapper(name):
         pin = Pin._find(wrapped, instance, get_current_app())
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
-        with core.context_with_data(
-            "flask.render_template",
-            span_name=name,
-            pin=pin,
-            flask_config=config.flask,
-            tags={COMPONENT: config.flask.integration_name},
-            span_type=SpanTypes.TEMPLATE,
-        ) as ctx, ctx.span:
+        with (
+            core.context_with_data(
+                "flask.render_template",
+                span_name=name,
+                pin=pin,
+                flask_config=config.flask,
+                tags={COMPONENT: config.flask.integration_name},
+                span_type=SpanTypes.TEMPLATE,
+            ) as ctx,
+            ctx.span,
+        ):
             return wrapped(*args, **kwargs)
 
     return traced_render
@@ -555,17 +558,20 @@ def _block_request_callable(call):
 def request_patcher(name):
     @with_instance_pin
     def _patched_request(pin, wrapped, instance, args, kwargs):
-        with core.context_with_data(
-            "flask._patched_request",
-            span_name=".".join(("flask", name)),
-            pin=pin,
-            service=trace_utils.int_service(pin, config.flask, pin),
-            flask_config=config.flask,
-            flask_request=flask.request,
-            block_request_callable=_block_request_callable,
-            ignored_exception_type=NotFound,
-            tags={COMPONENT: config.flask.integration_name},
-        ) as ctx, ctx.span:
+        with (
+            core.context_with_data(
+                "flask._patched_request",
+                span_name=".".join(("flask", name)),
+                pin=pin,
+                service=trace_utils.int_service(pin, config.flask, pin),
+                flask_config=config.flask,
+                flask_request=flask.request,
+                block_request_callable=_block_request_callable,
+                ignored_exception_type=NotFound,
+                tags={COMPONENT: config.flask.integration_name},
+            ) as ctx,
+            ctx.span,
+        ):
             core.dispatch("flask._patched_request", (ctx,))
             return wrapped(*args, **kwargs)
 
@@ -590,11 +596,14 @@ def patched_jsonify(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    with core.context_with_data(
-        "flask.jsonify",
-        span_name="flask.jsonify",
-        flask_config=config.flask,
-        tags={COMPONENT: config.flask.integration_name},
-        pin=pin,
-    ) as ctx, ctx.span:
+    with (
+        core.context_with_data(
+            "flask.jsonify",
+            span_name="flask.jsonify",
+            flask_config=config.flask,
+            tags={COMPONENT: config.flask.integration_name},
+            pin=pin,
+        ) as ctx,
+        ctx.span,
+    ):
         return wrapped(*args, **kwargs)

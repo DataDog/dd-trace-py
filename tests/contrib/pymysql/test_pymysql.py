@@ -6,7 +6,6 @@ from ddtrace.contrib.internal.pymysql.patch import patch
 from ddtrace.contrib.internal.pymysql.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib import shared_tests
-from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_dict_issuperset
 from tests.utils import assert_is_measured
@@ -58,7 +57,7 @@ class PyMySQLCore(object):
 
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         span = spans[0]
@@ -83,7 +82,7 @@ class PyMySQLCore(object):
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
             assert len(rows) == 1
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 2
 
             span = spans[0]
@@ -111,7 +110,7 @@ class PyMySQLCore(object):
         cursor.execute(query)
         rows = cursor.fetchall()
         assert len(rows) == 3
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         self.assertEqual(spans[0].name, "pymysql.query")
 
@@ -124,7 +123,7 @@ class PyMySQLCore(object):
             cursor.execute(query)
             rows = cursor.fetchall()
             assert len(rows) == 3
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 2
 
             fetch_span = spans[1]
@@ -161,7 +160,7 @@ class PyMySQLCore(object):
         assert rows[1][0] == "foo"
         assert rows[1][1] == "this is foo"
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         cursor.execute("drop table if exists dummy")
 
@@ -193,7 +192,7 @@ class PyMySQLCore(object):
             assert rows[1][0] == "foo"
             assert rows[1][1] == "this is foo"
 
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 3
             cursor.execute("drop table if exists dummy")
 
@@ -232,7 +231,7 @@ class PyMySQLCore(object):
         assert len(output) == 3
         assert output[2] == 42
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert spans, spans
 
         # number of spans depends on PyMySQL implementation details,
@@ -249,78 +248,11 @@ class PyMySQLCore(object):
         meta.update(self.DB_INFO)
         assert_dict_issuperset(span.get_tags(), meta)
 
-    def test_simple_query_ot(self):
-        """OpenTracing version of test_simple_query."""
-        conn, tracer = self._get_conn_tracer()
-
-        ot_tracer = init_tracer("mysql_svc", tracer)
-        with ot_tracer.start_active_span("mysql_op"):
-            cursor = conn.cursor()
-            cursor.execute("SELECT 1")
-            rows = cursor.fetchall()
-            assert len(rows) == 1
-
-        spans = tracer.pop()
-        assert len(spans) == 2
-        ot_span, dd_span = spans
-
-        # confirm parenting
-        assert ot_span.parent_id is None
-        assert dd_span.parent_id == ot_span.span_id
-
-        assert ot_span.service == "mysql_svc"
-        assert ot_span.name == "mysql_op"
-
-        assert_is_measured(dd_span)
-        assert dd_span.service == "pymysql"
-        assert dd_span.name == "pymysql.query"
-        assert dd_span.span_type == "sql"
-        assert dd_span.error == 0
-        assert dd_span.get_metric("network.destination.port") == MYSQL_CONFIG.get("port")
-        meta = {}
-        meta.update(self.DB_INFO)
-        assert_dict_issuperset(dd_span.get_tags(), meta)
-
-    def test_simple_query_ot_fetchall(self):
-        """OpenTracing version of test_simple_query."""
-        with self.override_config("pymysql", dict(trace_fetch_methods=True)):
-            conn, tracer = self._get_conn_tracer()
-
-            ot_tracer = init_tracer("mysql_svc", tracer)
-            with ot_tracer.start_active_span("mysql_op"):
-                cursor = conn.cursor()
-                cursor.execute("SELECT 1")
-                rows = cursor.fetchall()
-                assert len(rows) == 1
-
-            spans = tracer.pop()
-            assert len(spans) == 3
-            ot_span, dd_span, fetch_span = spans
-
-            # confirm parenting
-            assert ot_span.parent_id is None
-            assert dd_span.parent_id == ot_span.span_id
-
-            assert ot_span.service == "mysql_svc"
-            assert ot_span.name == "mysql_op"
-
-            assert_is_measured(dd_span)
-            assert dd_span.service == "pymysql"
-            assert dd_span.name == "pymysql.query"
-            assert dd_span.span_type == "sql"
-            assert dd_span.error == 0
-            assert dd_span.get_metric("network.destination.port") == MYSQL_CONFIG.get("port")
-            meta = {}
-            meta.update(self.DB_INFO)
-            assert_dict_issuperset(dd_span.get_tags(), meta)
-
-            assert fetch_span.name == "pymysql.query.fetchall"
-
     def test_commit(self):
         conn, tracer = self._get_conn_tracer()
 
         conn.commit()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "pymysql"
@@ -330,7 +262,7 @@ class PyMySQLCore(object):
         conn, tracer = self._get_conn_tracer()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "pymysql"
@@ -401,7 +333,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         span = spans[0]
@@ -414,7 +346,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
             assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
     @TracerTestCase.run_in_subprocess(

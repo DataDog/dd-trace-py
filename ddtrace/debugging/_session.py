@@ -88,9 +88,9 @@ class Session:
 
 
 class SessionManager:
-    _sessions_trace_map: t.MutableMapping[
-        t.Any, t.Dict[SessionId, Session]
-    ] = wkdict()  # Trace context to Sessions mapping
+    _sessions_trace_map: t.MutableMapping[t.Any, t.Dict[SessionId, Session]] = (
+        wkdict()
+    )  # Trace context to Sessions mapping
 
     @classmethod
     def link_session_to_trace(cls, session: Session, trace_context: t.Optional[t.Any] = None) -> None:

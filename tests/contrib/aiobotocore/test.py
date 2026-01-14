@@ -25,11 +25,11 @@ def patch_aiobotocore():
 
 
 @pytest.mark.asyncio
-async def test_traced_client(tracer):
+async def test_traced_client(tracer, test_spans):
     async with aiobotocore_client("ec2", tracer) as ec2:
         await ec2.describe_instances()
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 1
     span = traces[0][0]
@@ -51,12 +51,12 @@ async def test_traced_client(tracer):
 
 
 @pytest.mark.asyncio
-async def test_s3_client(tracer):
+async def test_s3_client(tracer, test_spans):
     async with aiobotocore_client("s3", tracer) as s3:
         await s3.list_buckets()
         await s3.list_buckets()
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 2
     assert len(traces[0]) == 1
     span = traces[0][0]
@@ -71,7 +71,7 @@ async def test_s3_client(tracer):
     assert span.get_tag("span.kind") == "client"
 
 
-async def _test_s3_put(tracer, use_make_api_call, bucket_name):
+async def _test_s3_put(tracer, test_spans, use_make_api_call, bucket_name):
     params = dict(Key="foo", Bucket=bucket_name, Body=b"bar")
 
     async with aiobotocore_client("s3", tracer) as s3:
@@ -85,7 +85,7 @@ async def _test_s3_put(tracer, use_make_api_call, bucket_name):
             await s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={"LocationConstraint": "us-west-2"})
             await s3.put_object(**params)
 
-    spans = [trace[0] for trace in tracer.pop_traces()]
+    spans = [trace[0] for trace in test_spans.pop_traces()]
     assert spans
     assert len(spans) == 2
     assert spans[0].get_tag("aws.operation") == "CreateBucket"
@@ -104,19 +104,19 @@ async def _test_s3_put(tracer, use_make_api_call, bucket_name):
 
 @pytest.mark.parametrize("use_make_api_call", [True, False])
 @pytest.mark.asyncio
-async def test_s3_put(tracer, use_make_api_call):
+async def test_s3_put(tracer, test_spans, use_make_api_call):
     bucket_name = f"{time.time()}bucket".replace(".", "")
-    span = await _test_s3_put(tracer, use_make_api_call, bucket_name)
+    span = await _test_s3_put(tracer, test_spans, use_make_api_call, bucket_name)
     assert span.get_tag("aws.s3.bucket_name") == bucket_name
     assert span.get_tag("bucketname") == bucket_name
     assert span.get_tag("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
-async def test_s3_put_no_params(tracer):
+async def test_s3_put_no_params(tracer, test_spans):
     bucket_name = f"{time.time()}bucket".replace(".", "")
     with override_config("aiobotocore", dict(tag_no_params=True)):
-        span = await _test_s3_put(tracer, False, bucket_name)
+        span = await _test_s3_put(tracer, test_spans, False, bucket_name)
         assert span.get_tag("aws.s3.bucket_name") is None
         assert span.get_tag("bucketname") is None
         assert span.get_tag("params.Key") is None
@@ -126,13 +126,13 @@ async def test_s3_put_no_params(tracer):
 
 
 @pytest.mark.asyncio
-async def test_s3_client_error(tracer):
+async def test_s3_client_error(tracer, test_spans):
     async with aiobotocore_client("s3", tracer) as s3:
         with pytest.raises(ClientError):
             # FIXME: add proper clean-up to tearDown
             await s3.list_objects(Bucket="doesnotexist")
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 1
     span = traces[0][0]
@@ -146,18 +146,18 @@ async def test_s3_client_error(tracer):
 
 
 @pytest.mark.asyncio
-async def test_s3_client_read(tracer):
+async def test_s3_client_read(tracer, test_spans):
     bucket_name = f"{time.time()}bucket".replace(".", "")
     async with aiobotocore_client("s3", tracer) as s3:
         # prepare S3 and flush traces if any
         await s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={"LocationConstraint": "us-west-2"})
         await s3.put_object(Bucket=bucket_name, Key="apm", Body=b"")
-        tracer.pop_traces()
+        test_spans.pop_traces()
         # calls under test
         response = await s3.get_object(Bucket=bucket_name, Key="apm")
         await response["Body"].read()
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     version = aiobotocore.__version__.split(".")
     pre_08 = int(version[0]) == 0 and int(version[1]) < 8
     if pre_08:
@@ -191,11 +191,11 @@ async def test_s3_client_read(tracer):
 
 
 @pytest.mark.asyncio
-async def test_sqs_client(tracer):
+async def test_sqs_client(tracer, test_spans):
     async with aiobotocore_client("sqs", tracer) as sqs:
         await sqs.list_queues()
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 1
 
@@ -214,11 +214,11 @@ async def test_sqs_client(tracer):
 
 
 @pytest.mark.asyncio
-async def test_kinesis_client(tracer):
+async def test_kinesis_client(tracer, test_spans):
     async with aiobotocore_client("kinesis", tracer) as kinesis:
         await kinesis.list_streams()
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 1
 
@@ -237,11 +237,11 @@ async def test_kinesis_client(tracer):
 
 
 @pytest.mark.asyncio
-async def test_lambda_client(tracer):
+async def test_lambda_client(tracer, test_spans):
     async with aiobotocore_client("lambda", tracer) as lambda_client:
         await lambda_client.list_functions(MaxItems=5)
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 1
 
@@ -259,11 +259,11 @@ async def test_lambda_client(tracer):
 
 
 @pytest.mark.asyncio
-async def test_kms_client(tracer):
+async def test_kms_client(tracer, test_spans):
     async with aiobotocore_client("kms", tracer) as kms:
         await kms.list_keys(Limit=21)
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 1
 
@@ -283,114 +283,28 @@ async def test_kms_client(tracer):
 
 
 @pytest.mark.asyncio
-async def test_unpatch(tracer):
+async def test_unpatch(tracer, test_spans):
     unpatch()
     async with aiobotocore_client("kinesis", tracer) as kinesis:
         await kinesis.list_streams()
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 0
 
 
 @pytest.mark.asyncio
-async def test_double_patch(tracer):
+async def test_double_patch(tracer, test_spans):
     patch()
     async with aiobotocore_client("sqs", tracer) as sqs:
         await sqs.list_queues()
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 1
 
 
 @pytest.mark.asyncio
-async def test_opentraced_client(tracer):
-    from tests.opentracer.utils import init_tracer
-
-    ot_tracer = init_tracer("my_svc", tracer)
-
-    with ot_tracer.start_active_span("ot_outer_span"):
-        async with aiobotocore_client("ec2", tracer) as ec2:
-            await ec2.describe_instances()
-
-    traces = tracer.pop_traces()
-    assert len(traces) == 1
-    assert len(traces[0]) == 2
-    ot_span = traces[0][0]
-    dd_span = traces[0][1]
-
-    assert ot_span.resource == "ot_outer_span"
-    assert ot_span.service == "my_svc"
-
-    # confirm the parenting
-    assert ot_span.parent_id is None
-    assert dd_span.parent_id == ot_span.span_id
-
-    assert_is_measured(dd_span)
-    assert dd_span.get_tag("aws.agent") == "aiobotocore"
-    assert dd_span.get_tag("aws.region") == "us-west-2"
-    assert dd_span.get_tag("region") == "us-west-2"
-    assert dd_span.get_tag("aws.operation") == "DescribeInstances"
-    assert_span_http_status_code(dd_span, 200)
-    assert dd_span.get_metric("retry_attempts") == 0
-    assert dd_span.service == "aws.ec2"
-    assert dd_span.resource == "ec2.describeinstances"
-    assert dd_span.name == "ec2.command"
-    assert dd_span.get_tag("component") == "aiobotocore"
-    assert dd_span.get_tag("span.kind") == "client"
-
-
-@pytest.mark.asyncio
-async def test_opentraced_s3_client(tracer):
-    from tests.opentracer.utils import init_tracer
-
-    ot_tracer = init_tracer("my_svc", tracer)
-
-    with ot_tracer.start_active_span("ot_outer_span"):
-        async with aiobotocore_client("s3", tracer) as s3:
-            await s3.list_buckets()
-            with ot_tracer.start_active_span("ot_inner_span1"):
-                await s3.list_buckets()
-            with ot_tracer.start_active_span("ot_inner_span2"):
-                pass
-
-    traces = tracer.pop_traces()
-    assert len(traces) == 1
-    assert len(traces[0]) == 5
-    ot_outer_span = traces[0][0]
-    dd_span = traces[0][1]
-    ot_inner_span = traces[0][2]
-    dd_span2 = traces[0][3]
-    ot_inner_span2 = traces[0][4]
-
-    assert ot_outer_span.resource == "ot_outer_span"
-    assert ot_inner_span.resource == "ot_inner_span1"
-    assert ot_inner_span2.resource == "ot_inner_span2"
-
-    # confirm the parenting
-    assert ot_outer_span.parent_id is None
-    assert dd_span.parent_id == ot_outer_span.span_id
-    assert ot_inner_span.parent_id == ot_outer_span.span_id
-    assert dd_span2.parent_id == ot_inner_span.span_id
-    assert ot_inner_span2.parent_id == ot_outer_span.span_id
-
-    assert_is_measured(dd_span)
-    assert dd_span.get_tag("aws.operation") == "ListBuckets"
-    assert_span_http_status_code(dd_span, 200)
-    assert dd_span.service == "aws.s3"
-    assert dd_span.resource == "s3.listbuckets"
-    assert dd_span.name == "s3.command"
-
-    assert dd_span2.get_tag("aws.operation") == "ListBuckets"
-    assert_span_http_status_code(dd_span2, 200)
-    assert dd_span2.service == "aws.s3"
-    assert dd_span2.resource == "s3.listbuckets"
-    assert dd_span2.name == "s3.command"
-    assert dd_span.get_tag("component") == "aiobotocore"
-
-
-@pytest.mark.asyncio
-async def test_user_specified_service(tracer):
+async def test_user_specified_service(tracer, test_spans):
     """
     When a service name is specified by the user
         The aiobotocore integration should use it as the service name
@@ -402,7 +316,7 @@ async def test_user_specified_service(tracer):
         async with aiobotocore_client("ec2", tracer) as ec2:
             await ec2.describe_instances()
 
-        traces = tracer.pop_traces()
+        traces = test_spans.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -440,7 +354,7 @@ def patch_aiobotocore():
     yield
     unpatch()
 
-def test(tracer):
+def test(tracer, test_spans):
     async def async_test(tracer):
         unpatch()
         patch()
@@ -457,30 +371,23 @@ def test(tracer):
         async with aiobotocore_client("kms", tracer) as kms:
             await kms.list_keys(Limit=21)
 
-        traces = tracer.pop_traces()
-        assert len(traces) == 6
-        assert len(traces[0]) == 1
-        ec2_span = traces[0][0]
-        s3_span = traces[1][0]
-        sqs_span = traces[2][0]
-        kinesis_span = traces[3][0]
-        lambda_span = traces[4][0]
-        kms_span = traces[5][0]
+        traces = test_spans.pop_traces()
+        # Flatten traces to get all spans
+        all_spans = [span for trace in traces for span in trace]
 
-        service_format = "{}"
-        operation_format = "{}"
-        for (aws_service, aws_span) in [
-            ("ec2", ec2_span),
-            ("s3", s3_span),
-            ("sqs", sqs_span),
-            ("kinesis", kinesis_span),
-            ("lambda", lambda_span),
-            ("kms", kms_span),
-        ]:
+        service_format = "{0}"
+        operation_format = "{1}"
+        aws_services = ["ec2", "s3", "sqs", "kinesis", "lambda", "kms"]
+        for aws_service in aws_services:
             operation_name = operation_format.format(aws_service)
             service_name = service_format.format(aws_service)
+            # Find spans matching this specific AWS service operation
+            matching_spans = [s for s in all_spans if s.name == operation_name]
+            assert len(matching_spans) == 1, (
+                f"Expected 1 span with name {{operation_name}}, got {{len(matching_spans)}}"
+            )
+            aws_span = matching_spans[0]
             assert aws_span.service == service_name
-            assert aws_span.name == operation_name
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(async_test(tracer))
@@ -488,9 +395,7 @@ def test(tracer):
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_service_name, expected_operation_name
-    )
+    """.format(expected_service_name, expected_operation_name)
     env = os.environ.copy()
     if service_name:
         env["DD_SERVICE"] = service_name
@@ -501,7 +406,7 @@ if __name__ == "__main__":
 
 
 @pytest.mark.asyncio
-async def test_response_context_manager(tracer):
+async def test_response_context_manager(tracer, test_spans):
     bucket_name = f"{time.time()}bucket".replace(".", "")
     # the client should call the wrapped __aenter__ and return the
     # object proxy
@@ -509,13 +414,13 @@ async def test_response_context_manager(tracer):
         # prepare S3 and flush traces if any
         await s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={"LocationConstraint": "us-west-2"})
         await s3.put_object(Bucket=bucket_name, Key="apm", Body=b"")
-        tracer.pop_traces()
+        test_spans.pop_traces()
         # `async with` under test
         response = await s3.get_object(Bucket=bucket_name, Key="apm")
         async with response["Body"] as stream:
             await stream.read()
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
 
     version = aiobotocore.__version__.split(".")
     pre_08 = int(version[0]) == 0 and int(version[1]) < 8
@@ -560,14 +465,14 @@ async def test_response_context_manager(tracer):
 
 # Peer service tests
 @pytest.mark.asyncio
-async def test_sqs_client_peer_service_in_lambda(tracer, monkeypatch):
+async def test_sqs_client_peer_service_in_lambda(tracer, test_spans, monkeypatch):
     """Test that peer.service tag is set for SQS when running in AWS Lambda"""
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "my-func")
 
     async with aiobotocore_client("sqs", tracer) as sqs:
         await sqs.list_queues()
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 1
     span = traces[0][0]
@@ -576,7 +481,7 @@ async def test_sqs_client_peer_service_in_lambda(tracer, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_s3_client_peer_service_in_lambda(tracer, monkeypatch):
+async def test_s3_client_peer_service_in_lambda(tracer, test_spans, monkeypatch):
     """Test that peer.service tag is set for S3 when running in AWS Lambda"""
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "my-func")
     bucket_name = f"{time.time()}bucket".replace(".", "")
@@ -585,7 +490,7 @@ async def test_s3_client_peer_service_in_lambda(tracer, monkeypatch):
         # Test with bucket parameter
         await s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={"LocationConstraint": "us-west-2"})
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 1
     span = traces[0][0]
@@ -594,14 +499,14 @@ async def test_s3_client_peer_service_in_lambda(tracer, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_dynamodb_client_peer_service_in_lambda(tracer, monkeypatch):
+async def test_dynamodb_client_peer_service_in_lambda(tracer, test_spans, monkeypatch):
     """Test that peer.service tag is set for DynamoDB when running in AWS Lambda"""
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "my-func")
 
     async with aiobotocore_client("dynamodb", tracer) as dynamodb:
         await dynamodb.list_tables()
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 1
     span = traces[0][0]
@@ -610,14 +515,14 @@ async def test_dynamodb_client_peer_service_in_lambda(tracer, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_kinesis_client_peer_service_in_lambda(tracer, monkeypatch):
+async def test_kinesis_client_peer_service_in_lambda(tracer, test_spans, monkeypatch):
     """Test that peer.service tag is set for Kinesis when running in AWS Lambda"""
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "my-func")
 
     async with aiobotocore_client("kinesis", tracer) as kinesis:
         await kinesis.list_streams()
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 1
     span = traces[0][0]
@@ -626,14 +531,14 @@ async def test_kinesis_client_peer_service_in_lambda(tracer, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_sns_client_peer_service_in_lambda(tracer, monkeypatch):
+async def test_sns_client_peer_service_in_lambda(tracer, test_spans, monkeypatch):
     """Test that peer.service tag is set for SNS when running in AWS Lambda"""
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "my-func")
 
     async with aiobotocore_client("sns", tracer) as sns:
         await sns.list_topics()
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 1
     span = traces[0][0]
@@ -642,14 +547,14 @@ async def test_sns_client_peer_service_in_lambda(tracer, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_eventbridge_client_peer_service_in_lambda(tracer, monkeypatch):
+async def test_eventbridge_client_peer_service_in_lambda(tracer, test_spans, monkeypatch):
     """Test that peer.service tag is set for EventBridge when running in AWS Lambda"""
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "my-func")
 
     async with aiobotocore_client("events", tracer) as events:
         await events.list_rules()
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 1
     span = traces[0][0]

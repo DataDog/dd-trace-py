@@ -4,6 +4,7 @@ external packages (e.g., werkzeug) to be installed in the environment.
 This is necessary for detection by should_iast_patch,
 which checks for packages in site-packages.
 """
+
 import sys
 
 import pytest

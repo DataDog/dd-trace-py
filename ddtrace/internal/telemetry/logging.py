@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 
 
 class DDTelemetryErrorHandler(logging.Handler):
@@ -15,4 +16,6 @@ class DDTelemetryErrorHandler(logging.Handler):
         """
         if record.levelno >= logging.ERROR:
             if getattr(record, "send_to_telemetry", None) in (None, True):
-                self.telemetry_writer.add_error_log(record.msg, record.exc_info)
+                # we do not want to send the [x skipped] part to telemetry
+                msg = re.sub(r"\s*\[\d+ skipped\]$", "", record.msg)
+                self.telemetry_writer.add_error_log(msg, record.exc_info)

@@ -14,8 +14,12 @@ import wrapt
 
 import ddtrace
 from ddtrace import config
+from ddtrace._trace._inferred_proxy import SUPPORTED_PROXY_SPAN_NAMES
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
+from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
+from ddtrace._trace._span_pointer import _SpanPointerDirection
+from ddtrace._trace._span_pointer import _SpanPointerDirectionName
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -31,18 +35,28 @@ from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanLinkKind
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.ext import redis as redisx
 from ddtrace.ext import websocket
+from ddtrace.ext.kafka import MESSAGE_KEY
+from ddtrace.ext.kafka import MESSAGE_OFFSET
+from ddtrace.ext.kafka import PARTITION
+from ddtrace.ext.kafka import RECEIVED_MESSAGE
+from ddtrace.ext.kafka import TOMBSTONE
+from ddtrace.ext.kafka import TOPIC
 from ddtrace.internal import core
+from ddtrace.internal.compat import ensure_binary
+from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
 from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import FLASK_VIEW_ARGS
+from ddtrace.internal.constants import HTTP_REQUEST_UPGRADED
 from ddtrace.internal.constants import MESSAGING_BATCH_COUNT
 from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
 from ddtrace.internal.constants import MESSAGING_MESSAGE_ID
@@ -56,6 +70,9 @@ from ddtrace.propagation.http import HTTPPropagator
 
 
 log = get_logger(__name__)
+
+_WEBSOCKET_LINK_ATTRS_EXECUTED = {SPAN_LINK_KIND: SpanLinkKind.EXECUTED}
+_WEBSOCKET_LINK_ATTRS_RESUMING = {SPAN_LINK_KIND: SpanLinkKind.RESUMING}
 
 
 class _TracedIterable(wrapt.ObjectProxy):
@@ -230,7 +247,7 @@ def _on_web_framework_finish_request(
 
 
 def _set_inferred_proxy_tags(span, status_code):
-    if span._parent and span._parent.name == "aws.apigateway":
+    if span._parent and span._parent.name in SUPPORTED_PROXY_SPAN_NAMES:
         inferred_span = span._parent
         status_code = status_code if status_code else span.get_tag("http.status_code")
         if status_code:
@@ -992,12 +1009,109 @@ def _set_client_ip_tags(scope: Mapping[str, Any], span: Span):
             log.debug("Could not validate client IP address for websocket send message: %s", str(e))
 
 
+def _init_websocket_message_counters(scope: Dict[str, Any]) -> None:
+    if "datadog" not in scope:
+        scope["datadog"] = {}
+    if "websocket_receive_counter" not in scope["datadog"]:
+        scope["datadog"]["websocket_receive_counter"] = 0
+    if "websocket_send_counter" not in scope["datadog"]:
+        scope["datadog"]["websocket_send_counter"] = 0
+
+
+def _increment_websocket_counter(scope: Dict[str, Any], counter_type: str) -> int:
+    """
+    Increment and return websocket message counter (either websocket_receive_counter or websocket_send_counter)
+    """
+    scope["datadog"][counter_type] += 1
+    return scope["datadog"][counter_type]
+
+
+def _build_websocket_span_pointer_hash(
+    handshake_trace_id: int,
+    handshake_span_id: int,
+    counter: int,
+    is_server: bool,
+    is_incoming: bool,
+) -> str:
+    """
+    Build websocket span pointer hash.
+
+    Format: <prefix><128 bit hex trace id><64 bit hex span id><32 bit hex counter>
+    Prefix: 'S' for server outgoing or client incoming, 'C' for server incoming or client outgoing
+    """
+    if (is_server and not is_incoming) or (not is_server and is_incoming):
+        prefix = "S"
+    else:
+        prefix = "C"
+
+    trace_id_hex = f"{handshake_trace_id:032x}"
+    span_id_hex = f"{handshake_span_id:016x}"
+    counter_hex = f"{counter:08x}"
+
+    return f"{prefix}{trace_id_hex}{span_id_hex}{counter_hex}"
+
+
+def _has_distributed_tracing_context(span: Span) -> bool:
+    """
+    Check if the handshake span has extracted distributed tracing context.
+
+    A websocket server must not set the span pointer if the handshake has not extracted a context
+
+    A span has distributed tracing context if it has a parent context that was
+    extracted from headers.
+    """
+    if not span or not span._parent_context:
+        return False
+    return span._parent_context._is_remote
+
+
+def _add_websocket_span_pointer_attributes(
+    link_attributes: Dict[str, Any],
+    integration_config: Any,
+    handshake_span: Span,
+    scope: Dict[str, Any],
+    is_incoming: bool,
+) -> None:
+    """
+    Add span pointer attributes to link_attributes for websocket message correlation.
+    """
+
+    if not integration_config.distributed_tracing or not _has_distributed_tracing_context(handshake_span):
+        return
+
+    # Increment counter based on message direction
+    counter_type = "websocket_receive_counter" if is_incoming else "websocket_send_counter"
+    counter = _increment_websocket_counter(scope, counter_type)
+
+    ptr_hash = _build_websocket_span_pointer_hash(
+        handshake_trace_id=handshake_span.trace_id,
+        handshake_span_id=handshake_span.span_id,
+        counter=counter,
+        is_server=True,
+        is_incoming=is_incoming,
+    )
+
+    if is_incoming:
+        link_name = _SpanPointerDirectionName.UPSTREAM
+        ptr_direction = _SpanPointerDirection.UPSTREAM
+    else:
+        link_name = _SpanPointerDirectionName.DOWNSTREAM
+        ptr_direction = _SpanPointerDirection.DOWNSTREAM
+
+    link_attributes.update(
+        {
+            "link.name": link_name,
+            "dd.kind": _SpanLinkKind.SPAN_POINTER.value,
+            "ptr.kind": SpanTypes.WEBSOCKET,
+            "ptr.dir": ptr_direction,
+            "ptr.hash": ptr_hash,
+        }
+    )
+
+
 def _on_asgi_websocket_receive_message(ctx, scope, message):
     """
     Handle websocket receive message events.
-
-    This handler is called when a websocket receive message event is dispatched.
-    It sets up the span with appropriate tags, metrics, and links.
     """
     span = ctx.span
     integration_config = ctx.get_item("integration_config")
@@ -1011,24 +1125,24 @@ def _on_asgi_websocket_receive_message(ctx, scope, message):
     span.set_metric(websocket.MESSAGE_FRAMES, 1)
 
     if hasattr(ctx, "parent") and ctx.parent.span:
-        span.set_link(
-            trace_id=ctx.parent.span.trace_id,
-            span_id=ctx.parent.span.span_id,
-            attributes={SPAN_LINK_KIND: SpanLinkKind.EXECUTED},
+        handshake_span = ctx.parent.span
+        link_attributes = _WEBSOCKET_LINK_ATTRS_EXECUTED.copy()
+
+        _add_websocket_span_pointer_attributes(
+            link_attributes, integration_config, handshake_span, scope, is_incoming=True
         )
 
-        if getattr(integration_config, "asgi_websocket_messages_inherit_sampling", True):
-            _inherit_sampling_tags(span, ctx.parent.span._local_root)
+        span.link_span(handshake_span.context, link_attributes)
 
-        _copy_trace_level_tags(span, ctx.parent.span)
+        if getattr(integration_config, "asgi_websocket_messages_inherit_sampling", True):
+            _inherit_sampling_tags(span, handshake_span._local_root)
+
+        _copy_trace_level_tags(span, handshake_span)
 
 
 def _on_asgi_websocket_send_message(ctx, scope, message):
     """
     Handle websocket send message events.
-
-    This handler is called when a websocket send message event is dispatched.
-    It sets up the span with appropriate tags, metrics, and links.
     """
     span = ctx.span
     integration_config = ctx.get_item("integration_config")
@@ -1041,19 +1155,19 @@ def _on_asgi_websocket_send_message(ctx, scope, message):
     span.set_metric(websocket.MESSAGE_FRAMES, 1)
 
     if hasattr(ctx, "parent") and ctx.parent.span:
-        span.set_link(
-            trace_id=ctx.parent.span.trace_id,
-            span_id=ctx.parent.span.span_id,
-            attributes={SPAN_LINK_KIND: SpanLinkKind.RESUMING},
+        handshake_span = ctx.parent.span
+        link_attributes = _WEBSOCKET_LINK_ATTRS_RESUMING.copy()
+
+        _add_websocket_span_pointer_attributes(
+            link_attributes, integration_config, handshake_span, scope, is_incoming=False
         )
+
+        span.link_span(handshake_span.context, link_attributes)
 
 
 def _on_asgi_websocket_close_message(ctx, scope, message):
     """
     Handle websocket close message events.
-
-    This handler is called when a websocket close message event is dispatched.
-    It sets up the span with appropriate tags, metrics, and links.
     """
     span = ctx.span
     integration_config = ctx.get_item("integration_config")
@@ -1068,21 +1182,21 @@ def _on_asgi_websocket_close_message(ctx, scope, message):
     _set_websocket_close_tags(span, message)
 
     if hasattr(ctx, "parent") and ctx.parent.span:
-        span.set_link(
-            trace_id=ctx.parent.span.trace_id,
-            span_id=ctx.parent.span.span_id,
-            attributes={SPAN_LINK_KIND: SpanLinkKind.RESUMING},
+        handshake_span = ctx.parent.span
+        link_attributes = _WEBSOCKET_LINK_ATTRS_RESUMING.copy()
+
+        _add_websocket_span_pointer_attributes(
+            link_attributes, integration_config, handshake_span, scope, is_incoming=False
         )
 
-        _copy_trace_level_tags(span, ctx.parent.span)
+        span.link_span(handshake_span.context, link_attributes)
+
+        _copy_trace_level_tags(span, handshake_span)
 
 
 def _on_asgi_websocket_disconnect_message(ctx, scope, message):
     """
     Handle websocket disconnect message events.
-
-    This handler is called when a websocket disconnect message event is dispatched.
-    It sets up the span with appropriate tags, metrics, and links.
     """
     span = ctx.span
     integration_config = ctx.get_item("integration_config")
@@ -1093,16 +1207,19 @@ def _on_asgi_websocket_disconnect_message(ctx, scope, message):
     _set_websocket_close_tags(span, message)
 
     if hasattr(ctx, "parent") and ctx.parent.span:
-        span.set_link(
-            trace_id=ctx.parent_span.trace_id,
-            span_id=ctx.parent_span.span_id,
-            attributes={SPAN_LINK_KIND: SpanLinkKind.EXECUTED},
+        handshake_span = ctx.parent.span
+        link_attributes = _WEBSOCKET_LINK_ATTRS_EXECUTED.copy()
+
+        _add_websocket_span_pointer_attributes(
+            link_attributes, integration_config, handshake_span, scope, is_incoming=True
         )
 
-        if getattr(integration_config, "asgi_websocket_messages_inherit_sampling", True):
-            _inherit_sampling_tags(span, ctx.parent.span._local_root)
+        span.link_span(handshake_span.context, link_attributes)
 
-        _copy_trace_level_tags(span, ctx.parent.span)
+        if getattr(integration_config, "asgi_websocket_messages_inherit_sampling", True):
+            _inherit_sampling_tags(span, handshake_span._local_root)
+
+        _copy_trace_level_tags(span, handshake_span)
 
 
 def _on_asgi_request(ctx: core.ExecutionContext) -> None:
@@ -1115,13 +1232,167 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
     span = _start_span(ctx)
     ctx.set_item("req_span", span)
 
-    if scope["type"] == "websocket":
-        span._set_tag_str("http.upgraded", "websocket")
-
     if "datadog" not in scope:
         scope["datadog"] = {"request_spans": [span]}
     else:
         scope["datadog"]["request_spans"].append(span)
+
+    if scope["type"] == "websocket":
+        span._set_tag_str(HTTP_REQUEST_UPGRADED, SpanTypes.WEBSOCKET)
+        _init_websocket_message_counters(scope)
+
+
+def _on_aiokafka_send_start(
+    _topic: str,
+    send_value: Optional[bytes],
+    send_key: Optional[bytes],
+    headers: List[Tuple[str, bytes]],
+    ctx: core.ExecutionContext,
+    partition: Optional[int],
+) -> None:
+    span = ctx.span
+
+    span._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+    span._set_tag_str(TOMBSTONE, str(send_value is None))
+    span.set_tag(MESSAGE_KEY, send_key.decode("utf-8") if send_key else None)
+    span.set_metric(PARTITION, partition or -1)
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
+
+    if config.aiokafka.distributed_tracing_enabled:
+        # inject headers with Datadog tags:
+        tracing_headers: Dict[str, str] = {}
+        HTTPPropagator.inject(span.context, tracing_headers)
+        for key, value in tracing_headers.items():
+            headers.append((key, value.encode("utf-8")))
+
+
+def _on_aiokafka_send_complete(
+    ctx: core.ExecutionContext, exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]], _
+) -> None:
+    _finish_span(ctx, exc_info)
+
+
+def _on_aiokafka_getone_message(
+    _instance: Any,
+    ctx: core.ExecutionContext,
+    start_ns: int,
+    message: Optional[Any],
+    err: Optional[BaseException],
+) -> None:
+    span = ctx.span
+
+    span.start_ns = start_ns
+    span._set_tag_str(RECEIVED_MESSAGE, str(message is not None))
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
+
+    if message is not None:
+        message_key = message.key.decode("utf-8") if message.key else None
+        message_offset = message.offset or -1
+        topic = str(message.topic)
+        span._set_tag_str(TOPIC, topic)
+        span._set_tag_str(TOMBSTONE, str(message.value is None))
+
+        if isinstance(message_key, str):
+            span.set_tag(MESSAGE_KEY, message_key)
+
+        span.set_metric(PARTITION, message.partition or -1)
+        span.set_metric(MESSAGE_OFFSET, message_offset)
+
+    if err is not None:
+        span.set_exc_info(type(err), err, err.__traceback__)
+
+
+def _on_aiokafka_getmany_message(
+    _instance: Any,
+    ctx: core.ExecutionContext,
+    messages: Optional[Dict[Any, List[Any]]],
+) -> None:
+    span = ctx.span
+
+    span._set_tag_str(RECEIVED_MESSAGE, str(messages is not None))
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
+
+    if messages is not None:
+        first_topic = next(iter(messages)).topic
+        span._set_tag_str(MESSAGING_DESTINATION_NAME, first_topic)
+
+        topics_partitions: Dict[str, List[int]] = {}
+        for topic_partition in messages.keys():
+            topic = topic_partition.topic
+            partition = topic_partition.partition
+            if topic not in topics_partitions:
+                topics_partitions[topic] = []
+            topics_partitions[topic].append(partition)
+
+        all_topics = list(topics_partitions.keys())
+        span.set_tag(TOPIC, ",".join(all_topics))
+
+        for topic, partitions in topics_partitions.items():
+            partition_list = ",".join(map(str, sorted(partitions)))
+            span._set_tag_str(f"kafka.partitions.{topic}", partition_list)
+
+        for topic_partition, records in messages.items():
+            for record in records:
+                if config.aiokafka.distributed_tracing_enabled and record.headers:
+                    dd_headers = {
+                        key: (val.decode("utf-8", errors="ignore") if isinstance(val, (bytes, bytearray)) else str(val))
+                        for key, val in record.headers
+                        if val is not None
+                    }
+                    context = HTTPPropagator.extract(dd_headers)
+
+                    span.link_span(context)
+
+
+def _on_httpx_request_start(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
+    span = _start_span(ctx, call_trace, **kwargs)
+    span._metrics[_SPAN_MEASURED_KEY] = 1
+
+    request = ctx.get_item("request")
+
+    if trace_utils.distributed_tracing_enabled(config.httpx):
+        HTTPPropagator.inject(span.context, request.headers)
+
+
+def httpx_url_to_str(url) -> str:
+    """
+    Helper to convert the httpx.URL parts from bytes to a str
+    """
+    scheme = url.raw_scheme
+    host = url.raw_host
+    port = url.port
+    raw_path = url.raw_path
+    url = scheme + b"://" + host
+    if port is not None:
+        url += b":" + ensure_binary(str(port))
+    url += raw_path
+
+    return ensure_text(url)
+
+
+def _on_httpx_send_completed(
+    ctx: core.ExecutionContext,
+    exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+) -> None:
+    span = ctx.span
+
+    request = ctx.get_item("request")
+    response = ctx.get_item("response")
+
+    try:
+        trace_utils.set_http_meta(
+            span,
+            config.httpx,
+            method=request.method,
+            url=httpx_url_to_str(request.url),
+            target_host=request.url.host,
+            status_code=response.status_code if response else None,
+            query=request.url.query,
+            request_headers=request.headers,
+            response_headers=response.headers if response else None,
+        )
+    finally:
+        _finish_span(ctx, exc_info)
 
 
 def listen():
@@ -1185,6 +1456,10 @@ def listen():
     core.on("asgi.websocket.disconnect.message", _on_asgi_websocket_disconnect_message)
     core.on("asgi.websocket.close.message", _on_asgi_websocket_close_message)
     core.on("context.started.asgi.request", _on_asgi_request)
+    core.on("aiokafka.send.start", _on_aiokafka_send_start)
+    core.on("aiokafka.getone.message", _on_aiokafka_getone_message)
+    core.on("aiokafka.getmany.message", _on_aiokafka_getmany_message)
+    core.on("aiokafka.send.completed", _on_aiokafka_send_complete)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
@@ -1260,8 +1535,12 @@ def listen():
         "azure.servicebus.patched_producer_schedule",
         "azure.servicebus.patched_producer_send",
         "psycopg.patched_connect",
+        "aiokafka.send",
+        "aiokafka.getone",
+        "aiokafka.getmany",
     ):
         core.on(f"context.started.{context_name}", _start_span)
+    core.on("context.started.httpx.request", _on_httpx_request_start)
 
     for name in (
         "asgi.request",
@@ -1292,11 +1571,14 @@ def listen():
         "azure.eventhubs.patched_producer_batch",
         "azure.eventhubs.patched_producer_send",
         "azure.eventhubs.patched_producer_send_batch",
+        "aiokafka.getone",
+        "aiokafka.getmany",
     ):
         core.on(f"context.ended.{name}", _finish_span)
 
     # Special/extra handling before calling _finish_span
     core.on("context.ended.django.cache", _on_django_cache)
+    core.on("context.ended.httpx.request", _on_httpx_send_completed)
 
 
 listen()

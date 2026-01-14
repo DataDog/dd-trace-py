@@ -37,8 +37,7 @@ def simple_app(environ, start_response):
             "profiler": {
                 # Once the scheduler is initialized, the last_export is set to a
                 # timestamp using time.time_ns()
-                "is_active": bootstrap.profiler._scheduler._last_export
-                > 0,
+                "is_active": bootstrap.profiler._scheduler._last_export > 0,
             },
         }
         data = json.dumps(payload).encode("utf-8")

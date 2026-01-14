@@ -553,3 +553,43 @@ def test_streamed_chat_model_with_no_output(langchain_openai, openai_url):
     except Exception as e:
         if not isinstance(e, APITimeoutError):
             assert False, f"Expected APITimeoutError, got {e}"
+
+
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+def test_runnable_lambda_invoke(langchain_core):
+    def add(inputs: dict) -> int:
+        return inputs["a"] + inputs["b"]
+
+    runnable_lambda = langchain_core.runnables.RunnableLambda(add)
+    result = runnable_lambda.invoke(dict(a=1, b=2))
+    assert result == 3
+
+
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+async def test_runnable_lambda_ainvoke(langchain_core):
+    async def add(inputs: dict) -> int:
+        return inputs["a"] + inputs["b"]
+
+    runnable_lambda = langchain_core.runnables.RunnableLambda(add)
+    result = await runnable_lambda.ainvoke(dict(a=1, b=2))
+    assert result == 3
+
+
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+def test_runnable_lambda_batch(langchain_core):
+    def add(inputs: dict) -> int:
+        return inputs["a"] + inputs["b"]
+
+    runnable_lambda = langchain_core.runnables.RunnableLambda(add)
+    result = runnable_lambda.batch([dict(a=1, b=2), dict(a=3, b=4), dict(a=5, b=6)])
+    assert result == [3, 7, 11]
+
+
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+async def test_runnable_lambda_abatch(langchain_core):
+    async def add(inputs: dict) -> int:
+        return inputs["a"] + inputs["b"]
+
+    runnable_lambda = langchain_core.runnables.RunnableLambda(add)
+    result = await runnable_lambda.abatch([dict(a=1, b=2), dict(a=3, b=4), dict(a=5, b=6)])
+    assert result == [3, 7, 11]

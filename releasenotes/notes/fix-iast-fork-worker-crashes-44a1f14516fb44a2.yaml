@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Code Security: Fixes critical memory safety issue in IAST when used with forked worker processes 
+    (MCP servers with Gunicorn and Uvicorn). Workers previously crashed with segmentation faults due to stale PyObject 
+    pointers in native taint maps after fork.

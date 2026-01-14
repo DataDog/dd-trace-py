@@ -38,6 +38,7 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import LANGCHAIN_ROLE_MAPPING
 from ddtrace.llmobs._integrations.utils import extract_instance_metadata_from_stack
 from ddtrace.llmobs._integrations.utils import format_langchain_io
+from ddtrace.llmobs._integrations.utils import set_prompt_tracking_tags
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
@@ -64,7 +65,6 @@ BEDROCK_PROVIDER_NAME = "amazon_bedrock"
 OPENAI_PROVIDER_NAME = "openai"
 AZURE_OAI_PROVIDER_NAME = "azure"
 VERTEXAI_PROVIDER_NAME = "vertexai"
-GEMINI_PROVIDER_NAME = "google_palm"
 
 ROLE_MAPPING = {
     "human": "user",
@@ -72,7 +72,7 @@ ROLE_MAPPING = {
     "system": "system",
 }
 
-SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool"]
+SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool", "runnable_lambda"]
 LANGCHAIN_BASE_URL_FIELDS = [
     "api_base",
     "api_host",
@@ -166,7 +166,7 @@ class LangChainIntegration(BaseLLMIntegration):
         args: List[Any],
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
-        operation: str = "",  # oneof "llm","chat","chain","embedding","retrieval","tool"
+        operation: str = "",  # oneof SUPPORTED_OPERATIONS
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
@@ -187,9 +187,6 @@ class LangChainIntegration(BaseLLMIntegration):
             # only the llm interface for Vertex AI will get instrumented
             elif model_provider.startswith(VERTEXAI_PROVIDER_NAME) and operation == "llm":
                 llmobs_integration = "vertexai"
-            # only the llm interface for Gemini will get instrumented
-            elif model_provider.startswith(GEMINI_PROVIDER_NAME) and operation == "llm":
-                llmobs_integration = "google_generativeai"
             elif any(provider in model_provider for provider in (OPENAI_PROVIDER_NAME, AZURE_OAI_PROVIDER_NAME)):
                 llmobs_integration = "openai"
             elif operation == "chat" and model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
@@ -203,8 +200,6 @@ class LangChainIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)
             update_proxy_workflow_input_output_value(span, "workflow" if is_workflow else "llm")
         elif operation == "chat":
-            # langchain-openai will call a beta client "response_format" is passed in the kwargs, which we do not trace
-            is_workflow = is_workflow and not (llmobs_integration == "openai" and ("response_format" in kwargs))
             self._llmobs_set_tags_from_chat_model(span, args, kwargs, response, is_workflow=is_workflow)
             update_proxy_workflow_input_output_value(span, "workflow" if is_workflow else "llm")
         elif operation == "chain":
@@ -215,6 +210,8 @@ class LangChainIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_similarity_search(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "tool":
             self._llmobs_set_meta_tags_from_tool(span, tool_inputs=kwargs, tool_output=response)
+        elif operation == "runnable_lambda":
+            self._llmobs_set_meta_tags_from_runnable_lambda(span, args, kwargs, response)
 
     def _set_links(self, span: Span) -> None:
         """
@@ -767,6 +764,19 @@ class LangChainIntegration(BaseLLMIntegration):
             }
         )
 
+    def _llmobs_set_meta_tags_from_runnable_lambda(
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any
+    ) -> None:
+        inputs = get_argument_value(args, kwargs, 0, "inputs")
+
+        span._set_ctx_items(
+            {
+                SPAN_KIND: "task",
+                INPUT_VALUE: safe_json(inputs),
+                OUTPUT_VALUE: safe_json(response),
+            }
+        )
+
     def _set_base_span_tags(
         self,
         span: Span,
@@ -946,5 +956,6 @@ class LangChainIntegration(BaseLLMIntegration):
             try:
                 prompt = _validate_prompt(prompt, strict_validation=True)
                 span._set_ctx_item(INPUT_PROMPT, prompt)
+                set_prompt_tracking_tags(span)
             except Exception as e:
                 log.debug("Failed to validate langchain prompt", e)

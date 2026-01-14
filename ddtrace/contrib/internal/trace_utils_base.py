@@ -8,13 +8,13 @@ from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
 from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
-from ddtrace.settings._config import config
-from ddtrace.settings.asm import config as asm_config
-from ddtrace.settings.integration import IntegrationConfig
 
 
 log = get_logger(__name__)
@@ -150,7 +150,10 @@ def _set_url_tag(integration_config: IntegrationConfig, span: Span, url: str, qu
         # users should set ``DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING=False``. This case should be
         # removed when config.global_query_string_obfuscation_disabled is removed (v3.0).
         span._set_tag_str(http.URL, url)
-    elif getattr(config._obfuscation_query_string_pattern, "pattern", None) == b"":
+    elif (
+        config._obfuscation_query_string_pattern is None
+        or getattr(config._obfuscation_query_string_pattern, "pattern", None) == b""
+    ):
         # obfuscation is disabled when DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP=""
         span._set_tag_str(http.URL, strip_query_string(url))
     else:

@@ -1,8 +1,7 @@
 #include "ddup_interface.hpp"
 
-#include "code_provenance.hpp"
 #include "libdatadog_helpers.hpp"
-#include "profile.hpp"
+#include "profiler_stats.hpp"
 #include "sample.hpp"
 #include "sample_manager.hpp"
 #include "uploader.hpp"
@@ -74,6 +73,12 @@ ddup_set_runtime_id(std::string_view runtime_id) // cppcheck-suppress unusedFunc
 }
 
 void
+ddup_set_process_id() // cppcheck-suppress unusedFunction
+{
+    Datadog::UploaderBuilder::set_process_id();
+}
+
+void
 ddup_config_runtime_version(std::string_view runtime_version) // cppcheck-suppress unusedFunction
 {
     Datadog::UploaderBuilder::set_runtime_version(runtime_version);
@@ -95,6 +100,12 @@ void
 ddup_config_user_tag(std::string_view key, std::string_view val) // cppcheck-suppress unusedFunction
 {
     Datadog::UploaderBuilder::set_tag(key, val);
+}
+
+void
+ddup_config_process_tags(std::string_view process_tags) // cppcheck-suppress unusedFunction
+{
+    Datadog::UploaderBuilder::set_process_tags(process_tags);
 }
 
 void
@@ -159,6 +170,10 @@ ddup_start() // cppcheck-suppress unusedFunction
 Datadog::Sample*
 ddup_start_sample() // cppcheck-suppress unusedFunction
 {
+    // Ensure profile_state is initialized before creating Sample objects.
+    // ddup_start() uses std::call_once, so it's safe to call multiple times.
+    ddup_start();
+
     return Datadog::SampleManager::start_sample();
 }
 
@@ -311,12 +326,6 @@ ddup_flush_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
 }
 
 void
-ddup_flush_sample_v2(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
-{
-    sample->flush_sample(/*reverse_locations*/ true);
-}
-
-void
 ddup_drop_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
 {
     Datadog::SampleManager::drop_sample(sample);
@@ -334,6 +343,9 @@ ddup_upload() // cppcheck-suppress unusedFunction
         return false;
     }
 
+    // Build the Uploader, which takes care of serializing the Profile and capturing ProfilerStats.
+    // This takes a reference in a way that locks the areas where the profile might
+    // be modified. It gets cleared and released as soon as serialization is complete (or has failed).
     auto uploader_or_err = Datadog::UploaderBuilder::build();
 
     if (std::holds_alternative<std::string>(uploader_or_err)) {
@@ -346,14 +358,11 @@ ddup_upload() // cppcheck-suppress unusedFunction
 
     // Get the reference to the uploader
     auto& uploader = std::get<Datadog::Uploader>(uploader_or_err);
-    // There are a few things going on here.
-    // * profile_borrow() takes a reference in a way that locks the areas where the profile might
-    //  be modified.  It gets released and cleared after uploading.
-    // * Uploading cancels inflight uploads. There are better ways to do this, but this is what
-    //   we have for now.
-    uploader.upload(Datadog::Sample::profile_borrow());
-    Datadog::Sample::profile_release();
-    return true;
+
+    // Upload without holding any locks (encoding has already been done in UploaderBuilder::build)
+    // This also cancels inflight uploads. There are better ways to do this, but this is what
+    // we have for now.
+    return uploader.upload();
 }
 
 void
@@ -361,7 +370,8 @@ ddup_profile_set_endpoints(
   std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints) // cppcheck-suppress unusedFunction
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    ddog_prof_Profile& profile = Datadog::Sample::profile_borrow();
+    auto borrowed = Datadog::Sample::profile_borrow();
+    ddog_prof_Profile& profile = borrowed.profile();
     for (const auto& [span_id, trace_endpoint] : span_ids_to_endpoints) {
         ddog_CharSlice trace_endpoint_slice = Datadog::to_slice(trace_endpoint);
         auto res = ddog_prof_Profile_set_endpoint(&profile, span_id, trace_endpoint_slice);
@@ -375,14 +385,14 @@ ddup_profile_set_endpoints(
             ddog_Error_drop(&err);
         }
     }
-    Datadog::Sample::profile_release();
 }
 
 void
 ddup_profile_add_endpoint_counts(std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    ddog_prof_Profile& profile = Datadog::Sample::profile_borrow();
+    auto borrowed = Datadog::Sample::profile_borrow();
+    ddog_prof_Profile& profile = borrowed.profile();
     for (const auto& [trace_endpoint, count] : trace_endpoints_to_counts) {
         ddog_CharSlice trace_endpoint_slice = Datadog::to_slice(trace_endpoint);
         auto res = ddog_prof_Profile_add_endpoint_count(&profile, trace_endpoint_slice, count);
@@ -396,5 +406,4 @@ ddup_profile_add_endpoint_counts(std::unordered_map<std::string_view, int64_t> t
             ddog_Error_drop(&err);
         }
     }
-    Datadog::Sample::profile_release();
 }

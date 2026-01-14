@@ -1,6 +1,6 @@
 #include "taint_range.h"
-#include "context/taint_engine_context.h"
-#include "initializer/initializer.h"
+#include "api/safe_context.h"
+#include "api/safe_initializer.h"
 
 namespace py = pybind11;
 
@@ -59,11 +59,17 @@ TaintRange::has_origin(OriginType origin) const
 TaintRangePtr
 shift_taint_range(const TaintRangePtr& source_taint_range, const RANGE_START offset, const RANGE_LENGTH new_length = -1)
 {
+    // CRITICAL: Check if the shared_ptr is valid before accessing its members.
+    // After fork or during cleanup, taint ranges can become null/empty.
+    if (!source_taint_range) {
+        return nullptr;
+    }
+
     const auto new_length_to_use = new_length == -1 ? source_taint_range->length : new_length;
-    auto tptr = initializer->allocate_taint_range(source_taint_range->start + offset,
-                                                  new_length_to_use,
-                                                  source_taint_range->source,
-                                                  source_taint_range->secure_marks);
+    auto tptr = safe_allocate_taint_range(source_taint_range->start + offset,
+                                          new_length_to_use,
+                                          source_taint_range->source,
+                                          source_taint_range->secure_marks);
     return tptr;
 }
 
@@ -76,6 +82,11 @@ shift_taint_ranges(const TaintRangeRefs& source_taint_ranges,
     new_ranges.reserve(source_taint_ranges.size());
 
     for (const auto& trange : source_taint_ranges) {
+        // Skip ONLY if the input range itself is null/empty (data corruption from fork/cleanup).
+        // Do NOT skip if allocation fails - that should propagate as nullptr to caller.
+        if (!trange) {
+            continue; // Skip corrupted/null input ranges
+        }
         new_ranges.emplace_back(shift_taint_range(trange, offset, new_length));
     }
     return new_ranges;
@@ -92,7 +103,11 @@ api_shift_taint_ranges(const TaintRangeRefs& source_taint_ranges,
 bool
 api_set_ranges(py::handle& str, const TaintRangeRefs& ranges, const size_t contextid)
 {
-    const auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(contextid);
+    if (!taint_engine_context) {
+        return false;
+    }
+
+    const auto tx_map = safe_get_tainted_object_map_by_ctx_id(contextid);
     if (not tx_map) {
         return false;
     }
@@ -124,6 +139,15 @@ api_set_ranges(py::handle& str, const TaintRangeRefs& ranges, const size_t conte
 PyObject*
 api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 {
+    if (!taint_engine_context) {
+        // Return the original object unchanged if context is not initialized
+        if (nargs >= 1) {
+            return args[0];
+        }
+        PyErr_SetString(PyExc_RuntimeError, "IAST not initialized");
+        return nullptr;
+    }
+
     bool result = false;
     const char* result_error_msg = MSG_ERROR_N_PARAMS;
     PyObject* pyobject_n = nullptr;
@@ -132,7 +156,7 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
         PyObject* tainted_object = args[0];
         PyObject* ctx_obj = args[5];
         size_t context_id = PyLong_AsSize_t(ctx_obj);
-        const auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(context_id);
+        const auto tx_map = safe_get_tainted_object_map_by_ctx_id(context_id);
         if (not tx_map) {
             return tainted_object;
         }
@@ -145,7 +169,7 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
             if (const string source_value = PyObjectToString(args[3]); not source_value.empty()) {
                 const auto source_origin = static_cast<OriginType>(PyLong_AsLong(args[4]));
                 const auto source = Source(source_name, source_value, source_origin);
-                const auto range = initializer->allocate_taint_range(0, len_pyobject, source, {});
+                const auto range = safe_allocate_taint_range(0, len_pyobject, source, {});
                 const auto ranges = vector{ range };
                 result = set_ranges(pyobject_n, ranges, tx_map);
                 if (not result) {
@@ -206,7 +230,7 @@ set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintedObjectMapTy
     }
     auto obj_id = get_unique_id(str);
     const auto it = tx_map->find(obj_id);
-    auto new_tainted_object = initializer->allocate_ranges_into_taint_object(ranges);
+    auto new_tainted_object = safe_allocate_ranges_into_taint_object(ranges);
 
     set_fast_tainted_if_notinterned_unicode(str);
     if (it != tx_map->end()) {
@@ -240,7 +264,11 @@ get_range_by_hash(const size_t range_hash, optional<TaintRangeRefs>& taint_range
 TaintRangeRefs
 api_get_ranges(const py::handle& string_input)
 {
-    const auto tx_map = taint_engine_context->get_tainted_object_map(string_input.ptr());
+    if (!taint_engine_context) {
+        return {};
+    }
+
+    const auto tx_map = safe_get_tainted_object_map(string_input.ptr());
 
     if (not tx_map or tx_map->empty()) {
         return {};
@@ -256,7 +284,11 @@ api_get_ranges(const py::handle& string_input)
 void
 api_copy_ranges_from_strings(py::handle& str_1, py::handle& str_2)
 {
-    const auto tx_map = taint_engine_context->get_tainted_object_map(str_1.ptr());
+    if (!taint_engine_context) {
+        return;
+    }
+
+    const auto tx_map = safe_get_tainted_object_map(str_1.ptr());
 
     if (not tx_map) {
         py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
@@ -279,7 +311,11 @@ api_copy_and_shift_ranges_from_strings(py::handle& str_1,
                                        const int offset,
                                        const int new_length = -1)
 {
-    const auto tx_map = taint_engine_context->get_tainted_object_map(str_1.ptr());
+    if (!taint_engine_context) {
+        return;
+    }
+
+    const auto tx_map = safe_get_tainted_object_map(str_1.ptr());
     if (not tx_map) {
         py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
         return;
@@ -438,7 +474,7 @@ pyexport_taintrange(py::module& m)
           } else if (py::hasattr(secure_marks, "value")) {
               marks = secure_marks.attr("value").cast<uint64_t>();
           }
-          return initializer->allocate_taint_range(start, length, source, marks);
+          return safe_allocate_taint_range(start, length, source, marks);
       },
       "start"_a,
       "length"_a,

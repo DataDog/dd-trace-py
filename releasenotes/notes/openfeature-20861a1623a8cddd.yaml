@@ -1,0 +1,7 @@
+---
+prelude: >
+  dd-trace-py now includes an OpenFeature provider implementation, enabling feature flag evaluation through the OpenFeature API.
+
+  .. note::
+    This integration is under active design and development. Functionality and APIs are experimental and may change without notice.
+    For more information, see the Datadog documentation at https://docs.datadoghq.com/feature_flags/#overview

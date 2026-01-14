@@ -9,7 +9,6 @@ from ddtrace.contrib.internal.aredis.patch import patch
 from ddtrace.contrib.internal.aredis.patch import unpatch
 from ddtrace.internal.compat import is_wrapted
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
-from tests.opentracer.utils import init_tracer
 from tests.utils import override_config
 
 from ..config import REDIS_CONFIG
@@ -152,7 +151,7 @@ import asyncio
 import pytest
 import sys
 from tests.conftest import *
-from ddtrace.trace import Pin
+from ddtrace._trace.pin import Pin
 import aredis
 from tests.contrib.config import REDIS_CONFIG
 from tests.contrib.aredis.test_aredis import traced_aredis
@@ -172,9 +171,7 @@ async def test(tracer, test_spans):
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_service, expected_operation
-    )
+    """.format(expected_service, expected_operation)
     env = os.environ.copy()
     if service:
         env["DD_SERVICE"] = service
@@ -183,19 +180,6 @@ if __name__ == "__main__":
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
-
-
-@pytest.mark.asyncio
-async def test_opentracing(tracer, snapshot_context):
-    """Ensure OpenTracing works with redis."""
-
-    with snapshot_context():
-        r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
-        pin = Pin.get_from(r)
-        ot_tracer = init_tracer("redis_svc", pin.tracer)
-
-        with ot_tracer.start_active_span("redis_get"):
-            await r.get("cheese")
 
 
 @pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"))
@@ -223,7 +207,6 @@ def test_full_command_in_resource_env():
 
 @pytest.mark.snapshot
 @pytest.mark.asyncio
-@pytest.mark.parametrize("use_global_tracer", [True])
 async def test_full_command_in_resource_config(tracer, traced_aredis):
     with override_config("aredis", dict(resource_only_command=False)):
         with tracer.trace("web-request", service="test"):

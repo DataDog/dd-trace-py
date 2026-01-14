@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    pylibmc: Fixes an issue where initializing a TracedClient without a tracer disables tracing. The global tracer is now used when ``tracer=None``.

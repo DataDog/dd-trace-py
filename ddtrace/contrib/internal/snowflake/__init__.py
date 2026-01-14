@@ -13,8 +13,8 @@ Use environment variable ``DD_TRACE_SNOWFLAKE_ENABLED=true`` or `DD_PATCH_MODULE
 to manually enable the integration.
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.snowflake["service"]
 
@@ -32,24 +32,4 @@ Global Configuration
    Can also configured via the ``DD_SNOWFLAKE_TRACE_FETCH_METHODS`` environment variable.
 
    Default: ``False``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure the integration on an per-connection basis use the
-``Pin`` API::
-
-    from ddtrace.trace import Pin
-    from snowflake.connector import connect
-
-    # This will report a span with the default settings
-    conn = connect(user="alice", password="b0b", account="dev")
-
-    # Use a pin to override the service name for this connection.
-    Pin.override(conn, service="snowflake-dev")
-
-
-    cursor = conn.cursor()
-    cursor.execute("SELECT current_version()")
 """

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    exception replay: fixed the order in which frames are captured to ensure
+    that the values of frames close to the point where the initial exception
+    was thrown are always attached to the relevant spans.

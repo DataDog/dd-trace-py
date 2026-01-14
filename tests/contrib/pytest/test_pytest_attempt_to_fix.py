@@ -87,18 +87,21 @@ _TEST_PROPERTIES = {
 class PytestAttemptToFixTestCase(PytestTestCaseBase):
     @pytest.fixture(autouse=True, scope="function")
     def set_up_test_management(self):
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(
-                test_management=TestManagementSettings(
-                    enabled=True,
-                    attempt_to_fix_retries=10,
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(
+                    test_management=TestManagementSettings(
+                        enabled=True,
+                        attempt_to_fix_retries=10,
+                    ),
+                    flaky_test_retries_enabled=False,
                 ),
-                flaky_test_retries_enabled=False,
             ),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_test_management_tests",
-            return_value=_TEST_PROPERTIES,
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_test_management_tests",
+                return_value=_TEST_PROPERTIES,
+            ),
         ):
             yield
 
@@ -277,22 +280,26 @@ class PytestAttemptToFixITRTestCase(PytestTestCaseBase):
         def _mock_fetch_tests_to_skip(self, *_, **__):
             self._itr_data = ITRData(skippable_items={_make_fqdn_suite_id("", "test_skippable.py")})
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(
-                test_management=TestManagementSettings(
-                    enabled=True,
-                    attempt_to_fix_retries=10,
+        with (
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+                return_value=TestVisibilityAPISettings(
+                    test_management=TestManagementSettings(
+                        enabled=True,
+                        attempt_to_fix_retries=10,
+                    ),
+                    skipping_enabled=True,
+                    flaky_test_retries_enabled=False,
                 ),
-                skipping_enabled=True,
-                flaky_test_retries_enabled=False,
             ),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_test_management_tests",
-            return_value=_TEST_PROPERTIES,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
-            _mock_fetch_tests_to_skip,
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_test_management_tests",
+                return_value=_TEST_PROPERTIES,
+            ),
+            mock.patch(
+                "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+                _mock_fetch_tests_to_skip,
+            ),
         ):
             yield
 

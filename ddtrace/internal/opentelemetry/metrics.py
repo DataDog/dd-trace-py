@@ -8,9 +8,9 @@ import opentelemetry.version
 from ddtrace import config
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.settings._opentelemetry import otel_config
 
 
 log = get_logger(__name__)
@@ -150,7 +150,7 @@ def _import_exporter(protocol):
             from opentelemetry.exporter.otlp.proto.http.version import __version__ as exporter_version
         else:
             log.warning(
-                "OpenTelemetry Metrics exporter protocol '%s' is not supported. " "Use 'grpc' or 'http/protobuf'.",
+                "OpenTelemetry Metrics exporter protocol '%s' is not supported. Use 'grpc' or 'http/protobuf'.",
                 protocol,
             )
             return None
@@ -187,9 +187,9 @@ def _initialize_metrics(exporter_class, protocol, resource):
         # Ensure metrics exporter is configured to send payloads to a Datadog Agent.
         if "OTEL_EXPORTER_OTLP_ENDPOINT" not in os.environ and "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT" not in os.environ:
             os.environ["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = otel_config.exporter.METRICS_ENDPOINT
-        os.environ[
-            "OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE"
-        ] = otel_config.exporter.METRICS_TEMPORALITY_PREFERENCE
+        os.environ["OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE"] = (
+            otel_config.exporter.METRICS_TEMPORALITY_PREFERENCE
+        )
         os.environ["OTEL_METRIC_EXPORT_INTERVAL"] = str(otel_config.exporter.METRICS_METRIC_READER_EXPORT_INTERVAL)
         os.environ["OTEL_METRIC_EXPORT_TIMEOUT"] = str(otel_config.exporter.METRICS_METRIC_READER_EXPORT_TIMEOUT)
         _init_metrics({protocol: exporter_class}, resource=resource)

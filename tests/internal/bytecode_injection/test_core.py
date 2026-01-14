@@ -226,18 +226,18 @@ def test_exceptiontable_adjustment():
         if original_co_code[original_entry.start] != injected_co_code[injected_entry.start]:
             partially_translated_starts.append(original_entry.start)
 
-        assert (
-            original_co_code[original_entry.end - 2] == injected_co_code[injected_entry.end - 2]
-        ), "End (exclusive) opcode is the same"
-        assert (
-            original_co_code[original_entry.target] == injected_co_code[injected_entry.target]
-        ), "Target opcode is the same"
+        assert original_co_code[original_entry.end - 2] == injected_co_code[injected_entry.end - 2], (
+            "End (exclusive) opcode is the same"
+        )
+        assert original_co_code[original_entry.target] == injected_co_code[injected_entry.target], (
+            "Target opcode is the same"
+        )
         assert original_entry.depth == injected_entry.depth, "Depth is the same"
         assert original_entry.lasti == injected_entry.lasti, "lasti is the same"
 
-    assert set(partially_translated_starts).issubset(
-        set(injection_offsets)
-    ), "All partially translated starts are in the injection offsets"
+    assert set(partially_translated_starts).issubset(set(injection_offsets)), (
+        "All partially translated starts are in the injection offsets"
+    )
 
 
 @skipif_bytecode_injection_not_supported

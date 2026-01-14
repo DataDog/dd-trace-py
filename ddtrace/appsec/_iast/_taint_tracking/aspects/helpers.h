@@ -8,16 +8,15 @@
 #include <unordered_map>
 #include <utility>
 
+#include "api/safe_context.h"
+#include "api/safe_initializer.h"
+#include "api/utils.h"
 #include "constants.h"
-#include "context/taint_engine_context.h"
-#include "initializer/initializer.h"
 #include "structmember.h"
 #include "taint_tracking/source.h"
 #include "taint_tracking/taint_range.h"
+#include "utils/python_error_guard.h"
 #include "utils/string_utils.h"
-
-using namespace pybind11::literals;
-namespace py = pybind11;
 
 // Calls the specified method and applies the same ranges to the result. Used
 // for wrapping simple methods that doesn't change the string size like upper(),
@@ -51,7 +50,7 @@ template<class StrType>
 StrType
 int_as_formatted_evidence(const StrType& text, TaintRangeRefs& text_ranges, TagMappingMode tag_mapping_mode)
 {
-    if (const auto tx_map = taint_engine_context->get_tainted_object_map(text.ptr()); !tx_map) {
+    if (const auto tx_map = safe_get_tainted_object_map(text.ptr()); !tx_map) {
         return text;
     }
     return StrType(as_formatted_evidence(AnyTextObjectToString(text), text_ranges, tag_mapping_mode, nullopt));

@@ -3,6 +3,7 @@
 This app provides both regular HTTP endpoints and MCP tools to test IAST
 with different communication patterns.
 """
+
 import subprocess
 
 from fastapi import FastAPI

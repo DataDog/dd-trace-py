@@ -3,7 +3,6 @@ import os
 import botocore
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import unpatch
 from ddtrace.contrib.internal.urllib3.patch import patch as urllib3_patch
@@ -11,8 +10,6 @@ from ddtrace.contrib.internal.urllib3.patch import unpatch as urllib3_unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
 from tests.llmobs._utils import TestLLMObsSpanWriter
-from tests.utils import DummyTracer
-from tests.utils import DummyWriter
 from tests.utils import override_global_config
 
 
@@ -35,22 +32,6 @@ def aws_credentials():
     os.environ["AWS_SECURITY_TOKEN"] = "testing"
     os.environ["AWS_SESSION_TOKEN"] = "testing"
     os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
-
-
-@pytest.fixture
-def mock_tracer(bedrock_client):
-    pin = Pin.get_from(bedrock_client)
-    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin._override(bedrock_client, tracer=mock_tracer)
-    yield mock_tracer
-
-
-@pytest.fixture
-def mock_tracer_agent(bedrock_agent_client):
-    pin = Pin.get_from(bedrock_agent_client)
-    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin._override(bedrock_agent_client, tracer=mock_tracer)
-    yield mock_tracer
 
 
 @pytest.fixture
@@ -109,20 +90,12 @@ def llmobs_span_writer():
 
 
 @pytest.fixture
-def mock_tracer_proxy(bedrock_client_proxy):
-    mock_tracer = DummyTracer()
-    pin = Pin.get_from(bedrock_client_proxy)
-    pin._override(bedrock_client_proxy, tracer=mock_tracer)
-    yield mock_tracer
-
-
-@pytest.fixture
-def bedrock_llmobs(tracer, mock_tracer, llmobs_span_writer):
+def bedrock_llmobs(tracer, llmobs_span_writer):
     llmobs_service.disable()
     with override_global_config(
         {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "tests.llmobs"}
     ):
-        llmobs_service.enable(_tracer=mock_tracer, integrations_enabled=False)
+        llmobs_service.enable(_tracer=tracer, integrations_enabled=False)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         yield llmobs_service
     llmobs_service.disable()

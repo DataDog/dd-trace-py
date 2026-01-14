@@ -3,6 +3,7 @@ more-itertools==10.2.0
 
 https://pypi.org/project/more-itertools/
 """
+
 from flask import Blueprint
 from flask import request
 

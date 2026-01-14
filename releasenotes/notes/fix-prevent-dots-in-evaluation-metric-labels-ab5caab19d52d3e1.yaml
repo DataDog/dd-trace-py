@@ -1,0 +1,4 @@
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where evaluation-metric labels containing dots could be interpreted as nested objects by adding validation that rejects such labels and provides a clear error message instructing users to use alternative naming conventions.
+

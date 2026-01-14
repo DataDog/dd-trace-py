@@ -11,6 +11,7 @@ import logging
 import os
 from os.path import split
 from os.path import splitext
+from pathlib import Path
 import platform
 import random
 import shutil
@@ -41,10 +42,10 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import TelemetryWriter
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from tests import utils
-from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
 from tests.utils import request_token
+from tests.utils import scoped_tracer
 from tests.utils import snapshot_context as _snapshot_context
 
 
@@ -160,8 +161,8 @@ def pytest_configure(config):
 
 
 @pytest.fixture
-def use_global_tracer():
-    yield False
+def use_dummy_writer():
+    yield True
 
 
 @pytest.fixture
@@ -180,11 +181,9 @@ def enable_crashtracking(auto_enable_crashtracking):
 
 
 @pytest.fixture
-def tracer(use_global_tracer):
-    if use_global_tracer:
-        return ddtrace.tracer
-    else:
-        return DummyTracer()
+def tracer(use_dummy_writer):
+    with scoped_tracer(use_dummy_writer) as tracer:
+        yield tracer
 
 
 @pytest.fixture
@@ -327,11 +326,14 @@ class FunctionDefFinder(ast.NodeVisitor):
             self._body = node.body
 
     def find(self, file):
-        with open(file) as f:
-            t = ast.parse(f.read())
-            self.visit(t)
-            t.body = self._body
-            return t
+        if not (path := Path(file)).exists():
+            if path.is_absolute() or not (path := Path(__file__).parents[1] / file).exists():
+                raise FileNotFoundError(f"File {file} does not exist")
+
+        t = ast.parse(path.read_text())
+        self.visit(t)
+        t.body = self._body or []
+        return t
 
 
 def is_stream_ok(stream, expected):
@@ -350,7 +352,7 @@ def is_stream_ok(stream, expected):
 
 
 def run_function_from_file(item, params=None):
-    file = item.location[0]
+    file = Path(item.location[0])
     func = item.originalname
     marker = item.get_closest_marker("subprocess")
     run_module = marker.kwargs.get("run_module", False)

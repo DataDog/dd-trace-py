@@ -1,6 +1,4 @@
 #include "aspect_split.h"
-#include "initializer/initializer.h"
-#include "tainted_ops/tainted_ops.h"
 
 static std::optional<py::object>
 handle_potential_re_split(const py::tuple& args,
@@ -57,8 +55,9 @@ split_text_common(const py::object& orig_function,
     const py::tuple sliced_args = len(args) > 1 ? args[py::slice(1, len(args), 1)] : py::tuple(); // (,)
     auto result_o = text.attr(split_func.c_str())(*sliced_args, **kwargs); // returns['', ''] WHY?
 
-    const auto tx_map =
-      taint_engine_context->get_tainted_object_map_from_list_of_pyobjects({ text.ptr(), sliced_args.ptr() });
+    CHECK_IAST_INITIALIZED_OR_RETURN(result_o);
+
+    const auto tx_map = safe_get_tainted_object_map_from_list_of_pyobjects({ text.ptr(), sliced_args.ptr() });
     if (!tx_map || tx_map->empty()) {
         return result_o;
     }
@@ -99,8 +98,7 @@ api_splitlines_text(const py::object& orig_function,
     const py::tuple sliced_args = len(args) > 1 ? args[py::slice(1, len(args), 1)] : py::tuple();
     py::object result_o = text.attr("splitlines")(*sliced_args, **kwargs);
 
-    const auto tx_map =
-      taint_engine_context->get_tainted_object_map_from_list_of_pyobjects({ text.ptr(), sliced_args.ptr() });
+    const auto tx_map = safe_get_tainted_object_map_from_list_of_pyobjects({ text.ptr(), sliced_args.ptr() });
     if (!tx_map || tx_map->empty()) {
         return result_o;
     }

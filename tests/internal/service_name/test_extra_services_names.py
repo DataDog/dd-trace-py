@@ -19,9 +19,16 @@ def test_config_extra_service_names_fork():
         pid = os.fork()
         if pid == 0:
             # Child process
-            ddtrace.config._add_extra_service(f"extra_service_{i}")
+            service_name = f"extra_service_{i}"
+            ddtrace.config._add_extra_service(service_name)
             # Ensure the child has time to save the service
-            time.sleep(0.1)
+            for _ in range(30):
+                time.sleep(0.1)
+                if service_name in set(ddtrace.config._extra_services_queue.peekall()):
+                    break
+            else:
+                msg = f"extra service name '{service_name}' not emitted by child"
+                raise RuntimeError(msg)
             sys.exit(0)
         else:
             # Parent process

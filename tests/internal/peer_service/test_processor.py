@@ -6,7 +6,7 @@ import pytest
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.internal.peer_service.processor import PeerServiceProcessor
-from ddtrace.settings.peer_service import PeerServiceConfig
+from ddtrace.internal.settings.peer_service import PeerServiceConfig
 from ddtrace.trace import Span
 
 
@@ -96,7 +96,7 @@ def test_peer_service_enablement(schema_peer_enabled):
     schema_version, env_enabled, expected = schema_peer_enabled
 
     with mock.patch.dict(os.environ, {"DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED": env_enabled}):
-        with mock.patch("ddtrace.settings.peer_service.SCHEMA_VERSION", schema_version):
+        with mock.patch("ddtrace.internal.settings.peer_service.SCHEMA_VERSION", schema_version):
             assert PeerServiceConfig().set_defaults_enabled == expected
 
 
@@ -104,11 +104,10 @@ def test_peer_service_enablement(schema_peer_enabled):
 def test_tracer_hooks():
     from ddtrace.constants import SPAN_KIND
     from ddtrace.ext import SpanKind
-    from ddtrace.settings.peer_service import PeerServiceConfig
-    from tests.utils import DummyTracer
+    from ddtrace.internal.settings.peer_service import PeerServiceConfig
+    from ddtrace.trace import tracer
 
     peer_service_config = PeerServiceConfig()
-    tracer = DummyTracer()
     span = tracer.trace(
         "test",
         service="test_service",

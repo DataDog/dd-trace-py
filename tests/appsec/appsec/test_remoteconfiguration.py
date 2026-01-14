@@ -22,8 +22,8 @@ from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.client import TargetFile
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings.asm import config as asm_config
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
 from tests.appsec.utils import build_payload
@@ -83,8 +83,9 @@ def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_work
     ],
 )
 def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, remote_config_worker):
-    with override_env({APPSEC.ENV: appsec_enabled} if appsec_enabled else {}), override_global_config(
-        dict(_asm_enabled=asbool(appsec_enabled), _remote_config_enabled=True)
+    with (
+        override_env({APPSEC.ENV: appsec_enabled} if appsec_enabled else {}),
+        override_global_config(dict(_asm_enabled=asbool(appsec_enabled), _remote_config_enabled=True)),
     ):
         if appsec_enabled:
             tracer.configure(appsec_enabled=asbool(appsec_enabled))
@@ -251,13 +252,16 @@ def test_rc_activation_check_asm_features_product_disables_rest_of_products(
 
 @pytest.mark.parametrize("auto_user", [True, False])
 def test_rc_activation_with_auto_user_appsec_fixed(tracer, remote_config_worker, auto_user):
-    with override_env({APPSEC.ENV: "true"}), override_global_config(
-        dict(
-            _remote_config_enabled=True,
-            _asm_enabled=True,
-            _auto_user_instrumentation_enabled=auto_user,
-            api_version="v0.4",
-        )
+    with (
+        override_env({APPSEC.ENV: "true"}),
+        override_global_config(
+            dict(
+                _remote_config_enabled=True,
+                _asm_enabled=True,
+                _auto_user_instrumentation_enabled=auto_user,
+                api_version="v0.4",
+            )
+        ),
     ):
         tracer.configure(appsec_enabled=True)
         enable_appsec_rc(tracer)

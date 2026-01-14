@@ -24,10 +24,10 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings._config import _get_config
 from ddtrace.trace import Span
 
 
@@ -47,7 +47,7 @@ config._add(
         distributed_tracing=True,
         trace_asgi_websocket_messages=_get_config(
             "DD_TRACE_WEBSOCKET_MESSAGES_ENABLED",
-            default=_get_config("DD_ASGI_TRACE_WEBSOCKET", default=False, modifier=asbool),
+            default=_get_config("DD_ASGI_TRACE_WEBSOCKET", default=True, modifier=asbool),
             modifier=asbool,
         ),
         asgi_websocket_messages_inherit_sampling=asbool(
@@ -209,22 +209,25 @@ class TraceMiddleware:
         if scope["type"] == "http":
             operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
 
-        with core.context_with_data(
-            "asgi.request",
-            remote_addr=scope.get("REMOTE_ADDR"),
-            headers=headers,
-            headers_case_sensitive=True,
-            environ=scope,
-            middleware=self,
-            span_name=operation_name,
-            resource=resource,
-            span_type=SpanTypes.WEB,
-            service=trace_utils.int_service(None, self.integration_config),
-            distributed_headers=headers,
-            activate_distributed_headers=True,
-            scope=scope,
-            integration_config=self.integration_config,
-        ) as ctx, ctx.span as span:
+        with (
+            core.context_with_data(
+                "asgi.request",
+                remote_addr=scope.get("REMOTE_ADDR"),
+                headers=headers,
+                headers_case_sensitive=True,
+                environ=scope,
+                middleware=self,
+                span_name=operation_name,
+                resource=resource,
+                span_type=SpanTypes.WEB,
+                service=trace_utils.int_service(None, self.integration_config),
+                distributed_headers=headers,
+                activate_distributed_headers=True,
+                scope=scope,
+                integration_config=self.integration_config,
+            ) as ctx,
+            ctx.span as span,
+        ):
             if self.span_modifier:
                 self.span_modifier(span, scope)
 

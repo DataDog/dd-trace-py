@@ -160,9 +160,9 @@ class TestGlobalConfig(SubprocessTestCase):
             # regression: this used to cause an exception to be raised
             ddtrace.config.version = AgentWriter(intake_url="foobar")
             ddtrace.trace.tracer._generate_diagnostic_logs()
-        assert (
-            mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
-        ), mock_logger.mock_calls
+        assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls, (
+            mock_logger.mock_calls
+        )
 
     @run_in_subprocess(
         env_overrides=dict(

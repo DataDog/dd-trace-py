@@ -48,6 +48,8 @@ var/
 .installed.cfg
 *.egg
 *.whl
+pywheels/
+debugwheelhouse/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -112,10 +114,14 @@ celerybeat-schedule*
 # it must be versioned to keep track of backing services defaults
 !.env
 
+# Local docker-compose overrides
+docker-compose.override.yml
+
 # virtualenv
 .venv*
 venv/
 ENV/
+pip_cache_shared_venvs/
 
 # Worktrees
 .worktrees/
@@ -135,7 +141,11 @@ ENV/
 .vscode/
 
 # Cursor
-.cursor/
+.cursor/context/
+.cursor/tasks/
+
+# Promptfoo
+.promptfoo/output/
 
 # Cascade
 # .windsurf/  # If you want to use Windsurf/Cascade, do NOT ignore here.
@@ -147,9 +157,6 @@ CLAUDE.local.md
 # Riot
 .riot/venv*
 .riot/requirements/*.in
-
-# Auto-generated version file
-ddtrace/_version.py
 
 # Benchmarks
 artifacts/

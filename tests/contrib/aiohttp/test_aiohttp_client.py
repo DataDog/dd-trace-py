@@ -101,7 +101,7 @@ async def test_distributed_tracing_disabled(ddtrace_run_python_code_in_subproces
 import asyncio
 import sys
 import aiohttp
-from ddtrace.trace import Pin
+from ddtrace._trace.pin import Pin
 from tests.contrib.aiohttp.test_aiohttp_client import URL
 
 async def test():
@@ -184,7 +184,7 @@ def test_configure_service_name_pin(ddtrace_run_python_code_in_subprocess):
 import asyncio
 import sys
 import aiohttp
-from ddtrace.trace import Pin
+from ddtrace._trace.pin import Pin
 from tests.contrib.aiohttp.test_aiohttp_client import URL_200
 
 async def test():

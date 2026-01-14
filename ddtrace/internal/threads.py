@@ -38,8 +38,7 @@ _forking_lock = Lock()
 class BoundMethod(t.Protocol):
     __self__: t.Any
 
-    def __call__(self) -> None:
-        ...
+    def __call__(self) -> None: ...
 
 
 # List of threads that have requested to be started while forking. These will

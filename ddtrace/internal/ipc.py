@@ -1,10 +1,11 @@
+from contextlib import contextmanager
 import os
+from pathlib import Path
 import secrets
 import tempfile
 import typing
 
 from ddtrace.internal._unpatched import unpatched_open
-from ddtrace.internal.compat import Path
 from ddtrace.internal.logger import get_logger
 
 
@@ -18,11 +19,9 @@ class BaseLock:
     def __init__(self, file: typing.IO[typing.Any]):
         self.file = file
 
-    def acquire(self):
-        ...
+    def acquire(self): ...
 
-    def release(self):
-        ...
+    def release(self): ...
 
     def __enter__(self):
         self.acquire()
@@ -99,8 +98,18 @@ except FileNotFoundError:
 class SharedStringFile:
     """A simple shared-file implementation for multiprocess communication."""
 
-    def __init__(self) -> None:
-        self.filename: typing.Optional[str] = str(TMPDIR / secrets.token_hex(8)) if TMPDIR is not None else None
+    def __init__(self, name: typing.Optional[str] = None) -> None:
+        self.filename: typing.Optional[str] = (
+            str(TMPDIR / (name or secrets.token_hex(8))) if TMPDIR is not None else None
+        )
+        if self.filename is not None:
+            Path(self.filename).touch(exist_ok=True)
+
+    def put_unlocked(self, f: typing.BinaryIO, data: str) -> None:
+        f.seek(0, os.SEEK_END)
+        dt = (data + "\x00").encode()
+        if f.tell() + len(dt) <= MAX_FILE_SIZE:
+            f.write(dt)
 
     def put(self, data: str) -> None:
         """Put a string into the file."""
@@ -108,13 +117,14 @@ class SharedStringFile:
             return
 
         try:
-            with open_file(self.filename, "ab") as f, WriteLock(f):
-                f.seek(0, os.SEEK_END)
-                dt = (data + "\x00").encode()
-                if f.tell() + len(dt) <= MAX_FILE_SIZE:
-                    f.write(dt)
+            with self.lock_exclusive() as f:
+                self.put_unlocked(f, data)
         except Exception:  # nosec
             pass
+
+    def peekall_unlocked(self, f: typing.BinaryIO) -> typing.List[str]:
+        f.seek(0)
+        return data.decode().split("\x00") if (data := f.read().strip(b"\x00")) else []
 
     def peekall(self) -> typing.List[str]:
         """Peek at all strings from the file."""
@@ -122,9 +132,8 @@ class SharedStringFile:
             return []
 
         try:
-            with open_file(self.filename, "r+b") as f, ReadLock(f):
-                f.seek(0)
-                return f.read().strip(b"\x00").decode().split("\x00")
+            with self.lock_shared() as f:
+                return self.peekall_unlocked(f)
         except Exception:  # nosec
             return []
 
@@ -134,13 +143,43 @@ class SharedStringFile:
             return []
 
         try:
-            with open_file(self.filename, "r+b") as f, WriteLock(f):
-                f.seek(0)
-                strings = f.read().strip(b"\x00").decode().split("\x00")
-
-                f.seek(0)
-                f.truncate()
-
-            return strings
+            with self.lock_exclusive() as f:
+                try:
+                    return self.peekall_unlocked(f)
+                finally:
+                    self.clear_unlocked(f)
         except Exception:  # nosec
             return []
+
+    def clear_unlocked(self, f: typing.BinaryIO) -> None:
+        f.seek(0)
+        f.truncate()
+
+    def clear(self) -> None:
+        """Clear all strings from the file."""
+        if self.filename is None:
+            return
+
+        try:
+            with self.lock_exclusive() as f:
+                self.clear_unlocked(f)
+        except Exception:  # nosec
+            pass
+
+    @contextmanager
+    def lock_shared(self):
+        """Context manager to acquire a shared/read lock on the file."""
+        with open_file(self.filename, "rb") as f, ReadLock(f):
+            yield f
+
+    @contextmanager
+    def lock_exclusive(self):
+        """Context manager to acquire an exclusive/write lock on the file."""
+        if self.filename is None:
+            return
+        with open_file(self.filename, "r+b") as f, WriteLock(f):
+            yield f
+            # Flush before releasing the lock. Here we first release the lock,
+            # then close the file. If a read happens in between these two
+            # operations, the reader might see outdated data.
+            f.flush()

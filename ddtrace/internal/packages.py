@@ -3,15 +3,15 @@ from functools import lru_cache as cached
 from functools import singledispatch
 import inspect
 import logging
+from pathlib import Path
 import sys
 import sysconfig
 from types import ModuleType
 import typing as t
 
-from ddtrace.internal.compat import Path
 from ddtrace.internal.module import origin
+from ddtrace.internal.settings.third_party import config as tp_config
 from ddtrace.internal.utils.cache import callonce
-from ddtrace.settings.third_party import config as tp_config
 
 
 LOG = logging.getLogger(__name__)
@@ -358,8 +358,7 @@ def _get_toplevel_name(name) -> str:
     """
     return _topmost(name) or (
         # python/typeshed#10328
-        inspect.getmodulename(name)
-        or str(name)
+        inspect.getmodulename(name) or str(name)
     )
 
 

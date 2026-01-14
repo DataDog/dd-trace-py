@@ -11,6 +11,7 @@ instance you are using::
 
     engine.connect().execute('select count(*) from users')
 """
+
 # 3p
 import sqlalchemy
 from sqlalchemy.event import listen

@@ -12,7 +12,6 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_native_writer
 from tests.integration.utils import skip_if_testagent
-from tests.utils import DummyTracer
 from tests.utils import call_program
 
 
@@ -21,9 +20,8 @@ FOUR_KB = 1 << 12
 
 @mock.patch("signal.signal")
 @mock.patch("signal.getsignal")
-def test_shutdown_on_exit_signal(mock_get_signal, mock_signal):
+def test_shutdown_on_exit_signal(mock_get_signal, mock_signal, tracer):
     mock_get_signal.return_value = None
-    tracer = DummyTracer()
     register_on_exit_signal(tracer._atexit)
     assert mock_signal.call_count == 2
     assert mock_signal.call_args_list[0][0][0] == signal.SIGTERM
@@ -110,6 +108,7 @@ def test_uds_wrong_socket_path():
                 "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
                 3,
                 exc_info=True,
+                extra={"send_to_telemetry": False},
             )
         ]
     log.error.assert_has_calls(calls)
@@ -305,9 +304,10 @@ def test_single_trace_too_large():
     from tests.utils import AnyStr
 
     assert t._span_aggregator.partial_flush_enabled is True
-    with mock.patch.object(t._span_aggregator.writer, "flush_queue", return_value=None), mock.patch(
-        "ddtrace.internal.writer.writer.log"
-    ) as log:
+    with (
+        mock.patch.object(t._span_aggregator.writer, "flush_queue", return_value=None),
+        mock.patch("ddtrace.internal.writer.writer.log") as log,
+    ):
         with t.trace("huge"):
             for i in range(1 << 20 + 1):
                 t.trace("operation").finish()
@@ -384,6 +384,7 @@ def test_trace_generates_error_logs_when_trace_agent_url_invalid():
                 "http://localhost:8125/{}/traces".format(encoding if encoding else "v0.5"),
                 3,
                 exc_info=True,
+                extra={"send_to_telemetry": False},
             )
         ]
     log.error.assert_has_calls(calls)
@@ -398,9 +399,10 @@ def test_inode_entity_id_header_present():
     from ddtrace import __version__
     from ddtrace.trace import tracer as t
 
-    with mock.patch("ddtrace.internal.runtime.container.get_container_info") as gcimock, mock.patch(
-        "http.client.HTTPConnection.request"
-    ) as request_mock:
+    with (
+        mock.patch("ddtrace.internal.runtime.container.get_container_info") as gcimock,
+        mock.patch("http.client.HTTPConnection.request") as request_mock,
+    ):
         from ddtrace.internal.runtime.container import CGroupInfo
 
         gcimock.return_value = CGroupInfo(node_inode=12345)
@@ -522,6 +524,7 @@ def test_trace_with_invalid_payload_generates_error_log():
                     0,
                     "http://localhost:8126/v0.5/traces",
                     "Invalid format: Unable to read payload len",
+                    extra={"send_to_telemetry": False},
                 )
             ]
         )
@@ -557,6 +560,7 @@ def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
                     "http://localhost:8126/v0.5/traces",
                     "Invalid format: Unable to read payload len",
                     "6261645f7061796c6f6164",
+                    extra={"send_to_telemetry": False},
                 )
             ]
         )
@@ -684,9 +688,7 @@ s1 = ddtrace.tracer.trace("1")
 s2 = ddtrace.tracer.trace("2")
 s1.finish()
 s2.finish()
-""".format(
-            str(patch_logging)
-        )
+""".format(str(patch_logging))
 
         env = os.environ.copy()
         env.update(
@@ -756,7 +758,7 @@ assert ddtrace.tracer._span_aggregator.writer._interval == 1.0
     assert status == 0, (out, err)
 
 
-@parametrize_with_all_encodings(env={"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "2"})
+@parametrize_with_all_encodings(env={"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "2"}, out=None)
 def test_partial_flush_log():
     import mock
 
@@ -807,17 +809,17 @@ def test_logging_during_tracer_init_succeeds_when_debug_logging_and_logs_injecti
     assert status == 0, (out, err)
     assert out == b"", "an empty program should generate no logs under ddtrace-run"
 
-    assert (
-        b"[dd.service=ddtrace_subprocess_dir dd.env= dd.version= dd.trace_id=0 dd.span_id=0]" not in err
-    ), "stderr should not contain debug output when DD_TRACE_DEBUG is set"
+    assert b"[dd.service=ddtrace_subprocess_dir dd.env= dd.version= dd.trace_id=0 dd.span_id=0]" not in err, (
+        "stderr should not contain debug output when DD_TRACE_DEBUG is set"
+    )
 
     assert b"KeyError: 'dd.service'" not in err, "stderr should not contain any exception logs"
-    assert (
-        b"ValueError: Formatting field not found in record: 'dd.service'" not in err
-    ), "stderr should not contain any exception logs"
+    assert b"ValueError: Formatting field not found in record: 'dd.service'" not in err, (
+        "stderr should not contain any exception logs"
+    )
 
 
-@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 9), reason="Python 3.8 throws a deprecation warning")
+@pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 def test_no_warnings_when_Wall():
     env = os.environ.copy()
     # Have to disable sqlite3 as coverage uses it on process shutdown

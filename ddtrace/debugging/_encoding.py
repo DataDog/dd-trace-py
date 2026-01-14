@@ -19,6 +19,7 @@ from typing import Union
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.snapshot import Snapshot
+from ddtrace.internal import process_tags
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import RLock
@@ -112,6 +113,9 @@ def _build_log_track_payload(
         "message": signal.message,
         "timestamp": int(signal.timestamp * 1e3),  # milliseconds,
     }
+
+    if p_tags := process_tags.process_tags:
+        payload["process_tags"] = p_tags
 
     # Add the correlation IDs if available
     if context is not None and context.trace_id is not None:

@@ -421,15 +421,16 @@ class AsyncPgTestCase(AsyncioTestCase):
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     async def test_asyncpg_dbm_propagation_enabled(self):
-        conn, tracer = await self._get_conn_tracer()
+        conn, _ = await self._get_conn_tracer()
 
         await conn.execute("SELECT 1")
-        spans = tracer.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
-        assert span.name == "postgres.query"
+        spans = self.get_spans()
+        assert len(spans) == 2, f"Expected 2 spans, got {spans}"
+        conn_span, query_span = spans
+        assert conn_span.name == "postgres.connect"
+        assert query_span.name == "postgres.query"
 
-        assert span.get_tag("_dd.dbm_trace_injected") == "true"
+        assert query_span.get_tag("_dd.dbm_trace_injected") == "true"
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
@@ -463,9 +464,9 @@ class AsyncPgTestCase(AsyncioTestCase):
                 f"/*dddb='{db_name}',dddbs='postgres',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
                 "ddpv='v7343437-d7ac743'*/ "
             )
-            assert (
-                patched.call_args_list[0][0][4] == dbm_comment + create_table_query
-            ), f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
+            assert patched.call_args_list[0][0][4] == dbm_comment + create_table_query, (
+                f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
+            )
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
@@ -500,9 +501,9 @@ class AsyncPgTestCase(AsyncioTestCase):
                 f"/*dddb='{db_name}',dddbs='service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
                 "ddpv='v7343437-d7ac743'*/ "
             )
-            assert (
-                patched.call_args_list[0][0][4] == dbm_comment + create_table_query
-            ), f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
+            assert patched.call_args_list[0][0][4] == dbm_comment + create_table_query, (
+                f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
+            )
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
@@ -539,9 +540,9 @@ class AsyncPgTestCase(AsyncioTestCase):
                 f"/*dddb='{db_name}',dddbs='pin-service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
                 "ddpv='v7343437-d7ac743'*/ "
             )
-            assert (
-                patched.call_args_list[0][0][4] == dbm_comment + create_table_query
-            ), f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
+            assert patched.call_args_list[0][0][4] == dbm_comment + create_table_query, (
+                f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
+            )
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
@@ -576,6 +577,6 @@ class AsyncPgTestCase(AsyncioTestCase):
                 f"/*dddb='{db_name}',dddbs='{db_name}',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
                 "ddpv='v7343437-d7ac743'*/ "
             )
-            assert (
-                patched.call_args_list[0][0][4] == dbm_comment + create_table_query
-            ), f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
+            assert patched.call_args_list[0][0][4] == dbm_comment + create_table_query, (
+                f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
+            )

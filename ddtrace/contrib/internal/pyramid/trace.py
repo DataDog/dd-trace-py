@@ -69,19 +69,24 @@ def trace_tween_factory(handler, registry):
     if enabled:
         # make a request tracing function
         def trace_tween(request):
-            with core.context_with_data(
-                "pyramid.request",
-                span_name=schematize_url_operation("pyramid.request", protocol="http", direction=SpanDirection.INBOUND),
-                span_type=SpanTypes.WEB,
-                service=service,
-                resource="404",
-                tags={},
-                tracer=tracer,
-                distributed_headers=request.headers,
-                integration_config=config.pyramid,
-                activate_distributed_headers=True,
-                headers_case_sensitive=True,
-            ) as ctx, ctx.span as req_span:
+            with (
+                core.context_with_data(
+                    "pyramid.request",
+                    span_name=schematize_url_operation(
+                        "pyramid.request", protocol="http", direction=SpanDirection.INBOUND
+                    ),
+                    span_type=SpanTypes.WEB,
+                    service=service,
+                    resource="404",
+                    tags={},
+                    tracer=tracer,
+                    distributed_headers=request.headers,
+                    integration_config=config.pyramid,
+                    activate_distributed_headers=True,
+                    headers_case_sensitive=True,
+                ) as ctx,
+                ctx.span as req_span,
+            ):
                 ctx.set_item("req_span", req_span)
                 core.dispatch("web.request.start", (ctx, config.pyramid))
 

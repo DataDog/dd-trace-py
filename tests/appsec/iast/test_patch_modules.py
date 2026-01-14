@@ -3,6 +3,7 @@
 This module contains tests for the IAST module patching system, including tests for
 IASTFunction and WrapFunctonsForIAST classes.
 """
+
 from unittest.mock import MagicMock
 from unittest.mock import patch
 

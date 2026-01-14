@@ -29,7 +29,7 @@ components:
     - ddtrace/profiling/*
     - ddtrace/internal/datadog/profiling/*
     - ddtrace/internal/processor/endpoint_call_counter.py
-    - ddtrace/settings/profiling.py
+    - ddtrace/internal/settings/profiling.py
   core:
     - ddtrace/internal/__init__.py
     - ddtrace/internal/_exceptions.py
@@ -71,7 +71,7 @@ components:
     - ddtrace/__init__.py
     - ddtrace/py.typed
     - ddtrace/version.py
-    - ddtrace/settings/_config.py
+    - ddtrace/internal/settings/_config.py
     - src/native/*
   bootstrap:
     - ddtrace/bootstrap/*
@@ -81,27 +81,15 @@ suites:
   profile:
     env:
       DD_TRACE_AGENT_URL: ''
-    # `riot list --hash-only profile$ | wc -1` = 19
-    parallelism: 19
+    # `riot list --hash-only profile-v2$ | wc -1` = 26
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
       - '@profiling'
-      - tests/profiling/*
-    pattern: profile$
-    retry: 2
-    runner: riot
-  profile_v2:
-    env:
-      DD_TRACE_AGENT_URL: ''
-    # `riot list --hash-only profile-v2$ | wc -1` = 19
-    parallelism: 19
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@profiling'
+      - '@vendor'
       - tests/profiling/suitespec.yml
-      - tests/profiling_v2/*
-    pattern: profile-v2
+      - tests/profiling/*
+    pattern: profile
     retry: 2
     runner: riot

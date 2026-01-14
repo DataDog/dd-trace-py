@@ -3,6 +3,7 @@ import http.client as httplib
 import socket
 import sys
 from urllib import parse
+import urllib.error
 from urllib.request import Request
 from urllib.request import build_opener
 from urllib.request import urlopen
@@ -18,7 +19,6 @@ from ddtrace.contrib.internal.httplib.patch import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_tracer
@@ -116,7 +116,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
 
         # Enabled Pin and internal request
         self.tracer.enabled = True
-        parsed = parse.urlparse(self.tracer.agent_url)
+        parsed = parse.urlparse(self.tracer._agent_url)
         request = self.get_http_connection(parsed.hostname, parsed.port)
         pin = Pin.get_from(request)
         self.assertTrue(should_skip_request(pin, request))
@@ -205,11 +205,9 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
                 headers={"Accept": "text/plain", "User-Agent": "ddtrace-test"},
             )
             resp = conn.getresponse()
-            self.assertEqual(resp.status, 200)
-            self.assertEqual(
-                self.to_str(resp.read()),
-                "My dog used to chase people on a bike a lot. It got so bad I had to take his bike away.",
-            )
+            # DEV: We don't care if the result was successful or not, just that we succesfully
+            #   traced an HTTPS request. Relying on third party services is not ideal and can be flaky
+            status = resp.status
 
         spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
@@ -218,12 +216,12 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.span_type, "http")
         self.assertEqual(span.service, "tests.contrib.httplib")
         self.assertEqual(span.name, self.SPAN_NAME)
-        self.assertEqual(span.error, 0)
+        self.assertEqual(span.error, status not in (200, 404))
         assert span.get_tag("http.method") == "GET"
         assert span.get_tag("component") == "httplib"
         assert span.get_tag("span.kind") == "client"
         assert span.get_tag("out.host") == "icanhazdadjoke.com"
-        assert_span_http_status_code(span, 200)
+        assert_span_http_status_code(span, status)
         assert span.get_tag("http.url") == "https://icanhazdadjoke.com/j/R7UfaahVfFd"
 
     def test_httplib_request_post_request(self):
@@ -396,7 +394,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
 
         # Enabled when configured
         with self.override_config("httplib", {}):
-            from ddtrace.settings.integration import IntegrationConfig  # noqa:F401
+            from ddtrace.internal.settings.integration import IntegrationConfig  # noqa:F401
 
             integration_config = config.httplib  # type: IntegrationConfig
             integration_config.http.trace_headers(["my-header", "access-control-allow-origin"])
@@ -448,14 +446,14 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
             url,
             headers={"Accept": "text/plain", "User-Agent": "ddtrace-test"},
         )
+        # DEV: We don't care if the result was successful or not, just that we succesfully
+        #   traced an HTTPS request. Relying on third party services is not ideal and can be flaky
         with override_global_tracer(self.tracer):
-            resp = urlopen(req)
-
-        self.assertEqual(resp.getcode(), 200)
-        self.assertEqual(
-            self.to_str(resp.read()),
-            "My dog used to chase people on a bike a lot. It got so bad I had to take his bike away.",
-        )
+            try:
+                resp = urlopen(req)
+                status = resp.getcode()
+            except urllib.error.HTTPError as e:
+                status = e.code
 
         spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
@@ -464,12 +462,12 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.span_type, "http")
         self.assertEqual(span.service, "tests.contrib.httplib")
         self.assertEqual(span.name, self.SPAN_NAME)
-        self.assertEqual(span.error, 0)
+        self.assertEqual(span.error, status not in (200, 404))
         self.assertEqual(span.get_tag("http.method"), "GET")
         self.assertEqual(span.get_tag("component"), "httplib")
         self.assertEqual(span.get_tag("span.kind"), "client")
         self.assertEqual(span.get_tag("out.host"), "icanhazdadjoke.com")
-        assert_span_http_status_code(span, 200)
+        assert_span_http_status_code(span, status)
         self.assertEqual(span.get_tag("http.url"), url)
 
     def test_urllib_request_object(self):
@@ -528,37 +526,6 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.get_tag("component"), "httplib")
         self.assertEqual(span.get_tag("span.kind"), "client")
         self.assertEqual(span.get_tag("out.host"), "localhost")
-
-    def test_httplib_request_get_request_ot(self):
-        """OpenTracing version of test with same name."""
-        ot_tracer = init_tracer("my_svc", self.tracer)
-
-        with ot_tracer.start_active_span("ot_span"):
-            conn = self.get_http_connection(SOCKET)
-            with contextlib.closing(conn):
-                conn.request("GET", "/status/200")
-                resp = conn.getresponse()
-                self.assertEqual(self.to_str(resp.read()), "")
-                self.assertEqual(resp.status, 200)
-
-        spans = self.pop_spans()
-        self.assertEqual(len(spans), 2)
-        ot_span, dd_span = spans
-
-        # confirm the parenting
-        self.assertEqual(ot_span.parent_id, None)
-        self.assertEqual(dd_span.parent_id, ot_span.span_id)
-
-        self.assertEqual(ot_span.service, "my_svc")
-        self.assertEqual(ot_span.name, "ot_span")
-
-        self.assert_is_not_measured(dd_span)
-        self.assertEqual(dd_span.span_type, "http")
-        self.assertEqual(dd_span.name, self.SPAN_NAME)
-        self.assertEqual(dd_span.error, 0)
-        assert dd_span.get_tag("http.method") == "GET"
-        assert_span_http_status_code(dd_span, 200)
-        assert dd_span.get_tag("http.url") == URL_200
 
     def test_httplib_bad_url(self):
         conn = self.get_http_connection("DNE", "80")

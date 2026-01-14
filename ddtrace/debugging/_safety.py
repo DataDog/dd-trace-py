@@ -5,6 +5,7 @@ from types import FrameType
 from typing import Any
 from typing import Dict
 from typing import Iterator
+from typing import Optional
 from typing import Tuple
 
 from ddtrace.internal.safety import get_slots
@@ -38,11 +39,18 @@ def get_globals(frame: FrameType) -> Iterator[Tuple[str, Any]]:
     return ((name, _globals[name]) for name in nonlocal_names if name in _globals)
 
 
-def safe_getattr(obj: Any, name: str) -> Any:
+def getattr_or_exception(obj: Any, name: str) -> Any:
     try:
         return object.__getattribute__(obj, name)
     except Exception as e:
         return e
+
+
+def safe_getattr(obj: Any, name: str, default: Optional[Any] = None) -> Optional[Any]:
+    try:
+        return object.__getattribute__(obj, name)
+    except AttributeError:
+        return default
 
 
 def safe_getitem(obj, index):
@@ -57,9 +65,8 @@ def safe_getitem(obj, index):
 
 def _safe_dict(o: Any) -> Dict[str, Any]:
     try:
-        __dict__ = object.__getattribute__(o, "__dict__")
-        if type(__dict__) is dict:
-            return __dict__
+        if type(__dict__ := object.__getattribute__(o, "__dict__")) is dict:
+            return __dict__.copy()
     except Exception:
         pass  # nosec
 
@@ -71,4 +78,4 @@ def get_fields(obj: Any) -> Dict[str, Any]:
         return _safe_dict(obj)
     except AttributeError:
         # Check for slots
-        return {s: safe_getattr(obj, s) for s in get_slots(obj)}
+        return {s: getattr_or_exception(obj, s) for s in get_slots(obj)}

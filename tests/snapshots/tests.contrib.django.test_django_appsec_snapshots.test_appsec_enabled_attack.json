@@ -14,7 +14,7 @@
       "_dd.appsec.fp.http.network": "net-0-0000000000",
       "_dd.appsec.fp.session": "ssn----",
       "_dd.appsec.rc_products": "[] u:0 r:2",
-      "_dd.appsec.waf.version": "1.30.0",
+      "_dd.appsec.waf.version": "1.30.1",
       "_dd.base_service": "",
       "_dd.origin": "appsec",
       "_dd.p.dm": "-5",
@@ -368,27 +368,11 @@
                                      "start": 1754925803975252719
                                    },
                                    {
-                                     "name": "django.template.render",
-                                     "service": "django",
-                                     "resource": "django.template.base.Template.render",
-                                     "trace_id": 0,
-                                     "span_id": 26,
-                                     "parent_id": 23,
-                                     "type": "template",
-                                     "meta": {
-                                       "_dd.base_service": "",
-                                       "component": "django",
-                                       "django.template.engine.class": "django.template.engine.Engine"
-                                     },
-                                     "duration": 38708,
-                                     "start": 1754925803984285594
-                                   },
-                                   {
                                      "name": "django.middleware",
                                      "service": "django",
                                      "resource": "django.views.decorators.csrf._EnsureCsrfToken.process_response",
                                      "trace_id": 0,
-                                     "span_id": 27,
+                                     "span_id": 26,
                                      "parent_id": 23,
                                      "meta": {
                                        "_dd.base_service": "",

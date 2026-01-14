@@ -1,0 +1,56 @@
+interactions:
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"metric_source": "custom", "span_id": "123", "trace_id": "456",
+      "timestamp_ms": 1234, "metric_type": "score", "label": "dummy_evaluator", "score_value":
+      0, "error": null, "tags": ["ddtrace.version:3.19.0.dev42+g1f1eda22d.d20251114",
+      "experiment_id:b1d96a7b-aea5-48a6-9bff-44a4d66e5788", "run_id:12345678-abcd-abcd-abcd-123456789012",
+      "run_iteration:1"], "experiment_id": "b1d96a7b-aea5-48a6-9bff-44a4d66e5788"},
+      {"metric_source": "summary", "span_id": "", "trace_id": "", "timestamp_ms":
+      1234, "metric_type": "score", "label": "dummy_summary_evaluator", "score_value":
+      4, "error": null, "tags": ["ddtrace.version:3.19.0.dev42+g1f1eda22d.d20251114",
+      "experiment_id:b1d96a7b-aea5-48a6-9bff-44a4d66e5788", "run_id:12345678-abcd-abcd-abcd-123456789012",
+      "run_iteration:1"], "experiment_id": "b1d96a7b-aea5-48a6-9bff-44a4d66e5788"}],
+      "tags": ["ddtrace.version:3.19.0.dev42+g1f1eda22d.d20251114", "experiment_id:b1d96a7b-aea5-48a6-9bff-44a4d66e5788",
+      "run_id:12345678-abcd-abcd-abcd-123456789012", "run_iteration:1"]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '1098'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments/b1d96a7b-aea5-48a6-9bff-44a4d66e5788/events
+  response:
+    body:
+      string: ''
+    headers:
+      content-length:
+      - '0'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 17 Nov 2025 07:47:22 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+version: 1

@@ -3,6 +3,7 @@ pyarrow==16.1.0
 
 https://pypi.org/project/pyarrow/
 """
+
 import os
 
 from flask import Blueprint

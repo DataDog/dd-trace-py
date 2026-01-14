@@ -51,6 +51,7 @@ Configuration
    Default: ``'celery-worker'``
 
 """
+
 from ddtrace.contrib.internal.celery.app import patch_app
 from ddtrace.contrib.internal.celery.app import unpatch_app
 

@@ -18,6 +18,8 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
+from ddtrace.contrib.internal.sanic.patch import patch
+from ddtrace.contrib.internal.sanic.patch import unpatch
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
@@ -65,7 +67,14 @@ async def _response_text(response):
 
 
 @pytest.fixture
-def app(tracer):
+def patch_sanic():
+    patch()
+    yield
+    unpatch()
+
+
+@pytest.fixture
+def app(tracer, patch_sanic):
     # Sanic 20.12 and newer prevent loading multiple applications
     # with the same name if register is True.
     DEFAULT_CONFIG["REGISTER"] = False
@@ -442,30 +451,26 @@ import sanic
 
 # import fixtures
 from tests.conftest import *
-from tests.contrib.sanic.conftest import *
 from tests.contrib.sanic.test_sanic import app
 from tests.contrib.sanic.test_sanic import client
 from tests.contrib.sanic.test_sanic import integration_config
 from tests.contrib.sanic.test_sanic import integration_http_config
+from tests.contrib.sanic.test_sanic import patch_sanic
 from tests.contrib.sanic.test_sanic import _response_status
 
-from ddtrace.propagation import http as http_propagation
-
-async def test(client, integration_config, integration_http_config, test_spans):
+async def test(patch_sanic, client, integration_config, integration_http_config, test_spans):
     response = await client.get("/hello", params=[("foo", "bar")])
     assert _response_status(response) == 200
 
     spans = test_spans.pop_traces()
-    assert len(spans) == 1
-    assert len(spans[0]) == 2
-    request_span = spans[0][0]
-    assert request_span.service == "{}"
+    # Filter by component tag to get only sanic spans (ex: ignore aiohttp client spans)
+    sanic_spans = [s for trace in spans for s in trace if s.get_tag("component") == "sanic"]
+    assert len(sanic_spans) == 1
+    assert sanic_spans[0].service == "{}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_service_name
-    )
+    """.format(expected_service_name)
 
     env = os.environ.copy()
     if schema_version is not None:
@@ -494,30 +499,26 @@ import sanic
 
 # import fixtures
 from tests.conftest import *
-from tests.contrib.sanic.conftest import *
 from tests.contrib.sanic.test_sanic import app
 from tests.contrib.sanic.test_sanic import client
 from tests.contrib.sanic.test_sanic import integration_config
 from tests.contrib.sanic.test_sanic import integration_http_config
+from tests.contrib.sanic.test_sanic import patch_sanic
 from tests.contrib.sanic.test_sanic import _response_status
 
-from ddtrace.propagation import http as http_propagation
-
-async def test(client, integration_config, integration_http_config, test_spans):
+async def test(patch_sanic, client, integration_config, integration_http_config, test_spans):
     response = await client.get("/hello", params=[("foo", "bar")])
     assert _response_status(response) == 200
 
     spans = test_spans.pop_traces()
-    assert len(spans) == 1
-    assert len(spans[0]) == 2
-    request_span = spans[0][0]
-    assert request_span.name == "{}"
+    # Filter by component tag to get only sanic spans (ex: ignore aiohttp client spans)
+    sanic_spans = [s for trace in spans for s in trace if s.get_tag("component") == "sanic"]
+    assert len(sanic_spans) == 1
+    assert  sanic_spans[0].name == "{}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_operation_name
-    )
+    """.format(expected_operation_name)
 
     env = os.environ.copy()
     if schema_version is not None:
@@ -571,7 +572,7 @@ if __name__ == "__main__":
 @pytest.mark.parametrize("inferred_proxy_enabled", [False, True])
 @pytest.mark.asyncio
 async def test_inferred_spans_api_gateway_default(
-    tracer, client, test_spans, test, inferred_proxy_enabled, test_headers
+    tracer, client, test_spans, test, inferred_proxy_enabled, test_headers, patch_sanic
 ):
     # When the inferred proxy feature is enabled, there should be an inferred span
     with override_global_config(dict(_inferred_proxy_services_enabled=inferred_proxy_enabled)):
@@ -592,7 +593,7 @@ async def test_inferred_spans_api_gateway_default(
                 api_gateway_resource="GET /",
                 method="GET",
                 status_code=test["status_code"],
-                url="local/",
+                url="https://local/",
                 start=1736973768,
                 is_distributed=test_headers["type"] == "distributed",
                 distributed_trace_id=1,

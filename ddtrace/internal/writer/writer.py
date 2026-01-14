@@ -1,6 +1,7 @@
 import abc
 import binascii
 from collections import defaultdict
+import functools
 import gzip
 import logging
 import os
@@ -12,18 +13,18 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import TextIO
+import weakref
 
-import ddtrace
 from ddtrace import config
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
 from ddtrace.internal.runtime import get_runtime_id
-import ddtrace.internal.utils.http
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings.asm import ai_guard_config
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings.asm import ai_guard_config
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.version import __version__
 
 from ...constants import _KEEP_SPANS_RATE_KEY
 from .. import compat
@@ -76,6 +77,29 @@ class NoEncodableSpansError(Exception):
 # 2s timeout, the java tracer has a 10s timeout, so we set the window size
 # to 10 buckets of 1s duration.
 DEFAULT_SMA_WINDOW = 10
+
+
+def make_weak_method_hook(bound_method):
+    """
+    Wrap a bound method so that it is called via a weakref to its instance.
+    If the instance has been garbage-collected, the hook is a no-op.
+    """
+    if not hasattr(bound_method, "__self__") or bound_method.__self__ is None:
+        raise TypeError("make_weak_method_hook expects a bound method")
+
+    instance = bound_method.__self__
+    func = bound_method.__func__
+    instance_ref = weakref.ref(instance)
+
+    @functools.wraps(func)
+    def hook(*args, **kwargs):
+        inst = instance_ref()
+        if inst is None:
+            # The instance was garbage-collected
+            return
+        return func(inst, *args, **kwargs)
+
+    return hook
 
 
 def _human_size(nbytes: float) -> str:
@@ -284,12 +308,14 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     t,
                     self._intake_endpoint(client),
                 )
+                # Read response body inside try block to ensure connection
+                # is reset if this from_http_response call throws an exception
+                # (e.g. IncompleteRead)
+                return Response.from_http_response(resp)
             except Exception:
                 # Always reset the connection when an exception occurs
                 self._reset_connection()
                 raise
-            else:
-                return Response.from_http_response(resp)
             finally:
                 # Reset the connection if reusing connections is disabled.
                 if not self._reuse_connections:
@@ -448,6 +474,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     self._intake_endpoint(client),
                     self.RETRY_ATTEMPTS,
                     exc_info=True,
+                    extra={"send_to_telemetry": False},
                 )
         finally:
             self._metrics_dist("http.sent.bytes", len(encoded))
@@ -483,10 +510,6 @@ class AgentWriterInterface(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def set_test_session_token(self, token: Optional[str]) -> None:
-        pass
-
-    @abc.abstractmethod
-    def before_fork(self) -> None:
         pass
 
     @abc.abstractmethod
@@ -576,7 +599,7 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
             "Datadog-Meta-Lang": "python",
             "Datadog-Meta-Lang-Version": compat.PYTHON_VERSION,
             "Datadog-Meta-Lang-Interpreter": compat.PYTHON_INTERPRETER,
-            "Datadog-Meta-Tracer-Version": ddtrace.__version__,
+            "Datadog-Meta-Tracer-Version": __version__,
             "Datadog-Client-Computed-Top-Level": "yes",
         }
         if headers:
@@ -686,9 +709,6 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
         headers["X-Datadog-Trace-Count"] = str(count)
         return headers
 
-    def before_fork(self) -> None:
-        pass
-
     def set_test_session_token(self, token: Optional[str]) -> None:
         self._headers["X-Datadog-Test-Session-Token"] = token or ""
 
@@ -786,6 +806,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._compute_stats_enabled = compute_stats_enabled
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
+
         self._exporter = self._create_exporter()
 
     def _create_exporter(self) -> native.TraceExporter:
@@ -802,7 +823,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             .set_language("python")
             .set_language_version(compat.PYTHON_VERSION)
             .set_language_interpreter(compat.PYTHON_INTERPRETER)
-            .set_tracer_version(ddtrace.__version__)
+            .set_tracer_version(__version__)
             .set_git_commit_sha(commit_sha)
             .set_client_computed_top_level()
             .set_input_format(self._api_version)
@@ -852,9 +873,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             # Writers like AgentWriter may not start until the first trace is encoded.
             # Stopping them before that will raise a ServiceStatusError.
             pass
-
-        # Stop the trace exporter worker
-        self._exporter.stop_worker()
 
         api_version = "v0.4" if appsec_enabled else self._api_version
         return self.__class__(
@@ -1062,12 +1080,24 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self,
         timeout: Optional[float] = None,
     ) -> None:
-        # FIXME: don't join() on stop(), let the caller handle this
-        super(NativeWriter, self)._stop_service()
-        self.join(timeout=timeout)
+        try:
+            # FIXME: don't join() on stop(), let the caller handle this
+            super(NativeWriter, self)._stop_service()
+            self.join(timeout=timeout)
+        # Native threads should be stopped even if the writer is not running
+        finally:
+            self._exporter.stop_worker()
 
-    def before_fork(self) -> None:
-        self._exporter.stop_worker()
+    def _start_service(self, *args, **kwargs):
+        super()._start_service(*args, **kwargs)
+
+        def _before_fork(worker: periodic.PeriodicThread) -> None:
+            self._exporter.stop_worker()
+            super(periodic.PeriodicThread, worker)._before_fork()
+
+        assert self._worker is not None  # nosec
+
+        self._worker._before_fork = _before_fork.__get__(self._worker, type(self._worker))
 
     def on_shutdown(self):
         try:

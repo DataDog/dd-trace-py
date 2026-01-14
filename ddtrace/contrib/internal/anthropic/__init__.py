@@ -9,13 +9,6 @@ All traces submitted from the Anthropic integration are tagged by:
 - ``anthropic.request.parameters``: Parameters used in anthropic package call.
 
 
-(beta) Prompt and Completion Sampling
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Prompt texts and completion content for the ``Messages.create`` endpoint are collected in span tags with a default sampling rate of ``1.0``.
-These tags will have truncation applied if the text exceeds the configured character limit.
-
-
 Enabling
 ~~~~~~~~
 
@@ -31,53 +24,12 @@ Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the Anthro
     patch(anthropic=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.anthropic["service"]
 
    The service name reported by default for Anthropic requests.
 
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_ANTHROPIC_SERVICE`` environment
-   variables.
-
-   Default: ``DD_SERVICE``
-
-
-.. py:data:: (beta) ddtrace.config.anthropic["span_char_limit"]
-
-   Configure the maximum number of characters for the following data within span tags:
-
-   - Message inputs and completions
-
-   Text exceeding the maximum number of characters is truncated to the character limit
-   and has ``...`` appended to the end.
-
-   Alternatively, you can set this option with the ``DD_ANTHROPIC_SPAN_CHAR_LIMIT`` environment
-   variable.
-
-   Default: ``128``
-
-
-.. py:data:: (beta) ddtrace.config.anthropic["span_prompt_completion_sample_rate"]
-
-   Configure the sample rate for the collection of prompts and completions as span tags.
-
-   Alternatively, you can set this option with the ``DD_ANTHROPIC_SPAN_PROMPT_COMPLETION_SAMPLE_RATE`` environment
-   variable.
-
-   Default: ``1.0``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure the Anthropic integration on a per-instance basis use the
-``Pin`` API::
-
-    import anthropic
-    from ddtrace import config
-    from ddtrace.trace import Pin
-
-    Pin.override(anthropic, service="my-anthropic-service")
+   Alternatively, set this option with the ``DD_ANTHROPIC_SERVICE`` environment variable.
 """  # noqa: E501

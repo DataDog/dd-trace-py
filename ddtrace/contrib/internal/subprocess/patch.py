@@ -20,9 +20,9 @@ from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.threads import RLock
-from ddtrace.settings._config import config
-from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -455,7 +455,18 @@ def unpatch() -> None:
     import os  # nosec
     import subprocess  # nosec
 
-    for obj, attr in [(os, "system"), (os, "_spawnvef"), (subprocess.Popen, "__init__"), (subprocess.Popen, "wait")]:
+    # Remove Pin objects
+    Pin().remove_from(os)
+    Pin().remove_from(subprocess)
+
+    # Unwrap all patched functions
+    for obj, attr in [
+        (os, "system"),
+        (os, "fork"),
+        (os, "_spawnvef"),
+        (subprocess.Popen, "__init__"),
+        (subprocess.Popen, "wait"),
+    ]:
         try:
             trace_utils.unwrap(obj, attr)
         except AttributeError:

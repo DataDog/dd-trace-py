@@ -1,33 +1,66 @@
-from asyncio.locks import Lock
-import typing
+from __future__ import annotations
 
-from .. import collector
+import asyncio
+import asyncio.locks
+from types import ModuleType
+from typing import Optional
+from typing import Type
+
 from . import _lock
+
+
+# Internal module file for asyncio lock detection
+# This is used to detect locks created internally by Semaphore/Condition
+_ASYNCIO_LOCKS_FILE: Optional[str] = asyncio.locks.__file__
 
 
 class _ProfiledAsyncioLock(_lock._ProfiledLock):
     pass
 
 
+class _ProfiledAsyncioSemaphore(_lock._ProfiledLock):
+    pass
+
+
+class _ProfiledAsyncioBoundedSemaphore(_lock._ProfiledLock):
+    pass
+
+
+class _ProfiledAsyncioCondition(_lock._ProfiledLock):
+    pass
+
+
 class AsyncioLockCollector(_lock.LockCollector):
     """Record asyncio.Lock usage."""
 
-    PROFILED_LOCK_CLASS = _ProfiledAsyncioLock
+    PROFILED_LOCK_CLASS: Type[_ProfiledAsyncioLock] = _ProfiledAsyncioLock
+    MODULE: ModuleType = asyncio
+    PATCHED_LOCK_NAME: str = "Lock"
+    INTERNAL_MODULE_FILE: Optional[str] = _ASYNCIO_LOCKS_FILE
 
-    def _start_service(self) -> None:
-        """Start collecting lock usage."""
-        try:
-            import asyncio
-        except ImportError as e:
-            raise collector.CollectorUnavailable(e)
-        self._asyncio_module = asyncio
-        return super(AsyncioLockCollector, self)._start_service()
 
-    def _get_patch_target(self) -> typing.Type[Lock]:
-        return self._asyncio_module.Lock
+class AsyncioSemaphoreCollector(_lock.LockCollector):
+    """Record asyncio.Semaphore usage."""
 
-    def _set_patch_target(
-        self,
-        value: typing.Any,
-    ) -> None:
-        self._asyncio_module.Lock = value  # type: ignore[misc]
+    PROFILED_LOCK_CLASS: Type[_ProfiledAsyncioSemaphore] = _ProfiledAsyncioSemaphore
+    MODULE: ModuleType = asyncio
+    PATCHED_LOCK_NAME: str = "Semaphore"
+    INTERNAL_MODULE_FILE: Optional[str] = _ASYNCIO_LOCKS_FILE
+
+
+class AsyncioBoundedSemaphoreCollector(_lock.LockCollector):
+    """Record asyncio.BoundedSemaphore usage."""
+
+    PROFILED_LOCK_CLASS: Type[_ProfiledAsyncioBoundedSemaphore] = _ProfiledAsyncioBoundedSemaphore
+    MODULE: ModuleType = asyncio
+    PATCHED_LOCK_NAME: str = "BoundedSemaphore"
+    INTERNAL_MODULE_FILE: Optional[str] = _ASYNCIO_LOCKS_FILE
+
+
+class AsyncioConditionCollector(_lock.LockCollector):
+    """Record asyncio.Condition usage."""
+
+    PROFILED_LOCK_CLASS: Type[_ProfiledAsyncioCondition] = _ProfiledAsyncioCondition
+    MODULE: ModuleType = asyncio
+    PATCHED_LOCK_NAME: str = "Condition"
+    INTERNAL_MODULE_FILE: Optional[str] = _ASYNCIO_LOCKS_FILE

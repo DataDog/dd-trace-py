@@ -14,8 +14,8 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     patch(valkey=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.valkey["service"]
 
@@ -47,25 +47,8 @@ Global Configuration
    variable.
 
    Default: ``True``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure particular valkey instances use the :class:`Pin <ddtrace.Pin>` API::
-
-    import valkey
-    from ddtrace.trace import Pin
-
-    client = valkey.StrictValkey(host="localhost", port=6379)
-
-    # Override service name for this instance
-    Pin.override(client, service="my-custom-queue")
-
-    # Traces reported for this client will now have "my-custom-queue"
-    # as the service name.
-    client.get("my-key")
 """
+
 import os
 from typing import Dict
 

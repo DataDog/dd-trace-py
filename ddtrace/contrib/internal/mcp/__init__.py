@@ -16,29 +16,16 @@ Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the MCP in
     from ddtrace import patch
     patch(mcp=True)
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.mcp["service"]
    The service name reported by default for MCP requests.
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_MCP_SERVICE`` environment
-   variables.
-   Default: ``DD_SERVICE``
+   Alternatively, set this option with the ``DD_MCP_SERVICE`` environment variable.
 
 .. py:data:: ddtrace.config.mcp["distributed_tracing"]
    Whether or not to enable distributed tracing for MCP requests.
    Alternatively, you can set this option with the ``DD_MCP_DISTRIBUTED_TRACING`` environment
    variable.
    Default: ``True``
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure the MCP integration on a per-instance basis use the
-``Pin`` API::
-
-    import mcp
-    from ddtrace.trace import Pin
-
-    Pin.override(mcp, service="my-mcp-service")
 """  # noqa: E501

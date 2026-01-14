@@ -24,19 +24,6 @@ is no longer a required dependency of ``langchain>=0.2.0``. This means that this
 - Vector store similarity search calls made using ``langchain_community.vectorstores.*``
 - Total cost metrics for OpenAI requests
 
-
-(beta) Prompt and Completion Sampling
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The following data is collected in span tags with a default sampling rate of ``1.0``:
-
-- Prompt inputs and completions for the ``LLM`` interface.
-- Message inputs and completions for the ``ChatModel`` interface.
-- Embedding inputs for the ``Embeddings`` interface.
-- Prompt inputs, chain inputs, and outputs for the ``Chain`` interface.
-- Query inputs and document outputs for the ``VectorStore`` interface.
-
-
 Enabling
 ~~~~~~~~
 
@@ -65,43 +52,13 @@ Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the LangCh
     # patch(langchain=True, openai=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.langchain["service"]
 
    The service name reported by default for LangChain requests.
 
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_LANGCHAIN_SERVICE`` environment
-   variables.
-
-   Default: ``DD_SERVICE``
-
-
-.. py:data:: (beta) ddtrace.config.langchain["span_char_limit"]
-
-   Configure the maximum number of characters for the following data within span tags:
-
-   - Prompt inputs and completions
-   - Message inputs and completions
-   - Embedding inputs
-
-   Text exceeding the maximum number of characters is truncated to the character limit
-   and has ``...`` appended to the end.
-
-   Alternatively, you can set this option with the ``DD_LANGCHAIN_SPAN_CHAR_LIMIT`` environment
-   variable.
-
-   Default: ``128``
-
-
-.. py:data:: (beta) ddtrace.config.langchain["span_prompt_completion_sample_rate"]
-
-   Configure the sample rate for the collection of prompts and completions as span tags.
-
-   Alternatively, you can set this option with the ``DD_LANGCHAIN_SPAN_PROMPT_COMPLETION_SAMPLE_RATE`` environment
-   variable.
-
-   Default: ``1.0``
+   Alternatively, set this option with the ``DD_LANGCHAIN_SERVICE`` environment variable.
 
 """  # noqa: E501

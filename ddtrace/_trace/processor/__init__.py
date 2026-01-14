@@ -14,11 +14,13 @@ from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.internal import gitmetadata
+from ddtrace.internal import process_tags
 from ddtrace.internal import telemetry
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
+from ddtrace.internal.constants import PROCESS_TAGS
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
@@ -26,11 +28,11 @@ from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import create_trace_writer
-from ddtrace.settings._config import config
-from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -250,6 +252,8 @@ class TraceTagsProcessor(TraceProcessor):
             span._update_tags_from_context()
             self._set_git_metadata(span)
             span._set_tag_str("language", "python")
+            if p_tags := process_tags.process_tags:
+                span._set_tag_str(PROCESS_TAGS, p_tags)
             # for 128 bit trace ids
             if span.trace_id > MAX_UINT_64BITS:
                 trace_id_hob = _get_64_highest_order_bits_as_hex(span.trace_id)
@@ -374,7 +378,11 @@ class SpanAggregator(SpanProcessor):
             elif self.partial_flush_enabled and num_finished >= self.partial_flush_min_spans:
                 should_partial_flush = True
                 finished = trace.remove_finished()
-                finished[0].set_metric("_dd.py.partial_flush", num_finished)
+                if finished:
+                    finished[0].set_metric("_dd.py.partial_flush", num_finished)
+                else:
+                    # num_finished was out of sync with the actual finished spans, skip partial flush
+                    return
             else:
                 return
 
@@ -442,17 +450,16 @@ class SpanAggregator(SpanProcessor):
         self._queue_span_count_metrics("spans_finished", "integration_name", 1)
         # Log a warning if the tracer is shutdown before spans are finished
         if log.isEnabledFor(logging.WARNING):
-            unfinished_spans = [
+            unsent_spans = [
                 f"trace_id={s.trace_id} parent_id={s.parent_id} span_id={s.span_id} name={s.name} resource={s.resource} started={s.start} sampling_priority={s.context.sampling_priority}"  # noqa: E501
                 for t in self._traces.values()
                 for s in t.spans
-                if not s.finished
             ]
-            if unfinished_spans:
+            if unsent_spans:
                 log.warning(
-                    "Shutting down tracer with %d unfinished spans. Unfinished spans will not be sent to Datadog: %s",
-                    len(unfinished_spans),
-                    ", ".join(unfinished_spans),
+                    "Shutting down tracer with %d spans. These spans will not be sent to Datadog: %s",
+                    len(unsent_spans),
+                    ", ".join(unsent_spans),
                 )
 
         try:
@@ -492,8 +499,6 @@ class SpanAggregator(SpanProcessor):
             # Flush any encoded spans in the writer's buffer. This operation ensures encoded spans
             # are not dropped when the writer is recreated. This operation should not be handled after a fork.
             self.writer.flush_queue()
-        # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
-        self.writer = self.writer.recreate(appsec_enabled=appsec_enabled)
 
         if compute_stats is not None:
             self.sampling_processor._compute_stats_enabled = compute_stats

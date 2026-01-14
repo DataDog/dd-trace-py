@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    SSI: This fixes an issue where ddtrace fails to find _psutil_linux.abi3.so
+    file in an injected environment.

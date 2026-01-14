@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: This fix resolves an issue where the Lock profiler would not call the necessary initialization function,
+    which would sometimes result in crashes.

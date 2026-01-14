@@ -542,7 +542,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
                                 api_gateway_resource="GET /",
                                 method="GET",
                                 status_code=test_endpoint["status"],
-                                url="local/",
+                                url="https://local/",
                                 start=1736973768,
                                 is_distributed=test_headers == distributed_headers,
                                 distributed_trace_id=1,
@@ -651,9 +651,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_service_name
-    )
+    """.format(expected_service_name)
     env = os.environ.copy()
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
@@ -710,9 +708,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_operation_name
-    )
+    """.format(expected_operation_name)
     env = os.environ.copy()
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version

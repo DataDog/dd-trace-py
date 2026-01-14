@@ -35,15 +35,18 @@ def _wrap_call(
     tags = {COMPONENT: config.flask.integration_name}
     if signal:
         tags["flask.signal"] = signal
-    with core.context_with_data(
-        "flask.call",
-        span_name=name,
-        pin=pin,
-        resource=resource,
-        service=trace_utils.int_service(pin, config.flask),
-        span_type=span_type,
-        tags=tags,
-    ) as ctx, ctx.span:
+    with (
+        core.context_with_data(
+            "flask.call",
+            span_name=name,
+            pin=pin,
+            resource=resource,
+            service=trace_utils.int_service(pin, config.flask),
+            span_type=span_type,
+            tags=tags,
+        ) as ctx,
+        ctx.span,
+    ):
         if do_dispatch:
             dispatch = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
                 "flask.wrapped_view", (kwargs,)

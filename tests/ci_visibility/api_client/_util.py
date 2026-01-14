@@ -338,7 +338,9 @@ class TestTestVisibilityAPIClientBase:
 
     @pytest.fixture(scope="function", autouse=True)
     def _test_context_manager(self):
-        with mock.patch("ddtrace.internal.ci_visibility._api_client.uuid4", return_value="checkoutmyuuid4"), mock.patch(
-            "ddtrace.internal.ci_visibility._api_client.DEFAULT_TIMEOUT", 12.34
-        ), mock.patch("ddtrace.internal.ci_visibility._api_client.DEFAULT_ITR_SKIPPABLE_TIMEOUT", 43.21):
+        with (
+            mock.patch("ddtrace.internal.ci_visibility._api_client.uuid4", return_value="checkoutmyuuid4"),
+            mock.patch("ddtrace.internal.ci_visibility._api_client.DEFAULT_TIMEOUT", 12.34),
+            mock.patch("ddtrace.internal.ci_visibility._api_client.DEFAULT_ITR_SKIPPABLE_TIMEOUT", 43.21),
+        ):
             yield

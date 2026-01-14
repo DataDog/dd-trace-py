@@ -34,7 +34,7 @@ def _get_tuples_from_segments(segments):
 def _get_span_coverage_data(span, use_plugin_v2=False):
     """Returns an abstracted view of the coverage data from the span that is independent of the coverage format."""
     if use_plugin_v2:
-        tag_data = span.get_struct_tag(COVERAGE_TAG_NAME)
+        tag_data = span._get_struct_tag(COVERAGE_TAG_NAME)
         assert tag_data is not None, f"Coverage data not found in span {span}"
         return {
             file_data["filename"]: _get_tuples_from_bytearray(file_data["bitmap"]) for file_data in tag_data["files"]

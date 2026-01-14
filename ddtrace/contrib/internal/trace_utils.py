@@ -38,14 +38,14 @@ from ddtrace.internal.compat import ip_is_global
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.asm import config as asm_config
 import ddtrace.internal.utils.wrappers
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.settings._config import config
-from ddtrace.settings.asm import config as asm_config
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.settings.integration import IntegrationConfig  # noqa:F401
+    from ddtrace.internal.settings.integration import IntegrationConfig  # noqa:F401
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.trace import Tracer  # noqa:F401
 

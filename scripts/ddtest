@@ -9,24 +9,41 @@ then
     CMD=bash
 fi
 
-# If we are in a worktree inside of the container then git/setuptools_scm doesn't work right
-# we need to tell setuptools_scm what the version is manually
-if git rev-parse --is-inside-work-tree > /dev/null 2>&1
-then
-    if command -v uv > /dev/null 2>&1
-    then
-        version=$(uvx --from=setuptools_scm --quiet setuptools-scm)
-    else
-        version=$(git describe --tags --abbrev=0 --match "v[0-9]*" | sed 's/^v//')
-    fi
+BUILD_FLAG=""
+if [ "${1:-}" = "--build" ]; then
+    BUILD_FLAG="--build"
+    shift
+fi
+# Ensure cache directories exist and are writable by the current user
+# These are mounted into the Docker container at /home/bits/.cache
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+CACHE_DIR="$PROJECT_ROOT/.cache"
 
-    export SETUPTOOLS_SCM_PRETEND_VERSION_FOR_DDTRACE="${version}"
+# Create cache directories if they don't exist
+mkdir -p "$CACHE_DIR/pip" "$CACHE_DIR/cython" "$CACHE_DIR/sccache" 2>/dev/null || true
+
+# Fix permissions if the cache directory is owned by root
+if [ -d "$CACHE_DIR" ] && [ "$(stat -c '%U' "$CACHE_DIR" 2>/dev/null || stat -f '%Su' "$CACHE_DIR" 2>/dev/null)" = "root" ]; then
+    echo "Warning: $CACHE_DIR is owned by root. Attempting to fix permissions..."
+    echo "You may be prompted for your sudo password."
+    sudo chown -R "$USER:$(id -gn)" "$CACHE_DIR" 2>/dev/null || {
+        echo "Error: Failed to fix cache directory permissions."
+        echo "Please run: sudo chown -R \$USER:\$(id -gn) $CACHE_DIR"
+        exit 1
+    }
 fi
 
-docker compose run \
+# Ensure the directories are writable
+chmod -R u+w "$CACHE_DIR" 2>/dev/null || true
+
+COMPOSE_FILES=("-f" "$PROJECT_ROOT/docker-compose.yml")
+if command -v nvidia-smi >/dev/null 2>&1; then
+    COMPOSE_FILES+=("-f" "$PROJECT_ROOT/docker-compose.gpu.yml")
+fi
+
+docker compose ${COMPOSE_FILES[@]} run $BUILD_FLAG \
        -e DD_TRACE_AGENT_URL \
-       -e SETUPTOOLS_SCM_PRETEND_VERSION \
-       -e SETUPTOOLS_SCM_PRETEND_VERSION_FOR_DDTRACE \
        --rm \
        -i \
        testrunner \

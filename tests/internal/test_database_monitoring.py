@@ -2,8 +2,8 @@ import logging
 
 import pytest
 
+from ddtrace.internal.settings import _database_monitoring
 from ddtrace.propagation._database_monitoring import default_sql_injector
-from ddtrace.settings import _database_monitoring
 from tests.utils import override_env
 
 
@@ -118,6 +118,104 @@ def test_dbm_propagation_full_mode():
 
         # ensure that dbm tag is set (required for full mode)
         assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) == "true"
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_DBM_PROPAGATION_MODE="service",
+        DD_DBM_INJECT_SQL_BASEHASH="False",
+        DD_SERVICE="orders-app",
+        DD_ENV="staging",
+        DD_VERSION="v7343437-d7ac743",
+        DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="true",
+    )
+)
+def test_dbm_not_propagating_base_hash_when_deactivated():
+    from ddtrace.internal import process_tags
+    from ddtrace.internal.constants import PROPAGATED_HASH
+    from ddtrace.propagation import _database_monitoring
+    from ddtrace.trace import tracer
+
+    process_tags.compute_base_hash("abc123")
+
+    with tracer.trace("dbspan", service="orders-db") as dbspan:
+        dbm_propagator = _database_monitoring._DBM_Propagator(0, "query")
+
+        original_sql = "SELECT * FROM users"
+        args = (original_sql,)
+        kwargs = {}
+        modified_args, _ = dbm_propagator.inject(dbspan, args, kwargs)
+
+        injected_sql = modified_args[0]
+
+        assert "ddsh" not in injected_sql
+        assert PROPAGATED_HASH not in dbspan._metrics
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_DBM_PROPAGATION_MODE="service",
+        DD_DBM_INJECT_SQL_BASEHASH="True",
+        DD_SERVICE="orders-app",
+        DD_ENV="staging",
+        DD_VERSION="v7343437-d7ac743",
+        DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="true",
+    )
+)
+def test_dbm_propagating_base_hash_when_activated():
+    from ddtrace.internal import process_tags
+    from ddtrace.internal.constants import PROPAGATED_HASH
+    from ddtrace.propagation import _database_monitoring
+    from ddtrace.trace import tracer
+
+    process_tags.compute_base_hash("abc123")
+
+    with tracer.trace("dbspan", service="orders-db") as dbspan:
+        dbm_propagator = _database_monitoring._DBM_Propagator(0, "query")
+
+        original_sql = "SELECT * FROM users"
+        args = (original_sql,)
+        kwargs = {}
+        modified_args, _ = dbm_propagator.inject(dbspan, args, kwargs)
+
+        injected_sql = modified_args[0]
+
+        assert "ddsh" in injected_sql
+        assert PROPAGATED_HASH in dbspan._metrics
+        assert dbspan._metrics[PROPAGATED_HASH] == process_tags.base_hash
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_DBM_PROPAGATION_MODE="service",
+        DD_DBM_INJECT_SQL_BASEHASH="True",
+        DD_SERVICE="orders-app",
+        DD_ENV="staging",
+        DD_VERSION="v7343437-d7ac743",
+        DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="false",
+    )
+)
+def test_dbm_not_propagating_when_process_tags_disabled():
+    from ddtrace.internal import process_tags
+    from ddtrace.internal.constants import PROPAGATED_HASH
+    from ddtrace.propagation import _database_monitoring
+    from ddtrace.trace import tracer
+
+    process_tags.compute_base_hash("abc123")
+    assert process_tags.base_hash is None
+
+    with tracer.trace("dbspan", service="orders-db") as dbspan:
+        dbm_propagator = _database_monitoring._DBM_Propagator(0, "query")
+
+        original_sql = "SELECT * FROM users"
+        args = (original_sql,)
+        kwargs = {}
+        modified_args, _ = dbm_propagator.inject(dbspan, args, kwargs)
+
+        injected_sql = modified_args[0]
+
+        assert "ddsh" not in injected_sql
+        assert PROPAGATED_HASH not in dbspan._metrics
 
 
 @pytest.mark.subprocess(

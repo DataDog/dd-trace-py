@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    anthropic: Adds support for the Anthropic Beta client API (``client.beta.messages.create()`` and ``client.beta.messages.stream()``).
+    This feature requires Anthropic client version 0.37.0 or higher.

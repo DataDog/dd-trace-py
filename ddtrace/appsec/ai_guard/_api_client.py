@@ -1,23 +1,26 @@
 """AI Guard client for security evaluation of agentic AI workflows."""
+
+from copy import deepcopy
 import json
 from typing import Any
 from typing import List
 from typing import Literal
 from typing import Optional  # noqa:F401
 from typing import TypedDict
+from typing import Union
 
-import ddtrace
 from ddtrace import config
 from ddtrace import tracer as ddtracer
 from ddtrace._trace.tracer import Tracer
 from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.internal import telemetry
 import ddtrace.internal.logger as ddlogger
+from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics_namespaces import MetricTagType
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
-from ddtrace.settings.asm import ai_guard_config
+from ddtrace.version import __version__
 
 
 logger = ddlogger.get_logger(__name__)
@@ -38,9 +41,19 @@ class ToolCall(TypedDict):
     function: Function
 
 
+class ImageURL(TypedDict, total=False):
+    url: str
+
+
+class ContentPart(TypedDict, total=False):
+    type: str
+    text: Optional[str]
+    image_url: Optional[ImageURL]
+
+
 class Message(TypedDict, total=False):
     role: str
-    content: str
+    content: Union[str, List[ContentPart]]
     tool_call_id: str
     tool_calls: List[ToolCall]
 
@@ -48,6 +61,7 @@ class Message(TypedDict, total=False):
 class Evaluation(TypedDict):
     action: Literal["ALLOW", "DENY", "ABORT"]
     reason: str
+    tags: List[str]
 
 
 class Options(TypedDict, total=False):
@@ -73,10 +87,11 @@ class AIGuardClientError(Exception):
 class AIGuardAbortError(Exception):
     """Exception to abort current execution due to security policy."""
 
-    def __init__(self, action: str, reason: str):
+    def __init__(self, action: str, reason: str, tags: Optional[List[str]] = None):
         self.action = action
         self.reason = reason
-        super().__init__(f"AIGuardAbortError(action='{action}', reason='{reason}')")
+        self.tags = tags
+        super().__init__(f"AIGuardAbortError(action='{action}', reason='{reason}', tags='{tags}')")
 
 
 class AIGuardClient:
@@ -98,7 +113,7 @@ class AIGuardClient:
             "Content-Type": "application/json",
             "DD-API-KEY": api_key,
             "DD-APPLICATION-KEY": app_key,
-            "DD-AI-GUARD-VERSION": ddtrace.__version__,
+            "DD-AI-GUARD-VERSION": __version__,
             "DD-AI-GUARD-SOURCE": "SDK",
             "DD-AI-GUARD-LANGUAGE": "python",
         }
@@ -123,13 +138,22 @@ class AIGuardClient:
 
         def truncate_message(message: Message) -> Message:
             nonlocal content_truncated
-            content = message.get("content", "")
-            if len(content) > max_content_size:
-                truncated = message.copy()
-                truncated["content"] = content[:max_content_size]
-                content_truncated = True
-                return truncated
-            return message
+            # ensure the message cannot be modified before serialization
+            new_message = deepcopy(message)
+            content = new_message.get("content", "")
+            if isinstance(content, str):
+                if len(content) > max_content_size:
+                    new_message["content"] = content[:max_content_size]
+                    content_truncated = True
+            elif isinstance(content, list):
+                # Handle List[ContentPart] - truncate text in content parts
+                for part in content:
+                    if isinstance(part, dict) and "text" in part:
+                        text = part.get("text", "")
+                        if isinstance(text, str) and len(text) > max_content_size:
+                            part["text"] = text[:max_content_size]
+                            content_truncated = True
+            return new_message
 
         result = [truncate_message(message) for message in messages]
         if content_truncated:
@@ -211,7 +235,9 @@ class AIGuardClient:
                     span.set_tag(AI_GUARD.TOOL_NAME_TAG, tool_name)
                 else:
                     span.set_tag(AI_GUARD.TARGET_TAG, "prompt")
-                span.set_struct_tag(AI_GUARD.STRUCT, {"messages": self._messages_for_meta_struct(messages)})
+
+                meta_struct = {"messages": self._messages_for_meta_struct(messages)}
+                span._set_struct_tag(AI_GUARD.STRUCT, meta_struct)
 
                 try:
                     response = self._execute_request(f"{self._endpoint}/evaluate", payload)
@@ -224,6 +250,7 @@ class AIGuardClient:
                         attributes = result["data"]["attributes"]
                         action = attributes["action"]
                         reason = attributes.get("reason", None)
+                        tags = attributes.get("tags", [])
                         blocking_enabled = attributes.get("is_blocking_enabled", False)
                     except Exception as e:
                         value = json.dumps(result, indent=2)[:500]
@@ -239,6 +266,8 @@ class AIGuardClient:
                         )
 
                     span.set_tag(AI_GUARD.ACTION_TAG, action)
+                    if tags:
+                        meta_struct.update({"attack_categories": tags})
                     if reason:
                         span.set_tag(AI_GUARD.REASON_TAG, reason)
                 else:
@@ -259,9 +288,9 @@ class AIGuardClient:
 
                 if should_block:
                     span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
-                    raise AIGuardAbortError(action=action, reason=reason)
+                    raise AIGuardAbortError(action=action, reason=reason, tags=tags)
 
-                return Evaluation(action=action, reason=reason)
+                return Evaluation(action=action, reason=reason, tags=tags)
 
             except AIGuardAbortError:
                 raise
@@ -291,7 +320,9 @@ def new_ai_guard_client(
     if not api_key or not app_key:
         raise ValueError("Authentication credentials required: provide DD_API_KEY and DD_APP_KEY")
 
-    if not endpoint:
+    if endpoint is None:
+        endpoint = ai_guard_config._ai_guard_endpoint
+    if endpoint is None:
         site = f"app.{config._dd_site}" if config._dd_site.count(".") == 1 else config._dd_site
         endpoint = f"https://{site}/api/v2/ai-guard"
 

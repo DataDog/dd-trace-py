@@ -62,9 +62,7 @@ def test(processor):
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        expected_base_service_name
-    )
+    """.format(expected_base_service_name)
 
     env = os.environ.copy()
     if schema_version is not None:

@@ -14,20 +14,27 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "38b9edcd63a1158f1a51e0430770052341b9cfdb"
+  SYSTEM_TESTS_REF: "e1cd85f960c713cf6a7e9caa61094b5914d0e386"
 
 default:
   interruptible: true
+
+
+.is_main: $CI_COMMIT_REF_NAME == "main"
+.is_release: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+.is_release_branch: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+.is_gh_merge_queue: $CI_COMMIT_BRANCH =~ /^gh-readonly-queue\/.*$/
+.is_devflow_merge_queue: $CI_COMMIT_BRANCH =~ /^mq-working-branch-.*$/
 
 # trigger new commit cancel
 workflow:
   auto_cancel:
     on_new_commit: interruptible
   rules:
-    - if: $CI_COMMIT_BRANCH == 'main'
+    - if: !reference [.is_main]
       auto_cancel:
         on_new_commit: none
-    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+    - if: !reference [.is_release_branch]
       auto_cancel:
         on_new_commit: none
     - when: always
@@ -38,6 +45,7 @@ include:
   - local: ".gitlab/package.yml"
   - local: ".gitlab/release.yml"
   - local: ".gitlab/testrunner.yml"
+  - local: ".gitlab/multi-os-tests.yml"
   - local: ".gitlab/benchmarks/serverless.yml"
   - local: ".gitlab/native.yml"
 
@@ -54,7 +62,7 @@ tests-gen:
         # Use dd-octo-sts to get GitHub token
         export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
       fi
-    - riot -v run --pass-env -s gitlab-gen-config -v
+    - scripts/gen_gitlab_config.py --verbose
   needs: []
   artifacts:
     paths:
@@ -74,6 +82,26 @@ run-tests-trigger:
        job: tests-gen
    strategy: depend
 
+serverless lambda tests:
+  stage: tests
+  trigger:
+    project: DataDog/datadog-lambda-python
+    strategy: depend
+    branch: main
+  needs:
+    - job: "upload all"
+  variables:
+    UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
+    UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
+    UPSTREAM_COMMIT_BRANCH: $CI_COMMIT_BRANCH
+    UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
+    UPSTREAM_COMMIT_TITLE: $CI_COMMIT_TITLE
+    UPSTREAM_COMMIT_TAG: $CI_COMMIT_TAG
+    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
+    UPSTREAM_GITLAB_USER_LOGIN: $GITLAB_USER_LOGIN
+    UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL
+    SKIP_E2E_TESTS: "true"
+
 # Validate the ast-grep rule's test suite in .sg/tests
 "ast-grep rules":
   extends: .testrunner
@@ -92,8 +120,15 @@ run-tests-trigger:
 
 microbenchmarks:
   stage: benchmarks
-  needs: [ "download_ddtrace_artifacts" ]
+  needs:
+    - job: "build linux"
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp39-cp39"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
   rules:
+    # Allow failures if explicitly asked
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true
     - allow_failure: false
@@ -107,20 +142,35 @@ microbenchmarks:
 
 macrobenchmarks:
   stage: benchmarks
-  needs: [ "download_ddtrace_artifacts" ]
+  needs:
+    - job: "build linux"
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp39-cp39"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
     DD_DISABLE_VPA: true
-  allow_failure: true
+  allow_failure: false
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
+    # Always run on nightly schedule or API triggered pipelines
+    - if: $NIGHTLY_BUILD == "true"
       when: always
-    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+/
+    # Allow failures if explicitly asked
+    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
+      allow_failure: true
+    # Always run on tagged releases and release branches
+    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
       when: always
+    - if: !reference [.is_release]
+      when: always
+    # Otherwise, run manually
     - when: manual
+      allow_failure: true
 
 check_new_flaky_tests:
   stage: tests
@@ -131,10 +181,52 @@ check_new_flaky_tests:
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-api-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
     - export DD_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-app-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
     - datadog-ci gate evaluate
-  except:
-    - main
-    - '[0-9].[0-9]*'
-    - 'mq-working-branch**'
+  rules:
+    - if: !reference [.is_main]
+      when: never
+    - if: !reference [.is_release]
+      when: never
+    - if: !reference [.is_release_branch]
+      when: never
+    - if: !reference [.is_gh_merge_queue]
+      when: never
+    - if: !reference [.is_devflow_merge_queue]
+      when: never
+    - when: on_success
+
+codeql-scan:
+  timeout: 30m
+  stage: tests
+  needs: []
+  image:
+    name: registry.ddbuild.io/images/code-scanning:v76675231-865a08a-default
+  tags: [ "arch:amd64" ]
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  rules:
+    - if: !reference [.is_release]
+      when: never
+    - if: $NIGHTLY_BUILD == "true"
+      when: never
+    - when: on_success
+  variables:
+    AWS_REGION: us-east-1
+    BASE_REF: main
+    GOMAXPROCS: 10
+    KUBERNETES_CPU_REQUEST: 10
+    KUBERNETES_CPU_LIMIT: 10
+    KUBERNETES_MEMORY_REQUEST: 96Gi
+    KUBERNETES_MEMORY_LIMIT: 96Gi
+    CI_PROJECT_NAMESPACE: DataDog
+    CODEQL: /usr/local/codeql/codeql
+    CODEQL_DB: /tmp/dd-trace-py.codeql
+    PYTHON_CUSTOM_QLPACK: /tmp/codescanning/qlpacks/python/codeql-suites/python-code-scanning.qls
+    DB_CONFIGS: --threads 8 --ram 96000 --language=python --quiet
+    SCAN_CONFIGS: --format sarifv2.1.0 --threads 8 --ram 96000 --no-tuple-counting --quiet
+    UPLOAD_CONFIGS: -upload_sarif=true
+  script:
+    - ./scripts/codeql_scan.sh
 
 requirements_json_test:
   rules:
@@ -143,15 +235,97 @@ requirements_json_test:
     REQUIREMENTS_BLOCK_JSON_PATH: ".gitlab/requirements_block.json"
     REQUIREMENTS_ALLOW_JSON_PATH: ".gitlab/requirements_allow.json"
 
+check_requirements_lockfiles:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  script:
+    - pip install toml==0.10.2
+    - scripts/compile-and-prune-test-requirements
+    - scripts/check-diff '.riot/requirements/' 'Mismatches found between .riot/requirements/*.txt and riotfile.py. Run scripts/compile-and-prune-test-requirements and commit the result.'
+    - python scripts/requirements_to_csv.py
+    - scripts/check-diff 'requirements.csv' 'Tracer dependency requirements in requirements.csv is out of date. Run `python scripts/requirements_to_csv.py` and commit the result.'
+
+codeowners:
+  stage: tests
+  needs: []
+  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/images/mirror/ubuntu:25.04
+  script:
+    - apt-get update && apt install ca-certificates git wget curl -y
+    - wget https://github.com/hmarr/codeowners/releases/download/v1.2.1/codeowners_1.2.1_linux_amd64.tar.gz
+    - tar -xvzf codeowners_1.2.1_linux_amd64.tar.gz
+    - export CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA)
+    - |
+      if [ ! -z "$CHANGED_FILES" ]; then
+        ./codeowners "$CHANGED_FILES"
+        echo '```' > codeowners.txt
+        echo "$(./codeowners $CHANGED_FILES)" >> codeowners.txt
+        echo '```' >> codeowners.txt
+      fi
+    - |
+      export MESSAGE="$(awk '{printf "%s\\n", $0}' codeowners.txt | sed 's/\"/\\"/g')"
+    - |
+      if [ ! -z "$MESSAGE" ]; then
+        wget -nv binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64
+        chmod +x authanywhere-linux-amd64
+        curl 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' \
+          -H "$(./authanywhere-linux-amd64)" \
+          -X PATCH -d "{ \
+            \"commit\": \"$CI_COMMIT_SHORT_SHA\", \
+            \"message\": \"$MESSAGE\", \
+            \"header\": \"Codeowners resolved as\", \
+            \"org\": \"Datadog\", \
+            \"repo\": \"dd-trace-py\" \
+          }"
+      fi
+
+detect_circular_imports:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  rules:
+    - if: !reference [.is_main]
+      when: never
+  script:
+    - cd ..
+    - python -m pip install -r dd-trace-py/scripts/import-analysis/requirements-cycles.txt
+    - cp dd-trace-py/scripts/import-analysis/cycles.py .
+    - python dd-trace-py/scripts/import-analysis/cycles.py analyze cycles-pr.json
+    - cat cycles-pr.json
+    - cd dd-trace-py && git checkout main && cd ..
+    - python dd-trace-py/scripts/import-analysis/cycles.py analyze cycles-base.json
+    - cat cycles-base.json
+    - python dd-trace-py/scripts/import-analysis/cycles.py compare cycles-base.json cycles-pr.json > cycles_report.txt || true
+    - CYCLES_REPORT="$(cat cycles_report.txt)"
+    - cat cycles_report.txt
+    - |
+      if [ ! -z "$CYCLES_REPORT" ]; then
+        wget -nv binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64
+        chmod +x authanywhere-linux-amd64
+        export MESSAGE="$(awk '{printf "%s\\n", $0}' cycles_report.txt | sed 's/\"/\\"/g')"
+        curl 'https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment' \
+          -H "$(./authanywhere-linux-amd64)" \
+          -X PATCH -d "{ \
+            \"commit\": \"$CI_COMMIT_SHORT_SHA\", \
+            \"message\": \"$MESSAGE\", \
+            \"header\": \"\", \
+            \"org\": \"Datadog\", \
+            \"repo\": \"dd-trace-py\" \
+          }"
+        exit 1
+      fi
+
+
 package-oci:
-  needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
+  needs: [ "ddtrace package", download_dependency_wheels ]
 
 promote-oci-to-prod:
   stage: release
-  rules: null
-  only:
-    # TODO: Support publishing rc releases
-    - /^v[0-9]+\.[0-9]+\.[0-9]+$/
+  rules:
+    - if: !reference [.is_release]
+      when: on_success
+    - when: never
   needs:
     - job: release_pypi_prod
     - job: package-oci
@@ -177,10 +351,10 @@ promote-oci-to-staging:
 
 publish-lib-init-pinned-tags:
   stage: release
-  rules: null
-  only:
-    # TODO: Support publishing rc releases
-    - /^v[0-9]+\.[0-9]+\.[0-9]+$/
+  rules:
+    - if: !reference [.is_release]
+      when: on_success
+    - when: never
   needs:
     - job: release_pypi_prod
     - job: create-multiarch-lib-injection-image
@@ -210,3 +384,56 @@ deploy_to_di_backend:manual:
     UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
     UPSTREAM_TAG: $CI_COMMIT_TAG
     UPSTREAM_PACKAGE_JOB: build
+
+lib_injection_tests:
+  # tests for sitecustomize safety that intentionally run outside of riot to simulate a fresh system
+  needs: []
+  stage: tests
+  tags: [ "arch:amd64" ]
+  image: registry.ddbuild.io/images/mirror/ubuntu:25.04
+  parallel:
+    matrix:
+      - PYTHON: [ "2.7", "3.5", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15-dev" ]
+  script:
+    - export PYENV_ROOT="${HOME}/.pyenv"
+    - export PATH="${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PATH}"
+    - apt-get update && apt install build-essential zlib1g-dev libssl-dev curl git -y
+    - PYENV_GIT_TAG=v2.6.17 curl https://pyenv.run | bash
+    - pyenv --version
+    - pyenv install ${PYTHON} && pyenv global ${PYTHON}
+    - python --version
+    - python lib-injection/sources/sitecustomize.py
+
+profiling_native:
+  needs: []
+  stage: tests
+  tags: [ "arch:amd64" ]
+  image: registry.ddbuild.io/images/mirror/ubuntu:25.04
+  allow_failure: true
+  parallel:
+    matrix:
+      - PYTHON: ["3.9.24", "3.10.19", "3.11.14", "3.12.12", "3.13.11", "3.14.2"]
+        MEMCPY_MODE: ["default", "fast"]
+        SANITIZER: ["safety", "thread", "valgrind"]
+  script:
+    - apt-get update && apt install git -y
+    - |
+      [[ $(git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA) != *profiling* ]] && exit 0
+    - export PYENV_ROOT="${HOME}/.pyenv"
+    - export PATH="${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PATH}"
+    - apt-get update && apt install build-essential zlib1g-dev libssl-dev curl llvm-19 bc clang -y
+    - PYENV_GIT_TAG=v2.6.17 curl https://pyenv.run | bash
+    - pyenv --version
+    - PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install ${PYTHON} && pyenv global ${PYTHON}
+    - python --version
+    - echo "$PYENV_ROOT/versions/$PYTHON/lib/" > /etc/ld.so.conf.d/python.conf
+    - ldconfig
+    - |
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      export PATH="$HOME/.cargo/bin:$PATH"
+    - if [ ${SANITIZER} == "valgrind" ]; then apt-get install -y valgrind; fi
+    # DEV: We currently have tests in dd_wrapper and stack, setting
+    # stack here will also run tests in dd_wrapper. Revisit this when
+    # that changes.
+    - if [ ${MEMCPY_MODE} == "fast" ]; then export ECHION_USE_FAST_COPY_MEMORY=1; else export ECHION_USE_FAST_COPY_MEMORY=0; fi
+    - ./ddtrace/internal/datadog/profiling/build_standalone.sh --${SANITIZER} RelWithDebInfo stack_test

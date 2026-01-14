@@ -41,9 +41,10 @@ def remove_from_zip(zip_filename, patterns):
                 break
 
     # Second pass: create new zip without removed files and with updated RECORD
-    with zipfile.ZipFile(zip_filename, "r") as source_zip, zipfile.ZipFile(
-        temp_zip_filename, "w", zipfile.ZIP_DEFLATED
-    ) as temp_zip:
+    with (
+        zipfile.ZipFile(zip_filename, "r") as source_zip,
+        zipfile.ZipFile(temp_zip_filename, "w", zipfile.ZIP_DEFLATED) as temp_zip,
+    ):
         # DEV: Use ZipInfo objects to ensure original file attributes are preserved
         for file in source_zip.infolist():
             if any(fnmatch.fnmatch(file.filename, pattern) for pattern in patterns):

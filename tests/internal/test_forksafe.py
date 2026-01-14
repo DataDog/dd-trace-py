@@ -1,6 +1,5 @@
 from collections import Counter
 import os
-import sys
 
 import pytest
 

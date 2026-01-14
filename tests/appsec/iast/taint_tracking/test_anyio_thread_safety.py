@@ -7,6 +7,7 @@ occurred because the pools weren't thread-safe. This led to segfaults.
 
 This test verifies the fix by simulating anyio-like concurrent access patterns.
 """
+
 import pytest
 
 

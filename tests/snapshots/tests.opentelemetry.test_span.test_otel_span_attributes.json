@@ -12,6 +12,7 @@
       "_dd.base_service": "tests.opentelemetry",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "655529ab00000000",
+      "bytes_tag": "bstr",
       "language": "python",
       "real_string_tag": "rstr",
       "runtime-id": "e4724609efa84cf58424a8b1ef44b17d",

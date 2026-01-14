@@ -68,7 +68,7 @@ Configuration
 
    Indicates whether to trace websocket messages.
 
-   Default: ``'False'``
+   Default: ``'True'``
 
 .. envvar:: DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING
 
@@ -88,7 +88,6 @@ Configuration
 
 .. __: https://asgi.readthedocs.io/
 """
-
 
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope

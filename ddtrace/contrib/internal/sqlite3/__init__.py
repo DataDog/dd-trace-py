@@ -14,8 +14,8 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     patch(sqlite=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.sqlite["service"]
 
@@ -33,23 +33,4 @@ Global Configuration
    Can also configured via the ``DD_SQLITE_TRACE_FETCH_METHODS`` environment variable.
 
    Default: ``False``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure the integration on an per-connection basis use the
-``Pin`` API::
-
-    from ddtrace.trace import Pin
-    import sqlite3
-
-    # This will report a span with the default settings
-    db = sqlite3.connect(":memory:")
-
-    # Use a pin to override the service name for the connection.
-    Pin.override(db, service='sqlite-users')
-
-    cursor = db.cursor()
-    cursor.execute("select * from users where id = 1")
 """

@@ -2,6 +2,7 @@ from collections import Counter
 from decimal import Decimal
 import json
 import os.path
+from pathlib import Path
 import sys
 import tempfile
 from threading import Thread
@@ -26,7 +27,6 @@ from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.snapshot import _EMPTY_CAPTURED_CONTEXT
 from ddtrace.debugging._signal.tracing import SPAN_NAME
 from ddtrace.debugging._signal.utils import redacted_value
-from ddtrace.internal.compat import Path
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import format_trace_id
@@ -322,25 +322,6 @@ def test_debugger_decorated_method(stuff):
         ),
         stuff.Stuff().decoratedstuff,
     )
-
-
-@mock.patch("ddtrace.debugging._debugger.log")
-def test_debugger_max_probes(mock_log):
-    with debugger(max_probes=1) as d:
-        d.add_probes(
-            good_probe(),
-        )
-        assert len(d._probe_registry) == 1
-        d.add_probes(
-            create_snapshot_line_probe(
-                probe_id="probe-decorated-method",
-                source_file="tests/submod/stuff.py",
-                line=48,
-                condition=None,
-            ),
-        )
-        assert len(d._probe_registry) == 1
-        mock_log.warning.assert_called_once_with("Too many active probes. Ignoring new ones.")
 
 
 def test_debugger_tracer_correlation(stuff):
@@ -743,7 +724,7 @@ def test_debugger_function_probe_duration(duration):
 
 
 def test_debugger_condition_eval_then_rate_limit(stuff):
-    with debugger(upload_flush_interval=float("inf")) as d:
+    with debugger(upload_interval_seconds=float("inf")) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 probe_id="foo",
@@ -765,13 +746,13 @@ def test_debugger_condition_eval_then_rate_limit(stuff):
         assert d.signal_state_counter[SignalState.SKIP_COND] == 99
         assert d.signal_state_counter[SignalState.DONE] == 1
 
-        assert (
-            "42" == snapshot["debugger"]["snapshot"]["captures"]["lines"]["36"]["arguments"]["bar"]["value"]
-        ), snapshot
+        assert "42" == snapshot["debugger"]["snapshot"]["captures"]["lines"]["36"]["arguments"]["bar"]["value"], (
+            snapshot
+        )
 
 
 def test_debugger_condition_eval_error_get_reported_once(stuff):
-    with debugger(upload_flush_interval=float("inf")) as d:
+    with debugger(upload_interval_seconds=float("inf")) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 probe_id="foo",
@@ -889,7 +870,7 @@ def test_debugger_lambda_fuction_access_locals(stuff):
 
 
 def test_debugger_log_line_probe_generate_messages(stuff):
-    with debugger(upload_flush_interval=float("inf")) as d:
+    with debugger(upload_interval_seconds=float("inf")) as d:
         d.add_probes(
             create_log_line_probe(
                 probe_id="foo",
@@ -1073,7 +1054,7 @@ class SpanProbeTestCase(TracerTestCase):
 
 
 def test_debugger_modified_probe(stuff):
-    with debugger(upload_flush_interval=float("inf")) as d:
+    with debugger(upload_interval_seconds=float("inf")) as d:
         d.add_probes(
             create_log_line_probe(
                 probe_id="foo",
@@ -1131,7 +1112,7 @@ def test_debugger_continue_wrapping_after_first_failure():
 def test_debugger_redacted_identifiers():
     import tests.submod.stuff as stuff
 
-    with debugger(upload_flush_interval=float("inf")) as d:
+    with debugger(upload_interval_seconds=float("inf")) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 probe_id="foo",
@@ -1230,7 +1211,7 @@ def test_debugger_redacted_identifiers():
 def test_debugger_redaction_excluded_identifiers():
     import tests.submod.stuff as stuff
 
-    with debugger(upload_flush_interval=float("inf"), redaction_excluded_identifiers=frozenset(["token"])) as d:
+    with debugger(upload_interval_seconds=float("inf"), redaction_excluded_identifiers=frozenset(["token"])) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 probe_id="foo",

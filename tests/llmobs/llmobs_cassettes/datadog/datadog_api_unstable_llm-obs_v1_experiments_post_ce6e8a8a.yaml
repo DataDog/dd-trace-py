@@ -1,0 +1,48 @@
+interactions:
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "test_experiment",
+      "description": "", "dataset_id": "0969efc9-f104-45cc-b955-25b329e91293", "project_id":
+      "f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9", "dataset_version": 1, "config": {},
+      "metadata": {"tags": ["ddtrace.version:1.2.3", "project_id:f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9"]},
+      "ensure_unique": true, "run_count": 1}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '378'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"data":{"id":"27dc7718-7e8c-4eb4-9a5a-fc48022ad381","type":"experiments","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"config":{},"created_at":"2025-12-05T19:05:14.937299343Z","dataset_id":"0969efc9-f104-45cc-b955-25b329e91293","dataset_version":1,"description":"","experiment":"test_experiment","metadata":{"tags":["ddtrace.version:1.2.3","project_id:f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9"]},"name":"test_experiment-1764961514937","project_id":"f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9","updated_at":"2025-12-05T19:05:14.937299433Z"}}}'
+    headers:
+      content-length:
+      - '556'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Fri, 05 Dec 2025 19:05:14 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -13,17 +13,18 @@ Auto instrumentation is available using the ``patch``. The following is an examp
     template = env.get_template('mytemplate.html')
 
 
-The library can be configured globally and per instance, using the Configuration API::
+Configuration
+~~~~~~~~~~~~~
 
-    from ddtrace import config
-    from ddtrace.trace import Pin
+.. py:data:: ddtrace.config.jinja2["service"]
 
-    # Change service name globally
-    config.jinja2['service_name'] = 'jinja-templates'
+   The service name reported by default for jinja2 spans.
 
-    # change the service name only for this environment
-    Pin.override(env, service='jinja-templates')
+   This option can also be set with the ``DD_JINJA2_SERVICE`` environment
+   variable.
 
-By default, the service name is set to None, so it is inherited from the parent span.
-If there is no parent span and the service name is not overridden the agent will drop the traces.
+   By default, the service name is set to None, so it is inherited from the parent span.
+   If there is no parent span and the service name is not overridden the agent will drop the traces.
+
+   Default: ``None``
 """

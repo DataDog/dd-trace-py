@@ -4,6 +4,7 @@ Starts session before discovery (simulating pytest behavior)
 
 Comment lines in the test start/finish lines are there for visual distinction.
 """
+
 import json
 from multiprocessing import freeze_support
 from pathlib import Path

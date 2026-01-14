@@ -1,0 +1,190 @@
+interactions:
+- request:
+    body: type=card&card[token]=tok_visa
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '30'
+      Content-Type:
+      - application/x-www-form-urlencoded
+      Idempotency-Key:
+      - a02d8775-e4b9-4c54-a471-69101bc13085
+      Stripe-Version:
+      - 2025-11-17.clover
+      User-Agent:
+      - Stripe/v1 PythonBindings/14.0.1
+      X-Stripe-Client-Telemetry:
+      - '{"last_request_metrics": {"request_id": "req_anHvjCWhkSKokA", "request_duration_ms":
+        448}}'
+      X-Stripe-Client-User-Agent:
+      - '{"bindings_version": "14.0.1", "lang": "python", "publisher": "stripe", "httplib":
+        "requests", "lang_version": "3.13.9", "platform": "macOS-15.7.1-arm64-arm-64bit-Mach-O",
+        "uname": "Darwin COMP-L0DW2Y27YN 24.6.0 Darwin Kernel Version 24.6.0: Mon
+        Aug 11 21:15:09 PDT 2025; root:xnu-11417.140.69.701.11~1/RELEASE_ARM64_T6041
+        arm64 arm"}'
+    method: POST
+    uri: https://api.stripe.com/v1/payment_methods
+  response:
+    body:
+      string: '{"id": "pm_1SfKE5AiRiHgXZJivWogcUDl", "object": "payment_method", "allow_redisplay":
+        "unspecified", "billing_details": {"address": {"city": null, "country": null,
+        "line1": null, "line2": null, "postal_code": null, "state": null}, "email":
+        null, "name": null, "phone": null, "tax_id": null}, "card": {"brand": "visa",
+        "checks": {"address_line1_check": null, "address_postal_code_check": null,
+        "cvc_check": "unchecked"}, "country": "US", "display_brand": "visa", "exp_month":
+        12, "exp_year": 2026, "fingerprint": "ERUxoq8oeJHvbFWk", "funding": "credit",
+        "generated_from": null, "last4": "4242", "networks": {"available": ["visa"],
+        "preferred": null}, "regulated_status": "unregulated", "three_d_secure_usage":
+        {"supported": true}, "wallet": null}, "created": 1765975989, "customer": null,
+        "customer_account": null, "livemode": false, "metadata": {}, "type": "card"}'
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Methods:
+      - GET, HEAD, PUT, PATCH, POST, DELETE
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Request-Id, Stripe-Manage-Version, Stripe-Should-Retry, X-Stripe-External-Auth-Required,
+        X-Stripe-Privileged-Session-Required
+      Access-Control-Max-Age:
+      - '300'
+      Cache-Control:
+      - no-cache, no-store
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '1083'
+      Content-Security-Policy:
+      - base-uri 'none'; default-src 'none'; form-action 'none'; frame-ancestors 'none';
+        img-src 'self'; script-src 'self' 'report-sample'; style-src 'self'; worker-src
+        'none'; upgrade-insecure-requests; report-uri https://q.stripe.com/csp-violation?q=p6g33Rx6JgS2tLvTsGm9-pHFQhekxC4AgNdGHJ-bi_f8lVxqnQmz4Y9jHtOHReVQwg-HheXlkoSe_81Z
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 17 Dec 2025 12:53:09 GMT
+      Idempotency-Key:
+      - a02d8775-e4b9-4c54-a471-69101bc13085
+      Original-Request:
+      - req_opxc3cB3ybBR5T
+      Request-Id:
+      - req_opxc3cB3ybBR5T
+      Server:
+      - nginx
+      Strict-Transport-Security:
+      - max-age=63072000; includeSubDomains; preload
+      Stripe-Should-Retry:
+      - 'false'
+      Stripe-Version:
+      - 2025-11-17.clover
+      Vary:
+      - Origin
+      X-Stripe-Priority-Routing-Enabled:
+      - 'true'
+      X-Stripe-Routing-Context-Priority-Tier:
+      - api-testmode
+      X-Wc:
+      - ABGHIJ
+    status:
+      code: 200
+      message: OK
+- request:
+    body: customer=cus_TcZMVmnokeG6Ji
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '27'
+      Content-Type:
+      - application/x-www-form-urlencoded
+      Idempotency-Key:
+      - 5f8ba8c5-96b3-4702-a1a7-0001f93d405b
+      Stripe-Version:
+      - 2025-11-17.clover
+      User-Agent:
+      - Stripe/v1 PythonBindings/14.0.1
+      X-Stripe-Client-Telemetry:
+      - '{"last_request_metrics": {"request_id": "req_opxc3cB3ybBR5T", "request_duration_ms":
+        444}}'
+      X-Stripe-Client-User-Agent:
+      - '{"bindings_version": "14.0.1", "lang": "python", "publisher": "stripe", "httplib":
+        "requests", "lang_version": "3.13.9", "platform": "macOS-15.7.1-arm64-arm-64bit-Mach-O",
+        "uname": "Darwin COMP-L0DW2Y27YN 24.6.0 Darwin Kernel Version 24.6.0: Mon
+        Aug 11 21:15:09 PDT 2025; root:xnu-11417.140.69.701.11~1/RELEASE_ARM64_T6041
+        arm64 arm"}'
+    method: POST
+    uri: https://api.stripe.com/v1/payment_methods/pm_1SfKE5AiRiHgXZJivWogcUDl/attach
+  response:
+    body:
+      string: '{"id": "pm_1SfKE5AiRiHgXZJivWogcUDl", "object": "payment_method", "allow_redisplay":
+        "unspecified", "billing_details": {"address": {"city": null, "country": null,
+        "line1": null, "line2": null, "postal_code": null, "state": null}, "email":
+        null, "name": null, "phone": null, "tax_id": null}, "card": {"brand": "visa",
+        "checks": {"address_line1_check": null, "address_postal_code_check": null,
+        "cvc_check": "pass"}, "country": "US", "display_brand": "visa", "exp_month":
+        12, "exp_year": 2026, "fingerprint": "ERUxoq8oeJHvbFWk", "funding": "credit",
+        "generated_from": null, "last4": "4242", "networks": {"available": ["visa"],
+        "preferred": null}, "regulated_status": "unregulated", "three_d_secure_usage":
+        {"supported": true}, "wallet": null}, "created": 1765975989, "customer": "cus_TcZMVmnokeG6Ji",
+        "customer_account": null, "livemode": false, "metadata": {}, "type": "card"}'
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Methods:
+      - GET, HEAD, PUT, PATCH, POST, DELETE
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Request-Id, Stripe-Manage-Version, Stripe-Should-Retry, X-Stripe-External-Auth-Required,
+        X-Stripe-Privileged-Session-Required
+      Access-Control-Max-Age:
+      - '300'
+      Cache-Control:
+      - no-cache, no-store
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '1094'
+      Content-Security-Policy:
+      - base-uri 'none'; default-src 'none'; form-action 'none'; frame-ancestors 'none';
+        img-src 'self'; script-src 'self' 'report-sample'; style-src 'self'; worker-src
+        'none'; upgrade-insecure-requests; report-uri https://q.stripe.com/csp-violation?q=JRETU52-CfFXYh6ZU7iYCNmSUS4VpvMuSD64tPSlj5uJH9FxnB8tm5Q5ElLVlpQWe6N3vtpeRdM7bE8j
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 17 Dec 2025 12:53:10 GMT
+      Idempotency-Key:
+      - 5f8ba8c5-96b3-4702-a1a7-0001f93d405b
+      Original-Request:
+      - req_tMtfhlntLjOjsj
+      Request-Id:
+      - req_tMtfhlntLjOjsj
+      Server:
+      - nginx
+      Strict-Transport-Security:
+      - max-age=63072000; includeSubDomains; preload
+      Stripe-Should-Retry:
+      - 'false'
+      Stripe-Version:
+      - 2025-11-17.clover
+      Vary:
+      - Origin
+      X-Stripe-Priority-Routing-Enabled:
+      - 'true'
+      X-Stripe-Routing-Context-Priority-Tier:
+      - api-testmode
+      X-Wc:
+      - ABGHIJ
+    status:
+      code: 200
+      message: OK
+version: 1

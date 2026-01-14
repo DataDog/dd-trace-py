@@ -91,16 +91,16 @@ def test_sequential_contexts_with_no_overlap():
         # In line-level mode, add critical re-instrumentation checks
         # Line 2 is the function body - it MUST be present in contexts that execute the function
         assert 2 in both_contexts_covered["tests/coverage/included_path/lib.py"], "Context 1 missing lib.py line 2"
-        assert (
-            2 in session_context_covered["tests/coverage/included_path/lib.py"]
-        ), "Context 3 missing lib.py line 2 - re-instrumentation failed!"
+        assert 2 in session_context_covered["tests/coverage/included_path/lib.py"], (
+            "Context 3 missing lib.py line 2 - re-instrumentation failed!"
+        )
 
-        assert (
-            2 in both_contexts_covered["tests/coverage/included_path/in_context_lib.py"]
-        ), "Context 1 missing in_context_lib.py line 2"
-        assert (
-            2 in context_context_covered["tests/coverage/included_path/in_context_lib.py"]
-        ), "Context 2 missing in_context_lib.py line 2 - re-instrumentation failed!"
+        assert 2 in both_contexts_covered["tests/coverage/included_path/in_context_lib.py"], (
+            "Context 1 missing in_context_lib.py line 2"
+        )
+        assert 2 in context_context_covered["tests/coverage/included_path/in_context_lib.py"], (
+            "Context 2 missing in_context_lib.py line 2 - re-instrumentation failed!"
+        )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
@@ -254,14 +254,14 @@ def test_many_sequential_contexts_no_degradation():
         else:
             # In line-level mode, check that runtime lines are present (may have import-time lines too)
             actual_callee = context_covered["tests/coverage/included_path/callee.py"]
-            assert expected_callee_runtime_lines.issubset(
-                actual_callee
-            ), f"Context {idx} missing expected callee lines: {expected_callee_runtime_lines}"
+            assert expected_callee_runtime_lines.issubset(actual_callee), (
+                f"Context {idx} missing expected callee lines: {expected_callee_runtime_lines}"
+            )
 
             # Check lib.py exists and has line 2 (the function body) - critical re-instrumentation check
-            assert (
-                2 in context_covered["tests/coverage/included_path/lib.py"]
-            ), f"Context {idx} missing lib.py line 2 - re-instrumentation failed!"
+            assert 2 in context_covered["tests/coverage/included_path/lib.py"], (
+                f"Context {idx} missing lib.py line 2 - re-instrumentation failed!"
+            )
 
     if not file_level_mode:
         # Critical: Coverage should not decrease over iterations
@@ -344,31 +344,31 @@ def test_context_after_session_coverage():
         # In line-level mode, check that expected runtime lines are present
         # Session may have import-time lines, so use subset check
         expected_session_runtime = expected_session["tests/coverage/included_path/callee.py"]
-        assert expected_session_runtime.issubset(
-            session_covered["tests/coverage/included_path/callee.py"]
-        ), f"Session missing expected lines: {expected_session_runtime}"
+        assert expected_session_runtime.issubset(session_covered["tests/coverage/included_path/callee.py"]), (
+            f"Session missing expected lines: {expected_session_runtime}"
+        )
         assert 2 in session_covered["tests/coverage/included_path/lib.py"], "Session missing lib.py line 2"
 
         # Contexts should have exact coverage
         expected_context_callee_runtime = expected_context["tests/coverage/included_path/callee.py"]
-        assert expected_context_callee_runtime.issubset(
-            context1_covered["tests/coverage/included_path/callee.py"]
-        ), f"Context 1 missing expected lines: {expected_context_callee_runtime}"
+        assert expected_context_callee_runtime.issubset(context1_covered["tests/coverage/included_path/callee.py"]), (
+            f"Context 1 missing expected lines: {expected_context_callee_runtime}"
+        )
         assert 2 in context1_covered["tests/coverage/included_path/lib.py"], "Context 1 missing lib.py line 2"
-        assert (
-            2 in context1_covered["tests/coverage/included_path/in_context_lib.py"]
-        ), "Context 1 missing in_context_lib.py line 2"
+        assert 2 in context1_covered["tests/coverage/included_path/in_context_lib.py"], (
+            "Context 1 missing in_context_lib.py line 2"
+        )
 
         # Context 2 is the critical re-instrumentation check
-        assert expected_context_callee_runtime.issubset(
-            context2_covered["tests/coverage/included_path/callee.py"]
-        ), f"Context 2 missing expected lines: {expected_context_callee_runtime}"
-        assert (
-            2 in context2_covered["tests/coverage/included_path/lib.py"]
-        ), "Context 2 missing lib.py line 2 - re-instrumentation failed!"
-        assert (
-            2 in context2_covered["tests/coverage/included_path/in_context_lib.py"]
-        ), "Context 2 missing in_context_lib.py line 2 - re-instrumentation failed!"
+        assert expected_context_callee_runtime.issubset(context2_covered["tests/coverage/included_path/callee.py"]), (
+            f"Context 2 missing expected lines: {expected_context_callee_runtime}"
+        )
+        assert 2 in context2_covered["tests/coverage/included_path/lib.py"], (
+            "Context 2 missing lib.py line 2 - re-instrumentation failed!"
+        )
+        assert 2 in context2_covered["tests/coverage/included_path/in_context_lib.py"], (
+            "Context 2 missing in_context_lib.py line 2 - re-instrumentation failed!"
+        )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")

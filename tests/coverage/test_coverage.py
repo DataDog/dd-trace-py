@@ -54,21 +54,21 @@ def test_coverage_import_time_lib():
 
     if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
         # In file-level mode, we only track files, not specific line numbers
-        assert (
-            executable.keys() == expected_executable.keys()
-        ), f"Executable files mismatch: expected={expected_executable.keys()} vs actual={executable.keys()}"
-        assert (
-            covered.keys() == expected_covered.keys()
-        ), f"Covered files mismatch: expected={expected_covered.keys()} vs actual={covered.keys()}"
+        assert executable.keys() == expected_executable.keys(), (
+            f"Executable files mismatch: expected={expected_executable.keys()} vs actual={executable.keys()}"
+        )
+        assert covered.keys() == expected_covered.keys(), (
+            f"Covered files mismatch: expected={expected_covered.keys()} vs actual={covered.keys()}"
+        )
         assert covered_with_imports.keys() == expected_covered_with_imports.keys(), (
             f"Covered files with imports mismatch: expected={expected_covered_with_imports.keys()}"
             f" vs actual={covered_with_imports.keys()}"
         )
     else:
         # In full coverage mode, we track exact line numbers
-        assert (
-            executable == expected_executable
-        ), f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+        assert executable == expected_executable, (
+            f"Executable lines mismatch: expected={expected_executable} vs actual={executable}"
+        )
         assert covered == expected_covered, f"Covered lines mismatch: expected={expected_covered} vs actual={covered}"
         assert covered_with_imports == expected_covered_with_imports, (
             f"Covered lines with imports mismatch: expected={expected_covered_with_imports} "
@@ -119,12 +119,12 @@ def test_coverage_import_time_function():
 
     if os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true":
         # In file-level mode, we only track files, not specific line numbers
-        assert (
-            lines.keys() == expected_lines.keys()
-        ), f"Executable files mismatch: expected={expected_lines.keys()} vs actual={lines.keys()}"
-        assert (
-            covered.keys() == expected_covered.keys()
-        ), f"Covered files mismatch: expected={expected_covered.keys()} vs actual={covered.keys()}"
+        assert lines.keys() == expected_lines.keys(), (
+            f"Executable files mismatch: expected={expected_lines.keys()} vs actual={lines.keys()}"
+        )
+        assert covered.keys() == expected_covered.keys(), (
+            f"Covered files mismatch: expected={expected_covered.keys()} vs actual={covered.keys()}"
+        )
         assert covered_with_imports.keys() == expected_covered_with_imports.keys(), (
             f"Covered files with imports mismatch: expected={expected_covered_with_imports.keys()} "
             f"vs actual={covered_with_imports.keys()}"

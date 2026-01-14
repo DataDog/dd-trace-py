@@ -10,6 +10,7 @@ from typing import Union
 from ddtrace._trace.span import Span
 from ddtrace.appsec._asm_request_context import _call_waf
 from ddtrace.appsec._asm_request_context import _call_waf_first
+from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import set_body_response
 from ddtrace.appsec._constants import APPSEC
@@ -26,9 +27,9 @@ from ddtrace.internal import core
 from ddtrace.internal import telemetry
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.http import parse_form_multipart
-from ddtrace.settings.asm import config as asm_config
 import ddtrace.vendor.xmltodict as xmltodict
 
 
@@ -413,6 +414,123 @@ def _on_telemetry_periodic():
         log.debug("Could not set appsec_enabled telemetry config status", exc_info=True)
 
 
+# Stripe
+
+
+def _on_checkout_session_create(session):
+    try:
+        mode = session.mode
+        if mode != "payment":
+            return
+
+        discounts_coupon = None
+        discounts_promotion_code = None
+        if session.discounts:
+            discount = session.discounts[0]
+            coupon = discount.coupon
+            if coupon:
+                if isinstance(coupon, str):
+                    discounts_coupon = coupon
+                else:
+                    discounts_coupon = coupon.id
+
+            promotion_code = discount.promotion_code
+            if promotion_code:
+                if isinstance(promotion_code, str):
+                    discounts_promotion_code = promotion_code
+                else:
+                    discounts_promotion_code = promotion_code.id
+
+        total_details_amount_discount = None
+        total_details_amount_shipping = None
+        if session.total_details:
+            total_details_amount_discount = session.total_details.amount_discount
+            total_details_amount_shipping = session.total_details.amount_shipping
+
+        payment_creation_data = {
+            "integration": "stripe",
+            "id": session.id,
+            "amount_total": session.amount_total,
+            "client_reference_id": session.client_reference_id,
+            "currency": session.currency,
+            "customer_email": session.customer_email,
+            "discounts.coupon": discounts_coupon,
+            "discounts.promotion_code": discounts_promotion_code,
+            "livemode": session.livemode,
+            "total_details.amount_discount": total_details_amount_discount,
+            "total_details.amount_shipping": total_details_amount_shipping,
+        }
+
+        call_waf_callback({"PAYMENT_CREATION": payment_creation_data})
+    except AttributeError:
+        log.debug("can't extract payment creation data from Session object", exc_info=True)
+
+
+def _on_payment_intent_create(payment_intent):
+    try:
+        payment_method = payment_intent.payment_method
+        if not isinstance(payment_method, str):
+            payment_method = payment_method.id
+
+        payment_creation_data = {
+            "integration": "stripe",
+            "id": payment_intent.id,
+            "amount": payment_intent.amount,
+            "currency": payment_intent.currency,
+            "livemode": payment_intent.livemode,
+            "payment_method": payment_method,
+            "receipt_email": payment_intent.receipt_email,
+        }
+
+        call_waf_callback({"PAYMENT_CREATION": payment_creation_data})
+    except AttributeError:
+        log.debug("can't extract payment creation data from PaymentIntent object", exc_info=True)
+
+
+def _on_payment_intent_event(event):
+    try:
+        if event.type == "payment_intent.succeeded":
+            waf_data_name = "PAYMENT_SUCCESS"
+
+            payment_intent_webhook_data = {
+                "payment_method": event.data.object.payment_method,
+            }
+
+        elif event.type == "payment_intent.payment_failed":
+            waf_data_name = "PAYMENT_FAILURE"
+
+            payment_intent_webhook_data = {
+                "last_payment_error.code": event.data.object.last_payment_error.code,
+                "last_payment_error.decline_code": event.data.object.last_payment_error.decline_code,
+                "last_payment_error.payment_method.id": event.data.object.last_payment_error.payment_method.id,
+                "last_payment_error.payment_method.billing_details.email": (
+                    event.data.object.last_payment_error.payment_method.billing_details.email
+                ),
+                "last_payment_error.payment_method.type": event.data.object.last_payment_error.payment_method.type,
+            }
+        elif event.type == "payment_intent.canceled":
+            waf_data_name = "PAYMENT_CANCELLATION"
+
+            payment_intent_webhook_data = {
+                "cancellation_reason": event.data.object.cancellation_reason,
+                "receipt_email": event.data.object.receipt_email,
+            }
+        else:
+            return
+
+        payment_intent_webhook_data |= {
+            "integration": "stripe",
+            "id": event.data.object.id,
+            "amount": event.data.object.amount,
+            "currency": event.data.object.currency,
+            "livemode": event.data.object.livemode,
+        }
+
+        call_waf_callback({waf_data_name: payment_intent_webhook_data})
+    except AttributeError:
+        log.debug("can't extract payment_intent event data from Event object", exc_info=True)
+
+
 def listen():
     core.on("telemetry.periodic", _on_telemetry_periodic)
 
@@ -428,6 +546,12 @@ def listen():
     core.on("aws_lambda.start_request", _on_lambda_start_request)
     core.on("aws_lambda.start_response", _on_lambda_start_response)
     core.on("aws_lambda.parse_body", _on_lambda_parse_body)
+
+    core.on("appsec.stripe.checkout.session.create", _on_checkout_session_create)
+    core.on("appsec.stripe.payment_intent.create", _on_payment_intent_create)
+    core.on("appsec.stripe.webhook.construct_event", _on_payment_intent_event)
+    core.on("appsec.stripe.stripe_client.construct_event", _on_payment_intent_event)
+    core.on("appsec.stripe.stripe_client.parse_event_notification", _on_payment_intent_event)
 
     # disabling threats grpc listeners.
     # core.on("grpc.server.response.message", _on_grpc_server_response)

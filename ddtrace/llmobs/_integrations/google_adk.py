@@ -1,3 +1,4 @@
+from inspect import isfunction
 from typing import Any
 from typing import Dict
 from typing import List
@@ -18,6 +19,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
 from ddtrace.llmobs._integrations.google_utils import extract_messages_from_adk_events
+from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
 
@@ -154,4 +156,15 @@ class GoogleAdkIntegration(BaseLLMIntegration):
     def _get_agent_tools(self, tools):
         if not tools or not isinstance(tools, list):
             return []
-        return [{"name": tool.name, "description": tool.description} for tool in tools]
+
+        agent_tools = []
+        for tool in tools:
+            if isfunction(tool):
+                tool_name = tool.__name__
+                tool_description = tool.__doc__ or ""
+            else:
+                tool_name = _get_attr(tool, "name", "Agent Tool")
+                tool_description = _get_attr(tool, "description", "")
+            agent_tools.append({"name": tool_name, "description": tool_description})
+
+        return agent_tools

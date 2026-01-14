@@ -13,7 +13,7 @@ from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 from ..._constants import IAST
 from ..._constants import IAST_SPAN_TAGS
@@ -144,7 +144,6 @@ class VulnerabilityBase:
         # If the path contains site-packages anywhere, return 'site-packages/<rest>'
         # Normalize separators to forward slashes for consistency
         if (idx := file_name_norm.find("/site-packages/")) != -1:
-            print(f"file_name_norm({idx}): {file_name_norm}")
             return file_name_norm[idx:]
         return ""
 

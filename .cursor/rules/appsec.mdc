@@ -1,0 +1,629 @@
+---
+description: Datadog Application Security (AppSec) - Complete Guide
+globs:
+  - "**/appsec/**"
+  - "**/appsec/**"
+  - "**/tests/appsec/**"
+---
+
+## Overview
+
+Datadog Application Security provides multiple layers of protection for Python applications:
+
+1. **Application Attack Protection (AAP)** - WAF-based threat detection and blocking
+2. **IAST (Interactive Application Security Testing)** - Runtime vulnerability detection
+3. **Exploit Prevention (RASP)** - Real-time exploit blocking
+4. **API Security Inventory** - Automatic API discovery and schema collection
+5. **AI Guard** - LLM input/output safety monitoring
+6. **User Event Tracking** - Login/signup event monitoring
+
+**All features are configured via environment variables** defined in `ddtrace/internal/settings/asm.py`.
+
+---
+
+## 1. Application Attack Protection (AAP)
+
+### What It Is
+
+AppSec's Web Application Firewall (WAF) monitors HTTP requests/responses for attack patterns:
+- SQL Injection
+- XSS (Cross-Site Scripting)
+- Command Injection
+- Path Traversal
+- SSRF (Server-Side Request Forgery)
+- Security Scanner detection
+- Attack tooling detection
+
+The WAF uses **libddwaf** (native library) to analyze requests against security rules.
+
+### How It Works
+
+1. Request data (headers, query params, body, cookies) is collected
+2. WAF analyzes data against attack patterns (`rules.json`)
+3. Matches generate **Security Signals** in Datadog
+4. Optionally blocks malicious requests (when blocking mode enabled)
+
+### Configuration
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `DD_APPSEC_ENABLED` | `false` | Enable AppSec |
+| `DD_APPSEC_RULES` | (builtin) | Custom WAF rules file path |
+| `DD_APPSEC_WAF_TIMEOUT` | `5000` | WAF timeout in microseconds |
+| `DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP` | (default patterns) | Regex for sensitive parameter names |
+| `DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP` | (default patterns) | Regex for sensitive values |
+| `DD_APM_TRACING_ENABLED` | `true` | Can disable APM while keeping AppSec |
+
+### FastAPI Example
+
+```python
+# app.py
+# Enable tracing
+import ddtrace.auto  # noqa: F401  # isort: skip
+from fastapi import FastAPI, Request
+
+app = FastAPI()
+
+@app.get("/")
+async def read_root():
+    return {"message": "Hello World"}
+
+@app.get("/user/{user_id}")
+async def get_user(user_id: str, query: str = ""):
+    # This endpoint is monitored by AppSec
+    return {"user_id": user_id, "query": query}
+
+@app.post("/search")
+async def search(request: Request):
+    body = await request.json()
+    # Body content is analyzed by WAF
+    return {"results": [], "query": body.get("q")}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+```
+
+**Run with AppSec enabled:**
+
+```bash
+# Set environment variables
+export DD_APPSEC_ENABLED=true
+export DD_SERVICE=my-fastapi-app
+export DD_ENV=production
+export DD_AGENT_HOST=localhost
+
+# Run application
+python app.py
+```
+
+### Testing with curl
+
+```bash
+# Normal request (no threat detected)
+curl http://localhost:8000/user/123?query=hello
+
+# SQL Injection attempt (detected and blocked)
+curl "http://localhost:8000/user/123?query=' OR '1'='1"
+
+# XSS attempt (detected)
+curl "http://localhost:8000/user/123?query=<script>alert('xss')</script>"
+
+# Command Injection attempt (detected)
+curl -X POST http://localhost:8000/search \
+  -H "Content-Type: application/json" \
+  -d '{"q": "; cat /etc/passwd"}'
+
+# Path Traversal attempt (detected)
+curl "http://localhost:8000/user/../../../etc/passwd"
+
+# Scanner detection (Acunetix signature)
+curl -H "Acunetix-Product: WVS" http://localhost:8000/
+```
+
+### Viewing in Dashboard
+
+1. **Security > Application Security > Signals**
+   - Shows detected attacks with severity, attacker IP, attack type
+   - Click signal for full request details and attack pattern
+
+2. **Security > Application Security > Traces**
+   - View traces with `appsec.event:true` tag
+   - See exact payload that triggered detection
+
+3. **Security > Application Security > Services**
+   - Overview of protected services
+   - Attack volume and types per service
+
+---
+
+## 2. Exploit Prevention (RASP)
+
+### What It Is
+
+Runtime Application Self-Protection (RASP) that **blocks exploits in real-time**:
+- Monitors dangerous operations (file access, command execution, SQL queries)
+- Detects exploitation attempts using context-aware analysis
+- Blocks attacks before they cause damage
+- Generates detailed stack traces for investigation
+
+**Protected Operations:**
+- Local File Include (LFI)
+- Command Injection (CMDI)
+- Shell Injection (SHI)
+- SQL Injection (SQLI)
+- SSRF
+
+### How It Works
+
+1. Intercepts calls to dangerous functions (`open()`, `subprocess`, database queries)
+2. Analyzes parameters for attack patterns using WAF rules
+3. If exploit detected, raises exception to block operation
+4. Reports attack with stack trace showing exploit location
+
+### Configuration
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `DD_APPSEC_ENABLED` | `false` | Must be enabled for RASP |
+| `DD_EXPLOIT_PREVENTION_ENABLED` | `true` | Enable exploit prevention (auto-enabled with AppSec) |
+| `DD_EXPLOIT_PREVENTION_STACK_TRACE_ENABLED` | `true` | Include stack traces |
+| `DD_EXPLOIT_PREVENTION_MAX_STACK_TRACES` | `2` | Max stack traces per request (0=unlimited) |
+| `DD_EXPLOIT_PREVENTION_MAX_STACK_TRACE_DEPTH` | `32` | Max stack depth (0=unlimited) |
+| `DD_EXPLOIT_PREVENTION_STACK_TOP_PERCENT` | `75.0` | Percentage of top frames when depth exceeded |
+
+### FastAPI Example
+
+```python
+# app_rasp.py
+import ddtrace.auto  # noqa: F401  # isort: skip
+from fastapi import FastAPI, HTTPException
+import subprocess
+import sqlite3
+
+
+app = FastAPI()
+
+@app.get("/execute")
+async def execute_command(cmd: str):
+    try:
+        # Exploit Prevention will block malicious commands
+        result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        return {"output": result.decode()}
+    except Exception as e:
+        # Blocked by RASP
+        raise HTTPException(status_code=403, detail="Blocked by security policy")
+
+@app.get("/query")
+async def query_db(table: str):
+    try:
+        conn = sqlite3.connect(":memory:")
+        cursor = conn.cursor()
+        # Exploit Prevention monitors SQL execution
+        cursor.execute(f"SELECT * FROM {table}")
+        results = cursor.fetchall()
+        conn.close()
+        return {"results": results}
+    except Exception as e:
+        raise HTTPException(status_code=403, detail="Blocked by security policy")
+
+@app.get("/read")
+async def read_file(filename: str):
+    try:
+        # Exploit Prevention monitors file operations
+        with open(filename, 'r') as f:
+            content = f.read()
+        return {"content": content}
+    except Exception as e:
+        raise HTTPException(status_code=403, detail="Blocked by security policy")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+```
+
+**Run with Exploit Prevention:**
+
+```bash
+export DD_APPSEC_ENABLED=true
+export DD_EXPLOIT_PREVENTION_ENABLED=true
+export DD_SERVICE=my-fastapi-rasp
+export DD_ENV=production
+
+python app_rasp.py
+```
+
+### Testing with curl
+
+```bash
+# Safe command - allowed
+curl "http://localhost:8000/execute?cmd=echo hello"
+
+# Command injection - BLOCKED by RASP
+curl "http://localhost:8000/execute?cmd=cat /etc/passwd"
+# Response: 403 Forbidden
+
+# SQL injection attempt - BLOCKED
+curl "http://localhost:8000/query?table=users; DROP TABLE users--"
+# Response: 403 Forbidden
+
+# Path traversal - BLOCKED
+curl "http://localhost:8000/read?filename=../../etc/passwd"
+# Response: 403 Forbidden
+```
+
+### Viewing in Dashboard
+
+1. **Security > Application Security > Signals**
+   - Exploit attempts show "BLOCKED" status
+   - Stack trace shows where exploit was stopped
+
+2. **Attack Details**:
+   - Operation type (LFI, CMDI, SQLI)
+   - Blocked payload
+   - Stack trace with exact code location
+   - Timestamp and attacker IP
+
+---
+
+## 3. API Security Inventory
+
+### What It Is
+
+Automatic discovery and cataloging of your APIs:
+- **Endpoint discovery**: Finds all API routes automatically
+- **Schema collection**: Captures request/response schemas
+- **Traffic analysis**: Records API usage patterns
+- **Security posture**: Identifies sensitive endpoints
+
+### How It Works
+
+1. Monitors HTTP requests/responses
+2. Extracts request schemas (headers, query params, body structure)
+3. Captures response schemas
+4. Builds comprehensive API catalog in Datadog
+
+### Configuration
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `DD_API_SECURITY_ENABLED` | `true` | Enable API Security (auto-enabled with AppSec) |
+| `DD_API_SECURITY_SAMPLE_DELAY` | `30.0` | Seconds between samples per endpoint |
+| `DD_API_SECURITY_PARSE_RESPONSE_BODY` | `true` | Capture response body schemas |
+| `DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED` | `true` | Enable endpoint collection |
+| `DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT` | `5000` | Max endpoints to track |
+| `DD_API_SECURITY_DOWNSTREAM_REQUEST_BODY_ANALYSIS_SAMPLE_RATE` | `0.5` | Rate for downstream request analysis |
+| `DD_API_SECURITY_MAX_DOWNSTREAM_REQUEST_BODY_ANALYSIS` | `1` | Max downstream requests analyzed per request |
+
+### FastAPI Example
+
+```python
+# app_api.py
+import ddtrace.auto  # noqa: F401  # isort: skip
+from fastapi import FastAPI
+from pydantic import BaseModel
+from typing import Optional
+
+app = FastAPI()
+
+class User(BaseModel):
+    id: int
+    username: str
+    email: str
+    is_admin: bool = False
+
+class CreateUserRequest(BaseModel):
+    username: str
+    email: str
+    password: str  # API Security will flag as sensitive
+
+@app.get("/api/users")
+async def list_users(limit: int = 10, offset: int = 0):
+    # API Security catalogs: GET /api/users with query params
+    return {"users": [], "total": 0}
+
+@app.post("/api/users")
+async def create_user(user: CreateUserRequest):
+    # API Security catalogs: POST /api/users with body schema
+    return {"id": 1, "username": user.username}
+
+@app.get("/api/users/{user_id}")
+async def get_user(user_id: int):
+    # API Security catalogs: GET /api/users/{id} with path param
+    return {"id": user_id, "username": "john"}
+
+@app.put("/api/users/{user_id}")
+async def update_user(user_id: int, user: User):
+    # API Security catalogs: PUT /api/users/{id} with body schema
+    return user
+
+@app.delete("/api/users/{user_id}")
+async def delete_user(user_id: int, admin_key: Optional[str] = None):
+    # API Security flags 'admin_key' as sensitive parameter
+    return {"deleted": True}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+```
+
+**Run with API Security:**
+
+```bash
+export DD_APPSEC_ENABLED=true
+export DD_API_SECURITY_ENABLED=true
+export DD_SERVICE=my-fastapi-api
+export DD_ENV=production
+
+python app_api.py
+```
+
+### Testing with curl
+
+```bash
+# API Security captures all these endpoints and their schemas
+
+curl http://localhost:8000/api/users?limit=20&offset=0
+
+curl -X POST http://localhost:8000/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"username": "john", "email": "john@example.com", "password": "secret123"}'
+
+curl http://localhost:8000/api/users/123
+
+curl -X PUT http://localhost:8000/api/users/123 \
+  -H "Content-Type: application/json" \
+  -d '{"id": 123, "username": "john", "email": "john@example.com", "is_admin": false}'
+
+curl -X DELETE "http://localhost:8000/api/users/123?admin_key=supersecret"
+```
+
+### Viewing in Dashboard
+
+1. **Security > API Catalog**
+   - Complete list of discovered endpoints
+   - HTTP methods, path patterns, query parameters
+   - Request/response schemas
+
+2. **Endpoint Details**:
+   - Traffic volume and patterns
+   - Response codes distribution
+   - Authentication requirements
+   - Sensitive parameters (passwords, keys, tokens)
+   - Schema evolution over time
+
+3. **Security Insights**:
+   - Unauthenticated endpoints
+   - Endpoints accepting sensitive data
+   - High-risk endpoints (admin operations)
+   - Deprecated API versions still in use
+
+---
+
+## 4. User Event Tracking
+
+### What It Is
+
+Automatic tracking of user authentication events:
+- **Login attempts**: Success and failure tracking
+- **Signup events**: New user registration
+- **Account takeover detection**: Suspicious login patterns
+- **Brute force detection**: Multiple failed logins
+
+### How It Works
+
+1. Automatically detects authentication patterns in popular frameworks (Django, Flask)
+2. Tracks user ID, username, email (configurable)
+3. Reports events to Datadog for correlation with attacks
+4. Enables Account Takeover (ATO) detection
+
+### Configuration
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE` | `identification` | Mode: `disabled`, `identification`, `anonymization` |
+| `DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED` | `true` | Enable automatic tracking |
+| `DD_USER_MODEL_LOGIN_FIELD` | `""` | Custom field for username |
+| `DD_USER_MODEL_EMAIL_FIELD` | `""` | Custom field for email |
+| `DD_USER_MODEL_NAME_FIELD` | `""` | Custom field for full name |
+| `DD_DJANGO_INCLUDE_USER_NAME` | `true` | Include username in Django events |
+| `DD_DJANGO_INCLUDE_USER_EMAIL` | `false` | Include email in Django events |
+| `DD_DJANGO_INCLUDE_USER_LOGIN` | `true` | Track Django login events |
+
+### FastAPI Example
+
+```python
+# app_users.py
+from fastapi import FastAPI, HTTPException, Depends
+from pydantic import BaseModel
+from ddtrace import auto
+from ddtrace.appsec.track_user_sdk import track_user_login_success_event, track_user_login_failure_event
+
+app = FastAPI()
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+# Fake user database
+users_db = {
+    "admin": {"id": "1", "password": "admin123", "email": "admin@example.com"},
+    "user": {"id": "2", "password": "user123", "email": "user@example.com"}
+}
+
+@app.post("/login")
+async def login(request: LoginRequest):
+    user = users_db.get(request.username)
+
+    if not user:
+        # Track failed login - triggers ATO detection on repeated failures
+        track_user_login_failure_event(
+            tracer,
+            user_id=None,
+            user_exists=False,
+            login_name=request.username,
+            metadata={"reason": "user_not_found"}
+        )
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if user["password"] != request.password:
+        # Track failed login with existing user
+        track_user_login_failure_event(
+            tracer,
+            user_id=user["id"],
+            user_exists=True,
+            login_name=request.username,
+            metadata={"reason": "invalid_password"}
+        )
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    # Track successful login
+    track_user_login_success_event(
+        tracer,
+        user_id=user["id"],
+        login_name=request.username,
+        email=user["email"],
+        metadata={"login_method": "password"}
+    )
+
+    return {"token": "jwt-token-here", "user_id": user["id"]}
+
+@app.post("/signup")
+async def signup(request: LoginRequest):
+    if request.username in users_db:
+        raise HTTPException(status_code=400, detail="User already exists")
+
+    user_id = str(len(users_db) + 1)
+    users_db[request.username] = {
+        "id": user_id,
+        "password": request.password,
+        "email": f"{request.username}@example.com"
+    }
+
+    # Signup events are automatically tracked in Django/Flask
+    # For custom frameworks, use track_user_signup_event() if available
+
+    return {"user_id": user_id, "username": request.username}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+```
+
+**Run with User Tracking:**
+
+```bash
+export DD_APPSEC_ENABLED=true
+export DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED=true
+export DD_SERVICE=my-fastapi-auth
+export DD_ENV=production
+
+python app_users.py
+```
+
+### Testing with curl
+
+```bash
+# Successful login - tracked
+curl -X POST http://localhost:8000/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "admin123"}'
+
+# Failed login - tracked (ATO detection)
+curl -X POST http://localhost:8000/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "wrong"}'
+
+# Brute force simulation - triggers ATO alert
+for i in {1..10}; do
+  curl -X POST http://localhost:8000/login \
+    -H "Content-Type: application/json" \
+    -d '{"username": "admin", "password": "attempt'$i'"}'
+done
+
+# Signup - tracked
+curl -X POST http://localhost:8000/signup \
+  -H "Content-Type: application/json" \
+  -d '{"username": "newuser", "password": "pass123"}'
+```
+
+### Viewing in Dashboard
+
+1. **Security > Application Security > Account Takeover**
+   - Failed login attempts by user/IP
+   - Brute force attack detection
+   - Credential stuffing attempts
+   - Successful logins after failures
+
+2. **User Event Analytics**:
+   - Login success/failure rates
+   - Top targeted users
+   - Geographic anomalies
+   - Time-based patterns
+
+---
+
+## Troubleshooting
+
+### AppSec Not Enabling
+
+```python
+# Check if libddwaf is available
+from ddtrace.internal.settings.asm import config as asm_config
+print(f"libddwaf available: {asm_config._asm_libddwaf_available}")
+print(f"libddwaf path: {asm_config._asm_libddwaf}")
+
+# Check if file exists
+import os
+print(f"File exists: {os.path.exists(asm_config._asm_libddwaf)}")
+```
+
+**Fix**: Ensure ddtrace is installed with native extensions:
+```bash
+pip install --force-reinstall ddtrace
+```
+
+### No Security Signals Appearing
+
+1. Check AppSec is enabled:
+   ```bash
+   curl http://localhost:8000  # Should see _dd.appsec.enabled:1 in trace tags
+   ```
+
+2. Verify Agent is receiving traces:
+   ```bash
+   curl http://localhost:8126/info  # Check Datadog Agent status
+   ```
+
+3. Check for WAF timeouts:
+   ```python
+   # Look for _dd.appsec.waf.timeouts in trace tags
+   ```
+
+### AI Guard Not Working
+
+Ensure endpoint is configured:
+```bash
+export DD_AI_GUARD_ENDPOINT="https://ai-guard.datadoghq.com"
+```
+
+Check LLM integration is patched:
+```python
+from ddtrace import patch
+patch(openai=True)  # or anthropic=True, etc.
+```
+
+---
+
+## Summary
+
+| Feature | Purpose | Key Benefit | Enable With |
+|---------|---------|-------------|-------------|
+| **AppSec/WAF** | Detect attacks | Real-time threat detection | `DD_APPSEC_ENABLED=true` |
+| **IAST** | Find code vulnerabilities | Shift-left security | `DD_IAST_ENABLED=true` |
+| **Exploit Prevention** | Block exploits | Runtime protection | `DD_EXPLOIT_PREVENTION_ENABLED=true` |
+| **API Security** | Discover APIs | Complete API visibility | `DD_API_SECURITY_ENABLED=true` |
+| **AI Guard** | Secure LLMs | Prompt injection protection | `DD_AI_GUARD_ENABLED=true` |
+| **User Tracking** | Monitor auth | Account takeover detection | `DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED=true` |
+
+**All features work together** to provide defense-in-depth security for your Python applications.

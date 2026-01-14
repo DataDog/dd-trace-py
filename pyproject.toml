@@ -1,8 +1,7 @@
 [build-system]
 requires = [
-    "setuptools_scm[toml]>=4",
     "cython",
-    "cmake>=3.24.2,<3.28; python_version>='3.8'",
+    "cmake>=3.24.2,<3.28",
     "setuptools-rust<2",
     "patchelf>=0.17.0.0; sys_platform == 'linux'",
 ]
@@ -10,14 +9,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
-# DEV: to directly override the version specifier, comment this...
-dynamic = ["version"]
-# ...and uncomment this
-# version = "4.0.0.dev0"
+version = "4.3.0.dev0"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
-requires-python = ">=3.8"
+# ddtrace has many sub-components which can break when CPython internals
+# change over versions, .e.g. profiling. So we explicitly mark incompatibility
+# with versions we don't support yet.
+requires-python = ">=3.9,<3.15"
 authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
 ]
@@ -26,7 +25,6 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -61,9 +59,7 @@ _dd_crashtracker_receiver = "ddtrace.commands._dd_crashtracker_receiver:main"
 ddcontextvars_context = "ddtrace.internal.opentelemetry.context:DDRuntimeContext"
 
 [project.entry-points.pytest11]
-ddtrace = "ddtrace.contrib.internal.pytest.plugin"
-"ddtrace.pytest_bdd" = "ddtrace.contrib.internal.pytest_bdd.plugin"
-"ddtrace.pytest_benchmark" = "ddtrace.contrib.internal.pytest_benchmark.plugin"
+ddtrace = "ddtrace.testing.internal.pytest.entry_point"
 
 [project.entry-points.'ddtrace.products']
 "apm-tracing-rc" = "ddtrace.internal.remoteconfig.products.apm_tracing"
@@ -72,6 +68,7 @@ ddtrace = "ddtrace.contrib.internal.pytest.plugin"
 "exception-replay" = "ddtrace.debugging._products.exception_replay"
 "live-debugger" = "ddtrace.debugging._products.live_debugger"
 "error-tracking" = "ddtrace.errortracking.product"
+"openfeature" = "ddtrace.internal.openfeature.product"
 "remote-configuration" = "ddtrace.internal.remoteconfig.products.client"
 "symbol-database" = "ddtrace.internal.symbol_db.product"
 "appsec" = "ddtrace.internal.appsec.product"
@@ -85,10 +82,6 @@ Documentation = "https://ddtrace.readthedocs.io/en/stable/"
 Homepage = "https://github.com/DataDog/dd-trace-py"
 "Source Code" = "https://github.com/DataDog/dd-trace-py/"
 
-[tool.setuptools_scm]
-version_scheme = "release-branch-semver"  # Must be "release-branch-semver" for now in main, see https://github.com/DataDog/dd-trace-py/issues/8801
-write_to = "ddtrace/_version.py"
-
 [tool.cython-lint]
 max-line-length = 120
 exclude = '''
@@ -99,47 +92,6 @@ exclude = '''
   | \.riot
   | ddtrace/profiling/
   | test_ci_visibility_api_client_skippable_real_world_responses\.py
-)
-'''
-
-[tool.black]
-line-length = 120
-target_version = ['py37', 'py38', 'py39', 'py310', 'py311', 'py312']
-include = '''\.py[ix]?$'''
-exclude = '''
-(
-  \.worktrees/
-  | .venv*
-  | \.sg
-  | \.riot/
-  | ddtrace/appsec/_ddwaf.pyx$
-  | ddtrace/internal/_encoding.pyx$
-  | ddtrace/internal/_rand.pyx$
-  | ddtrace/internal/_tagset.pyx$
-  | ddtrace/internal/telemetry/metrics_namespaces.pyx$
-  | ddtrace/profiling/collector/_traceback.pyx$
-  | ddtrace/profiling/collector/_task.pyx$
-  | ddtrace/profiling/_threading.pyx$
-  | ddtrace/profiling/collector/stack.pyx$
-  | ddtrace/profiling/exporter/pprof.pyx$
-  | ddtrace/internal/datadog/profiling/ddup/_ddup.pyx$
-  | ddtrace/vendor/
-  | ddtrace/appsec/_iast/_taint_tracking/_vendor/
-  | ddtrace/appsec/_iast/_taint_tracking/cmake-build-debug/
-  | ddtrace/_version.py
-  | \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.nox
-  | \.tox
-  | \.venv
-  | _build/
-  | buck-out/
-  | build/
-  | dist/
-  | tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py$
-  | tests/profiling/collector/pprof_.*_pb2.py$
 )
 '''
 
@@ -155,50 +107,6 @@ exclude = [
   ".venv",
   ".worktrees",
 ]
-
-[tool.slotscheck]
-exclude-modules = '''
-(
-  ^ddtrace.(contrib|vendor)
-  | ^tests.(contrib|vendor)
-  # avoid sitecustomize modules as they start services
-  | ddtrace.bootstrap.sitecustomize
-  | ddtrace.openfeature
-  | ddtrace.internal.openfeature
-  | ddtrace.profiling.bootstrap.sitecustomize
-  | ddtrace.profiling.auto
-  # also ignore preload module to avoid exception after moving ddtrace.tracing module
-  | ddtrace.bootstrap.preload
-  # protobuf file fails to import
-  | tests.profiling.collector.pprof_3_pb2
-  | tests.profiling.collector.pprof_312_pb2
-  | tests.profiling.collector.pprof_319_pb2
-  | tests.profiling.collector.pprof_421_pb2
-  # TODO: resolve slot inheritance issues with profiling
-  | ddtrace.profiling.collector
-  | ddtrace.profiling._gevent
-  | ddtrace,appsec,iast,_taint_tracking.vendor
-  | ddtrace.appsec._ddwaf.ddwaf_types
-  | ddtrace.appsec._iast._taint_tracking
-  | ddtrace.appsec._iast._ast.aspects
-  | ddtrace.appsec._iast._taint_utils
-  | ddtrace.appsec._iast.taint_sinks.sql_injection
-  # DSM specific contribs
-  | ddtrace.internal.datastreams.kafka
-  # libdd_wrapper is a common native dependency, not a module
-  | ddtrace.internal.datadog.profiling.libdd_wrapper
-  # _ddup and _stack_v2 miss a runtime dependency in slotscheck, but ddup and stack_v2 are fine
-  | ddtrace.internal.datadog.profiling.ddup._ddup
-  | ddtrace.internal.datadog.profiling.stack_v2._stack_v2
-  # coverage has version-specific checks that prevent import
-  | ddtrace.internal.coverage.instrumentation_py3_8
-  | ddtrace.internal.coverage.instrumentation_py3_10
-  | ddtrace.internal.coverage.instrumentation_py3_11
-  | ddtrace.internal.coverage.instrumentation_py3_12
-  | ddtrace.internal.coverage.instrumentation_py3_13
-  | ddtrace.internal.coverage.instrumentation_py3_14
-)
-'''
 
 [tool.bandit]
 targets = ["ddtrace/"]
@@ -219,6 +127,7 @@ exclude_dirs = [
 ]
 
 [tool.ruff]
+# This exclude list applies to both linting and formatting
 exclude = [
     ".riot",
     ".ddriot",
@@ -234,10 +143,10 @@ exclude = [
     "ddtrace/vendor/*",
     "ddtrace/appsec/_iast/_taint_tracking/_vendor/*",
     "tests/profiling/collector/pprof_*pb2.py",
-    "tests/profiling/simple_program_gevent.py",
     "tests/contrib/grpc/hello_pb2.py",
     "tests/contrib/django_celery/app/*",
     "tests/contrib/protobuf/schemas/**/*.py",
+    "tests/coverage/included_path/py39_line_numbers.py",
     "tests/appsec/iast/fixtures/ast/str/non_utf8_content.py",
     "tests/appsec/iast/fixtures/aspects/str/non_utf8_content.py",
     "tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py"
@@ -270,6 +179,11 @@ lint.ignore = [
     "G201",
 ]
 line-length = 120
+
+# Allow experimental/preview checks
+lint.preview = true
+lint.explicit-preview-rules = true
+
 lint.select = [
     "A",
     "D",
@@ -277,11 +191,22 @@ lint.select = [
     "F",
     "G",
     "I",
+    "PLW0244",  # redefined-slots-in-subclass
     "W",
 ]
 lint.unfixable =[
   "F401",
 ]
+
+
+[tool.ruff.format]
+# Formatter-specific settings
+# The exclude list from [tool.ruff] is inherited automatically
+# Additional formatter options can be added here if needed
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
 
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"
@@ -292,8 +217,3 @@ lines-after-imports = 2
 force-sort-within-sections = true
 known-first-party = [ "ddtrace" ]
 relative-imports-order = "furthest-to-closest"
-
-[tool.ruff.lint.per-file-ignores]
-# Exclude typing stubs as vertical line spacing incompatibility with black
-# See: https://github.com/astral-sh/ruff/pull/6501
-"*.pyi" = ["I001"]

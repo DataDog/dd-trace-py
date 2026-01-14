@@ -9,7 +9,6 @@ from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.yaaredis.patch import patch
 from ddtrace.contrib.internal.yaaredis.patch import unpatch
 from ddtrace.internal.compat import is_wrapted
-from tests.opentracer.utils import init_tracer
 from tests.utils import override_config
 
 from ..config import REDIS_CONFIG
@@ -149,18 +148,6 @@ async def test_service_name_config(tracer, test_spans, traced_yaaredis):
         assert test_spans.spans[0].service == service
 
 
-@pytest.mark.asyncio
-async def test_opentracing(tracer, snapshot_context, traced_yaaredis):
-    """Ensure OpenTracing works with redis."""
-
-    with snapshot_context():
-        pin = Pin.get_from(traced_yaaredis)
-        ot_tracer = init_tracer("redis_svc", pin.tracer)
-
-        with ot_tracer.start_active_span("redis_get"):
-            await traced_yaaredis.get("cheese")
-
-
 @pytest.mark.parametrize(
     "service_schema",
     [
@@ -228,7 +215,6 @@ def test_full_command_in_resource_env():
 
 @pytest.mark.snapshot
 @pytest.mark.asyncio
-@pytest.mark.parametrize("use_global_tracer", [True])
 async def test_full_command_in_resource_config(tracer, traced_yaaredis):
     with override_config("yaaredis", dict(resource_only_command=False)):
         with tracer.trace("web-request", service="test"):

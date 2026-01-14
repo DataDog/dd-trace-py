@@ -2,6 +2,7 @@
 
 #include "libdatadog_helpers.hpp"
 #include "profile.hpp"
+#include "profile_borrow.hpp"
 #include "types.hpp"
 
 #include <string>
@@ -81,7 +82,8 @@ class Sample
     std::vector<int64_t> values = {};
 
     // Additional metadata
-    int64_t endtime_ns = 0; // end of the event
+    int64_t endtime_ns = 0;         // end of the event
+    bool reverse_locations = false; // whether to reverse locations when exporting/flushing
 
     // Backing memory for string copies
     internal::StringArena string_storage{};
@@ -100,6 +102,8 @@ class Sample
     bool push_release(int64_t lock_time, int64_t count);
     bool push_alloc(int64_t size, int64_t count);
     bool push_heap(int64_t size);
+    void reset_alloc();
+    void reset_heap();
     bool push_gpu_gputime(int64_t time, int64_t count);
     bool push_gpu_memory(int64_t size, int64_t count);
     bool push_gpu_flops(int64_t flops, int64_t count);
@@ -118,7 +122,7 @@ class Sample
     bool push_absolute_ns(int64_t timestamp_ns);
 
     // Interacts with static Sample state
-    bool is_timeline_enabled() const;
+    static bool is_timeline_enabled();
     static void set_timeline(bool enabled);
 
     // Pytorch GPU metadata
@@ -131,11 +135,17 @@ class Sample
                     int64_t line               // for ddog_prof_Location
     );
 
-    // Flushes the current buffer, clearing it
-    bool flush_sample(bool reverse_locations = false);
+    // Set whether to reverse locations when exporting/flushing
+    void set_reverse_locations(bool reverse) { reverse_locations = reverse; }
 
-    static ddog_prof_Profile& profile_borrow();
-    static void profile_release();
+    // Flushes the current buffer, clearing it
+    bool flush_sample();
+
+    // Exports the sample data to the profile without clearing buffers
+    // This is useful when the Sample object is embedded and will be destroyed later
+    bool export_sample();
+
+    static ProfileBorrow profile_borrow();
     static void postfork_child();
     Sample(SampleType _type_mask, unsigned int _max_nframes);
 

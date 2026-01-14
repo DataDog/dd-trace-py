@@ -15,7 +15,7 @@ from tests.appsec.integrations.utils_testagent import _get_span
 
 # Common environment configuration for IAST tests
 IAST_ENV = {
-    "_DD_IAST_PATCH_MODULES": ("benchmarks.," "tests.appsec.," "tests.appsec.integrations.fastapi_tests.app."),
+    "_DD_IAST_PATCH_MODULES": ("benchmarks.,tests.appsec.,tests.appsec.integrations.fastapi_tests.app."),
 }
 
 
@@ -39,7 +39,7 @@ def test_iast_header_injection_secure_attack(iast_test_token):
             if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
             iast_data = load_iast_report(span)
-            if iast_data:
+            if iast_data and iast_data.get("vulnerabilities"):
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
     assert len(spans_with_iast) == 2
@@ -67,7 +67,7 @@ def test_iast_header_injection(iast_test_token, use_multiprocess):
             if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
             iast_data = load_iast_report(span)
-            if iast_data:
+            if iast_data and iast_data.get("vulnerabilities"):
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
     assert len(spans_with_iast) >= 1
@@ -93,7 +93,7 @@ def test_iast_header_injection_attack(iast_test_token):
             if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
             iast_data = load_iast_report(span)
-            if iast_data:
+            if iast_data and iast_data.get("vulnerabilities"):
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
     assert len(spans_with_iast) == 2
@@ -120,7 +120,7 @@ def test_iast_ssrf_secure_mark_validator(iast_test_token, use_multiprocess):
             if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
             iast_data = load_iast_report(span)
-            if iast_data:
+            if iast_data and iast_data.get("vulnerabilities"):
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
     assert len(spans_with_iast) >= 1
@@ -462,7 +462,7 @@ def test_iast_cmdi_bodies_fastapi_no_vulnerabilities(body, content_type, iast_te
             if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
             iast_data = load_iast_report(span)
-            if iast_data:
+            if iast_data and iast_data.get("vulnerabilities"):
                 vulnerabilities.append(iast_data.get("vulnerabilities"))
 
     assert len(spans_with_iast) >= 0, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"

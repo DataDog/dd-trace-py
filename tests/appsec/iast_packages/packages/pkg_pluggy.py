@@ -3,6 +3,7 @@ pluggy==1.5.0
 
 https://pypi.org/project/pluggy/
 """
+
 from flask import Blueprint
 from flask import request
 

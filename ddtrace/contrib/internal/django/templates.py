@@ -13,11 +13,11 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
-from ddtrace.settings.integration import IntegrationConfig
 
 
 T = TypeVar("T")

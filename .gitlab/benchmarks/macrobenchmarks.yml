@@ -10,6 +10,10 @@ include:
   - project: 'DataDog/benchmarking-platform-tools'
     file: 'images/templates/gitlab/check-slo-breaches.template.yml'
 
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible
+
 variables:
   MACROBENCHMARKS_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py-macrobenchmarks
 
@@ -17,9 +21,14 @@ candidate:
   image: $PACKAGE_IMAGE
   stage: build
   tags: [ "arch:amd64" ]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+      interruptible: false
+    - interruptible: true
   needs:
     - pipeline: $PARENT_PIPELINE_ID
-      job: download_ddtrace_artifacts
+      job: "build linux: [amd64, cp39-cp39, v85383392-751efc0-manylinux2014_x86_64]"
+      artifacts: true
   script: |
     cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl ./
     echo "CANDIDATE_WHL=$(ls *.whl | head -n 1)" | tee candidate.env
@@ -33,6 +42,10 @@ candidate:
   stage: test
   needs: [ "candidate" ]
   tags: ["runner:apm-k8s-same-cpu"]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+      interruptible: false
+    - interruptible: true
   timeout: 1h
   retry:
     max: 2

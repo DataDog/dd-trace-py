@@ -4,7 +4,8 @@ on:
   push:
     branches:
       - main
-      - 'mq-working-branch**'
+      - mq-working-branch-*
+  merge_group:
   pull_request:
   workflow_dispatch: {}
   schedule:
@@ -12,9 +13,40 @@ on:
 
 jobs:
   build-wheels:
-    uses: ./.github/workflows/build_python_3.yml
-    with:
-      cibw_build: 'cp311-manylinux_x86_64 cp312-manylinux_x86_64 cp313-manylinux_x86_64'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - python-version: '3.11'
+            cp-version: 'cp311'
+          - python-version: '3.12'
+            cp-version: 'cp312'
+          - python-version: '3.13'
+            cp-version: 'cp313'
+    env:
+      CIBW_BUILD: ${{ matrix.cp-version }}-manylinux_x86_64
+      CIBW_BEFORE_ALL_LINUX: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
+      CIBW_ENVIRONMENT: "PATH=$HOME/.cargo/bin:$PATH CMAKE_BUILD_PARALLEL_LEVEL=12 CARGO_BUILD_JOBS=12"
+      CIBW_TEST_COMMAND: "python {project}/tests/smoke_test.py"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
+        with:
+          python-version: "3.13"
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@63fd63b352a9a8bdcc24791c9dbee952ee9a8abc # v3.3.0
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: wheels-${{ matrix.cp-version }}-manylinux_x86_64
+          path: ./wheelhouse/*.whl
 
   system-tests-build-weblog:
     needs:
@@ -40,15 +72,15 @@ jobs:
         run: sudo apt-get install -y patchelf
 
       - name: Checkout system tests
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '38b9edcd63a1158f1a51e0430770052341b9cfdb'
+          ref: 'e1cd85f960c713cf6a7e9caa61094b5914d0e386'
 
       - name: Download wheels to binaries directory
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           pattern: wheels-*
           path: binaries/
@@ -62,7 +94,7 @@ jobs:
         run: |
           docker image save system_tests/weblog:latest | gzip > ${{ matrix.weblog-variant}}_weblog_${{ github.sha }}.tar.gz
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: ${{ matrix.weblog-variant }}_${{ github.sha }}
           path: |
@@ -85,17 +117,17 @@ jobs:
     steps:
 
       - name: Checkout system tests
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '38b9edcd63a1158f1a51e0430770052341b9cfdb'
+          ref: 'e1cd85f960c713cf6a7e9caa61094b5914d0e386'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
 
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: ${{ matrix.weblog-variant }}_${{ github.sha }}
           path: images_artifacts/
@@ -133,6 +165,10 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
         run: ./run.sh AGENT_SUPPORTING_SPAN_EVENTS
 
+      - name: Run RUNTIME_METRICS_ENABLED
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
+        run: ./run.sh RUNTIME_METRICS_ENABLED
+
       - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'remote-config'
         run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
@@ -148,6 +184,10 @@ jobs:
       - name: Run APPSEC_MISSING_RULES
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
         run: ./run.sh APPSEC_MISSING_RULES
+
+      - name: Run APPSEC_ATO_SDK
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
+        run: ./run.sh APPSEC_ATO_SDK
 
       - name: Run APPSEC_AUTO_EVENTS_EXTENDED
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
@@ -217,6 +257,18 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_RASP
 
+      - name: Run APPSEC_RASP_NON_BLOCKING
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
+        run: ./run.sh APPSEC_RASP_NON_BLOCKING
+
+      - name: Run APPSEC_RASP_WITHOUT_DOWNSTREAM_BODY_ANALYSIS_USING_MAX
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
+        run: ./run.sh APPSEC_RASP_WITHOUT_DOWNSTREAM_BODY_ANALYSIS_USING_MAX
+
+      - name: Run APPSEC_RASP_WITHOUT_DOWNSTREAM_BODY_ANALYSIS_USING_SAMPLE_RATE
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
+        run: ./run.sh APPSEC_RASP_WITHOUT_DOWNSTREAM_BODY_ANALYSIS_USING_SAMPLE_RATE
+
       - name: Run APPSEC_STANDALONE_RASP
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_STANDALONE_RASP
@@ -252,7 +304,7 @@ jobs:
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: always() && steps.docker_load.outcome == 'success'
         with:
           name: logs_${{ matrix.weblog-variant }}_${{ matrix.scenario }}
@@ -270,14 +322,14 @@ jobs:
         run: sudo apt-get install -y patchelf
 
       - name: Checkout system tests
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '38b9edcd63a1158f1a51e0430770052341b9cfdb'
+          ref: 'e1cd85f960c713cf6a7e9caa61094b5914d0e386'
       - name: Download wheels to binaries directory
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           pattern: wheels-*
           path: binaries/
@@ -296,21 +348,93 @@ jobs:
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: always() && steps.build_runner.outcome == 'success'
         with:
           name: logs_parametric
           path: artifact.tar.gz
 
+  serverless-system-tests-build-layer:
+    runs-on: ubuntu-latest
+    needs: [build-wheels]
+    steps:
+      - name: Checkout datadog-lambda-python
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+          repository: "DataDog/datadog-lambda-python"
+
+      - name: Download wheel to binaries directory
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: wheels-cp313-manylinux_x86_64
+          path: artifacts/
+
+      - name: Build datadog_lambda layer
+        run: |
+          wheel_path=$(find ./artifacts -name "*.whl" | head -n 1)
+          sed -i 's|^ddtrace =.*$|ddtrace = { file = "'"$wheel_path"'" }|' pyproject.toml
+          ARCH=amd64 PYTHON_VERSION=3.13 ./scripts/build_layers.sh
+
+      - name: Upload layer artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          path: .layers/datadog_lambda_py-amd64-3.13.zip
+          name: serverless_system_tests_binaries
+
+  serverless-system-tests:
+    needs: [serverless-system-tests-build-layer]
+    # Automatically managed, use scripts/update-system-tests-version to update
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@e1cd85f960c713cf6a7e9caa61094b5914d0e386
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+    with:
+      library: python_lambda
+      binaries_artifact: serverless_system_tests_binaries
+      scenarios_groups: lambda_end_to_end
+      skip_empty_scenarios: true
+
+  integration-frameworks-combine-wheels:
+    runs-on: ubuntu-latest
+    needs: [build-wheels]
+    steps:
+      - name: Download wheels to binaries directory
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: wheels-*
+          path: binaries/
+          merge-multiple: true
+
+      - name: Upload combined wheels
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: integration-frameworks-wheels
+          path: binaries/
+
+  integration-frameworks-system-tests:
+    needs: [integration-frameworks-combine-wheels]
+    # Automatically managed, use scripts/update-system-tests-version to update
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@e1cd85f960c713cf6a7e9caa61094b5914d0e386
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+    with:
+      library: python
+      scenarios: INTEGRATION_FRAMEWORKS
+      binaries_artifact: integration-frameworks-wheels
+
   finished:
     name: system-tests finished
     runs-on: ubuntu-latest
-    needs: [parametric, system-tests]
+    needs: [parametric, system-tests, serverless-system-tests, integration-frameworks-system-tests]
     if: success() || failure()
     steps:
       - name: True when everything else succeeded
-        if: needs.parametric.result == 'success' && needs.system-tests.result == 'success'
+        if: needs.parametric.result == 'success' && needs.system-tests.result == 'success' && needs.serverless-system-tests.result == 'success'
         run: exit 0
       - name: Fails if anything else failed
-        if: needs.parametric.result != 'success' || needs.system-tests.result != 'success'
+        if: needs.parametric.result != 'success' || needs.system-tests.result != 'success' || needs.serverless-system-tests.result != 'success'
         run: exit 1

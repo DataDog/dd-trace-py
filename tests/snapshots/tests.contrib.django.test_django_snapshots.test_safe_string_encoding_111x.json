@@ -211,7 +211,7 @@
              "service": "django",
              "resource": "django.views.generic.list.BaseListView.get",
              "trace_id": 0,
-             "span_id": 20,
+             "span_id": 19,
              "parent_id": 18,
              "type": "",
              "error": 0,
@@ -240,47 +240,6 @@
        "duration": 459000,
        "start": 1692907039015655000
      },
-        {
-          "name": "django.template.render",
-          "service": "django",
-          "resource": "cached_list.html",
-          "trace_id": 0,
-          "span_id": 19,
-          "parent_id": 11,
-          "type": "template",
-          "error": 0,
-          "meta": {
-            "_dd.base_service": "",
-            "_dd.p.tid": "654a694400000000",
-            "component": "django",
-            "django.template.engine.class": "django.template.engine.Engine",
-            "django.template.name": "cached_list.html"
-          },
-          "duration": 343000,
-          "start": 1692907039015730000
-        },
-           {
-             "name": "django.cache",
-             "service": "django",
-             "resource": "django.core.cache.backends.locmem.get",
-             "trace_id": 0,
-             "span_id": 21,
-             "parent_id": 19,
-             "type": "cache",
-             "error": 0,
-             "meta": {
-               "_dd.base_service": "",
-               "_dd.p.tid": "654a694400000000",
-               "component": "django",
-               "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
-               "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e"
-             },
-             "metrics": {
-               "db.row_count": 1
-             },
-             "duration": 140000,
-             "start": 1692907039015885000
-           },
      {
        "name": "django.middleware",
        "service": "django",

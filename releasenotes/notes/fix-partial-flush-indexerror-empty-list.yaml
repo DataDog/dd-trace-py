@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Fixed a potential ``IndexError`` in partial flush when the finished span counter was out of sync with actual finished spans.
+  - |
+    tracing: ``DD_TRACE_PARTIAL_FLUSH_MIN_SPANS`` values less than 1 now default to 1 with a warning.

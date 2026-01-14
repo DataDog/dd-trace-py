@@ -21,6 +21,7 @@ import uuid
 import ddtrace
 from ddtrace.internal import agent
 from ddtrace.internal import gitmetadata
+from ddtrace.internal import process_tags
 from ddtrace.internal import runtime
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
@@ -30,10 +31,10 @@ from ddtrace.internal.remoteconfig import PayloadType
 from ddtrace.internal.remoteconfig._pubsub import PubSub
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.version import _pep440_to_semver
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings._core import DDConfig
 
 
 log = get_logger(__name__)
@@ -233,6 +234,10 @@ class RemoteConfigClient:
             app_version=ddtrace.config.version,
             tags=[":".join(_) for _ in tags.items()],
         )
+
+        if p_tags_list := process_tags.process_tags_list:
+            self._client_tracer["process_tags"] = p_tags_list
+
         self.cached_target_files: List[AppliedConfigType] = []
 
         self._products: MutableMapping[str, PubSub] = dict()

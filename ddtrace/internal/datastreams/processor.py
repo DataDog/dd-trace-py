@@ -16,14 +16,16 @@ from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace.internal import compat
+from ddtrace.internal import process_tags
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
+from ddtrace.internal.utils.fnv import fnv1_64
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings._config import config
-from ddtrace.version import get_version
+from ddtrace.version import __version__
 
 from .._encoding import packb
 from ..agent import get_connection
@@ -33,7 +35,6 @@ from ..periodic import PeriodicService
 from ..writer import _human_size
 from .encoding import decode_var_int_64
 from .encoding import encode_var_int_64
-from .fnv import fnv1_64
 from .schemas.schema_builder import SchemaBuilder
 from .schemas.schema_sampler import SchemaSampler
 
@@ -112,10 +113,8 @@ class DataStreamsProcessor(PeriodicService):
         self._timeout = timeout
         # Have the bucket size match the interval in which flushes occur.
         self._bucket_size_ns = int(interval * 1e9)  # type: int
-        self._buckets = defaultdict(
-            lambda: Bucket(defaultdict(PathwayStats), defaultdict(int), defaultdict(int))
-        )  # type: DefaultDict[int, Bucket]
-        self._version = get_version()
+        self._buckets = defaultdict(lambda: Bucket(defaultdict(PathwayStats), defaultdict(int), defaultdict(int)))  # type: DefaultDict[int, Bucket]
+        self._version = __version__
         self._headers = {
             "Datadog-Meta-Lang": "python",
             "Datadog-Meta-Tracer-Version": self._version,
@@ -290,6 +289,8 @@ class DataStreamsProcessor(PeriodicService):
             raw_payload["Env"] = compat.ensure_text(config.env)
         if config.version:
             raw_payload["Version"] = compat.ensure_text(config.version)
+        if p_tags := process_tags.process_tags:
+            raw_payload["ProcessTags"] = compat.ensure_text(p_tags)
 
         payload = packb(raw_payload)
         compressed = gzip_compress(payload)
@@ -419,7 +420,8 @@ class DataStreamsCtx:
         def get_bytes(s):
             return bytes(s, encoding="utf-8")
 
-        b = get_bytes(self.service) + get_bytes(self.env)
+        b = get_bytes(self.service) + get_bytes(self.env) + process_tags.base_hash_bytes
+
         for t in tags:
             b += get_bytes(t)
         node_hash = fnv1_64(b)

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    openfeature: This fix resolves an issue where Feature Flagging and Experimentation (FFE) was not receiving remote configuration in forking web server environments (gunicorn, uWSGI). This caused the OpenFeature provider to return default values instead of configured feature flags. FFE is now properly registered as a product during tracer initialization (when ``DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED=true``), ensuring remote configuration is received before process forking occurs.

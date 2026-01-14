@@ -5,7 +5,7 @@ from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
 from ddtrace.appsec._utils import DDWaf_info
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 __all__ = ["DDWaf", "DDWaf_info", "DDWaf_result", "version", "DDWafRulesType"]

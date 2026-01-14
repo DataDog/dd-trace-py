@@ -27,7 +27,6 @@ from tests.contrib.grpc_aio.hellostreamingworld_pb2 import HelloRequest as Hello
 from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import MultiGreeterServicer
 from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import MultiGreeterStub
 from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import add_MultiGreeterServicer_to_server
-from tests.utils import DummyTracer
 from tests.utils import assert_is_measured
 
 
@@ -177,15 +176,6 @@ def patch_grpc_aio():
 
 
 @pytest.fixture
-def tracer():
-    tracer = DummyTracer()
-    Pin._override(GRPC_AIO_PIN_MODULE_CLIENT, tracer=tracer)
-    Pin._override(GRPC_AIO_PIN_MODULE_SERVER, tracer=tracer)
-    yield tracer
-    tracer.pop()
-
-
-@pytest.fixture
 async def async_server_info(request, tracer, event_loop):
     _ServerInfo = namedtuple("_ServerInfo", ("target", "abort_supported"))
     _server = grpc.aio.server()
@@ -317,7 +307,7 @@ async def test_secure_channel_with_interceptor_in_args(server_info, tracer):
 
 
 @pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
-async def test_invalid_target(server_info, tracer):
+async def test_invalid_target(server_info, tracer, test_spans):
     target = "localhost:50051"
     async with aio.insecure_channel(target) as channel:
         stub = HelloStub(channel)
@@ -904,7 +894,7 @@ from tests.contrib.grpc_aio.test_grpc_aio import _SyncHelloServicer
 from tests.contrib.grpc_aio.test_grpc_aio import _get_spans
 from tests.contrib.grpc_aio.test_grpc_aio import patch_grpc_aio
 from tests.contrib.grpc_aio.test_grpc_aio import server_info
-from tests.contrib.grpc_aio.test_grpc_aio import tracer
+from tests.conftest import *
 
 @pytest.mark.parametrize("server_info",[_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_client_streaming(server_info, tracer):
@@ -924,9 +914,7 @@ async def test_client_streaming(server_info, tracer):
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__, "--asyncio-mode=auto"]))
-    """.format(
-        expected_operation_name_format
-    )
+    """.format(expected_operation_name_format)
     env = os.environ.copy()
     if service:
         env["DD_SERVICE"] = service
@@ -1055,17 +1043,17 @@ repr_test_cases = [
 def test_parse_rpc_repr_string(case):
     try:
         code, details = _parse_rpc_repr_string(case["rpc_string"], grpc)
-        assert not case[
-            "expect_error"
-        ], f"Test case with repr string: {case['rpc_string']} expected error but got result"
-        assert (
-            code == case["expected_code"]
-        ), f"Test case with repr string: {case['rpc_string']} expected code {case['expected_code']} but got {code}"
+        assert not case["expect_error"], (
+            f"Test case with repr string: {case['rpc_string']} expected error but got result"
+        )
+        assert code == case["expected_code"], (
+            f"Test case with repr string: {case['rpc_string']} expected code {case['expected_code']} but got {code}"
+        )
         assert details == case["expected_details"], (
             f"Test case with repr string: {case['rpc_string']} expected details {case['expected_details']} but"
             f"got {details}"
         )
     except ValueError as e:
-        assert case[
-            "expect_error"
-        ], f"Test case with repr string: {case['rpc_string']} did not expect error but got {e}"
+        assert case["expect_error"], (
+            f"Test case with repr string: {case['rpc_string']} did not expect error but got {e}"
+        )

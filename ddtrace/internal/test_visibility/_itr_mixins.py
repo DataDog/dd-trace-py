@@ -93,7 +93,7 @@ class ITRMixin:
     @staticmethod
     @_catch_and_log_exceptions
     def get_coverage_data(
-        item_id: t.Union[ext_api.TestSuiteId, ext_api.TestId]
+        item_id: t.Union[ext_api.TestSuiteId, ext_api.TestId],
     ) -> t.Optional[t.Dict[Path, CoverageLines]]:
         log.debug("Getting coverage data for item %s", item_id)
 

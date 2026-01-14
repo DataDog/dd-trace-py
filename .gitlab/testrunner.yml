@@ -12,9 +12,20 @@ variables:
   before_script:
     - ulimit -c unlimited
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
-    - pyenv global 3.12 3.8 3.9 3.10 3.11 3.13 3.14
+    - pyenv global 3.12 3.9 3.10 3.11 3.13 3.14
     - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
   retry: 2
   artifacts:
     reports:
       junit: test-results/junit*.xml
+
+.testrunner_gpu:
+  extends: .testrunner
+  image:
+    name: ${TESTRUNNER_IMAGE}
+  tags: [ "gpu:a10-amd64" ]
+  timeout: 40m
+  before_script:
+    - !reference [.testrunner, before_script]
+    - export NVIDIA_VISIBLE_DEVICES=all
+    - export NVIDIA_DRIVER_CAPABILITIES=compute,utility

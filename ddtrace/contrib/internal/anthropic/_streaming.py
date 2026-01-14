@@ -165,6 +165,12 @@ def _on_content_block_delta_chunk(chunk, message):
 
 def _on_content_block_stop_chunk(chunk, message):
     # this is the start to a message.content block (possibly 1 of several content blocks)
+    # Anthropic beta streaming can emit content_block_stop without a corresponding
+    # content_block_start (e.g. empty tool blocks / vendor edge cases). Guard to
+    # avoid IndexError which breaks span construction.
+    if not message.get("content"):
+        return message
+
     content_type = _get_attr(message["content"][-1], "type", "")
     if content_type == "tool_use":
         input_json = _get_attr(message["content"][-1], "input", "{}")
@@ -207,26 +213,30 @@ def _on_error_chunk(chunk, message):
 
 
 def _is_stream(resp: Any) -> bool:
-    if hasattr(anthropic, "Stream") and isinstance(resp, anthropic.Stream):
-        return True
+    for attr in ("Stream", "BetaMessageStream"):
+        if hasattr(anthropic, attr) and isinstance(resp, getattr(anthropic, attr)):
+            return True
     return False
 
 
 def _is_async_stream(resp: Any) -> bool:
-    if hasattr(anthropic, "AsyncStream") and isinstance(resp, anthropic.AsyncStream):
-        return True
+    for attr in ("AsyncStream", "BetaAsyncMessageStream"):
+        if hasattr(anthropic, attr) and isinstance(resp, getattr(anthropic, attr)):
+            return True
     return False
 
 
 def _is_stream_manager(resp: Any) -> bool:
-    if hasattr(anthropic, "MessageStreamManager") and isinstance(resp, anthropic.MessageStreamManager):
-        return True
+    for attr in ("MessageStreamManager", "BetaMessageStreamManager"):
+        if hasattr(anthropic, attr) and isinstance(resp, getattr(anthropic, attr)):
+            return True
     return False
 
 
 def _is_async_stream_manager(resp: Any) -> bool:
-    if hasattr(anthropic, "AsyncMessageStreamManager") and isinstance(resp, anthropic.AsyncMessageStreamManager):
-        return True
+    for attr in ("AsyncMessageStreamManager", "BetaAsyncMessageStreamManager"):
+        if hasattr(anthropic, attr) and isinstance(resp, getattr(anthropic, attr)):
+            return True
     return False
 
 

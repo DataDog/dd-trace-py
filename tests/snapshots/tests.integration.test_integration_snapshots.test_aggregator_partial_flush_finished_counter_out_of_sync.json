@@ -1,0 +1,37 @@
+[[
+  {
+    "name": "span1",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "span1",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "692a0cfd00000000",
+      "language": "python",
+      "runtime-id": "48593bb50c174935bfdd35e973b6247b"
+    },
+    "metrics": {
+      "_dd.py.partial_flush": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 74422.0
+    },
+    "duration": 1,
+    "start": 1764363517274022000
+  },
+     {
+       "name": "span2",
+       "service": "ddtrace_subprocess_dir",
+       "resource": "span2",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 46000,
+       "start": 1764363517274097000
+     }]]

@@ -698,13 +698,17 @@ def aspect_replace_api(
         elements: List[Any] = candidate_text.split(old_value, count)
     else:
         if count == -1:
+            # Convert candidate_text to list of chars/bytes
+            if isinstance(candidate_text, str):
+                char_list = list(candidate_text)
+            else:
+                char_list = [bytes([x]) for x in candidate_text]  # type: ignore
+
             elements = (
                 [
                     empty,
                 ]
-                + (
-                    list(candidate_text) if isinstance(candidate_text, str) else [bytes([x]) for x in candidate_text]  # type: ignore
-                )
+                + char_list
                 + [
                     empty,
                 ]
@@ -791,28 +795,50 @@ def replace_aspect(orig_function: Optional[Callable], flag_added_args: int, *arg
     candidate_text = args[0]
     args = args[flag_added_args:]
     orig_result = candidate_text.replace(*args, **kwargs)
+
     if not isinstance(candidate_text, IAST.TEXT_TYPES):
         return orig_result
 
-    ###
-    # Optimization: if we're not going to replace, just return the original string
-    count = parse_params(2, "count", -1, *args, **kwargs)
-    if count == 0:
-        return candidate_text
-    ###
     try:
-        old_value = parse_params(0, "old_value", None, *args, **kwargs)
-        new_value = parse_params(1, "new_value", None, *args, **kwargs)
+        # Lazy parameter parsing - direct access for common case
+        if len(args) >= 2 and not kwargs:
+            old_value = args[0]
+            new_value = args[1]
+            count = args[2] if len(args) >= 3 else -1
+        else:
+            old_value = parse_params(0, "old_value", None, *args, **kwargs)
+            new_value = parse_params(1, "new_value", None, *args, **kwargs)
+            count = parse_params(2, "count", -1, *args, **kwargs)
+
+        # Early exit optimizations
+        if count == 0:
+            return candidate_text
 
         if old_value is None or new_value is None:
             return orig_result
 
-        if old_value not in candidate_text or old_value == new_value:
+        if old_value == new_value:
             return candidate_text
 
+        if old_value not in candidate_text:
+            return candidate_text
+
+        # Optimization 3: Early taint check - skip expensive taint tracking if nothing is tainted
+        # For untainted strings, we already have the result, just return it
+        if (
+            not is_pyobject_tainted(candidate_text)
+            and not is_pyobject_tainted(old_value)
+            and not is_pyobject_tainted(new_value)
+        ):
+            # Fast path: No taint tracking needed, return pre-computed result
+            return orig_result
+
+        # Taint tracking path - only reached for tainted strings
         if orig_result in ("", b"", bytearray(b"")):
             return orig_result
 
+        # Normalize count: Python's str.replace() treats any negative number as "replace all",
+        # but aspect_replace_api has specific logic for count == -1, so normalize here
         if count < -1:
             count = -1
 
@@ -824,6 +850,7 @@ def replace_aspect(orig_function: Optional[Callable], flag_added_args: int, *arg
         return aspect_result
     except Exception as e:
         iast_propagation_error_log("replace_aspect", e)
+        # Return the pre-computed result - NEVER call replace() again here
         return orig_result
 
 

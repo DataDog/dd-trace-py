@@ -108,9 +108,9 @@ def test_priority_sampling_response():
     sampler_key = "service:{},env:".format(service)
     assert sampler_key not in t._span_aggregator.sampling_processor.sampler._agent_based_samplers
     _prime_tracer_with_priority_sample_rate_from_agent(t, service)
-    assert (
-        sampler_key in t._span_aggregator.sampling_processor.sampler._agent_based_samplers
-    ), "after fetching priority sample rates from the agent, the tracer should hold those rates"
+    assert sampler_key in t._span_aggregator.sampling_processor.sampler._agent_based_samplers, (
+        "after fetching priority sample rates from the agent, the tracer should hold those rates"
+    )
     t.shutdown()
 
 
@@ -161,9 +161,9 @@ def test_sampling_configurations_are_not_reset_on_tracer_configure():
     agent_based_samplers = t._span_aggregator.sampling_processor.sampler._agent_based_samplers
     trace_sampling_rules = t._span_aggregator.sampling_processor.sampler.rules
     single_span_sampling_rules = t._span_aggregator.sampling_processor.single_span_rules
-    assert (
-        agent_based_samplers and trace_sampling_rules and single_span_sampling_rules
-    ), "Expected agent sampling rules, span sampling rules, trace sampling rules to be set"
+    assert agent_based_samplers and trace_sampling_rules and single_span_sampling_rules, (
+        "Expected agent sampling rules, span sampling rules, trace sampling rules to be set"
+    )
     f", got {agent_based_samplers}, {trace_sampling_rules}, {single_span_sampling_rules}"
 
     class CustomFilter(TraceFilter):
@@ -174,19 +174,19 @@ def test_sampling_configurations_are_not_reset_on_tracer_configure():
             return trace
 
     t.configure(trace_processors=[CustomFilter()])  # Triggers AgentWriter recreate
-    assert (
-        t._span_aggregator.sampling_processor.sampler._agent_based_samplers == agent_based_samplers
-    ), f"Expected agent sampling rules to be set to {agent_based_samplers}, "
+    assert t._span_aggregator.sampling_processor.sampler._agent_based_samplers == agent_based_samplers, (
+        f"Expected agent sampling rules to be set to {agent_based_samplers}, "
+    )
     f"got {t._span_aggregator.sampling_processor.sampler._agent_based_samplers}"
 
-    assert (
-        t._span_aggregator.sampling_processor.sampler.rules == trace_sampling_rules
-    ), f"Expected trace sampling rules to be set to {trace_sampling_rules}, "
+    assert t._span_aggregator.sampling_processor.sampler.rules == trace_sampling_rules, (
+        f"Expected trace sampling rules to be set to {trace_sampling_rules}, "
+    )
     f"got {t._span_aggregator.sampling_processor.sampler.rules}"
 
-    assert len(t._span_aggregator.sampling_processor.single_span_rules) == len(
-        single_span_sampling_rules
-    ), f"Expected single span sampling rules to be set to {single_span_sampling_rules}, "
+    assert len(t._span_aggregator.sampling_processor.single_span_rules) == len(single_span_sampling_rules), (
+        f"Expected single span sampling rules to be set to {single_span_sampling_rules}, "
+    )
     f"got {t._span_aggregator.sampling_processor.single_span_rules}"
 
 

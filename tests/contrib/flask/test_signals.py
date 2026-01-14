@@ -93,6 +93,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
             We create a span whenever that signal is sent
         """
         for signal_name in self.signals():
+            self.reset()  # Clear spans from previous signal
             func = self.call_signal(signal_name, self.app)
 
             # Ensure our handler was called

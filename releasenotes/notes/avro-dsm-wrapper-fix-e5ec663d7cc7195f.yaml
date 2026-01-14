@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    avro: Fixes an issue where Avro instrumentation does not return method results when DSM is enabled.

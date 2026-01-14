@@ -1,0 +1,25 @@
+[[
+  {
+    "name": "test",
+    "service": "tests.internal",
+    "resource": "test",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6911dc5a00000000",
+      "language": "python",
+      "runtime-id": "2d5de91f8dd9442cad7faca5554a09f1"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 605
+    },
+    "duration": 22292,
+    "start": 1762778202327669586
+  }]]

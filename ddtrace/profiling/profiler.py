@@ -2,20 +2,25 @@
 import logging
 import os
 from typing import Any
+from typing import Callable
 from typing import Dict
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Type  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import List
+from typing import Mapping
+from typing import Optional
+from typing import Type
+from typing import Union
+from typing import cast
 
 import ddtrace
 from ddtrace import config
 from ddtrace.internal import atexit
-from ddtrace.internal import forksafe
+from ddtrace.internal import process_tags
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.settings.profiling import config as profiling_config
+from ddtrace.internal.settings.profiling import config_str
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.profiling import collector
@@ -25,11 +30,7 @@ from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import pytorch
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
-from ddtrace.settings.profiling import config as profiling_config
-from ddtrace.settings.profiling import config_str
 
-
-# TODO(vlad): add type annotations
 
 LOG = logging.getLogger(__name__)
 
@@ -42,16 +43,16 @@ class Profiler(object):
 
     """
 
-    def __init__(self, *args, **kwargs):
-        self._profiler = _ProfilerInstance(*args, **kwargs)
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        self._profiler: "_ProfilerInstance" = _ProfilerInstance(*args, **kwargs)
 
-    def start(self):
+    def start(self) -> None:
         """Start the profiler."""
+
         try:
             uwsgi.check_uwsgi(atexit=self.stop)
         except uwsgi.uWSGIMasterProcess:
             # Do nothing, the start() method will be called in each worker subprocess
-            forksafe.register(self.start)
             return
         except uwsgi.uWSGIConfigDeprecationWarning:
             LOG.warning("uWSGI configuration deprecation warning", exc_info=True)
@@ -66,7 +67,7 @@ class Profiler(object):
 
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
 
-    def stop(self, flush=True):
+    def stop(self, flush: bool = True) -> None:
         """Stop the profiler.
 
         :param flush: Flush last profile.
@@ -79,11 +80,7 @@ class Profiler(object):
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
             pass
 
-    def __getattr__(
-        self,
-        key,  # type: str
-    ):
-        # type: (...) -> Any
+    def __getattr__(self, key: str) -> Any:
         return getattr(self._profiler, key)
 
 
@@ -104,7 +101,6 @@ class _ProfilerInstance(service.Service):
         api_key: Optional[str] = None,
         _memory_collector_enabled: bool = profiling_config.memory.enabled,
         _stack_collector_enabled: bool = profiling_config.stack.enabled,
-        _stack_v2_enabled: bool = profiling_config.stack.v2_enabled,
         _lock_collector_enabled: bool = profiling_config.lock.enabled,
         _pytorch_collector_enabled: bool = profiling_config.pytorch.enabled,
         enable_code_provenance: bool = profiling_config.code_provenance,
@@ -120,21 +116,24 @@ class _ProfilerInstance(service.Service):
         self.api_key: Optional[str] = api_key if api_key is not None else config._dd_api_key
         self._memory_collector_enabled: bool = _memory_collector_enabled
         self._stack_collector_enabled: bool = _stack_collector_enabled
-        self._stack_v2_enabled: bool = _stack_v2_enabled
         self._lock_collector_enabled: bool = _lock_collector_enabled
         self._pytorch_collector_enabled: bool = _pytorch_collector_enabled
         self.enable_code_provenance: bool = enable_code_provenance
         self.endpoint_collection_enabled: bool = endpoint_collection_enabled
 
         # Non-user-supplied values
-        self._collectors: List[Union[stack.StackCollector, memalloc.MemoryCollector]] = []
-        self._collectors_on_import: Any = None
+        # Note: memalloc.MemoryCollector is not a subclass of collector.Collector, so we need to use a union type.
+        #       This is because its snapshot method cannot be static.
+        self._collectors: List[collector.Collector | memalloc.MemoryCollector] = []
+        self._collectors_on_import: Optional[List[tuple[str, Callable[[Any], None]]]] = None
         self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
         self._lambda_function_name: Optional[str] = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
 
+        self.process_tags: Optional[str] = process_tags.process_tags or None
+
         self.__post_init__()
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         for k, v in vars(self).items():
             if k.startswith("_") or k in self._COPY_IGNORE_ATTRIBUTES:
                 continue
@@ -142,7 +141,7 @@ class _ProfilerInstance(service.Service):
                 return False
         return True
 
-    def _build_default_exporters(self):
+    def _build_default_exporters(self) -> None:
         if self._lambda_function_name is not None:
             self.tags.update({"functionname": self._lambda_function_name})
 
@@ -158,27 +157,21 @@ class _ProfilerInstance(service.Service):
             env=self.env,
             service=self.service,
             version=self.version,
-            tags=self.tags,
+            tags=cast(Mapping[Union[str, bytes], Union[str, bytes]], self.tags),
             max_nframes=profiling_config.max_frames,
             timeline_enabled=profiling_config.timeline_enabled,
             output_filename=profiling_config.output_pprof,
             sample_pool_capacity=profiling_config.sample_pool_capacity,
             timeout=profiling_config.api_timeout_ms,
+            process_tags=self.process_tags,
         )
         ddup.start()
 
-    def __post_init__(self):
-        # type: (...) -> None
-
+    def __post_init__(self) -> None:
         if self._stack_collector_enabled:
             LOG.debug("Profiling collector (stack) enabled")
             try:
-                self._collectors.append(
-                    stack.StackCollector(
-                        tracer=self.tracer,
-                        endpoint_collection_enabled=self.endpoint_collection_enabled,
-                    )
-                )
+                self._collectors.append(stack.StackCollector(tracer=self.tracer))
                 LOG.debug("Profiling collector (stack) initialized")
             except Exception:
                 LOG.error("Failed to start stack collector, disabling.", exc_info=True)
@@ -186,7 +179,7 @@ class _ProfilerInstance(service.Service):
         if self._lock_collector_enabled:
             # These collectors require the import of modules, so we create them
             # if their import is detected at runtime.
-            def start_collector(collector_class: Type) -> None:
+            def start_collector(collector_class: Type[collector.Collector]) -> None:
                 with self._service_lock:
                     col = collector_class(tracer=self.tracer)
 
@@ -207,7 +200,13 @@ class _ProfilerInstance(service.Service):
             self._collectors_on_import = [
                 ("threading", lambda _: start_collector(threading.ThreadingLockCollector)),
                 ("threading", lambda _: start_collector(threading.ThreadingRLockCollector)),
+                ("threading", lambda _: start_collector(threading.ThreadingSemaphoreCollector)),
+                ("threading", lambda _: start_collector(threading.ThreadingBoundedSemaphoreCollector)),
+                ("threading", lambda _: start_collector(threading.ThreadingConditionCollector)),
                 ("asyncio", lambda _: start_collector(asyncio.AsyncioLockCollector)),
+                ("asyncio", lambda _: start_collector(asyncio.AsyncioSemaphoreCollector)),
+                ("asyncio", lambda _: start_collector(asyncio.AsyncioBoundedSemaphoreCollector)),
+                ("asyncio", lambda _: start_collector(asyncio.AsyncioConditionCollector)),
             ]
 
             for module, hook in self._collectors_on_import:
@@ -215,7 +214,7 @@ class _ProfilerInstance(service.Service):
 
         if self._pytorch_collector_enabled:
 
-            def start_collector(collector_class: Type) -> None:
+            def start_collector(collector_class: Type[collector.Collector]) -> None:
                 with self._service_lock:
                     col = collector_class()
 
@@ -245,25 +244,25 @@ class _ProfilerInstance(service.Service):
 
         self._build_default_exporters()
 
-        scheduler_class = (
+        scheduler_class: Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = (
             scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler
-        )  # type: (Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]])
+        )
 
         self._scheduler = scheduler_class(
             before_flush=self._collectors_snapshot,
             tracer=self.tracer,
         )
 
-    def _collectors_snapshot(self):
+    def _collectors_snapshot(self) -> None:
         for c in self._collectors:
             try:
                 c.snapshot()
             except Exception:
                 LOG.error("Error while snapshotting collector %r", c, exc_info=True)
 
-    _COPY_IGNORE_ATTRIBUTES = {"status"}
+    _COPY_IGNORE_ATTRIBUTES = {"status", "process_tags"}
 
-    def copy(self):
+    def copy(self) -> "_ProfilerInstance":
         return self.__class__(
             **{
                 key: value
@@ -272,8 +271,7 @@ class _ProfilerInstance(service.Service):
             }
         )
 
-    def _start_service(self):
-        # type: (...) -> None
+    def _start_service(self) -> None:
         """Start the profiler."""
         collectors = []
         for col in self._collectors:
@@ -290,15 +288,14 @@ class _ProfilerInstance(service.Service):
         if self._scheduler is not None:
             self._scheduler.start()
 
-    def _stop_service(self, flush=True, join=True):
-        # type: (bool, bool) -> None
+    def _stop_service(self, flush: bool = True, join: bool = True) -> None:
         """Stop the profiler.
 
         :param flush: Flush a last profile.
         """
         LOG.debug("Stopping profiler")
         # Prevent doing more initialisation now that we are shutting down.
-        if self._lock_collector_enabled:
+        if self._lock_collector_enabled and self._collectors_on_import:
             for module, hook in self._collectors_on_import:
                 try:
                     ModuleWatchdog.unregister_module_hook(module, hook)

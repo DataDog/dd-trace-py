@@ -1,11 +1,8 @@
 #include "sample.hpp"
 
-#include "code_provenance.hpp"
-
 #include <algorithm>
 #include <chrono>
 #include <string_view>
-#include <thread>
 
 Datadog::internal::StringArena::StringArena()
 {
@@ -30,12 +27,12 @@ Datadog::internal::StringArena::reset()
 std::string_view
 Datadog::internal::StringArena::insert(std::string_view s)
 {
-    auto chunk = &chunks.back();
+    auto* chunk = &chunks.back();
     if ((chunk->capacity() - chunk->size()) < s.size()) {
         chunk = &chunks.emplace_back();
         chunk->reserve(std::max(s.size(), Datadog::internal::StringArena::DEFAULT_SIZE));
     }
-    int base = chunk->size();
+    auto base = chunk->size();
     chunk->insert(chunk->end(), s.begin(), s.end());
     return std::string_view(chunk->data() + base, s.size());
 }
@@ -135,12 +132,25 @@ Datadog::Sample::clear_buffers()
     labels.clear();
     locations.clear();
     dropped_frames = 0;
+    reverse_locations = false;
     string_storage.reset();
 }
 
 bool
-Datadog::Sample::flush_sample(bool reverse_locations)
+Datadog::Sample::flush_sample()
 {
+    // Export the sample data (export_sample handles dropped frames)
+    auto ret = export_sample();
+
+    // Clear buffers after exporting
+    clear_buffers();
+    return ret;
+}
+
+bool
+Datadog::Sample::export_sample()
+{
+    // Handle dropped frames by adding them to locations if needed
     if (dropped_frames > 0) {
         const std::string name =
           "<" + std::to_string(dropped_frames) + " frame" + (1 == dropped_frames ? "" : "s") + " omitted>";
@@ -149,6 +159,7 @@ Datadog::Sample::flush_sample(bool reverse_locations)
 
     if (reverse_locations) {
         std::reverse(locations.begin(), locations.end());
+        reverse_locations = false; // Reset after reversing
     }
 
     const ddog_prof_Sample sample = {
@@ -157,9 +168,8 @@ Datadog::Sample::flush_sample(bool reverse_locations)
         .labels = { labels.data(), labels.size() },
     };
 
-    const bool ret = profile_state.collect(sample, endtime_ns);
-    clear_buffers();
-    return ret;
+    // Export to profile without clearing buffers
+    return profile_state.collect(sample, endtime_ns);
 }
 
 bool
@@ -293,6 +303,30 @@ Datadog::Sample::push_heap(int64_t size)
         std::cerr << "bad push heap" << std::endl;
     }
     return false;
+}
+
+void
+Datadog::Sample::reset_alloc()
+{
+    if (0U != (type_mask & SampleType::Allocation)) {
+        const size_t alloc_space_idx = profile_state.val().alloc_space;
+        const size_t alloc_count_idx = profile_state.val().alloc_count;
+        if (alloc_space_idx < values.size() && alloc_count_idx < values.size()) {
+            values[alloc_space_idx] = 0;
+            values[alloc_count_idx] = 0;
+        }
+    }
+}
+
+void
+Datadog::Sample::reset_heap()
+{
+    if (0U != (type_mask & SampleType::Heap)) {
+        const size_t heap_space_idx = profile_state.val().heap_space;
+        if (heap_space_idx < values.size()) {
+            values[heap_space_idx] = 0;
+        }
+    }
 }
 
 bool
@@ -498,7 +532,7 @@ Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
 
         // Get the current monotonic time.  Use clock_gettime directly because the standard underspecifies
         // which clock is actually used in std::chrono
-        timespec ts;
+        timespec ts{ 0, 0 };
         clock_gettime(CLOCK_MONOTONIC, &ts);
         auto monotonic_ns = static_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + ts.tv_nsec;
 
@@ -521,21 +555,15 @@ Datadog::Sample::set_timeline(bool enabled)
 }
 
 bool
-Datadog::Sample::is_timeline_enabled() const
+Datadog::Sample::is_timeline_enabled()
 {
     return timeline_enabled;
 }
 
-ddog_prof_Profile&
+Datadog::ProfileBorrow
 Datadog::Sample::profile_borrow()
 {
-    return profile_state.profile_borrow();
-}
-
-void
-Datadog::Sample::profile_release()
-{
-    profile_state.profile_release();
+    return profile_state.borrow();
 }
 
 void

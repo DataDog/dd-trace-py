@@ -1,13 +1,13 @@
-def get_version() -> str:
-    try:
-        from ._version import version
+"""Maintain a separate module for the version to avoid circular imports."""
 
-        return version
-    except ImportError:
-        from importlib.metadata import version as ilm_version
+import importlib.metadata
 
-        try:
-            return ilm_version("ddtrace")
-        except ModuleNotFoundError:
-            # package is not installed
-            return "dev"
+
+__all__ = ["__version__"]
+
+__version__: str
+
+try:
+    __version__ = importlib.metadata.version(__package__ or __name__)
+except importlib.metadata.PackageNotFoundError:
+    __version__ = "0.0.0"

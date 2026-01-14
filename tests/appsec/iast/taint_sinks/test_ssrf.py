@@ -1,3 +1,4 @@
+import sys
 from unittest import mock
 
 import pytest
@@ -17,6 +18,9 @@ from tests.appsec.iast.taint_sinks._taint_sinks_utils import NON_TEXT_TYPES_TEST
 
 
 FIXTURES_PATH = "tests/appsec/iast/fixtures/taint_sinks/ssrf.py"
+
+# TODO: fix this due to test leaks between iast test suites.
+sys.setrecursionlimit(1 << 16)
 
 
 def _get_tainted_url():

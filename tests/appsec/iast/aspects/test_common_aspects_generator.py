@@ -2,6 +2,7 @@
 """
 Common tests to aspects, like ensuring that they don't break when receiving extra arguments.
 """
+
 import os
 
 import pytest

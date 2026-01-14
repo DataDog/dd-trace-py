@@ -15,6 +15,15 @@ from ddtrace.internal.symbol_db.symbols import Symbol
 from ddtrace.internal.symbol_db.symbols import SymbolType
 
 
+@pytest.fixture(autouse=True, scope="function")
+def pid_file_teardown():
+    from ddtrace.internal.symbol_db.remoteconfig import shared_pid_file
+
+    yield
+
+    shared_pid_file.clear()
+
+
 def test_symbol_from_code():
     def foo(a, b, c=None):
         loc = 42
@@ -310,13 +319,51 @@ def test_symbols_fork_uploads():
 
     for _ in range(10):
         if not (pid := os.fork()):
-            _rc_callback(rc_data)
-            assert SymbolDatabaseUploader.is_installed() != (
-                get_ancestor_runtime_id() is not None and forksafe.has_forked()
-            )
+            # Call the RC callback multiple times to check for stability
+            for i in range(10):
+                _rc_callback(rc_data)
+                assert SymbolDatabaseUploader.is_installed() != (
+                    get_ancestor_runtime_id() is not None and forksafe.has_forked()
+                ), f"iteration {i} is stable"
             os._exit(0)
 
         pids.append(pid)
 
     for pid in pids:
         os.waitpid(pid, 0)
+
+
+@pytest.mark.subprocess(run_module=True, err=None)
+def test_symbols_spawn_uploads():
+    def spawn_target(results):
+        from ddtrace.internal.remoteconfig import ConfigMetadata
+        from ddtrace.internal.remoteconfig import Payload
+        from ddtrace.internal.symbol_db.remoteconfig import _rc_callback
+        from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
+
+        SymbolDatabaseUploader.install()
+
+        rc_data = [Payload(ConfigMetadata("test", "symdb", "hash", 0, 0), "test", None)]
+        _rc_callback(rc_data)
+        results.append(SymbolDatabaseUploader.is_installed())
+
+    if __name__ == "__main__":
+        import multiprocessing
+
+        multiprocessing.freeze_support()
+
+        multiprocessing.set_start_method("spawn", force=True)
+        mc_context = multiprocessing.get_context("spawn")
+        manager = multiprocessing.Manager()
+        returns = manager.list()
+        jobs = []
+
+        for _ in range(10):
+            p = mc_context.Process(target=spawn_target, args=(returns,))
+            p.start()
+            jobs.append(p)
+
+        for p in jobs:
+            p.join()
+
+        assert sum(returns) == 1, returns

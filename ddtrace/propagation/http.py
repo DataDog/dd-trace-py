@@ -1,15 +1,12 @@
 import itertools
 import re
-from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import FrozenSet  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Literal  # noqa:F401
 from typing import Optional  # noqa:F401
-from typing import Text  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union
-from typing import cast  # noqa:F401
 import urllib.parse
 
 from ddtrace._trace._span_link import SpanLink
@@ -17,15 +14,12 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
-from ddtrace._trace.types import _MetaDictType
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.internal import core
+from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.settings._config import config
-from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor.debtcollector import deprecate
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -284,11 +278,8 @@ class _DatadogMultiHeader:
 
         # Only propagate trace tags which means ignoring the _dd.origin
         tags_to_encode = {
-            # DEV: Context._meta is a _MetaDictType but we need Dict[str, str]
-            ensure_text(k): ensure_text(v)
-            for k, v in span_context._meta.items()
-            if _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
-        }  # type: Dict[Text, Text]
+            k: v for k, v in span_context._meta.items() if _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
+        }
 
         if tags_to_encode:
             try:
@@ -384,10 +375,7 @@ class _DatadogMultiHeader:
                 span_id=int(parent_span_id) or None,  # type: ignore[arg-type]
                 sampling_priority=sampling_priority,  # type: ignore[arg-type]
                 dd_origin=origin,
-                # DEV: This cast is needed because of the type requirements of
-                # span tags and trace tags which are currently implemented using
-                # the same type internally (_MetaDictType).
-                meta=cast(_MetaDictType, meta),
+                meta=meta,
             )
         except (TypeError, ValueError):
             log.debug(
@@ -826,21 +814,21 @@ class _TraceContext:
                 return None
             trace_id, span_id, trace_flag = _TraceContext._get_traceparent_values(tp)
         except (ValueError, AssertionError):
-            log.exception("received invalid w3c traceparent: %s ", tp)
+            log.exception("received invalid w3c traceparent: %s ", tp, extra={"send_to_telemetry": False})
             return None
 
-        meta = {W3C_TRACEPARENT_KEY: tp}  # type: _MetaDictType
+        meta = {W3C_TRACEPARENT_KEY: tp}
 
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
         return _TraceContext._get_context(trace_id, span_id, trace_flag, ts, meta)
 
     @staticmethod
     def _get_context(trace_id, span_id, trace_flag, ts, meta=None):
-        # type: (int, int, Literal[0,1], Optional[str], Optional[_MetaDictType]) -> Context
+        # type: (int, int, Optional[Literal[0,1]], Optional[str], Optional[Dict[str, str]]) -> Context
         if meta is None:
             meta = {}
         origin = None
-        sampling_priority = trace_flag  # type: int
+        sampling_priority = trace_flag
         if ts:
             # whitespace is allowed, but whitespace to start or end values should be trimmed
             # e.g. "foo=1 \t , \t bar=2, \t baz=3" -> "foo=1,bar=2,baz=3"
@@ -865,7 +853,10 @@ class _TraceContext:
                     if lpid:
                         meta[LAST_DD_PARENT_ID_KEY] = lpid
 
-                    sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts, origin)
+                    if trace_flag is not None:
+                        sampling_priority = _TraceContext._get_sampling_priority(
+                            trace_flag, sampling_priority_ts, origin
+                        )
                 else:
                     log.debug("no dd list member in tracestate from incoming request: %r", ts)
 
@@ -1121,7 +1112,7 @@ class HTTPPropagator(object):
         return primary_context
 
     @staticmethod
-    def inject(context: Union[Context, Span], headers: Dict[str, str], non_active_span: Optional[Span] = None) -> None:
+    def inject(context: Union[Context, Span], headers: Dict[str, str]) -> None:
         """Inject Context attributes that have to be propagated as HTTP headers.
 
         Here is an example using `requests`::
@@ -1150,26 +1141,16 @@ class HTTPPropagator(object):
             Span objects automatically trigger sampling decisions. Context objects should have
             sampling_priority set to avoid inconsistent downstream sampling.
         :param dict headers: HTTP headers to extend with tracing attributes.
-        :param Span non_active_span: **DEPRECATED** - Pass Span objects to the context parameter instead.
         """
-        if non_active_span is not None:
-            # non_active_span is only used for sampling decisions, not to inject headers.
-            deprecate(
-                "The non_active_span parameter is deprecated",
-                message="Use the context parameter instead.",
-                category=DDTraceDeprecationWarning,
-                removal_version="4.0.0",
-            )
         # Cannot rename context parameter due to backwards compatibility
         # Handle sampling and get context for header injection
-        span_context = HTTPPropagator._get_sampled_injection_context(context, non_active_span)
+        span_context = HTTPPropagator._get_sampled_injection_context(context, None)
         # Log a warning if we cannot determine a sampling decision before injecting headers.
         if span_context.span_id and span_context.trace_id and span_context.sampling_priority is None:
             log.debug(
                 "Sampling decision not available. Downstream spans will not inherit a sampling priority: "
-                "args=(context=%s, ..., non_active_span=%s) detected span context=%s",
+                "args=(context=%s, ...) detected span context=%s",
                 context,
-                non_active_span,
                 span_context,
             )
 

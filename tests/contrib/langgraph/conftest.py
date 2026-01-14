@@ -11,7 +11,6 @@ from langgraph.graph import START
 from langgraph.graph import StateGraph
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.langchain.patch import patch as patch_langchain
 from ddtrace.contrib.internal.langchain.patch import unpatch as unpatch_langchain
 from ddtrace.contrib.internal.langgraph.patch import patch
@@ -20,45 +19,33 @@ from ddtrace.contrib.internal.openai.patch import patch as patch_openai
 from ddtrace.contrib.internal.openai.patch import unpatch as unpatch_openai
 from ddtrace.llmobs import LLMObs as llmobs_service
 from tests.llmobs._utils import TestLLMObsSpanWriter
-from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 
 @pytest.fixture
-def mock_tracer():
-    yield DummyTracer()
-
-
-@pytest.fixture
-def langgraph(monkeypatch, mock_tracer):
+def langgraph(monkeypatch):
     patch()
     import langgraph
-    import langgraph.prebuilt
+    import langgraph.prebuilt  # noqa: F401
 
-    pin = Pin.get_from(langgraph)
-    pin._override(langgraph, tracer=mock_tracer)
     yield langgraph
     unpatch()
 
 
 @pytest.fixture
-def openai(monkeypatch, mock_tracer):
+def openai(monkeypatch):
     patch_openai()
     import openai
 
-    pin = Pin.get_from(openai)
-    pin._override(openai, tracer=mock_tracer)
     yield openai
     unpatch_openai()
 
 
 @pytest.fixture
-def langchain(mock_tracer):
+def langchain():
     patch_langchain()
     import langchain_core
 
-    pin = Pin.get_from(langchain_core)
-    pin._override(langchain_core, tracer=mock_tracer)
     yield langchain_core
     unpatch_langchain()
 

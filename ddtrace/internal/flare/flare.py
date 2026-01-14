@@ -15,6 +15,7 @@ from ddtrace._logger import _add_file_handler
 from ddtrace._logger import _configure_ddtrace_native_logger
 from ddtrace.internal.flare.json_formatter import StructuredJSONFormatter
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import logger as native_logger
 from ddtrace.internal.utils.http import get_connection
 
 
@@ -131,7 +132,12 @@ class Flare:
         ddlogger.setLevel(self.original_log_level)
 
         # Restore native logger configuration from env vars
-        _configure_ddtrace_native_logger()
+        if config._trace_writer_native:
+            try:
+                native_logger.disable("file")
+            except ValueError:
+                log.debug("Native file logger is not enabled")
+            _configure_ddtrace_native_logger()
 
     def _validate_case_id(self, case_id: str) -> bool:
         """
@@ -186,8 +192,6 @@ class Flare:
         )
 
         if config._trace_writer_native:
-            from ddtrace.internal.native._native import logger as native_logger
-
             native_flare_path = self.flare_dir / f"tracer_native_{pid}.log"
             native_logger.configure(output="file", path=str(native_flare_path))
             native_logger.set_log_level(logging.getLevelName(flare_log_level_int))

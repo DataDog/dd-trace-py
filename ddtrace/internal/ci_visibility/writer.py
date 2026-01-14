@@ -5,16 +5,16 @@ from typing import TYPE_CHECKING  # noqa:F401
 from typing import Dict
 from typing import Optional  # noqa:F401
 
-import ddtrace
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.ext.test import TEST_SESSION_NAME
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
+from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.utils.time import StopWatch
-from ddtrace.settings._agent import config as agent_config
 from ddtrace.vendor.dogstatsd import DogStatsd  # noqa:F401
+from ddtrace.version import __version__
 
 from .. import service
 from ..evp_proxy.constants import EVP_PROXY_AGENT_ENDPOINT
@@ -53,7 +53,7 @@ class CIVisibilityEventClient(WriterClientBase):
                 "language": "python",
                 "env": os.getenv("_CI_DD_ENV", config.env),
                 "runtime-id": get_runtime_id(),
-                "library_version": ddtrace.__version__,
+                "library_version": __version__,
                 "_dd.test.is_user_provided_service": "true" if config._is_user_provided_service else "false",
             },
         )
@@ -130,9 +130,7 @@ class CIVisibilityWriter(HTTPWriter):
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
 
         self._use_evp = use_evp
-        clients = (
-            [CIVisibilityProxiedEventClient()] if self._use_evp else [CIVisibilityAgentlessEventClient()]
-        )  # type: List[WriterClientBase]
+        clients = [CIVisibilityProxiedEventClient()] if self._use_evp else [CIVisibilityAgentlessEventClient()]  # type: List[WriterClientBase]
         self._coverage_enabled = coverage_enabled
         self._itr_suite_skipping_mode = itr_suite_skipping_mode
         if self._coverage_enabled:

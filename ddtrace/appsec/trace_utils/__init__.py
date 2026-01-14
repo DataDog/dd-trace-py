@@ -1,4 +1,5 @@
 """Public API for User events"""
+
 from functools import wraps
 
 from ddtrace.appsec import _metrics

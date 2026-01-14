@@ -1,5 +1,4 @@
 #include "aspect_operator_add.h"
-#include "helpers.h"
 
 /**
  * This function updates result_o object with taint information of candidate_text and/or text_to_add
@@ -27,7 +26,7 @@ add_aspect(PyObject* result_o,
     }
 
     const auto& to_candidate_text = get_tainted_object(candidate_text, tx_taint_map);
-    if (to_candidate_text and to_candidate_text->get_ranges().size() >= TaintedObject::TAINT_RANGE_LIMIT) {
+    if (to_candidate_text and !to_candidate_text->has_free_tainted_ranges_space()) {
         const auto& res_new_id = new_pyobject_id(result_o);
         Py_DECREF(result_o);
         // If left side is already at the maximum taint ranges, we just reuse its
@@ -48,14 +47,14 @@ add_aspect(PyObject* result_o,
     }
 
     if (!to_candidate_text) {
-        const auto tainted = initializer->allocate_tainted_object();
+        const auto tainted = safe_allocate_tainted_object();
         tainted->add_ranges_shifted(to_text_to_add, static_cast<RANGE_START>(len_candidate_text));
         set_tainted_object(result_o, tainted, tx_taint_map);
     }
 
     // At this point we have both to_candidate_text and to_text_to_add to we add the
     // ranges from both to result_o
-    const auto tainted = initializer->allocate_tainted_object_copy(to_candidate_text);
+    const auto tainted = safe_allocate_tainted_object_copy(to_candidate_text);
     tainted->add_ranges_shifted(to_text_to_add, static_cast<RANGE_START>(len_candidate_text));
     set_tainted_object(result_o, tainted, tx_taint_map);
 
@@ -94,9 +93,10 @@ api_add_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         return nullptr;
     }
 
+    CHECK_IAST_INITIALIZED_OR_RETURN(result_o);
+
     TRY_CATCH_ASPECT("add_aspect", return result_o, , {
-        auto tx_map =
-          taint_engine_context->get_tainted_object_map_from_list_of_pyobjects({ candidate_text, text_to_add });
+        auto tx_map = safe_get_tainted_object_map_from_list_of_pyobjects({ candidate_text, text_to_add });
         if (not tx_map || tx_map->empty()) {
             return result_o;
         }
@@ -138,9 +138,10 @@ api_add_inplace_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
         return nullptr;
     }
 
+    CHECK_IAST_INITIALIZED_OR_RETURN(result_o);
+
     TRY_CATCH_ASPECT("add_inplace_aspect", return result_o, , {
-        auto tx_map =
-          taint_engine_context->get_tainted_object_map_from_list_of_pyobjects({ candidate_text, text_to_add });
+        auto tx_map = safe_get_tainted_object_map_from_list_of_pyobjects({ candidate_text, text_to_add });
         if (not tx_map or tx_map->empty()) {
             return result_o;
         }

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where the Google ADK integration would throw an ``AttributeError`` when trying to access the ``name`` or ``description`` attributes of a tool.

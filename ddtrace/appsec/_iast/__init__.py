@@ -35,7 +35,7 @@ import types
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 from ._listener import iast_listen
 from ._overhead_control_engine import oce
@@ -51,33 +51,37 @@ _iast_in_pytest_mode = False
 
 def _disable_iast_after_fork():
     """
-    Conditionally disable IAST in forked child processes to prevent segmentation faults.
+    Handle IAST state after fork to prevent segmentation faults.
 
-    This fork handler differentiates between two types of forks:
+    This fork handler works in conjunction with the C++ pthread_atfork handler
+    (registered in native.cpp) to provide complete fork-safety:
 
-    1. **Early forks (web framework workers)**: Gunicorn, uvicorn, Django, Flask workers
-       fork BEFORE IAST initializes any state. These are safe - IAST remains enabled.
+    **C++ pthread_atfork handler (automatic, runs first):**
+    - Clears all taint maps (removes stale PyObject pointers from parent)
+    - Resets taint_engine_context (recreates context array with fresh state)
+    - Resets initializer (recreates memory pools)
+    - Happens automatically for ALL forks before this Python handler runs
 
-    2. **Late forks (multiprocessing)**: multiprocessing.Process forks AFTER IAST has
-       initialized state. These inherit corrupted native extension state and must have
-       IAST disabled to prevent segmentation faults.
+    **Python fork handler (this function, runs second):**
+    - Detects fork type (early vs late)
+    - Manages Python-level IAST_CONTEXT
+    - Conditionally disables IAST for late forks (multiprocessing)
+
+    Fork types:
+    1. **Early forks (web framework workers)**: Gunicorn, uvicorn, etc. fork BEFORE
+       IAST has active request contexts. Native state was reset by pthread_atfork.
+       IAST remains enabled and works correctly in workers.
+
+    2. **Late forks (multiprocessing)**: fork AFTER IAST has active contexts.
+       Native state was reset by pthread_atfork, but we disable IAST in these
+       processes for multiprocessing compatibility and to avoid confusion.
 
     Detection logic:
-    - If IAST has active request contexts when fork occurs → Late fork → Disable IAST
-    - If IAST has no active state → Early fork (worker) → Keep IAST enabled
+    - If is_iast_request_enabled() → Late fork → Disable IAST
+    - If not is_iast_request_enabled() → Early fork → Keep IAST enabled
 
-    This is critical for multiprocessing compatibility while maintaining IAST coverage
-    in web framework workers. The native extension state (taint maps, context slots,
-    object pools, shared_ptr references) cannot be safely used across fork boundaries
-    when it exists, but is safe to initialize fresh in clean workers.
-
-    For late forks, the child process:
-    - Clears all C++ taint maps and context slots
-    - Resets the Python-level IAST_CONTEXT
-    - Disables IAST by setting asm_config._iast_enabled = False
-
-    This prevents segmentation faults in multiprocessing while allowing IAST to work
-    in web framework workers.
+    This prevents segmentation faults in ALL fork scenarios while maintaining
+    IAST coverage in web framework workers.
     """
     if not asm_config._iast_enabled:
         return
@@ -86,33 +90,45 @@ def _disable_iast_after_fork():
         # Import locally to avoid issues if the module hasn't been loaded yet
         from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
         from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
-        from ddtrace.appsec._iast._taint_tracking._context import clear_all_request_context_slots
+
+        # Note: The C++ pthread_atfork handler (in native.cpp) automatically resets
+        # native state in actual fork scenarios. It clears the inherited state and
+        # creates fresh instances without touching the invalid PyObject pointers.
+        # We don't need to (and shouldn't) call clear_all_request_context_slots()
+        # here because the C++ handler has already done the necessary cleanup.
 
         # In pytest mode, always disable IAST in child processes to avoid segfaults
         # when tests create multiprocesses (e.g., for testing fork behavior)
         if _iast_in_pytest_mode:
             log.debug("IAST fork handler: Pytest mode detected, disabling IAST in child process")
-            clear_all_request_context_slots()
             IAST_CONTEXT.set(None)
             asm_config._iast_enabled = False
             return
 
         if not is_iast_request_enabled():
             # No active context - this is an early fork (web framework worker)
-            # IAST can be safely initialized fresh in this child process
-            log.debug("IAST fork handler: No active context, keeping IAST enabled (web worker fork)")
+            # The C++ pthread_atfork handler has already reset native state with fresh instances.
+            # IAST can continue working correctly in this child process.
+            log.debug(
+                "IAST fork handler: No active context (early fork/web worker). "
+                "Native state auto-reset by pthread_atfork. IAST remains enabled."
+            )
+            # Clear Python-side context just in case
+            IAST_CONTEXT.set(None)
             return
 
         # Active context exists - this is a late fork (multiprocessing)
-        # Native state is corrupted, must disable IAST
-        log.debug("IAST fork handler: Active context detected, disabling IAST (multiprocessing fork)")
+        # The C++ pthread_atfork handler has already reset native state.
+        # We disable IAST in these processes for consistency.
+        log.debug(
+            "IAST fork handler: Active context (late fork/multiprocessing). "
+            "Native state auto-reset by pthread_atfork. Disabling IAST in child."
+        )
 
-        # Clear C++ side: all taint maps and context slots
-        clear_all_request_context_slots()
         # Clear Python side: reset the context ID
         IAST_CONTEXT.set(None)
 
-        # Disable IAST to prevent segmentation faults
+        # Disable IAST for multiprocessing compatibility
         asm_config._iast_enabled = False
 
     except Exception as e:
@@ -182,6 +198,7 @@ def enable_iast_propagation():
     if asm_config._iast_propagation_enabled:
         from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
         from ddtrace.appsec._iast._loader import _exec_iast_patched_module
+        from ddtrace.appsec._iast._taint_tracking import initialize_native_state
 
         global _iast_propagation_enabled
         if _iast_propagation_enabled:
@@ -190,6 +207,7 @@ def enable_iast_propagation():
         log.debug("iast::instrumentation::starting IAST")
         ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
         _iast_propagation_enabled = True
+        initialize_native_state()
         _register_fork_handler()
 
 

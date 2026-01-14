@@ -1,6 +1,7 @@
 """
 Class based views used for Django tests.
 """
+
 from django.http import HttpResponse
 from django.views.generic import View
 

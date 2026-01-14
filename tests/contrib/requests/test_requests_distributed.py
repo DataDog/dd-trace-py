@@ -1,7 +1,7 @@
 from requests_mock import Adapter
 
 from ddtrace._trace.pin import Pin
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 from tests.utils import TracerTestCase
 from tests.utils import get_128_bit_trace_id_from_headers
 

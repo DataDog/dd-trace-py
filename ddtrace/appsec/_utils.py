@@ -11,12 +11,13 @@ from typing import List
 from typing import Optional
 from typing import Union
 
+from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.internal._unpatched import unpatched_json_loads
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -96,6 +97,8 @@ class DDWaf_result:
                 self.api_security[k] = v
             elif isinstance(v, str):
                 self.meta_tags[k] = v
+            elif isinstance(v, bool):
+                self.metrics[k] = int(v)
             else:
                 self.metrics[k] = v
         self.keep = keep
@@ -172,6 +175,27 @@ class Block_config:
         self.type: str = type
         self.location = location.replace(APPSEC.SECURITY_RESPONSE_ID, security_response_id)
         self.content_type: str = "application/json"
+
+    def get(self, key: str, default: Any = None) -> Union[str, int]:
+        """
+        Dictionary-like get method for backward compatibility with Lambda integration.
+
+        Returns the attribute value if it exists, otherwise returns the default value.
+        This allows Block_config to be used in contexts that expect dictionary-like access.
+        """
+        if key == "content-type":
+            key = "content_type"
+        return getattr(self, key, default)
+
+    def __getitem__(self, key: str) -> Optional[Union[str, int]]:
+        if key == "content-type":
+            key = "content_type"
+        return getattr(self, key, None)
+
+    def __contains__(self, key: str) -> bool:
+        if key == "content-type":
+            key = "content_type"
+        return bool(getattr(self, key, None))
 
 
 class Telemetry_result:
@@ -350,13 +374,13 @@ class _UserInfoRetriever:
 
 def has_triggers(span) -> bool:
     if asm_config._use_metastruct_for_triggers:
-        return (span.get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None) is not None
+        return (span._get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None) is not None
     return span.get_tag(APPSEC.JSON) is not None
 
 
 def get_triggers(span) -> Any:
     if asm_config._use_metastruct_for_triggers:
-        return (span.get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None)
+        return (span._get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None)
     json_payload = span.get_tag(APPSEC.JSON)
     if json_payload:
         try:
@@ -387,10 +411,23 @@ def unpatching_popen():
     os.close = unpatched_close
     original_popen = subprocess.Popen
     subprocess.Popen = unpatched_Popen
+    # Save the original bypass flag value
+    original_bypass_flag = asm_config._bypass_instrumentation_for_waf
     asm_config._bypass_instrumentation_for_waf = True
     try:
         yield
     finally:
         subprocess.Popen = original_popen
         os.close = original_os_close
-        asm_config._bypass_instrumentation_for_waf = False
+        # In tests, restore the original value to avoid corrupting test configurations
+        # In production, force to False to ensure instrumentation is re-enabled
+        if asm_config._is_testing_instrumentation_for_waf:
+            # If it was already True, restore it (likely a test scenario)
+            asm_config._bypass_instrumentation_for_waf = original_bypass_flag
+        else:
+            # If it was False, keep it False (normal production scenario)
+            asm_config._bypass_instrumentation_for_waf = False
+
+
+def is_inferred_span(span: Span) -> bool:
+    return span.name in ("aws.apigateway", "aws.httpapi")

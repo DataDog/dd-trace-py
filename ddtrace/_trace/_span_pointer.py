@@ -24,6 +24,11 @@ class _SpanPointerDirection(Enum):
     DOWNSTREAM = "d"
 
 
+class _SpanPointerDirectionName(Enum):
+    UPSTREAM = "span-pointer-up"
+    DOWNSTREAM = "span-pointer-down"
+
+
 class _SpanPointerDescription(NamedTuple):
     # Not to be confused with _SpanPointer. This class describes the parameters
     # required to attach a span pointer to a Span. It lets us decouple code

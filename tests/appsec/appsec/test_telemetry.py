@@ -40,9 +40,9 @@ def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked
         for m in metrics_result[TELEMETRY_EVENT_TYPE.METRICS][TELEMETRY_NAMESPACE.APPSEC.value]
         if m["metric"] != "enabled"
     ]
-    assert (
-        len(generate_metrics) == 3 + is_updated
-    ), f"Expected {3 + is_updated} generate_metrics, got {[m['metric'] for m in generate_metrics]}"
+    assert len(generate_metrics) == 3 + is_updated, (
+        f"Expected {3 + is_updated} generate_metrics, got {[m['metric'] for m in generate_metrics]}"
+    )
     for metric in generate_metrics:
         metric_name = metric["metric"]
         if metric_name == "waf.requests":
@@ -303,8 +303,11 @@ def test_appsec_enabled_metric(
     telemetry_writer._report_configurations()
 
     # Start the test
-    with override_env(environment), override_global_config(
-        dict(_asm_enabled=appsec_enabled, _remote_config_enabled=rc_enabled, _lib_was_injected=ssi_enabled)
+    with (
+        override_env(environment),
+        override_global_config(
+            dict(_asm_enabled=appsec_enabled, _remote_config_enabled=rc_enabled, _lib_was_injected=ssi_enabled)
+        ),
     ):
         tracer.configure(appsec_enabled=appsec_enabled)
         if rc_enabled:

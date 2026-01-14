@@ -39,7 +39,7 @@ class PyODBCTest(object):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         span = spans[0]
@@ -59,7 +59,7 @@ class PyODBCTest(object):
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
             assert len(rows) == 1
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 1
 
             span = spans[0]
@@ -81,7 +81,7 @@ class PyODBCTest(object):
         cursor.execute(query)
         rows = cursor.fetchall()
         assert len(rows) == 3
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         self.assertEqual(spans[0].name, "pyodbc.query")
 
@@ -94,7 +94,7 @@ class PyODBCTest(object):
             cursor.execute(query)
             rows = cursor.fetchall()
             assert len(rows) == 3
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 1
 
             fetch_span = spans[0]
@@ -128,7 +128,7 @@ class PyODBCTest(object):
         assert rows[1][0] == "foo"
         assert rows[1][1] == "this is foo"
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 3
         cursor.execute("drop table if exists dummy")
 
@@ -160,7 +160,7 @@ class PyODBCTest(object):
             assert rows[1][0] == "foo"
             assert rows[1][1] == "this is foo"
 
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 3
             cursor.execute("drop table if exists dummy")
 
@@ -171,7 +171,7 @@ class PyODBCTest(object):
         conn, tracer = self._get_conn_tracer()
 
         conn.commit()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.get_tag("component") == "pyodbc"
@@ -183,7 +183,7 @@ class PyODBCTest(object):
         conn, tracer = self._get_conn_tracer()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.get_tag("component") == "pyodbc"
@@ -198,7 +198,7 @@ class PyODBCTest(object):
                 cursor.execute("SELECT 1")
                 rows = cursor.fetchall()
                 assert len(rows) == 1
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 1
 
 
@@ -261,7 +261,7 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         span = spans[0]
@@ -272,7 +272,7 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
         conn, tracer = self._get_conn_tracer()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "my-pyodbc-service"
@@ -282,7 +282,7 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
         conn, tracer = self._get_conn_tracer()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "pyodbc", "Expected service name to be 'pyodbc' but was '{}'".format(span.service)
@@ -292,7 +292,7 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
         conn, tracer = self._get_conn_tracer()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "pyodbc", "Expected service name to be 'pyodbc' but was '{}'".format(span.service)
@@ -302,7 +302,7 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
         conn, tracer = self._get_conn_tracer()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "mysvc", "Expected service name to be 'mysvc' but was '{}'".format(span.service)
@@ -312,7 +312,7 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
         conn, tracer = self._get_conn_tracer()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "pyodbc", "Expected service name to be 'pyodbc' but was '{}'".format(span.service)
@@ -322,7 +322,7 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
         conn, tracer = self._get_conn_tracer()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "pyodbc", "Expected service name to be 'pyodbc' but was '{}'".format(span.service)
@@ -332,12 +332,12 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
         conn, tracer = self._get_conn_tracer()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert (
-            span.service == DEFAULT_SPAN_SERVICE_NAME
-        ), "Expected service name to be internal.schema.DEFAULT_SPAN_SERVICE_NAME but was '{}'".format(span.service)
+        assert span.service == DEFAULT_SPAN_SERVICE_NAME, (
+            "Expected service name to be internal.schema.DEFAULT_SPAN_SERVICE_NAME but was '{}'".format(span.service)
+        )
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0(self):
@@ -346,7 +346,7 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
 
         cursor.execute("SELECT 1")
         cursor.fetchall()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.name == "pyodbc.query", "Expected operation name to be 'pyodbc.query' but was '{}'".format(
@@ -360,7 +360,7 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
 
         cursor.execute("SELECT 1")
         cursor.fetchall()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.name == "pyodbc.query", "Expected operation name to be 'pyodbc.query' but was '{}'".format(

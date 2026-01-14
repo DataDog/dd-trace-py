@@ -3,6 +3,7 @@ pydantic==2.7.1
 
 https://pypi.org/project/pydantic/
 """
+
 from flask import Blueprint
 from flask import request
 

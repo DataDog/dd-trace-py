@@ -12,9 +12,7 @@ from ddtrace.contrib.internal.urllib3.patch import patch
 from ddtrace.contrib.internal.urllib3.patch import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.settings.asm import config as asm_config
 from tests.contrib.config import HTTPBIN_CONFIG
-from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
@@ -399,34 +397,6 @@ class TestUrllib3(BaseUrllib3TestCase):
             assert s.error == 1
             assert s.service == "httpbin.org:8000"
 
-    def test_200_ot(self):
-        """OpenTracing version of test_200."""
-
-        ot_tracer = init_tracer("urllib3_svc", self.tracer)
-
-        with ot_tracer.start_active_span("urllib3_get"):
-            out = self.http.request("GET", URL_200)
-            assert out.status == 200
-
-        spans = self.pop_spans()
-        assert len(spans) == 2
-
-        ot_span, dd_span = spans
-
-        # confirm the parenting
-        assert ot_span.parent_id is None
-        assert dd_span.parent_id == ot_span.span_id
-
-        assert ot_span.name == "urllib3_get"
-        assert ot_span.service == "urllib3_svc"
-
-        assert dd_span.get_tag(http.METHOD) == "GET"
-        assert dd_span.get_tag(http.STATUS_CODE) == "200"
-        assert dd_span.get_tag("component") == "urllib3"
-        assert dd_span.get_tag("span.kind") == "client"
-        assert dd_span.error == 0
-        assert dd_span.span_type == "http"
-
     def test_request_and_response_headers(self):
         """Tests the headers are added as tag when the headers are whitelisted"""
         self.http.request("GET", URL_200, headers={"my-header": "my_value"})
@@ -497,97 +467,6 @@ class TestUrllib3(BaseUrllib3TestCase):
     def test_distributed_tracing_disabled(self):
         """Test with distributed tracing disabled does not propagate the headers"""
         config.urllib3["distributed_tracing"] = False
-        with mock.patch(
-            "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError
-        ) as m_make_request:
-            with pytest.raises(ValueError):
-                self.http.request("GET", URL_200)
-
-            if int(urllib3.__version__.split(".")[0]) >= 2:
-                m_make_request.assert_called_with(
-                    mock.ANY,
-                    "GET",
-                    "/status/200",
-                    body=None,
-                    chunked=mock.ANY,
-                    headers={},
-                    timeout=mock.ANY,
-                    retries=mock.ANY,
-                    response_conn=mock.ANY,
-                    preload_content=mock.ANY,
-                    decode_content=mock.ANY,
-                )
-            else:
-                m_make_request.assert_called_with(
-                    mock.ANY,
-                    "GET",
-                    "/status/200",
-                    body=None,
-                    chunked=mock.ANY,
-                    headers={},
-                    timeout=mock.ANY,
-                )
-
-    @pytest.mark.skip(reason="urlib3 does not set the ASM Manual keep tag so x-datadog headers are not propagated")
-    def test_distributed_tracing_apm_opt_out_true(self):
-        """Tests distributed tracing headers are passed by default"""
-        # Check that distributed tracing headers are passed down; raise an error rather than make the
-        # request since we don't care about the response at all
-        config.urllib3["distributed_tracing"] = True
-        self.tracer.enabled = False
-        # Ensure the ASM SpanProcessor is set
-        self.tracer.configure(apm_tracing_disabled=True, appsec_enabled=True)
-        assert asm_config._apm_opt_out
-        with mock.patch(
-            "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError
-        ) as m_make_request:
-            with pytest.raises(ValueError):
-                self.http.request("GET", URL_200)
-
-            spans = self.pop_spans()
-            s = spans[0]
-            expected_headers = {
-                "x-datadog-trace-id": str(s._trace_id_64bits),
-                "x-datadog-parent-id": str(s.span_id),
-                "x-datadog-sampling-priority": "1",
-                "x-datadog-tags": "_dd.p.dm=-0,_dd.p.tid={}".format(_get_64_highest_order_bits_as_hex(s.trace_id)),
-                "traceparent": s.context._traceparent,
-                # outgoing headers must contain last parent span id in tracestate
-                "tracestate": s.context._tracestate.replace("dd=", "dd=p:{:016x};".format(s.span_id)),
-            }
-
-            if int(urllib3.__version__.split(".")[0]) >= 2:
-                m_make_request.assert_called_with(
-                    mock.ANY,
-                    "GET",
-                    "/status/200",
-                    body=None,
-                    chunked=mock.ANY,
-                    headers=expected_headers,
-                    timeout=mock.ANY,
-                    retries=mock.ANY,
-                    response_conn=mock.ANY,
-                    preload_content=mock.ANY,
-                    decode_content=mock.ANY,
-                )
-            else:
-                m_make_request.assert_called_with(
-                    mock.ANY,
-                    "GET",
-                    "/status/200",
-                    body=None,
-                    chunked=mock.ANY,
-                    headers=expected_headers,
-                    timeout=mock.ANY,
-                )
-
-    def test_distributed_tracing_apm_opt_out_false(self):
-        """Test with distributed tracing disabled does not propagate the headers"""
-        config.urllib3["distributed_tracing"] = True
-        # Ensure the ASM SpanProcessor is set.
-        self.tracer.configure(apm_tracing_disabled=False, appsec_enabled=True)
-        self.tracer.enabled = False
-        assert not asm_config._apm_opt_out
         with mock.patch(
             "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError
         ) as m_make_request:

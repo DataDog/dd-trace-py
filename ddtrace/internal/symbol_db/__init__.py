@@ -2,8 +2,8 @@ from functools import partial
 
 from ddtrace.internal import core
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from ddtrace.internal.settings.symbol_db import config as symdb_config
 from ddtrace.internal.symbol_db.remoteconfig import SymbolDatabaseAdapter
-from ddtrace.settings.symbol_db import config as symdb_config
 
 
 def bootstrap():
