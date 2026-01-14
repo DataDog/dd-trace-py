@@ -497,10 +497,6 @@ class PromptOptimization:
 
         logger.info("Starting prompt optimization: %s", self.name)
         logger.info("Maximum iterations: %d", self._max_iterations)
-        print(f"\n{'=' * 80}")
-        print(f"Starting prompt optimization: {self.name}")
-        print(f"Maximum iterations: {self._max_iterations}")
-        print(f"{'=' * 80}\n")
 
         # Track all iteration results
         all_iterations = []
@@ -515,9 +511,6 @@ class PromptOptimization:
         logger.info("=" * 80)
         logger.info("ITERATION 0 (Baseline): Running initial prompt evaluation")
         logger.info("=" * 80)
-        print(f"{'=' * 80}")
-        print("ITERATION 0 (Baseline): Running initial prompt evaluation")
-        print(f"{'=' * 80}")
         current_results = self._run_experiment(iteration, current_prompt, jobs)
 
         # Store baseline results
@@ -534,8 +527,6 @@ class PromptOptimization:
 
         logger.info("Baseline score: %.4f", best_score if best_score is not None else 0.0)
         logger.info("Current best score: %.4f (iteration %d)", best_score if best_score is not None else 0.0, 0)
-        print(f"Baseline score: {best_score if best_score is not None else 0.0:.4f}")
-        print(f"Current best score: {best_score if best_score is not None else 0.0:.4f} (iteration 0)\n")
 
         # Run optimization iterations
         for i in range(1, self._max_iterations + 1):
@@ -547,11 +538,6 @@ class PromptOptimization:
                 best_iteration,
             )
             logger.info("=" * 80)
-            print(f"{'=' * 80}")
-            print(f"ITERATION {i}/{self._max_iterations}: Starting optimization")
-            best_score_str = f"{best_score if best_score is not None else 0.0:.4f}"
-            print(f"Current best score: {best_score_str} (from iteration {best_iteration})")
-            print(f"{'=' * 80}")
 
             # Always optimize from the best prompt so far
             optimization_iteration = OptimizationIteration(
@@ -567,7 +553,6 @@ class PromptOptimization:
 
             # Run experiment with improved prompt
             logger.info("Evaluating improved prompt from iteration %d...", i)
-            print(f"Evaluating improved prompt from iteration {i}...")
             new_results = self._run_experiment(i, new_prompt, jobs)
 
             # Track iteration results
@@ -582,7 +567,6 @@ class PromptOptimization:
             # Update best iteration if score improved
             new_score = iteration_data["score"]
             logger.info("Iteration %d score: %.4f", i, new_score if new_score is not None else 0.0)
-            print(f"Iteration {i} score: {new_score if new_score is not None else 0.0:.4f}")
 
             if new_score is not None and (best_score is None or new_score > best_score):
                 improvement = new_score - best_score if best_score is not None else new_score
@@ -591,18 +575,13 @@ class PromptOptimization:
                 best_prompt = new_prompt
                 best_results = new_results
                 logger.info("🎉 NEW BEST SCORE! Iteration %d: %.4f (improvement: +%.4f)", i, new_score, improvement)
-                print(f"🎉 NEW BEST SCORE! Iteration {i}: {new_score:.4f} (improvement: +{improvement:.4f})")
             else:
                 logger.info(
                     "No improvement. Best remains: %.4f (iteration %d)",
                     best_score if best_score is not None else 0.0,
                     best_iteration,
                 )
-                best_score_str = f"{best_score if best_score is not None else 0.0:.4f}"
-                print(f"No improvement. Best remains: {best_score_str} (iteration {best_iteration})")
                 logger.info("Next iteration will optimize from best prompt (iteration %d)", best_iteration)
-                print(f"Next iteration will optimize from best prompt (iteration {best_iteration})")
-            print()  # Blank line for readability
 
             # Check if target score has been reached
             target_score = self._config.get("target")
@@ -613,12 +592,6 @@ class PromptOptimization:
                 logger.info("Achieved score: %.4f (iteration %d)", best_score, best_iteration)
                 logger.info("Stopping optimization early - target achieved")
                 logger.info("=" * 80)
-                print(f"{'=' * 80}")
-                print("🎯 TARGET REACHED!")
-                print(f"Target score: {target_score:.4f}")
-                print(f"Achieved score: {best_score:.4f} (iteration {best_iteration})")
-                print("Stopping optimization early - target achieved")
-                print(f"{'=' * 80}\n")
                 break
 
         logger.info("=" * 80)
