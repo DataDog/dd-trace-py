@@ -22,6 +22,7 @@ build_base_venvs:
       # sed the deps
       export PIP_PRE=true
     fi
+    export PIP_PRE=true
     riot -P -v generate --python=$PYTHON_VERSION
     echo "Running smoke tests"
     riot -v run -s --python=$PYTHON_VERSION smoke_test
