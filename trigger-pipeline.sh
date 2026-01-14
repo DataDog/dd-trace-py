@@ -56,13 +56,15 @@ PAYLOAD=$(cat <<EOF
 {
     "ref": "$REF",
     "variables": {
-        "NIGHTLY_BENCHMARKS": "true",
-        "NIGHTLY_BUILD": "true"
+        "NIGHTLY_BENCHMARKS": "$([ -z "$UNPIN_DEPENDENCIES" ] && echo "true" || echo "false")",
+        "NIGHTLY_BUILD": "true",
+        "UNPIN_DEPENDENCIES": "${UNPIN_DEPENDENCIES:-false}"
     }
 }
 EOF
 )
 
+echo "$PAYLOAD"
 echo "Triggering pipeline for ref: $REF"
 RESPONSE=$(
     curl -s -X POST "$API_URL" \

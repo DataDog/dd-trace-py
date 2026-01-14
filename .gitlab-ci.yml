@@ -73,6 +73,13 @@ main:
   script: |
     ./trigger-pipeline.sh "${BRANCH_MAIN}"
 
+main (dependencies unpinned):
+  extends: .trigger_base
+  script: |
+    ./trigger-pipeline.sh "${BRANCH_MAIN}"
+  variables:
+    UNPIN_DEPENDENCIES: true
+
 current minor:
   extends: .trigger_base
   script: |
