@@ -461,9 +461,6 @@ def update_workflow_files(
 
             modified = False
 
-            # Check if this is a GitHub Actions workflow
-            is_github_actions = ".github/workflows" in str(file_path)
-
             # Second pass: replace the lines we're keeping
             for line_num in lines_to_keep:
                 idx = line_num - 1

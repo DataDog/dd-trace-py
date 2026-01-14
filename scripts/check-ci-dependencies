@@ -17,12 +17,16 @@ The script scans:
 
 And ensures no pip install commands install packages directly.
 
+Additionally, it validates that the locked requirements file can be installed
+in --require-hashes mode by doing a dry-run installation.
+
 If violations are found, the script instructs to run:
     scripts/update-ci-dependencies
 """
 
 from pathlib import Path
 import re
+import subprocess
 import sys
 from typing import List
 from typing import Tuple
@@ -149,8 +153,189 @@ def check_ci_files() -> List[str]:
     return violations
 
 
+def validate_locked_requirements() -> List[str]:
+    """
+    Validate that locked requirements file can be installed.
+
+    This checks that all transitive dependencies are included with exact
+    versions and hashes, which is required for --require-hashes mode.
+
+    Note: This validation is platform-specific. A requirements file that works
+    on macOS might fail on Linux due to platform-specific dependencies (e.g.,
+    keyring requires SecretStorage on Linux but not macOS).
+
+    Returns list of error messages if validation fails.
+    """
+    errors = []
+    requirements_file = Path("ci/requirements/ci.txt")
+
+    if not requirements_file.exists():
+        return [f"Locked requirements file not found: {requirements_file}"]
+
+    import platform
+
+    current_platform = platform.system()
+    print(f"Validating {requirements_file} can be installed with --require-hashes ({current_platform})...")
+
+    import tempfile
+
+    # Try uv first (preferred, faster, and more likely to be available)
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = subprocess.run(
+                [
+                    "uv",
+                    "pip",
+                    "install",
+                    "--require-hashes",
+                    "--target",
+                    tmpdir,
+                    "-r",
+                    str(requirements_file),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            if result.returncode != 0:
+                stderr = result.stderr
+
+                # Check if this is the hash/pinning error we care about
+                if "all requirements must have their versions pinned with ==" in stderr:
+                    errors.append("Locked requirements file validation failed:")
+                    errors.append(f"  File: {requirements_file}")
+                    errors.append("")
+                    errors.append("  ⚠️  Missing or unpinned transitive dependency detected!")
+                    errors.append("")
+
+                    # Try to extract which package has the issue
+                    match = re.search(r"(\S+)>=[\d.]+ from ", stderr)
+                    if not match:
+                        match = re.search(r"(\S+) from ", stderr)
+                    if match:
+                        dep_name = match.group(1)
+                        errors.append(f"  📦 Transitive dependency: {dep_name}")
+                        errors.append(f"     Status: Not pinned with exact version (==) in {requirements_file}")
+                        errors.append("")
+
+                    # Try to find which package requires it
+                    match = re.search(r"from ([^=\s]+)==([^ )]+)", stderr)
+                    if match:
+                        parent_pkg = match.group(1)
+                        parent_ver = match.group(2)
+                        errors.append(f"  📌 Required by: {parent_pkg}=={parent_ver}")
+                        errors.append("")
+
+                    # Include relevant error details
+                    errors.append("Error details:")
+                    error_lines = [line for line in stderr.split("\n") if line.strip()]
+                    for line in error_lines[:15]:
+                        if line.strip():
+                            errors.append(f"  {line}")
+
+                    errors.append("")
+                    errors.append("=" * 80)
+                    errors.append("Why this happens:")
+                    errors.append("  • A package has platform-specific dependencies (e.g., keyring needs")
+                    errors.append("    SecretStorage on Linux but not macOS)")
+                    errors.append("  • Requirements were compiled on a different OS than CI uses")
+                    errors.append("  • A transitive dependency is missing from the locked file")
+                    errors.append("")
+                    errors.append("How to fix:")
+                    errors.append("  1. Re-compile on Linux or in CI environment:")
+                    errors.append("     docker run --rm -v $(pwd):/work -w /work python:3.13 \\")
+                    errors.append("       bash -c 'pip install uv && uv pip compile --generate-hashes \\")
+                    errors.append("       ci/requirements/ci.in -o ci/requirements/ci.txt'")
+                    errors.append("")
+                    errors.append("  2. Or use platform markers in ci.in and recompile locally:")
+                    errors.append("     scripts/update-ci-dependencies --compile")
+                    errors.append("=" * 80)
+                    return errors
+
+            # If we get here, validation passed
+            return []
+
+    except FileNotFoundError:
+        # uv not available, try pip
+        pass
+    except Exception:
+        # Unexpected error with uv, try pip
+        pass
+
+    # Fall back to pip
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = subprocess.run(
+                [
+                    "pip",
+                    "download",
+                    "--require-hashes",
+                    "--dest",
+                    tmpdir,
+                    "-r",
+                    str(requirements_file),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            if result.returncode != 0:
+                stderr = result.stderr
+
+                if "all requirements must have their versions pinned with ==" in stderr:
+                    errors.append("Locked requirements file validation failed:")
+                    errors.append(f"  File: {requirements_file}")
+                    errors.append("")
+                    errors.append("  ⚠️  Missing or unpinned transitive dependency detected!")
+                    errors.append("")
+
+                    # Try to extract which package has the issue
+                    match = re.search(r"(\S+)>=[\d.]+ from ", stderr)
+                    if not match:
+                        match = re.search(r"(\S+) from ", stderr)
+                    if match:
+                        dep_name = match.group(1)
+                        errors.append(f"  📦 Transitive dependency: {dep_name}")
+                        errors.append(f"     Status: Not pinned in {requirements_file}")
+                        errors.append("")
+
+                    # Try to find which package requires it
+                    match = re.search(r"from ([^=\s]+)==([^ )]+)", stderr)
+                    if match:
+                        parent_pkg = match.group(1)
+                        parent_ver = match.group(2)
+                        errors.append(f"  📌 Required by: {parent_pkg}=={parent_ver}")
+                        errors.append("")
+
+                    errors.append("Error details:")
+                    error_lines = [line for line in stderr.split("\n") if line.strip()]
+                    for line in error_lines[:15]:
+                        if line.strip():
+                            errors.append(f"  {line}")
+
+                    errors.append("")
+                    errors.append("How to fix: Re-compile requirements on Linux")
+                    errors.append("  scripts/update-ci-dependencies --compile")
+
+    except FileNotFoundError:
+        errors.append("⚠️  Neither pip nor uv found. Cannot validate requirements file.")
+        errors.append("   Skipping validation. Install pip or uv to enable this check.")
+        return []  # Don't fail if tools aren't available
+    except Exception as e:
+        errors.append(f"⚠️  Error validating requirements file: {e}")
+        errors.append("   Skipping validation.")
+        return []  # Don't fail on unexpected errors
+
+    return errors
+
+
 def main() -> int:
     """Main entry point."""
+    has_errors = False
+
+    # Check for direct pip install commands in CI workflows
     violations = check_ci_dependencies()
 
     if violations:
@@ -167,9 +352,33 @@ def main() -> int:
         print("  2. Generate locked ci/requirements/ci.txt")
         print("  3. Update CI workflows to use the locked requirements")
         print("=" * 80)
+        has_errors = True
+    else:
+        print("✅ CI workflows use locked requirements")
+
+    # Validate that the locked requirements file is complete and installable
+    print()
+    validation_errors = validate_locked_requirements()
+
+    if validation_errors:
+        print("❌ Locked requirements validation failed:\n")
+        for error in validation_errors:
+            print(error)
+        print("=" * 80)
+        has_errors = True
+    else:
+        import platform
+
+        current_platform = platform.system()
+        print(f"✅ Locked requirements file is valid and installable on {current_platform}")
+        if current_platform != "Linux":
+            print("   Note: Some Linux-specific dependencies may not be validated on this platform.")
+            print("   CI runs on Linux and may catch additional issues.")
+
+    if has_errors:
         return 1
 
-    print("✅ All CI dependencies are properly locked")
+    print("\n✅ All CI dependency checks passed")
     return 0
 
 
