@@ -1180,6 +1180,16 @@ class LLMObs(Service):
     _prompt_manager_lock = forksafe.Lock()
 
     @classmethod
+    def _ensure_prompt_manager(cls) -> Optional["PromptManager"]:
+        # Double-checked locking for thread-safe initialization.
+        if cls._prompt_manager is None:
+            with cls._prompt_manager_lock:
+                if cls._prompt_manager is None:
+                    cls._prompt_manager = cls._initialize_prompt_manager()
+        cls._prompt_manager_initialized = cls._prompt_manager is not None
+        return cls._prompt_manager
+
+    @classmethod
     def get_prompt(
         cls,
         prompt_id: str,
@@ -1217,17 +1227,11 @@ class LLMObs(Service):
                     messages=prompt.to_messages(user="Alice")
                 )
         """
-        # Double-checked locking for thread-safe initialization
-        if not cls._prompt_manager_initialized:
-            with cls._prompt_manager_lock:
-                if not cls._prompt_manager_initialized:
-                    cls._prompt_manager = cls._initialize_prompt_manager()
-                    cls._prompt_manager_initialized = True
-
-        if cls._prompt_manager is None:
+        prompt_manager = cls._ensure_prompt_manager()
+        if prompt_manager is None:
             return cls._create_fallback_prompt(prompt_id, label, fallback)
 
-        return cls._prompt_manager.get_prompt(prompt_id, label, fallback)
+        return prompt_manager.get_prompt(prompt_id, label, fallback)
 
     @classmethod
     def clear_prompt_cache(cls, l1: bool = True, l2: bool = True) -> None:
@@ -1264,10 +1268,11 @@ class LLMObs(Service):
         Returns:
             The refreshed prompt, or None if fetch failed or prompt manager is not available.
         """
-        if cls._prompt_manager is None:
+        prompt_manager = cls._ensure_prompt_manager()
+        if prompt_manager is None:
             log.warning("Cannot refresh prompt: prompt manager not initialized")
             return None
-        return cls._prompt_manager.refresh_prompt(prompt_id, label)
+        return prompt_manager.refresh_prompt(prompt_id, label)
 
     @classmethod
     def _initialize_prompt_manager(cls) -> Optional["PromptManager"]:

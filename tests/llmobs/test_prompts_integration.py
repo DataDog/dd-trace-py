@@ -5,6 +5,8 @@ Most tests run in standalone mode (no LLMObs.enable() needed).
 """
 
 import json
+from typing import Optional
+from typing import Union
 from unittest.mock import patch
 
 import pytest
@@ -38,7 +40,7 @@ def reset_llmobs():
 
 
 class MockHTTPResponse:
-    def __init__(self, status: int, body: dict | str | None = None):
+    def __init__(self, status: int, body: Optional[Union[dict, str]] = None):
         self.status = status
         self._body = body
 
@@ -54,7 +56,7 @@ class MockHTTPConnection:
         self.request_headers = None
         self.request_path = None
 
-    def request(self, method: str, path: str, headers: dict | None = None):
+    def request(self, method: str, path: str, headers: Optional[dict] = None):
         self.request_path = path
         self.request_headers = headers
 
@@ -65,7 +67,7 @@ class MockHTTPConnection:
         pass
 
 
-def mock_api(status: int = 200, body: dict | str | None = None):
+def mock_api(status: int = 200, body: Optional[Union[dict, str]] = None):
     """Create a mock API that returns the given response."""
     conn = MockHTTPConnection(MockHTTPResponse(status, body))
     return patch("ddtrace.llmobs._prompts.manager.get_connection", lambda *a, **k: conn), conn
