@@ -326,6 +326,7 @@ auto_inject trigger:
   variables:
     DD_TRACE_PY_OCI_IMAGE: "oci://registry.ddbuild.io/ci/remote-updates/datadog-apm-library-python:pipeline-${CI_PIPELINE_ID}-1"
     DD_TRACE_PY_VERSION: "${PACKAGE_VERSION}"
+    DD_APM_INSTRUMENTATION_DEBUG: "true"
 
 package-oci:
   needs: [ "ddtrace package", download_dependency_wheels ]
