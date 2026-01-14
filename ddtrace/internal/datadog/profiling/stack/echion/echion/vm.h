@@ -167,7 +167,7 @@ init_safe_copy()
 extern "C" int
 echion_fuzz_copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf);
 
-int
+inline int
 copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf)
 {
     return echion_fuzz_copy_memory(proc_ref, addr, len, buf);
