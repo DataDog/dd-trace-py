@@ -535,8 +535,8 @@ class SpanLinkData:
         self,
         trace_id: int,
         span_id: int,
-        tracestate: Optional[str],
-        flags: Optional[int],
-        attributes: Optional[Dict[str, str]],
-        _dropped_attributes: int,
+        tracestate: Optional[str] = None,
+        flags: Optional[int] = None,
+        attributes: Optional[Dict[str, str]] = None,
+        _dropped_attributes: int = 0,
     ): ...

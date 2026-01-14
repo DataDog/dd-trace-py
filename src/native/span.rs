@@ -51,14 +51,23 @@ impl SpanLinkData {
         Self::default()
     }
 
+    #[pyo3(signature = (
+        trace_id,
+        span_id,
+        tracestate = None,
+        flags = None,
+        attributes = None,
+        _dropped_attributes = 0,
+    ))]
+    #[allow(unused_variables)]
     pub fn __init__<'p>(
         &mut self,
-        _trace_id: &Bound<'p, PyInt>,
-        _span_id: &Bound<'p, PyInt>,
-        _tracestate: PyObject,
-        _flags: Option<&Bound<'p, PyInt>>,
-        _attributes: Option<PyObject>,
-        _dropped_attributes: &Bound<'p, PyInt>,
+        trace_id: &Bound<'p, PyInt>,
+        span_id: &Bound<'p, PyInt>,
+        tracestate: Option<PyObject>,
+        flags: Option<&Bound<'p, PyInt>>,
+        attributes: Option<PyObject>,
+        _dropped_attributes: u32,
     ) -> PyResult<()> {
         Ok(())
     }
