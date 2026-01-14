@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Demo script for testing llmobs get_prompt() with local RAPID service.
+Demo script for testing LLMObs.get_prompt() with local RAPID service.
 
 Prerequisites:
     1. Start RAPID service in dd-source:
@@ -11,7 +11,9 @@ Prerequisites:
        cd ~/DataDog/dd-trace-py
        pip install -e .
 
-    3. Set environment variable for local endpoint:
+    3. Set environment variables:
+       export DD_API_KEY=test-api-key
+       export DD_LLMOBS_ML_APP=demo-app
        export DD_LLMOBS_PROMPTS_ENDPOINT=http://localhost:8080
 
 Usage:
@@ -21,9 +23,11 @@ Usage:
 import os
 
 # Set required environment variables for local testing
-os.environ["DD_LLMOBS_PROMPTS_ENDPOINT"] = "http://localhost:8080"
+os.environ.setdefault("DD_API_KEY", "test-api-key")
+os.environ.setdefault("DD_LLMOBS_ML_APP", "demo-app")
+os.environ.setdefault("DD_LLMOBS_PROMPTS_ENDPOINT", "http://localhost:8080")
 
-from ddtrace.llmobs._prompts.manager import PromptManager
+from ddtrace.llmobs import LLMObs
 
 
 def demo_text_template():
@@ -32,13 +36,7 @@ def demo_text_template():
     print("Demo 1: Text Template Prompt (greeting)")
     print("=" * 60)
 
-    manager = PromptManager(
-        api_key="test-api-key",
-        site="localhost:8080",  # Not used when DD_LLMOBS_PROMPTS_ENDPOINT is set
-        ml_app="demo-app",
-    )
-
-    prompt = manager.get_prompt("greeting", label="prod")
+    prompt = LLMObs.get_prompt("greeting", label="prod")
 
     print(f"Prompt ID: {prompt.id}")
     print(f"Version: {prompt.version}")
@@ -62,13 +60,7 @@ def demo_chat_template():
     print("Demo 2: Chat Template Prompt (assistant)")
     print("=" * 60)
 
-    manager = PromptManager(
-        api_key="test-api-key",
-        site="localhost:8080",
-        ml_app="demo-app",
-    )
-
-    prompt = manager.get_prompt("assistant", label="staging")
+    prompt = LLMObs.get_prompt("assistant", label="staging")
 
     print(f"Prompt ID: {prompt.id}")
     print(f"Version: {prompt.version}")
@@ -98,14 +90,8 @@ def demo_not_found():
     print("Demo 3: Prompt Not Found (with fallback)")
     print("=" * 60)
 
-    manager = PromptManager(
-        api_key="test-api-key",
-        site="localhost:8080",
-        ml_app="demo-app",
-    )
-
     # With user-provided fallback
-    prompt = manager.get_prompt(
+    prompt = LLMObs.get_prompt(
         "unknown-prompt",
         label="prod",
         fallback="Default greeting: Hello {{name}}!",
@@ -130,23 +116,43 @@ def demo_caching():
     print("Demo 4: Caching Behavior")
     print("=" * 60)
 
-    manager = PromptManager(
-        api_key="test-api-key",
-        site="localhost:8080",
-        ml_app="demo-app",
-    )
+    # Clear cache to start fresh
+    LLMObs.clear_prompt_cache(l1=True, l2=True)
 
     # First call - should hit registry
     print("First call (cold cache):")
-    prompt1 = manager.get_prompt("greeting", label="prod")
+    prompt1 = LLMObs.get_prompt("greeting", label="prod")
     print(f"  Source: {prompt1.source}")
 
     # Second call - should hit L1 cache
     print("Second call (hot cache):")
-    prompt2 = manager.get_prompt("greeting", label="prod")
+    prompt2 = LLMObs.get_prompt("greeting", label="prod")
     print(f"  Source: {prompt2.source}")
 
     # Note: source changes from "registry" to "cache" after first fetch
+    print()
+
+    return prompt2
+
+
+def demo_refresh():
+    """Demo: Force refresh a prompt."""
+    print("=" * 60)
+    print("Demo 5: Force Refresh")
+    print("=" * 60)
+
+    # Get cached version
+    print("Current cached version:")
+    prompt1 = LLMObs.get_prompt("greeting", label="prod")
+    print(f"  Version: {prompt1.version}, Source: {prompt1.source}")
+
+    # Force refresh from registry
+    print("After refresh_prompt():")
+    prompt2 = LLMObs.refresh_prompt("greeting", label="prod")
+    if prompt2:
+        print(f"  Version: {prompt2.version}, Source: {prompt2.source}")
+    else:
+        print("  Refresh failed (API unreachable)")
     print()
 
     return prompt2
@@ -156,6 +162,7 @@ def main():
     """Run all demos."""
     print("\n" + "=" * 60)
     print("LLM Observability - Prompt Registry Demo")
+    print("Using LLMObs.get_prompt() public API")
     print("=" * 60)
     print()
 
@@ -164,6 +171,7 @@ def main():
         demo_chat_template()
         demo_not_found()
         demo_caching()
+        demo_refresh()
 
         print("=" * 60)
         print("All demos completed successfully!")
