@@ -134,6 +134,7 @@ from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
+from ddtrace.llmobs.types import PromptLike
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _MetaIO
@@ -1184,7 +1185,7 @@ class LLMObs(Service):
         cls,
         prompt_id: str,
         label: Optional[str] = None,
-        fallback: Optional[Union[str, List[Message], Prompt, Callable[[], Union[str, List[Message], Prompt]]]] = None,
+        fallback: PromptLike = None,
     ) -> "ManagedPrompt":
         """
         Retrieve a prompt template from the Datadog Prompt Registry.
@@ -1311,21 +1312,12 @@ class LLMObs(Service):
         cls,
         prompt_id: str,
         label: Optional[str],
-        fallback: Optional[Union[str, List[Dict[str, str]]]],
+        fallback: PromptLike,
     ) -> "ManagedPrompt":
         """Create a fallback prompt when manager is not available."""
         from ddtrace.llmobs._prompts import ManagedPrompt
 
-        template: Union[str, List[Dict[str, str]]] = fallback if fallback is not None else ""
-
-        return ManagedPrompt(
-            prompt_id=prompt_id,
-            version="fallback",
-            label=label or DEFAULT_PROMPTS_LABEL,
-            source="fallback",
-            template=template,
-            variables=[],
-        )
+        return ManagedPrompt.from_fallback(prompt_id, label or DEFAULT_PROMPTS_LABEL, fallback)
 
     @classmethod
     def flush(cls) -> None:
