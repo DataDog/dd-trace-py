@@ -3,7 +3,7 @@
 # This script enables "0 click onboarding" for new fuzzer in the dd-trace-py repository.
 # This means that any new fuzzer should be automatically detected and run in the internal infrastructure with enrichments, reporting, triaging, auto fix etc..
 # Reports are submitted via Slack, with the channel defined by SLACK_CHANNEL
-# 
+#
 # Requirements:
 #
 # This scripts assumes that:
