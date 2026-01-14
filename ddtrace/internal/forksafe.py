@@ -31,6 +31,10 @@ _soft = True
 _forked = False
 
 
+# Flag to control whether after-fork hooks should execute
+_after_fork_hooks_enabled = True
+
+
 def set_forked():
     global _forked
 
@@ -41,8 +45,30 @@ def has_forked():
     return _forked
 
 
+def disable_after_fork_hooks():
+    """Disable the execution of after-fork hooks. Used to avoid conflicting with"""
+    global _after_fork_hooks_enabled
+    _after_fork_hooks_enabled = False
+
+
+def enable_after_fork_hooks():
+    """Enable the execution of after-fork hooks."""
+    global _after_fork_hooks_enabled
+    _after_fork_hooks_enabled = True
+
+
+def execute_after_fork_hooks():
+    """Manually execute the after-fork hooks."""
+    run_hooks(_registry)
+
+
 def run_hooks(registry):
     # type: (typing.List[typing.Callable[[], None]]) -> None
+    # Check if after-fork hooks should be skipped
+    if registry is _registry and not _after_fork_hooks_enabled:
+        log.debug("After-fork hooks are disabled, skipping execution")
+        return
+
     for hook in list(registry):
         try:
             hook()

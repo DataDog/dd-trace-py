@@ -18,6 +18,7 @@ from ddtrace.contrib.internal.celery.signals import trace_retry
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 
 
@@ -50,6 +51,9 @@ def patch_app(app, pin=None):
     # Patch apply_async
     trace_utils.wrap("celery.app.task", "Task.apply_async", _traced_apply_async_function(config.celery, "apply_async"))
 
+    # Patch DaemonContext.open to manage forksafe hooks during daemonization
+    trace_utils.wrap("celery.platforms", "DaemonContext.open", _traced_daemon_context_open)
+
     # connect to the Signal framework
     signals.task_prerun.connect(trace_prerun, weak=False)
     signals.task_postrun.connect(trace_postrun, weak=False)
@@ -75,6 +79,7 @@ def unpatch_app(app):
     trace_utils.unwrap(celery.beat.Scheduler, "apply_entry")
     trace_utils.unwrap(celery.beat.Scheduler, "tick")
     trace_utils.unwrap(celery.app.task.Task, "apply_async")
+    trace_utils.unwrap(celery.platforms.DaemonContext, "open")
 
     signals.task_prerun.disconnect(trace_prerun)
     signals.task_postrun.disconnect(trace_postrun)
@@ -141,3 +146,35 @@ def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
                     task_span.finish()
 
     return _traced_apply_async_inner
+
+
+def _traced_daemon_context_open(func, instance, args, kwargs):
+    """
+    Wrapper for celery.platforms.DaemonContext.open that manages forksafe hooks.
+
+    DaemonContext.open performs a fork internally to daemonize the process, and then
+    closes all file descriptors after the fork. To avoid breaking ddtrace internals
+    (such as open sockets, file handles, and other resources), we need to prevent the
+    normal after-fork hooks from executing immediately during this fork.
+
+    Instead, we wait for Celery to finish closing file descriptors and completing
+    the daemonization process, then manually execute the after-fork hooks to restart
+    internal components with fresh resources.
+    """
+    # Disable after-fork hooks before daemonization
+    forksafe.disable_after_fork_hooks()
+    log.debug("Disabled after-fork hooks before DaemonContext.open")
+
+    try:
+        # Call the original open function (which will fork)
+        result = func(*args, **kwargs)
+    finally:
+        # Re-enable after-fork hooks and execute them manually
+        forksafe.enable_after_fork_hooks()
+        log.debug("Re-enabled after-fork hooks after DaemonContext.open")
+
+        # Execute the after-fork hooks that were skipped during daemonization
+        forksafe.execute_after_fork_hooks()
+        log.debug("Executed after-fork hooks after DaemonContext.open")
+
+    return result
