@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from enum import Enum
 import json
 import os
-from pathlib import Path
 import typing as t
 
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
