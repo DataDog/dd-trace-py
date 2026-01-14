@@ -151,6 +151,12 @@ def test_profiler_serverless(monkeypatch):
     assert p.tags["functionname"] == "foobar"
 
 
+def test_profiler_serverless_azure(monkeypatch):
+    monkeypatch.setenv("WEBSITE_SITE_NAME", "azure-function-app")
+    p = profiler.Profiler()
+    assert isinstance(p._scheduler, scheduler.ServerlessScheduler)
+
+
 @pytest.mark.skipif(PYTHON_VERSION_INFO < (3, 10), reason="ddtrace under Python 3.9 is deprecated")
 @pytest.mark.subprocess()
 def test_profiler_ddtrace_deprecation():

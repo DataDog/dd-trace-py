@@ -153,6 +153,7 @@ class _ProfilerInstance(service.Service):
         self._collectors_on_import: Optional[List[tuple[str, Callable[[Any], None]]]] = None
         self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
         self._lambda_function_name: Optional[str] = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+        self._azure_function_name: Optional[str] = os.environ.get("WEBSITE_SITE_NAME")
 
         self.process_tags: Optional[str] = process_tags.process_tags or None
 
@@ -269,7 +270,7 @@ class _ProfilerInstance(service.Service):
         self._build_default_exporters()
 
         scheduler_class: Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = (
-            scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler
+            scheduler.ServerlessScheduler if self._lambda_function_name or self._azure_function_name else scheduler.Scheduler
         )
 
         self._scheduler = scheduler_class(

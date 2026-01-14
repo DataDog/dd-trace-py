@@ -76,17 +76,37 @@ class ServerlessScheduler(Scheduler):
         kwargs.setdefault("interval", self.FORCED_INTERVAL)
         super(ServerlessScheduler, self).__init__(*args, **kwargs)
         self._profiled_intervals: int = 0
+        LOG.debug(
+            "ServerlessScheduler: Initialized with interval=%ss, will flush after %s intervals",
+            self.FORCED_INTERVAL,
+            self.FLUSH_AFTER_INTERVALS,
+        )
 
     def periodic(self) -> None:
         # Check both the number of intervals and time frame to be sure we don't flush, e.g., empty profiles
-        if self._profiled_intervals >= self.FLUSH_AFTER_INTERVALS and (time.time_ns() - self._last_export) >= (
+        time_since_last_export = (time.time_ns() - self._last_export) / 1e9  # Convert to seconds
+        if self._profiled_intervals >= self.FLUSH_AFTER_INTERVALS and time_since_last_export >= (
             self.FORCED_INTERVAL * self.FLUSH_AFTER_INTERVALS
         ):
+            LOG.debug(
+                "ServerlessScheduler: Flushing profile now (%s intervals reached, %.2fs since last export)",
+                self._profiled_intervals,
+                time_since_last_export,
+            )
             try:
                 super(ServerlessScheduler, self).periodic()
             finally:
                 # Override interval so it's always back to the value we n
                 self.interval = self.FORCED_INTERVAL
                 self._profiled_intervals = 0
+                LOG.debug("ServerlessScheduler: Profile flushed, reset interval count to 0")
         else:
             self._profiled_intervals += 1
+            intervals_remaining = int(self.FLUSH_AFTER_INTERVALS - self._profiled_intervals)
+            LOG.debug(
+                "ServerlessScheduler: Incrementing interval count to %s, will flush after %s more intervals "
+                "(%.2fs since last export)",
+                self._profiled_intervals,
+                intervals_remaining,
+                time_since_last_export,
+            )
