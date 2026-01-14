@@ -29,6 +29,7 @@ from enum import Enum
 from typing import Optional
 
 from ddtrace.internal.utils.formats import flatten_key_value
+from ddtrace.internal.native._native import SpanLinkData
 
 
 class SpanLinkKind(Enum):
@@ -44,8 +45,7 @@ def _id_not_zero(self, attribute_name, value):
         raise ValueError(f"{attribute_name} must be > 0. Value is {value}")
 
 
-@dataclasses.dataclass
-class SpanLink:
+class SpanLink(SpanLinkData):
     """
     TraceId [required]: The span's 128-bit Trace ID
     SpanId [required]: The span's 64-bit Span ID

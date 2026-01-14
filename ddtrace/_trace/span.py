@@ -52,9 +52,10 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils.time import Time
 from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.native._native import SpanEventData
 
 
-class SpanEvent:
+class SpanEvent(SpanEventData):
     __slots__ = ["name", "attributes", "time_unix_nano"]
 
     def __init__(
@@ -63,6 +64,7 @@ class SpanEvent:
         attributes: Optional[Dict[str, _AttributeValueType]] = None,
         time_unix_nano: Optional[int] = None,
     ):
+        super().__init__(name, attributes, time_unix_nano)
         self.name: str = name
         if time_unix_nano is None:
             time_unix_nano = Time.time_ns()
@@ -169,6 +171,8 @@ class Span(SpanData):
         :param object context: the Context of the span.
         :param on_finish: list of functions called when the span finishes.
         """
+        super().__init__(name, service, resource, span_type, trace_id, span_id, parent_id, start, span_api, links)
+
         if not (span_id is None or isinstance(span_id, int)):
             if config._raise:
                 raise TypeError("span_id must be an integer")

@@ -526,3 +526,17 @@ class SpanData:
         span_api: str = "",
         links: Optional[List[Any]] = None,
     ): ...
+
+class SpanEventData:
+    def __init__(self, name: str, attributes: Optional[Dict[str, Any]], time_unix_nano: Optional[int]): ...
+
+class SpanLinkData:
+    def __init__(
+        self,
+        trace_id: int,
+        span_id: int,
+        tracestate: Optional[str],
+        flags: Optional[int],
+        attributes: Optional[Dict[str, str]],
+        _dropped_attributes: int,
+    ): ...
