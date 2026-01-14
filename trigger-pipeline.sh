@@ -64,7 +64,7 @@ PAYLOAD=$(cat <<EOF
 EOF
 )
 
-cat $PAYLOAD
+cat "$PAYLOAD"
 echo "Triggering pipeline for ref: $REF"
 RESPONSE=$(
     curl -s -vv -X POST "$API_URL" \
