@@ -400,6 +400,38 @@ class TestHelperFunctions:
 
         assert result == Path.cwd()
 
+    def test_get_relative_module_path_from_item_within_workspace(self) -> None:
+        """Test _get_relative_module_path_from_item when path is within workspace."""
+        from pathlib import Path
+
+        from ddtrace.testing.internal.pytest.plugin import _get_relative_module_path_from_item
+
+        mock_item = Mock()
+        mock_path = Mock()
+        mock_path.absolute.return_value.parent = Path("/workspace/tests/unit")
+        mock_item.path = mock_path
+
+        workspace_path = Path("/workspace")
+        result = _get_relative_module_path_from_item(mock_item, workspace_path)
+
+        assert str(result) == "tests/unit"  # Should be relative to workspace
+
+    def test_get_relative_module_path_from_item_outside_workspace(self) -> None:
+        """Test _get_relative_module_path_from_item when path is outside workspace."""
+        from pathlib import Path
+
+        from ddtrace.testing.internal.pytest.plugin import _get_relative_module_path_from_item
+
+        mock_item = Mock()
+        mock_path = Mock()
+        mock_path.absolute.return_value.parent = Path("/some/other/path")
+        mock_item.path = mock_path
+
+        workspace_path = Path("/workspace")
+        result = _get_relative_module_path_from_item(mock_item, workspace_path)
+
+        assert str(result) == "/some/other/path"  # Should return absolute path as fallback
+
     def test_get_exception_tags_with_excinfo(self) -> None:
         """Test _get_exception_tags with valid exception info."""
         mock_excinfo = Mock()

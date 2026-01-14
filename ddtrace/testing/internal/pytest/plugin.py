@@ -115,6 +115,17 @@ def _get_module_path_from_item(item: pytest.Item) -> Path:
         return Path.cwd()
 
 
+def _get_relative_module_path_from_item(item: pytest.Item, workspace_path: Path) -> Path:
+    """Get module path from pytest item, converted to relative path like the old plugin."""
+    abs_path = _get_module_path_from_item(item)
+
+    try:
+        return abs_path.relative_to(workspace_path)
+    except ValueError:
+        # If not within workspace, return as-is (fallback)
+        return abs_path
+
+
 class TestPhase:
     SETUP = "setup"
     CALL = "call"
@@ -230,14 +241,22 @@ class TestOptPlugin:
         """
 
         def _on_new_module(module: TestModule) -> None:
-            module.set_location(module_path=_get_module_path_from_item(item))
+            module.set_location(module_path=_get_relative_module_path_from_item(item, self.manager.workspace_path))
 
         def _on_new_suite(suite: TestSuite) -> None:
             pass
 
         def _on_new_test(test: Test) -> None:
             path, start_line, _test_name = item.reportinfo()
-            test.set_location(path=path, start_line=start_line or 0)
+
+            # Convert path to relative like the old plugin
+            try:
+                abs_path = Path(path).absolute()
+                relative_path = abs_path.relative_to(self.manager.workspace_path)
+                test.set_location(path=str(relative_path), start_line=start_line or 0)
+            except (ValueError, OSError):
+                # If not within workspace or other error, use original path
+                test.set_location(path=path, start_line=start_line or 0)
 
             if parameters := _get_test_parameters_json(item):
                 test.set_parameters(parameters)
@@ -615,7 +634,7 @@ class TestOptPlugin:
 
         To make the extra failed reports collected during retries (see `get_extra_failed_report` for details) show up
         with the rest of the failure exception reports, we modify them to look like normal failures, and append them to
-        the failed reports. After they have been shown by pytest, we undo the change so tha the final count of failed
+        the failed reports. After they have been shown by pytest, we undo the change so that the final count of failed
         tests is not affected.
         """
         # Do not show dd_retry in final stats.
@@ -731,8 +750,8 @@ class RetryReports:
         attempting to fix the test, and the attempt fails, we need to provide some feedback on the failure.
 
         Note that we only report _one_ failure per test (either the one embedded in the 'failed' final report, or the
-        one retured by this function), even if the test failed multiple times. This is to avoid spamming the test output
-        with multiple copies of the same error.
+        one returned by this function), even if the test failed multiple times. This is to avoid spamming the test
+        output with multiple copies of the same error.
         """
         suppress_errors = (test.is_quarantined() or test.is_disabled()) and not test.is_attempt_to_fix()
         if suppress_errors:
