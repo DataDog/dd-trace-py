@@ -265,7 +265,11 @@ class PromptManager:
 
         try:
             data = json.loads(body)
-            template = data.get("template") or data.get("chat_template", [])
+            template = data.get("template")
+            if template is None:
+                template = data.get("chat_template")
+            if template is None:
+                template = []
 
             return ManagedPrompt(
                 prompt_id=data.get("prompt_id", prompt_id),
