@@ -247,47 +247,43 @@ class TestOptPlugin:
             pass
 
         def _on_new_test(test: Test) -> None:
-            # Try to get source info from the test function object (like old plugin)
-            test_obj = getattr(item, "obj", None) or getattr(item, "function", None)
+            # Match old plugin logic exactly: use item.path for file, item._obj for test object
+            try:
+                # Get item path like old plugin does
+                item_path = Path(item.path if hasattr(item, "path") else getattr(item, "fspath", "unknown")).absolute()
+                # Convert to relative path
+                relative_path = item_path.relative_to(self.manager.workspace_path)
 
-            if test_obj:
-                # Use inspect module like the old plugin to get source file and line info
-                import inspect
+                # Get source line info like old plugin
+                start_line = None
+                end_line = None
 
-                try:
-                    # Get source file from the test function object
-                    source_file = inspect.getfile(test_obj)
-                    # Convert to relative path
-                    abs_path = Path(source_file).absolute()
-                    relative_path = abs_path.relative_to(self.manager.workspace_path)
+                if hasattr(item, "_obj"):
+                    # Use same logic as old plugin - get undecorated test object and source lines
+                    from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
+                    from ddtrace.internal.utils.inspection import undecorated
 
-                    # Get source lines info
-                    source_lines_tuple = inspect.getsourcelines(test_obj)
-                    start_line = source_lines_tuple[1]
-                    end_line = start_line + len(source_lines_tuple[0])
+                    try:
+                        test_method_object = undecorated(item._obj, item.name, item_path)
+                        source_lines = get_source_lines_for_test_method(test_method_object)
+                        start_line, end_line = source_lines
+                    except Exception:
+                        # Fallback to reportinfo like old plugin
+                        start_line = item.reportinfo()[1]
+                else:
+                    # Fallback to reportinfo like old plugin
+                    start_line = item.reportinfo()[1]
 
-                    test.set_location(path=str(relative_path), start_line=start_line)
-                    # Add end line as a metric like the old plugin
+                test.set_location(path=str(relative_path), start_line=start_line or 0)
+
+                # Add end line if available
+                if end_line:
                     test.metrics[TestTag.SOURCE_END] = end_line
 
-                except (ValueError, OSError, TypeError):
-                    # Fallback to reportinfo if inspect fails
-                    path, start_line, _test_name = item.reportinfo()
-                    try:
-                        abs_path = Path(path).absolute()
-                        relative_path = abs_path.relative_to(self.manager.workspace_path)
-                        test.set_location(path=str(relative_path), start_line=start_line or 0)
-                    except (ValueError, OSError):
-                        test.set_location(path=path, start_line=start_line or 0)
-            else:
-                # Fallback to original approach if no test object
+            except (ValueError, OSError, Exception):
+                # Ultimate fallback to original approach
                 path, start_line, _test_name = item.reportinfo()
-                try:
-                    abs_path = Path(path).absolute()
-                    relative_path = abs_path.relative_to(self.manager.workspace_path)
-                    test.set_location(path=str(relative_path), start_line=start_line or 0)
-                except (ValueError, OSError):
-                    test.set_location(path=path, start_line=start_line or 0)
+                test.set_location(path=path, start_line=start_line or 0)
 
             if parameters := _get_test_parameters_json(item):
                 test.set_parameters(parameters)
