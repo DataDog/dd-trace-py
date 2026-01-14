@@ -62,18 +62,6 @@ impl SpanLinkData {
     ) -> PyResult<()> {
         Ok(())
     }
-
-    // /// Methods for picking support
-    // /// required by some tests
-    // pub fn __getstate__<'p>(&self, py: Python<'p>) -> PyResult<Bound<'p, PyDict>> {
-    //     Ok(PyDict::new(py))
-    // }
-
-    // /// Methods for picking support
-    // /// required by some tests
-    // pub fn __setstate__<'p>(&mut self, py: Python<'p>, v: Bound<'p, PyAny>) -> PyResult<()> {
-    //     Ok(())
-    // }
 }
 
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
