@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue where upstream hexadecimal LLMObs parent IDs were not propagated correctly in ``LLMObs.activate_distributed_headers()``.
