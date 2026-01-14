@@ -158,7 +158,7 @@ def test_multiprocessing(method: str, tmp_path: Path) -> None:
     env = os.environ.copy()
     env["DD_PROFILING_OUTPUT_PPROF"] = filename
     env["DD_PROFILING_ENABLED"] = "1"
-    env["DD_PROFILING_CAPTURE_PCT"] = "1"
+    env["DD_PROFILING_CAPTURE_PCT"] = "100"
     stdout, stderr, exitcode, _ = call_program(
         "ddtrace-run",
         sys.executable,

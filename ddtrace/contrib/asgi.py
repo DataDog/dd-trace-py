@@ -68,7 +68,7 @@ Configuration
 
    Indicates whether to trace websocket messages.
 
-   Default: ``'False'``
+   Default: ``'True'``
 
 .. envvar:: DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING
 

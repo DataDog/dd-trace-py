@@ -289,11 +289,7 @@ def override_http_config(integration, values):
 
 @contextlib.contextmanager
 def scoped_tracer(use_dummy_writer=True):
-    """Provides a test-scoped global tracer with no configuration leaks.
-
-    Use instead of DummyTracer. When use_dummy_writer=True, captures spans via DummyWriter.
-    Note: DummyWriter is legacy. For new tests, prefer snapshot testing with AgentWriter/NativeWriter.
-    """
+    """Provides a test-scoped global tracer with no configuration leaks."""
     try:
         if use_dummy_writer:
             ddtrace.tracer._span_aggregator.writer = DummyWriter(trace_flush_enabled=check_test_agent_status())
@@ -750,40 +746,6 @@ class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
             self._encoded = self._encoder._build_payload([spans])
 
 
-class DummyTracer(Tracer):
-    """
-    DummyTracer is a tracer which uses the DummyWriter by default.
-
-    DEPRECATED: Use the global ddtrace.tracer with a DummyWriter and
-    TracerSpanContainer instead. This class will be removed in a future release.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super(DummyTracer, self).__init__()
-        # Ensure DummyTracer is always initialized with a DummyWriter
-        self._span_aggregator.writer = DummyWriter(trace_flush_enabled=check_test_agent_status())
-
-    @property
-    def agent_url(self):
-        # type: () -> str
-        return self._span_aggregator.writer.intake_url
-
-    def get_spans(self):
-        # type: () -> List[List[Span]]
-        spans = self._span_aggregator.writer.spans
-        return spans
-
-    def pop(self):
-        # type: () -> List[Span]
-        spans = self._span_aggregator.writer.pop()
-        return spans
-
-    def pop_traces(self):
-        # type: () -> List[List[Span]]
-        traces = self._span_aggregator.writer.pop_traces()
-        return traces
-
-
 class TestSpan(Span):
     """
     Test wrapper for a :class:`ddtrace.trace.Span` that provides additional functions and assertions
@@ -995,7 +957,7 @@ class TestSpan(Span):
 
 class TracerSpanContainer(TestSpanContainer):
     """
-    A class to wrap a :class:`tests.utils.tracer.DummyTracer` with a
+    A class to wrap a :class:`ddtrace.trace.Tracer` with a
     :class:`tests.utils.span.TestSpanContainer` to use in tests
     """
 

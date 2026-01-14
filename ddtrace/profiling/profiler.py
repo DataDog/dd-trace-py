@@ -71,10 +71,6 @@ class Profiler(object):
 
         if stop_on_exit:
             atexit.register(self.stop)
-            # Also register for SIGTERM/SIGINT to flush profiles before exit.
-            # This is important for environments like uWSGI with --skip-atexit
-            # where Python's atexit handlers are not called.
-            atexit.register_on_exit_signal(self.stop)
 
         if profile_children:
             forksafe.register(self._restart_on_fork)
@@ -227,6 +223,7 @@ class _ProfilerInstance(service.Service):
                 ("threading", lambda _: start_collector(threading.ThreadingRLockCollector)),
                 ("threading", lambda _: start_collector(threading.ThreadingSemaphoreCollector)),
                 ("threading", lambda _: start_collector(threading.ThreadingBoundedSemaphoreCollector)),
+                ("threading", lambda _: start_collector(threading.ThreadingConditionCollector)),
                 ("asyncio", lambda _: start_collector(asyncio.AsyncioLockCollector)),
                 ("asyncio", lambda _: start_collector(asyncio.AsyncioSemaphoreCollector)),
                 ("asyncio", lambda _: start_collector(asyncio.AsyncioBoundedSemaphoreCollector)),

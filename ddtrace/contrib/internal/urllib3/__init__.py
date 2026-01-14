@@ -15,8 +15,8 @@ or ``import ddtrace.auto`` with ``DD_PATCH_MODULES`` or ``DD_TRACE_URLLIB3_ENABL
     # use urllib3 like usual
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.urllib3['service']
 
