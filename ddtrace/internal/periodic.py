@@ -1,6 +1,5 @@
 # -*- encoding: utf-8 -*-
 import atexit
-import sys
 import typing  # noqa:F401
 
 from ddtrace.internal import forksafe
@@ -17,21 +16,8 @@ def _():
     # the acquiring thread to be terminated with pthread_exit (on Linux). This
     # causes a SIGABRT with GCC that cannot be caught, so we need to avoid
     # getting to that stage.
-    thread_count = len(periodic_threads)
-    if thread_count > 0:
-        # Use stderr to ensure output even if logging is broken during shutdown
-        print(
-            f"[ddtrace.internal.periodic] Cleaning up {thread_count} PeriodicThread(s) at shutdown",
-            file=sys.stderr,
-        )
-        for i, (thread_id, thread) in enumerate(periodic_threads.items(), 1):
-            thread_name = getattr(thread, "name", "unknown")
-            print(
-                f"[ddtrace.internal.periodic]   [{i}/{thread_count}] Stopping thread {thread_name} (id={thread_id})",
-                file=sys.stderr,
-            )
-            thread._atexit()
-        print(f"[ddtrace.internal.periodic] All {thread_count} thread(s) stopped", file=sys.stderr)
+    for thread in periodic_threads.values():
+        thread._atexit()
 
 
 @forksafe.register
