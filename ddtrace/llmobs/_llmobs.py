@@ -58,9 +58,8 @@ from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_MAX_SIZE
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
-from ddtrace.llmobs._constants import DEFAULT_PROMPTS_FETCH_TIMEOUT
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_LABEL
-from ddtrace.llmobs._constants import DEFAULT_PROMPTS_SYNC_TIMEOUT
+from ddtrace.llmobs._constants import DEFAULT_PROMPTS_TIMEOUT
 from ddtrace.llmobs._constants import DISPATCH_ON_GUARDRAIL_SPAN_START
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_SPAN_FINISH
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
@@ -1286,6 +1285,8 @@ class LLMObs(Service):
 
         cls._instance.stop()
         cls.enabled = False
+        cls._prompt_manager = None
+        cls._prompt_manager_initialized = False
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
@@ -1452,6 +1453,46 @@ class LLMObs(Service):
         return cls._prompt_manager.get_prompt(prompt_id, label, fallback)
 
     @classmethod
+    def clear_prompt_cache(cls, l1: bool = True, l2: bool = True) -> None:
+        """Clear the prompt cache.
+
+        Args:
+            l1: If True, clear the hot (in-memory) cache. Defaults to True.
+            l2: If True, clear the warm (file-based) cache. Defaults to True.
+        """
+        if cls._prompt_manager is not None:
+            cls._prompt_manager.clear_cache(l1=l1, l2=l2)
+        elif l2:
+            # Clear file cache even if manager is not initialized
+            from ddtrace.llmobs._prompts.cache import WarmCache
+
+            cache_dir = os.getenv("DD_LLMOBS_PROMPTS_CACHE_DIR")
+            warm_cache = WarmCache(cache_dir=cache_dir)
+            warm_cache.clear()
+
+    @classmethod
+    def refresh_prompt(
+        cls,
+        prompt_id: str,
+        label: Optional[str] = None,
+    ) -> Optional["ManagedPrompt"]:
+        """Force refresh a specific prompt from the registry.
+
+        Fetches the prompt synchronously and updates both caches.
+
+        Args:
+            prompt_id: The prompt identifier.
+            label: The prompt label. Defaults to "prod".
+
+        Returns:
+            The refreshed prompt, or None if fetch failed or prompt manager is not available.
+        """
+        if cls._prompt_manager is None:
+            log.warning("Cannot refresh prompt: prompt manager not initialized")
+            return None
+        return cls._prompt_manager.refresh_prompt(prompt_id, label)
+
+    @classmethod
     def _initialize_prompt_manager(cls) -> Optional["PromptManager"]:
         """Initialize the prompt manager with configuration."""
         from ddtrace.llmobs._prompts.manager import PromptManager
@@ -1472,19 +1513,20 @@ class LLMObs(Service):
         cache_max_size = _safe_int_env("DD_LLMOBS_PROMPTS_CACHE_MAX_SIZE", DEFAULT_PROMPTS_CACHE_MAX_SIZE)
         file_cache_enabled = asbool(os.getenv("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", "true"))
         cache_dir = os.getenv("DD_LLMOBS_PROMPTS_CACHE_DIR")
-        sync_timeout = _safe_float_env("DD_LLMOBS_PROMPTS_SYNC_TIMEOUT", DEFAULT_PROMPTS_SYNC_TIMEOUT)
-        fetch_timeout = _safe_float_env("DD_LLMOBS_PROMPTS_FETCH_TIMEOUT", DEFAULT_PROMPTS_FETCH_TIMEOUT)
+        endpoint_override = os.getenv("DD_LLMOBS_PROMPTS_ENDPOINT")
+        timeout = _safe_float_env("DD_LLMOBS_PROMPTS_TIMEOUT", DEFAULT_PROMPTS_TIMEOUT)
 
         return PromptManager(
             api_key=api_key,
+            app_key=cls._app_key,
             site=site,
             ml_app=ml_app,
+            endpoint_override=endpoint_override,
             cache_ttl=cache_ttl,
             cache_max_size=cache_max_size,
             file_cache_enabled=file_cache_enabled,
             cache_dir=cache_dir,
-            sync_timeout=sync_timeout,
-            fetch_timeout=fetch_timeout,
+            timeout=timeout,
         )
 
     @classmethod
