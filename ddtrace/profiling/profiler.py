@@ -270,7 +270,7 @@ class _ProfilerInstance(service.Service):
         self._build_default_exporters()
 
         scheduler_class: Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = (
-            scheduler.ServerlessScheduler if self._lambda_function_name or self._azure_function_name else scheduler.Scheduler
+            scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler
         )
 
         self._scheduler = scheduler_class(
