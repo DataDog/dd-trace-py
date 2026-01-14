@@ -444,7 +444,6 @@ class Experiment:
         self._tags["experiment_id"] = str(experiment_id)
         self._run_name = experiment_run_name
 
-
     def run(
         self,
         jobs: int = 1,
@@ -474,6 +473,28 @@ class Experiment:
             # for backwards compatibility, the first result fills the old fields of rows and summary evals
             "summary_evaluations": run_results[0].summary_evaluations if len(run_results) > 0 else {},
             "rows": run_results[0].rows if len(run_results) > 0 else [],
+            "runs": run_results,
+        }
+        return experiment_result
+
+    def _run_task_single_iteration(
+        self,
+        jobs: int = 1,
+        raise_errors: bool = False,
+        run_iteration: Optional[int] = 1,
+    ) -> ExperimentResult:
+        run_results = []
+
+        run = _ExperimentRunInfo(run_iteration)
+        self._tags["run_id"] = str(run._id)
+        self._tags["run_iteration"] = str(run._run_iteration)
+        task_results = self._run_task(jobs, run, raise_errors, None)
+        run_result = self._merge_results(run, task_results, [], [])
+        run_results.append(run_result)
+
+        experiment_result: ExperimentResult = {
+            "summary_evaluations": {},
+            "rows": [],
             "runs": run_results,
         }
         return experiment_result
