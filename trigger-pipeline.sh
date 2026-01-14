@@ -2,9 +2,8 @@
 set -euo pipefail
 
 REF="$1"
-UNPIN="$2"
-if [ -z "$REF" || ( ! -z "$UNPIN" && "$UNPIN" != "--unpin-dependencies" ) ]; then
-    echo "Usage: $0 <git-ref> [--unpin-dependencies]"
+if [ -z "$REF" ]; then
+    echo "Usage: $0 <git-ref>"
     exit 1
 fi
 
@@ -60,7 +59,7 @@ PAYLOAD=$(cat <<EOF
     "variables": {
         "NIGHTLY_BENCHMARKS": "true",
         "NIGHTLY_BUILD": "true"
-        "UNPIN_DEPENDENCIES": "$UNPIN"
+        "UNPIN_DEPENDENCIES": "${UNPIN_DEPENDENCIES:-false}"
     }
 }
 EOF
