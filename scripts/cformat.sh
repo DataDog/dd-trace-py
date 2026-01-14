@@ -108,6 +108,9 @@ else
         fi
         rm -f "$CFORMAT_TMP"
     done < <(enumerate_files | exclude_patterns)
+    if [[ $has_diff -ne 0 ]]; then
+        echo "clang-format version: $(${CLANG_FORMAT} --version)"
+    fi
     exit $has_diff
 fi
 
