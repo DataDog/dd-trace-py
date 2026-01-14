@@ -122,12 +122,15 @@ class APIManager(Service):
 
         # Framework is not fully supported
         if method is None or route is None or status is None:
+            if is_404:
+                # We should not report missing route on 404
+                return False
             log.debug(
-                "unsupported groupkey for api security [method %s] [route %s] [status %s]",
-                bool(method),
-                bool(route),
-                bool(status),
-            )
+                    "unsupported groupkey for api security [method %s] [route %s] [status %s]",
+                    bool(method),
+                    bool(route),
+                    bool(status),
+                )
             return None
         end_point_hash = hash((route, method, status))
         current_time = time.monotonic()
