@@ -1,4 +1,3 @@
-import os
 import threading
 from typing import Dict
 from typing import List
@@ -9,9 +8,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_MAX_SIZE
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
-from ddtrace.llmobs._constants import DEFAULT_PROMPTS_FETCH_TIMEOUT
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_LABEL
-from ddtrace.llmobs._constants import DEFAULT_PROMPTS_SYNC_TIMEOUT
+from ddtrace.llmobs._constants import DEFAULT_PROMPTS_TIMEOUT
 from ddtrace.llmobs._constants import PROMPTS_ENDPOINT
 from ddtrace.llmobs._constants import PROMPTS_SUBDOMAIN
 from ddtrace.llmobs._http import get_connection
@@ -21,9 +19,6 @@ from ddtrace.llmobs._prompts.prompt import ManagedPrompt
 
 
 log = get_logger(__name__)
-
-# Environment variable for custom prompts endpoint (for local development/testing)
-_PROMPTS_ENDPOINT_OVERRIDE = os.environ.get("DD_LLMOBS_PROMPTS_ENDPOINT")
 
 
 class PromptManager:
@@ -42,12 +37,12 @@ class PromptManager:
         site: str,
         ml_app: str,
         app_key: Optional[str] = None,
+        endpoint_override: Optional[str] = None,
         hot_cache: Optional[HotCache] = None,
         warm_cache: Optional[WarmCache] = None,
         cache_ttl: float = DEFAULT_PROMPTS_CACHE_TTL,
         cache_max_size: int = DEFAULT_PROMPTS_CACHE_MAX_SIZE,
-        sync_timeout: float = DEFAULT_PROMPTS_SYNC_TIMEOUT,
-        fetch_timeout: float = DEFAULT_PROMPTS_FETCH_TIMEOUT,
+        timeout: float = DEFAULT_PROMPTS_TIMEOUT,
         file_cache_enabled: bool = True,
         cache_dir: Optional[str] = None,
     ) -> None:
@@ -55,8 +50,8 @@ class PromptManager:
         self._app_key = app_key
         self._site = site
         self._ml_app = ml_app
-        self._sync_timeout = sync_timeout
-        self._fetch_timeout = fetch_timeout
+        self._endpoint_override = endpoint_override.rstrip("/") if endpoint_override else None
+        self._timeout = timeout
 
         self._hot_cache = hot_cache or HotCache(
             max_size=cache_max_size,
@@ -112,13 +107,52 @@ class PromptManager:
         telemetry.record_prompt_source("fallback", prompt_id)
         return self._create_fallback_prompt(prompt_id, label, fallback)
 
+    def clear_cache(self, l1: bool = True, l2: bool = True) -> None:
+        """Clear the prompt cache.
+
+        Args:
+            l1: If True, clear the hot (in-memory) cache.
+            l2: If True, clear the warm (file-based) cache.
+        """
+        if l1:
+            self._hot_cache.clear()
+        if l2:
+            self._warm_cache.clear()
+
+    def refresh_prompt(self, prompt_id: str, label: Optional[str] = None) -> Optional[ManagedPrompt]:
+        """Force refresh a specific prompt from the registry.
+
+        Fetches the prompt synchronously and updates both caches.
+
+        Args:
+            prompt_id: The prompt identifier.
+            label: The prompt label. Defaults to DEFAULT_PROMPTS_LABEL.
+
+        Returns:
+            The refreshed prompt, or None if fetch failed.
+        """
+        label = label or DEFAULT_PROMPTS_LABEL
+        key = self._cache_key(prompt_id, label)
+
+        try:
+            prompt = self._fetch_from_registry(prompt_id, label, timeout=self._timeout)
+            if prompt is not None:
+                cached_prompt = prompt._with_source("cache")
+                self._hot_cache.set(key, cached_prompt)
+                self._warm_cache.set(key, cached_prompt)
+                return prompt
+        except Exception as e:
+            log.debug("Failed to refresh prompt %s: %s", prompt_id, e)
+            telemetry.record_prompt_fetch_error(prompt_id, type(e).__name__)
+        return None
+
     def _cache_key(self, prompt_id: str, label: str) -> str:
         return f"{self._ml_app}:{prompt_id}:{label}"
 
     def _sync_fetch(self, prompt_id: str, label: str, key: str) -> Optional[ManagedPrompt]:
         """Synchronous fetch with timeout for cold starts."""
         try:
-            prompt = self._fetch_from_registry(prompt_id, label, timeout=self._sync_timeout)
+            prompt = self._fetch_from_registry(prompt_id, label, timeout=self._timeout)
             if prompt is not None:
                 # Store cached version (source="cache") for future retrievals
                 cached_prompt = prompt._with_source("cache")
@@ -155,7 +189,7 @@ class PromptManager:
     def _background_refresh(self, key: str, prompt_id: str, label: str) -> None:
         """Refresh a prompt in the background."""
         try:
-            prompt = self._fetch_from_registry(prompt_id, label, timeout=self._fetch_timeout)
+            prompt = self._fetch_from_registry(prompt_id, label, timeout=self._timeout)
             if prompt is not None:
                 # Store cached version (source="cache") for future retrievals
                 cached_prompt = prompt._with_source("cache")
@@ -202,13 +236,9 @@ class PromptManager:
                 conn.close()
 
     def _get_intake_url(self) -> str:
-        """Get the base intake URL for the Prompt Registry.
-
-        Supports DD_LLMOBS_PROMPTS_ENDPOINT env var for local development:
-            export DD_LLMOBS_PROMPTS_ENDPOINT=http://localhost:8080
-        """
-        if _PROMPTS_ENDPOINT_OVERRIDE:
-            return _PROMPTS_ENDPOINT_OVERRIDE
+        """Get the base intake URL for the Prompt Registry."""
+        if self._endpoint_override:
+            return self._endpoint_override
         return f"https://{PROMPTS_SUBDOMAIN}.{self._site}"
 
     def _build_path(self, prompt_id: str, label: str) -> str:
