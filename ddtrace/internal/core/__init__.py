@@ -289,6 +289,15 @@ def context_with_data(identifier, parent=None, **kwargs):
     return _CONTEXT_CLASS(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
 
 
+def context_with_event(event, parent=None, **kwargs):
+    event_name = event.pop("event_name", None)
+    if event_name is None:
+        raise ValueError("Event must have a name")
+    event.update(kwargs)
+
+    return _CONTEXT_CLASS(event_name, parent=(parent or _CURRENT_CONTEXT.get()), **event)
+
+
 def add_suppress_exception(exc_type: type) -> None:
     _CURRENT_CONTEXT.get()._suppress_exceptions.append(exc_type)
 
