@@ -65,6 +65,8 @@ class JobSpec:
             # Riot jobs need build_base_venvs artifacts
             lines.append("    - job: build_base_venvs")
             lines.append("      artifacts: true")
+            lines.append('    - job: "test artifacts"')
+            lines.append("      artifacts: true")
 
         services = set(self.services or [])
         if services:

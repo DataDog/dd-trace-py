@@ -13,6 +13,23 @@ include:
   - local: ".gitlab/services.yml"
   - local: ".gitlab/testrunner.yml"
 
+
+"test artifacts":
+  stage: setup
+  tags: [ "arch:amd64" ]
+  needs: []
+  script: |
+    echo "Creating test artifacts..."
+  artifacts:
+    paths:
+      # Only include the necessary directories/files to run tests
+      - .gitlab/
+      - .riot/
+      - tests/
+      - scripts/
+      - conftest.py
+      - riotfile.py
+
 .test_base_hatch:
   extends: .testrunner
   stage: hatch
@@ -57,8 +74,11 @@ include:
 .test_base_riot:
   extends: .testrunner
   stage: riot
-  needs: [ build_base_venvs, prechecks ]
+  needs: [ build_base_venvs, "test artifacts", prechecks ]
   parallel: 4
+  variables:
+    # Skip git clone in riot and rely on test artifacts + prebuilt wheels only
+    GIT_STRATEGY: none
   services:
     - !reference [.services, ddagent]
   # DEV: This is the max retries that GitLab currently allows for
