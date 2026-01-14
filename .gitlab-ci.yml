@@ -89,7 +89,7 @@ serverless lambda tests:
     strategy: depend
     branch: main
   needs:
-    - job: publish-wheels-to-s3
+    - job: "upload all"
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
@@ -158,7 +158,7 @@ macrobenchmarks:
   allow_failure: false
   rules:
     # Always run on nightly schedule or API triggered pipelines
-    - if: $CI_PIPELINE_SOURCE == "schedule" || $CI_PIPELINE_SOURCE == "api"
+    - if: $NIGHTLY_BUILD == "true"
       when: always
     # Allow failures if explicitly asked
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
@@ -206,6 +206,8 @@ codeql-scan:
       aud: dd-octo-sts
   rules:
     - if: !reference [.is_release]
+      when: never
+    - if: $NIGHTLY_BUILD == "true"
       when: never
     - when: on_success
   variables:
