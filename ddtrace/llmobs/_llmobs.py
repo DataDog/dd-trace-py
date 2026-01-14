@@ -101,6 +101,7 @@ from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordInputType
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentConfigType
+from ddtrace.llmobs._experiment import ExperimentResult
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._utils import AnnotationContext
@@ -929,6 +930,24 @@ class LLMObs(Service):
         )
         experiment._init_experiment()
         return experiment
+
+    @classmethod
+    def _run_for_experiment(
+        cls,
+        experiment_id: str,
+        task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
+        dataset_records: List[DatasetRecord],
+        jobs: int = 1,
+        raise_errors: bool = False,
+        run_iteration: Optional[int] = 1,
+    ) -> ExperimentResult:
+        if not cls._instance or not cls._instance.enabled:
+            raise ValueError("LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` ")
+        experiment = cls._instance._dne_client.experiment_get(experiment_id)
+        experiment._llmobs_instance = cls._instance
+        experiment._dataset._records = dataset_records
+        experiment._task = task
+        return experiment._run_task_single_iteration(jobs, raise_errors, run_iteration)
 
     @classmethod
     def experiment(
