@@ -173,9 +173,7 @@ class TestTimeoutChannelSignalRestoration:
 
         # Verify user's handler was restored
         restored_handler = signal.getsignal(signal.SIGALRM)
-        assert restored_handler == user_handler, (
-            f"User handler should be restored after stop(), got {restored_handler}"
-        )
+        assert restored_handler == user_handler, f"User handler should be restored after stop(), got {restored_handler}"
 
         # Clean up
         signal.signal(signal.SIGALRM, signal.SIG_DFL)
