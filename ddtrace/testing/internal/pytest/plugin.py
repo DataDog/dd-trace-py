@@ -115,10 +115,6 @@ def _get_module_path_from_item(item: pytest.Item) -> Path:
         return Path.cwd()
 
 
-def _as_dotted_path(path: Path) -> str:
-    return str(path).replace("/", ".")
-
-
 class TestPhase:
     SETUP = "setup"
     CALL = "call"
@@ -234,7 +230,7 @@ class TestOptPlugin:
         """
 
         def _on_new_module(module: TestModule) -> None:
-            module.set_location(dotted_module_path=_as_dotted_path(_get_module_path_from_item(item)))
+            module.set_location(module_path=_get_module_path_from_item(item))
 
         def _on_new_suite(suite: TestSuite) -> None:
             pass
