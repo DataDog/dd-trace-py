@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    tracing(django): fixes an issue where Django user IDs did not set as a span tag if they were UUID formatted.
+    tracing(django): fixes an issue where Django user IDs did not get added as a span tag if they were UUID formatted.
