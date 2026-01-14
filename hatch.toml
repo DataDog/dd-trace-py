@@ -52,13 +52,13 @@ checks = [
     "typing",
     "spelling",
     "riot",
+    "ci-deps-check",
     "security",
     "test",
     "suitespec-check",
     "error-log-check",
     "sg",
     "sg-test",
-    "ci-deps-check",
 ]
 spelling = [
     "codespell -I docs/spelling_wordlist.txt --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt,tests/appsec/iast/fixtures/*' {args:ddtrace/ tests/ releasenotes/ docs/}",
