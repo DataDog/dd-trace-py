@@ -56,7 +56,7 @@ PAYLOAD=$(cat <<EOF
 {
     "ref": "$REF",
     "variables": {
-        "NIGHTLY_BENCHMARKS": $([ -z "$UNPIN_DEPENDENCIES" ] && echo "true" || echo "false"),
+        "NIGHTLY_BENCHMARKS": "$([ -z "$UNPIN_DEPENDENCIES" ] && echo "true" || echo "false")",
         "NIGHTLY_BUILD": "true"
         "UNPIN_DEPENDENCIES": "${UNPIN_DEPENDENCIES:-false}"
     }
