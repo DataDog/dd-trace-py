@@ -1,4 +1,0 @@
-fixes:
-  - |
-    profiling: Profiles are now flushed before exit when an exit signal is received. This addresses an issue where the
-    last profile was not flushed when the process exited using uWSGI with ``--skip-atexit``.
