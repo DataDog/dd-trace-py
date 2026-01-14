@@ -328,8 +328,8 @@ class TestModule(TestItem["TestSession", "TestSuite"]):
     def __str__(self) -> str:
         return f"{self.name}"
 
-    def set_location(self, module_path: Path) -> None:
-        self.module_path = str(module_path)
+    def set_location(self, dotted_module_path: str) -> None:
+        self.module_path = dotted_module_path
 
 
 class TestSession(TestItem[t.NoReturn, "TestModule"]):
