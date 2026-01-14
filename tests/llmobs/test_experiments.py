@@ -1499,22 +1499,25 @@ def test_experiment_run_evaluators(llmobs, test_dataset_one_record):
 
 
 def test_experiment_run_evaluators_with_extra_return_values(llmobs, test_dataset_one_record):
-    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record,
-                            [dummy_evaluator_with_extra_return_values])
+    exp = llmobs.experiment(
+        "test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator_with_extra_return_values]
+    )
     task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     assert len(eval_results) == 1
     assert eval_results[0] == {
         "idx": 0,
-        "evaluations": {"dummy_evaluator_with_extra_return_values": dict(
-            value=False,
-            error=None,
-            reasoning="it doesn't match",
-            assessment="fail",
-            metadata={"difficulty": "easy"},
-            tags={"task": "question_answering"},
-        )},
+        "evaluations": {
+            "dummy_evaluator_with_extra_return_values": dict(
+                value=False,
+                error=None,
+                reasoning="it doesn't match",
+                assessment="fail",
+                metadata={"difficulty": "easy"},
+                tags={"task": "question_answering"},
+            )
+        },
     }
 
 
