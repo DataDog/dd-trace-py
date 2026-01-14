@@ -16,7 +16,8 @@ def nodeid_to_names(nodeid: str) -> t.Tuple[str, str, str]:
     matches = _NODEID_REGEX.match(nodeid)
 
     if matches:
-        module = matches.group("module") or EMPTY_NAME
+        module_raw = matches.group("module") or EMPTY_NAME
+        module = module_raw.replace("/", ".") if module_raw else EMPTY_NAME
         suite = matches.group("suite") or EMPTY_NAME
         test = matches.group("name") or EMPTY_NAME
 

@@ -337,7 +337,7 @@ class TestNodeIdToTestRef:
         nodeid = "tests/internal/test_example.py::TestClass::test_method"
         module, suite, test = nodeid_to_names(nodeid)
 
-        assert module == "tests/internal"
+        assert module == "tests.internal"
         assert suite == "test_example.py"
         assert test == "TestClass::test_method"
 
