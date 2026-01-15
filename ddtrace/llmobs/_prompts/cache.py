@@ -188,11 +188,11 @@ class WarmCache:
             return
 
         with self._lock:
-            try:
-                for path in self._cache_dir.glob("*.json"):
+            for path in self._cache_dir.glob("*.json"):
+                try:
                     path.unlink()
-            except OSError as e:
-                log.debug("Failed to clear prompt cache: %s", e)
+                except OSError as e:
+                    log.debug("Failed to delete cached prompt %s: %s", path, e)
 
 
 def _serialize_prompt(prompt: "ManagedPrompt") -> Dict[str, Any]:
