@@ -179,7 +179,6 @@ class PromptManager:
                 self._update_caches(key, prompt)
                 return prompt
         except PromptNotFoundError:
-            # Prompt doesn't exist - fall through to fallback
             telemetry.record_prompt_fetch_error(prompt_id, "PromptNotFoundError")
         except Exception as e:
             log.debug("Sync fetch failed for prompt %s: %s", prompt_id, e)
