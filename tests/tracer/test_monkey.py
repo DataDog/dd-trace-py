@@ -99,5 +99,5 @@ class TestPatching(SubprocessTestCase):
                     True,
                     True,
                     "",
-                    version="3.40.1",
+                    version="3.46.1",
                 )
