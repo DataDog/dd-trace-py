@@ -37,23 +37,24 @@ DEV_PROMPT_RESPONSE = {
 }
 
 
-@pytest.fixture(autouse=True)
-def reset_llmobs():
-    """Reset LLMObs state for each test."""
+def _reset_prompt_state():
+    """Reset LLMObs prompt manager state."""
     if LLMObs.enabled:
         LLMObs.disable()
     LLMObs.clear_prompt_cache(l1=True, l2=True)
     LLMObs._prompt_manager = None
     LLMObs._prompt_manager_initialized = False
+
+
+@pytest.fixture(autouse=True)
+def reset_llmobs():
+    """Reset LLMObs state for each test."""
+    _reset_prompt_state()
 
     with override_global_config(dict(_dd_api_key="test-key", _llmobs_ml_app="test-app")):
         yield
 
-    if LLMObs.enabled:
-        LLMObs.disable()
-    LLMObs.clear_prompt_cache(l1=True, l2=True)
-    LLMObs._prompt_manager = None
-    LLMObs._prompt_manager_initialized = False
+    _reset_prompt_state()
 
 
 class MockHTTPResponse:
