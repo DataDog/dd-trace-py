@@ -4,7 +4,6 @@ from typing import Dict
 from typing import List
 from typing import Literal
 from typing import Optional
-from typing import Tuple
 from typing import Union
 
 from ddtrace.llmobs.types import Message
@@ -20,7 +19,6 @@ class ManagedPrompt:
 
     INTERNAL (may change):
         - All properties (id, version, label, source, template, template_type, variables)
-        - Convenience methods (to_messages, to_anthropic)
     """
 
     # Private attributes (type hints for mypy)
@@ -102,42 +100,6 @@ class ManagedPrompt:
             return self._render_text(self._template, variables)
         else:
             return self._render_chat(self._template, variables)
-
-    def to_messages(self, **variables: str) -> List[Dict[str, str]]:
-        """
-        Render and convert to OpenAI-compatible message format.
-
-        For text templates, wraps in a single user message.
-        For chat templates, returns the rendered message list.
-        """
-        if isinstance(self._template, str):
-            rendered = self._render_text(self._template, variables)
-            return [{"role": "user", "content": rendered}]
-        else:
-            return self._render_chat(self._template, variables)
-
-    def to_anthropic(self, **variables: str) -> Tuple[Optional[str], List[Dict[str, str]]]:
-        """
-        Render and convert to Anthropic format (system, messages).
-
-        Returns:
-            Tuple of (system_message, messages)
-        """
-        messages = self.to_messages(**variables)
-        system_messages: List[str] = []
-        filtered_messages: List[Dict[str, str]] = []
-
-        for msg in messages:
-            if msg.get("role") == "system":
-                content = msg.get("content", "")
-                if content:
-                    system_messages.append(content)
-            else:
-                filtered_messages.append(msg)
-
-        # Concatenate multiple system messages with newlines
-        system_message = "\n".join(system_messages) if system_messages else None
-        return system_message, filtered_messages
 
     def to_annotation_dict(self, **variables: Any) -> Dict[str, Any]:
         """
