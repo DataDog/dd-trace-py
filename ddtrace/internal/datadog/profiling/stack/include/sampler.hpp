@@ -2,6 +2,8 @@
 #include "constants.hpp"
 #include "stack_renderer.hpp"
 
+class EchionSampler;
+
 #include <atomic>
 
 namespace Datadog {
@@ -11,6 +13,8 @@ class Sampler
     // This class manages the initialization of echion as well as the sampling thread.
     // The underlying echion instance it manages keeps much of its state globally, so this class is a singleton in order
     // to keep it aligned with the echion state.
+    std::unique_ptr<EchionSampler> echion;
+
   private:
     std::shared_ptr<StackRenderer> renderer_ptr;
 
