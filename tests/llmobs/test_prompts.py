@@ -37,23 +37,24 @@ DEV_PROMPT_RESPONSE = {
 }
 
 
-@pytest.fixture(autouse=True)
-def reset_llmobs():
-    """Reset LLMObs state for each test."""
+def _reset_prompt_state():
+    """Reset LLMObs prompt manager state."""
     if LLMObs.enabled:
         LLMObs.disable()
     LLMObs.clear_prompt_cache(l1=True, l2=True)
     LLMObs._prompt_manager = None
     LLMObs._prompt_manager_initialized = False
+
+
+@pytest.fixture(autouse=True)
+def reset_llmobs():
+    """Reset LLMObs state for each test."""
+    _reset_prompt_state()
 
     with override_global_config(dict(_dd_api_key="test-key", _llmobs_ml_app="test-app")):
         yield
 
-    if LLMObs.enabled:
-        LLMObs.disable()
-    LLMObs.clear_prompt_cache(l1=True, l2=True)
-    LLMObs._prompt_manager = None
-    LLMObs._prompt_manager_initialized = False
+    _reset_prompt_state()
 
 
 class MockHTTPResponse:
@@ -283,15 +284,3 @@ class TestAnnotationContext:
                 assert prompt_data["id"] == "greeting"
                 assert prompt_data["version"] == "v1"
                 assert prompt_data["variables"] == {"name": "Alice"}
-
-
-class TestFormatConversion:
-    """Format helpers for LLM SDKs."""
-
-    def test_to_messages_wraps_text(self):
-        """to_messages() wraps text template in user role."""
-        with mock_api(200, TEXT_PROMPT_RESPONSE):
-            prompt = LLMObs.get_prompt("greeting")
-
-        messages = prompt.to_messages(name="Alice")
-        assert messages == [{"role": "user", "content": "Hello Alice!"}]

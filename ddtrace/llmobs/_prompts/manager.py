@@ -1,6 +1,9 @@
+import json
 import threading
 from typing import Dict
 from typing import Optional
+from urllib.parse import quote
+from urllib.parse import urlencode
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import _telemetry as telemetry
@@ -146,7 +149,6 @@ class PromptManager:
                 self._update_caches(key, prompt)
                 return prompt
         except PromptNotFoundError:
-            # Prompt was deleted - evict from cache
             log.debug("Prompt %s was deleted, evicting from cache", prompt_id)
             self._evict_caches(key)
             telemetry.record_prompt_fetch_error(prompt_id, "PromptNotFoundError")
@@ -177,7 +179,6 @@ class PromptManager:
                 self._update_caches(key, prompt)
                 return prompt
         except PromptNotFoundError:
-            # Prompt doesn't exist - fall through to fallback
             telemetry.record_prompt_fetch_error(prompt_id, "PromptNotFoundError")
         except Exception as e:
             log.debug("Sync fetch failed for prompt %s: %s", prompt_id, e)
@@ -212,7 +213,6 @@ class PromptManager:
             if prompt is not None:
                 self._update_caches(key, prompt)
         except PromptNotFoundError:
-            # Prompt was deleted from registry - evict from cache so fallback is used
             log.debug("Prompt %s was deleted, evicting from cache", prompt_id)
             self._evict_caches(key)
             telemetry.record_prompt_fetch_error(prompt_id, "PromptNotFoundError")
@@ -268,9 +268,6 @@ class PromptManager:
         TODO: Update path structure when the Prompt Registry API endpoint is created.
         Current placeholder follows Datadog API conventions.
         """
-        from urllib.parse import quote
-        from urllib.parse import urlencode
-
         encoded_prompt_id = quote(prompt_id, safe="")
         query_params = urlencode({"label": label, "ml_app": self._ml_app})
         return f"{PROMPTS_ENDPOINT}/{encoded_prompt_id}?{query_params}"
@@ -286,8 +283,6 @@ class PromptManager:
 
     def _parse_response(self, body: str, prompt_id: str, label: str) -> Optional[ManagedPrompt]:
         """Parse the API response into a ManagedPrompt."""
-        import json
-
         try:
             data = json.loads(body)
             template = data.get("template")
