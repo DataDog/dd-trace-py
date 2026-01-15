@@ -33,6 +33,8 @@
 #include <echion/tasks.h>
 #include <echion/timing.h>
 
+class EchionSampler;
+
 class ThreadInfo
 {
   public:
@@ -123,17 +125,7 @@ class ThreadInfo
 
 // ----------------------------------------------------------------------------
 
-// We make this a reference to a heap-allocated object so that we can avoid
-// the destruction on exit. We are in charge of cleaning up the object. Note
-// that the object will leak, but this is not a problem.
-inline std::unordered_map<uintptr_t, ThreadInfo::Ptr>& thread_info_map =
-  *(new std::unordered_map<uintptr_t, ThreadInfo::Ptr>()); // indexed by thread_id
-
-inline std::mutex thread_info_map_lock;
-
-// ----------------------------------------------------------------------------
-
 using PyThreadStateCallback = std::function<void(PyThreadState*, ThreadInfo&)>;
 
 void
-for_each_thread(InterpreterInfo& interp, PyThreadStateCallback callback);
+for_each_thread(EchionSampler& echion, InterpreterInfo& interp, PyThreadStateCallback callback);
