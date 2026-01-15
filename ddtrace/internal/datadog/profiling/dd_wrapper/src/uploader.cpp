@@ -5,9 +5,11 @@
 #include "profiler_stats.hpp"
 
 #include <cerrno>   // errno
+#include <chrono>   // milliseconds
 #include <cstring>  // strerror
 #include <fstream>  // ofstream
 #include <sstream>  // ostringstream
+#include <thread>   // sleep_for
 #include <unistd.h> // getpid
 #include <vector>
 
@@ -198,6 +200,7 @@ Datadog::Uploader::prefork()
     // the moment we acquire the lock, which would result on hanging on waiting for the lock.
     while (!upload_lock.try_lock()) {
         cancel_inflight();
+        std::this_thread::sleep_for(std::chrono::microseconds(50));
     }
 
     // upload_lock is locked and will be unlocked in postfork_parent()
