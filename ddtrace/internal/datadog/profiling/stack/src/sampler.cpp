@@ -227,12 +227,24 @@ Sampler::get()
 }
 
 void
+Sampler::postfork_child()
+{
+    // Clear renderer caches to avoid using stale interned string/function IDs
+    if (renderer_ptr) {
+        renderer_ptr->postfork_child();
+    }
+}
+
+void
 _stack_atfork_child()
 {
     // The only thing we need to do at fork is to propagate the PID to echion
     // so we don't even reveal this function to the user
     _set_pid(getpid());
     ThreadSpanLinks::postfork_child();
+
+    // Clear renderer caches to avoid using stale interned IDs
+    Sampler::get().postfork_child();
 
     // `thread_info_map_lock` and `task_link_map_lock` are global locks held in echion
     // NB placement-new to re-init and leak the mutex because doing anything else is UB

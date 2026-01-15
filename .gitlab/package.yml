@@ -45,6 +45,13 @@ variables:
       - "pywheels/*.tar.gz"
       - "debugwheelhouse/*.log"
 
+.upload_wheels_base:
+  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/images/mirror/amazon/aws-cli:2.4.29
+  stage: package
+  variables:
+    BUCKET: dd-trace-py-builds
+
 "build sdist":
   extends: .build_base
   image: "${IMAGE_BASE_URL}:${IMAGE_TAG}"
@@ -105,6 +112,21 @@ variables:
 
       echo -e "\e[0Ksection_end:`date +%s`:build_macos_${python_version}\r\e[0K"
     done
+
+"upload manylinux2014_x86_64":
+  extends: .upload_wheels_base
+  needs:
+    - job: "build linux"
+      artifacts: true
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: *PYTHON_TAGS
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+    - job: "package version"
+  script:
+    - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}" manylinux2014_x86_64
+    - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}" manylinux2014_x86_64
 
 "test sdist":
   image: registry.ddbuild.io/images/mirror/python:3.9.6-alpine3.14
@@ -189,74 +211,19 @@ download_dependency_wheels:
     paths:
       - "pywheels-dep/"
 
-publish-wheels-to-s3:
-  tags: ["arch:amd64"]
-  image: registry.ddbuild.io/images/mirror/amazon/aws-cli:2.4.29
-  stage: package
+"upload all":
+  extends: .upload_wheels_base
   needs: [ "ddtrace package", "package version" ]
-  variables:
-    BUCKET: dd-trace-py-builds
   script: |
     set -euo pipefail
-    shopt -s nullglob
 
-    # Find wheels
-    WHEELS=(pywheels/*.whl)
-    if [ ${#WHEELS[@]} -eq 0 ]; then echo "No wheels found in pywheels/"; exit 1; fi
-    echo "Found ${#WHEELS[@]} wheel(s):"
-    printf ' - %s\n' "${WHEELS[@]}"
+    # Upload to commit SHA and pipeline ID paths
+    .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}"
+    .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}"
 
-    # Upload wheels to S3
-    aws s3 cp --recursive --exclude "*" --include "*.whl" pywheels "s3://${BUCKET}/${CI_COMMIT_SHA}/"
-    aws s3 cp --recursive --exclude "*" --include "*.whl" pywheels "s3://${BUCKET}/${CI_PIPELINE_ID}/"
-
-    # Generate and upload helper scripts and index for commit
-    S3_BASE_COMMIT="https://${BUCKET}.s3.amazonaws.com/${CI_COMMIT_SHA}"
-    .gitlab/scripts/generate-s3-helper-scripts.sh "${S3_BASE_COMMIT}" "commit"
-    .gitlab/scripts/generate-index-html.sh "commit"
-    aws s3 cp "commit.download.sh" "s3://${BUCKET}/${CI_COMMIT_SHA}/download.sh" --content-type text/x-shellscript
-    aws s3 cp "commit.install.sh" "s3://${BUCKET}/${CI_COMMIT_SHA}/install.sh" --content-type text/x-shellscript
-    aws s3 cp "commit.index.html" "s3://${BUCKET}/${CI_COMMIT_SHA}/index.html" --content-type text/html
-
-    # Generate and upload helper scripts and index for pipeline
-    S3_BASE_PIPE="https://${BUCKET}.s3.amazonaws.com/${CI_PIPELINE_ID}"
-    .gitlab/scripts/generate-s3-helper-scripts.sh "${S3_BASE_PIPE}" "pipeline"
-    .gitlab/scripts/generate-index-html.sh "pipeline"
-    aws s3 cp "pipeline.download.sh" "s3://${BUCKET}/${CI_PIPELINE_ID}/download.sh" --content-type text/x-shellscript
-    aws s3 cp "pipeline.install.sh" "s3://${BUCKET}/${CI_PIPELINE_ID}/install.sh" --content-type text/x-shellscript
-    aws s3 cp "pipeline.index.html" "s3://${BUCKET}/${CI_PIPELINE_ID}/index.html" --content-type text/html
-
-    # Branch uploads (if on main or release branch)
+    # Upload to branch path (only for main/release branches)
     if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]]; then
-      aws s3 cp --recursive --exclude "*" --include "*.whl" pywheels "s3://${BUCKET}/${CI_COMMIT_BRANCH}/"
-
-      S3_BASE_BRANCH="https://${BUCKET}.s3.amazonaws.com/${CI_COMMIT_BRANCH}"
-      .gitlab/scripts/generate-s3-helper-scripts.sh "${S3_BASE_BRANCH}" "branch"
-      .gitlab/scripts/generate-index-html.sh "branch"
-      aws s3 cp "branch.download.sh" "s3://${BUCKET}/${CI_COMMIT_BRANCH}/download.sh" --content-type text/x-shellscript
-      aws s3 cp "branch.install.sh" "s3://${BUCKET}/${CI_COMMIT_BRANCH}/install.sh" --content-type text/x-shellscript
-      aws s3 cp "branch.index.html" "s3://${BUCKET}/${CI_COMMIT_BRANCH}/index.html" --content-type text/html
-    fi
-
-    # Print all URLs at the end (after noisy aws s3 cp commands)
-    echo ""
-    echo "=== Artifacts published to S3 ==="
-    echo ""
-    echo "Commit artifacts:"
-    echo "  Index:    ${S3_BASE_COMMIT}/index.html"
-    echo "  Download: ${S3_BASE_COMMIT}/download.sh"
-    echo "  Install:  ${S3_BASE_COMMIT}/install.sh"
-    echo ""
-    echo "Pipeline artifacts:"
-    echo "  Index:    ${S3_BASE_PIPE}/index.html"
-    echo "  Download: ${S3_BASE_PIPE}/download.sh"
-    echo "  Install:  ${S3_BASE_PIPE}/install.sh"
-    if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]]; then
-      echo ""
-      echo "Branch artifacts (${CI_COMMIT_BRANCH}):"
-      echo "  Index:    ${S3_BASE_BRANCH}/index.html"
-      echo "  Download: ${S3_BASE_BRANCH}/download.sh"
-      echo "  Install:  ${S3_BASE_BRANCH}/install.sh"
+      .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_BRANCH}"
     fi
 
 # Extract package version from pyproject.toml and save to dotenv artifact
