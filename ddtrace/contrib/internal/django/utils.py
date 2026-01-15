@@ -6,6 +6,7 @@ from typing import List  # noqa:F401
 from typing import Mapping  # noqa:F401
 from typing import Text  # noqa:F401
 from typing import Union  # noqa:F401
+import uuid
 
 import django
 from django.utils.functional import SimpleLazyObject
@@ -329,7 +330,7 @@ def _after_request_tags(pin, span: Span, request, response):
                     span._set_tag_str("django.user.is_authenticated", str(user_is_authenticated(user)))
 
                 uid = getattr(user, "pk", None)
-                if uid and isinstance(uid, int):
+                if uid and isinstance(uid, (int, uuid.UUID)):
                     span._set_tag_str("django.user.id", str(uid))
                     span._set_tag_str(_user.ID, str(uid))
                 if config.django.include_user_name:
