@@ -149,7 +149,6 @@ class PromptManager:
                 self._update_caches(key, prompt)
                 return prompt
         except PromptNotFoundError:
-            # Prompt was deleted - evict from cache
             log.debug("Prompt %s was deleted, evicting from cache", prompt_id)
             self._evict_caches(key)
             telemetry.record_prompt_fetch_error(prompt_id, "PromptNotFoundError")
@@ -215,7 +214,6 @@ class PromptManager:
             if prompt is not None:
                 self._update_caches(key, prompt)
         except PromptNotFoundError:
-            # Prompt was deleted from registry - evict from cache so fallback is used
             log.debug("Prompt %s was deleted, evicting from cache", prompt_id)
             self._evict_caches(key)
             telemetry.record_prompt_fetch_error(prompt_id, "PromptNotFoundError")
