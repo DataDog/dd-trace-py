@@ -346,7 +346,7 @@ class TestNodeIdToTestRef:
         nodeid = "test_example.py::test_function"
         module, suite, test = nodeid_to_names(nodeid)
 
-        assert module == "."
+        assert module == ""  # Empty string for root-level tests (matches old plugin)
         assert suite == "test_example.py"
         assert test == "test_function"
 
@@ -355,8 +355,8 @@ class TestNodeIdToTestRef:
         nodeid = "some_weird_format"
         module, suite, test = nodeid_to_names(nodeid)
 
-        assert module == "."
-        assert suite == "."
+        assert module == "unknown_module"  # Fallback for invalid nodeids (matches old plugin)
+        assert suite == "unknown_suite"  # Fallback for invalid nodeids (matches old plugin)
         assert test == "some_weird_format"
 
 
