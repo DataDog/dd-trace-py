@@ -17,6 +17,7 @@ class Uploader
 {
   private:
     static inline std::mutex upload_lock{};
+    static inline std::mutex cancel_lock{};
     std::string errmsg;
     static inline ddog_CancellationToken cancel{ .inner = nullptr };
     static inline std::atomic<uint64_t> upload_seq{ 0 };

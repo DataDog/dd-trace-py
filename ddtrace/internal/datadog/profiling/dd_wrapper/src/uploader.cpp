@@ -127,14 +127,23 @@ Datadog::Uploader::upload()
     // The upload operation sets up some global state in libdatadog (the tokio runtime), so
     // we ensure exclusivity here.
     {
-        // If we're here, we're about to create a new upload, so cancel any inflight ones
         const std::lock_guard<std::mutex> lock_guard(upload_lock);
-        cancel_inflight();
 
-        // We have to create a new cancellation token, as cancel_inflight() drops the previous one.
-        // We also clone it to pass it to the request.
-        cancel = ddog_CancellationToken_new();
-        auto cancel_for_request = ddog_CancellationToken_clone(&cancel);
+        // If we're here, we're about to create a new upload, so cancel any inflight ones.
+        // We need to hold cancel_lock when accessing the cancellation token.
+        // Note: we do not use cancel_inflight to make sure the cancel_lock is held
+        // all the way through re-allocating the cancellation token.
+        ddog_CancellationToken cancel_for_request;
+        {
+            const std::lock_guard<std::mutex> cancel_lock_guard(cancel_lock);
+            ddog_CancellationToken_cancel(&cancel);
+            ddog_CancellationToken_drop(&cancel);
+
+            // We have to create a new cancellation token, as we dropped the previous one.
+            // We also clone it to pass it to the request.
+            cancel = ddog_CancellationToken_new();
+            cancel_for_request = ddog_CancellationToken_clone(&cancel);
+        }
 
         // Build and check the response object
         ddog_prof_Request* req = &build_res.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
@@ -169,6 +178,7 @@ Datadog::Uploader::unlock()
 void
 Datadog::Uploader::cancel_inflight()
 {
+    const std::lock_guard<std::mutex> lock_guard(cancel_lock);
     ddog_CancellationToken_cancel(&cancel);
     ddog_CancellationToken_drop(&cancel);
 }
@@ -176,13 +186,27 @@ Datadog::Uploader::cancel_inflight()
 void
 Datadog::Uploader::prefork()
 {
-    lock();
+    // We do not have a way to handle upload state leaking to children, so when a fork happens,
+    // we cancel all inflight uploads to prevent this from happening.
+    // Note: we could wait for the upload to finish instead of cancelling, but this would
+    // mean hanging for some time before the fork happens, which is not acceptable from a
+    // user perspective.
     cancel_inflight();
+
+    // Keep cancelling and trying to acquire the lock until we succeed.
+    // This is necessary as a second uploader may start between the end of cancel_inflight and
+    // the moment we acquire the lock, which would result on hanging on waiting for the lock.
+    while (!upload_lock.try_lock()) {
+        cancel_inflight();
+    }
+
+    // upload_lock is locked and will be unlocked in postfork_parent()
 }
 
 void
 Datadog::Uploader::postfork_parent()
 {
+    // upload_lock was locked in prefork.
     unlock();
 }
 
@@ -191,4 +215,5 @@ Datadog::Uploader::postfork_child()
 {
     // NB placement-new to re-init and leak the mutex because doing anything else is UB
     new (&upload_lock) std::mutex();
+    new (&cancel_lock) std::mutex();
 }
