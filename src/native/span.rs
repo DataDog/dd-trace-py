@@ -14,7 +14,6 @@ impl SpanEventData {
         *_py_args,
         **_py_kwargs,
     ))]
-    #[allow(clippy::too_many_arguments)]
     pub fn __new__(
         _py_args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
         _py_kwargs: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
@@ -43,7 +42,6 @@ impl SpanLinkData {
         *_py_args,
         **_py_kwargs,
     ))]
-    #[allow(clippy::too_many_arguments)]
     pub fn __new__(
         _py_args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
         _py_kwargs: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
@@ -84,7 +82,6 @@ impl SpanData {
         *_py_args,
         **_py_kwargs,
     ))]
-    #[allow(clippy::too_many_arguments)]
     fn __new__(
         _py_args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
         _py_kwargs: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
