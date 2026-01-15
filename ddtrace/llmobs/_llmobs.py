@@ -1421,7 +1421,7 @@ class LLMObs(Service):
             prompt = LLMObs.get_prompt("greeting")
             with LLMObs.annotation_context(prompt=prompt):
                 openai.chat.completions.create(
-                    messages=prompt.to_messages(user="Alice")
+                    messages=prompt.format(user="Alice")
                 )
         """
         prompt_manager = cls._ensure_prompt_manager()
