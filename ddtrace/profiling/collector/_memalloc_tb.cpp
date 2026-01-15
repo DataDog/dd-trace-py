@@ -351,11 +351,7 @@ traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
     push_threadinfo_to_sample(sample);
 
     // Collect frames from the Python frame chain and push to Sample
-    // We push frames as we collect them (root to leaf order).
-    // Note: Sample.push_frame() comment says it "Assumes frames are pushed in leaf-order",
-    // but we push root-to-leaf. Set reverse_locations so the sample will be reversed when exported.
     // Note: Sample.push_frame() automatically enforces the max_nframe limit and tracks dropped frames.
-    sample.set_reverse_locations(true);
     push_stacktrace_to_sample_invokes_cpython(sample);
 }
 
