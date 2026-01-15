@@ -34,10 +34,11 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.telemetry_writer._namespace.flush(),
             is_rule_triggered=True,
             is_blocked_request=True,
+            expected_name=["waf.init", "waf.requests"],
         )
 
     def test_telemetry_metrics_attack(self):
-        with override_global_config(dict(_asm_enabled=True)):
+        with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
             self._aux_appsec_prepare_tracer()
             payload = urlencode({"attack": "1' or '1' = '1'"})
             self.client.post("/", data=payload, content_type="application/x-www-form-urlencoded")
@@ -46,4 +47,5 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.telemetry_writer._namespace.flush(),
             is_rule_triggered=True,
             is_blocked_request=False,
+            expected_name=["waf.init", "waf.requests"],
         )
