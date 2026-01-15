@@ -1,6 +1,9 @@
+import json
 import threading
 from typing import Dict
 from typing import Optional
+from urllib.parse import quote
+from urllib.parse import urlencode
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import _telemetry as telemetry
@@ -268,9 +271,6 @@ class PromptManager:
         TODO: Update path structure when the Prompt Registry API endpoint is created.
         Current placeholder follows Datadog API conventions.
         """
-        from urllib.parse import quote
-        from urllib.parse import urlencode
-
         encoded_prompt_id = quote(prompt_id, safe="")
         query_params = urlencode({"label": label, "ml_app": self._ml_app})
         return f"{PROMPTS_ENDPOINT}/{encoded_prompt_id}?{query_params}"
@@ -286,8 +286,6 @@ class PromptManager:
 
     def _parse_response(self, body: str, prompt_id: str, label: str) -> Optional[ManagedPrompt]:
         """Parse the API response into a ManagedPrompt."""
-        import json
-
         try:
             data = json.loads(body)
             template = data.get("template")
