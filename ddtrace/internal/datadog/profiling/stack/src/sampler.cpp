@@ -251,6 +251,9 @@ _stack_atfork_child()
     new (&thread_info_map_lock) std::mutex;
     new (&task_link_map_lock) std::mutex;
     new (&greenlet_info_map_lock) std::mutex;
+
+    // Reset the string_table mutex to avoid deadlock if fork happened while it was held
+    string_table.postfork_child();
 }
 
 __attribute__((constructor)) void
