@@ -79,7 +79,20 @@ class PyRef
     {
         Py_INCREF(_obj);
     }
-    inline ~PyRef() { Py_DECREF(_obj); }
+    inline ~PyRef()
+    {
+        // Avoid calling Py_DECREF during finalization as the thread state
+        // may be NULL, causing crashes in Python 3.14+ where _Py_Dealloc
+        // dereferences tstate immediately. This check uses relaxed atomics
+        // so it's not perfectly synchronized, but provides a safety net.
+#if PY_VERSION_HEX >= 0x030d0000
+        if (!Py_IsFinalizing()) {
+#else
+        if (!_Py_IsFinalizing()) {
+#endif
+            Py_DECREF(_obj);
+        }
+    }
 
   private:
     PyObject* _obj;
