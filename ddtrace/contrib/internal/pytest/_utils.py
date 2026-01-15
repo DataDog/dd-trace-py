@@ -65,15 +65,41 @@ def _encode_test_parameter(parameter: t.Any) -> str:
 def _get_names_from_item(item: pytest.Item) -> TestNames:
     """Gets an item's module, suite, and test names by leveraging the plugin hooks"""
 
+    # Always log for any test with extract_query in the name
+    if "extract_query" in item.nodeid:
+        print(f"*** OLD PLUGIN _get_names_from_item CALLED: nodeid='{item.nodeid}', name='{item.name}' ***")
+        log.debug("DEBUG OLD PLUGIN _get_names_from_item for ANY extract_query test:")
+        log.debug("  item.nodeid: %s", item.nodeid)
+        log.debug("  item.name: %s", item.name)
+
     matches = re.match(_NODEID_REGEX, item.nodeid)
+
+    # DEBUG: Add logging for the problematic test case
+    if "test_extract_query" in item.nodeid:
+        log.debug("DEBUG OLD PLUGIN _get_names_from_item DETAILED:")
+        log.debug("  item.nodeid: %s", item.nodeid)
+        log.debug("  item.name: %s", item.name)
+        log.debug("  regex matches: %s", matches is not None)
+        if hasattr(item, "callspec"):
+            log.debug("  item.callspec: %s", getattr(item, "callspec", None))
+
     if not matches:
-        return TestNames(module="unknown_module", suite="unknown_suite", test=item.name)
+        result = TestNames(module="unknown_module", suite="unknown_suite", test=item.name)
+        if "test_extract_query" in item.nodeid:
+            log.debug("  FALLBACK RESULT: module='%s', suite='%s', test='%s'", result.module, result.suite, result.test)
+        return result
 
     module_name = (matches.group("module") or "").replace("/", ".")
     suite_name = matches.group("suite")
     test_name = matches.group("name")
 
-    return TestNames(module=module_name, suite=suite_name, test=test_name)
+    result = TestNames(module=module_name, suite=suite_name, test=test_name)
+
+    # DEBUG: Log the normal path result
+    if "test_extract_query" in item.nodeid:
+        log.debug("  NORMAL RESULT: module='%s', suite='%s', test='%s'", result.module, result.suite, result.test)
+
+    return result
 
 
 @cached()
@@ -88,10 +114,22 @@ def _get_test_id_from_item(item: pytest.Item) -> TestId:
     suite_name = item.config.hook.pytest_ddtrace_get_item_suite_name(item=item)
     test_name = item.config.hook.pytest_ddtrace_get_item_test_name(item=item)
 
+    # DEBUG: Log the final TestId components for problematic test
+    if "test_extract_query" in item.nodeid:
+        log.debug("DEBUG OLD PLUGIN _get_test_id_from_item FINAL:")
+        log.debug("  module_name: '%s'", module_name)
+        log.debug("  suite_name: '%s'", suite_name)
+        log.debug("  test_name: '%s'", test_name)
+
     module_id = TestModuleId(module_name)
     suite_id = TestSuiteId(module_id, suite_name)
 
     test_id = TestId(suite_id, test_name)
+
+    # DEBUG: Log the final TestId for extract_query test
+    if "test_extract_query" in item.nodeid:
+        print(f"*** OLD PLUGIN FINAL TestId: {test_id.parent.parent.name}/{test_id.parent.name}::{test_id.name} ***")
+        log.debug("OLD PLUGIN FINAL TestId: %s/%s::%s", test_id.parent.parent.name, test_id.parent.name, test_id.name)
 
     return test_id
 
@@ -99,6 +137,13 @@ def _get_test_id_from_item(item: pytest.Item) -> TestId:
 def _get_test_parameters_json(item) -> t.Optional[str]:
     # Test parameters are part of the test ID
     callspec: pytest.python.CallSpec2 = getattr(item, "callspec", None)
+
+    # DEBUG: Log callspec details for extract_query test
+    if "extract_query" in item.nodeid:
+        log.debug("OLD PLUGIN _get_test_parameters_json: nodeid='%s'", item.nodeid)
+        log.debug("OLD PLUGIN callspec exists: %s", callspec is not None)
+        if callspec is not None:
+            log.debug("OLD PLUGIN callspec.params: %s", callspec.params)
 
     if callspec is None:
         return None

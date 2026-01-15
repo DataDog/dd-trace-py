@@ -1529,6 +1529,9 @@ venv = Venv(
         Venv(
             name="requests",
             command="pytest {cmdargs} tests/contrib/requests",
+            env={
+                "DD_TRACE_DEBUG": "1",
+            },
             pkgs={
                 "pytest-randomly": latest,
                 "urllib3": "~=1.0",

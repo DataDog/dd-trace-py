@@ -210,7 +210,41 @@ class SessionManager:
         if created:
             try:
                 self.collected_tests.add(test_ref)
+
+                # DEBUG: Log known_tests lookup details for inject_span test
+                if "inject_span" in test_ref.name:
+                    log.debug("=== KNOWN_TESTS LOOKUP DEBUG ===")
+                    log.debug(
+                        "Current test_ref: %s/%s::%s", test_ref.suite.module.name, test_ref.suite.name, test_ref.name
+                    )
+                    log.debug("test_ref in known_tests: %s", test_ref in self.known_tests)
+                    log.debug("len(known_tests): %d", len(self.known_tests))
+                    log.debug("hash(test_ref): %d", hash(test_ref))
+
+                    # Show some known_tests for comparison, especially any that contain inject_span
+                    log.debug("Sample known_tests (focusing on inject_span):")
+                    sample_count = 0
+                    for kt in self.known_tests:
+                        if "inject_span" in kt.name or sample_count < 3:
+                            log.debug(
+                                "  %d: %s/%s::%s (hash=%d)",
+                                sample_count + 1,
+                                kt.suite.module.name,
+                                kt.suite.name,
+                                kt.name,
+                                hash(kt),
+                            )
+                            sample_count += 1
+                            if sample_count >= 10:
+                                break
+
                 is_new = len(self.known_tests) > 0 and test_ref not in self.known_tests
+
+                # DEBUG: Log the final is_new result for inject_span test
+                if "inject_span" in test_ref.name:
+                    log.debug("FINAL RESULT: is_new = %s", is_new)
+                    log.debug("=== END KNOWN_TESTS LOOKUP DEBUG ===")
+
                 test_properties = self.test_properties.get(test_ref) or TestProperties()
                 test.set_attributes(
                     is_new=is_new,
