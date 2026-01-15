@@ -16,8 +16,8 @@ def _():
     # the acquiring thread to be terminated with pthread_exit (on Linux). This
     # causes a SIGABRT with GCC that cannot be caught, so we need to avoid
     # getting to that stage.
-    for thread in periodic_threads.values():
-        thread._atexit()
+    while periodic_threads:
+        (periodic_threads.popitem())[1]._atexit()
 
 
 @forksafe.register

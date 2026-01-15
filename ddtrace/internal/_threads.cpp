@@ -342,6 +342,9 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
             }
         }
 
+        // Unmap the thread since it is shutting down
+        PyDict_DelItem(_periodic_threads, self->ident);
+
         // Notify the join method that the thread has stopped
         self->_stopped->set();
     });
