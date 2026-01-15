@@ -110,27 +110,6 @@ def _get_worker_pids(stdout, num_worker, num_app_started=1):
     return worker_pids
 
 
-def _wait_for_profile_samples(filename_prefix, pid, value_type, timeout=10.0, interval=0.1):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            profile = pprof_utils.parse_newest_profile(
-                "%s.%d" % (filename_prefix, pid),
-                assert_samples=False,
-                allow_penultimate=True,
-            )
-        except (IndexError, FileNotFoundError):
-            time.sleep(interval)
-            continue
-
-        samples = pprof_utils.get_samples_with_value_type(profile, value_type)
-        if samples:
-            return samples
-        time.sleep(interval)
-
-    assert False, "Timed out waiting for %s samples for pid %d" % (value_type, pid)
-
-
 def test_uwsgi_threads_processes_primary(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
@@ -174,7 +153,7 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypat
     worker_pids = _get_worker_pids(proc.stdout, 2, 2)
     assert len(worker_pids) == 2
 
-    # Give some time to child to actually startup before terminating the master
+    # Give some time to child to actually startup and output a profile
     time.sleep(3)
 
     # Kill master process
@@ -199,7 +178,9 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypat
         print(f"INFO: Worker {worker_pid} was successfully killed.")
 
     for pid in worker_pids:
-        _wait_for_profile_samples(filename, pid, "wall-time")
+        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
+        samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+        assert len(samples) > 0
 
 
 @pytest.mark.parametrize("lazy_flag", ["--lazy-apps", "--lazy"])
