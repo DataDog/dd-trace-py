@@ -42,7 +42,6 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _BaggageHeader
 from ddtrace.propagation.http import _TraceContext
 from ddtrace.trace import Context
-from ddtrace.trace import tracer as ddtracer
 from tests.contrib.fastapi.conftest import client as fastapi_client  # noqa:F401
 from tests.contrib.fastapi.conftest import fastapi_application  # noqa:F401
 from tests.contrib.fastapi.conftest import fastapi_tracer as fastapi_tracer  # noqa:F401
@@ -814,7 +813,7 @@ def test_extract_128bit_trace_ids_tracecontext():
                 assert child_span.trace_id == trace_id
 
 
-def test_last_dd_span_id():
+def test_last_dd_span_id(tracer):
     non_dd_remote_context = HTTPPropagator.extract(
         {
             "traceparent": "00-70f198ee56343ba864fe8b2a57d4eff7-34f067aa0ba902b9-01",
@@ -822,14 +821,14 @@ def test_last_dd_span_id():
         }
     )
 
-    with ddtracer.start_span("local-root", child_of=non_dd_remote_context) as local_root:
-        with ddtracer.start_span("child1", child_of=local_root) as child1:
+    with tracer.start_span("local-root", child_of=non_dd_remote_context) as local_root:
+        with tracer.start_span("child1", child_of=local_root) as child1:
             pass
 
-    with ddtracer.start_span("child2", child_of=local_root) as chunk_root:
+    with tracer.start_span("child2", child_of=local_root) as chunk_root:
         pass
 
-    with ddtracer.start_span("root", child_of=None) as root:
+    with tracer.start_span("root", child_of=None) as root:
         pass
 
     # The last parent span_id tag should be set ONLY on the local root spans
@@ -3553,10 +3552,10 @@ def test_baggage_span_tags_wildcard():
     assert "baggage.session.id" not in context._meta
 
 
-def test_inject_context_without_sampling_priority_active_trace():
+def test_inject_context_without_sampling_priority_active_trace(tracer):
     """Test injecting a Context without sampling priority when there's an active trace."""
     headers = {}
-    with ddtracer.trace("test_span") as span:
+    with tracer.trace("test_span") as span:
         context = span.context
         assert context.sampling_priority is None  # No sampling decision yet
         with mock.patch("ddtrace.propagation.http.log.debug") as mock_debug:
@@ -3577,10 +3576,10 @@ def test_inject_context_without_sampling_priority_active_trace():
     )  # Headers include computed priority
 
 
-def test_inject_context_without_sampling_priority_inactive_trace():
+def test_inject_context_without_sampling_priority_inactive_trace(tracer):
     """Test injecting a Context without sampling priority when the Context is not part of the active trace."""
     headers = {}
-    with ddtracer.start_span("test_span", activate=False, child_of=None) as span:
+    with tracer.start_span("test_span", activate=False, child_of=None) as span:
         with mock.patch("ddtrace.propagation.http.log.debug") as mock_debug:
             HTTPPropagator.inject(span.context, headers)
 
@@ -3598,11 +3597,11 @@ def test_inject_context_without_sampling_priority_inactive_trace():
     assert "x-datadog-sampling-priority" not in headers  # No sampling priority in headers
 
 
-def test_inject_span_without_sampling_priority():
+def test_inject_span_without_sampling_priority(tracer):
     """Test injecting a Span without sampling priority in a nested trace context."""
     headers = {}
-    with ddtracer.trace("parent") as parent:
-        with ddtracer.trace("child") as child:
+    with tracer.trace("parent") as parent:
+        with tracer.trace("child") as child:
             assert child.context.sampling_priority is None  # No sampling decision yet
             with mock.patch("ddtrace.propagation.http.log.debug") as mock_debug:
                 HTTPPropagator.inject(child, headers)
