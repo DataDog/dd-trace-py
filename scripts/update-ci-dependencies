@@ -15,7 +15,8 @@ Process:
 2. Extract package names and version constraints
 3. Create ci/requirements/ci.in with all dependencies
 4. Run pip-compile to generate ci/requirements/ci.txt
-5. Report what was found and what to do next
+5. Update GitHub Actions workflows to use locked requirements (GitLab files use explicit versions)
+6. Report what was found and what to do next
 
 Usage:
     scripts/update-ci-dependencies [--compile] [--update-workflows]
@@ -387,6 +388,9 @@ def update_workflow_files(
     """
     Update CI workflow files to use locked requirements.
 
+    Note: GitLab CI files (.gitlab/*) are excluded from automatic updates.
+    They use explicit version specifications instead of locked requirements.
+
     Args:
         package_sources: Mapping of package specs to their sources
         use_composite_action: If True, use composite action for GitHub Actions workflows
@@ -409,6 +413,11 @@ def update_workflow_files(
     updated_count = 0
 
     for file_path, line_numbers in files_to_update.items():
+        # Skip GitLab CI files - they use explicit versioning instead of locked requirements
+        if str(file_path).startswith(".gitlab/"):
+            print(f"\nSkipping {file_path} (GitLab CI files are excluded from auto-updates)")
+            continue
+
         print(f"\nUpdating {file_path}...")
 
         try:
@@ -533,7 +542,8 @@ Process:
 2. Extract package names and version constraints
 3. Create ci/requirements/ci.in with all dependencies
 4. Run pip-compile to generate ci/requirements/ci.txt
-5. Report what was found and what to do next
+5. Update GitHub Actions workflows to use locked requirements (GitLab files use explicit versions)
+6. Report what was found and what to do next
         """.strip(),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -547,7 +557,7 @@ Process:
     parser.add_argument(
         "--update-workflows",
         action="store_true",
-        help="Update CI workflow files to use locked requirements",
+        help="Update GitHub Actions workflow files to use locked requirements (GitLab CI files are excluded)",
     )
 
     return parser.parse_args()
