@@ -69,9 +69,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libmariadb-dev
 
-      - name: Install Python dependencies
-        run: |
-          pip install -r ci/requirements/ci.txt
+      - uses: ./.github/actions/setup-ci-deps
 
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh
