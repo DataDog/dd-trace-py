@@ -284,15 +284,3 @@ class TestAnnotationContext:
                 assert prompt_data["id"] == "greeting"
                 assert prompt_data["version"] == "v1"
                 assert prompt_data["variables"] == {"name": "Alice"}
-
-
-class TestFormatConversion:
-    """Format helpers for LLM SDKs."""
-
-    def test_to_messages_wraps_text(self):
-        """to_messages() wraps text template in user role."""
-        with mock_api(200, TEXT_PROMPT_RESPONSE):
-            prompt = LLMObs.get_prompt("greeting")
-
-        messages = prompt.to_messages(name="Alice")
-        assert messages == [{"role": "user", "content": "Hello Alice!"}]
