@@ -46,12 +46,13 @@ pyunicode_to_utf8(PyObject* str_addr)
 
     return Result<std::string>(dest);
 }
+
 [[nodiscard]] Result<StringTable::Key>
-StringTable::key(PyObject* s)
+StringTable::key(PyObject* s, StringTag tag)
 {
     const std::lock_guard<std::mutex> lock(table_lock);
 
-    auto k = reinterpret_cast<Key>(s);
+    auto k = make_tagged_key(reinterpret_cast<uintptr_t>(s), tag);
 
     if (this->find(k) == this->end()) {
 #if PY_VERSION_HEX >= 0x030c0000
@@ -83,12 +84,14 @@ StringTable::key(PyObject* s)
 
     return Result<Key>(k);
 };
+
+// Python string object
 [[nodiscard]] StringTable::Key
-StringTable::key_unsafe(PyObject* s)
+StringTable::key_unsafe(PyObject* s, StringTag tag)
 {
     const std::lock_guard<std::mutex> lock(table_lock);
 
-    auto k = reinterpret_cast<Key>(s);
+    auto k = make_tagged_key(reinterpret_cast<uintptr_t>(s), tag);
 
     if (this->find(k) == this->end()) {
 #if PY_VERSION_HEX >= 0x030c0000
@@ -104,8 +107,9 @@ StringTable::key_unsafe(PyObject* s)
 
     return k;
 };
+
 [[nodiscard]] Result<std::reference_wrapper<const std::string>>
-StringTable::lookup(Key key) const
+StringTable::lookup(StringTable::Key key) const
 {
     const std::lock_guard<std::mutex> lock(table_lock);
 

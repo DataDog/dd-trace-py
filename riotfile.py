@@ -3611,6 +3611,7 @@ venv = Venv(
             command="pytest tests/appsec/contrib_appsec/test_django.py {cmdargs}",
             pkgs={
                 "requests": latest,
+                "httpx": latest,
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -3665,6 +3666,7 @@ venv = Venv(
                 "pytest-cov": latest,
                 "requests": latest,
                 "hypothesis": latest,
+                "httpx": latest,
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
