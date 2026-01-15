@@ -18,12 +18,15 @@ build_base_venvs:
     - when: always
   script: |
     set -e -o pipefail
-    #if [ ! -z "$UNPIN_DEPENDENCIES" && "$UNPIN_DEPENDENCIES" == "true" ]; then
-      # sed the deps
-      #  export PIP_PRE=true
-      #fi
-    export PIP_PRE=true
+    if [ ! -z ${UNPIN_DEPENDENCIES} && ${UNPIN_DEPENDENCIES} == "true" ]
+    then
+      python edit-deps-prerelease.py
+      export PIP_PRE=true
+    fi
     riot -P -v generate --python=$PYTHON_VERSION
+    source `ls .riot/venv_py3*/bin/activate | head -n 1`
+    pip freeze
+    deactivate
     echo "Running smoke tests"
     riot -v run -s --python=$PYTHON_VERSION smoke_test
   artifacts:
