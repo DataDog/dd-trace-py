@@ -1,5 +1,7 @@
 import os
+
 import tomllib
+
 
 PROJECT_FILENAME = "pyproject.toml"
 PRERELEASE_MARKER = "rc"
