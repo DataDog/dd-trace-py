@@ -131,25 +131,24 @@ Datadog::Uploader::upload()
     {
         const std::lock_guard<std::mutex> lock_guard(upload_lock);
 
-        // If we're here, we're about to create a new upload, so cancel any inflight ones.
-        // We need to hold cancel_lock when accessing the cancellation token.
-        // Note: we do not use cancel_inflight to make sure the cancel_lock is held
-        // all the way through re-allocating the cancellation token.
-        ddog_CancellationToken cancel_for_request;
-        {
-            const std::lock_guard<std::mutex> cancel_lock_guard(cancel_lock);
-            ddog_CancellationToken_cancel(&cancel);
-            ddog_CancellationToken_drop(&cancel);
+        // Before starting a new upload, we need to cancel the current one (if it exists).
+        // To do that, we exchange the current cancellation token with a new one (which will be used for our own upload)
+        // If the current cancellation token was not null, then we use it to cancel the ongoing upload, then drop it.
+        // Other threads can use our own cancellation token to cancel our upload as soon as we have exchanged it.
+        // Note: we need to make (and use) a clone of the new cancellation token for the request, in case another thread
+        // cancels our upload and drops the handle (which would free the token).
+        auto new_cancel = ddog_CancellationToken_new();
+        auto new_cancel_clone_for_request = ddog_CancellationToken_clone(&new_cancel);
+        auto current_cancel = cancel.exchange(new_cancel);
 
-            // We have to create a new cancellation token, as we dropped the previous one.
-            // We also clone it to pass it to the request.
-            cancel = ddog_CancellationToken_new();
-            cancel_for_request = ddog_CancellationToken_clone(&cancel);
+        if (current_cancel.inner != nullptr) {
+            ddog_CancellationToken_cancel(&current_cancel);
+            ddog_CancellationToken_drop(&current_cancel);
         }
 
         // Build and check the response object
         ddog_prof_Request* req = &build_res.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
-        ddog_prof_Result_HttpStatus res = ddog_prof_Exporter_send(&ddog_exporter, req, &cancel_for_request);
+        ddog_prof_Result_HttpStatus res = ddog_prof_Exporter_send(&ddog_exporter, req, &new_cancel_clone_for_request);
         if (res.tag ==
             DDOG_PROF_RESULT_HTTP_STATUS_ERR_HTTP_STATUS) { // NOLINT (cppcoreguidelines-pro-type-union-access)
             auto err = res.err;                             // NOLINT (cppcoreguidelines-pro-type-union-access)
@@ -159,7 +158,7 @@ Datadog::Uploader::upload()
             ret = false;
         }
         ddog_prof_Exporter_Request_drop(req);
-        ddog_CancellationToken_drop(&cancel_for_request);
+        ddog_CancellationToken_drop(&new_cancel_clone_for_request);
     }
 
     return ret;
@@ -180,9 +179,15 @@ Datadog::Uploader::unlock()
 void
 Datadog::Uploader::cancel_inflight()
 {
-    const std::lock_guard<std::mutex> lock_guard(cancel_lock);
-    ddog_CancellationToken_cancel(&cancel);
-    ddog_CancellationToken_drop(&cancel);
+    // Cancel the current upload if there is one.
+    // We replace the cancellation token with a null token as we don't have anything
+    // else to provide (here, we are not starting a new upload).
+    auto current_cancel = cancel.exchange({ .inner = nullptr });
+
+    if (current_cancel.inner != nullptr) {
+        ddog_CancellationToken_cancel(&current_cancel);
+        ddog_CancellationToken_drop(&current_cancel);
+    }
 }
 
 void
@@ -218,5 +223,4 @@ Datadog::Uploader::postfork_child()
 {
     // NB placement-new to re-init and leak the mutex because doing anything else is UB
     new (&upload_lock) std::mutex();
-    new (&cancel_lock) std::mutex();
 }
