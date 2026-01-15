@@ -121,6 +121,12 @@ class SpanLink(SpanLinkData):
 
         return d
 
+    def __getstate__(self):
+        return dataclasses.asdict(self)
+
+    def __setstate__(self, state):
+        self.__init__(**state)
+
     def __repr__(self) -> str:
         return (
             f"SpanLink(trace_id={self.trace_id}, span_id={self.span_id}, attributes={self.attributes}, "
