@@ -20,7 +20,7 @@ build_base_venvs:
     set -e -o pipefail
     if [[ true || (! -z ${{UNPIN_DEPENDENCIES}} && ${{UNPIN_DEPENDENCIES}} == "true") ]]
     then
-      python .gitlab/edit-deps-prerelease.py
+      python scripts/allow_prerelease_dependencies.py
       export PIP_PRE=true
     fi
     riot -P -v generate --python=$PYTHON_VERSION
