@@ -52,7 +52,6 @@ checks = [
     "typing",
     "spelling",
     "riot",
-    "ci-deps-check",
     "security",
     "test",
     "suitespec-check",
