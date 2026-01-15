@@ -26,6 +26,7 @@
       "Bash(git grep:*)",
       "Bash(ast-grep scan:*)",
       "Bash(awk:*)",
+      "Bash(jj:*)",
       "WebFetch(domain:ast-grep.github.io)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
@@ -37,10 +38,7 @@
       "Skill(run-tests)",
       "Skill(lint)",
       "Skill(find-cpython-usage)",
-      "Skill(compare-cpython-versions)",
-      "Bash(uv pip compile:*)",
-      "Bash(scripts/check-ci-dependencies:*)",
-      "Bash(scripts/update-ci-dependencies)"
+      "Skill(compare-cpython-versions)"
     ],
     "deny": []
   }
