@@ -10,17 +10,77 @@
 # All packages below are extracted from CI workflows
 
 # Used in:
+#   .github/workflows/generate-package-versions.yml:80
+PyYAML
+
+# Used in:
+#   .github/workflows/build_python_3.yml:28
+cibuildwheel==2.18.1
+
+# Used in:
+#   .github/workflows/report-skipped-flaky.yml:34
+codeowners
+
+# Used in:
+#   .github/workflows/generate-package-versions.yml:81
+ddtrace
+
+# Used in:
+#   .github/workflows/changelog.yml:37
+docutils
+
+# Used in:
+#   .github/workflows/generate-package-versions.yml:79
+#   .github/workflows/pytorch_gpu_tests.yml:38
+hatch==1.14.2
+
+# Used in:
+#   .github/workflows/generate-package-versions.yml:75
+#   .github/workflows/generate-supported-versions.yml:59
+packaging
+
+# Used in:
+#   .github/workflows/generate-package-versions.yml:77
+pip-tools==7.5.2
+
+# Used in:
+#   .github/workflows/generate-package-versions.yml:74
+pip<25.3
+
+# Used in:
+#   .github/workflows/changelog.yml:37
+reno
+
+# Used in:
+#   .github/workflows/generate-package-versions.yml:76
+#   .github/workflows/generate-supported-versions.yml:60
+requests
+
+# Used in:
+#   .github/workflows/generate-package-versions.yml:78
+#   .github/workflows/generate-supported-versions.yml:61
+riot==0.20.1
+
+# Used in:
+#   .github/workflows/pytorch_gpu_tests.yml:41
+torch
+
+# Used in:
+#   .github/workflows/generate-supported-versions.yml:62
+wrapt==1.16.0
+
+# Used in:
 #   .gitlab/package.yml:118
-cmarkgfm<2025.10.20
+cmarkgfm>=2024,<2025.10.20
+
+# Used in:
+#   .gitlab/package.yml:118
+readme-renderer[md]>=44.0,<45
+
+# Used in:
+#   .gitlab/package.yml:118
+twine>=5.0,<7
 
 # Used in:
 #   .gitlab/package.yml:283
-packaging==25.0
-
-# Used in:
-#   .gitlab/package.yml:118
-readme_renderer[md]
-
-# Used in:
-#   .gitlab/package.yml:118
-twine
+packaging>=24.0,<26

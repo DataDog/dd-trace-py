@@ -39,7 +39,8 @@
       "Skill(find-cpython-usage)",
       "Skill(compare-cpython-versions)",
       "Bash(uv pip compile:*)",
-      "Bash(scripts/check-ci-dependencies:*)"
+      "Bash(scripts/check-ci-dependencies:*)",
+      "Bash(scripts/update-ci-dependencies)"
     ],
     "deny": []
   }
