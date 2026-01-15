@@ -1,32 +1,18 @@
 #!/usr/bin/env python3
 """
-Demo script for testing LLMObs.get_prompt() with local RAPID service.
-
-Prerequisites:
-    1. Start RAPID service in dd-source:
-       cd ~/DataDog/dd-source
-       rapid run --service llmobs-prompt-registry
-
-    2. Install dd-trace-py in editable mode:
-       cd ~/DataDog/dd-trace-py
-       pip install -e .
-
-    3. Set environment variables:
-       export DD_API_KEY=test-api-key
-       export DD_LLMOBS_ML_APP=demo-app
-       export DD_LLMOBS_PROMPTS_ENDPOINT=http://localhost:8080
+Demo script for testing LLMObs.get_prompt() with the Prompt Registry.
 
 Usage:
-    python demo_get_prompt.py
+    ./run.sh demo_get_prompt.py
 """
 
 import os
 
 
-# Set required environment variables for local testing
+# Configure environment for staging (DD_API_KEY should be set via dd-auth)
 os.environ.setdefault("DD_API_KEY", "test-api-key")
-os.environ.setdefault("DD_LLMOBS_ML_APP", "demo-app")
-os.environ.setdefault("DD_LLMOBS_PROMPTS_ENDPOINT", "http://localhost:8080")
+os.environ.setdefault("DD_LLMOBS_PROMPTS_ENDPOINT", "https://api.datad0g.com")
+os.environ.setdefault("DD_LLMOBS_ML_APP", "customer-chatbot")
 
 from ddtrace.llmobs import LLMObs
 
@@ -61,7 +47,7 @@ def demo_chat_template():
     print("Demo 2: Chat Template Prompt (assistant)")
     print("=" * 60)
 
-    prompt = LLMObs.get_prompt("assistant", label="staging")
+    prompt = LLMObs.get_prompt("assistant", label="prod")
 
     print(f"Prompt ID: {prompt.id}")
     print(f"Version: {prompt.version}")
@@ -180,9 +166,8 @@ def main():
     except Exception as e:
         print(f"ERROR: {e}")
         print()
-        print("Make sure the RAPID service is running:")
-        print("  cd ~/DataDog/dd-source")
-        print("  rapid run --service llmobs-prompt-registry")
+        print("Make sure you have authenticated with dd-auth")
+        print("and the Prompt Registry service is available.")
         raise
 
 
