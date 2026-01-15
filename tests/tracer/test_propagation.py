@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import dataclasses
 import json
 import logging
 import os
@@ -1555,21 +1554,6 @@ ALL_HEADERS_CHAOTIC_2.update(TRACECONTEXT_HEADERS_VALID_64_bit)
 ALL_HEADERS_CHAOTIC_2.update(B3_HEADERS_VALID_W_OUT_SPAN_ID)
 ALL_HEADERS_CHAOTIC_2.update(B3_SINGLE_HEADERS_INVALID)
 
-
-@dataclasses.dataclass
-class PickableSpanLink(SpanLink):
-    """A SpanLink override that supports being pickled to be sent in a subprocess"""
-
-    def __getstate__(self):
-        return dataclasses.asdict(self)
-
-    def __setstate__(self, state):
-        self.__init__(**state)
-
-    def __eq__(self, value):
-        return type(value) == SpanLink and dataclasses.asdict(self) == dataclasses.asdict(value)
-
-
 EXTRACT_FIXTURES = [
     # Datadog headers
     (
@@ -1937,7 +1921,7 @@ EXTRACT_FIXTURES = [
             "dd_origin": "synthetics",
             "meta": {"_dd.origin": "synthetics"},
             "span_links": [
-                PickableSpanLink(
+                SpanLink(
                     trace_id=TRACE_ID,
                     span_id=67667974448284343,
                     tracestate="dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
@@ -1966,21 +1950,21 @@ EXTRACT_FIXTURES = [
             "dd_origin": "synthetics",
             "meta": {"_dd.origin": "synthetics"},
             "span_links": [
-                PickableSpanLink(
+                SpanLink(
                     trace_id=TRACE_ID,
                     span_id=11744061942159299346,
                     tracestate=None,
                     flags=1,
                     attributes={"reason": "terminated_context", "context_headers": "b3multi"},
                 ),
-                PickableSpanLink(
+                SpanLink(
                     trace_id=TRACE_ID,
                     span_id=16453819474850114513,
                     tracestate=None,
                     flags=1,
                     attributes={"reason": "terminated_context", "context_headers": "b3"},
                 ),
-                PickableSpanLink(
+                SpanLink(
                     trace_id=TRACE_ID,
                     span_id=67667974448284343,
                     tracestate=TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
@@ -2007,21 +1991,21 @@ EXTRACT_FIXTURES = [
             "dd_origin": "synthetics",
             "meta": {"_dd.origin": "synthetics"},
             "span_links": [
-                PickableSpanLink(
+                SpanLink(
                     trace_id=TRACE_ID,
                     span_id=11744061942159299346,
                     tracestate=None,
                     flags=1,
                     attributes={"reason": "terminated_context", "context_headers": "b3multi"},
                 ),
-                PickableSpanLink(
+                SpanLink(
                     trace_id=TRACE_ID,
                     span_id=16453819474850114513,
                     tracestate=None,
                     flags=1,
                     attributes={"reason": "terminated_context", "context_headers": "b3"},
                 ),
-                PickableSpanLink(
+                SpanLink(
                     trace_id=TRACE_ID,
                     span_id=67667974448284343,
                     tracestate=TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
@@ -2208,7 +2192,7 @@ EXTRACT_FIXTURES = [
             "dd_origin": "synthetics",
             "meta": {"_dd.origin": "synthetics"},
             "span_links": [
-                PickableSpanLink(
+                SpanLink(
                     trace_id=TRACE_ID,
                     span_id=67667974448284343,
                     tracestate="dd=o:rum",
@@ -2259,7 +2243,7 @@ EXTRACT_FIXTURES = [
             "sampling_priority": None,
             "dd_origin": None,
             "span_links": [
-                PickableSpanLink(
+                SpanLink(
                     trace_id=13088165645273925489,
                     span_id=5678,
                     tracestate=None,
@@ -2281,7 +2265,7 @@ EXTRACT_FIXTURES = [
             "dd_origin": None,
             "baggage": {"key1": "val1", "key2": "val2"},
             "span_links": [
-                PickableSpanLink(
+                SpanLink(
                     trace_id=13088165645273925489,
                     span_id=5678,
                     tracestate=None,
@@ -2303,7 +2287,7 @@ EXTRACT_FIXTURES = [
             "sampling_priority": None,
             "dd_origin": None,
             "span_links": [
-                PickableSpanLink(
+                SpanLink(
                     trace_id=13088165645273925489,
                     span_id=5678,
                     tracestate=None,
@@ -2324,7 +2308,7 @@ EXTRACT_FIXTURES = [
             "sampling_priority": None,
             "dd_origin": None,
             "span_links": [
-                PickableSpanLink(
+                SpanLink(
                     trace_id=171395628812617415352188477958425669623,
                     span_id=67667974448284343,
                     tracestate="dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
@@ -2345,7 +2329,7 @@ EXTRACT_FIXTURES = [
             "sampling_priority": None,
             "dd_origin": None,
             "span_links": [
-                PickableSpanLink(
+                SpanLink(
                     trace_id=171395628812617415352188477958425669623,
                     span_id=67667974448284343,
                     tracestate=None,
@@ -2367,7 +2351,7 @@ EXTRACT_FIXTURES = [
             "dd_origin": None,
             "baggage": {"key1": "val1", "key2": "val2"},
             "span_links": [
-                PickableSpanLink(
+                SpanLink(
                     trace_id=13088165645273925489,
                     span_id=5678,
                     tracestate=None,
@@ -2648,7 +2632,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
             },
             metrics={"_sampling_priority_v1": 2},
             span_links=[
-                PickableSpanLink(
+                SpanLink(
                     trace_id=13088165645273925489,
                     span_id=5678,
                     tracestate=None,
@@ -2681,7 +2665,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
             },
             metrics={"_sampling_priority_v1": 2},
             span_links=[
-                PickableSpanLink(
+                SpanLink(
                     trace_id=13088165645273925489,
                     span_id=5678,
                     tracestate=None,
@@ -2708,14 +2692,14 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
             meta={"_dd.origin": "synthetics"},
             metrics={"_sampling_priority_v1": 1},
             span_links=[
-                PickableSpanLink(
+                SpanLink(
                     trace_id=TRACE_ID,
                     span_id=67667974448284343,
                     tracestate=TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
                     flags=1,
                     attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
                 ),
-                PickableSpanLink(
+                SpanLink(
                     trace_id=TRACE_ID,
                     span_id=16453819474850114513,
                     tracestate=None,
@@ -2758,7 +2742,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
             },
             metrics={"_sampling_priority_v1": 1},
             span_links=[
-                PickableSpanLink(
+                SpanLink(
                     trace_id=171395628812617415352188477958425669623,
                     span_id=16453819474850114513,
                     tracestate=None,
