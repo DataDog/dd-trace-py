@@ -5,9 +5,11 @@
 #include "profiler_stats.hpp"
 
 #include <cerrno>   // errno
+#include <chrono>   // milliseconds
 #include <cstring>  // strerror
 #include <fstream>  // ofstream
 #include <sstream>  // ostringstream
+#include <thread>   // sleep_for
 #include <unistd.h> // getpid
 #include <vector>
 
@@ -16,11 +18,13 @@ using namespace Datadog;
 Datadog::Uploader::Uploader(std::string_view _output_filename,
                             ddog_prof_ProfileExporter _ddog_exporter,
                             ddog_prof_EncodedProfile _encoded_profile,
-                            Datadog::ProfilerStats _stats)
+                            Datadog::ProfilerStats _stats,
+                            std::string_view _process_tags)
   : output_filename{ _output_filename }
   , ddog_exporter{ _ddog_exporter }
   , encoded_profile{ _encoded_profile }
-  , profiler_stats{ std::move(_stats) }
+  , profiler_stats{ _stats }
+  , process_tags{ _process_tags }
 {
     // Increment the upload sequence number every time we build an uploader.
     // Uploaders are use-once-and-destroy.
@@ -90,6 +94,13 @@ Datadog::Uploader::upload()
     auto internal_metadata_json = profiler_stats.get_internal_metadata_json();
     auto internal_metadata_json_slice = to_slice(internal_metadata_json);
 
+    ddog_CharSlice process_tags_slice;
+    const ddog_CharSlice* optional_process_tags_ptr = nullptr;
+    if (!process_tags.empty()) {
+        process_tags_slice = to_slice(process_tags);
+        optional_process_tags_ptr = &process_tags_slice;
+    }
+
     auto build_res = ddog_prof_Exporter_Request_build(
       &ddog_exporter,
       &encoded_profile,
@@ -100,9 +111,9 @@ Datadog::Uploader::upload()
       },
       ddog_prof_Exporter_Slice_File_empty(), // files_to_export_unmodified
       nullptr,                               // optional_additional_tags
+      optional_process_tags_ptr,
       &internal_metadata_json_slice,
-      nullptr, // optional_info_json
-      nullptr  // optional_process_tags
+      nullptr // optional_info_json
     );
 
     if (build_res.tag ==
@@ -118,18 +129,26 @@ Datadog::Uploader::upload()
     // The upload operation sets up some global state in libdatadog (the tokio runtime), so
     // we ensure exclusivity here.
     {
-        // If we're here, we're about to create a new upload, so cancel any inflight ones
         const std::lock_guard<std::mutex> lock_guard(upload_lock);
-        cancel_inflight();
 
-        // We have to create a new cancellation token, as cancel_inflight() drops the previous one.
-        // We also clone it to pass it to the request.
-        cancel = ddog_CancellationToken_new();
-        auto cancel_for_request = ddog_CancellationToken_clone(&cancel);
+        // Before starting a new upload, we need to cancel the current one (if it exists).
+        // To do that, we exchange the current cancellation token with a new one (which will be used for our own upload)
+        // If the current cancellation token was not null, then we use it to cancel the ongoing upload, then drop it.
+        // Other threads can use our own cancellation token to cancel our upload as soon as we have exchanged it.
+        // Note: we need to make (and use) a clone of the new cancellation token for the request, in case another thread
+        // cancels our upload and drops the handle (which would free the token).
+        auto new_cancel = ddog_CancellationToken_new();
+        auto new_cancel_clone_for_request = ddog_CancellationToken_clone(&new_cancel);
+        auto current_cancel = cancel.exchange(new_cancel);
+
+        if (current_cancel.inner != nullptr) {
+            ddog_CancellationToken_cancel(&current_cancel);
+            ddog_CancellationToken_drop(&current_cancel);
+        }
 
         // Build and check the response object
         ddog_prof_Request* req = &build_res.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
-        ddog_prof_Result_HttpStatus res = ddog_prof_Exporter_send(&ddog_exporter, req, &cancel_for_request);
+        ddog_prof_Result_HttpStatus res = ddog_prof_Exporter_send(&ddog_exporter, req, &new_cancel_clone_for_request);
         if (res.tag ==
             DDOG_PROF_RESULT_HTTP_STATUS_ERR_HTTP_STATUS) { // NOLINT (cppcoreguidelines-pro-type-union-access)
             auto err = res.err;                             // NOLINT (cppcoreguidelines-pro-type-union-access)
@@ -139,7 +158,7 @@ Datadog::Uploader::upload()
             ret = false;
         }
         ddog_prof_Exporter_Request_drop(req);
-        ddog_CancellationToken_drop(&cancel_for_request);
+        ddog_CancellationToken_drop(&new_cancel_clone_for_request);
     }
 
     return ret;
@@ -160,20 +179,42 @@ Datadog::Uploader::unlock()
 void
 Datadog::Uploader::cancel_inflight()
 {
-    ddog_CancellationToken_cancel(&cancel);
-    ddog_CancellationToken_drop(&cancel);
+    // Cancel the current upload if there is one.
+    // We replace the cancellation token with a null token as we don't have anything
+    // else to provide (here, we are not starting a new upload).
+    auto current_cancel = cancel.exchange({ .inner = nullptr });
+
+    if (current_cancel.inner != nullptr) {
+        ddog_CancellationToken_cancel(&current_cancel);
+        ddog_CancellationToken_drop(&current_cancel);
+    }
 }
 
 void
 Datadog::Uploader::prefork()
 {
-    lock();
+    // We do not have a way to handle upload state leaking to children, so when a fork happens,
+    // we cancel all inflight uploads to prevent this from happening.
+    // Note: we could wait for the upload to finish instead of cancelling, but this would
+    // mean hanging for some time before the fork happens, which is not acceptable from a
+    // user perspective.
     cancel_inflight();
+
+    // Keep cancelling and trying to acquire the lock until we succeed.
+    // This is necessary as a second uploader may start between the end of cancel_inflight and
+    // the moment we acquire the lock, which would result on hanging on waiting for the lock.
+    while (!upload_lock.try_lock()) {
+        cancel_inflight();
+        std::this_thread::sleep_for(std::chrono::microseconds(50));
+    }
+
+    // upload_lock is locked and will be unlocked in postfork_parent()
 }
 
 void
 Datadog::Uploader::postfork_parent()
 {
+    // upload_lock was locked in prefork.
     unlock();
 }
 

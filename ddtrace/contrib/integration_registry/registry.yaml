@@ -385,7 +385,7 @@ integrations:
   tested_versions_by_dependency:
     gevent:
       min: 21.1.2
-      max: 25.5.1
+      max: 25.9.1
 
 - integration_name: google_adk
   is_external_package: true
@@ -448,7 +448,7 @@ integrations:
   - httpx
   tested_versions_by_dependency:
     httpx:
-      min: 0.17.1
+      min: 0.25.0
       max: 0.28.1
 
 - integration_name: jinja2
@@ -735,7 +735,7 @@ integrations:
   tested_versions_by_dependency:
     pytest:
       min: 6.2.5
-      max: 8.4.2
+      max: 9.0.2
 
 - integration_name: pytest_bdd
   is_external_package: true

@@ -6,12 +6,36 @@
 #include "python_headers.hpp"
 
 #include "dd_wrapper/include/sample.hpp"
-#include "dd_wrapper/include/sample_manager.hpp"
 
 #include "echion/frame.h"
 #include "echion/render.h"
 
 namespace Datadog {
+
+namespace internal {
+
+struct PtrPair
+{
+    void* a;
+    void* b;
+};
+
+struct PtrPairHash
+{
+    inline size_t operator()(const PtrPair& p) const noexcept
+    {
+        uintptr_t h1 = reinterpret_cast<uintptr_t>(p.a);
+        uintptr_t h2 = reinterpret_cast<uintptr_t>(p.b);
+        return h1 ^ (h2 * 0x9e3779b97f4a7c15ULL);
+    }
+};
+
+struct PtrPairEq
+{
+    inline bool operator()(const PtrPair& x, const PtrPair& y) const noexcept { return x.a == y.a && x.b == y.b; }
+};
+
+} // namespace internal
 
 struct ThreadState
 {
@@ -31,15 +55,20 @@ class StackRenderer : public RendererInterface
 {
     Sample* sample = nullptr;
     ThreadState thread_state = {};
+
+    std::unordered_map<StringTable::Key, string_id> string_id_cache;
+    std::unordered_map<internal::PtrPair, function_id, internal::PtrPairHash, internal::PtrPairEq> function_id_cache;
+
     // Whether task name has been pushed for the current sample. Whenever
     // the sample is created, this has to be reset.
     bool pushed_task_name = false;
 
-    Result<void> open() override { return Result<void>::ok(); }
+  public:
+    Result<void> open() override;
     void close() override {}
     void header() override {}
     void metadata(const std::string&, const std::string&) override {}
-    void frame(uintptr_t, uintptr_t, uintptr_t, int, int, int, int) override {};
+    void frame(uintptr_t, uintptr_t, uintptr_t, unsigned, unsigned, unsigned, unsigned) override {};
     void frame_ref(uintptr_t) override{};
     void frame_kernel(const std::string&) override {};
     void string(uintptr_t, const std::string&) override {};
@@ -57,6 +86,9 @@ class StackRenderer : public RendererInterface
     virtual void render_cpu_time(uint64_t cpu_time_us) override;
     virtual void render_stack_end(MetricType metric_type, uint64_t value) override;
     virtual bool is_valid() override;
+
+    // Clear caches after fork to avoid using stale interned string/function IDs
+    void postfork_child();
 };
 
 } // namespace Datadog

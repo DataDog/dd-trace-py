@@ -114,6 +114,9 @@ celerybeat-schedule*
 # it must be versioned to keep track of backing services defaults
 !.env
 
+# Local docker-compose overrides
+docker-compose.override.yml
+
 # virtualenv
 .venv*
 venv/

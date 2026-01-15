@@ -249,27 +249,31 @@ tests/tracer/                                      @DataDog/apm-sdk-capabilities
 # Override because order matters
 tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
 
-# Serverless
-ddtrace/contrib/internal/aws_lambda                         @DataDog/apm-serverless
-ddtrace/contrib/internal/azure_eventhubs                    @DataDog/serverless @DataDog/apm-serverless
-ddtrace/contrib/internal/azure_functions                    @DataDog/serverless @DataDog/apm-serverless
-ddtrace/contrib/internal/azure_servicebus                   @DataDog/serverless @DataDog/apm-serverless
-ddtrace/ext/aws.py                                          @DataDog/apm-serverless @DataDog/apm-idm-python
-ddtrace/ext/azure_eventhubs.py                              @DataDog/serverless @DataDog/apm-serverless
-ddtrace/ext/azure_servicebus.py                             @DataDog/serverless @DataDog/apm-serverless
-tests/contrib/aws_lambda                                    @DataDog/apm-serverless
-tests/contrib/azure_eventhubs                               @DataDog/serverless @DataDog/apm-serverless
-tests/contrib/azure_functions                               @DataDog/serverless @DataDog/apm-serverless
-tests/contrib/azure_functions_eventhubs                     @DataDog/serverless @DataDog/apm-serverless
-tests/contrib/azure_functions_servicebus                    @DataDog/serverless @DataDog/apm-serverless
-tests/contrib/azure_servicebus                              @DataDog/serverless @DataDog/apm-serverless
-tests/internal/test_serverless.py                           @DataDog/apm-core-python @DataDog/apm-serverless @DataDog/asm-python
-tests/snapshots/tests.contrib.aws_lambda.*.                 @DataDog/apm-serverless
-tests/snapshots/tests.contrib.azure_eventhubs.*             @DataDog/serverless @DataDog/apm-serverless
-tests/snapshots/tests.contrib.azure_functions.*             @DataDog/serverless @DataDog/apm-serverless
-tests/snapshots/tests.contrib.azure_functions_eventhubs.*   @DataDog/serverless @DataDog/apm-serverless
-tests/snapshots/tests.contrib.azure_functions_servicebus.*  @DataDog/serverless @DataDog/apm-serverless
-tests/snapshots/tests.contrib.azure_servicebus.*            @DataDog/serverless @DataDog/apm-serverless
+# AWS Lambda
+ddtrace/contrib/internal/aws_lambda                       @DataDog/apm-serverless @DataDog/serverless-aws
+tests/contrib/aws_lambda                                  @DataDog/apm-serverless @DataDog/serverless-aws
+tests/snapshots/tests.contrib.aws_lambda.*                @DataDog/apm-serverless @DataDog/serverless-aws
+
+# AWS SDK
+ddtrace/ext/aws.py                                        @DataDog/apm-serverless @DataDog/serverless-aws @DataDog/apm-idm-python
+
+# Azure Functions
+ddtrace/contrib/internal/azure_eventhubs                  @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
+ddtrace/contrib/internal/azure_functions                  @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
+ddtrace/contrib/internal/azure_servicebus                 @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
+tests/contrib/azure_functions*                            @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
+tests/snapshots/tests.contrib.azure_functions*            @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
+
+# Azure SDK
+ddtrace/ext/azure_eventhubs.py                            @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp @DataDog/apm-idm-python
+ddtrace/ext/azure_servicebus.py                           @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp @DataDog/apm-idm-python
+tests/contrib/azure_eventhubs                             @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp @DataDog/apm-idm-python
+tests/contrib/azure_servicebus                            @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp @DataDog/apm-idm-python
+tests/snapshots/tests.contrib.azure_eventhubs.*           @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp @DataDog/apm-idm-python
+tests/snapshots/tests.contrib.azure_servicebus.*          @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp @DataDog/apm-idm-python
+
+# Serverless (mixed)
+tests/internal/test_serverless.py                         @DataDog/apm-serverless @DataDog/asm-python @DataDog/serverless-aws @DataDog/serverless-azure-and-gcp
 
 # Data Streams Monitoring
 ddtrace/data_streams.py                                   @DataDog/data-streams-monitoring

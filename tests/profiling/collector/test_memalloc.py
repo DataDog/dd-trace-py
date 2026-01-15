@@ -1,15 +1,34 @@
+from __future__ import annotations
+
 import gc
 import inspect
 import os
 from pathlib import Path
 import sys
 import threading
+from tracemalloc import Statistic
+from typing import TYPE_CHECKING
+from typing import Callable
+from typing import Dict
+from typing import List
+from typing import Sequence
+from typing import Set
+from typing import Union
 
 import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.settings.profiling import ProfilingConfig
+from ddtrace.internal.settings.profiling import (
+    _derive_default_heap_sample_size,  # pyright: ignore[reportAttributeAccessIssue]
+)
 from ddtrace.profiling.collector import memalloc
 from tests.profiling.collector import pprof_utils
+
+
+if TYPE_CHECKING:
+    # We need the pyright: ignore because pprof_pb2 does not exist as a real module, only as a pyi.
+    from tests.profiling.collector import pprof_pb2  # pyright: ignore[reportMissingModuleSource]
 
 
 PY_314_OR_ABOVE = sys.version_info[:2] >= (3, 14)
@@ -17,7 +36,7 @@ PY_313_OR_ABOVE = sys.version_info[:2] >= (3, 13)
 PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
 
 
-def _allocate_1k():
+def _allocate_1k() -> List[object]:
     return [object() for _ in range(1000)]
 
 
@@ -52,7 +71,7 @@ def _setup_profiling_prelude(tmp_path: Path, test_name: str) -> str:
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_HEAP_SAMPLE_SIZE="1024", DD_PROFILING_OUTPUT_PPROF="/tmp/test_heap_samples_collected")
 )
-def test_heap_samples_collected():
+def test_heap_samples_collected() -> None:
     import os
 
     from ddtrace.profiling import Profiler
@@ -73,7 +92,7 @@ def test_heap_samples_collected():
     assert len(samples) > 0
 
 
-def test_memory_collector(tmp_path):
+def test_memory_collector(tmp_path: Path) -> None:
     output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector")
 
     mc = memalloc.MemoryCollector(heap_sample_size=256)
@@ -111,7 +130,7 @@ def test_memory_collector(tmp_path):
     )
 
 
-def test_memory_collector_ignore_profiler(tmp_path):
+def test_memory_collector_ignore_profiler(tmp_path: Path) -> None:
     output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_ignore_profiler")
 
     mc = memalloc.MemoryCollector(ignore_profiler=True)
@@ -119,12 +138,12 @@ def test_memory_collector_ignore_profiler(tmp_path):
 
     with mc:
 
-        def alloc():
+        def alloc() -> None:
             _allocate_1k()
             quit_thread.wait()
 
         alloc_thread = threading.Thread(name="allocator", target=alloc)
-        alloc_thread._ddtrace_profiling_ignore = True
+        alloc_thread._ddtrace_profiling_ignore = True  # pyright: ignore[reportAttributeAccessIssue]
         alloc_thread.start()
 
         mc.snapshot()
@@ -145,7 +164,7 @@ def test_memory_collector_ignore_profiler(tmp_path):
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_HEAP_SAMPLE_SIZE="8", DD_PROFILING_OUTPUT_PPROF="/tmp/test_heap_profiler_large_heap_overhead")
 )
-def test_heap_profiler_large_heap_overhead():
+def test_heap_profiler_large_heap_overhead() -> None:
     # TODO(nick): this test case used to crash due to integer arithmetic bugs.
     # Now it doesn't crash, but it takes far too long to run to be useful in CI.
     # Un-skip this test if/when we improve the worst-case performance of the
@@ -160,7 +179,7 @@ def test_heap_profiler_large_heap_overhead():
     thing_size = 32
 
     junk = []
-    for i in range(count):
+    for _ in range(count):
         b1 = one(thing_size)
         b2 = one(2 * thing_size)
         b3 = one(3 * thing_size)
@@ -178,52 +197,35 @@ def test_heap_profiler_large_heap_overhead():
 # like the line number at which an allocation happens
 # Python 3.13 changed bytearray to use an allocation domain that we don't
 # currently profile, so we use None instead of bytearray to test.
-def one(size):
+def one(size: int) -> Union[tuple[None, ...], bytearray]:
     return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
 
 
-def two(size):
+def two(size: int) -> Union[tuple[None, ...], bytearray]:
     return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
 
 
-def three(size):
+def three(size: int) -> Union[tuple[None, ...], bytearray]:
     return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
 
 
-def four(size):
+def four(size: int) -> Union[tuple[None, ...], bytearray]:
     return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
 
 
-def _create_allocation(size):
+def _create_allocation(size: int) -> Union[tuple[None, ...], bytearray]:
     return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
 
 
 class HeapInfo:
-    def __init__(self, count, size):
+    def __init__(self, count: int, size: int) -> None:
         self.count = count
         self.size = size
 
 
-def get_heap_info(heap, funcs):
-    got = {}
-    for event in heap:
-        (frames, _), in_use_size, alloc_size, count = event
-
-        in_use = in_use_size > 0
-        size = in_use_size if in_use_size > 0 else alloc_size
-
-        if not in_use:
-            continue
-        func = frames[0].function_name
-        if func in funcs:
-            v = got.get(func, HeapInfo(0, 0))
-            v.count += 1
-            v.size += size
-            got[func] = v
-    return got
-
-
-def has_function_in_profile_sample(profile, sample, function_or_name) -> bool:
+def has_function_in_profile_sample(
+    profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, function_or_name: Union[Callable, str]
+) -> bool:
     """Check if a pprof profile sample contains a function in its stack trace.
 
     Args:
@@ -249,16 +251,18 @@ def has_function_in_profile_sample(profile, sample, function_or_name) -> bool:
     return False
 
 
-def get_tracemalloc_stats_per_func(stats, funcs):
-    source_to_func = {}
+def get_tracemalloc_stats_per_func(
+    stats: Sequence[Statistic], funcs: Sequence[Callable]
+) -> tuple[Dict[str, int], Dict[str, int]]:
+    source_to_func: Dict[str, str] = {}
 
     for f in funcs:
         file = inspect.getsourcefile(f)
         line = inspect.getsourcelines(f)[1] + 1
         source_to_func[str(file) + str(line)] = f.__name__
 
-    actual_sizes = {}
-    actual_counts = {}
+    actual_sizes: Dict[str, int] = {}
+    actual_counts: Dict[str, int] = {}
     for stat in stats:
         f = stat.traceback[0]
         key = f.filename + str(f.lineno)
@@ -269,7 +273,7 @@ def get_tracemalloc_stats_per_func(stats, funcs):
     return actual_sizes, actual_counts
 
 
-@pytest.mark.skip(reason="too slow, indeterministic")
+@pytest.mark.skip(reason="too slow, non-deterministic")
 @pytest.mark.subprocess(
     env=dict(
         # Turn off other profilers so that we're just testing memalloc
@@ -279,7 +283,7 @@ def get_tracemalloc_stats_per_func(stats, funcs):
         DD_PROFILING_UPLOAD_INTERVAL="1",
     ),
 )
-def test_memealloc_data_race_regression():
+def test_memalloc_data_race_regression() -> None:
     import threading
     import time
 
@@ -295,24 +299,24 @@ def test_memealloc_data_race_regression():
     gc.set_threshold(100)
 
     class Thing:
-        def __init__(self):
+        def __init__(self) -> None:
             # Self reference so this gets deallocated in GC vs via refcount
             self.ref = self
 
-        def __del__(self):
+        def __del__(self) -> None:
             # Force GIL yield,  so if/when memalloc triggers GC, this is
             # deallocated, releasing GIL while memalloc is sampling and allowing
             # something else to run and possibly modify memalloc's internal
             # state concurrently
             time.sleep(0)
 
-    def do_alloc():
-        def f():
+    def do_alloc() -> Callable[[], Thing]:
+        def f() -> Thing:
             return Thing()
 
         return f
 
-    def lotsa_allocs(ev):
+    def lotsa_allocs(ev: threading.Event) -> None:
         while not ev.is_set():
             f = do_alloc()
             f()
@@ -321,7 +325,7 @@ def test_memealloc_data_race_regression():
     p = Profiler()
     p.start()
 
-    threads = []
+    threads: List[threading.Thread] = []
     ev = threading.Event()
     for i in range(4):
         t = threading.Thread(target=lotsa_allocs, args=(ev,))
@@ -342,7 +346,7 @@ def test_memealloc_data_race_regression():
 
 @pytest.mark.skip(reason="This test makes the CI timeout. Skipping it to unblock PRs.")
 @pytest.mark.parametrize("sample_interval", (256, 512, 1024))
-def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval, tmp_path):
+def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: int, tmp_path: Path) -> None:
     import tracemalloc
 
     test_name = f"test_memory_collector_allocation_accuracy_with_tracemalloc_{sample_interval}"
@@ -365,7 +369,7 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval, 
                 junk.append(three(3 * size))
                 junk.append(four(4 * size))
 
-            stats = tracemalloc.take_snapshot().statistics("traceback")
+            stats: List[Statistic] = tracemalloc.take_snapshot().statistics("traceback")
             tracemalloc.stop()
 
             del junk
@@ -416,7 +420,9 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval, 
     actual_total = sum(actual_sizes.values())
     actual_count_total = sum(actual_counts.values())
 
-    def get_allocation_info_from_profile(profile, samples, funcs):
+    def get_allocation_info_from_profile(
+        profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], funcs: Sequence[Union[Callable, str]]
+    ) -> Dict[str, HeapInfo]:
         got = {}
         for sample in samples:
             if sample.value[heap_space_idx] > 0:
@@ -435,7 +441,7 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval, 
                         break
         return got
 
-    sizes = get_allocation_info_from_profile(profile, allocation_samples, {"one", "two", "three", "four"})
+    sizes = get_allocation_info_from_profile(profile, allocation_samples, ("one", "two", "three", "four"))
 
     total = sum(v.size for v in sizes.values())
     total_count = sum(v.count for v in sizes.values())
@@ -475,18 +481,18 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval, 
     print(f"Captured {len(allocation_samples)} allocation samples representing {total_allocation_count} allocations")
 
 
-def test_memory_collector_allocation_tracking_across_snapshots(tmp_path):
+def test_memory_collector_allocation_tracking_across_snapshots(tmp_path: Path) -> None:
     output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_allocation_tracking_across_snapshots")
 
     mc = memalloc.MemoryCollector(heap_sample_size=64)
 
     with mc:
         data_to_free = []
-        for i in range(10):
+        for _ in range(10):
             data_to_free.append(one(256))
 
         data_to_keep = []
-        for i in range(10):
+        for _ in range(10):
             data_to_keep.append(two(512))
 
         del data_to_free
@@ -545,7 +551,7 @@ def test_memory_collector_allocation_tracking_across_snapshots(tmp_path):
         del data_to_keep
 
 
-def test_memory_collector_python_interface_with_allocation_tracking(tmp_path):
+def test_memory_collector_python_interface_with_allocation_tracking(tmp_path: Path) -> None:
     output_filename = _setup_profiling_prelude(
         tmp_path, "test_memory_collector_python_interface_with_allocation_tracking"
     )
@@ -553,15 +559,15 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path):
     mc = memalloc.MemoryCollector(heap_sample_size=32)
 
     with mc:
-        first_batch = []
-        for i in range(20):
+        first_batch: List[Union[tuple[None, ...], bytearray]] = []
+        for _ in range(20):
             first_batch.append(one(256))
 
         # We're taking a snapshot here to ensure that in the next snapshot, we don't see any "one" allocations
         mc.snapshot_and_parse_pprof(output_filename)
 
-        second_batch = []
-        for i in range(15):
+        second_batch: List[Union[tuple[None, ...], bytearray]] = []
+        for _ in range(15):
             second_batch.append(two(512))
 
         del first_batch
@@ -618,7 +624,7 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path):
         del second_batch
 
 
-def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(tmp_path):
+def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(tmp_path: Path) -> None:
     output_filename = _setup_profiling_prelude(
         tmp_path, "test_memory_collector_python_interface_with_allocation_tracking_no_deletion"
     )
@@ -629,14 +635,14 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
         # Take initial snapshot to reset allocation tracking (may have no samples)
         mc.snapshot_and_parse_pprof(output_filename, assert_samples=False)
 
-        first_batch = []
-        for i in range(20):
+        first_batch: List[Union[tuple[None, ...], bytearray]] = []
+        for _ in range(20):
             first_batch.append(one(256))
 
         after_first_batch_profile = mc.snapshot_and_parse_pprof(output_filename)
 
-        second_batch = []
-        for i in range(15):
+        second_batch: List[Union[tuple[None, ...], bytearray]] = []
+        for _ in range(15):
             second_batch.append(two(512))
 
         final_profile = mc.snapshot_and_parse_pprof(output_filename)
@@ -714,7 +720,7 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
         del second_batch
 
 
-def test_memory_collector_exception_handling(tmp_path):
+def test_memory_collector_exception_handling(tmp_path: Path) -> None:
     output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_exception_handling")
 
     mc = memalloc.MemoryCollector(heap_sample_size=256)
@@ -732,7 +738,7 @@ def test_memory_collector_exception_handling(tmp_path):
         assert profile is not None
 
 
-def test_memory_collector_allocation_during_shutdown():
+def test_memory_collector_allocation_during_shutdown() -> None:
     """Test that verifies that when _memalloc.stop() is called while allocations are still
     happening in another thread, the shutdown process completes without deadlocks or crashes.
     """
@@ -765,7 +771,7 @@ def test_memory_collector_allocation_during_shutdown():
             allocation_thread.join(timeout=1)
 
 
-def test_memory_collector_buffer_pool_exhaustion(tmp_path):
+def test_memory_collector_buffer_pool_exhaustion(tmp_path: Path) -> None:
     """Test that the memory collector handles buffer pool exhaustion.
     This test creates multiple threads that simultaneously allocate with very deep
     stack traces, which could potentially exhaust internal buffer pools.
@@ -777,14 +783,21 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path):
     # Store reference to nested function for later qualname access
     deep_alloc_func = None
 
-    with mc:
-        threads = []
-        barrier = threading.Barrier(10)
+    num_threads = 10
+    thread_ids: Set[int] = set()
+    thread_ids_lock = threading.Lock()
 
-        def allocate_with_traceback():
+    with mc:
+        threads: List[threading.Thread] = []
+        barrier = threading.Barrier(num_threads)
+
+        def allocate_with_traceback() -> None:
+            # Record this thread's ID before waiting
+            with thread_ids_lock:
+                thread_ids.add(threading.current_thread().ident)  # type: ignore[arg-type]
             barrier.wait()
 
-            def deep_alloc(depth):
+            def deep_alloc(depth: int) -> Union[tuple[None, ...], bytearray]:
                 if depth == 0:
                     return _create_allocation(100)
                 return deep_alloc(depth - 1)
@@ -792,10 +805,12 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path):
             # Capture reference to deep_alloc for later use
             nonlocal deep_alloc_func
             deep_alloc_func = deep_alloc
-            data = deep_alloc(50)
-            del data
+            # Multiple allocations per thread to make sampling more reliable
+            for _ in range(5):
+                data = deep_alloc(50)
+                del data
 
-        for i in range(10):
+        for _ in range(num_threads):
             t = threading.Thread(target=allocate_with_traceback)
             threads.append(t)
             t.start()
@@ -811,6 +826,7 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path):
 
         deep_alloc_total_count = 0
         max_stack_depth = 0
+        sampled_thread_ids: Set[int] = set()
 
         for sample in profile.sample:
             # Buffer pool test: All samples should have stack frames
@@ -822,9 +838,20 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path):
                 # Samples with identical stack traces are merged in pprof profiles,
                 # so we need to sum the alloc-samples count value
                 deep_alloc_total_count += sample.value[alloc_count_idx]
+                # Track which threads got sampled
+                thread_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "thread id")
+                if thread_id_label is not None:
+                    sampled_thread_ids.add(thread_id_label.num)
 
         assert deep_alloc_total_count >= 10, (
             f"Buffer pool test: Expected many allocations from concurrent threads, got {deep_alloc_total_count}"
+        )
+
+        # Verify we got samples from all threads
+        assert sampled_thread_ids == thread_ids, (
+            f"Buffer pool test: Expected samples from all {num_threads} threads, "
+            f"but only got samples from {len(sampled_thread_ids)} threads. "
+            f"Missing: {thread_ids - sampled_thread_ids}"
         )
 
         assert max_stack_depth >= 50, (
@@ -833,7 +860,7 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path):
         )
 
 
-def test_memory_collector_thread_lifecycle(tmp_path):
+def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
     """Test that continuously creates and destroys threads while they perform allocations,
     verifying that the collector can track allocations across changing thread contexts.
     """
@@ -845,7 +872,7 @@ def test_memory_collector_thread_lifecycle(tmp_path):
     worker_func = None
 
     with mc:
-        threads = []
+        threads: List[threading.Thread] = []
 
         def worker():
             for i in range(10):
@@ -886,7 +913,7 @@ def test_memory_collector_thread_lifecycle(tmp_path):
         )
 
 
-def test_start_twice():
+def test_start_twice() -> None:
     from ddtrace.profiling.collector import _memalloc
 
     _memalloc.start(64, 512)
@@ -895,11 +922,11 @@ def test_start_twice():
     _memalloc.stop()
 
 
-def test_start_wrong_arg():
+def test_start_wrong_arg() -> None:
     from ddtrace.profiling.collector import _memalloc
 
     with pytest.raises(TypeError, match="function takes exactly 2 arguments \\(1 given\\)"):
-        _memalloc.start(2)
+        _memalloc.start(2)  # pyright: ignore[reportCallIssue]
 
     with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 600\\]"):
         _memalloc.start(429496, 1)
@@ -920,20 +947,20 @@ def test_start_wrong_arg():
         _memalloc.start(64, 345678909876)
 
 
-def test_start_stop():
+def test_start_stop() -> None:
     from ddtrace.profiling.collector import _memalloc
 
     _memalloc.start(1, 1)
     _memalloc.stop()
 
 
-def test_heap_stress():
+def test_heap_stress() -> None:
     from ddtrace.profiling.collector import _memalloc
 
     # This should run for a few seconds, and is enough to spot potential segfaults.
     _memalloc.start(64, 1024)
     try:
-        x = []
+        x: List[object] = []
 
         for _ in range(20):
             for _ in range(1000):
@@ -945,7 +972,7 @@ def test_heap_stress():
 
 
 @pytest.mark.parametrize("heap_sample_size", (0, 512 * 1024, 1024 * 1024, 2048 * 1024, 4096 * 1024))
-def test_memalloc_speed(benchmark, heap_sample_size):
+def test_memalloc_speed(benchmark, heap_sample_size) -> None:
     if heap_sample_size:
         with memalloc.MemoryCollector(heap_sample_size=heap_sample_size):
             benchmark(_allocate_1k)
@@ -976,10 +1003,9 @@ def test_memalloc_speed(benchmark, heap_sample_size):
         ),
     ),
 )
-def test_memalloc_sample_size(enabled, predicates, monkeypatch):
-    from ddtrace.internal.settings.profiling import ProfilingConfig
-    from ddtrace.internal.settings.profiling import _derive_default_heap_sample_size
-
+def test_memalloc_sample_size(
+    enabled: bool, predicates: List[Callable[[int], bool]], monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setenv("DD_PROFILING_HEAP_ENABLED", str(enabled).lower())
     config = ProfilingConfig()
 

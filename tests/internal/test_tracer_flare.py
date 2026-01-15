@@ -70,6 +70,13 @@ class TracerFlareTests(TestCase):
                 return handler
         return None
 
+    def _remove_handlers(self):
+        """Remove all tracer flare file handlers from the ddtrace logger."""
+        ddlogger = get_logger("ddtrace")
+        for handler in ddlogger.handlers[:]:  # Copy list to avoid modification during iteration
+            if handler.name == TRACER_FLARE_FILE_HANDLER_NAME:
+                ddlogger.removeHandler(handler)
+
     def test_single_process_success(self):
         """
         Validate that the baseline tracer flare works for a single process
@@ -221,9 +228,8 @@ class TracerFlareTests(TestCase):
     def confirm_cleanup(self):
         assert not self.flare.flare_dir.exists(), f"The directory {self.flare.flare_dir} still exists"
         # Only check for file handler cleanup if prepare() was called
-        # XXX this fails quite often in CI for unknown reason
-        # if self.prepare_called:
-        #    assert self._get_handler() is None, "File handler was not removed"
+        if self.prepare_called:
+            assert self._get_handler() is None, "File handler was not removed"
 
     def test_case_id_must_be_numeric(self):
         """
@@ -875,6 +881,7 @@ def test_native_logs(tmp_path):
     flare.prepare("DEBUG")
 
     native_logger.log("debug", "debug log")
+    native_logger.disable("file")  # Flush the non-blocking writer
 
     native_flare_file_path = tmp_path / f"tracer_native_{os.getpid()}.log"
     assert os.path.exists(native_flare_file_path)

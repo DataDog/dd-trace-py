@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: fix AWS Bedrock unexpected list type.

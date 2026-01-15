@@ -6,11 +6,11 @@ from enum import Enum
 import json
 import os
 from pathlib import Path
-import time
 import typing as t
 
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.testing.internal.constants import TAG_TRUE
+from ddtrace.testing.internal.tracer_api import Time
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import _gen_item_id
 
@@ -73,11 +73,11 @@ class TestItem(t.Generic[TParentClass, TChildClass]):
     def seconds_so_far(self) -> float:
         if self.start_ns is None:
             raise ValueError("seconds_so_far() called before start")
-        duration_ns = self.duration_ns if self.duration_ns is not None else (time.time_ns() - self.start_ns)
+        duration_ns = self.duration_ns if self.duration_ns is not None else (Time.time_ns() - self.start_ns)
         return duration_ns / 1e9
 
     def start(self, start_ns: t.Optional[int] = None) -> None:
-        self.start_ns = start_ns if start_ns is not None else time.time_ns()
+        self.start_ns = start_ns if start_ns is not None else Time.time_ns()
 
     def ensure_started(self) -> None:
         if self.start_ns is None:
@@ -88,7 +88,7 @@ class TestItem(t.Generic[TParentClass, TChildClass]):
             raise ValueError("finish() called before start")
 
         self.set_final_tags()
-        self.duration_ns = time.time_ns() - self.start_ns
+        self.duration_ns = Time.time_ns() - self.start_ns
 
     def is_started(self) -> bool:
         return self.start_ns is not None

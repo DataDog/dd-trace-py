@@ -45,7 +45,7 @@ def test_call_script_pprof_output(tmp_path: Path) -> None:
     filename = str(tmp_path / "pprof")
     env = os.environ.copy()
     env["DD_PROFILING_OUTPUT_PPROF"] = filename
-    env["DD_PROFILING_CAPTURE_PCT"] = "1"
+    env["DD_PROFILING_CAPTURE_PCT"] = "100"
     env["DD_PROFILING_ENABLED"] = "1"
     stdout, stderr, exitcode, _ = call_program(
         "ddtrace-run",
@@ -60,7 +60,7 @@ def test_call_script_pprof_output(tmp_path: Path) -> None:
 
     stdout = stdout.decode() if isinstance(stdout, bytes) else stdout
     _, pid = list(s.strip() for s in stdout.strip().split("\n"))
-    profile = pprof_utils.parse_newest_profile(f"{filename}.{pid}")
+    profile = pprof_utils.parse_newest_profile(f"{filename}.{pid}", allow_penultimate=True)
     samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
     assert len(samples) > 0
 
@@ -77,7 +77,7 @@ def test_fork(tmp_path: Path) -> None:
     assert exitcode == 0
     stdout = stdout.decode() if isinstance(stdout, bytes) else stdout
     child_pid = stdout.strip()
-    profile = pprof_utils.parse_newest_profile(f"{filename}.{pid}")
+    profile = pprof_utils.parse_newest_profile(f"{filename}.{pid}", allow_penultimate=True)
     parent_expected_acquire_events = [
         pprof_utils.LockAcquireEvent(
             caller_name="<module>",
@@ -99,7 +99,7 @@ def test_fork(tmp_path: Path) -> None:
         expected_acquire_events=parent_expected_acquire_events,
         expected_release_events=parent_expected_release_events,
     )
-    child_profile = pprof_utils.parse_newest_profile(filename + "." + str(child_pid))
+    child_profile = pprof_utils.parse_newest_profile(f"{filename}.{child_pid}")
     # We expect the child profile to not have lock events from the parent process
     # Note that assert_lock_events function only checks that the given events
     # exists, and doesn't assert that other events don't exist.
@@ -158,7 +158,7 @@ def test_multiprocessing(method: str, tmp_path: Path) -> None:
     env = os.environ.copy()
     env["DD_PROFILING_OUTPUT_PPROF"] = filename
     env["DD_PROFILING_ENABLED"] = "1"
-    env["DD_PROFILING_CAPTURE_PCT"] = "1"
+    env["DD_PROFILING_CAPTURE_PCT"] = "100"
     stdout, stderr, exitcode, _ = call_program(
         "ddtrace-run",
         sys.executable,

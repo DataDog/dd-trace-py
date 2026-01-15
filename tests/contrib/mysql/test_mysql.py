@@ -44,7 +44,7 @@ class MySQLCore(object):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         span = spans[0]
@@ -73,7 +73,7 @@ class MySQLCore(object):
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
             assert len(rows) == 1
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 2
 
             span = spans[0]
@@ -104,7 +104,7 @@ class MySQLCore(object):
         cursor.execute(query)
         rows = cursor.fetchall()
         assert len(rows) == 3
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.get_tag("sql.query") is None
@@ -119,7 +119,7 @@ class MySQLCore(object):
             cursor.execute(query)
             rows = cursor.fetchall()
             assert len(rows) == 3
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 2
             span = spans[0]
             assert span.get_tag("sql.query") is None
@@ -156,7 +156,7 @@ class MySQLCore(object):
         assert rows[1][0] == "foo"
         assert rows[1][1] == "this is foo"
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         span = spans[-1]
         assert span.get_tag("sql.query") is None
@@ -194,7 +194,7 @@ class MySQLCore(object):
             assert rows[1][0] == "foo"
             assert rows[1][1] == "this is foo"
 
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 3
             span = spans[-1]
             assert span.get_tag("sql.query") is None
@@ -226,7 +226,7 @@ class MySQLCore(object):
         assert len(output) == 3
         assert output[2] == 42
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert spans, spans
 
         # number of spans depends on MySQL implementation details,
@@ -255,7 +255,7 @@ class MySQLCore(object):
     def test_commit(self):
         conn, tracer = self._get_conn_tracer()
         conn.commit()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "mysql"
@@ -264,7 +264,7 @@ class MySQLCore(object):
     def test_rollback(self):
         conn, tracer = self._get_conn_tracer()
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "mysql"
@@ -286,7 +286,7 @@ class MySQLCore(object):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service != "mysvc"
 
@@ -306,7 +306,7 @@ class MySQLCore(object):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service == "mysvc"
 
@@ -394,7 +394,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service == "mysvc"
 
@@ -407,7 +407,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service == "mysvc"
 
@@ -418,7 +418,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].name == "mysql.query"
 
@@ -429,7 +429,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].name == "mysql.query"
 

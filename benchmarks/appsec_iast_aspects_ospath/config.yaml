@@ -1,5 +1,6 @@
 ospathbasename_aspect: &default_aspect
   warmups: 10
+  internal_loop: 100
   function_name: "iast_ospathbasename_aspect"
   iast_enabled: true
 

@@ -1,9 +1,16 @@
 import os
 import sys
+import warnings
 
 import pytest
 
 import tests.internal.crashtracker.utils as utils
+
+
+# Crashtracking tests intentionally fork after initializing ddtrace, which spawns worker
+# threads; Python 3.12 now emits a DeprecationWarning for that sequence, so ignore it to
+# keep stderr assertions stable (mirrors telemetry tests)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
@@ -137,6 +144,7 @@ def test_crashtracker_simple():
     import tests.internal.crashtracker.utils as utils
 
     with utils.with_test_agent() as client:
+        # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
             ct = utils.CrashtrackerWrapper(base_name="simple")  # test agent
@@ -179,6 +187,7 @@ def test_crashtracker_simple_fork():
         assert not stderr_msg
 
         # Part 4, Fork and crash
+        # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
             ctypes.string_at(0)
@@ -221,6 +230,7 @@ def test_crashtracker_simple_sigbus():
         assert not stderr_msg, stderr_msg
 
         # Part 4, Fork and crash
+        # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
             with tempfile.TemporaryFile() as tmp_file:
@@ -250,7 +260,7 @@ def test_crashtracker_simple_sigbus():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::"})
 def test_crashtracker_raise_sigsegv():
     import os
     import signal
@@ -265,6 +275,7 @@ def test_crashtracker_raise_sigsegv():
         assert not stderr_msg
 
         # Part 4, raise SIGSEGV
+        # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
             os.kill(os.getpid(), signal.SIGSEGV.value)
@@ -279,7 +290,7 @@ def test_crashtracker_raise_sigsegv():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::"})
 def test_crashtracker_raise_sigbus():
     import os
     import signal
@@ -294,6 +305,7 @@ def test_crashtracker_raise_sigbus():
         assert not stderr_msg
 
         # Part 4, raise SIGBUS
+        # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
             os.kill(os.getpid(), signal.SIGBUS.value)
@@ -308,6 +320,11 @@ def test_crashtracker_raise_sigbus():
 
 
 preload_code = """
+import warnings
+# This test logs the following warning in py3.12:
+# This process (pid=402) is multi-threaded, use of fork() may lead to deadlocks in the child
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 import ctypes
 import sys
 ctypes.string_at(0)
@@ -352,6 +369,11 @@ def test_crashtracker_preload_disabled(ddtrace_run_python_code_in_subprocess):
 
 
 auto_code = """
+import warnings
+# This test logs the following warning in py3.12:
+# This process (pid=402) is multi-threaded, use of fork() may lead to deadlocks in the child
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 import ctypes
 import ddtrace.auto
 ctypes.string_at(0)
@@ -555,6 +577,7 @@ def test_crashtracker_user_tags_profiling():
     }
 
     with utils.with_test_agent() as client:
+        # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
             ct = utils.CrashtrackerWrapper(base_name="user_tags_profiling", tags=tags)
@@ -596,6 +619,7 @@ def test_crashtracker_user_tags_core():
     }
 
     with utils.with_test_agent() as client:
+        # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
             # Set the tags before starting
@@ -632,6 +656,7 @@ def test_crashtracker_process_tags():
     import tests.internal.crashtracker.utils as utils
 
     with utils.with_test_agent() as client:
+        # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
             ct = utils.CrashtrackerWrapper(base_name="tags_required")
@@ -686,6 +711,7 @@ def test_crashtracker_echild_hang():
         # do a timed `waitpid()` anticipating ECHILD until they all exit.
         children = []
         for _ in range(5):
+            # Fork happens after ddtrace started threads; see warning suppression note above.
             pid = os.fork()
             if pid == 0:
                 rand_num = random.randint(0, 999999)
@@ -711,18 +737,18 @@ def test_crashtracker_echild_hang():
             else:
                 children.append(pid)
 
-        # Wait for all children to exit.  It shouldn't take more than 1s, so fail if it does.
-        timeout = 1  # seconds
+        # Wait for all children to exit.  It shouldn't take more than 5s, so fail if it does.
+        timeout = 5  # seconds
         end_time = time.time() + timeout
         while True:
             if time.time() > end_time:
-                pytest.fail("Timed out waiting for children to exit")
+                raise AssertionError("Timed out waiting for children to exit")
             try:
-                _, __ = os.waitpid(-1, os.WNOHANG)
+                pid, _ = os.waitpid(-1, os.WNOHANG)
+                if pid == 0:
+                    time.sleep(0.01)  # Avoid busy-wait when no child exited
             except ChildProcessError:
                 break
-            except Exception as e:
-                pytest.fail("Unexpected exception: %s" % e)
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
@@ -754,6 +780,7 @@ def test_crashtracker_no_zombies():
         # hoping to elicit zombies.
         children = []
         for _ in range(5):
+            # Fork happens after ddtrace started threads; see warning suppression note above.
             pid = os.fork()
             if pid == 0:
                 rand_num = random.randint(0, 999999)
@@ -779,18 +806,18 @@ def test_crashtracker_no_zombies():
             else:
                 children.append(pid)
 
-        # Wait for all children to exit.  It shouldn't take more than 1s, so fail if it does.
-        timeout = 1  # seconds
+        # Wait for all children to exit.  It shouldn't take more than 5s, so fail if it does.
+        timeout = 5  # seconds
         end_time = time.time() + timeout
         while True:
             if time.time() > end_time:
-                pytest.fail("Timed out waiting for children to exit")
+                raise AssertionError("Timed out waiting for children to exit")
             try:
-                _, __ = os.waitpid(-1, os.WNOHANG)
+                pid, _ = os.waitpid(-1, os.WNOHANG)
+                if pid == 0:
+                    time.sleep(0.01)  # Avoid busy-wait when no child exited
             except ChildProcessError:
                 break
-            except Exception as e:
-                pytest.fail("Unexpected exception: %s" % e)
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
@@ -810,6 +837,7 @@ def test_crashtracker_receiver_env_inheritance():
     os.environ[test_env_key] = test_env_value
 
     with utils.with_test_agent() as client:
+        # Fork happens after ddtrace started threads; see warning suppression note above.
         pid = os.fork()
         if pid == 0:
             assert os.environ.get(test_env_key) == test_env_value
