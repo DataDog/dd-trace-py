@@ -16,6 +16,9 @@ variables:
   # Automatically managed, use scripts/update-system-tests-version to update
   SYSTEM_TESTS_REF: "e1cd85f960c713cf6a7e9caa61094b5914d0e386"
 
+  # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
+  PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v90830366-2b17cbb-profiling_native"
+
 default:
   interruptible: true
 
@@ -89,7 +92,7 @@ serverless lambda tests:
     strategy: depend
     branch: main
   needs:
-    - job: publish-wheels-to-s3
+    - job: "upload all"
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
@@ -404,36 +407,53 @@ lib_injection_tests:
     - python --version
     - python lib-injection/sources/sitecustomize.py
 
-profiling_native:
+# Profiling native tests with sanitizers
+# Uses dedicated profiling-native image with Python, Rust, valgrind, and clang pre-installed
+# Image built from: dd/images/dd-trace-py/profiling_native
+# Only runs when profiling-related files change
+.profiling_native_base:
   needs: []
   stage: tests
   tags: [ "arch:amd64" ]
-  image: registry.ddbuild.io/images/mirror/ubuntu:25.04
+  image: ${PROFILING_NATIVE_IMAGE}
+  timeout: 90m
   allow_failure: true
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: "12"
+    CARGO_BUILD_JOBS: "12"
+  before_script:
+    - ulimit -c unlimited
+    - git config --global --add safe.directory ${CI_PROJECT_DIR}
+    - export PYENV_VERSION=${PYTHON_VERSION}
+  script:
+    - python --version
+    - if [ "${MEMCPY_MODE}" == "fast" ]; then export ECHION_USE_FAST_COPY_MEMORY=1; else export ECHION_USE_FAST_COPY_MEMORY=0; fi
+    - ./ddtrace/internal/datadog/profiling/build_standalone.sh --${SANITIZER} RelWithDebInfo stack_test
+
+# Run on every PR (only if profiling files changed)
+profiling_native:
+  extends: .profiling_native_base
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "main"
+    - changes:
+        - .gitlab-ci.yml
+        - ddtrace/internal/datadog/profiling/**/*
+        - ddtrace/profiling/**/*
+        - src/native/**/*
+        - tests/profiling/**/*
   parallel:
     matrix:
-      - PYTHON: ["3.9.24", "3.10.19", "3.11.14", "3.12.12", "3.13.11", "3.14.2"]
-        MEMCPY_MODE: ["default", "fast"]
-        SANITIZER: ["safety", "thread", "valgrind"]
-  script:
-    - apt-get update && apt install git -y
-    - |
-      [[ $(git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA) != *profiling* ]] && exit 0
-    - export PYENV_ROOT="${HOME}/.pyenv"
-    - export PATH="${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PATH}"
-    - apt-get update && apt install build-essential zlib1g-dev libssl-dev curl llvm-19 bc clang -y
-    - PYENV_GIT_TAG=v2.6.17 curl https://pyenv.run | bash
-    - pyenv --version
-    - PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install ${PYTHON} && pyenv global ${PYTHON}
-    - python --version
-    - echo "$PYENV_ROOT/versions/$PYTHON/lib/" > /etc/ld.so.conf.d/python.conf
-    - ldconfig
-    - |
-      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-      export PATH="$HOME/.cargo/bin:$PATH"
-    - if [ ${SANITIZER} == "valgrind" ]; then apt-get install -y valgrind; fi
-    # DEV: We currently have tests in dd_wrapper and stack, setting
-    # stack here will also run tests in dd_wrapper. Revisit this when
-    # that changes.
-    - if [ ${MEMCPY_MODE} == "fast" ]; then export ECHION_USE_FAST_COPY_MEMORY=1; else export ECHION_USE_FAST_COPY_MEMORY=0; fi
-    - ./ddtrace/internal/datadog/profiling/build_standalone.sh --${SANITIZER} RelWithDebInfo stack_test
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        MEMCPY_MODE: ["default"]
+        SANITIZER: ["safety", "thread", ""]
+      # Valgrind on subset only: ASAN/LSAN (in "safety") already cover leaks, buffer overflows,
+      # and use-after-free. Valgrind's main added value is detecting uninitialized memory usage,
+      # which is worth checking on a few versions without the slowdown on all runs.
+      # If needed, please add more versions to the list.
+      - PYTHON_VERSION: ["3.12", "3.14"]
+        MEMCPY_MODE: ["default"]
+        SANITIZER: ["valgrind"]
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        MEMCPY_MODE: ["fast"]
+        SANITIZER: ["safety", "thread"]

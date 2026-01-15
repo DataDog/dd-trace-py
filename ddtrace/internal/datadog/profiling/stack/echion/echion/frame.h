@@ -5,7 +5,9 @@
 #pragma once
 
 #define PY_SSIZE_T_CLEAN
+#define Py_BUILD_CORE
 #include <Python.h>
+
 #if defined __GNUC__ && defined HAVE_STD_ATOMIC
 #undef HAVE_STD_ATOMIC
 #endif
@@ -15,10 +17,8 @@
 #endif
 #include <frameobject.h>
 #if PY_VERSION_HEX >= 0x030e0000
-#define Py_BUILD_CORE
 #include <internal/pycore_interpframe_structs.h>
 #elif PY_VERSION_HEX >= 0x030b0000
-#define Py_BUILD_CORE
 #include <internal/pycore_frame.h>
 #endif
 

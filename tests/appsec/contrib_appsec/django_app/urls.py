@@ -117,6 +117,22 @@ def rasp(request, endpoint: str):
 
                         r = requests.get(urlname, timeout=0.15)
                         res.append(f"Url: {r.text}")
+                    elif param.startswith("url_httpx_async"):
+                        import asyncio
+
+                        import httpx
+
+                        async def _request():
+                            async with httpx.AsyncClient() as client:
+                                return await client.get(urlname, timeout=0.15)
+
+                        r = asyncio.run(_request())
+                        res.append(f"Url: {r.text}")
+                    elif param.startswith("url_httpx"):
+                        import httpx
+
+                        r = httpx.get(urlname, timeout=0.15)
+                        res.append(f"Url: {r.text}")
                 except Exception as e:
                     res.append(f"Error: {e}")
         tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
@@ -170,10 +186,10 @@ def rasp(request, endpoint: str):
 
 
 @csrf_exempt
-def redirect(request, url: str):
+def redirect(request, route: str, port: int):
     import urllib.request
 
-    url = "http://" + url
+    url = f"http://127.0.0.1:{port}/{route}"
     body_str = request.body.decode()
     if body_str:
         body = json.loads(body_str)
@@ -182,10 +198,13 @@ def redirect(request, url: str):
     try:
         if body:
             request_urllib = urllib.request.Request(
-                url, method="POST", data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}
+                url,
+                method="POST",
+                data=json.dumps(body).encode(),
+                headers={"Content-Type": "application/json", "TagRoute": route},
             )
         else:
-            request_urllib = urllib.request.Request(url, method="GET")
+            request_urllib = urllib.request.Request(url, method="GET", headers={"TagRoute": route})
         with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
             payload = {"payload": f.read().decode(errors="ignore")}
     except Exception as e:
@@ -196,23 +215,83 @@ def redirect(request, url: str):
 
 
 @csrf_exempt
-def redirect_requests(request, url: str):
+def redirect_requests(request, route: str, port: int):
     import requests
 
-    full_url = "http://" + url
+    full_url = f"http://127.0.0.1:{port}/{route}"
     body_str = request.body.decode()
     if body_str:
         body = body_str
     else:
         body = None
     method = "POST" if body is not None else "GET"
-    headers = {"TagHost": url}
+    headers = {"TagRoute": route}
     if body is not None:
         headers["Content-Type"] = "application/json"
     try:
         with requests.Session() as s:
             response = s.request(method, full_url, data=body, headers=headers)
             payload = {"payload": response.text}
+    except Exception as e:
+        import traceback
+
+        payload = {"error": repr(e), "trace": traceback.format_exc()}
+    return JsonResponse(payload)
+
+
+@csrf_exempt
+def redirect_httpx(request, route: str, port: int):
+    import httpx
+
+    full_url = f"http://127.0.0.1:{port}/{route}"
+    body_str = request.body.decode()
+    if body_str:
+        body = body_str
+    else:
+        body = None
+    method = "POST" if body is not None else "GET"
+    headers = {"TagRoute": route}
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    try:
+        with httpx.Client() as client:
+            response = client.request(
+                method, full_url, content=body, headers=headers, timeout=0.5, follow_redirects=True
+            )
+            payload = {"payload": response.text}
+    except Exception as e:
+        import traceback
+
+        payload = {"error": repr(e), "trace": traceback.format_exc()}
+    return JsonResponse(payload)
+
+
+@csrf_exempt
+def redirect_httpx_async(request, route: str, port: int):
+    import asyncio
+
+    import httpx
+
+    full_url = f"http://127.0.0.1:{port}/{route}"
+    body_str = request.body.decode()
+    if body_str:
+        body = body_str
+    else:
+        body = None
+    method = "POST" if body is not None else "GET"
+    headers = {"TagRoute": route}
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    try:
+
+        async def _request():
+            async with httpx.AsyncClient() as client:
+                return await client.request(
+                    method, full_url, content=body, headers=headers, timeout=0.5, follow_redirects=True
+                )
+
+        response = asyncio.run(_request())
+        payload = {"payload": response.text}
     except Exception as e:
         import traceback
 
@@ -337,8 +416,10 @@ if django.VERSION >= (2, 0, 0):
         path("new_service/<str:service_name>", new_service, name="new_service"),
         path("rasp/<str:endpoint>/", rasp, name="rasp"),
         path("rasp/<str:endpoint>", rasp, name="rasp"),
-        path("redirect/<str:url>/", redirect, name="redirect"),
-        path("redirect_requests/<str:url>/", redirect_requests, name="redirect_requests"),
+        path("redirect/<str:route>/<int:port>", redirect, name="redirect"),
+        path("redirect_requests/<str:route>/<int:port>", redirect_requests, name="redirect_requests"),
+        path("redirect_httpx/<str:route>/<int:port>", redirect_httpx, name="redirect_httpx"),
+        path("redirect_httpx_async/<str:route>/<int:port>", redirect_httpx_async, name="redirect_httpx_async"),
         path(route="login/", view=login_user, name="login"),
         path("login", login_user, name="login"),
         path("login_sdk/", login_user_sdk, name="login_sdk"),
@@ -352,8 +433,14 @@ else:
         path(r"new_service/(?P<service_name>\w+)$", new_service, name="new_service"),
         path(r"rasp/(?P<endpoint>\w+)/$", new_service, name="rasp"),
         path(r"rasp/(?P<endpoint>\w+)$", new_service, name="rasp"),
-        path(r"redirect/(?P<url>\w+)$", redirect, name="redirect"),
-        path(r"redirect_requests/(?P<url>\w+)$", redirect_requests, name="redirect_requests"),
+        path(r"redirect/(?P<route>[^/]+)/(?P<port>[0-9]+)$", redirect, name="redirect"),
+        path(r"redirect_requests/(?P<route>[^/]+)/(?P<port>[0-9]+)$", redirect_requests, name="redirect_requests"),
+        path(r"redirect_httpx/(?P<route>[^/]+)/(?P<port>[0-9]+)$", redirect_httpx, name="redirect_httpx"),
+        path(
+            r"redirect_httpx_async/(?P<route>[^/]+)/(?P<port>[0-9]+)$",
+            redirect_httpx_async,
+            name="redirect_httpx_async",
+        ),
         path("login/", login_user, name="login"),
         path("login", login_user, name="login"),
     ]

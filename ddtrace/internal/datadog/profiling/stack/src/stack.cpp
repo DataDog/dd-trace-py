@@ -210,7 +210,7 @@ track_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
     if (!PyArg_ParseTuple(args, "lOO", &greenlet_id, &name, &frame))
         return NULL;
 
-    auto maybe_greenlet_name = string_table.key(name);
+    auto maybe_greenlet_name = string_table.key(name, StringTag::GreenletName);
     if (!maybe_greenlet_name) {
         // We failed to get this task but we keep going
         PyErr_SetString(PyExc_RuntimeError, "Failed to get greenlet name from the string table");

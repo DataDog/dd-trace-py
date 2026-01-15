@@ -195,6 +195,17 @@ def get_app():
 
                         r = requests.get(urlname, timeout=0.5)
                         res.append(f"Url: {r.text}")
+                    elif param.startswith("url_httpx_async"):
+                        import httpx
+
+                        async with httpx.AsyncClient() as client:
+                            r = await client.get(urlname, timeout=0.5)
+                            res.append(f"Url: {r.text}")
+                    elif param.startswith("url_httpx"):
+                        import httpx
+
+                        r = httpx.get(urlname, timeout=0.5)
+                        res.append(f"Url: {r.text}")
                 except Exception as e:
                     res.append(f"Error: {e}")
             tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
@@ -246,27 +257,33 @@ def get_app():
         tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
         return HTMLResponse(f"Unknown endpoint: {endpoint}")
 
-    @app.get("/redirect/{url:str}/", response_class=JSONResponse)
-    async def redirect_get(url: str, request: Request):
+    @app.get("/redirect/{route:str}/{port:int}", response_class=JSONResponse)
+    async def redirect_get(route: str, port: int, request: Request):
         import urllib.request
 
-        url = "http://" + url
+        url = f"http://127.0.0.1:{port}/{route}"
         try:
-            request_urllib = urllib.request.Request(url, method="GET")
+            request_urllib = urllib.request.Request(url, method="GET", headers={"TagRoute": route})
             with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
                 payload = {"payload": f.read()}
         except Exception as e:
             payload = {"error": repr(e)}
         return payload
 
-    @app.post("/redirect/{url:str}/", response_class=JSONResponse)
-    async def redirect_post(url: str, request: Request):
+    @app.post("/redirect/{route:str}/{port:int}", response_class=JSONResponse)
+    async def redirect_post(route: str, port: int, request: Request):
         import urllib.request
 
-        url = "http://" + url
+        url = f"http://127.0.0.1:{port}/{route}"
         try:
             request_urllib = urllib.request.Request(
-                url, method="POST", data=(await request.body()), headers={"Content-Type": "application/json"}
+                url,
+                method="POST",
+                data=(await request.body()),
+                headers={
+                    "Content-Type": "application/json",
+                    "TagRoute": route,
+                },
             )
             with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
                 payload = {"payload": f.read()}
@@ -274,31 +291,95 @@ def get_app():
             payload = {"error": repr(e)}
         return payload
 
-    @app.get("/redirect_requests/{url:str}/", response_class=JSONResponse)
-    async def redirect_requests_get(url: str, request: Request):
+    @app.get("/redirect_requests/{route:str}/{port:int}", response_class=JSONResponse)
+    async def redirect_requests_get(route: str, port: int, request: Request):
         import requests
 
-        full_url = "http://" + url
+        full_url = f"http://127.0.0.1:{port}/{route}"
         try:
             with requests.Session() as s:
-                response = s.get(full_url, timeout=0.5, headers={"TagHost": url})
+                response = s.get(full_url, timeout=0.5, headers={"TagRoute": route})
                 payload = {"payload": response.text}
         except Exception as e:
             payload = {"error": repr(e)}
         return payload
 
-    @app.post("/redirect_requests/{url:str}/", response_class=JSONResponse)
-    async def redirect_requests_post(url: str, request: Request):
+    @app.post("/redirect_requests/{route:str}/{port:int}", response_class=JSONResponse)
+    async def redirect_requests_post(route: str, port: int, request: Request):
         import requests
 
-        full_url = "http://" + url
+        full_url = f"http://127.0.0.1:{port}/{route}"
         try:
             with requests.Session() as s:
                 response = s.post(
                     full_url,
                     data=(await request.body()),
-                    headers={"Content-Type": "application/json", "TagHost": url},
+                    headers={"Content-Type": "application/json", "TagRoute": route},
                     timeout=0.5,
+                )
+                payload = {"payload": response.text}
+        except Exception as e:
+            payload = {"error": repr(e)}
+        return payload
+
+    @app.get("/redirect_httpx/{route:str}/{port:int}", response_class=JSONResponse)
+    async def redirect_httpx_get(route: str, port: int, request: Request):
+        import httpx
+
+        full_url = f"http://127.0.0.1:{port}/{route}"
+        try:
+            with httpx.Client() as client:
+                response = client.get(full_url, timeout=0.5, headers={"TagRoute": route}, follow_redirects=True)
+                payload = {"payload": response.text}
+        except Exception as e:
+            payload = {"error": repr(e)}
+        return payload
+
+    @app.post("/redirect_httpx/{route:str}/{port:int}", response_class=JSONResponse)
+    async def redirect_httpx_post(route: str, port: int, request: Request):
+        import httpx
+
+        full_url = f"http://127.0.0.1:{port}/{route}"
+        try:
+            with httpx.Client() as client:
+                response = client.post(
+                    full_url,
+                    content=(await request.body()),
+                    headers={"Content-Type": "application/json", "TagRoute": route},
+                    timeout=0.5,
+                    follow_redirects=True,
+                )
+                payload = {"payload": response.text}
+        except Exception as e:
+            payload = {"error": repr(e)}
+        return payload
+
+    @app.get("/redirect_httpx_async/{route:str}/{port:int}", response_class=JSONResponse)
+    async def redirect_httpx_async_get(route: str, port: int, request: Request):
+        import httpx
+
+        full_url = f"http://127.0.0.1:{port}/{route}"
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(full_url, timeout=0.5, headers={"TagRoute": route}, follow_redirects=True)
+                payload = {"payload": response.text}
+        except Exception as e:
+            payload = {"error": repr(e)}
+        return payload
+
+    @app.post("/redirect_httpx_async/{route:str}/{port:int}", response_class=JSONResponse)
+    async def redirect_httpx_async_post(route: str, port: int, request: Request):
+        import httpx
+
+        full_url = f"http://127.0.0.1:{port}/{route}"
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    full_url,
+                    content=(await request.body()),
+                    headers={"Content-Type": "application/json", "TagRoute": route},
+                    timeout=0.5,
+                    follow_redirects=True,
                 )
                 payload = {"payload": response.text}
         except Exception as e:
