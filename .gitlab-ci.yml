@@ -430,7 +430,7 @@ lib_injection_tests:
     - if [ "${MEMCPY_MODE}" == "fast" ]; then export ECHION_USE_FAST_COPY_MEMORY=1; else export ECHION_USE_FAST_COPY_MEMORY=0; fi
     - ./ddtrace/internal/datadog/profiling/build_standalone.sh --${SANITIZER} RelWithDebInfo stack_test
 
-# Run on every PR with default memcpy mode (only if profiling files changed)
+# Run on every PR (only if profiling files changed)
 profiling_native:
   extends: .profiling_native_base
   rules:
@@ -441,25 +441,19 @@ profiling_native:
         - ddtrace/internal/datadog/profiling/**/*
         - ddtrace/profiling/**/*
         - src/native/**/*
+        - tests/profiling/**/*
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
         MEMCPY_MODE: ["default"]
-        SANITIZER: ["safety", "thread"]
+        SANITIZER: ["safety", "thread", ""]
+      # Valgrind on subset only: ASAN/LSAN (in "safety") already cover leaks, buffer overflows,
+      # and use-after-free. Valgrind's main added value is detecting uninitialized memory usage,
+      # which is worth checking on a few versions without the slowdown on all runs.
+      # If needed, please add more versions to the list.
       - PYTHON_VERSION: ["3.12", "3.14"]
         MEMCPY_MODE: ["default"]
         SANITIZER: ["valgrind"]
-
-# Fast memcpy mode: nightly/schedule only
-profiling_native_fast_memcpy:
-  extends: .profiling_native_base
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "main"
-    - when: manual
-      allow_failure: true
-  parallel:
-    matrix:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
         MEMCPY_MODE: ["fast"]
         SANITIZER: ["safety", "thread"]
