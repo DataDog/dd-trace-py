@@ -59,6 +59,38 @@ def _get_service_name(request: httpx.Request) -> Optional[str]:
     return ext_service(None, config.httpx)
 
 
+def _wrapped_sync_send_single_request(
+    wrapped: BoundFunctionWrapper, instance: httpx.Client, args: Tuple[httpx.Request], kwargs: Dict[str, Any]
+) -> httpx.Response:
+    req = get_argument_value(args, kwargs, 0, "request")
+    with core.context_with_data(
+        "httpx.client._send_single_request",
+        request=req,
+    ) as ctx:
+        resp = None
+        try:
+            resp = wrapped(*args, **kwargs)
+            return resp
+        finally:
+            ctx.set_item("response", resp)
+
+
+async def _wrapped_async_send_single_request(
+    wrapped: BoundFunctionWrapper, instance: httpx.AsyncClient, args: Tuple[httpx.Request], kwargs: Dict[str, Any]
+):
+    req = get_argument_value(args, kwargs, 0, "request")
+    with core.context_with_data(
+        "httpx.client._send_single_request",
+        request=req,
+    ) as ctx:
+        resp = None
+        try:
+            resp = await wrapped(*args, **kwargs)
+            return resp
+        finally:
+            ctx.set_item("response", resp)
+
+
 async def _wrapped_async_send(
     wrapped: BoundFunctionWrapper, instance: httpx.AsyncClient, args: Tuple[httpx.Request], kwargs: Dict[str, Any]
 ):
@@ -111,6 +143,8 @@ def patch() -> None:
 
     _w(httpx.Client, "send", _wrapped_sync_send)
     _w(httpx.AsyncClient, "send", _wrapped_async_send)
+    _w(httpx.Client, "_send_single_request", _wrapped_sync_send_single_request)
+    _w(httpx.AsyncClient, "_send_single_request", _wrapped_async_send_single_request)
 
 
 def unpatch() -> None:
@@ -121,3 +155,5 @@ def unpatch() -> None:
 
     _u(httpx.AsyncClient, "send")
     _u(httpx.Client, "send")
+    _u(httpx.Client, "_send_single_request")
+    _u(httpx.AsyncClient, "_send_single_request")
