@@ -1333,7 +1333,8 @@ def test_ctx(tracer, test_spans):
     assert s3.parent_id == s2.span_id
     assert s4.parent_id == s1.span_id
     assert s1.trace_id == s2.trace_id == s3.trace_id == s4.trace_id
-    assert s1.get_metric(_SAMPLING_PRIORITY_KEY) == 1
+    # Agent based sampling may set the sampling priority to either 0 or 1.
+    assert s1.get_metric(_SAMPLING_PRIORITY_KEY) in (AUTO_KEEP, AUTO_REJECT)
     assert s2.get_metric(_SAMPLING_PRIORITY_KEY) is None
     assert _ORIGIN_KEY not in s1.get_tags()
 
