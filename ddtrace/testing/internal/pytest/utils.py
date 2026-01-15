@@ -3,7 +3,6 @@ import typing as t
 
 import pytest
 
-from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
@@ -16,15 +15,15 @@ def nodeid_to_names(nodeid: str) -> t.Tuple[str, str, str]:
     matches = _NODEID_REGEX.match(nodeid)
 
     if matches:
-        module_raw = matches.group("module") or EMPTY_NAME
-        module = module_raw.replace("/", ".") if module_raw else EMPTY_NAME
-        suite = matches.group("suite") or EMPTY_NAME
-        test = matches.group("name") or EMPTY_NAME
+        module_raw = matches.group("module") or ""
+        module = module_raw.replace("/", ".") if module_raw else ""
+        suite = matches.group("suite") or ""
+        test = matches.group("name") or ""
 
     else:
         # Fallback to considering the whole nodeid as the test name.
-        module = EMPTY_NAME
-        suite = EMPTY_NAME
+        module = "unknown_module"
+        suite = "unknown_suite"
         test = nodeid
 
     return module, suite, test
