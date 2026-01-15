@@ -13,8 +13,8 @@ using the `DD_PATCH_MODULES` environment variable or `DD_TRACE_HTTPLIB_ENABLED`:
     DD_PATCH_MODULES=httplib:true ddtrace-run ....
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.httplib['distributed_tracing']
 
@@ -24,19 +24,6 @@ Global Configuration
    environment variable.
 
    Default: ``True``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-
-The integration can be configured per instance::
-
-    from ddtrace import config
-
-    # Disable distributed tracing globally.
-    config.httplib['distributed_tracing'] = False
-    connection = http.client.HTTPConnection('www.datadog.com')
 
 :ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 """

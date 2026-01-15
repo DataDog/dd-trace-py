@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import os
 import random
 import time
+from typing import Callable
 from typing import Generator
 from typing import List
 from typing import Optional
@@ -112,16 +113,34 @@ class CrashtrackerWrapper:
         return read_files([self.stdout, self.stderr])
 
 
-def get_all_crash_messages(test_agent_client: TestAgentClient) -> List[TestAgentRequest]:
+def _get_matching_crash_messages(
+    test_agent_client: TestAgentClient,
+    predicate: Callable[[TestAgentRequest], bool],
+    count: int = 1,
+    timeout: float = 10.0,
+    poll_interval: float = 0.2,
+) -> List[TestAgentRequest]:
     """
-    A test helper to get *all* crash messages is necessary, because crash pings and crash reports
-    are sent through async network requests, so we don't have a guarantee of the order they are received.
-    We differentiate between crash pings and crash reports downstream
+    Poll the test agent for crash messages matching a predicate.
+
+    Args:
+        test_agent_client: The test agent client to poll
+        predicate: Function to match desired messages
+        count: Number of matching messages to find before returning (default: 1)
+        timeout: Maximum time to wait for messages in seconds
+        poll_interval: Time between polling attempts in seconds
+
+    Returns:
+        List of matching crash messages
+
+    Raises:
+        AssertionError: If count matching messages are not found within timeout
     """
     seen_report_ids = set()
-    crash_messages = []
-    # 5 iterations * 0.2 second = 1 second total should be enough to get ping + report
-    for _ in range(5):
+    matching_messages: List[TestAgentRequest] = []
+    end_time = time.time() + timeout
+
+    while time.time() < end_time:
         incoming_messages = test_agent_client.crash_messages()
         for message in incoming_messages:
             body = message.get("body", b"")
@@ -130,42 +149,37 @@ def get_all_crash_messages(test_agent_client: TestAgentClient) -> List[TestAgent
             report_id = (hash(body), frozenset(message.get("headers", {}).items()))
             if report_id not in seen_report_ids:
                 seen_report_ids.add(report_id)
-                crash_messages.append(message)
+                if predicate(message):
+                    matching_messages.append(message)
+                    if len(matching_messages) >= count:
+                        return matching_messages
 
-        time.sleep(0.2)
+        time.sleep(poll_interval)
 
-    return crash_messages
+    assert len(matching_messages) >= count, (
+        f"Expected {count} matching message(s), got {len(matching_messages)} within {timeout}s"
+    )
+    return matching_messages
 
 
 def get_crash_report(test_agent_client: TestAgentClient) -> TestAgentRequest:
     """Wait for a crash report from the crashtracker listener socket."""
-    crash_messages = get_all_crash_messages(test_agent_client)
 
-    assert len(crash_messages) >= 2, f"Expected at least 2 messages; got {len(crash_messages)}"
+    def is_crash_report(msg: TestAgentRequest) -> bool:
+        return b'"level":"ERROR"' in msg["body"]
 
-    crash_report = None
-    for message in crash_messages:
-        if b'"level":"ERROR"' in message["body"]:
-            crash_report = message
-            break
-    assert crash_report is not None, "Could not find crash report with level ERROR tag"
-
-    return crash_report
+    messages = _get_matching_crash_messages(test_agent_client, predicate=is_crash_report)
+    return messages[0]
 
 
 def get_crash_ping(test_agent_client: TestAgentClient) -> TestAgentRequest:
-    """Wait for a crash report from the crashtracker listener socket."""
-    crash_messages = get_all_crash_messages(test_agent_client)
-    assert len(crash_messages) >= 2, f"Expected at least 2 messages; got {len(crash_messages)}"
+    """Wait for a crash ping from the crashtracker listener socket."""
 
-    crash_ping = None
-    for message in crash_messages:
-        if b'"level":"DEBUG"' in message["body"]:
-            crash_ping = message
-            break
-    assert crash_ping is not None, "Could not find crash ping with level DEBUG tag"
+    def is_crash_ping(msg: TestAgentRequest) -> bool:
+        return b'"level":"DEBUG"' in msg["body"]
 
-    return crash_ping
+    messages = _get_matching_crash_messages(test_agent_client, predicate=is_crash_ping)
+    return messages[0]
 
 
 @contextmanager
