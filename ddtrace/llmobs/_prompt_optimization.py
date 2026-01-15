@@ -12,18 +12,16 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import Experiment
 
+from ddtrace.llmobs._experiment import JSONType
+from ddtrace.llmobs._experiment import NonNoneJSONType
+from ddtrace.llmobs._experiment import ConfigType
+from ddtrace.llmobs._experiment import DatasetRecordInputType
 
 if TYPE_CHECKING:
     from ddtrace.llmobs import LLMObs
 
 
 logger = get_logger(__name__)
-
-JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
-OptimizationConfigType = Dict[str, JSONType]
-NonNoneJSONType = Union[str, int, float, bool, List[JSONType], Dict[str, JSONType]]
-ExperimentConfigType = Dict[str, JSONType]
-DatasetRecordInputType = Dict[str, NonNoneJSONType]
 
 TIPS = {
     "creative": "Don't be afraid to be creative when creating the new instruction!",
@@ -58,7 +56,7 @@ class OptimizationIteration:
         current_prompt: str,
         current_results: Dict[str, Any],
         optimization_task: Callable,
-        config: OptimizationConfigType,
+        config: ConfigType,
     ) -> None:
         """Initialize an optimization iteration.
 
@@ -141,13 +139,13 @@ class OptimizationIteration:
             template = f.read()
 
         # Replace {{EVALUATION_OUTPUT_FORMAT}} placeholder
-        output_format = self._get_evaluation_output_format()
+        output_format = self._config.get("evaluation_output_format")
         system_prompt = template.replace("{{EVALUATION_OUTPUT_FORMAT}}", output_format)
 
         # Add evaluation model information at the end
         additional_parts = []
-        if "optimization_model_name" in self._config:
-            eval_model = self._config.get("model_name", "unknown")
+        if "model_name" in self._config:
+            eval_model = self._config["model_name"]
             additional_parts.append(
                 f"\n\nIMPORTANT: The improved prompt will be applied to this evaluation model: {eval_model}"
             )
@@ -165,15 +163,6 @@ class OptimizationIteration:
             system_prompt += "\n".join(additional_parts)
 
         return system_prompt
-
-    def _get_evaluation_output_format(self) -> str:
-        """Get the evaluation output format specification from config.
-
-        :return: String describing the expected output format.
-        """
-        # Try to get from config
-        return self._config["evaluation_output_format"]
-
 
     def _build_user_prompt(self) -> str:
         """Build user prompt with current prompt and evaluation examples.
@@ -194,6 +183,7 @@ class OptimizationIteration:
         # Add performance metrics if available
         if summary_evals:
             prompt_parts.append("Performance Metrics:")
+            import ipdb; ipdb.set_trace()
             for summary_metric_name, summary_metric_data in summary_evals.items():
                 for metric_name, metric_data in summary_metric_data["value"].items():
                     prompt_parts.append(f"- {metric_name}: {metric_data}")
@@ -298,10 +288,6 @@ class OptimizationResult:
         for iteration in result.get_history():
             print(f"Iteration {iteration['iteration']}: {iteration['score']}")
 
-        # Get specific iteration
-        iteration_2 = result.get_iteration(2)
-        print(f"Iteration 2 prompt: {iteration_2['prompt']}")
-        print(f"Iteration 2 score: {iteration_2['score']}")
     """
 
     def __init__(
@@ -359,17 +345,6 @@ class OptimizationResult:
         """
         return self.iterations
 
-    def get_iteration(self, iteration_num: int) -> Optional[Dict[str, Any]]:
-        """Get results for a specific iteration number.
-
-        :param iteration_num: The iteration number to retrieve (0 = baseline).
-        :return: Dict with iteration results or None if not found.
-        """
-        for iteration in self.iterations:
-            if iteration.get("iteration") == iteration_num:
-                return iteration
-        return None
-
     def get_score_history(self) -> List[float]:
         """Get list of scores across all iterations.
 
@@ -418,12 +393,12 @@ class PromptOptimization:
     def __init__(
         self,
         name: str,
-        task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
-        optimization_task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
+        task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
+        optimization_task: Callable[[str, str, str], Dict[str, str]],
         dataset: Dataset,
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         project_name: str,
-        config: OptimizationConfigType,
+        config: ConfigType,
         _llmobs_instance: Optional["LLMObs"] = None,
         tags: Optional[Dict[str, str]] = None,
         max_iterations: int = 5,
@@ -433,8 +408,9 @@ class PromptOptimization:
 
         :param name: Name of the optimization run.
         :param task: Task function to execute. Must accept ``input_data`` and ``config`` parameters.
-        :param optimization_task: Function to generate prompt improvements based on results.
-                                  Must accept current prompt, results, and config.
+        :param optimization_task: Function to generate prompt improvements. Must accept
+                                  ``system_prompt`` (str), ``user_prompt`` (str), and ``model`` (str).
+                                  Must return dict with ``new_prompt`` and ``reasoning`` keys.
         :param dataset: Dataset to run experiments on.
         :param evaluators: List of evaluator functions to measure task performance.
         :param project_name: Project name for organizing optimization runs.
@@ -584,8 +560,9 @@ class PromptOptimization:
                 logger.info("Next iteration will optimize from best prompt (iteration %d)", best_iteration)
 
             # Check if target score has been reached
-            target_score = self._config.get("target")
-            if target_score is not None and best_score is not None and best_score >= target_score:
+            # Default value is 1.0
+            target_score = self._config.get("target", 1.0)
+            if best_score is not None and best_score >= target_score:
                 logger.info("=" * 80)
                 logger.info("🎯 TARGET REACHED!")
                 logger.info("Target score: %.4f", target_score)

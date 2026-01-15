@@ -101,7 +101,7 @@ from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordInputType
 from ddtrace.llmobs._experiment import EvaluatorResult
 from ddtrace.llmobs._experiment import Experiment
-from ddtrace.llmobs._experiment import ExperimentConfigType
+from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
@@ -906,16 +906,16 @@ class LLMObs(Service):
         return cls._instance._dne_client.dataset_delete(dataset_id)
 
     @classmethod
-    def prompt_optimization(
+    def _prompt_optimization(
         cls,
         name: str,
-        task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
-        optimization_task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
+        task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
+        optimization_task: Callable[[str, str, str], Dict[str, str]],
         dataset: Dataset,
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         project_name: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
-        config: Optional[ExperimentConfigType] = None,
+        config: Optional[ConfigType] = None,
         max_iterations: int = 5,
         summary_evaluators: Optional[List[Callable]] = None,
     ) -> PromptOptimization:
@@ -929,10 +929,11 @@ class LLMObs(Service):
                      (dict with input data for the task) and ``config`` (configuration dictionary).
                      Should return the task output as a JSON-serializable value.
         :param optimization_task: Function that calls an LLM to generate improved prompts.
-                                  Must accept parameters ``system_prompt`` (str) and ``user_prompt`` (str).
-                                  Should return a dict with keys ``new_prompt`` (str) and ``reasoning`` (str).
-                                  The system_prompt contains optimization instructions loaded from template,
-                                  and user_prompt contains the current prompt with evaluation examples.
+                                  Must accept parameters ``system_prompt`` (str), ``user_prompt`` (str),
+                                  and ``model`` (str). Should return a dict with keys ``new_prompt`` (str)
+                                  and ``reasoning`` (str). The system_prompt contains optimization instructions
+                                  loaded from template, and user_prompt contains the current prompt with
+                                  evaluation examples.
         :param dataset: The dataset to run experiments on, created with ``LLMObs.create_dataset()``
                        or ``LLMObs.pull_dataset()``.
         :param evaluators: A list of evaluator functions to measure task performance.
@@ -1045,13 +1046,13 @@ class LLMObs(Service):
     def experiment(
         cls,
         name: str,
-        task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
+        task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
         dataset: Dataset,
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]]],
         description: str = "",
         project_name: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
-        config: Optional[ExperimentConfigType] = None,
+        config: Optional[ConfigType] = None,
         summary_evaluators: Optional[
             List[
                 Callable[
