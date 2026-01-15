@@ -34,6 +34,6 @@ for line in projectlines:
     if line.startswith("dependencies = ["):
         replacing_index += 1
 
-os.remove("pyproject_edited.toml")
-with open("pyproject_edited.toml", "w") as f:
+os.remove("pyproject.toml")
+with open("pyproject.toml", "w") as f:
     f.writelines(new_output)
