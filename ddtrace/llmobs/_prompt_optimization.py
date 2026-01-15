@@ -100,8 +100,8 @@ class OptimizationIteration:
         )
 
         # Parse the result dict
-        improved_prompt = result.get("new_prompt", "")
-        reasoning = result.get("reasoning", "")
+        improved_prompt = result.get("new_prompt")
+        reasoning = result.get("reasoning")
 
         if not improved_prompt:
             logger.warning(
@@ -178,7 +178,7 @@ class OptimizationIteration:
 
         # Extract examples from evaluation results
         results = self.current_results
-        summary_evals = results.get("summary_evaluations", {})
+        summary_evals = results.get("summary_evaluations")
 
         # Add performance metrics if available
         if summary_evals:
@@ -232,7 +232,7 @@ class OptimizationIteration:
         for result in results:
             evaluations = result.get("evaluations", {})
             # Check if any evaluation matches the type
-            for eval_name, eval_data in evaluations.items():
+            for _, eval_data in evaluations.items():
                 label = eval_data.get("value", "")
                 if example_type in label:
                     return result
@@ -677,7 +677,7 @@ class PromptOptimization:
                         return float(value)
 
         # Fallback: take the first numeric score found
-        for eval_name, eval_data in summary_evals.items():
+        for _, eval_data in summary_evals.items():
             if isinstance(eval_data, dict):
                 score = eval_data.get("score") or eval_data.get("mean")
                 if isinstance(score, (int, float)):
