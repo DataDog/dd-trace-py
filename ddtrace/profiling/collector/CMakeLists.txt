@@ -54,8 +54,12 @@ if(NOT TARGET Python3::Python)
     message(STATUS "Python3::Python target not found, using include dirs only")
 endif()
 
+# Echion source files (from stack/src/echion/)
+set(ECHION_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling/stack/src/echion)
+file(GLOB ECHION_SOURCE_FILES ${ECHION_SRC_DIR}/*.cc)
+
 # Source files for the extension
-set(SOURCE_FILES _memalloc.cpp _memalloc_tb.cpp _memalloc_heap.cpp _memalloc_reentrant.cpp)
+set(SOURCE_FILES _memalloc.cpp _memalloc_tb.cpp _memalloc_heap.cpp _memalloc_reentrant.cpp ${ECHION_SOURCE_FILES})
 
 # Get the extension name from setup.py or use default Note: EXTENSION_NAME from setup.py already includes the full
 # suffix
@@ -82,6 +86,19 @@ target_include_directories(
     PRIVATE ${Python3_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}
             ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling/dd_wrapper/include
             ${RUST_GENERATED_HEADERS_DIR})
+
+# Echion include directories (marked SYSTEM to suppress warnings)
+target_include_directories(
+    ${FULL_EXTENSION_NAME} SYSTEM
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling/stack/echion
+            ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling/stack/include)
+
+# Echion platform definitions
+if(APPLE)
+    target_compile_definitions(${FULL_EXTENSION_NAME} PRIVATE PL_DARWIN)
+elseif(UNIX)
+    target_compile_definitions(${FULL_EXTENSION_NAME} PRIVATE PL_LINUX)
+endif()
 
 # Link libraries Python3::Python target might not exist in all build environments (e.g., manylinux) Python modules
 # should use -undefined dynamic_lookup on macOS and not link to libpython on Linux

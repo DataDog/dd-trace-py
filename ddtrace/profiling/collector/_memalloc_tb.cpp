@@ -1,14 +1,16 @@
+#include <mutex>
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <frameobject.h>
-#include <string>
 #include <string_view>
 
 #include "_pymacro.h"
 
 #include "_memalloc_debug.h"
-#include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
+
+#include <echion/interp.h>
+#include <echion/stacks.h>
 
 // Cached reference to threading module and current_thread function
 static PyObject* threading_module = NULL;
@@ -243,47 +245,16 @@ push_threadinfo_to_sample(Datadog::Sample& sample)
     // Error will be restored automatically by error_restorer destructor
 }
 
-/* Helper function to extract frame info from PyFrameObject and push to sample */
-static void
-push_pyframe_to_sample(Datadog::Sample& sample, PyFrameObject* frame)
-{
-    int lineno_val = PyFrame_GetLineNumber(frame);
-    if (lineno_val < 0)
-        lineno_val = 0;
-
-#ifdef _PY39_AND_LATER
-    PyCodeObject* code = PyFrame_GetCode(frame);
-#else
-    PyCodeObject* code = frame->f_code;
-#endif
-
-    std::string_view name_sv = "<unknown>";
-    std::string_view filename_sv = "<unknown>";
-
-    if (code != NULL) {
-        // Extract function name (use co_qualname for Python 3.11+ for better context)
-#if defined(_PY311_AND_LATER)
-        PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
-#else
-        PyObject* name_obj = code->co_name;
-#endif
-        name_sv = unicode_to_string_view(name_obj);
-        filename_sv = unicode_to_string_view(code->co_filename);
-    }
-
-    // Push frame to Sample (root to leaf order)
-    // push_frame copies the strings immediately into its StringArena
-    sample.push_frame(name_sv, filename_sv, 0, lineno_val);
-
-#ifdef _PY39_AND_LATER
-    Py_XDECREF(code);
-#endif
-}
-
 /* Helper function to collect frames from PyFrameObject chain and push to sample */
 static void
 push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
 {
+    static std::once_flag once_flag;
+    std::call_once(once_flag, [&]() {
+        std::cerr << "INITIALIZING STRING TABLE" << std::endl;
+        init_frame_cache(1024);
+    });
+
     PyThreadState* tstate = PyThreadState_Get();
     if (tstate == NULL) {
         // Push a placeholder frame when thread state is unavailable
@@ -311,19 +282,21 @@ push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
         return;
     }
 
-    for (PyFrameObject* frame = pyframe; frame != NULL;) {
-        push_pyframe_to_sample(sample, frame);
-
-#ifdef _PY39_AND_LATER
-        PyFrameObject* back = PyFrame_GetBack(frame);
-        Py_DECREF(frame); // Release reference - pyframe from PyThreadState_GetFrame is a new reference, and back frames
-                          // from GetBack are also new references
-        frame = back;
-#else
-        frame = frame->f_back;
-#endif
-        memalloc_debug_gil_release();
+    FrameStack stack;
+    capture_stack_trace(tstate, stack);
+    if (stack.empty()) {
+        return;
     }
+
+    for (const auto& frame_ref : stack) {
+        const auto& frame = frame_ref.get();
+
+        const auto& function_name = string_table.lookup(frame.name)->get();
+        const auto& filename = string_table.lookup(frame.filename)->get();
+        sample.push_frame(function_name, filename, 0, frame.location.line);
+    }
+
+    memalloc_debug_gil_release();
 }
 
 void
