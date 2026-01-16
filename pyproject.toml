@@ -149,7 +149,8 @@ exclude = [
     "tests/coverage/included_path/py39_line_numbers.py",
     "tests/appsec/iast/fixtures/ast/str/non_utf8_content.py",
     "tests/appsec/iast/fixtures/aspects/str/non_utf8_content.py",
-    "tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py"
+    "tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py",
+    "benchmarks/bm/iast_fixtures/template_strings.py"  # Python 3.14+ syntax (t-strings)
 ]
 lint.ignore = [
     "A003",
