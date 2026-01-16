@@ -71,10 +71,7 @@ void
 Sampler::adapt_sampling_interval()
 {
 #if defined(__linux__)
-    struct timespec ts
-    {
-        0, 0
-    };
+    struct timespec ts{ 0, 0 };
 
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
     auto new_process_count = static_cast<uint64_t>(ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000);
@@ -229,6 +226,7 @@ Sampler::get()
 void
 Sampler::postfork_child()
 {
+    std::cerr << getpid() << "postfork_child" << std::endl;
     // Clear renderer caches to avoid using stale interned string/function IDs
     if (renderer_ptr) {
         renderer_ptr->postfork_child();
@@ -241,6 +239,7 @@ _stack_atfork_child()
     // The only thing we need to do at fork is to propagate the PID to echion
     // so we don't even reveal this function to the user
     _set_pid(getpid());
+    std::cerr << getpid() << "_stack_atfork_child" << std::endl;
     ThreadSpanLinks::postfork_child();
 
     // Clear renderer caches to avoid using stale interned IDs
@@ -314,6 +313,7 @@ Sampler::unregister_thread(uint64_t id)
 {
     // unregistering threads requires coordinating with one of echion's global locks, which we take here.
     const std::lock_guard<std::mutex> thread_info_guard{ thread_info_map_lock };
+    std::cerr << getpid() << "unregistering thread " << id << std::endl;
     thread_info_map.erase(id);
 }
 
