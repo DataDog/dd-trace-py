@@ -18,6 +18,7 @@
 
 #include <functional>
 
+#include <echion/stacks.h>
 #include <echion/state.h>
 #include <echion/vm.h>
 
@@ -31,3 +32,6 @@ class InterpreterInfo
 
 void
 for_each_interp(_PyRuntimeState* runtime, std::function<void(InterpreterInfo& interp)> callback);
+
+void
+capture_stack_trace(PyThreadState* tstate, FrameStack& stack);

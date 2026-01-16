@@ -1,5 +1,7 @@
 #include <echion/interp.h>
 
+#include <echion/stacks.h>
+
 void
 for_each_interp(_PyRuntimeState* runtime, std::function<void(InterpreterInfo& interp)> callback)
 {
@@ -46,4 +48,10 @@ for_each_interp(_PyRuntimeState* runtime, std::function<void(InterpreterInfo& in
         // Move to next interpreter
         interp_addr = reinterpret_cast<char*>(interpreter_info.next);
     }
+}
+
+void
+capture_stack_trace(PyThreadState* tstate, FrameStack& stack)
+{
+    unwind_python_stack(tstate, stack);
 }
