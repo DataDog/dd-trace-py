@@ -59,12 +59,11 @@ DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
 SKIPPED_BY_ITR_REASON = "Skipped by Datadog Intelligent Test Runner"
 ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 
-# SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
-# Handle compatibility with older pytest versions that don't have StashKey
 try:
     SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
 except AttributeError:
     # Fallback for pytest < 7.0 - use a simple key
+    # (older pytest versions don't have StashKey)
     SESSION_MANAGER_STASH_KEY = "session_manager_key"
 
 TEST_FRAMEWORK = "pytest"
@@ -124,7 +123,7 @@ def _get_module_path_from_item(item: pytest.Item) -> Path:
 
 
 def _get_relative_module_path_from_item(item: pytest.Item, workspace_path: Path) -> Path:
-    """Get module path from pytest item, converted to relative path like the old plugin."""
+    """Get module path from pytest item, converted to relative path."""
     abs_path = _get_module_path_from_item(item)
 
     try:
@@ -134,17 +133,15 @@ def _get_relative_module_path_from_item(item: pytest.Item, workspace_path: Path)
         return abs_path
 
 
-def _get_test_location_info(
-    item: pytest.Item, workspace_path: Path
-) -> t.Tuple[t.Optional[str], t.Optional[int], t.Optional[int]]:
+def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> t.Tuple[t.Optional[str], int, int]:
     """
     Extract test location information (file path, start line, end line) from a pytest item.
 
     Returns:
         Tuple of (relative_path, start_line, end_line)
         - relative_path: path relative to workspace, or None on failure
-        - start_line: starting line number, or None if unavailable
-        - end_line: ending line number, or None if unavailable
+        - start_line: starting line number, or 0 if unavailable
+        - end_line: ending line number, or 0 if unavailable
     """
     try:
         # Get absolute path from item
@@ -160,24 +157,24 @@ def _get_test_location_info(
         # Fallback to pytest's reportinfo
         try:
             path, start_line, _test_name = item.reportinfo()
-            return path, start_line, None
+            return path, start_line or 0, 0
         except Exception:
-            return None, None, None
+            return None, 0, 0
 
 
-def _get_source_lines(item: pytest.Item, item_path: Path) -> t.Tuple[t.Optional[int], t.Optional[int]]:
+def _get_source_lines(item: pytest.Item, item_path: Path) -> t.Tuple[int, int]:
     """
     Get start and end line numbers for a test item.
 
     Returns:
-        Tuple of (start_line, end_line)
+        Tuple of (start_line, end_line), with 0 indicating unavailable information
     """
     if not hasattr(item, "_obj"):
         # No test object available, fallback to reportinfo
         try:
-            return item.reportinfo()[1], None
+            return item.reportinfo()[1] or 0, 0
         except Exception:
-            return None, None
+            return 0, 0
 
     try:
         # Get undecorated test object and extract source lines
@@ -187,9 +184,9 @@ def _get_source_lines(item: pytest.Item, item_path: Path) -> t.Tuple[t.Optional[
     except Exception:
         # Fallback to reportinfo
         try:
-            return item.reportinfo()[1], None
+            return item.reportinfo()[1] or 0, 0
         except Exception:
-            return None, None
+            return 0, 0
 
 
 class TestPhase:
@@ -317,14 +314,8 @@ class TestOptPlugin:
             # Get test location information (path and line numbers)
             relative_path, start_line, end_line = _get_test_location_info(item, self.manager.workspace_path)
 
-            # Set test location
-            if relative_path and start_line is not None:
-                test.set_location(path=relative_path, start_line=start_line)
-            elif relative_path:
-                test.set_location(path=relative_path, start_line=0)
-            else:
-                # Last resort fallback
-                test.set_location(path="unknown", start_line=0)
+            # Set test location (use "unknown" path if none found, 0 is default for missing line info)
+            test.set_location(path=relative_path or "unknown", start_line=start_line)
 
             # Add end line as a tag if available
             if end_line:

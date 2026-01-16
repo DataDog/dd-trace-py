@@ -556,7 +556,7 @@ class TestHelperFunctions:
         start_line, end_line = _get_source_lines(mock_item, item_path)
 
         assert start_line == 15
-        assert end_line is None
+        assert end_line == 0
 
     def test_get_source_lines_exception_fallback(self) -> None:
         """Test _get_source_lines falls back to reportinfo on exception."""
@@ -578,7 +578,7 @@ class TestHelperFunctions:
             start_line, end_line = _get_source_lines(mock_item, item_path)
 
             assert start_line == 25
-            assert end_line is None
+            assert end_line == 0
             mock_item.reportinfo.assert_called_once()
 
     def test_get_source_lines_all_failures(self) -> None:
@@ -599,8 +599,8 @@ class TestHelperFunctions:
 
             start_line, end_line = _get_source_lines(mock_item, item_path)
 
-            assert start_line is None
-            assert end_line is None
+            assert start_line == 0
+            assert end_line == 0
 
     def test_get_test_location_info_success(self) -> None:
         """Test _get_test_location_info with successful path extraction."""
@@ -632,13 +632,13 @@ class TestHelperFunctions:
         workspace_path = Path("/workspace")
 
         with patch("ddtrace.testing.internal.pytest.plugin._get_source_lines") as mock_get_lines:
-            mock_get_lines.return_value = (15, None)
+            mock_get_lines.return_value = (15, 0)
 
             relative_path, start_line, end_line = _get_test_location_info(mock_item, workspace_path)
 
             assert relative_path == "tests/test_file.py"
             assert start_line == 15
-            assert end_line is None
+            assert end_line == 0
 
     def test_get_test_location_info_reportinfo_fallback(self) -> None:
         """Test _get_test_location_info falls back to reportinfo on path exception."""
@@ -656,7 +656,7 @@ class TestHelperFunctions:
 
         assert relative_path == "relative/path.py"
         assert start_line == 30
-        assert end_line is None
+        assert end_line == 0
 
     def test_get_test_location_info_all_failures(self) -> None:
         """Test _get_test_location_info when all methods fail."""
@@ -672,8 +672,8 @@ class TestHelperFunctions:
         relative_path, start_line, end_line = _get_test_location_info(mock_item, workspace_path)
 
         assert relative_path is None
-        assert start_line is None
-        assert end_line is None
+        assert start_line == 0
+        assert end_line == 0
 
     def test_get_test_location_info_outside_workspace(self) -> None:
         """Test _get_test_location_info when test is outside workspace."""
@@ -691,7 +691,7 @@ class TestHelperFunctions:
 
         assert relative_path == "tests/test_file.py"
         assert start_line == 10
-        assert end_line is None
+        assert end_line == 0
 
 
 class TestPrivateMethods:
