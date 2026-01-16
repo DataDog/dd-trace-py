@@ -14,6 +14,7 @@
 
 #include <mutex>
 #include <pthread.h>
+#include <stdexcept>
 #include <thread>
 
 using namespace Datadog;
@@ -23,6 +24,9 @@ using namespace Datadog;
 #include <ctime>
 #include <sys/resource.h>
 #include <unistd.h>
+
+pid_t parent_pid = 0;
+pid_t child_pid = 0;
 
 struct ThreadArgs
 {
@@ -71,10 +75,7 @@ void
 Sampler::adapt_sampling_interval()
 {
 #if defined(__linux__)
-    struct timespec ts
-    {
-        0, 0
-    };
+    struct timespec ts{ 0, 0 };
 
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
     auto new_process_count = static_cast<uint64_t>(ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000);
@@ -167,6 +168,11 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto interval_adjust_time_prev = sample_time_prev;
 
     auto* const runtime = &_PyRuntime;
+    auto is_child = getpid() == static_cast<pid_t>(child_pid);
+    if (is_child)
+        std::cerr << getpid() << " child sampling thread started, thread_id=" << std::this_thread::get_id()
+                  << std::endl;
+
     while (seq_num == thread_seq_num.load()) {
         auto sample_time_now = steady_clock::now();
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
@@ -175,9 +181,16 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // Perform the sample
         for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
             for_each_thread(interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
+                auto start = steady_clock::now();
                 auto success = thread.sample(interp.id, tstate, wall_time_us);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
+                }
+                auto end = steady_clock::now();
+                if (getpid() == static_cast<pid_t>(child_pid)) {
+                    std::cerr << getpid() << " child sampling thread " << thread.thread_id << " took "
+                              << duration_cast<microseconds>(end - start).count() << " us and "
+                              << (success ? "success" : "failure") << std::endl;
                 }
             });
         });
@@ -229,6 +242,18 @@ Sampler::get()
 void
 Sampler::postfork_child()
 {
+    std::cerr << getpid() << "postfork_child" << std::endl;
+    auto current = getpid();
+    if (parent_pid == 0) {
+        parent_pid = current;
+        std::cerr << "set parent_pid to " << parent_pid << std::endl;
+    } else if (child_pid == 0 && current != parent_pid) {
+        child_pid = current;
+        std::cerr << "set child_pid to " << child_pid << std::endl;
+    } else if (child_pid != 0 && parent_pid != 0) {
+        std::cerr << getpid() << " postfork_child called twice" << std::endl;
+        throw std::logic_error("postfork_child called twice");
+    }
     // Clear renderer caches to avoid using stale interned string/function IDs
     if (renderer_ptr) {
         renderer_ptr->postfork_child();
@@ -241,6 +266,7 @@ _stack_atfork_child()
     // The only thing we need to do at fork is to propagate the PID to echion
     // so we don't even reveal this function to the user
     _set_pid(getpid());
+    std::cerr << getpid() << "running _stack_atfork_child" << std::endl;
     ThreadSpanLinks::postfork_child();
 
     // Clear renderer caches to avoid using stale interned IDs
@@ -314,6 +340,7 @@ Sampler::unregister_thread(uint64_t id)
 {
     // unregistering threads requires coordinating with one of echion's global locks, which we take here.
     const std::lock_guard<std::mutex> thread_info_guard{ thread_info_map_lock };
+    std::cerr << getpid() << "unregistering thread " << id << std::endl;
     thread_info_map.erase(id);
 }
 
