@@ -953,9 +953,6 @@ def pytest_configure(config: pytest.Config) -> None:
     # options.
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
 
-    # Always register hook specifications to prevent "unknown hook" errors, even if plugin initialization fails
-    config.pluginmanager.add_hookspecs(TestOptHooks)
-
     if _is_test_optimization_disabled_by_kill_switch():
         return
 
@@ -971,6 +968,7 @@ def pytest_configure(config: pytest.Config) -> None:
         return
 
     config.pluginmanager.register(plugin)
+    config.pluginmanager.add_hookspecs(TestOptHooks)
 
     if config.pluginmanager.hasplugin("xdist"):
         config.pluginmanager.register(XdistTestOptPlugin(plugin))
@@ -1087,44 +1085,6 @@ def _is_pytest_cov_enabled(config) -> bool:
     if isinstance(cov_option, list) and cov_option == [True] and not nocov_option:
         return True
     return cov_option
-
-
-# Hook implementations to match old plugin behavior exactly
-_NODEID_REGEX_FOR_HOOKS = re.compile("^(((?P<module>.*)/)?(?P<suite>[^/]*?))::(?P<name>.*?)$")
-
-
-def _get_names_from_item(item: pytest.Item) -> tuple[str, str, str]:
-    """Gets an item's module, suite, and test names exactly like old plugin"""
-    matches = re.match(_NODEID_REGEX_FOR_HOOKS, item.nodeid)
-    if not matches:
-        return ("unknown_module", "unknown_suite", item.name)
-
-    module_name = (matches.group("module") or "").replace("/", ".")
-    suite_name = matches.group("suite")
-    test_name = matches.group("name")
-
-    return (module_name, suite_name, test_name)
-
-
-@pytest.hookimpl(trylast=True)
-def pytest_ddtrace_get_item_module_name(item: pytest.Item) -> str:
-    """Returns the module name to use when reporting Test Optimization results."""
-    module, _, _ = _get_names_from_item(item)
-    return module
-
-
-@pytest.hookimpl(trylast=True)
-def pytest_ddtrace_get_item_suite_name(item: pytest.Item) -> str:
-    """Returns the suite name to use when reporting Test Optimization results."""
-    _, suite, _ = _get_names_from_item(item)
-    return suite
-
-
-@pytest.hookimpl(trylast=True)
-def pytest_ddtrace_get_item_test_name(item: pytest.Item) -> str:
-    """Returns the test name to use when reporting Test Optimization results."""
-    _, _, test = _get_names_from_item(item)
-    return test
 
 
 @pytest.fixture(scope="session")
