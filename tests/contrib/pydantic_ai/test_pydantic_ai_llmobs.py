@@ -94,6 +94,33 @@ class TestLLMObsPydanticAI:
         span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(span, output)
+    
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (0, 8, 1), reason="pydantic-ai < 0.8.1 does not support stream_responses")
+    async def test_agent_run_stream_responses(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
+        output = ""
+        with request_vcr.use_cassette("agent_run_stream.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            async with agent.run_stream("Hello, world!") as result:
+                async for chunk in result.stream_responses():
+                    output = chunk[0].parts[0].content
+        span = test_spans.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected_run_agent_span_event(span, output)
+    
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (0, 8, 1), reason="pydantic-ai < 0.8.1 does not support stream_responses")
+    async def test_agent_run_stream_responses_early_exit(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
+        """Test that the span is still finished when the stream is exited early"""
+        output = ""
+        with request_vcr.use_cassette("agent_run_stream.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            async with agent.run_stream("Hello, world!") as result:
+                async for chunk, last in result.stream_responses():
+                    assert not last # assert this is not the last chunk
+                    output = chunk.parts[0].content
+                    break
+        span = test_spans.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected_run_agent_span_event(span, output)
 
     async def test_agent_run_stream_get_output(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
         output = ""
