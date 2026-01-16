@@ -35,11 +35,9 @@ setup_python() {
   if ! command -v uv &> /dev/null; then
     curl -LsSf https://astral.sh/uv/install.sh | sh
   fi
-  echo "checking python version"
   which python && python --version
   if [[ ${UNPIN_DEPENDENCIES:-"true"} == "true" ]]
   then
-    echo "explode"
     python3.14 scripts/allow_prerelease_dependencies.py
     export PIP_PRE=true
   fi
@@ -73,8 +71,6 @@ build_wheel() {
 
   export BUILD_LOG="${DEBUG_WHEEL_DIR}/build_${PYTHON_VER}.log"
   echo "Building wheel for Python ${PYTHON_VER} (log: ${BUILD_LOG})"
-
-  cat pyproject.toml
 
   # Redirect build output to log file
   if uv build --wheel --out-dir "${BUILT_WHEEL_DIR}" . > "${BUILD_LOG}" 2>&1; then
