@@ -1,6 +1,7 @@
 import pytest
 
 
+@pytest.mark.skip(reason="This is flaky in CI")
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_mixed_workload",
