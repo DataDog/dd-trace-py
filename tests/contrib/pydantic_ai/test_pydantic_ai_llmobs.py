@@ -83,30 +83,24 @@ class TestLLMObsPydanticAI:
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(span, output)
 
-    async def test_agent_run_stream_structured(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
+    @pytest.mark.parametrize("stream_method", ["stream_structured", "stream_responses"])
+    async def test_agent_run_stream_structured(
+        self, pydantic_ai, request_vcr, llmobs_events, test_spans, stream_method
+    ):
+        if stream_method == "stream_responses" and PYDANTIC_AI_VERSION < (0, 8, 1):
+            pytest.skip("pydantic-ai < 0.8.1 does not support stream_responses")
+
         output = ""
         with request_vcr.use_cassette("agent_run_stream.yaml"):
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
             async with agent.run_stream("Hello, world!") as result:
-                async for chunk in result.stream_structured():
-                    if chunk[1]:
-                        output = chunk[0].parts[0].content
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0] == expected_run_agent_span_event(span, output)
-    
-    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (0, 8, 1), reason="pydantic-ai < 0.8.1 does not support stream_responses")
-    async def test_agent_run_stream_responses(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
-        output = ""
-        with request_vcr.use_cassette("agent_run_stream.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
-            async with agent.run_stream("Hello, world!") as result:
-                async for chunk in result.stream_responses():
+                stream_func = getattr(result, stream_method)
+                async for chunk in stream_func():
                     output = chunk[0].parts[0].content
         span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(span, output)
-    
+
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (0, 8, 1), reason="pydantic-ai < 0.8.1 does not support stream_responses")
     async def test_agent_run_stream_responses_early_exit(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
         """Test that the span is still finished when the stream is exited early"""
@@ -115,7 +109,7 @@ class TestLLMObsPydanticAI:
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
             async with agent.run_stream("Hello, world!") as result:
                 async for chunk, last in result.stream_responses():
-                    assert not last # assert this is not the last chunk
+                    assert not last  # assert this is not the last chunk
                     output = chunk.parts[0].content
                     break
         span = test_spans.pop_traces()[0][0]
@@ -154,7 +148,13 @@ class TestLLMObsPydanticAI:
             tools=expected_calculate_square_tool(),
         )
 
-    async def test_agent_run_stream_structured_with_tool(self, pydantic_ai, request_vcr, llmobs_events, test_spans):
+    @pytest.mark.parametrize("stream_method", ["stream_structured", "stream_responses"])
+    async def test_agent_run_stream_structured_with_tool(
+        self, pydantic_ai, request_vcr, llmobs_events, test_spans, stream_method
+    ):
+        if stream_method == "stream_responses" and PYDANTIC_AI_VERSION < (0, 8, 1):
+            pytest.skip("pydantic-ai < 0.8.1 does not support stream_responses")
+
         class Output(TypedDict):
             original_number: int
             square: int
@@ -169,7 +169,8 @@ class TestLLMObsPydanticAI:
                 output_type=Output,
             )
             async with agent.run_stream("What is the square of 2?") as result:
-                async for chunk in result.stream_structured(debounce_by=None):
+                stream_func = getattr(result, stream_method)
+                async for chunk in stream_func(debounce_by=None):
                     output = chunk
         trace = test_spans.pop_traces()[0]
         agent_span = trace[0]
