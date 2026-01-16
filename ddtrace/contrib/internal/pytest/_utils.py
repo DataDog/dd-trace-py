@@ -64,18 +64,16 @@ def _encode_test_parameter(parameter: t.Any) -> str:
 
 def _get_names_from_item(item: pytest.Item) -> TestNames:
     """Gets an item's module, suite, and test names by leveraging the plugin hooks"""
-    matches = re.match(_NODEID_REGEX, item.nodeid)
 
+    matches = re.match(_NODEID_REGEX, item.nodeid)
     if not matches:
-        result = TestNames(module="unknown_module", suite="unknown_suite", test=item.name)
-        return result
+        return TestNames(module="unknown_module", suite="unknown_suite", test=item.name)
 
     module_name = (matches.group("module") or "").replace("/", ".")
     suite_name = matches.group("suite")
     test_name = matches.group("name")
 
-    result = TestNames(module=module_name, suite=suite_name, test=test_name)
-    return result
+    return TestNames(module=module_name, suite=suite_name, test=test_name)
 
 
 @cached()
@@ -94,6 +92,7 @@ def _get_test_id_from_item(item: pytest.Item) -> TestId:
     suite_id = TestSuiteId(module_id, suite_name)
 
     test_id = TestId(suite_id, test_name)
+
     return test_id
 
 
