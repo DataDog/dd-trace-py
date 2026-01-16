@@ -42,7 +42,8 @@ def test_conn(request, test_tracer):
         )
         """.format(TEST_TABLE)
     )
-    TracerSpanContainer(test_tracer).pop()
+    with TracerSpanContainer(test_tracer) as tsc:
+        tsc.pop_spans()
 
     request.cls.test_conn = (conn, cur)
     return conn, cur

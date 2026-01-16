@@ -28,13 +28,14 @@ def _test_execute_many(dbm_comment, cursor, wrapped_instance):
 
 
 def _test_dbm_propagation_enabled(tracer, cursor, service):
-    cursor.execute("SELECT 1")
-    spans = TracerSpanContainer(tracer).pop()
-    assert len(spans) == 1
-    span = spans[0]
-    assert span.name == f"{service}.query"
+    with TracerSpanContainer(tracer) as tsc:
+        cursor.execute("SELECT 1")
+        spans = tsc.pop_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == f"{service}.query"
 
-    assert span.get_tag("_dd.dbm_trace_injected") == "true"
+        assert span.get_tag("_dd.dbm_trace_injected") == "true"
 
 
 def _test_dbm_propagation_comment_with_global_service_name_configured(
@@ -105,7 +106,8 @@ def _test_dbm_propagation_comment_with_peer_service_tag(
     db_name = config["db"]
 
     dbm_comment = (
-        f"/*dddb='{db_name}',dddbs='{db_name}',dde='staging',ddh='127.0.0.1',ddprs='{peer_service_name}',ddps='orders-app',"
+        f"/*dddb='{db_name}',dddbs='{db_name}',dde='staging',"
+        f"ddh='127.0.0.1',ddprs='{peer_service_name}',ddps='orders-app',"
         "ddpv='v7343437-d7ac743'*/ "
     )
     _test_execute(dbm_comment, cursor, wrapped_instance)

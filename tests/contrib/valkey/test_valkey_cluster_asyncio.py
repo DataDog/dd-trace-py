@@ -195,23 +195,22 @@ def test_default_service_name_v1():
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
         ]
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
-        test_spans = TracerSpanContainer(tracer)
+        with TracerSpanContainer(tracer) as test_spans:
+            Pin.get_from(r)._clone(tracer=tracer).onto(r)
+            await r.get("key")
+            await r.close()
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
-        await r.get("key")
-        await r.close()
-
-        traces = test_spans.pop_traces()
-        # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
-        all_spans = [span for trace in traces for span in trace]
-        # Find the GET span
-        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
-        assert len(get_spans) == 1, (
-            f"Expected exactly 1 GET span, got {len(get_spans)}. "
-            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
-        )
-        span = get_spans[0]
-        assert span.service == DEFAULT_SPAN_SERVICE_NAME
+            traces = test_spans.pop_traces()
+            # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+            all_spans = [span for trace in traces for span in trace]
+            # Find the GET span
+            get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+            assert len(get_spans) == 1, (
+                f"Expected exactly 1 GET span, got {len(get_spans)}. "
+                f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+            )
+            span = get_spans[0]
+            assert span.service == DEFAULT_SPAN_SERVICE_NAME
         tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())
@@ -250,13 +249,12 @@ def test_user_specified_service_v0():
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
         ]
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
-        test_spans = TracerSpanContainer(tracer)
+        with TracerSpanContainer(tracer) as test_spans:
+            Pin.get_from(r)._clone(tracer=tracer).onto(r)
+            await r.get("key")
+            await r.close()
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
-        await r.get("key")
-        await r.close()
-
-        traces = test_spans.pop_traces()
+            traces = test_spans.pop_traces()
         # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
         all_spans = [span for trace in traces for span in trace]
         # Find the GET span
@@ -305,13 +303,12 @@ def test_user_specified_service_v1():
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
         ]
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
-        test_spans = TracerSpanContainer(tracer)
+        with TracerSpanContainer(tracer) as test_spans:
+            Pin.get_from(r)._clone(tracer=tracer).onto(r)
+            await r.get("key")
+            await r.close()
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
-        await r.get("key")
-        await r.close()
-
-        traces = test_spans.pop_traces()
+            traces = test_spans.pop_traces()
         # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
         all_spans = [span for trace in traces for span in trace]
         # Find the GET span
@@ -352,13 +349,12 @@ def test_env_user_specified_valkeycluster_service_v0():
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
         ]
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
-        test_spans = TracerSpanContainer(tracer)
+        with TracerSpanContainer(tracer) as test_spans:
+            Pin.get_from(r)._clone(tracer=tracer).onto(r)
+            await r.get("key")
+            await r.close()
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
-        await r.get("key")
-        await r.close()
-
-        traces = test_spans.pop_traces()
+            traces = test_spans.pop_traces()
         # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
         all_spans = [span for trace in traces for span in trace]
         # Find the GET span
@@ -399,13 +395,12 @@ def test_env_user_specified_valkeycluster_service_v1():
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
         ]
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
-        test_spans = TracerSpanContainer(tracer)
+        with TracerSpanContainer(tracer) as test_spans:
+            Pin.get_from(r)._clone(tracer=tracer).onto(r)
+            await r.get("key")
+            await r.close()
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
-        await r.get("key")
-        await r.close()
-
-        traces = test_spans.pop_traces()
+            traces = test_spans.pop_traces()
         # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
         all_spans = [span for trace in traces for span in trace]
         # Find the GET span
@@ -454,13 +449,12 @@ def test_service_precedence_v0():
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
         ]
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
-        test_spans = TracerSpanContainer(tracer)
+        with TracerSpanContainer(tracer) as test_spans:
+            Pin.get_from(r)._clone(tracer=tracer).onto(r)
+            await r.get("key")
+            await r.close()
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
-        await r.get("key")
-        await r.close()
-
-        traces = test_spans.pop_traces()
+            traces = test_spans.pop_traces()
         # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
         all_spans = [span for trace in traces for span in trace]
         # Find the GET span
@@ -505,13 +499,12 @@ def test_service_precedence_v1():
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
         ]
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
-        test_spans = TracerSpanContainer(tracer)
+        with TracerSpanContainer(tracer) as test_spans:
+            Pin.get_from(r)._clone(tracer=tracer).onto(r)
+            await r.get("key")
+            await r.close()
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
-        await r.get("key")
-        await r.close()
-
-        traces = test_spans.pop_traces()
+            traces = test_spans.pop_traces()
         # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
         all_spans = [span for trace in traces for span in trace]
         # Find the GET span

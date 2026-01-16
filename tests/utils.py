@@ -290,7 +290,7 @@ def scoped_tracer():
     """Provides a test-scoped global tracer with no configuration leaks."""
     try:
         send_to_agent = check_test_agent_status()
-        with TracerSpanContainer(ddtrace.tracer, send_to_agent) as (tracer, wc):
+        with TracerSpanContainer(ddtrace.tracer, send_to_agent) as wc:
             yield ddtrace.tracer, wc
     finally:
         # Reset global tracer to original state
@@ -612,10 +612,14 @@ class TracerSpanContainer(object):
             self.writer.write(spans)
 
     def pop_spans(self):
-        return self.spans.pop()
+        spans = self.spans
+        self.spans = []
+        return spans
 
     def pop_traces(self):
-        return self.traces.pop()
+        traces = self.traces
+        self.traces = []
+        return traces
 
     def reset(self):
         self.spans.clear()

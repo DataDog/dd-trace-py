@@ -18,28 +18,29 @@ if __name__ == "__main__":
 
     tracer_scope = scoped_tracer()
     pin._tracer, _ = tracer_scope.__enter__()
-    r.flushall()
-    spans = TracerSpanContainer(pin._tracer).pop()
+    with TracerSpanContainer(pin._tracer) as tsc:
+        r.flushall()
+        spans = tsc.pop_spans()
 
-    assert len(spans) == 1
-    assert spans[0].service == "redis"
-    assert spans[0].resource == "FLUSHALL"
+        assert len(spans) == 1
+        assert spans[0].service == "redis"
+        assert spans[0].resource == "FLUSHALL"
 
-    long_cmd = "mget %s" % " ".join(map(str, range(1000)))
-    us = r.execute_command(long_cmd)
+        long_cmd = "mget %s" % " ".join(map(str, range(1000)))
+        us = r.execute_command(long_cmd)
 
-    spans = TracerSpanContainer(pin._tracer).pop()
-    assert len(spans) == 1
-    span = spans[0]
-    assert span.service == "redis"
-    assert span.name == "redis.command"
-    assert span.span_type == "redis"
-    assert span.error == 0
-    assert span.get_metric("network.destination.port") == REDIS_CONFIG["port"]
-    assert span.get_metric("out.redis_db") == 0
-    assert span.get_tag("out.host") == REDIS_CONFIG["host"]
-    assert span.get_tag("redis.raw_command").startswith("mget 0 1 2 3")
-    assert span.get_tag("redis.raw_command").endswith("...")
+        spans = tsc.pop_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service == "redis"
+        assert span.name == "redis.command"
+        assert span.span_type == "redis"
+        assert span.error == 0
+        assert span.get_metric("network.destination.port") == REDIS_CONFIG["port"]
+        assert span.get_metric("out.redis_db") == 0
+        assert span.get_tag("out.host") == REDIS_CONFIG["host"]
+        assert span.get_tag("redis.raw_command").startswith("mget 0 1 2 3")
+        assert span.get_tag("redis.raw_command").endswith("...")
 
     tracer_scope.__exit__(None, None, None)
     print("Test success")

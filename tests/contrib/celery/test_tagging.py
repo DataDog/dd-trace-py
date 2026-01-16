@@ -106,21 +106,22 @@ def test_amqp_task(instrument_celery, traced_amqp_celery_app):
 
 
 def assert_traces(tracer, task_name, task, port):
-    traces = TracerSpanContainer(tracer).pop_traces()
+    with TracerSpanContainer(tracer) as tsc:
+        traces = tsc.pop_traces()
 
-    assert 2 == len(traces)
-    assert 1 == len(traces[0])
-    assert 1 == len(traces[1])
-    async_span = traces[0][0]
-    run_span = traces[1][0]
+        assert 2 == len(traces)
+        assert 1 == len(traces[0])
+        assert 1 == len(traces[1])
+        async_span = traces[0][0]
+        run_span = traces[1][0]
 
-    assert async_span.error == 0
-    assert async_span.name == "celery.apply"
-    assert async_span.resource == f"tests.contrib.celery.test_tagging.{task_name}"
-    assert async_span.service == "celery-producer"
-    assert async_span.get_tag("celery.id") == task.task_id
-    assert async_span.get_tag("celery.action") == "apply_async"
-    assert async_span.get_tag("celery.routing_key") == "celery"
+        assert async_span.error == 0
+        assert async_span.name == "celery.apply"
+        assert async_span.resource == f"tests.contrib.celery.test_tagging.{task_name}"
+        assert async_span.service == "celery-producer"
+        assert async_span.get_tag("celery.id") == task.task_id
+        assert async_span.get_tag("celery.action") == "apply_async"
+        assert async_span.get_tag("celery.routing_key") == "celery"
     assert async_span.get_tag("component") == "celery"
     assert async_span.get_tag("span.kind") == "producer"
     assert async_span.get_tag("out.host") == "127.0.0.1"

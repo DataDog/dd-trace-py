@@ -244,18 +244,17 @@ def test_default_service_name_v1():
             for port in REDISCLUSTER_CONFIG["ports"].split(",")
         ]
         r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        test_spans = TracerSpanContainer(tracer)
+        with TracerSpanContainer(tracer) as test_spans:
+            Pin.get_from(r)._clone(tracer=tracer).onto(r)
+            await r.get("key")
+            await r.close()
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
-        await r.get("key")
-        await r.close()
-
-        traces = test_spans.pop_traces()
-        assert len(traces) == 1
-        spans = traces[0]
-        assert len(spans) == 1
-        span = spans[0]
-        assert span.service == DEFAULT_SPAN_SERVICE_NAME
+            traces = test_spans.pop_traces()
+            assert len(traces) == 1
+            spans = traces[0]
+            assert len(spans) == 1
+            span = spans[0]
+            assert span.service == DEFAULT_SPAN_SERVICE_NAME
         tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())
@@ -295,13 +294,12 @@ def test_user_specified_service_v0():
             for port in REDISCLUSTER_CONFIG["ports"].split(",")
         ]
         r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        test_spans = TracerSpanContainer(tracer)
+        with TracerSpanContainer(tracer) as test_spans:
+            Pin.get_from(r)._clone(tracer=tracer).onto(r)
+            await r.get("key")
+            await r.close()
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
-        await r.get("key")
-        await r.close()
-
-        traces = test_spans.pop_traces()
+            traces = test_spans.pop_traces()
         assert len(traces) == 1
         spans = traces[0]
         assert len(spans) == 1
@@ -346,13 +344,12 @@ def test_user_specified_service_v1():
             for port in REDISCLUSTER_CONFIG["ports"].split(",")
         ]
         r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        test_spans = TracerSpanContainer(tracer)
+        with TracerSpanContainer(tracer) as test_spans:
+            Pin.get_from(r)._clone(tracer=tracer).onto(r)
+            await r.get("key")
+            await r.close()
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
-        await r.get("key")
-        await r.close()
-
-        traces = test_spans.pop_traces()
+            traces = test_spans.pop_traces()
         assert len(traces) == 1
         spans = traces[0]
         assert len(spans) == 1
@@ -389,13 +386,12 @@ def test_env_user_specified_rediscluster_service_v0():
             for port in REDISCLUSTER_CONFIG["ports"].split(",")
         ]
         r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        test_spans = TracerSpanContainer(tracer)
+        with TracerSpanContainer(tracer) as test_spans:
+            Pin.get_from(r)._clone(tracer=tracer).onto(r)
+            await r.get("key")
+            await r.close()
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
-        await r.get("key")
-        await r.close()
-
-        traces = test_spans.pop_traces()
+            traces = test_spans.pop_traces()
         assert len(traces) == 1
         spans = traces[0]
         assert len(spans) == 1
@@ -432,13 +428,12 @@ def test_env_user_specified_rediscluster_service_v1():
             for port in REDISCLUSTER_CONFIG["ports"].split(",")
         ]
         r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        test_spans = TracerSpanContainer(tracer)
+        with TracerSpanContainer(tracer) as test_spans:
+            Pin.get_from(r)._clone(tracer=tracer).onto(r)
+            await r.get("key")
+            await r.close()
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
-        await r.get("key")
-        await r.close()
-
-        traces = test_spans.pop_traces()
+            traces = test_spans.pop_traces()
         assert len(traces) == 1
         spans = traces[0]
         assert len(spans) == 1
@@ -483,13 +478,12 @@ def test_service_precedence_v0():
             for port in REDISCLUSTER_CONFIG["ports"].split(",")
         ]
         r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        test_spans = TracerSpanContainer(tracer)
+        with TracerSpanContainer(tracer) as test_spans:
+            Pin.get_from(r)._clone(tracer=tracer).onto(r)
+            await r.get("key")
+            await r.close()
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
-        await r.get("key")
-        await r.close()
-
-        traces = test_spans.pop_traces()
+            traces = test_spans.pop_traces()
         assert len(traces) == 1
         spans = traces[0]
         assert len(spans) == 1
@@ -530,13 +524,12 @@ def test_service_precedence_v1():
             for port in REDISCLUSTER_CONFIG["ports"].split(",")
         ]
         r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        test_spans = TracerSpanContainer(tracer)
+        with TracerSpanContainer(tracer) as test_spans:
+            Pin.get_from(r)._clone(tracer=tracer).onto(r)
+            await r.get("key")
+            await r.close()
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
-        await r.get("key")
-        await r.close()
-
-        traces = test_spans.pop_traces()
+            traces = test_spans.pop_traces()
         assert len(traces) == 1
         spans = traces[0]
         assert len(spans) == 1
