@@ -343,7 +343,8 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
         }
 
         // Unmap the thread since it is shutting down
-        PyDict_DelItem(_periodic_threads, self->ident);
+        if (PyDict_Contains(_periodic_threads, self->ident))
+            PyDict_DelItem(_periodic_threads, self->ident);
 
         // Notify the join method that the thread has stopped
         self->_stopped->set();
@@ -464,9 +465,6 @@ PeriodicThread__atexit(PeriodicThread* self, PyObject* args)
     if (PeriodicThread_stop(self, NULL) == NULL)
         return NULL;
 
-    if (PeriodicThread_join(self, NULL, NULL) == NULL)
-        return NULL;
-
     Py_RETURN_NONE;
 }
 
@@ -500,10 +498,6 @@ PeriodicThread_dealloc(PeriodicThread* self)
     // will cause.
     if (self->_thread != NULL && self->_thread->get_id() == std::this_thread::get_id())
         return;
-
-    // Unmap the PeriodicThread
-    if (self->ident != NULL && PyDict_Contains(_periodic_threads, self->ident))
-        PyDict_DelItem(_periodic_threads, self->ident);
 
     Py_XDECREF(self->name);
     Py_XDECREF(self->_target);
