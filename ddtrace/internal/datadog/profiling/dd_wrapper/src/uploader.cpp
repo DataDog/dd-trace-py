@@ -146,6 +146,7 @@ Datadog::Uploader::upload()
             ret = false;
         }
         ddog_CancellationToken_drop(&new_cancel_clone_for_request);
+        ddog_prof_Exporter_drop(&ddog_exporter);
     }
 
     return ret;
