@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from ddtrace.llmobs import LLMObs
 
 
-logger = get_logger(__name__)
+log = get_logger(__name__)
 
 TIPS = {
     "creative": "Don't be afraid to be creative when creating the new instruction!",
@@ -84,8 +84,6 @@ class OptimizationIteration:
 
         :return: The improved prompt string.
         """
-        logger.info("Running optimization iteration %d", self.iteration)
-
         # Step 1: Load and prepare system prompt template
         system_prompt = self._load_system_prompt()
 
@@ -93,28 +91,32 @@ class OptimizationIteration:
         user_prompt = self._build_user_prompt()
 
         # Step 3 & 4: Call optimization LLM
-        result = self._optimization_task(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            model=self._config["optimization_model_name"],
-        )
+        try:
+            result = self._optimization_task(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                model=self._config["optimization_model_name"],
+            )
+        except Exception as e:
+            log.error(
+                "Iteration %d: Failed to run optimization_task with model '%s'",
+                self.iteration,
+                self._config.get("optimization_model_name", "unknown"),
+            )
+            log.error("Exception type: %s", type(e).__name__)
+            log.error("Exception type: %s", str(e))
+            result = {}
 
         # Parse the result dict
         improved_prompt = result.get("new_prompt")
         reasoning = result.get("reasoning")
 
         if not improved_prompt:
-            logger.warning(
+            log.warning(
                 "Iteration %d: optimization_task returned empty 'new_prompt', keeping current prompt",
                 self.iteration,
             )
             return self.current_prompt
-
-        logger.info(
-            "Iteration %d: Generated improved prompt. Reasoning: %s",
-            self.iteration,
-            reasoning[:200] + "..." if len(reasoning) > 200 else reasoning,
-        )
 
         # Step 5: Return improved prompt
         return improved_prompt
@@ -183,9 +185,8 @@ class OptimizationIteration:
         # Add performance metrics if available
         if summary_evals:
             prompt_parts.append("Performance Metrics:")
-            import ipdb; ipdb.set_trace()
-            for summary_metric_name, summary_metric_data in summary_evals.items():
-                for metric_name, metric_data in summary_metric_data["value"].items():
+            for _, summary_metric_data in summary_evals.items():
+                for metric_name, metric_data in summary_metric_data.get("value", {}).items():
                     prompt_parts.append(f"- {metric_name}: {metric_data}")
             prompt_parts.append("")
 
@@ -306,6 +307,7 @@ class OptimizationResult:
                           - prompt: str (the prompt used)
                           - results: dict (full experiment results)
                           - score: float (aggregate score)
+                          - experiment_url: str (URL to view experiment in Datadog UI)
         :param best_iteration: Index of the iteration with best performance.
         """
         self.name = name
@@ -328,6 +330,13 @@ class OptimizationResult:
         return self.iterations[self.best_iteration].get("score")
 
     @property
+    def best_experiment_url(self) -> Optional[str]:
+        """Get the experiment URL for the best iteration."""
+        if not self.iterations or self.best_iteration >= len(self.iterations):
+            return None
+        return self.iterations[self.best_iteration].get("experiment_url")
+
+    @property
     def total_iterations(self) -> int:
         """Get the total number of iterations run (including baseline)."""
         return len(self.iterations)
@@ -340,6 +349,7 @@ class OptimizationResult:
         - prompt: The prompt used in this iteration
         - score: The evaluation score achieved
         - results: Full experiment results dict
+        - experiment_url: URL to view experiment in Datadog UI
 
         :return: List of iteration results.
         """
@@ -471,8 +481,7 @@ class PromptOptimization:
                 "and create the optimization via `LLMObs.prompt_optimization(...)` before running."
             )
 
-        logger.info("Starting prompt optimization: %s", self.name)
-        logger.info("Maximum iterations: %d", self._max_iterations)
+        print(f"Starting prompt optimization: {self.name}")
 
         # Track all iteration results
         all_iterations = []
@@ -484,10 +493,7 @@ class PromptOptimization:
         # Run baseline experiment with initial prompt
         iteration = 0
         current_prompt = self._initial_prompt
-        logger.info("=" * 80)
-        logger.info("ITERATION 0 (Baseline): Running initial prompt evaluation")
-        logger.info("=" * 80)
-        current_results = self._run_experiment(iteration, current_prompt, jobs)
+        current_results, experiment_url = self._run_experiment(iteration, current_prompt, jobs)
 
         # Store baseline results
         iteration_data = {
@@ -495,26 +501,17 @@ class PromptOptimization:
             "prompt": current_prompt,
             "results": current_results,
             "score": self._extract_score(current_results),
+            "experiment_url": experiment_url,
         }
         all_iterations.append(iteration_data)
         best_score = iteration_data["score"]
         best_prompt = current_prompt
         best_results = current_results
 
-        logger.info("Baseline score: %.4f", best_score if best_score is not None else 0.0)
-        logger.info("Current best score: %.4f (iteration %d)", best_score if best_score is not None else 0.0, 0)
+        log.info("Baseline score: %.4f", best_score if best_score is not None else 0.0)
 
         # Run optimization iterations
         for i in range(1, self._max_iterations + 1):
-            logger.info("=" * 80)
-            logger.info("ITERATION %d/%d: Starting optimization", i, self._max_iterations)
-            logger.info(
-                "Current best score: %.4f (from iteration %d)",
-                best_score if best_score is not None else 0.0,
-                best_iteration,
-            )
-            logger.info("=" * 80)
-
             # Always optimize from the best prompt so far
             optimization_iteration = OptimizationIteration(
                 iteration=i,
@@ -528,8 +525,7 @@ class PromptOptimization:
             new_prompt = optimization_iteration.run()
 
             # Run experiment with improved prompt
-            logger.info("Evaluating improved prompt from iteration %d...", i)
-            new_results = self._run_experiment(i, new_prompt, jobs)
+            new_results, experiment_url = self._run_experiment(i, new_prompt, jobs)
 
             # Track iteration results
             iteration_data = {
@@ -537,12 +533,13 @@ class PromptOptimization:
                 "prompt": new_prompt,
                 "results": new_results,
                 "score": self._extract_score(new_results),
+                "experiment_url": experiment_url,
             }
             all_iterations.append(iteration_data)
 
             # Update best iteration if score improved
-            new_score = iteration_data["score"]
-            logger.info("Iteration %d score: %.4f", i, new_score if new_score is not None else 0.0)
+            new_score = iteration_data["score"] or 1.0
+            print(f"Iteration {i} score: {new_score:.2f}")
 
             if new_score is not None and (best_score is None or new_score > best_score):
                 improvement = new_score - best_score if best_score is not None else new_score
@@ -550,40 +547,12 @@ class PromptOptimization:
                 best_score = new_score
                 best_prompt = new_prompt
                 best_results = new_results
-                logger.info("🎉 NEW BEST SCORE! Iteration %d: %.4f (improvement: +%.4f)", i, new_score, improvement)
-            else:
-                logger.info(
-                    "No improvement. Best remains: %.4f (iteration %d)",
-                    best_score if best_score is not None else 0.0,
-                    best_iteration,
-                )
-                logger.info("Next iteration will optimize from best prompt (iteration %d)", best_iteration)
 
             # Check if target score has been reached
             # Default value is 1.0
             target_score = self._config.get("target", 1.0)
             if best_score is not None and best_score >= target_score:
-                logger.info("=" * 80)
-                logger.info("🎯 TARGET REACHED!")
-                logger.info("Target score: %.4f", target_score)
-                logger.info("Achieved score: %.4f (iteration %d)", best_score, best_iteration)
-                logger.info("Stopping optimization early - target achieved")
-                logger.info("=" * 80)
                 break
-
-        logger.info("=" * 80)
-        logger.info("OPTIMIZATION COMPLETE")
-        logger.info("=" * 80)
-        logger.info("Best iteration: %d", best_iteration)
-        logger.info("Best score: %.4f", best_score if best_score is not None else 0.0)
-        logger.info("Total iterations: %d", len(all_iterations))
-        print(f"{'=' * 80}")
-        print("OPTIMIZATION COMPLETE")
-        print(f"{'=' * 80}")
-        print(f"Best iteration: {best_iteration}")
-        print(f"Best score: {best_score if best_score is not None else 0.0:.4f}")
-        print(f"Total iterations: {len(all_iterations)}")
-        print(f"{'=' * 80}\n")
 
         # Create result object with full history
         result = OptimizationResult(
@@ -594,8 +563,7 @@ class PromptOptimization:
         )
 
         # Print summary for immediate visibility
-        print(result.summary())
-        print()
+        log.info(result.summary())
 
         return result
 
@@ -604,22 +572,23 @@ class PromptOptimization:
         iteration: int,
         prompt: str,
         jobs: int,
-    ) -> Dict[str, Any]:
+    ) -> tuple[Dict[str, Any], str]:
         """Run an experiment for a given iteration and prompt.
 
         :param iteration: The iteration number.
         :param prompt: The prompt to test.
         :param jobs: Number of parallel jobs.
-        :return: Experiment results dictionary.
+        :return: Tuple of (experiment results dictionary, experiment URL).
         """
         iteration_name = "baseline" if iteration == 0 else f"iteration_{iteration}"
-        logger.debug("Running experiment: %s", iteration_name)
 
         # Update config with current prompt
         # Start with base config, then override prompt with the new one
-        experiment_config = {"model_name": self._model_name}
-        experiment_config.update(self._config)
-        experiment_config["prompt"] = prompt  # Override with the optimized prompt
+        config_updates = {
+            "model_name": self._model_name,
+            "prompt": prompt
+        }
+        experiment_config = self._config | config_updates
 
         experiment = Experiment(
             name=f"{self.name}_{iteration_name}",
@@ -637,7 +606,7 @@ class PromptOptimization:
             jobs=jobs,
         )
 
-        return experiment_results
+        return experiment_results, experiment.url
 
     def _extract_score(self, results: Dict[str, Any]) -> Optional[float]:
         """Extract a single aggregate score from experiment results.
@@ -667,13 +636,13 @@ class PromptOptimization:
                     # Get the first value from the nested dict
                     for key, value in first_eval_results["value"].items():
                         if isinstance(value, (int, float)):
-                            logger.debug("Using score '%s' = %.4f from summary evaluator", key, float(value))
+                            print(f"Using score {key}={value:.2f} from summary evaluator")
                             return float(value)
 
                 # Fallback: return the first numeric value found at top level
                 for key, value in first_eval_results.items():
                     if isinstance(value, (int, float)):
-                        logger.debug("Using score '%s' = %.4f from summary evaluator", key, float(value))
+                        print(f"Using score {key}={value:.2f} from summary evaluator")
                         return float(value)
 
         # Fallback: take the first numeric score found
