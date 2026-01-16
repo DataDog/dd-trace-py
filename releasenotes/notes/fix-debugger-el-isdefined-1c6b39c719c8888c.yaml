@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: fixed an issue that caused condition expressions
+    containing ``isDefined`` to result in an evaluation error.

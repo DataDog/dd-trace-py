@@ -121,8 +121,8 @@ class CustomDict(dict):
         ({"and": [{"ref": "bar"}, {"ref": "foo"}]}, {"bar": 0}, 0),
         ({"or": [{"ref": "bar"}, {"ref": "foo"}]}, {"bar": 0}, NameError),
         ({"and": [{"ref": "bar"}, {"ref": "foo"}]}, {"bar": 42}, NameError),
-        ({"isDefined": "foobar"}, {"bar": 42}, False),
-        ({"isDefined": "bar"}, {"bar": 42}, True),
+        ({"isDefined": {"ref": "foobar"}}, {"bar": 42}, False),
+        ({"isDefined": {"ref": "bar"}}, {"bar": 42}, True),
         ({"instanceof": [{"ref": "bar"}, "int"]}, {"bar": 42}, True),
         ({"instanceof": [{"ref": "bar"}, "BaseException"]}, {"bar": RuntimeError()}, True),
         (
