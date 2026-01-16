@@ -542,6 +542,8 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
         self.tracer = ddtrace.tracer
         self.scoped_tracer = scoped_tracer()
         self.tracer = self.scoped_tracer.__enter__()
+        assert isinstance(self.tracer._span_aggregator.writer, DummyWriter)
+        self.writer = self.tracer._span_aggregator.writer
         super(TracerTestCase, self).setUp()
 
     def tearDown(self):
@@ -554,32 +556,21 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
 
     def get_spans(self):
         """Required subclass method for TestSpanContainer"""
-        writer = self.tracer._span_aggregator.writer
-        if hasattr(writer, "spans"):
-            return writer.spans
-        return []
+        return self.writer.spans
 
     def pop_spans(self):
         """Pop and return all spans from the writer"""
         # type: () -> List[Span]
-        writer = self.tracer._span_aggregator.writer
-        if hasattr(writer, "pop"):
-            return writer.pop()
-        return []
+        return self.writer.pop()
 
     def pop_traces(self):
         """Pop and return all traces from the writer"""
         # type: () -> List[List[Span]]
-        writer = self.tracer._span_aggregator.writer
-        if hasattr(writer, "pop_traces"):
-            return writer.pop_traces()
-        return []
+        return self.writer.pop_traces()
 
     def reset(self):
         """Helper to reset the existing list of spans created"""
-        writer = self.tracer._span_aggregator.writer
-        if hasattr(writer, "pop"):
-            writer.pop()
+        self.writer.pop()
 
     def trace(self, *args, **kwargs):
         """Wrapper for self.tracer.trace that returns a TestSpan"""
