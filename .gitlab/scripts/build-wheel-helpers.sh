@@ -36,7 +36,7 @@ setup_python() {
     curl -LsSf https://astral.sh/uv/install.sh | sh
   fi
   which python && python --version
-  if [[ ${UNPIN_DEPENDENCIES:-"true"} == "true" ]]
+  if [[ ${UNPIN_DEPENDENCIES:-"false"} == "true" ]]
   then
     python3.14 scripts/allow_prerelease_dependencies.py
     export PIP_PRE=true

@@ -80,7 +80,7 @@ variables:
   script:
     - manylinux-interpreters ensure "${PYTHON_TAG}"
     - |
-      if [[ "${UNPIN_DEPENDENCIES:-"true"}" == "true" ]]; then
+      if [[ "${UNPIN_DEPENDENCIES:-"false"}" == "true" ]]; then
         manylinux-interpreters ensure "cp314-cp314"  # NB unpinning script requires Py>=311
       fi
     - export UV_PYTHON="/opt/python/${PYTHON_TAG}/bin/python"
