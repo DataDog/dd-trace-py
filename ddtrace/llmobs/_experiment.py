@@ -585,7 +585,7 @@ class Experiment:
             for evaluator in self._evaluators:
                 eval_result: JSONType = None
                 eval_err: JSONType = None
-                extra_return_values = {}
+                extra_return_values: Dict[str, JSONType] = {}
                 try:
                     eval_result = evaluator(input_data, output_data, expected_output)
 
@@ -734,7 +734,7 @@ class Experiment:
         else:
             metric_type = "categorical"
             eval_value = str(eval_value).lower()
-        eval_metric = {
+        eval_metric: LLMObsExperimentEvalMetricEvent = {
             "metric_source": source,
             "span_id": span_id,
             "trace_id": trace_id,
@@ -743,7 +743,7 @@ class Experiment:
             "label": eval_name,
             f"{metric_type}_value": eval_value,  # type: ignore
             "error": err,
-            "tags": convert_tags_dict_to_list(self._tags),
+            "tags": convert_tags_dict_to_list(self._tags.update(tags)),
             "experiment_id": self._id,
         }
         if reasoning:
@@ -752,8 +752,6 @@ class Experiment:
             eval_metric["assessment"] = assessment
         if metadata:
             eval_metric["metadata"] = metadata
-        if tags:
-            eval_metric["tags"] = tags
         return eval_metric
 
     def _generate_metrics_from_exp_results(
@@ -780,10 +778,10 @@ class Experiment:
                     span_id,
                     trace_id,
                     timestamp_ns,
-                    reasoning=eval_data.get("reasoning"),
-                    assessment=eval_data.get("assessment"),
-                    metadata=eval_data.get("metadata"),
-                    tags=eval_data.get("tags"),
+                    reasoning=str(eval_data.get("reasoning")) if isinstance(eval_data.get("reasoning"), str) else None,
+                    assessment=str(eval_data.get("assessment")) if isinstance(eval_data.get("assessment"), str) else None,
+                    metadata= cast(Dict[str, JSONType], eval_data.get("metadata")) if isinstance(eval_data.get("metadata"), Dict) else None,
+                    tags=cast(Dict[str, str], eval_data.get("tags")) if isinstance(eval_data.get("tags"), Dict) else None,
                 )
                 eval_metrics.append(eval_metric)
 
