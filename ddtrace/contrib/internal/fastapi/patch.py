@@ -74,7 +74,7 @@ config._add(
         obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
         trace_asgi_websocket_messages=_get_config(
             "DD_TRACE_WEBSOCKET_MESSAGES_ENABLED",
-            default=_get_config("DD_ASGI_TRACE_WEBSOCKET", default=False, modifier=asbool),
+            default=_get_config("DD_ASGI_TRACE_WEBSOCKET", default=True, modifier=asbool),
             modifier=asbool,
         ),
         asgi_websocket_messages_inherit_sampling=asbool(
