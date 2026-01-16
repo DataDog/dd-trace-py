@@ -4,6 +4,7 @@ import celery
 from celery import signals
 
 from ddtrace import config
+from ddtrace import tracer
 from ddtrace._trace.pin import _DD_PIN_NAME
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -52,7 +53,7 @@ def patch_app(app, pin=None):
     trace_utils.wrap("celery.app.task", "Task.apply_async", _traced_apply_async_function(config.celery, "apply_async"))
 
     # Patch DaemonContext.open to manage forksafe hooks during daemonization
-    trace_utils.wrap("celery.platforms", "DaemonContext.open", _traced_daemon_context_open)
+    trace_utils.wrap("celery.platforms", "close_open_fds", _patched_close_open_fds)
 
     # connect to the Signal framework
     signals.task_prerun.connect(trace_prerun, weak=False)
@@ -148,33 +149,22 @@ def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
     return _traced_apply_async_inner
 
 
-def _traced_daemon_context_open(func, instance, args, kwargs):
+def _patched_close_open_fds(func, instance, args, kwargs):
     """
-    Wrapper for celery.platforms.DaemonContext.open that manages forksafe hooks.
-
-    DaemonContext.open performs a fork internally to daemonize the process, and then
-    closes all file descriptors after the fork. To avoid breaking ddtrace internals
-    (such as open sockets, file handles, and other resources), we need to prevent the
-    normal after-fork hooks from executing immediately during this fork.
-
-    Instead, we wait for Celery to finish closing file descriptors and completing
-    the daemonization process, then manually execute the after-fork hooks to restart
-    internal components with fresh resources.
+    Celery closes all open file descriptors to isolate some fork child.
+    This causes the native runtime to panic.
+    We shutdown the native runtime before closing fds to avoid panics when interacting with closed fds.
     """
     # Disable after-fork hooks before daemonization
-    forksafe.disable_after_fork_hooks()
-    log.debug("Disabled after-fork hooks before DaemonContext.open")
+    if hasattr(tracer._span_aggregator.writer, "_before_fork"):
+        tracer._span_aggregator.writer._before_fork()
+    log.debug("Shutting down native runtime before closing fds")
 
     try:
-        # Call the original open function (which will fork)
         result = func(*args, **kwargs)
     finally:
-        # Re-enable after-fork hooks and execute them manually
-        forksafe.enable_after_fork_hooks()
-        log.debug("Re-enabled after-fork hooks after DaemonContext.open")
-
-        # Execute the after-fork hooks that were skipped during daemonization
-        forksafe.execute_after_fork_hooks()
-        log.debug("Executed after-fork hooks after DaemonContext.open")
+        if hasattr(tracer._span_aggregator.writer, "_after_fork"):
+            tracer._span_aggregator.writer._after_fork()
+        log.debug("Restarting native runtime after closing fds")
 
     return result
