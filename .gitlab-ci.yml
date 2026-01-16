@@ -1,4 +1,5 @@
 stages:
+  - fuzz
   - package
   - tests
   - shared-pipeline
@@ -51,6 +52,7 @@ include:
   - local: ".gitlab/multi-os-tests.yml"
   - local: ".gitlab/benchmarks/serverless.yml"
   - local: ".gitlab/native.yml"
+  - local: ".gitlab/fuzz.yml"
 
 tests-gen:
   stage: tests

@@ -151,3 +151,18 @@ if(BUILD_TESTING)
     enable_testing()
     add_subdirectory(test)
 endif()
+
+# Fuzzing harnesses (off by default)
+if(NOT DEFINED BUILD_FUZZING)
+    set(BUILD_FUZZING
+        OFF
+        CACHE BOOL "Build fuzzing harnesses for stack_v2/echion")
+else()
+    set(BUILD_FUZZING
+        ON
+        CACHE BOOL "Build fuzzing harnesses for stack_v2/echion")
+endif()
+
+if(BUILD_FUZZING)
+    add_subdirectory(fuzz)
+endif()
