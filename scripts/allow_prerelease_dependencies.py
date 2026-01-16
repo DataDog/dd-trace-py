@@ -1,10 +1,12 @@
 import os
+import re
 
 import tomllib
 
 
 PROJECT_FILENAME = "pyproject.toml"
 PRERELEASE_MARKER = "rc"
+PRERELEASE_RE = r"[0-9]+(rc|dev)[0-9]+"
 
 
 def _add_prerelease_marker(dependency_specifier: str) -> str:
@@ -22,6 +24,8 @@ def _add_prerelease_marker(dependency_specifier: str) -> str:
     >>> _add_prerelease_marker('wrapt>=1,<3')
     "wrapt>=1,<3rc99"
     """
+    if not re.search(PRERELEASE_RE, dependency_specifier):
+        return dependency_specifier
     dependency_parts: list[str] = dependency_specifier.split(";")
     version_bounds: list[str] = dependency_parts[0].split(",")
     if ">" in version_bounds[-1]:

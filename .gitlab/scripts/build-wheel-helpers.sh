@@ -37,7 +37,7 @@ setup_python() {
   fi
   echo "checking python version"
   which python && python --version
-  if [[ ${UNPIN_DEPENDENCIES:-"true"} == "true" && -z ${PIP_PRE:-} ]]
+  if [[ ${UNPIN_DEPENDENCIES:-"true"} == "true" ]]
   then
     python3.14 scripts/allow_prerelease_dependencies.py
     export PIP_PRE=true
