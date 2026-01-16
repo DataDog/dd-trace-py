@@ -13,6 +13,8 @@ from typing import Text
 from typing import Tuple  # noqa:F401
 
 from ..._constants import IAST
+from .._hardcoded_secret_analyzer import analyze_string_literal
+from .._hardcoded_secret_reporter import report_hardcoded_secret
 from .._metrics import _set_metric_iast_instrumented_propagation
 from ..constants import DEFAULT_COMMAND_INJECTION_FUNCTIONS
 from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
@@ -233,6 +235,53 @@ class AstVisitor(ast.NodeTransformer):
             merged_set.update(functions)
 
         return merged_set
+
+    def _check_hardcoded_secret(self, assign_node: ast.Assign) -> None:
+        """
+        Check if an assignment contains a hardcoded secret and report it immediately.
+
+        This is called during AST transformation to detect hardcoded secrets
+        in variable assignments. If a secret is found, it's reported immediately:
+        - If there's an active span: attached to it (like other sink points)
+        - If no active span: creates standalone trace (like dd-trace-js)
+
+        Args:
+            assign_node: The assignment node to check
+        """
+        # Only check simple assignments (not tuples or lists)
+        if len(assign_node.targets) != 1:
+            return
+
+        target = assign_node.targets[0]
+
+        # Get the variable name
+        identifier = None
+        if isinstance(target, ast.Name):
+            identifier = target.id
+        elif isinstance(target, ast.Attribute):
+            identifier = target.attr
+
+        # Check if the value is a string constant
+        if isinstance(assign_node.value, ast.Constant) and isinstance(assign_node.value.value, str):
+            string_value = assign_node.value.value
+
+            # Analyze the string for hardcoded secrets
+            try:
+                vulnerability = analyze_string_literal(
+                    value=string_value,
+                    file=self.filename,
+                    line=assign_node.lineno,
+                    column=assign_node.col_offset,
+                    identifier=identifier,
+                )
+
+                if vulnerability:
+                    # Report immediately (like dd-trace-js does)
+                    report_hardcoded_secret(vulnerability)
+            except Exception:
+                # Silently ignore errors during secret detection
+                # to avoid breaking the AST transformation
+                pass
 
     @staticmethod
     def _is_string_node(node: Any) -> bool:
@@ -756,7 +805,12 @@ class AstVisitor(ast.NodeTransformer):
         """
         Add the ignore marks for left-side subscripts or list/tuples to avoid problems
         later with the visit_Subscript node.
+
+        Also check for hardcoded secrets in string assignments.
         """
+        # Check for hardcoded secrets in this assignment
+        self._check_hardcoded_secret(assign_node)
+
         if isinstance(assign_node.value, ast.Subscript):
             if hasattr(assign_node.value, "value") and hasattr(assign_node.value.value, "id"):
                 # Best effort to avoid converting type definitions
