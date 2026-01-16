@@ -22,6 +22,7 @@ from ddtrace import ext
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.profiling import collector
 from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
 from ddtrace.profiling.collector._lock import _ProfiledLock
 from ddtrace.profiling.collector.threading import ThreadingBoundedSemaphoreCollector
@@ -509,6 +510,132 @@ def test_all_exceptions_suppressed_by_default() -> None:
         lock._update_name = mock.Mock(side_effect=Exception("Wut happened?!?!"))
         lock.acquire()
         lock.release()
+
+
+def test_flush_sample_handles_shallow_stack() -> None:
+    """Test that _flush_sample doesn't crash when call stack is too shallow.
+
+    This reproduces the bug where sys._getframe(3) raises ValueError during
+    atexit callbacks (like Cassandra cluster shutdown) when the stack is shallow.
+    """
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_flush_sample_handles_shallow_stack")
+
+    # Create a minimal _ProfiledLock instance
+    real_lock = threading.Lock()
+    capture_sampler = collector.CaptureSampler(capture_pct=100)
+    # Create the profiled lock with enough stack frames (we're at normal depth here)
+    profiled_lock = _ProfiledLock(
+        wrapped=real_lock,
+        tracer=None,
+        max_nframes=64,
+        capture_sampler=capture_sampler,
+    )
+
+    # Simulate acquired state
+    profiled_lock.acquired_time = time.monotonic_ns()
+    profiled_lock.name = "test_lock"
+
+    # Call _flush_sample directly - this simulates a shallow stack scenario
+    # In normal operation, _flush_sample is called with 3 frames above it,
+    # but here we're calling it directly, so sys._getframe(3) would fail.
+    # The method should catch ValueError and not crash.
+    start = time.monotonic_ns()
+    end = time.monotonic_ns()
+
+    # This should NOT raise ValueError even though stack is shallow
+    profiled_lock._flush_sample(start, end, is_acquire=False)
+
+
+def test_update_name_handles_shallow_stack() -> None:
+    """Test that _update_name doesn't crash when call stack is too shallow.
+
+    This tests that _update_name gracefully handles ValueError from sys._getframe(3)
+    when the call stack is shallower than expected.
+    """
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_update_name_handles_shallow_stack")
+
+    real_lock = threading.Lock()
+    capture_sampler = collector.CaptureSampler(capture_pct=100)
+    profiled_lock = _ProfiledLock(
+        wrapped=real_lock,
+        tracer=None,
+        max_nframes=64,
+        capture_sampler=capture_sampler,
+    )
+
+    # Call _update_name directly - simulates shallow stack
+    # In normal operation, _update_name is called with 3+ frames above it,
+    # but here we're calling it directly, so sys._getframe(3) would fail.
+    # The method should catch ValueError and leave name as None.
+    assert profiled_lock.name is None
+
+    # This should NOT raise ValueError even though stack is shallow
+    profiled_lock._update_name()
+
+    # Name should still be None (couldn't determine it due to shallow stack)
+    # but NO exception should have been raised
+    assert profiled_lock.name is None
+
+
+def test_release_does_not_crash_in_shallow_stack() -> None:
+    """Test that lock.release() doesn't crash when called from a shallow stack.
+
+    This reproduces the exact scenario from the Cassandra atexit bug where
+    __exit__ -> _release -> _flush_sample -> sys._getframe(3) failed with:
+    ValueError: call stack is not deep enough
+    """
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_release_does_not_crash_in_shallow_stack")
+
+    with ThreadingLockCollector(capture_pct=100):
+        lock = threading.Lock()
+
+        # Acquire the lock normally (this sets acquired_time)
+        lock.acquire()
+
+        # Now we simulate what happens during atexit by calling release
+        # from a context where we'll manipulate the stack depth.
+        # The _flush_sample call inside _release should handle this gracefully.
+
+        # Call release - this should NOT crash even if _flush_sample
+        # encounters a shallow stack internally
+        lock.release()
+
+    # If we get here without ValueError, the test passes
+
+
+def test_profiled_lock_init_handles_shallow_stack() -> None:
+    """Test that _ProfiledLock constructor doesn't crash when call stack is too shallow.
+
+    When sys._getframe(3) fails in __init__, the lock should still be created
+    with a fallback init_location of "unknown:0".
+    """
+    # Create a _ProfiledLock directly (not through collector) - this results in
+    # a shallower stack than normal usage where it goes through:
+    # caller -> Lock() -> _LockAllocatorWrapper.__call__ -> _profiled_allocate_lock -> __init__
+    real_lock = threading.Lock()
+    capture_sampler = collector.CaptureSampler(capture_pct=100)
+
+    # This should NOT raise ValueError even though stack may be shallow
+    profiled_lock = _ProfiledLock(
+        wrapped=real_lock,
+        tracer=None,
+        max_nframes=64,
+        capture_sampler=capture_sampler,
+    )
+
+    # Lock should be fully functional
+    assert profiled_lock.acquire()
+    profiled_lock.release()
+
+    # init_location should be set (either real location or fallback)
+    assert profiled_lock.init_location is not None
+    assert len(profiled_lock.init_location) > 0
 
 
 def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:

@@ -294,10 +294,12 @@ class _ProfiledLock:
                         pass
         return None
 
+    @_safe_for_instrumentation
     def _update_name(self) -> None:
         """Get lock variable name from the caller's frame."""
         if self.name is not None:
             return
+<<<<<<< HEAD
 
         try:
             # We expect the call stack to be like this:
@@ -309,20 +311,26 @@ class _ProfiledLock:
                 frame: FrameType = sys._getframe(1)
                 if frame.f_code.co_name not in ACQUIRE_RELEASE_CO_NAMES:
                     raise AssertionError(f"Unexpected frame in stack: '{frame.f_code.co_name}'")
+=======
+>>>>>>> 57e8f8fbc9 (fix crashes due to shallow stacks)
 
-                frame = sys._getframe(2)
-                if frame.f_code.co_name not in ENTER_EXIT_CO_NAMES:
-                    raise AssertionError(f"Unexpected frame in stack: '{frame.f_code.co_name}'")
+        # We expect the call stack to be like this:
+        # 0: this
+        # 1: _acquire/_release
+        # 2: acquire/release (or __enter__/__exit__)
+        # 3: caller frame
+        if config.enable_asserts:
+            frame: FrameType = sys._getframe(1)
+            if frame.f_code.co_name not in ACQUIRE_RELEASE_CO_NAMES:
+                raise AssertionError(f"Unexpected frame in stack: '{frame.f_code.co_name}'")
 
-            # First, look at the local variables of the caller frame, and then the global variables
-            frame = sys._getframe(3)
-            self.name = self._find_name(frame.f_locals) or self._find_name(frame.f_globals) or ""
-        except AssertionError:
-            if config.enable_asserts:
-                raise
-        except Exception:
-            # Instrumentation must never crash user code
-            pass  # nosec
+            frame = sys._getframe(2)
+            if frame.f_code.co_name not in ENTER_EXIT_CO_NAMES:
+                raise AssertionError(f"Unexpected frame in stack: '{frame.f_code.co_name}'")
+
+        # First, look at the local variables of the caller frame, and then the global variables
+        frame = sys._getframe(3)
+        self.name = self._find_name(frame.f_locals) or self._find_name(frame.f_globals) or ""
 
 
 class _LockAllocatorWrapper:
