@@ -86,6 +86,9 @@ sg = [
 sg-test = [
     "ast-grep test {args}",
 ]
+ci-deps-check = [
+    "bash scripts/check-ci-dependencies",
+]
 
 [envs.scripts]
 detached = true
