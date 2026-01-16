@@ -109,6 +109,7 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
         "FORMAT_VALUE": _PREFIX + "aspects.format_value_aspect",
         ast.Mod: _PREFIX + "aspects.modulo_aspect",
         "BUILD_STRING": _PREFIX + "aspects.build_string_aspect",
+        "TEMPLATE_STRING": _PREFIX + "aspects.template_string_aspect",
     },
     "excluded_from_patching": {
         # Key: module being patched
@@ -181,6 +182,7 @@ class AstVisitor(ast.NodeTransformer):
         self._aspect_modules = _ASPECTS_SPEC["module_functions"]
         self._aspect_format_value = _ASPECTS_SPEC["operators"]["FORMAT_VALUE"]
         self._aspect_build_string = _ASPECTS_SPEC["operators"]["BUILD_STRING"]
+        self._aspect_template_string = _ASPECTS_SPEC["operators"]["TEMPLATE_STRING"]
 
         # Sink points
         self._taint_sink_replace_any = self._merge_dicts(
@@ -751,6 +753,57 @@ class AstVisitor(ast.NodeTransformer):
         self.ast_modified = True
         _set_metric_iast_instrumented_propagation()
         return call_node
+
+    def visit_TemplateStr(self, templatestr_node: Any) -> Any:
+        """
+        Replace the TemplateStr AST node (PEP-750 template strings) with a Call to the replacement function.
+        Template strings contain Interpolation nodes and Constant nodes.
+        We need to unwrap Interpolation nodes to their value expressions.
+        """
+        self.generic_visit(templatestr_node)
+
+        # Extract values from Interpolation nodes and keep Constant nodes as-is
+        # Interpolation nodes have a 'value' attribute containing the expression
+        # Constant nodes can be used directly
+        args = []
+        for node in templatestr_node.values:
+            # Check if this is an Interpolation node (has 'value' attribute)
+            if hasattr(node, "value") and not isinstance(node, ast.Constant):
+                # This is an Interpolation node - extract its value expression
+                args.append(node.value)
+            else:
+                # This is a Constant node - use it directly
+                args.append(node)
+
+        func_name_node = self._attr_node(
+            templatestr_node,
+            self._aspect_template_string,
+            ctx=ast.Load(),
+        )
+        call_node = self._call_node(
+            templatestr_node,
+            func=func_name_node,
+            args=args,
+        )
+
+        self.ast_modified = True
+        _set_metric_iast_instrumented_propagation()
+        return call_node
+
+    def visit_Interpolation(self, interpolation_node: Any) -> Any:
+        """
+        Visit an Interpolation node (part of a template string).
+        Interpolation nodes contain a value expression that needs to be evaluated.
+        """
+        self.generic_visit(interpolation_node)
+
+        # Optimization: if the value is a constant or binop, no need to wrap
+        if hasattr(interpolation_node, "value") and self._is_node_constant_or_binop(interpolation_node.value):
+            return interpolation_node
+
+        # For now, just return the node as-is since the template_string_aspect
+        # will handle taint propagation from the interpolation values
+        return interpolation_node
 
     def visit_Assign(self, assign_node: ast.Assign) -> Any:
         """

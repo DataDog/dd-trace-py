@@ -114,6 +114,7 @@ __all__ = [
     "str_aspect",
     "stringio_aspect",
     "swapcase_aspect",
+    "template_string_aspect",
     "title_aspect",
     "translate_aspect",
     "upper_aspect",
@@ -234,6 +235,69 @@ def bytearray_extend_aspect(orig_function: Optional[Callable], flag_added_args: 
 
 def build_string_aspect(*args: List[Any]) -> TEXT_TYPES:
     return join_aspect("".join, 1, "", args)
+
+
+def template_string_aspect(*args: List[Any]) -> TEXT_TYPES:
+    """
+    Aspect for PEP-750 template strings (t-strings).
+
+    Template strings evaluate to a Template object at runtime, but for IAST purposes,
+    we need to track taint through the string construction process. This aspect
+    handles taint propagation from template values.
+
+    The args are already evaluated values (not AST nodes) - they come from the
+    unwrapped Interpolation.value expressions and Constant.value values.
+
+    If any of the values are tainted, the entire resulting string is tainted.
+    """
+    try:
+        # args are already evaluated values (strings, numbers, etc.)
+        # Check if any of the values are tainted
+        has_tainted = any(is_pyobject_tainted(val) for val in args if val is not None)
+
+        # Convert all values to strings, preserving taint information
+        # This is necessary because join_aspect expects string values
+        string_args = []
+        for val in args:
+            if val is None:
+                string_args.append("None")
+            elif isinstance(val, IAST.TEXT_TYPES):
+                # Already a string, use as-is
+                string_args.append(val)
+            else:
+                # Convert to string using str_aspect to preserve taint if present
+                str_val = str_aspect(str, 0, val)
+                string_args.append(str_val)
+
+        # Build the result string by joining all string values
+        # Similar to build_string_aspect, we use join_aspect to handle the actual string construction
+        result = join_aspect("".join, 1, "", string_args)
+
+        # If any value was tainted, ensure the result is tainted
+        if has_tainted:
+            # Collect all taint ranges from all tainted values
+            all_ranges = []
+            offset = 0
+            for val in string_args:
+                if val is not None and is_pyobject_tainted(val):
+                    ranges = get_ranges(val)
+                    if ranges:
+                        # Shift ranges by the current offset
+                        for r in ranges:
+                            shifted_range = shift_taint_range(r, offset)
+                            all_ranges.append(shifted_range)
+                # Update offset for next value (all are strings now)
+                if val is not None:
+                    offset += len(val)
+
+            if all_ranges:
+                taint_pyobject_with_ranges(result, tuple(all_ranges))
+
+        return result
+    except Exception as e:
+        iast_propagation_error_log("template_string_aspect", e)
+        # Fallback: just join the args as strings
+        return "".join(str(arg) for arg in args)
 
 
 def ljust_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:
