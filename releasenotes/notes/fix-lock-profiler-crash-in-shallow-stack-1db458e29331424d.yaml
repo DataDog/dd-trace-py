@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: This fix resolves a crash in the lock profiler when locks are released, and the sample's stack trace is too shallow (less than 3 frames).
+
