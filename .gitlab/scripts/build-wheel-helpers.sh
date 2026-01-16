@@ -50,6 +50,11 @@ setup_env() {
   export FINAL_WHEEL_DIR="${PROJECT_DIR}/pywheels"
   export DEBUG_WHEEL_DIR="${PROJECT_DIR}/debugwheelhouse"
   mkdir -p "${BUILT_WHEEL_DIR}" "${TMP_WHEEL_DIR}" "${FINAL_WHEEL_DIR}" "${DEBUG_WHEEL_DIR}"
+  if [[ ${UNPIN_DEPENDENCIES:-"true"} == "true" ]]
+  then
+    python ../../scripts/allow_prerelease_dependencies.py
+    export PIP_PRE=true
+  fi
   section_end "setup_env"
 }
 
