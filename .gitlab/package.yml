@@ -79,7 +79,7 @@ variables:
         IMAGE_TAG: *AARCH64_IMAGES
   script:
     - |
-      manylinux-interpreters ensure "${PYTHON_TAG}" $("${UNPIN_DEPENDENCIES:-false}" == "true" && "cp314-cp314" || "" )
+      manylinux-interpreters ensure "${PYTHON_TAG}" "$("${UNPIN_DEPENDENCIES:-false}" == "true" && "cp314-cp314" || "" )"
     - export UV_PYTHON="/opt/python/${PYTHON_TAG}/bin/python"
     - |
       find src/native -type f -exec touch -t 202401010000 {} \;
