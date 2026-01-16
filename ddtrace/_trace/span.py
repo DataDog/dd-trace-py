@@ -49,11 +49,13 @@ from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.native._native import SpanEventData
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils.time import Time
 
 
-class SpanEvent:
+class SpanEvent(SpanEventData):
     __slots__ = ["name", "attributes", "time_unix_nano"]
 
     def __init__(
@@ -62,6 +64,7 @@ class SpanEvent:
         attributes: Optional[Dict[str, _AttributeValueType]] = None,
         time_unix_nano: Optional[int] = None,
     ):
+        super().__init__(name, attributes, time_unix_nano)
         self.name: str = name
         if time_unix_nano is None:
             time_unix_nano = Time.time_ns()
@@ -101,7 +104,7 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
     return f"{large_int:032x}"[:16]
 
 
-class Span(object):
+class Span(SpanData):
     __slots__ = [
         # Public span attributes
         "service",
@@ -168,6 +171,7 @@ class Span(object):
         :param object context: the Context of the span.
         :param on_finish: list of functions called when the span finishes.
         """
+
         if not (span_id is None or isinstance(span_id, int)):
             if config._raise:
                 raise TypeError("span_id must be an integer")
@@ -180,6 +184,9 @@ class Span(object):
             if config._raise:
                 raise TypeError("parent_id must be an integer")
             return
+
+        super().__init__(name, service, resource, span_type, trace_id, span_id, parent_id, start, span_api, links)
+
         self.name = name
         self.service = service
         self.resource = resource or name

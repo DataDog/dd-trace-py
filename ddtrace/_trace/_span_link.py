@@ -28,6 +28,7 @@ import dataclasses
 from enum import Enum
 from typing import Optional
 
+from ddtrace.internal.native._native import SpanLinkData
 from ddtrace.internal.utils.formats import flatten_key_value
 
 
@@ -45,7 +46,7 @@ def _id_not_zero(self, attribute_name, value):
 
 
 @dataclasses.dataclass
-class SpanLink:
+class SpanLink(SpanLinkData):
     """
     TraceId [required]: The span's 128-bit Trace ID
     SpanId [required]: The span's 64-bit Span ID
@@ -119,6 +120,12 @@ class SpanLink:
             d["flags"] = self.flags
 
         return d
+
+    def __getstate__(self):
+        return dataclasses.asdict(self)
+
+    def __setstate__(self, state):
+        self.__init__(**state)
 
     def __repr__(self) -> str:
         return (
