@@ -480,7 +480,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         return new_version, new_record_ids
 
     def dataset_get_with_records(
-        self, dataset_name: str, project_name: Optional[str] = None, version: Optional[int] = None
+        self, dataset_name: str, project_name: Optional[str] = None, version: Optional[int] = None, tags: Optional[list[str]] = None
     ) -> Dataset:
         project = self.project_create_or_get(project_name)
         project_id = project.get("_id")
@@ -515,6 +515,9 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                 url_options["filter[version]"] = version
 
             list_path = f"{list_base_path}?{urllib.parse.urlencode(url_options, safe='[]')}"
+            if tags:
+                for tag in tags:
+                    list_path += f"&filter[tags]={tag}"
             logger.debug("list records page %d, request path=%s", page_num, list_path)
             resp = self.request("GET", list_path, timeout=self.LIST_RECORDS_TIMEOUT)
             if resp.status != 200:
@@ -551,6 +554,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             latest_version=curr_version,
             version=version or curr_version,
             _dne_client=self,
+            tags=tags,
         )
 
     def dataset_bulk_upload(self, dataset_id: str, records: List[DatasetRecord]):

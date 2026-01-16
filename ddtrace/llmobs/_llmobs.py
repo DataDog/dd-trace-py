@@ -807,9 +807,10 @@ class LLMObs(Service):
         dataset_name: str,
         project_name: Optional[str] = None,
         version: Optional[int] = None,
+        tags: Optional[list[str]] = None,
     ) -> Dataset:
         ds = cls._instance._dne_client.dataset_get_with_records(
-            dataset_name, (project_name or cls._project_name), version
+            dataset_name, (project_name or cls._project_name), version, tags
         )
         return ds
 
