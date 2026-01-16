@@ -142,68 +142,7 @@ def test_class_based_handlers(context, handler, function_name):
 
 
 class TestTimeoutChannelSignalRestoration:
-    """Tests for signal handler restoration."""
-
     def test_user_signal_handler_restored_after_stop(self, context):
-        """
-        User-defined SIGALRM handlers should be restored after TimeoutChannel cleanup.
-        """
-        import signal
-
-        from ddtrace.contrib.internal.aws_lambda.patch import TimeoutChannel
-
-        user_handler_called = []
-
-        def user_handler(signum, frame):
-            user_handler_called.append(True)
-
-        # Set up user's signal handler BEFORE TimeoutChannel
-        signal.signal(signal.SIGALRM, user_handler)
-
-        # Create and start TimeoutChannel
-        tc = TimeoutChannel(context())
-        tc._start()
-
-        # Verify ddtrace's handler is now set (wrapped)
-        current = signal.getsignal(signal.SIGALRM)
-        assert current != user_handler, "TimeoutChannel should have wrapped the handler"
-
-        # Stop the timeout channel (this is where the bug was)
-        tc.stop()
-
-        # Verify user's handler was restored
-        restored_handler = signal.getsignal(signal.SIGALRM)
-        assert restored_handler == user_handler, f"User handler should be restored after stop(), got {restored_handler}"
-
-        # Clean up
-        signal.signal(signal.SIGALRM, signal.SIG_DFL)
-
-    def test_default_handler_restored_when_no_prior_handler(self, context):
-        """
-        When no user handler was set, SIG_DFL should be restored after cleanup.
-        """
-        import signal
-
-        from ddtrace.contrib.internal.aws_lambda.patch import TimeoutChannel
-
-        # Ensure no handler is set
-        signal.signal(signal.SIGALRM, signal.SIG_DFL)
-
-        # Create and start TimeoutChannel
-        tc = TimeoutChannel(context())
-        tc._start()
-
-        # Stop the timeout channel
-        tc.stop()
-
-        # Verify SIG_DFL is restored
-        current = signal.getsignal(signal.SIGALRM)
-        assert current == signal.SIG_DFL, f"Expected SIG_DFL, got {current}"
-
-    def test_user_handler_restored_after_crash_flush(self, context):
-        """
-        User handler should be restored even after _crash_flush is called.
-        """
         import signal
 
         from ddtrace.contrib.internal.aws_lambda.patch import TimeoutChannel
@@ -211,21 +150,42 @@ class TestTimeoutChannelSignalRestoration:
         def user_handler(signum, frame):
             pass
 
-        # Set up user's signal handler
         signal.signal(signal.SIGALRM, user_handler)
 
-        # Create TimeoutChannel
         tc = TimeoutChannel(context())
         tc._start()
+        assert signal.getsignal(signal.SIGALRM) != user_handler
+        tc.stop()
 
-        # Simulate crash flush (which also calls _remove_alarm_signal)
+        assert signal.getsignal(signal.SIGALRM) == user_handler
+        signal.signal(signal.SIGALRM, signal.SIG_DFL)
+
+    def test_default_handler_restored_when_no_prior_handler(self, context):
+        import signal
+
+        from ddtrace.contrib.internal.aws_lambda.patch import TimeoutChannel
+
+        signal.signal(signal.SIGALRM, signal.SIG_DFL)
+
+        tc = TimeoutChannel(context())
+        tc._start()
+        tc.stop()
+
+        assert signal.getsignal(signal.SIGALRM) == signal.SIG_DFL
+
+    def test_user_handler_restored_after_crash_flush(self, context):
+        import signal
+
+        from ddtrace.contrib.internal.aws_lambda.patch import TimeoutChannel
+
+        def user_handler(signum, frame):
+            pass
+
+        signal.signal(signal.SIGALRM, user_handler)
+
+        tc = TimeoutChannel(context())
+        tc._start()
         tc._crash_flush(None, None)
 
-        # Verify user's handler was restored
-        restored_handler = signal.getsignal(signal.SIGALRM)
-        assert restored_handler == user_handler, (
-            f"User handler should be restored after _crash_flush(), got {restored_handler}"
-        )
-
-        # Clean up
+        assert signal.getsignal(signal.SIGALRM) == user_handler
         signal.signal(signal.SIGALRM, signal.SIG_DFL)
