@@ -1,7 +1,7 @@
 # =============================================================================
 # TEMPORARY DEBUG CONFIGURATION - FLAKY TEST INVESTIGATION
-# This configuration runs test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation
-# 100 times across all tracer venvs to identify flaky behavior.
+# This configuration runs the full tracer test suite 100 times across all
+# tracer venvs to identify flaky behavior and test interactions.
 #
 # TO REVERT: git checkout main -- .gitlab-ci.yml
 # =============================================================================
@@ -50,17 +50,15 @@ debug-flaky-test:
       - RIOT_HASH: ["107d2ec", "c48b0f7", "1fa38a1", "108afed", "128b106", "1303be6", "190fcc7"]
       - RIOT_HASH: ["19c9071", "1b5081e", "1cb6659", "1ef5a52", "4fcf978", "cf86081", "ed437ab"]
   variables:
-    TEST_NAME: "test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation"
-    TEST_FILE: "tests/tracer/test_propagation.py"
     NUM_RUNS: "100"
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
     CARGO_BUILD_JOBS: "12"
   script:
     - |
       echo "========================================"
-      echo "DEBUG FLAKY TEST: ${TEST_NAME}"
+      echo "DEBUG FLAKY TEST SUITE: tracer"
       echo "RIOT HASH: ${RIOT_HASH}"
-      echo "RUNNING ${NUM_RUNS} TIMES"
+      echo "RUNNING FULL SUITE ${NUM_RUNS} TIMES"
       echo "========================================"
     - unset DD_SERVICE DD_ENV DD_TAGS DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
     - |
@@ -77,7 +75,7 @@ debug-flaky-test:
         else
           RIOT_CMD="riot -P -v run --pass-env -s ${RIOT_HASH}"
         fi
-        if ! ${RIOT_CMD} -- ${TEST_FILE}::${TEST_NAME} -v --no-cov; then
+        if ! ${RIOT_CMD} -- --no-cov; then
           echo "FAILED on run ${i}"
           FAILURES=$((FAILURES + 1))
         fi
@@ -90,6 +88,6 @@ debug-flaky-test:
       echo "Success rate: $(echo "scale=2; (${NUM_RUNS} - ${FAILURES}) * 100 / ${NUM_RUNS}" | bc)%"
       echo "========================================"
       if [ ${FAILURES} -gt 0 ]; then
-        echo "TEST IS FLAKY: ${FAILURES}/${NUM_RUNS} failures"
+        echo "TEST SUITE IS FLAKY: ${FAILURES}/${NUM_RUNS} failures"
         exit 1
       fi
