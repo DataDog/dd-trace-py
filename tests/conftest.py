@@ -187,9 +187,8 @@ def tracer(use_dummy_writer):
 
 @pytest.fixture
 def test_spans(tracer):
-    container = TracerSpanContainer(tracer)
-    yield container
-    container.reset()
+    with TracerSpanContainer(tracer) as container:
+        yield container
 
 
 @pytest.fixture(autouse=True)

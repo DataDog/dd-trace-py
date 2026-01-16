@@ -43,13 +43,12 @@ class PropagationTestCase(TracerTestCase):
             with self.tracer.trace("executor.thread"):
                 return 42
 
-        with self.override_global_tracer():
-            with self.tracer.trace("main.thread"):
-                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                    future = executor.submit(fn)
-                    result = future.result()
-                    # assert the right result
-                    self.assertEqual(result, 42)
+        with self.tracer.trace("main.thread"):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                future = executor.submit(fn)
+                result = future.result()
+                # assert the right result
+                self.assertEqual(result, 42)
 
         # the trace must be completed
         roots = self.get_root_spans()
@@ -69,14 +68,13 @@ class PropagationTestCase(TracerTestCase):
             with self.tracer.trace("executor.thread"):
                 return value, key
 
-        with self.override_global_tracer():
-            with self.tracer.trace("main.thread"):
-                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                    future = executor.submit(fn, 42, "CheeseShop")
-                    value, key = future.result()
-                    # assert the right result
-                    self.assertEqual(value, 42)
-                    self.assertEqual(key, "CheeseShop")
+        with self.tracer.trace("main.thread"):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                future = executor.submit(fn, 42, "CheeseShop")
+                value, key = future.result()
+                # assert the right result
+                self.assertEqual(value, 42)
+                self.assertEqual(key, "CheeseShop")
 
         # the trace must be completed
         roots = self.get_root_spans()
@@ -101,13 +99,12 @@ class PropagationTestCase(TracerTestCase):
         def main(value, key=None):
             return fn1(value) + fn2(value)
 
-        with self.override_global_tracer():
-            with self.tracer.trace("main.thread"):
-                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                    future = executor.submit(main, 42)
-            value = future.result()
-            # assert the right result
-            self.assertEqual(value, 4242)
+        with self.tracer.trace("main.thread"):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                future = executor.submit(main, 42)
+        value = future.result()
+        # assert the right result
+        self.assertEqual(value, 4242)
 
         # the trace must be completed
         spans = self.get_spans()
@@ -125,14 +122,13 @@ class PropagationTestCase(TracerTestCase):
             with self.tracer.trace("executor.thread"):
                 return value, key
 
-        with self.override_global_tracer():
-            with self.tracer.trace("main.thread"):
-                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                    future = executor.submit(fn, value=42, key="CheeseShop")
-                    value, key = future.result()
-                    # assert the right result
-                    self.assertEqual(value, 42)
-                    self.assertEqual(key, "CheeseShop")
+        with self.tracer.trace("main.thread"):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                future = executor.submit(fn, value=42, key="CheeseShop")
+                value, key = future.result()
+                # assert the right result
+                self.assertEqual(value, 42)
+                self.assertEqual(key, "CheeseShop")
 
         # the trace must be completed
         roots = self.get_root_spans()
@@ -153,13 +149,12 @@ class PropagationTestCase(TracerTestCase):
             with self.tracer.trace("executor.thread"):
                 return 42
 
-        with self.override_global_tracer():
-            with self.tracer.trace("main.thread"):
-                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                    future = executor.submit(fn)
-                    result = future.result()
-                    # assert the right result
-                    self.assertEqual(result, 42)
+        with self.tracer.trace("main.thread"):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                future = executor.submit(fn)
+                result = future.result()
+                # assert the right result
+                self.assertEqual(result, 42)
 
         # we provide two different traces
         self.assert_span_count(2)
@@ -182,13 +177,12 @@ class PropagationTestCase(TracerTestCase):
             with self.tracer.trace("executor.thread"):
                 return 42
 
-        with self.override_global_tracer():
-            with self.tracer.trace("main.thread"):
-                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                    future = executor.submit(fn)
-                    result = future.result()
-                    # assert the right result
-                    self.assertEqual(result, 42)
+        with self.tracer.trace("main.thread"):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                future = executor.submit(fn)
+                result = future.result()
+                # assert the right result
+                self.assertEqual(result, 42)
 
         # the trace must be completed
         root_spans = self.get_root_spans()
@@ -206,12 +200,11 @@ class PropagationTestCase(TracerTestCase):
             with self.tracer.trace("executor.thread"):
                 return 42
 
-        with self.override_global_tracer():
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                future = executor.submit(fn)
-                result = future.result()
-                # assert the right result
-                self.assertEqual(result, 42)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            future = executor.submit(fn)
+            result = future.result()
+            # assert the right result
+            self.assertEqual(result, 42)
 
         # the trace must be completed
         spans = self.get_spans()
@@ -224,14 +217,13 @@ class PropagationTestCase(TracerTestCase):
             with self.tracer.trace("executor.thread"):
                 return 42
 
-        with self.override_global_tracer():
-            with self.tracer.trace("main.thread"):
-                with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-                    futures = [executor.submit(fn) for _ in range(4)]
-                    for future in futures:
-                        result = future.result()
-                        # assert the right result
-                        self.assertEqual(result, 42)
+        with self.tracer.trace("main.thread"):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+                futures = [executor.submit(fn) for _ in range(4)]
+                for future in futures:
+                    result = future.result()
+                    # assert the right result
+                    self.assertEqual(result, 42)
 
         # the trace must be completed
         roots = self.get_root_spans()
@@ -251,13 +243,12 @@ class PropagationTestCase(TracerTestCase):
             with self.tracer.trace("executor.thread"):
                 return 42
 
-        with self.override_global_tracer():
-            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-                futures = [executor.submit(fn) for _ in range(4)]
-                for future in futures:
-                    result = future.result()
-                    # assert the right result
-                    self.assertEqual(result, 42)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [executor.submit(fn) for _ in range(4)]
+            for future in futures:
+                result = future.result()
+                # assert the right result
+                self.assertEqual(result, 42)
 
         # the trace must be completed
         self.assert_span_count(4)
@@ -280,13 +271,12 @@ class PropagationTestCase(TracerTestCase):
                     self.assertEqual(result, 42)
                     return result
 
-        with self.override_global_tracer():
-            with self.tracer.trace("main.thread"):
-                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                    future = executor.submit(fn)
-                    result = future.result()
-                    # assert the right result
-                    self.assertEqual(result, 42)
+        with self.tracer.trace("main.thread"):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                future = executor.submit(fn)
+                result = future.result()
+                # assert the right result
+                self.assertEqual(result, 42)
 
         # the trace must be completed
         self.assert_span_count(3)
@@ -313,14 +303,13 @@ class PropagationTestCase(TracerTestCase):
                         self.assertEqual(result, 42)
                         return result
 
-        with self.override_global_tracer():
-            with self.tracer.trace("main.thread"):
-                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                    futures = [executor.submit(fn) for _ in range(4)]
-                    for future in futures:
-                        result = future.result()
-                        # assert the right result
-                        self.assertEqual(result, 42)
+        with self.tracer.trace("main.thread"):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                futures = [executor.submit(fn) for _ in range(4)]
+                for future in futures:
+                    result = future.result()
+                    # assert the right result
+                    self.assertEqual(result, 42)
 
         # the trace must be completed
         traces = self.get_root_spans()
@@ -357,13 +346,12 @@ class PropagationTestCase(TracerTestCase):
                         self.assertEqual(result, 42)
                         return result
 
-        with self.override_global_tracer():
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                futures = [executor.submit(fn) for _ in range(4)]
-                for future in futures:
-                    result = future.result()
-                    # assert the right result
-                    self.assertEqual(result, 42)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(fn) for _ in range(4)]
+            for future in futures:
+                result = future.result()
+                # assert the right result
+                self.assertEqual(result, 42)
 
         # the trace must be completed
         traces = self.get_root_spans()
@@ -388,12 +376,11 @@ class PropagationTestCase(TracerTestCase):
                 time.sleep(0.05)
                 return 42
 
-        with self.override_global_tracer():
-            with self.tracer.trace("main.thread"):
-                # don't wait for the execution
-                executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
-                future = executor.submit(fn)
-                time.sleep(0.01)
+        with self.tracer.trace("main.thread"):
+            # don't wait for the execution
+            executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+            future = executor.submit(fn)
+            time.sleep(0.01)
 
         # then wait for the second thread and send the trace
         result = future.result()

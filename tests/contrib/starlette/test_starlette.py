@@ -16,7 +16,6 @@ from ddtrace.contrib.internal.starlette.patch import unpatch as starlette_unpatc
 from ddtrace.propagation import http as http_propagation
 from tests.contrib.starlette.app import get_app
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
-from tests.utils import TracerSpanContainer
 from tests.utils import override_global_config
 from tests.utils import override_http_config
 from tests.utils import scoped_tracer
@@ -39,18 +38,11 @@ def engine():
 
 @pytest.fixture
 def tracer(engine):
-    with scoped_tracer() as tracer:
+    with scoped_tracer() as (tracer, _):
         Pin._override(engine, tracer=tracer)
         starlette_patch()
         yield tracer
         starlette_unpatch()
-
-
-@pytest.fixture
-def test_spans(tracer):
-    container = TracerSpanContainer(tracer)
-    yield container
-    container.reset()
 
 
 @pytest.fixture

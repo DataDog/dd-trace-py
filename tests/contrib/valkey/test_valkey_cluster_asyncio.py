@@ -189,7 +189,7 @@ def test_default_service_name_v1():
 
     async def test():
         tracer_scope = scoped_tracer()
-        tracer = tracer_scope.__enter__()
+        tracer, _ = tracer_scope.__enter__()
         startup_nodes = [
             valkey.asyncio.cluster.ClusterNode(VALKEY_CLUSTER_CONFIG["host"], int(port))
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
@@ -241,7 +241,7 @@ def test_user_specified_service_v0():
 
     async def test():
         tracer_scope = scoped_tracer()
-        tracer = tracer_scope.__enter__()
+        tracer, _ = tracer_scope.__enter__()
         # # Ensure that the service name was configured
         assert config.service == "mysvc"
 
@@ -296,7 +296,7 @@ def test_user_specified_service_v1():
 
     async def test():
         tracer_scope = scoped_tracer()
-        tracer = tracer_scope.__enter__()
+        tracer, _ = tracer_scope.__enter__()
         # # Ensure that the service name was configured
         assert config.service == "mysvc"
 
@@ -346,7 +346,7 @@ def test_env_user_specified_valkeycluster_service_v0():
 
     async def test():
         tracer_scope = scoped_tracer()
-        tracer = tracer_scope.__enter__()
+        tracer, _ = tracer_scope.__enter__()
         startup_nodes = [
             valkey.asyncio.cluster.ClusterNode(VALKEY_CLUSTER_CONFIG["host"], int(port))
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
@@ -393,7 +393,7 @@ def test_env_user_specified_valkeycluster_service_v1():
 
     async def test():
         tracer_scope = scoped_tracer()
-        tracer = tracer_scope.__enter__()
+        tracer, _ = tracer_scope.__enter__()
         startup_nodes = [
             valkey.asyncio.cluster.ClusterNode(VALKEY_CLUSTER_CONFIG["host"], int(port))
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
@@ -445,7 +445,7 @@ def test_service_precedence_v0():
 
     async def test():
         tracer_scope = scoped_tracer()
-        tracer = tracer_scope.__enter__()
+        tracer, _ = tracer_scope.__enter__()
         # # Ensure that the service name was configured
         assert config.service == "mysvc"
 
@@ -496,7 +496,7 @@ def test_service_precedence_v1():
 
     async def test():
         tracer_scope = scoped_tracer()
-        tracer = tracer_scope.__enter__()
+        tracer, _ = tracer_scope.__enter__()
         # # Ensure that the service name was configured
         assert config.service == "mysvc"
 

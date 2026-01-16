@@ -82,7 +82,7 @@ class Test_Flask(utils.Contrib_TestClass_For_Threats):
 
         bftc.client.post = patch_post
 
-        with scoped_tracer() as tracer:
+        with scoped_tracer() as (tracer, _):
             interface.tracer = tracer
             interface.printer = printer
             with utils.post_tracer(interface):

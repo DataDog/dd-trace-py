@@ -1215,7 +1215,7 @@ def test_trace_with_128bit_trace_ids():
     from tests.utils import TracerSpanContainer
     from tests.utils import scoped_tracer
 
-    with scoped_tracer() as tracer:
+    with scoped_tracer() as (tracer, _):
         with tracer.trace("parent") as parent:
             with tracer.trace("child1"):
                 pass

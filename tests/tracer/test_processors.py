@@ -27,7 +27,6 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import Context
 from ddtrace.trace import Span
-from tests.utils import DummyWriter
 
 
 class DummyProcessor(TraceProcessor):
@@ -43,15 +42,14 @@ def test_no_impl():
         BadProcessor()
 
 
-def test_aggregator_single_span():
+def test_aggregator_single_span(tracer, test_spans):
     class Proc(TraceProcessor):
         def process_trace(self, trace):
             return trace
 
     mock_proc1 = mock.Mock(wraps=Proc())
     mock_proc2 = mock.Mock(wraps=Proc())
-    writer = DummyWriter()
-    aggr = SpanAggregator(
+    tracer._span_aggregator = SpanAggregator(
         partial_flush_enabled=False,
         partial_flush_min_spans=0,
         dd_processors=[
@@ -59,15 +57,13 @@ def test_aggregator_single_span():
             mock_proc2,
         ],
     )
-    aggr.writer = writer
 
-    span = Span("span", on_finish=[aggr.on_span_finish])
-    aggr.on_span_start(span)
-    span.finish()
+    with tracer.trace("span") as span:
+        pass
 
     mock_proc1.process_trace.assert_called_with([span])
     mock_proc2.process_trace.assert_called_with([span])
-    assert writer.pop() == [span]
+    assert test_spans.pop_spans() == [span]
 
 
 def test_aggregator_user_processors():
@@ -102,7 +98,7 @@ def test_aggregator_user_processors():
     assert span.get_tag("final_processor") == "user"
 
 
-def test_aggregator_reset_default_args():
+def test_aggregator_reset_default_args(tracer):
     """
     Test that on reset, the aggregator recreates trace writer but not the sampling processor (by default).
     Processors and trace buffers should be reset not reset.
@@ -115,25 +111,24 @@ def test_aggregator_reset_default_args():
         dd_processors=[dd_proc],
         user_processors=[user_proc],
     )
-    sampling_proc = aggr.sampling_processor
-    dm_writer = DummyWriter()
-    aggr.writer = dm_writer
+    tracer._span_aggregator = aggr
+    sampling_proc = tracer._span_aggregator.sampling_processor
     # Generate a span to init _traces and _span_metrics
-    span = Span("span", on_finish=[aggr.on_span_finish])
-    aggr.on_span_start(span)
-    # Expect SpanAggregator to have the processors and span in _traces
-    assert dd_proc in aggr.dd_processors
-    assert user_proc in aggr.user_processors
-    assert span.trace_id in aggr._traces
-    assert len(aggr._span_metrics["spans_created"]) == 1
-    # Expect TraceWriter to be recreated and trace buffers to be reset but not the trace processors
-    aggr.reset()
-    assert dd_proc in aggr.dd_processors
-    assert user_proc in aggr.user_processors
-    assert aggr.writer is not dm_writer
-    assert sampling_proc is aggr.sampling_processor
-    assert not aggr._traces
-    assert len(aggr._span_metrics["spans_created"]) == 0
+    with tracer.trace("span") as span:
+        # Expect SpanAggregator to have the processors and span in _traces
+        assert dd_proc in aggr.dd_processors
+        assert user_proc in aggr.user_processors
+        assert span.trace_id in aggr._traces
+        assert len(aggr._span_metrics["spans_created"]) == 1
+        # Expect TraceWriter to be recreated and trace buffers to be reset but not the trace processors
+        dm_writer = tracer._span_aggregator.writer
+        aggr.reset()
+        assert dd_proc in aggr.dd_processors
+        assert user_proc in aggr.user_processors
+        assert aggr.writer is not dm_writer
+        assert sampling_proc is aggr.sampling_processor
+        assert not aggr._traces
+        assert len(aggr._span_metrics["spans_created"]) == 0
 
 
 def test_aggregator_reset_apm_opt_out_preserves_sampling():
@@ -211,7 +206,7 @@ def test_aggregator_reset_with_args(writer_class):
     assert len(aggr._span_metrics["spans_created"]) == 1
 
 
-def test_aggregator_bad_processor():
+def test_aggregator_bad_processor(tracer, test_spans):
     class Proc(TraceProcessor):
         def process_trace(self, trace):
             return trace
@@ -223,7 +218,6 @@ def test_aggregator_bad_processor():
     mock_good_before = mock.Mock(wraps=Proc())
     mock_bad = mock.Mock(wraps=BadProc())
     mock_good_after = mock.Mock(wraps=Proc())
-    writer = DummyWriter()
     aggr = SpanAggregator(
         partial_flush_enabled=False,
         partial_flush_min_spans=0,
@@ -233,50 +227,38 @@ def test_aggregator_bad_processor():
             mock_good_after,
         ],
     )
-    aggr.writer = writer
+    tracer._span_aggregator = aggr
 
-    span = Span("span", on_finish=[aggr.on_span_finish])
-    aggr.on_span_start(span)
-    span.finish()
+    with tracer.trace("span") as span:
+        pass
 
     mock_good_before.process_trace.assert_called_with([span])
     mock_bad.process_trace.assert_called_with([span])
     mock_good_after.process_trace.assert_called_with([span])
-    assert writer.pop() == [span]
+    assert test_spans.pop() == [span]
 
 
-def test_aggregator_multi_span():
-    writer = DummyWriter()
-    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, dd_processors=[])
-    aggr.writer = writer
+def test_aggregator_multi_span(tracer, test_spans):
+    tracer._span_aggregator = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, dd_processors=[])
 
-    # Normal usage
-    parent = Span("parent", on_finish=[aggr.on_span_finish])
-    aggr.on_span_start(parent)
-    child = Span("child", on_finish=[aggr.on_span_finish])
-    child.trace_id = parent.trace_id
-    child.parent_id = parent.span_id
-    aggr.on_span_start(child)
-
-    assert writer.pop() == []
+    parent = tracer.trace("parent")
+    child = tracer.trace("child")
     child.finish()
-    assert writer.pop() == []
+    assert test_spans.pop() == []
     parent.finish()
-    assert writer.pop() == [parent, child]
+    assert test_spans.pop() == [parent, child]
 
     # Parent closes before child
-    parent = Span("parent", on_finish=[aggr.on_span_finish])
-    aggr.on_span_start(parent)
-    child = Span("child", on_finish=[aggr.on_span_finish])
+    parent = tracer.trace("parent")
+    child = tracer.trace("child")
     child.trace_id = parent.trace_id
     child.parent_id = parent.span_id
-    aggr.on_span_start(child)
 
-    assert writer.pop() == []
+    assert test_spans.pop() == []
     parent.finish()
-    assert writer.pop() == []
+    assert test_spans.pop() == []
     child.finish()
-    assert writer.pop() == [parent, child]
+    assert test_spans.pop() == [parent, child]
 
 
 @pytest.mark.subprocess(
@@ -290,25 +272,21 @@ def test_config_partial_flush_min_spans_validation():
     assert config._partial_flush_min_spans == 1
 
 
-def test_aggregator_partial_flush_0_spans():
-    writer = DummyWriter()
+def test_aggregator_partial_flush_0_spans(tracer, test_spans):
     aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=0)
-    aggr.writer = writer
+    tracer._span_aggregator = aggr
 
     # Normal usage
-    parent = Span("parent", on_finish=[aggr.on_span_finish])
-    aggr.on_span_start(parent)
-    child = Span("child", on_finish=[aggr.on_span_finish])
+    parent = tracer.trace("parent")
+    child = tracer.trace("child")
     child.trace_id = parent.trace_id
     child.parent_id = parent.span_id
-    aggr.on_span_start(child)
 
-    assert writer.pop() == []
+    assert test_spans.pop() == []
     child.finish()
-    assert writer.pop() == [child]
+    assert test_spans.pop() == [child]
     parent.finish()
-    assert writer.pop() == [parent]
-
+    assert test_spans.pop() == [parent]
     # Parent closes before child
     parent = Span("parent", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(parent)
@@ -317,70 +295,62 @@ def test_aggregator_partial_flush_0_spans():
     child.parent_id = parent.span_id
     aggr.on_span_start(child)
 
-    assert writer.pop() == []
+    assert test_spans.pop() == []
     parent.finish()
-    assert writer.pop() == [parent]
+    assert test_spans.pop() == [parent]
     assert parent.get_metric("_dd.py.partial_flush") == 1
     child.finish()
-    assert writer.pop() == [child]
+    assert test_spans.pop() == [child]
     # Not a partial flush since the trace size at this point is 1 and we finished the last span
     assert child.get_metric("_dd.py.partial_flush") is None
 
 
-def test_aggregator_partial_flush_2_spans():
-    writer = DummyWriter()
+def test_aggregator_partial_flush_2_spans(tracer, test_spans):
     aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=2)
-    aggr.writer = writer
+    tracer._span_aggregator = aggr
 
     # Normal usage
-    parent = Span("parent", on_finish=[aggr.on_span_finish])
-    aggr.on_span_start(parent)
-    child = Span("child", on_finish=[aggr.on_span_finish])
+    parent = tracer.trace("parent")
+    child = tracer.trace("child")
     child.trace_id = parent.trace_id
     child.parent_id = parent.span_id
-    aggr.on_span_start(child)
 
-    assert writer.pop() == []
+    assert test_spans.pop() == []
     child.finish()
-    assert writer.pop() == []
+    assert test_spans.pop() == []
     parent.finish()
-    assert writer.pop() == [parent, child]
+    assert test_spans.pop() == [parent, child]
 
     # Parent closes before child
-    parent = Span("parent", on_finish=[aggr.on_span_finish])
-    aggr.on_span_start(parent)
-    child = Span("child", on_finish=[aggr.on_span_finish])
+    parent = tracer.trace("parent")
+    child = tracer.trace("child")
     child.trace_id = parent.trace_id
     child.parent_id = parent.span_id
-    aggr.on_span_start(child)
 
-    assert writer.pop() == []
+    assert test_spans.pop() == []
     parent.finish()
-    assert writer.pop() == []
+    assert test_spans.pop() == []
     child.finish()
-    assert writer.pop() == [parent, child]
+    assert test_spans.pop() == [parent, child]
 
     # Partial flush
-    parent = Span("parent", on_finish=[aggr.on_span_finish])
-    aggr.on_span_start(parent)
-    child1 = Span("child1", on_finish=[aggr.on_span_finish])
+    parent = tracer.trace("parent")
+    child1 = tracer.trace("child1")
     child1.trace_id = parent.trace_id
     child1.parent_id = parent.span_id
-    aggr.on_span_start(child1)
-    child2 = Span("child2", on_finish=[aggr.on_span_finish])
+    child2 = tracer.trace("child2")
     child2.trace_id = parent.trace_id
     child2.parent_id = parent.span_id
-    aggr.on_span_start(child2)
 
-    assert writer.pop() == []
+    assert test_spans.pop() == []
     child1.finish()
-    assert writer.pop() == []
+    assert test_spans.pop() == []
     child2.finish()
-    assert writer.pop() == [child1, child2]
+    assert test_spans.pop() == [child1, child2]
     assert child1.get_metric("_dd.py.partial_flush") == 2
     assert child2.get_metric("_dd.py.partial_flush") is None
     parent.finish()
-    assert writer.pop() == [parent]
+    assert test_spans.pop() == [parent]
     assert parent.get_metric("_dd.py.partial_flush") is None
 
 

@@ -34,40 +34,35 @@ def runtime_metrics_service(tracer=None):
 
 class TestRuntimeTags(TracerTestCase):
     def test_all_tags(self):
-        with self.override_global_tracer():
-            with self.trace("test", service="test"):
-                tags = set([k for (k, v) in TracerTags()])
-                assert SERVICE in tags
-                # no env set by default
-                assert ENV not in tags
+        with self.trace("test", service="test"):
+            tags = set([k for (k, v) in TracerTags()])
+            assert SERVICE in tags
+            # no env set by default
+            assert ENV not in tags
 
     def test_one_tag(self):
-        with self.override_global_tracer():
-            with self.trace("test", service="test"):
-                tags = [k for (k, v) in TracerTags(enabled=[SERVICE])]
-                self.assertEqual(set(tags), set([SERVICE]))
+        with self.trace("test", service="test"):
+            tags = [k for (k, v) in TracerTags(enabled=[SERVICE])]
+            self.assertEqual(set(tags), set([SERVICE]))
 
     def test_env_tag(self):
         def filter_only_env_tags(tags):
             return [(k, v) for (k, v) in TracerTags() if k == "env"]
 
-        with self.override_global_tracer():
-            # first without env tag set in tracer
-            with self.trace("first-test", service="test"):
-                tags = filter_only_env_tags(TracerTags())
-                assert tags == []
+        # first without env tag set in tracer
+        with self.trace("first-test", service="test"):
+            tags = filter_only_env_tags(TracerTags())
+            assert tags == []
 
-            # then with an env tag set
-            self.tracer.set_tags({"env": "tests.dog"})
-            with self.trace("second-test", service="test"):
-                tags = filter_only_env_tags(TracerTags())
-                assert tags == [("env", "tests.dog")]
+        self.tracer.set_tags({"env": "tests.dog"})
+        with self.trace("second-test", service="test"):
+            tags = filter_only_env_tags(TracerTags())
+            assert tags == [("env", "tests.dog")]
 
-            # check whether updating env works
-            self.tracer.set_tags({"env": "staging.dog"})
-            with self.trace("third-test", service="test"):
-                tags = filter_only_env_tags(TracerTags())
-                assert tags == [("env", "staging.dog")]
+        self.tracer.set_tags({"env": "staging.dog"})
+        with self.trace("third-test", service="test"):
+            tags = filter_only_env_tags(TracerTags())
+            assert tags == [("env", "staging.dog")]
 
 
 @pytest.mark.subprocess(env={})
@@ -154,22 +149,15 @@ class TestRuntimeWorker(TracerTestCase):
             sock.return_value.getsockopt.return_value = 0
             with runtime_metrics_service(tracer=self.tracer):
                 self.tracer.set_tags({"env": "tests.dog"})
-
-                with self.override_global_tracer(self.tracer):
-                    # spans are started for three services but only web and worker
-                    # span types should be included in tags for runtime metrics
-                    with self.start_span("parent", service="parent", span_type=SpanTypes.WEB) as root:
-                        context = root.context
-                        with self.start_span(
-                            "child", service="child", span_type=SpanTypes.WORKER, child_of=context
-                        ) as child:
-                            with self.start_span(
-                                "query", service="db", span_type=SpanTypes.SQL, child_of=child.context
-                            ):
-                                time.sleep(4)
-                                # Get the mocked socket for inspection later
-                                statsd_socket = RuntimeWorker._instance._dogstatsd_client.socket
-                                received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
+                with self.trace("parent", service="parent", span_type=SpanTypes.WEB) as root:
+                    with self.trace(
+                        "child", service="child", span_type=SpanTypes.WORKER, child_of=root.context
+                    ) as child:
+                        with self.trace("query", service="db", span_type=SpanTypes.SQL, child_of=child.context):
+                            time.sleep(4)
+                            # Get the mocked socket for inspection later
+                            statsd_socket = RuntimeWorker._instance._dogstatsd_client.socket
+                            received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
 
         # we expect more than one flush since it is also called on shutdown
         assert len(received) > 1
