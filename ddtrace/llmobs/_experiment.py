@@ -128,6 +128,7 @@ class ExperimentResult(TypedDict):
 class Dataset:
     name: str
     description: str
+    tags: Optional[List[str]]
     _id: str
     _records: List[DatasetRecord]
     _version: int
@@ -148,11 +149,13 @@ class Dataset:
         description: str,
         latest_version: int,
         version: int,
+        tags: Optional[List[str]],
         _dne_client: "LLMObsExperimentsClient",
     ) -> None:
         self.name = name
         self.project = project
         self.description = description
+        self.tags = tags or []
         self._id = dataset_id
         self._latest_version = latest_version
         self._version = version
@@ -379,6 +382,9 @@ class Experiment:
         self._tags["dataset_name"] = dataset.name
         self._tags["experiment_name"] = name
         self._config: Dict[str, JSONType] = config or {}
+        # Write dataset tags to experiment config
+        if dataset.tags:
+            self._config["dataset_tags"] = dataset.tags
         self._runs: int = runs or 1
         self._llmobs_instance = _llmobs_instance
 
