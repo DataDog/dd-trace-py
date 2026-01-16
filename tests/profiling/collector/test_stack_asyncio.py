@@ -200,6 +200,7 @@ def test_asyncio_start_profiler_from_process_before_importing_asyncio():
         EXPECTED_FUNCTION_NAME_BACKGROUND = f"{my_function.__name__}.<locals>.{background_task_def.__name__}"
     else:
         EXPECTED_FUNCTION_NAME_BACKGROUND = background_task_def.__name__
+
     EXPECTED_FILENAME_BACKGROUND = os.path.basename(background_task_def.__code__.co_filename)
     EXPECTED_LINE_NO_BACKGROUND = -1  # any line
 
@@ -217,6 +218,7 @@ def test_asyncio_start_profiler_from_process_before_importing_asyncio():
                 ),
             ],
         ),
+        print_samples_on_failure=True,
     )
 
     # Verify specific tasks are in the profile
@@ -224,6 +226,7 @@ def test_asyncio_start_profiler_from_process_before_importing_asyncio():
         EXPECTED_FUNCTION_NAME_TRACKED = f"{my_function.__name__}.<locals>.{tracked_task_def.__name__}"
     else:
         EXPECTED_FUNCTION_NAME_TRACKED = tracked_task_def.__name__
+    
     EXPECTED_FILENAME_TRACKED = os.path.basename(tracked_task_def.__code__.co_filename)
 
     pprof_utils.assert_profile_has_sample(
@@ -240,6 +243,7 @@ def test_asyncio_start_profiler_from_process_before_importing_asyncio():
                 )
             ],
         ),
+        print_samples_on_failure=True,
     )
 
 
