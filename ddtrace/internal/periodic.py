@@ -120,3 +120,40 @@ class ForksafeAwakeablePeriodicService(AwakeablePeriodicService):
     def _stop_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
         forksafe.unregister(self._restart)
         super()._stop_service(*args, **kwargs)
+
+
+class Timer:
+    def __init__(self, interval: float) -> None:
+        self._interval = interval
+        self._set_worker()
+
+    def _set_worker(self) -> None:
+        self._worker = PeriodicThread(
+            self._interval,
+            target=self._periodic,
+            name="%s:%s" % (self.__class__.__module__, self.__class__.__name__),
+            no_wait_at_start=False,
+        )
+
+    def start(self) -> None:
+        self._worker.start()
+
+    def stop(self) -> None:
+        self._worker.stop()
+
+    def timeout(self) -> None:
+        raise NotImplementedError()
+
+    def _periodic(self):
+        self.timeout()
+        self.stop()
+
+    def reset(self) -> None:
+        self.stop()
+
+        self._set_worker()
+
+        self.start()
+
+    def join(self, timeout: typing.Optional[float] = None) -> None:
+        self._worker.join(timeout)
