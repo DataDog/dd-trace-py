@@ -582,85 +582,6 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
         root_span.assert_structure(root, children)
 
 
-class TracerSpanContainer(object):
-    def __init__(self, tracer: ddtrace.trace.Tracer, send_to_agent: bool = False):
-        self.spans = []
-        self.traces = []
-        self.send_to_agent = send_to_agent
-        self.tracer = tracer
-        self.real_writer_write = self.writer.write
-
-    def __enter__(self):
-        self.writer.write = self.write
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.writer.write = self.real_writer_write
-        self.reset()
-        return False
-
-    @property
-    def writer(self):
-        return self.tracer._span_aggregator.writer
-
-    def write(self, spans=None):
-        if not spans:
-            return
-        self.spans.extend(spans)
-        self.traces.append(spans)
-        if self.send_to_agent:
-            self.writer.write(spans)
-
-    def pop_spans(self):
-        spans = self.spans
-        self.spans = []
-        return spans
-
-    def pop_traces(self):
-        traces = self.traces
-        self.traces = []
-        return traces
-
-    def reset(self):
-        self.spans.clear()
-        self.traces.clear()
-
-
-class DummyCIVisibilityWriter(CIVisibilityWriter):
-    def __init__(self, *args, **kwargs):
-        CIVisibilityWriter.__init__(self, *args, **kwargs)
-        self.spans = []
-        self.traces = []
-        self.json_encoder = JSONEncoder()
-        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
-        self._encoded = None
-
-    def write(self, spans=None):
-        if spans:
-            # the traces encoding expect a list of traces so we
-            # put spans in a list like we do in the real execution path
-            # with both encoders
-            traces = [spans]
-            self.spans += spans
-            self.traces += traces
-        CIVisibilityWriter.write(self, spans=spans)
-        # take a snapshot of the writer buffer for tests to inspect
-        if spans:
-            self._encoded = self._encoder._build_payload([spans])
-
-    def pop(self):
-        # type: () -> List[Span]
-        s = self.spans
-        self.spans = []
-        return s
-
-    def pop_traces(self):
-        # type: () -> List[List[Span]]
-        traces = self.traces
-        self.traces = []
-        return traces
-
-
 class TestSpan(Span):
     """
     Test wrapper for a :class:`ddtrace.trace.Span` that provides additional functions and assertions
@@ -870,6 +791,41 @@ class TestSpan(Span):
             )
 
 
+class DummyCIVisibilityWriter(CIVisibilityWriter):
+    def __init__(self, *args, **kwargs):
+        CIVisibilityWriter.__init__(self, *args, **kwargs)
+        self.spans = []
+        self.traces = []
+        self.json_encoder = JSONEncoder()
+        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
+        self._encoded = None
+
+    def write(self, spans=None):
+        if spans:
+            # the traces encoding expect a list of traces so we
+            # put spans in a list like we do in the real execution path
+            # with both encoders
+            traces = [spans]
+            self.spans += spans
+            self.traces += traces
+        CIVisibilityWriter.write(self, spans=spans)
+        # take a snapshot of the writer buffer for tests to inspect
+        if spans:
+            self._encoded = self._encoder._build_payload([spans])
+
+    def pop(self):
+        # type: () -> List[Span]
+        s = self.spans
+        self.spans = []
+        return s
+
+    def pop_traces(self):
+        # type: () -> List[List[Span]]
+        traces = self.traces
+        self.traces = []
+        return traces
+
+
 class TestSpanNode(TestSpan, TestSpanContainer):
     """
     A :class:`tests.utils.span.TestSpan` which is used as part of a span tree.
@@ -968,6 +924,49 @@ class TestSpanNode(TestSpan, TestSpanContainer):
             root, _children = child
             spans[i].assert_matches(parent_id=self.span_id, trace_id=self.trace_id, _parent=self)
             spans[i].assert_structure(root, _children)
+
+class TracerSpanContainer(object):
+    def __init__(self, tracer: ddtrace.trace.Tracer, send_to_agent: bool = False):
+        self.spans = []
+        self.traces = []
+        self.send_to_agent = send_to_agent
+        self.tracer = tracer
+        self.real_writer_write = self.writer.write
+
+    def __enter__(self):
+        self.writer.write = self.write
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.writer.write = self.real_writer_write
+        self.reset()
+        return False
+
+    @property
+    def writer(self):
+        return self.tracer._span_aggregator.writer
+
+    def write(self, spans=None):
+        if not spans:
+            return
+        self.spans.extend(spans)
+        self.traces.append(spans)
+        if self.send_to_agent:
+            self.writer.write(spans)
+
+    def pop_spans(self):
+        spans = self.spans
+        self.spans = []
+        return spans
+
+    def pop_traces(self):
+        traces = self.traces
+        self.traces = []
+        return traces
+
+    def reset(self):
+        self.spans.clear()
+        self.traces.clear()
 
 
 def assert_dict_issuperset(a, b):
