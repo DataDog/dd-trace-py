@@ -42,17 +42,17 @@ def get_source_file_path_for_test_method(test_method_object, repo_directory: str
 
 def get_source_lines_for_test_method(
     test_method_object,
-) -> t.Tuple[int, int]:
+) -> t.Union[t.Tuple[int, int], t.Tuple[None, None]]:
     """
     Get the start and end line numbers for a test method.
 
     Returns:
-        Tuple of (start_line, end_line), with 0 indicating unavailable information
+        Tuple of (start_line, end_line), with None indicating unavailable information
     """
     try:
         source_lines_tuple = inspect.getsourcelines(test_method_object)
     except (TypeError, OSError):
-        return 0, 0
+        return None, None
     start_line = source_lines_tuple[1]
     end_line = start_line + len(source_lines_tuple[0])
     return start_line, end_line

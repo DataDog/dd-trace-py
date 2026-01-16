@@ -180,7 +180,8 @@ def _get_source_lines(item: pytest.Item, item_path: Path) -> t.Tuple[int, int]:
         # Get undecorated test object and extract source lines
         test_method_object = undecorated(item._obj, item.name, item_path)
         source_lines = get_source_lines_for_test_method(test_method_object)
-        return source_lines  # Returns (start_line, end_line)
+        # Convert None to 0 (our plugin uses 0 as sentinel, but shared util uses None)
+        return source_lines[0] or 0, source_lines[1] or 0
     except Exception:
         # Fallback to reportinfo
         try:
