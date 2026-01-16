@@ -2,6 +2,8 @@
 #include "constants.hpp"
 #include "stack_renderer.hpp"
 
+#include "echion/strings.h"
+
 #include <atomic>
 
 namespace Datadog {
@@ -50,6 +52,7 @@ class Sampler
                       PyObject* _asyncio_scheduled_tasks,
                       PyObject* _asyncio_eager_tasks);
     void link_tasks(PyObject* parent, PyObject* child);
+    void weak_link_tasks(PyObject* parent, PyObject* child);
     void sampling_thread(const uint64_t seq_num);
     void track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* frame);
     void untrack_greenlet(uintptr_t greenlet_id);

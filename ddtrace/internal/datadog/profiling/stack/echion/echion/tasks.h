@@ -142,6 +142,7 @@ class TaskInfo
 };
 
 inline std::unordered_map<PyObject*, PyObject*> task_link_map;
+inline std::unordered_map<PyObject*, PyObject*> weak_task_link_map;
 inline std::mutex task_link_map_lock;
 
 // ----------------------------------------------------------------------------

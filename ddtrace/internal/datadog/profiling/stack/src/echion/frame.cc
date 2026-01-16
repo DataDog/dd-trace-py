@@ -60,15 +60,15 @@ reset_frame_cache()
 Result<Frame::Ptr>
 Frame::create(PyCodeObject* code, int lasti)
 {
-    auto maybe_filename = string_table.key(code->co_filename);
+    auto maybe_filename = string_table.key(code->co_filename, StringTag::FileName);
     if (!maybe_filename) {
         return ErrorKind::FrameError;
     }
 
 #if PY_VERSION_HEX >= 0x030b0000
-    auto maybe_name = string_table.key(code->co_qualname);
+    auto maybe_name = string_table.key(code->co_qualname, StringTag::FuncName);
 #else
-    auto maybe_name = string_table.key(code->co_name);
+    auto maybe_name = string_table.key(code->co_name, StringTag::FuncName);
 #endif
 
     if (!maybe_name) {

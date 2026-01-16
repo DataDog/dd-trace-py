@@ -234,6 +234,20 @@ def _(asyncio: ModuleType) -> None:
         # if it times out. The timeout._task is the same as the current task, so there's
         # no parent-child relationship to link. The timeout mechanism is handled by the
         # event loop's timeout handler, not by creating new tasks.
+        @partial(wrap, sys.modules["asyncio"].tasks.create_task)
+        def _(
+            f: typing.Callable[..., "aio.Task[typing.Any]"],
+            args: tuple[typing.Any, ...],
+            kwargs: dict[str, typing.Any],
+        ) -> "aio.Task[typing.Any]":
+            # kwargs will typically contain context (Python 3.11+ only) and eager_start (Python 3.14+ only)
+            task: "aio.Task[typing.Any]" = f(*args, **kwargs)
+            parent: typing.Optional["aio.Task[typing.Any]"] = globals()["current_task"]()
+
+            if parent is not None:
+                stack.weak_link_tasks(parent, task)
+
+            return task
 
         _call_init_asyncio(asyncio)
 

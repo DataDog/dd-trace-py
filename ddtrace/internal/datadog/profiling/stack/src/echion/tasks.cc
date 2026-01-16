@@ -107,7 +107,7 @@ TaskInfo::create(TaskObj* task_addr)
         return ErrorKind::TaskInfoGeneratorError;
     }
 
-    auto maybe_name = string_table.key(task.task_name);
+    auto maybe_name = string_table.key(task.task_name, StringTag::TaskName);
     if (!maybe_name) {
         recursion_depth--;
         return ErrorKind::TaskInfoError;

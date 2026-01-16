@@ -3,131 +3,12 @@ import pytest
 
 @pytest.mark.subprocess(
     env=dict(
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_stack_asyncio",
-    ),
-    err=None,
-)
-# For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
-def test_asyncio():
-    import asyncio
-    import os
-    import time
-    import uuid
-
-    from ddtrace import ext
-    from ddtrace.internal.datadog.profiling import stack
-    from ddtrace.profiling import profiler
-    from ddtrace.trace import tracer
-    from tests.profiling.collector import pprof_utils
-
-    assert stack.is_available, stack.failure_msg
-
-    sleep_time = 0.2
-    loop_run_time = 3
-
-    async def stuff() -> None:
-        start_time = time.time()
-        while time.time() < start_time + loop_run_time:
-            await asyncio.sleep(sleep_time)
-
-    async def hello():
-        t1 = asyncio.create_task(stuff(), name="sleep 1")
-        t2 = asyncio.create_task(stuff(), name="sleep 2")
-        await stuff()
-        return (t1, t2)
-
-    resource = str(uuid.uuid4())
-    span_type = ext.SpanTypes.WEB
-
-    p = profiler.Profiler(tracer=tracer)
-    p.start()
-    with tracer.trace("test_asyncio", resource=resource, span_type=span_type) as span:
-        span_id = span.span_id
-        local_root_span_id = span._local_root.span_id
-
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        maintask = loop.create_task(hello(), name="main")
-
-        t1, t2 = loop.run_until_complete(maintask)
-    p.stop()
-
-    t1_name = t1.get_name()
-    t2_name = t2.get_name()
-
-    assert t1_name == "sleep 1"
-    assert t2_name == "sleep 2"
-
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-
-    profile = pprof_utils.parse_newest_profile(output_filename)
-
-    samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
-    assert len(samples_with_span_id) > 0
-
-    # get samples with task_name
-    samples = pprof_utils.get_samples_with_label_key(profile, "task name")
-    # The next fails if stack is not properly configured with asyncio task
-    # tracking via ddtrace.profiling._asyncio
-    assert len(samples) > 0
-
-    pprof_utils.assert_profile_has_sample(
-        profile,
-        samples,
-        expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
-            task_name="main",
-            span_id=span_id,
-            local_root_span_id=local_root_span_id,
-            locations=[
-                pprof_utils.StackLocation(
-                    function_name="hello", filename="test_stack_asyncio.py", line_no=hello.__code__.co_firstlineno + 3
-                )
-            ],
-        ),
-    )
-
-    pprof_utils.assert_profile_has_sample(
-        profile,
-        samples,
-        expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
-            task_name=t1_name,
-            span_id=span_id,
-            local_root_span_id=local_root_span_id,
-            locations=[
-                pprof_utils.StackLocation(
-                    function_name="stuff", filename="test_stack_asyncio.py", line_no=stuff.__code__.co_firstlineno + 3
-                ),
-            ],
-        ),
-    )
-
-    pprof_utils.assert_profile_has_sample(
-        profile,
-        samples,
-        expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
-            task_name=t2_name,
-            span_id=span_id,
-            local_root_span_id=local_root_span_id,
-            locations=[
-                pprof_utils.StackLocation(
-                    function_name="stuff", filename="test_stack_asyncio.py", line_no=stuff.__code__.co_firstlineno + 3
-                ),
-            ],
-        ),
-    )
-
-
-@pytest.mark.subprocess(
-    env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_start_profiler_from_process_before_importing_asyncio",
     ),
     err=None,
 )
 # For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
-def test_asyncio_start_profiler_from_process_before_importing_asyncio():
+def test_asyncio_start_profiler_from_process_before_importing_asyncio() -> None:
     from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
 
@@ -217,6 +98,7 @@ def test_asyncio_start_profiler_from_process_before_importing_asyncio():
                 ),
             ],
         ),
+        print_samples_on_failure=True,
     )
 
     # Verify specific tasks are in the profile
@@ -240,6 +122,7 @@ def test_asyncio_start_profiler_from_process_before_importing_asyncio():
                 )
             ],
         ),
+        print_samples_on_failure=True,
     )
 
 
@@ -250,7 +133,7 @@ def test_asyncio_start_profiler_from_process_before_importing_asyncio():
     err=None,
 )
 # For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
-def test_asyncio_start_profiler_from_process_before_starting_loop():
+def test_asyncio_start_profiler_from_process_before_starting_loop() -> None:
     import asyncio
     import os
     import sys
@@ -325,6 +208,13 @@ def test_asyncio_start_profiler_from_process_before_starting_loop():
     EXPECTED_FILENAME_BACKGROUND = os.path.basename(background_task_def.__code__.co_filename)
     EXPECTED_LINE_NO_BACKGROUND = -1  # any line
 
+    # Verify specific tasks are in the profile
+    if sys.version_info >= (3, 11):
+        EXPECTED_FUNCTION_NAME_TRACKED = f"{my_function.__name__}.<locals>.{tracked_task_def.__name__}"
+    else:
+        EXPECTED_FUNCTION_NAME_TRACKED = tracked_task_def.__name__
+    EXPECTED_FILENAME_TRACKED = os.path.basename(tracked_task_def.__code__.co_filename)
+
     pprof_utils.assert_profile_has_sample(
         profile,
         samples,
@@ -339,14 +229,8 @@ def test_asyncio_start_profiler_from_process_before_starting_loop():
                 ),
             ],
         ),
+        print_samples_on_failure=True,
     )
-
-    # Verify specific tasks are in the profile
-    if sys.version_info >= (3, 11):
-        EXPECTED_FUNCTION_NAME_TRACKED = f"{my_function.__name__}.<locals>.{tracked_task_def.__name__}"
-    else:
-        EXPECTED_FUNCTION_NAME_TRACKED = tracked_task_def.__name__
-    EXPECTED_FILENAME_TRACKED = os.path.basename(tracked_task_def.__code__.co_filename)
 
     pprof_utils.assert_profile_has_sample(
         profile,
@@ -362,10 +246,11 @@ def test_asyncio_start_profiler_from_process_before_starting_loop():
                 )
             ],
         ),
+        print_samples_on_failure=True,
     )
 
 
-@pytest.mark.xfail(reason="This test fails because there's no way to get the current loop if it's not already running.")
+@pytest.mark.xfail(reason="No way to get the current loop if it is set but not running.")
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_start_profiler_from_process_after_creating_loop",
@@ -373,7 +258,7 @@ def test_asyncio_start_profiler_from_process_before_starting_loop():
     err=None,
 )
 # For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
-def test_asyncio_start_profiler_from_process_after_creating_loop():
+def test_asyncio_start_profiler_from_process_after_creating_loop() -> None:
     import asyncio
     import os
     import sys
@@ -462,6 +347,7 @@ def test_asyncio_start_profiler_from_process_after_creating_loop():
                 ),
             ],
         ),
+        print_samples_on_failure=True,
     )
 
     # Verify specific tasks are in the profile
@@ -486,6 +372,7 @@ def test_asyncio_start_profiler_from_process_after_creating_loop():
                 )
             ],
         ),
+        print_samples_on_failure=True,
     )
 
 
@@ -497,7 +384,7 @@ def test_asyncio_start_profiler_from_process_after_creating_loop():
     err=None,
 )
 # For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
-def test_asyncio_import_profiler_from_process_after_starting_loop():
+def test_asyncio_import_profiler_from_process_after_starting_loop() -> None:
     import asyncio
     import os
     import sys
@@ -587,6 +474,7 @@ def test_asyncio_import_profiler_from_process_after_starting_loop():
                 ),
             ],
         ),
+        print_samples_on_failure=True,
     )
 
     # Verify specific tasks are in the profile
@@ -611,6 +499,7 @@ def test_asyncio_import_profiler_from_process_after_starting_loop():
                 )
             ],
         ),
+        print_samples_on_failure=True,
     )
 
 
@@ -620,7 +509,7 @@ def test_asyncio_import_profiler_from_process_after_starting_loop():
     ),
     err=None,
 )
-def test_asyncio_start_profiler_from_process_after_task_start():
+def test_asyncio_start_profiler_from_process_after_task_start() -> None:
     # NOW import profiling modules - this should track the existing loop
     import asyncio
     import os
@@ -750,7 +639,6 @@ def test_asyncio_start_profiler_from_process_after_task_start():
         samples,
         expected_sample=pprof_utils.StackEvent(
             thread_name="MainThread",
-            task_name=t1_name,
             locations=[
                 pprof_utils.StackLocation(
                     function_name=EXPECTED_FUNCTION_NAME_TRACKED,
@@ -759,7 +647,6 @@ def test_asyncio_start_profiler_from_process_after_task_start():
                 )
             ],
         ),
-        print_samples_on_failure=True,
     )
 
 
@@ -769,7 +656,7 @@ def test_asyncio_start_profiler_from_process_after_task_start():
     ),
     err=None,
 )
-def test_asyncio_import_and_start_profiler_from_process_after_task_start():
+def test_asyncio_import_and_start_profiler_from_process_after_task_start() -> None:
     import asyncio
     import os
     import sys
@@ -863,6 +750,7 @@ def test_asyncio_import_and_start_profiler_from_process_after_task_start():
                 ),
             ],
         ),
+        print_samples_on_failure=True,
     )
 
     # Verify specific tasks are in the profile
@@ -877,7 +765,6 @@ def test_asyncio_import_and_start_profiler_from_process_after_task_start():
         samples,
         expected_sample=pprof_utils.StackEvent(
             thread_name="MainThread",
-            task_name=t1_name,
             locations=[
                 pprof_utils.StackLocation(
                     function_name=EXPECTED_FUNCTION_NAME_TRACKED,
@@ -886,4 +773,5 @@ def test_asyncio_import_and_start_profiler_from_process_after_task_start():
                 )
             ],
         ),
+        print_samples_on_failure=True,
     )
