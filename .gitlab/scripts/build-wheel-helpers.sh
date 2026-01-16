@@ -35,6 +35,7 @@ setup_python() {
   if ! command -v uv &> /dev/null; then
     curl -LsSf https://astral.sh/uv/install.sh | sh
   fi
+  echo "checking python version"
   which python && python --version
   if [[ ${UNPIN_DEPENDENCIES:-"true"} == "true" ]]
   then
