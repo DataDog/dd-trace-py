@@ -1,5 +1,5 @@
 use pyo3::{
-    types::{PyInt, PyList, PyModule, PyModuleMethods as _},
+    types::{PyInt, PyList, PyModule, PyModuleMethods as _, PyString},
     Bound, PyObject, PyResult, Python,
 };
 
@@ -94,19 +94,32 @@ impl SpanData {
     /// This can not be put on new, because otherwise the signature needs to match
     /// for every inherited class
     #[allow(clippy::too_many_arguments)]
+    #[allow(unused_variables)]
+    #[pyo3(signature = (
+        name,
+        service = None,
+        resource = None,
+        span_type = None,
+        trace_id = None,
+        span_id = None,
+        parent_id = None,
+        start = None,
+        span_api = None,
+        links = None,
+    ))]
     fn __init__<'p>(
         &mut self,
         _py: Python<'p>,
-        _name: PyObject,
-        _service: Option<PyObject>,
-        _resource: Option<PyObject>,
-        _span_type: Option<PyObject>,
-        _trace_id: Option<&Bound<'p, PyInt>>,
-        _span_id: Option<&Bound<'p, PyInt>>,
-        _parent_id: Option<&Bound<'p, PyInt>>,
-        _start: Option<f64>,
-        _span_api: PyObject,
-        _links: Option<Bound<'p, PyList>>,
+        name: PyObject,
+        service: Option<PyObject>,
+        resource: Option<PyObject>,
+        span_type: Option<PyObject>,
+        trace_id: Option<&Bound<'p, PyInt>>,
+        span_id: Option<&Bound<'p, PyInt>>,
+        parent_id: Option<&Bound<'p, PyInt>>,
+        start: Option<f64>,
+        span_api: Option<PyObject>,
+        links: Option<Bound<'p, PyList>>,
     ) -> PyResult<()> {
         Ok(())
     }

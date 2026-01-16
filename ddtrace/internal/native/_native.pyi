@@ -5,6 +5,8 @@ from typing import List
 from typing import Literal
 from typing import Optional
 
+from ddtrace.internal.constants import SPAN_API_DATADOG
+
 class DDSketch:
     def __init__(self): ...
     def add(self, value: float) -> None: ...
@@ -523,7 +525,7 @@ class SpanData:
         span_id: Optional[int] = None,
         parent_id: Optional[int] = None,
         start: Optional[int] = None,
-        span_api: str = "",
+        span_api: str = SPAN_API_DATADOG,
         links: Optional[List[Any]] = None,
     ): ...
 

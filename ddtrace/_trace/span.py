@@ -171,7 +171,6 @@ class Span(SpanData):
         :param object context: the Context of the span.
         :param on_finish: list of functions called when the span finishes.
         """
-        super().__init__(name, service, resource, span_type, trace_id, span_id, parent_id, start, span_api, links)
 
         if not (span_id is None or isinstance(span_id, int)):
             if config._raise:
@@ -185,6 +184,9 @@ class Span(SpanData):
             if config._raise:
                 raise TypeError("parent_id must be an integer")
             return
+
+        super().__init__(name, service, resource, span_type, trace_id, span_id, parent_id, start, span_api, links)
+
         self.name = name
         self.service = service
         self.resource = resource or name
