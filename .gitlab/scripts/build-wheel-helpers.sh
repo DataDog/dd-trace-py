@@ -74,6 +74,8 @@ build_wheel() {
   export BUILD_LOG="${DEBUG_WHEEL_DIR}/build_${PYTHON_VER}.log"
   echo "Building wheel for Python ${PYTHON_VER} (log: ${BUILD_LOG})"
 
+  cat pyproject.toml
+
   # Redirect build output to log file
   if uv build --wheel --out-dir "${BUILT_WHEEL_DIR}" . > "${BUILD_LOG}" 2>&1; then
     echo "✓ Build completed successfully"
