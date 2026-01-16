@@ -496,7 +496,7 @@ class ScopeContext:
                         with self._timer_lock:
                             self._timer = None
 
-                self._timer = BatchTimer(1.0)
+                self._timer = BatchTimer(1.0)  # 1 second batch timer
                 self._timer.start()
 
             else:
