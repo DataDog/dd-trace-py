@@ -129,7 +129,7 @@ def test_crashtracker_receiver_not_in_path():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::"})
 def test_crashtracker_simple():
     # This test does the following
     # 1. Finds a random port in the range 10000-20000 it can bind to (5 retries)
@@ -680,7 +680,7 @@ def test_crashtracker_process_tags():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::"})
 def test_crashtracker_echild_hang():
     """
     It's possible for user code and services to harvest child processes by doing a `waitpid()` until errno is ECHILD.

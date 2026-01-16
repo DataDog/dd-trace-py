@@ -251,6 +251,9 @@ _stack_atfork_child()
     new (&thread_info_map_lock) std::mutex;
     new (&task_link_map_lock) std::mutex;
     new (&greenlet_info_map_lock) std::mutex;
+
+    // Reset the string_table mutex to avoid deadlock if fork happened while it was held
+    string_table.postfork_child();
 }
 
 __attribute__((constructor)) void
@@ -377,6 +380,13 @@ Sampler::link_tasks(PyObject* parent, PyObject* child)
 {
     std::lock_guard<std::mutex> guard(task_link_map_lock);
     task_link_map[child] = parent;
+}
+
+void
+Sampler::weak_link_tasks(PyObject* parent, PyObject* child)
+{
+    std::lock_guard<std::mutex> guard(task_link_map_lock);
+    weak_task_link_map[child] = parent;
 }
 
 void

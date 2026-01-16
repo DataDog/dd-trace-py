@@ -183,11 +183,14 @@ class InternalTest(
         status: t.Optional[ext_api.TestStatus] = None,
         skip_reason: t.Optional[str] = None,
         exc_info: t.Optional[ext_api.TestExcInfo] = None,
+        final: bool = True,
     ) -> None:
         log.debug("Finishing test %s", item_id)
         test_obj = require_ci_visibility_service().get_test_by_id(item_id)
         if status is not None:
             test_obj.set_status(status)
+            if final:
+                test_obj.set_final_status(status)
         test_obj.finish()
 
     @staticmethod
@@ -237,3 +240,10 @@ class InternalTest(
     @_catch_and_log_exceptions
     def get_status(test_id: ext_api.TestId) -> t.Union[ext_api.TestStatus, SPECIAL_STATUS]:
         return require_ci_visibility_service().get_test_by_id(test_id).get_status()
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def set_final_status(test_id: ext_api.TestId, final_status: ext_api.TestStatus) -> None:
+        log.debug("Setting final_status to test %s as %s", test_id, final_status)
+
+        return require_ci_visibility_service().get_test_by_id(test_id).set_final_status(final_status)
