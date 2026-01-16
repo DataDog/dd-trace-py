@@ -24,9 +24,7 @@ build_base_venvs:
       export PIP_PRE=true
     fi
     riot -P -v generate --python=$PYTHON_VERSION
-    source `ls .riot/venv_py3*/bin/activate | head -n 1`
-    pip freeze
-    deactivate
+    .riot/venv_py3*/bin/pip freeze
     echo "Running smoke tests"
     riot -v run -s --python=$PYTHON_VERSION smoke_test
   artifacts:

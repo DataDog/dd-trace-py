@@ -20,7 +20,5 @@ Configuration
 
 .. py:data:: ddtrace.config.langgraph["service"]
    The service name reported by default for LangGraph requests.
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_LANGGRAPH_SERVICE`` environment
-   variables.
-   Default: ``DD_SERVICE``
+   Alternatively, set this option with the ``DD_LANGGRAPH_SERVICE`` environment variable.
 """
