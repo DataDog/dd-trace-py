@@ -71,7 +71,13 @@ debug-flaky-test:
       for i in $(seq 1 ${NUM_RUNS}); do
         echo ""
         echo "======== RUN ${i}/${NUM_RUNS} (hash: ${RIOT_HASH}) ========"
-        if ! riot -P -v run --pass-env -s "${RIOT_HASH}" -- ${TEST_FILE}::${TEST_NAME} -v --no-cov; then
+        # First run: install the project. Subsequent runs: skip install (-s).
+        if [ ${i} -eq 1 ]; then
+          RIOT_CMD="riot -P -v run --pass-env ${RIOT_HASH}"
+        else
+          RIOT_CMD="riot -P -v run --pass-env -s ${RIOT_HASH}"
+        fi
+        if ! ${RIOT_CMD} -- ${TEST_FILE}::${TEST_NAME} -v --no-cov; then
           echo "FAILED on run ${i}"
           FAILURES=$((FAILURES + 1))
         fi
