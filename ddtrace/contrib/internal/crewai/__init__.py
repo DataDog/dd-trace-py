@@ -24,8 +24,5 @@ Configuration
 
    The service name reported by default for CrewAI requests.
 
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_CREWAI_SERVICE`` environment
-   variables.
-
-   Default: ``DD_SERVICE``
+   Alternatively, set this option with the ``DD_CREWAI_SERVICE`` environment variable.
 """  # noqa: E501

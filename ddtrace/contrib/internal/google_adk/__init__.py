@@ -21,9 +21,6 @@ Configuration
 
    The service name reported by default for Google ADK requests.
 
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_GOOGLE_ADK_SERVICE`` environment
-   variables.
-
-   Default: ``DD_SERVICE``
+   Set this option with the ``DD_GOOGLE_ADK_SERVICE`` environment variable.
 
 """
