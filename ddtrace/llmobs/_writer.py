@@ -480,7 +480,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         return new_version, new_record_ids
 
     def dataset_get_with_records(
-        self, dataset_name: str, project_name: Optional[str] = None, version: Optional[int] = None
+        self, dataset_name: str, project_name: Optional[str] = None, version: Optional[int] = None, tag: Optional[str] = None
     ) -> Dataset:
         project = self.project_create_or_get(project_name)
         project_id = project.get("_id")
