@@ -2061,30 +2061,32 @@ class LLMObs(Service):
                     log.warning("Failed to extract trace/span ID from request headers.")
                     return
                 raise LLMObsActivateDistributedHeadersError("Failed to extract trace/span ID from request headers.")
+            llmobs_trace_id = context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
+            if llmobs_trace_id is None:
+                # If there's no upstream LLMObs trace ID, there's no LLMObs context to activate
+                log.debug("Missing LLMObs trace ID in request headers.")
+                error = "missing_llmobs_trace_id"
+                return
             _parent_id = context._meta.get(PROPAGATED_PARENT_ID_KEY)
-            if _parent_id is None:
-                error = "missing_parent_id"
-                log.debug("Failed to extract LLMObs parent ID from request headers.")
+            if _parent_id is None or _parent_id == ROOT_PARENT_ID:
+                # If there's no upstream LLMObs span, there's no LLMObs context to activate
+                error = "missing_parent_id" if _parent_id is None else "undefined_parent_id"
+                log.debug("Missing LLMObs parent ID in request headers.")
                 return
             try:
                 parent_id = int(_parent_id)
             except ValueError:
-                error = "invalid_parent_id"
-                log.warning("Failed to parse LLMObs parent ID from request headers.")
-                return
-            parent_llmobs_trace_id = context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
-            if parent_llmobs_trace_id is None:
-                log.debug(
-                    "Failed to extract LLMObs trace ID from request headers. Expected string, got None. "
-                    "Defaulting to the corresponding APM trace ID."
-                )
-                llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
-                llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(context.trace_id)
-                cls._instance._llmobs_context_provider.activate(llmobs_context)
-                error = "missing_parent_llmobs_trace_id"
-                return
+                try:
+                    parent_id = int(_parent_id, 16)
+                except ValueError:
+                    error = "invalid_parent_id"
+                    log.warning(
+                        "Failed to parse LLMObs parent ID from request headers. Value %s is neither decimal nor hex.",
+                        _parent_id,
+                    )
+                    return
             llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
-            llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(parent_llmobs_trace_id)
+            llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(llmobs_trace_id)
             cls._instance._llmobs_context_provider.activate(llmobs_context)
         finally:
             telemetry.record_activate_distributed_headers(error)
