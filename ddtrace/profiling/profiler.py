@@ -14,7 +14,6 @@ from typing import cast
 import ddtrace
 from ddtrace import config
 from ddtrace.internal import atexit
-from ddtrace.internal import forksafe
 from ddtrace.internal import process_tags
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
@@ -47,33 +46,24 @@ class Profiler(object):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._profiler: "_ProfilerInstance" = _ProfilerInstance(*args, **kwargs)
 
-    def start(self, stop_on_exit: bool = True, profile_children: bool = True) -> None:
-        """Start the profiler.
+    def start(self) -> None:
+        """Start the profiler."""
 
-        :param stop_on_exit: Whether to stop the profiler and flush the profile on exit.
-        :param profile_children: Whether to start a profiler in child processes.
-        """
-
-        if profile_children:
-            try:
-                uwsgi.check_uwsgi(self._restart_on_fork, atexit=self.stop if stop_on_exit else None)
-            except uwsgi.uWSGIMasterProcess:
-                # Do nothing, the start() method will be called in each worker subprocess
-                return
-            except uwsgi.uWSGIConfigDeprecationWarning:
-                LOG.warning("uWSGI configuration deprecation warning", exc_info=True)
-                # Turn off profiling in this case, this is mostly for
-                # uwsgi<2.0.30 when --skip-atexit is not set with --lazy-apps
-                # or --lazy. See uwsgi.check_uwsgi() for details.
-                return
+        try:
+            uwsgi.check_uwsgi(atexit=self.stop)
+        except uwsgi.uWSGIMasterProcess:
+            # Do nothing, the start() method will be called in each worker subprocess
+            return
+        except uwsgi.uWSGIConfigDeprecationWarning:
+            LOG.warning("uWSGI configuration deprecation warning", exc_info=True)
+            # Turn off profiling in this case, this is mostly for
+            # uwsgi<2.0.30 when --skip-atexit is not set with --lazy-apps
+            # or --lazy. See uwsgi.check_uwsgi() for details.
+            return
 
         self._profiler.start()
 
-        if stop_on_exit:
-            atexit.register(self.stop)
-
-        if profile_children:
-            forksafe.register(self._restart_on_fork)
+        atexit.register(self.stop)
 
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
 
@@ -89,17 +79,6 @@ class Profiler(object):
         except service.ServiceStatusError:
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
             pass
-
-    def _restart_on_fork(self) -> None:
-        # Be sure to stop the parent first, since it might have to e.g. unpatch functions
-        # Do not flush data as we don't want to have multiple copies of the parent profile exported.
-        try:
-            self._profiler.stop(flush=False, join=False)
-        except service.ServiceStatusError:
-            # This can happen in uWSGI mode: the children won't have the _profiler started from the master process
-            pass
-        self._profiler = self._profiler.copy()
-        self._profiler.start()
 
     def __getattr__(self, key: str) -> Any:
         return getattr(self._profiler, key)
@@ -314,6 +293,7 @@ class _ProfilerInstance(service.Service):
 
         :param flush: Flush a last profile.
         """
+        LOG.debug("Stopping profiler")
         # Prevent doing more initialisation now that we are shutting down.
         if self._lock_collector_enabled and self._collectors_on_import:
             for module, hook in self._collectors_on_import:

@@ -13,7 +13,7 @@ import bytecode
 from bytecode import Bytecode
 
 from ddtrace.internal.assembly import Assembly
-from ddtrace.internal.forksafe import Lock
+from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.inspection import link_function_to_code
 from ddtrace.internal.wrapping import WrappedFunction
 from ddtrace.internal.wrapping import Wrapper
