@@ -607,9 +607,8 @@ class TestHelperFunctions:
         from pathlib import Path
 
         mock_item = Mock()
-        mock_path = Mock()
-        mock_path.absolute.return_value = Path("/workspace/tests/test_file.py")
-        mock_item.path = mock_path
+        # Mock path as a string that will be converted to Path by the function
+        mock_item.path = "/workspace/tests/test_file.py"
 
         workspace_path = Path("/workspace")
 
@@ -626,8 +625,8 @@ class TestHelperFunctions:
         """Test _get_test_location_info falls back to fspath when path is missing."""
         from pathlib import Path
 
-        mock_item = Mock()
-        del mock_item.path  # Remove path attribute
+        mock_item = Mock(spec=[])  # Empty spec means no attributes by default
+        # Set only fspath, not path
         mock_item.fspath = "/workspace/tests/test_file.py"
 
         workspace_path = Path("/workspace")
@@ -646,10 +645,9 @@ class TestHelperFunctions:
         from pathlib import Path
 
         mock_item = Mock()
-        mock_path = Mock()
-        # Simulate exception when getting absolute path
-        mock_path.absolute.side_effect = OSError("Path error")
-        mock_item.path = mock_path
+        # Use a path that will cause an exception when relative_to is called
+        # (path outside workspace) - this triggers ValueError
+        mock_item.path = "/other/location/tests/test_file.py"
         mock_item.reportinfo.return_value = ("relative/path.py", 30, "test_name")
 
         workspace_path = Path("/workspace")
@@ -665,9 +663,8 @@ class TestHelperFunctions:
         from pathlib import Path
 
         mock_item = Mock()
-        mock_path = Mock()
-        mock_path.absolute.side_effect = OSError("Path error")
-        mock_item.path = mock_path
+        # Use an invalid path that will cause Path() to fail
+        mock_item.path = None  # This will cause Path(None) to raise TypeError
         mock_item.reportinfo.side_effect = Exception("reportinfo failed")
 
         workspace_path = Path("/workspace")
@@ -683,10 +680,8 @@ class TestHelperFunctions:
         from pathlib import Path
 
         mock_item = Mock()
-        mock_path = Mock()
-        # Path is outside workspace
-        mock_path.absolute.return_value = Path("/other/location/tests/test_file.py")
-        mock_item.path = mock_path
+        # Path is outside workspace - will cause ValueError in relative_to()
+        mock_item.path = "/other/location/tests/test_file.py"
         mock_item.reportinfo.return_value = ("tests/test_file.py", 10, "test_name")
 
         workspace_path = Path("/workspace")
@@ -696,6 +691,7 @@ class TestHelperFunctions:
 
         assert relative_path == "tests/test_file.py"
         assert start_line == 10
+        assert end_line is None
 
 
 class TestPrivateMethods:
