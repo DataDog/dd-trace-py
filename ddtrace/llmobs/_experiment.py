@@ -743,7 +743,7 @@ class Experiment:
             "label": eval_name,
             f"{metric_type}_value": eval_value,  # type: ignore
             "error": err,
-            "tags": convert_tags_dict_to_list(self._tags.update(tags)),
+            "tags": convert_tags_dict_to_list(tags),
             "experiment_id": self._id,
         }
         if reasoning:
@@ -779,9 +779,15 @@ class Experiment:
                     trace_id,
                     timestamp_ns,
                     reasoning=str(eval_data.get("reasoning")) if isinstance(eval_data.get("reasoning"), str) else None,
-                    assessment=str(eval_data.get("assessment")) if isinstance(eval_data.get("assessment"), str) else None,
-                    metadata= cast(Dict[str, JSONType], eval_data.get("metadata")) if isinstance(eval_data.get("metadata"), Dict) else None,
-                    tags=cast(Dict[str, str], eval_data.get("tags")) if isinstance(eval_data.get("tags"), Dict) else None,
+                    assessment=str(eval_data.get("assessment"))
+                    if isinstance(eval_data.get("assessment"), str)
+                    else None,
+                    metadata=cast(Dict[str, JSONType], eval_data.get("metadata"))
+                    if isinstance(eval_data.get("metadata"), Dict)
+                    else None,
+                    tags=cast(Dict[str, str], eval_data.get("tags"))
+                    if isinstance(eval_data.get("tags"), Dict)
+                    else None,
                 )
                 eval_metrics.append(eval_metric)
 
