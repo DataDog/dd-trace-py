@@ -1,5 +1,5 @@
 use pyo3::{
-    types::{PyInt, PyList, PyModule, PyModuleMethods as _, PyString},
+    types::{PyInt, PyList, PyModule, PyModuleMethods as _},
     Bound, PyObject, PyResult, Python,
 };
 
