@@ -2967,7 +2967,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/litellm",
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
-                "litellm": "==1.65.4",
+                "litellm": ["==1.65.4", "==1.80.16"],
                 "vcrpy": latest,
                 "pytest-asyncio": latest,
                 "botocore": latest,
