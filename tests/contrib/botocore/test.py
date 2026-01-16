@@ -104,7 +104,7 @@ class BotocoreTest(TracerTestCase):
         self.sqs_test_queue = self.sqs_client.create_queue(QueueName=self.queue_name)
 
         super(BotocoreTest, self).setUp()
-        # Clear any spans that might have been generated during setUp before DummyWriter was active
+        # Clear any spans that might have been generated during setUp before writer was active
         self.reset()
 
         pin = Pin(service=self.TEST_SERVICE)

@@ -28,13 +28,14 @@ async def _test_execute_many(dbm_comment, cursor, wrapped_instance):
 
 
 async def _test_dbm_propagation_enabled(tracer, cursor, service):
-    await cursor.execute("SELECT 1")
-    spans = TracerSpanContainer(tracer).pop()
-    assert len(spans) == 1
-    span = spans[0]
-    assert span.name == f"{service}.query"
+    with TracerSpanContainer(tracer) as tsc:
+        await cursor.execute("SELECT 1")
+        spans = tsc.pop_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.name == f"{service}.query"
 
-    assert span.get_tag("_dd.dbm_trace_injected") == "true"
+        assert span.get_tag("_dd.dbm_trace_injected") == "true"
 
 
 async def _test_dbm_propagation_comment_with_global_service_name_configured(

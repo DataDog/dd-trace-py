@@ -65,10 +65,9 @@ def iast_span(tracer):
         )
     ):
         oce.reconfigure()
-        container = TracerSpanContainer(tracer)
-        assert debug_context_array_free_slots_number() > 0
-        yield container
-        container.reset()
+        with TracerSpanContainer(tracer) as container:
+            assert debug_context_array_free_slots_number() > 0
+            yield container
 
 
 @pytest.fixture
@@ -81,9 +80,8 @@ def iast_span_disabled(tracer):
         )
     ):
         oce.reconfigure()
-        container = TracerSpanContainer(tracer)
-        yield container
-        container.reset()
+        with TracerSpanContainer(tracer) as container:
+            yield container
 
 
 @pytest.fixture
@@ -97,9 +95,8 @@ def test_spans_2_vuln_per_request_deduplication(tracer):
         )
     ):
         oce.reconfigure()
-        container = TracerSpanContainer(tracer)
-        yield container
-        container.reset()
+        with TracerSpanContainer(tracer) as container:
+            yield container
 
 
 @pytest.fixture
@@ -127,6 +124,5 @@ def iast_spans_with_zero_sampling(tracer):
         )
     ):
         oce.reconfigure()
-        container = TracerSpanContainer(tracer)
-        yield container
-        container.reset()
+        with TracerSpanContainer(tracer) as container:
+            yield container

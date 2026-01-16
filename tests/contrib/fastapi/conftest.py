@@ -18,9 +18,8 @@ def fastapi_tracer(tracer):
 
 @pytest.fixture
 def test_spans(fastapi_tracer):
-    container = TracerSpanContainer(fastapi_tracer)
-    yield container
-    container.reset()
+    with TracerSpanContainer(fastapi_tracer) as container:
+        yield container
 
 
 @pytest.fixture

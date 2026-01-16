@@ -60,7 +60,7 @@ class Test_Django(utils.Contrib_TestClass_For_Threats):
 
         interface = utils.Interface("django", django, client)
         interface.version = django.VERSION
-        with scoped_tracer() as tracer:
+        with scoped_tracer() as (tracer, _):
             interface.tracer = tracer
             interface.printer = printer
             with utils.post_tracer(interface):

@@ -781,7 +781,7 @@ def test_span_link_v05_encoding():
         (MsgpackEncoderV05, 9),
     ],
 )
-def test_encoder_propagates_dd_origin(tracer, Encoder, item):
+def test_encoder_propagates_dd_origin(tracer, test_spans, Encoder, item):
     encoder = Encoder(1 << 20, 1 << 20)
     with tracer.trace("Root") as root:
         root.context.dd_origin = CI_APP_TEST_ORIGIN
@@ -789,8 +789,8 @@ def test_encoder_propagates_dd_origin(tracer, Encoder, item):
             with tracer.trace("child"):
                 pass
 
-    trace = tracer._span_aggregator.writer.pop()
-    assert trace, "DummyWriter failed to encode the trace"
+    trace = test_spans.pop()
+    assert trace
 
     encoder.put(trace)
     encoded_traces = encoder.encode()

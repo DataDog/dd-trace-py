@@ -645,21 +645,15 @@ def test_trace_id_propagation_with_non_llm_parent(llmobs, llmobs_events):
 
 
 @pytest.mark.parametrize("llmobs_env", [{"DD_APM_TRACING_ENABLED": "false"}])
-def test_apm_traces_dropped_when_disabled(llmobs, llmobs_events, tracer, llmobs_env):
-    from tests.utils import DummyWriter
-
-    dummy_writer = DummyWriter()
-    tracer._span_aggregator.writer = dummy_writer
-
+def test_apm_traces_dropped_when_disabled(llmobs, llmobs_events, tracer, test_spans, llmobs_env):
     with tracer.trace("apm_span") as apm_span:
         apm_span.set_tag("operation", "test")
 
     # Create an LLMObs span (should be sent to LLMObs but not APM)
     with llmobs.llm(model_name="test-model") as llm_span:
         llmobs.annotate(llm_span, input_data="test input", output_data="test output")
-
     # Check that no APM traces were sent to the writer
-    assert len(dummy_writer.traces) == 0, "APM traces should be dropped when DD_APM_TRACING_ENABLED=false"
+    assert len(test_spans.traces) == 0, "APM traces should be dropped when DD_APM_TRACING_ENABLED=false"
 
     # But LLMObs events should still be sent
     assert len(llmobs_events) == 1

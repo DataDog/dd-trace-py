@@ -1074,27 +1074,45 @@ def test_django_xss_secure_mark(client, iast_span, tracer):
     ("security_control", "match_function"),
     [
         (
-            "SANITIZER:COMMAND_INJECTION:tests.appsec.integrations.django_tests.django_app.views:_security_control_sanitizer",
+            (
+                "SANITIZER:COMMAND_INJECTION:"
+                "tests.appsec.integrations.django_tests.django_app.views:_security_control_sanitizer"
+            ),
             True,
         ),
         (
-            "INPUT_VALIDATOR:COMMAND_INJECTION:tests.appsec.integrations.django_tests.django_app.views:_security_control_validator:1,2",
+            (
+                "INPUT_VALIDATOR:COMMAND_INJECTION:"
+                "tests.appsec.integrations.django_tests.django_app.views:_security_control_validator:1,2"
+            ),
             True,
         ),
         (
-            "INPUT_VALIDATOR:COMMAND_INJECTION:tests.appsec.integrations.django_tests.django_app.views:_security_control_validator:2",
+            (
+                "INPUT_VALIDATOR:COMMAND_INJECTION:"
+                "tests.appsec.integrations.django_tests.django_app.views:_security_control_validator:2"
+            ),
             True,
         ),
         (
-            "INPUT_VALIDATOR:COMMAND_INJECTION:tests.appsec.integrations.django_tests.django_app.views:_security_control_validator:1,3,4",
+            (
+                "INPUT_VALIDATOR:COMMAND_INJECTION:"
+                "tests.appsec.integrations.django_tests.django_app.views:_security_control_validator:1,3,4"
+            ),
             False,
         ),
         (
-            "INPUT_VALIDATOR:COMMAND_INJECTION:tests.appsec.integrations.django_tests.django_app.views:_security_control_validator:1,3",
+            (
+                "INPUT_VALIDATOR:COMMAND_INJECTION:"
+                "tests.appsec.integrations.django_tests.django_app.views:_security_control_validator:1,3"
+            ),
             False,
         ),
         (
-            "INPUT_VALIDATOR:COMMAND_INJECTION:tests.appsec.integrations.django_tests.django_app.views:_security_control_validator",
+            (
+                "INPUT_VALIDATOR:COMMAND_INJECTION:"
+                "tests.appsec.integrations.django_tests.django_app.views:_security_control_validator"
+            ),
             True,
         ),
     ],
@@ -1112,23 +1130,22 @@ def test_django_command_injection_security_control(client, tracer, security_cont
     ):
         oce.reconfigure()
         _apply_custom_security_controls().patch()
-        span = TracerSpanContainer(tracer)
-        root_span, _ = _aux_appsec_get_root_span(
-            client,
-            span,
-            tracer,
-            url="/appsec/command-injection/security-control/",
-            payload="master",
-            content_type="application/json",
-        )
+        with TracerSpanContainer(tracer) as span:
+            root_span, _ = _aux_appsec_get_root_span(
+                client,
+                span,
+                tracer,
+                url="/appsec/command-injection/security-control/",
+                payload="master",
+                content_type="application/json",
+            )
 
-        loaded = load_iast_report(root_span)
-        if match_function:
-            assert loaded is None
-            assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_SUPPRESSED_VULNERABILITY + ".command_injection")
-        else:
-            assert loaded is not None
-        span.reset()
+            loaded = load_iast_report(root_span)
+            if match_function:
+                assert loaded is None
+                assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_SUPPRESSED_VULNERABILITY + ".command_injection")
+            else:
+                assert loaded is not None
         _testing_unpatch_iast()
 
 

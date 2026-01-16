@@ -29,7 +29,7 @@ def test_django_postgres_dbm_propagation_enabled():
 
     instrument_dbs(django)
 
-    with scoped_tracer() as tracer:
+    with scoped_tracer() as (tracer, _):
         cursor = get_cursor()
         shared_tests._test_dbm_propagation_enabled(tracer, cursor, "postgres")
 
@@ -131,7 +131,7 @@ def test_django_postgres_dbm_propagation_comment_pin_service_name_override():
 
     instrument_dbs(django)
 
-    with scoped_tracer() as tracer:
+    with scoped_tracer() as (tracer, _):
         cursor = get_cursor()
         cursor.__wrapped__ = mock.Mock()
         shared_tests._test_dbm_propagation_comment_pin_service_name_override(

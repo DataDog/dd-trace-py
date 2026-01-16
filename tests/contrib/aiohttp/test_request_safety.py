@@ -8,12 +8,11 @@ import asyncio
 import threading
 from urllib import request
 
-from tests.utils import TracerSpanContainer
 from tests.utils import assert_is_measured
 
 
-async def test_full_request(patched_app_tracer, aiohttp_client):
-    app, tracer = patched_app_tracer
+async def test_full_request(patched_app_tracer, aiohttp_client, tracer, test_spans):
+    app, _ = patched_app_tracer
     client = await aiohttp_client(app)
     # it should create a root span when there is a handler hit
     # with the proper tags
@@ -21,7 +20,7 @@ async def test_full_request(patched_app_tracer, aiohttp_client):
     assert 200 == request.status
     await request.text()
     # the trace is created
-    traces = TracerSpanContainer(tracer).pop_traces()
+    traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
     request_span = traces[0][0]
@@ -33,11 +32,11 @@ async def test_full_request(patched_app_tracer, aiohttp_client):
     assert request_span.get_tag("span.kind") == "server"
 
 
-async def test_multiple_full_request(patched_app_tracer, aiohttp_client):
+async def test_multiple_full_request(patched_app_tracer, aiohttp_client, tracer, test_spans):
     NUMBER_REQUESTS = 10
     responses = []
 
-    app, tracer = patched_app_tracer
+    app, _ = patched_app_tracer
     client = await aiohttp_client(app)
 
     # it should produce a wrong trace, but the Context must
@@ -63,5 +62,5 @@ async def test_multiple_full_request(patched_app_tracer, aiohttp_client):
         t.join()
 
     # the trace is wrong but the spans are finished and written
-    spans = TracerSpanContainer(tracer).pop()
+    spans = test_spans.pop_spans()
     assert NUMBER_REQUESTS == len(spans)

@@ -33,9 +33,10 @@ def setup_django():
 def setup_django_test_spans():
     setup_django()
 
-    with scoped_tracer() as tracer:
+    with scoped_tracer() as (tracer, _):
         config.django._tracer = tracer
-        yield TracerSpanContainer(config.django._tracer)
+        with TracerSpanContainer(config.django._tracer) as container:
+            yield container
 
 
 @contextlib.contextmanager

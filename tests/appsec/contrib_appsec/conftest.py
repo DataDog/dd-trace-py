@@ -15,7 +15,6 @@ import time  # noqa: E402
 import pytest  # noqa: E402
 
 from ddtrace.internal.settings.asm import config as asm_config  # noqa: E402
-from tests.utils import TracerSpanContainer  # noqa: E402
 from tests.utils import _build_tree  # noqa: E402
 
 
@@ -26,11 +25,9 @@ def _dj_autoclear_mailbox() -> None:
 
 
 @pytest.fixture
-def test_spans(interface, check_waf_timeout):
-    container = TracerSpanContainer(interface.tracer)
+def test_spans(interface, check_waf_timeout, test_spans):
     assert check_waf_timeout is None
-    yield container
-    container.reset()
+    yield test_spans
 
 
 @pytest.fixture
