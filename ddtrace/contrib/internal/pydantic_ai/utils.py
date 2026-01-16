@@ -90,7 +90,7 @@ class TracedPydanticStreamedRunResult(wrapt.ObjectProxy):
             delta,
         )
         return self._generator
-    
+
     def stream_structured(self, *args, **kwargs):
         self._generator = TracedPydanticGenerator(
             self.__wrapped__.stream_structured(*args, **kwargs),
@@ -100,7 +100,7 @@ class TracedPydanticStreamedRunResult(wrapt.ObjectProxy):
             self._kwargs,
         )
         return self._generator
-    
+
     def stream_responses(self, *args, **kwargs):
         self._generator = TracedPydanticGenerator(
             self.__wrapped__.stream_responses(*args, **kwargs),
