@@ -1004,13 +1004,6 @@ def _get_user_property(report: pytest.TestReport, user_property: str) -> t.Optio
 def _get_test_parameters_json(item: pytest.Item) -> t.Optional[str]:
     callspec: t.Optional[pytest.python.CallSpec2] = getattr(item, "callspec", None)
 
-    # DEBUG: Log callspec details for inject_span test
-    if "injection_telemetry" in item.nodeid:
-        log.debug("NEW PLUGIN _get_test_parameters_json: nodeid='%s'", item.nodeid)
-        log.debug("NEW PLUGIN callspec exists: %s", callspec is not None)
-        if callspec is not None:
-            log.debug("NEW PLUGIN callspec.params: %s", callspec.params)
-
     if callspec is None:
         return None
 

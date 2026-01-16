@@ -194,27 +194,6 @@ class APIClient:
             telemetry.record_error(ErrorType.BAD_JSON)
             return set()
 
-        # DEBUG: Log the final known_tests set
-        log.debug("=== FINAL KNOWN_TESTS SET ===")
-        log.debug("Total known_tests: %d", len(known_test_ids))
-
-        # Show a sample of known_tests for debugging, focusing on our test of interest
-        sample_count = 0
-        for test_ref in sorted(known_test_ids, key=lambda t: f"{t.suite.module.name}/{t.suite.name}::{t.name}"):
-            if "injection_telemetry" in test_ref.name or sample_count < 15:
-                log.debug(
-                    "Known test %d: %s/%s::%s",
-                    sample_count + 1,
-                    test_ref.suite.module.name,
-                    test_ref.suite.name,
-                    test_ref.name,
-                )
-                sample_count += 1
-                if sample_count >= 40:  # Show more samples if injection_telemetry tests are found
-                    break
-
-        log.debug("=== END FINAL KNOWN_TESTS SET ===")
-
         self.telemetry_api.record_known_tests_count(len(known_test_ids))
         return known_test_ids
 

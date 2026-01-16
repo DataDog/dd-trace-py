@@ -1034,9 +1034,6 @@ def pytest_report_teststatus(
 @pytest.hookimpl(trylast=True)
 def pytest_ddtrace_get_item_module_name(item):
     names = _get_names_from_item(item)
-    # DEBUG: Log hook calls for problematic test
-    if "injection_telemetry" in item.nodeid:
-        log.debug("DEBUG OLD PLUGIN pytest_ddtrace_get_item_module_name: '%s'", names.module)
     return names.module
 
 
@@ -1047,9 +1044,6 @@ def pytest_ddtrace_get_item_suite_name(item):
     If the module path doesn't exist, the suite path will be reported in full.
     """
     names = _get_names_from_item(item)
-    # DEBUG: Log hook calls for problematic test
-    if "injection_telemetry" in item.nodeid:
-        log.debug("DEBUG OLD PLUGIN pytest_ddtrace_get_item_suite_name: '%s'", names.suite)
     return names.suite
 
 
@@ -1057,8 +1051,4 @@ def pytest_ddtrace_get_item_suite_name(item):
 def pytest_ddtrace_get_item_test_name(item):
     """Extract name from item, prepending class if desired"""
     names = _get_names_from_item(item)
-    # DEBUG: Log hook calls for problematic test
-    if "inject_span" in item.nodeid:
-        print(f"*** OLD PLUGIN pytest_ddtrace_get_item_test_name HOOK CALLED: test_name='{names.test}' ***")
-        log.debug("DEBUG OLD PLUGIN pytest_ddtrace_get_item_test_name: '%s'", names.test)
     return names.test

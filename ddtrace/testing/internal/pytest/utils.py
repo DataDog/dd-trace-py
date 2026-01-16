@@ -36,33 +36,8 @@ def item_to_test_ref(item: pytest.Item) -> TestRef:
 
     default_module, default_suite, default_test = nodeid_to_names(item.nodeid)
 
-    # DEBUG: Log for the problematic test
-    if "injection_telemetry" in item.nodeid:
-        import logging
-
-        log = logging.getLogger(__name__)
-        # log.debug(f"*** NEW PLUGIN item_to_test_ref CALLED: nodeid='{item.nodeid}', name='{item.name}' ***")
-        # log.debug(f"*** NEW PLUGIN FINAL test_name: '{custom_test or default_test}' ***")
-        log.debug("DEBUG NEW PLUGIN item_to_test_ref:")
-        log.debug("  item.nodeid: %s", item.nodeid)
-        log.debug("  item.name: %s", item.name)
-        log.debug("  custom_module: %s", custom_module)
-        log.debug("  custom_suite: %s", custom_suite)
-        log.debug("  custom_test: %s", custom_test)
-        log.debug("  default_module: %s", default_module)
-        log.debug("  default_suite: %s", default_suite)
-        log.debug("  default_test: %s", default_test)
-        log.debug("  final module: %s", custom_module or default_module)
-        log.debug("  final suite: %s", custom_suite or default_suite)
-        log.debug("  final test: %s", custom_test or default_test)
-
     module_ref = ModuleRef(custom_module or default_module)
     suite_ref = SuiteRef(module_ref, custom_suite or default_suite)
     test_ref = TestRef(suite_ref, custom_test or default_test)
-
-    # DEBUG: Log the final TestRef for inject_span test
-    if "injection_telemetry" in item.nodeid:
-        print(f"*** NEW PLUGIN FINAL TestRef: {test_ref.suite.module.name}/{test_ref.suite.name}::{test_ref.name} ***")
-        log.debug("NEW PLUGIN FINAL TestRef: %s/%s::%s", test_ref.suite.module.name, test_ref.suite.name, test_ref.name)
 
     return test_ref
