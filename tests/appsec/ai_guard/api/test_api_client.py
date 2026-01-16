@@ -19,6 +19,7 @@ from tests.appsec.ai_guard.utils import assert_ai_guard_span
 from tests.appsec.ai_guard.utils import assert_mock_execute_request_call
 from tests.appsec.ai_guard.utils import find_ai_guard_span
 from tests.appsec.ai_guard.utils import mock_evaluate_response
+from tests.appsec.ai_guard.utils import override_ai_guard_config
 from tests.appsec.ai_guard.utils import random_string
 from tests.utils import override_global_config
 
@@ -303,3 +304,51 @@ def test_meta_attribute(mock_execute_request):
             messages,
             {"service": "test-service", "env": "test-env"},
         )
+
+
+@pytest.mark.parametrize(
+    "site,config,param,expected",
+    [
+        pytest.param(
+            "datadoghq.com",
+            "",
+            "",
+            "https://app.datadoghq.com/api/v2/ai-guard",
+        ),
+        pytest.param(
+            "ap1.datadoghq.com",
+            "",
+            "",
+            "https://ap1.datadoghq.com/api/v2/ai-guard",
+        ),
+        pytest.param(
+            "datadoghq.com",
+            "https://from-config",
+            "",
+            "https://from-config",
+        ),
+        pytest.param(
+            "datadoghq.com",
+            "",
+            "https://from-param",
+            "https://from-param",
+        ),
+        pytest.param(
+            "datadoghq.com",
+            "https://from-config",
+            "https://from-param",
+            "https://from-param",
+        ),
+    ],
+)
+def test_endpoint_discovery(site, config, param, expected):
+    with override_global_config(
+        dict(
+            _dd_site=site,
+            _dd_api_key="test-api-key",
+            _dd_app_key="test-app-key",
+        )
+    ):
+        with override_ai_guard_config(dict(_ai_guard_endpoint=config)):
+            client = new_ai_guard_client(endpoint=param)
+            assert client._endpoint == expected
