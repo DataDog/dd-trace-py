@@ -24,8 +24,8 @@ for msg in prompt.template:
 print()
 
 rendered = prompt.format(
-    company="TechCorp",
-    assistant_name="Aria",
+    company="Anthropic",
+    assistant_name="Claude",
     user_message="How do I reset my password?",
 )
 print("Rendered conversation:")

@@ -15,11 +15,14 @@ os.environ.setdefault("DD_LLMOBS_ML_APP", "customer-chatbot")
 
 from ddtrace.llmobs import LLMObs
 
+LLMObs.clear_prompt_cache()
+
 
 prompt = LLMObs.get_prompt("greeting", label="prod")
 
 print("Fetched prompt from registry!")
 print(f"Template: {prompt.template}")
+print(f"Source: {prompt.source}")
 print()
 print("Now rendering for a real customer...")
-print(prompt.format(name="Sarah", company="Acme Inc"))
+print(prompt.format(name="Alexandre", company="Datadog"))
