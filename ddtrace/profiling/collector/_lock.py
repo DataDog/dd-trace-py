@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from __future__ import annotations
 
 import _thread
+import functools
 import os.path
 import sys
 import time
@@ -24,6 +25,22 @@ from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.event import DDFrame
 from ddtrace.trace import Tracer
+
+
+def _safe_for_instrumentation(func: Callable[..., None]) -> Callable[..., None]:
+    """Decorator ensuring instrumentation methods never crash user code."""
+
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> None:
+        try:
+            func(*args, **kwargs)
+        except AssertionError:
+            if config.enable_asserts:
+                raise
+        except Exception:
+            pass  # nosec
+
+    return wrapper
 
 
 ACQUIRE_RELEASE_CO_NAMES: frozenset[str] = frozenset(["_acquire", "_release"])
@@ -94,9 +111,13 @@ class _ProfiledLock:
         self.max_nframes: int = max_nframes
         self.capture_sampler: collector.CaptureSampler = capture_sampler
         # Frame depth: 0=__init__, 1=_profiled_allocate_lock, 2=_LockAllocatorWrapper.__call__, 3=caller
-        frame: FrameType = sys._getframe(3)
-        code: CodeType = frame.f_code
-        self.init_location: str = f"{os.path.basename(code.co_filename)}:{frame.f_lineno}"
+        try:
+            frame: FrameType = sys._getframe(3)
+            code: CodeType = frame.f_code
+            self.init_location: str = f"{os.path.basename(code.co_filename)}:{frame.f_lineno}"
+        except ValueError:
+            # Stack too shallow (e.g., direct instantiation in tests or shallow call context)
+            self.init_location = "unknown:0"
         self.acquired_time: Optional[int] = None
         self.name: Optional[str] = None
         # If True, this lock is internal to another sync primitive (e.g., Lock inside Semaphore)
@@ -164,16 +185,8 @@ class _ProfiledLock:
         finally:
             end: int = time.monotonic_ns()
             self.acquired_time = end
-            try:
-                self._update_name()
-                self._flush_sample(start, end, is_acquire=True)
-            except AssertionError:
-                if config.enable_asserts:
-                    # AssertionError exceptions need to propagate
-                    raise
-            except Exception:
-                # Instrumentation must never crash user code
-                pass  # nosec
+            self._update_name()
+            self._flush_sample(start, end, is_acquire=True)
 
     def release(self, *args: Any, **kwargs: Any) -> Any:
         return self._release(self.__wrapped__.release, *args, **kwargs)
@@ -194,14 +207,9 @@ class _ProfiledLock:
             if start:
                 self._flush_sample(start, end=time.monotonic_ns(), is_acquire=False)
 
+    @_safe_for_instrumentation
     def _flush_sample(self, start: int, end: int, is_acquire: bool) -> None:
-        """Helper method to push lock profiling data to ddup.
-
-        Args:
-            start: Start timestamp in nanoseconds
-            end: End timestamp in nanoseconds
-            is_acquire: True for acquire operations, False for release operations
-        """
+        """Push lock profiling data to ddup."""
         # Skip profiling for internal locks (e.g., Lock inside Semaphore/Condition)
         # to avoid double-counting when multiple collectors are active
         if self.is_internal:
@@ -263,11 +271,12 @@ class _ProfiledLock:
                         pass
         return None
 
-    # Get lock acquire/release call location and variable name the lock is assigned to
-    # This function propagates ValueError if the frame depth is <= 3.
+    @_safe_for_instrumentation
     def _update_name(self) -> None:
+        """Get lock variable name from the caller's frame."""
         if self.name is not None:
             return
+
         # We expect the call stack to be like this:
         # 0: this
         # 1: _acquire/_release
