@@ -1,7 +1,7 @@
 [[
   {
     "name": "s3.command",
-    "service": "test-botocore-tracing.s3",
+    "service": "aws.s3",
     "resource": "s3.listbuckets",
     "trace_id": 0,
     "span_id": 1,
@@ -43,7 +43,7 @@
 [
   {
     "name": "s3.command",
-    "service": "test-botocore-tracing.s3",
+    "service": "aws.s3",
     "resource": "s3.listbuckets",
     "trace_id": 1,
     "span_id": 1,
@@ -85,7 +85,7 @@
 [
   {
     "name": "s3.command",
-    "service": "test-botocore-tracing.s3",
+    "service": "aws.s3",
     "resource": "s3.listobjects",
     "trace_id": 2,
     "span_id": 1,

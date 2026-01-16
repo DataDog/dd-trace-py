@@ -116,33 +116,6 @@ def test_django_postgres_dbm_propagation_comment_integration_service_name_overri
         "DD_VERSION": "v7343437-d7ac743",
     },
 )
-def test_django_postgres_dbm_propagation_comment_pin_service_name_override():
-    """tests if dbm comment is set in postgres"""
-
-    import django
-    from django.db import connections
-    import mock
-
-    from ddtrace.contrib.internal.django.database import instrument_dbs
-    from tests.contrib import shared_tests
-    from tests.contrib.config import POSTGRES_CONFIG
-    from tests.contrib.django.test_django_dbm import get_cursor
-    from tests.utils import scoped_tracer
-
-    instrument_dbs(django)
-
-    with scoped_tracer() as tracer:
-        cursor = get_cursor()
-        cursor.__wrapped__ = mock.Mock()
-        shared_tests._test_dbm_propagation_comment_pin_service_name_override(
-            config=POSTGRES_CONFIG,
-            cursor=cursor,
-            tracer=tracer,
-            wrapped_instance=cursor.__wrapped__,
-            conn=connections["postgres"],
-        )
-
-
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env={

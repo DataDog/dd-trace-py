@@ -1,9 +1,7 @@
 import aiohttp_jinja2
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
-from ddtrace.trace import tracer
 from tests.contrib.aiohttp.app.web import set_filesystem_loader
 from tests.contrib.aiohttp.app.web import set_package_loader
 import tests.contrib.aiohttp.conftest  # noqa:F401
@@ -36,7 +34,6 @@ async def test_template_rendering(untraced_app_tracer_jinja, aiohttp_client):
 
 async def test_template_rendering_snapshot(untraced_app_tracer_jinja, aiohttp_client, snapshot_context):
     app, _ = untraced_app_tracer_jinja
-    Pin._override(aiohttp_jinja2, tracer=tracer)
     with snapshot_context():
         client = await aiohttp_client(app)
         # it should trace a template rendering
@@ -50,7 +47,6 @@ async def test_template_rendering_snapshot_patched_server(
     snapshot_context,
 ):
     app, _ = patched_app_tracer_jinja
-    Pin._override(aiohttp_jinja2, tracer=tracer)
     # Ignore meta.http.url tag as the port is not fixed on the server
     with snapshot_context(ignores=["meta.http.url", "meta.http.useragent"]):
         client = await aiohttp_client(app)

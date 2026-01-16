@@ -3,7 +3,6 @@ from io import StringIO
 
 import flask
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.contrib.internal.flask.patch import unpatch
 
@@ -57,25 +56,6 @@ class FlaskHelpersTestCase(BaseFlaskTestCase):
         self.assertEqual(spans[1].name, "flask.do_teardown_request")
         self.assertEqual(spans[2].name, "flask.do_teardown_appcontext")
 
-    def test_jsonify_pin_disabled(self):
-        """
-        When we call a patched ``flask.jsonify``
-            When the ``flask.Flask`` ``Pin`` is disabled
-                We do not create a span
-        """
-        # Disable the pin on the app
-        pin = Pin.get_from(self.app)
-        pin.tracer.enabled = False
-
-        # DEV: `jsonify` requires a active app and request contexts
-        with self.app.app_context():
-            with self.app.test_request_context("/"):
-                response = flask.jsonify(dict(key="value"))
-                self.assertTrue(isinstance(response, flask.Response))
-                self.assertEqual(response.status_code, 200)
-
-        self.assertEqual(len(self.get_spans()), 0)
-
     def test_send_file(self):
         """
         When calling a patched ``flask.send_file``
@@ -114,14 +94,13 @@ class FlaskHelpersTestCase(BaseFlaskTestCase):
         self.assertEqual(spans[1].name, "flask.do_teardown_request")
         self.assertEqual(spans[2].name, "flask.do_teardown_appcontext")
 
-    def test_send_file_pin_disabled(self):
+    def test_send_file_tracing_disabled(self):
         """
         When calling a patched ``flask.send_file``
-            When the app's ``Pin`` has been disabled
+            When the tracer has been disabled
                 We do not create any spans
         """
-        pin = Pin.get_from(self.app)
-        pin.tracer.enabled = False
+        self.tracer.enabled = False
 
         if flask_version >= (2, 0, 0):
             fp = BytesIO(b"static file")

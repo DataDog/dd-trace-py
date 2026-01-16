@@ -7,7 +7,6 @@ import time
 import pytest
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.elasticsearch.patch import get_version
 from ddtrace.contrib.internal.elasticsearch.patch import get_versions
 from ddtrace.contrib.internal.elasticsearch.patch import patch
@@ -86,15 +85,6 @@ class ElasticsearchPatchTest(TracerTestCase):
         es = self._get_es()
         config = self._get_es_config()
         wait_for_es(config["host"], config["port"])
-        tags = {
-            # `component` is a reserved tag. Setting it via `Pin` should have no effect.
-            "component": "foo",
-            # `custom_tag` is a custom tag that can be set via `Pin`.
-            "custom_tag": "bar",
-        }
-        pin = Pin(tags=tags)
-        pin._tracer = self.tracer
-        pin.onto(es.transport)
         self.create_index(es)
 
         patch()
@@ -128,7 +118,6 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.get_tag("elasticsearch.url") == "/%s" % self.ES_INDEX
         assert span.get_tag("out.host") == self._get_es_config()["host"]
         assert span.get_tag("server.address") == self._get_es_config()["host"]
-        assert span.get_tag("custom_tag") == "bar"
         assert span.resource == "PUT /%s" % self.ES_INDEX
 
         args = self._get_index_args()
@@ -227,9 +216,6 @@ class ElasticsearchPatchTest(TracerTestCase):
         patch()
 
         es = self._get_es()
-        pin = Pin()
-        pin._tracer = self.tracer
-        pin.onto(es.transport)
 
         # Test index creation
         self.create_index(es)
@@ -257,9 +243,6 @@ class ElasticsearchPatchTest(TracerTestCase):
         patch()
 
         es = self._get_es()
-        pin = Pin()
-        pin._tracer = self.tracer
-        pin.onto(es.transport)
 
         # Test index creation
         self.create_index(es)
@@ -292,9 +275,6 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert config.service == "mysvc"
 
         self.create_index(self.es)
-        pin = Pin(service="es")
-        pin._tracer = self.tracer
-        pin.onto(self.es.transport)
         spans = self.get_spans()
         self.reset()
         assert len(spans) == 1
@@ -311,9 +291,6 @@ class ElasticsearchPatchTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_v1(self):
         self.create_index(self.es)
-        pin = Pin(service="es")
-        pin._tracer = self.tracer
-        pin.onto(self.es.transport)
         spans = self.get_spans()
         self.reset()
         assert len(spans) == 1
@@ -389,7 +366,7 @@ class ElasticsearchPatchTest(TracerTestCase):
 
     def test_and_emit_get_version(self):
         version = get_version()
-        assert type(version) == str
+        assert isinstance(version, str)
         assert version == ""
 
         versions = get_versions()

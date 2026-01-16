@@ -15,7 +15,6 @@ from moto import mock_s3
 from moto import mock_sts
 
 # project
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.boto.patch import patch
 from ddtrace.contrib.internal.boto.patch import unpatch
 from ddtrace.ext import http
@@ -28,8 +27,6 @@ from tests.utils import assert_span_http_status_code
 class BotoTest(TracerTestCase):
     """Botocore integration testsuite"""
 
-    TEST_SERVICE = "test-boto-tracing"
-
     def setUp(self):
         super(BotoTest, self).setUp()
         patch()
@@ -37,9 +34,6 @@ class BotoTest(TracerTestCase):
     @mock_ec2
     def test_ec2_client(self):
         ec2 = boto.ec2.connect_to_region("us-west-2")
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(ec2)
 
         ec2.get_all_instances()
         spans = self.pop_spans()
@@ -79,7 +73,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_env_service_default_ec2_client(self):
         ec2 = boto.ec2.connect_to_region("us-west-2")
-        Pin.get_from(ec2)._clone(tracer=self.tracer).onto(ec2)
 
         # Create an instance
         ec2.run_instances(21)
@@ -93,7 +86,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_env_service_v0_ec2_client(self):
         ec2 = boto.ec2.connect_to_region("us-west-2")
-        Pin.get_from(ec2)._clone(tracer=self.tracer).onto(ec2)
 
         # Create an instance
         ec2.run_instances(21)
@@ -107,7 +99,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_env_service_v1_ec2_client(self):
         ec2 = boto.ec2.connect_to_region("us-west-2")
-        Pin.get_from(ec2)._clone(tracer=self.tracer).onto(ec2)
 
         # Create an instance
         ec2.run_instances(21)
@@ -121,7 +112,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict())
     def test_schematized_unspecified_service_default_ec2_client(self):
         ec2 = boto.ec2.connect_to_region("us-west-2")
-        Pin.get_from(ec2)._clone(tracer=self.tracer).onto(ec2)
 
         # Create an instance
         ec2.run_instances(21)
@@ -135,7 +125,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_v0_ec2_client(self):
         ec2 = boto.ec2.connect_to_region("us-west-2")
-        Pin.get_from(ec2)._clone(tracer=self.tracer).onto(ec2)
 
         # Create an instance
         ec2.run_instances(21)
@@ -149,7 +138,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_v1_ec2_client(self):
         ec2 = boto.ec2.connect_to_region("us-west-2")
-        Pin.get_from(ec2)._clone(tracer=self.tracer).onto(ec2)
 
         # Create an instance
         ec2.run_instances(21)
@@ -163,7 +151,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0_ec2_client(self):
         ec2 = boto.ec2.connect_to_region("us-west-2")
-        Pin.get_from(ec2)._clone(tracer=self.tracer).onto(ec2)
 
         # Create an instance
         ec2.run_instances(21)
@@ -177,7 +164,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_operation_name_v1_ec2_client(self):
         ec2 = boto.ec2.connect_to_region("us-west-2")
-        Pin.get_from(ec2)._clone(tracer=self.tracer).onto(ec2)
 
         # Create an instance
         ec2.run_instances(21)
@@ -190,9 +176,6 @@ class BotoTest(TracerTestCase):
     def _test_s3_client(self):
         # DEV: To test tag params check create bucket's span
         s3 = boto.s3.connect_to_region("us-east-1")
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(s3)
 
         s3.get_all_buckets()
         spans = self.pop_spans()
@@ -251,7 +234,6 @@ class BotoTest(TracerTestCase):
     def test_schematized_env_service_name_default_s3_client(self):
         # DEV: To test tag params check create bucket's span
         s3 = boto.s3.connect_to_region("us-east-1")
-        Pin.get_from(s3)._clone(tracer=self.tracer).onto(s3)
 
         # Create the test bucket
         s3.create_bucket("cheese")
@@ -270,7 +252,6 @@ class BotoTest(TracerTestCase):
     def test_schematized_env_service_name_v0_s3_client(self):
         # DEV: To test tag params check create bucket's span
         s3 = boto.s3.connect_to_region("us-east-1")
-        Pin.get_from(s3)._clone(tracer=self.tracer).onto(s3)
 
         # Create the test bucket
         s3.create_bucket("cheese")
@@ -289,7 +270,6 @@ class BotoTest(TracerTestCase):
     def test_schematized_env_service_name_v1_s3_client(self):
         # DEV: To test tag params check create bucket's span
         s3 = boto.s3.connect_to_region("us-east-1")
-        Pin.get_from(s3)._clone(tracer=self.tracer).onto(s3)
 
         # Create the test bucket
         s3.create_bucket("cheese")
@@ -308,7 +288,6 @@ class BotoTest(TracerTestCase):
     def test_schematized_operation_name_v0_s3_client(self):
         # DEV: To test tag params check create bucket's span
         s3 = boto.s3.connect_to_region("us-east-1")
-        Pin.get_from(s3)._clone(tracer=self.tracer).onto(s3)
 
         # Create the test bucket
         s3.create_bucket("cheese")
@@ -327,7 +306,6 @@ class BotoTest(TracerTestCase):
     def test_schematized_operation_name_v1_s3_client(self):
         # DEV: To test tag params check create bucket's span
         s3 = boto.s3.connect_to_region("us-east-1")
-        Pin.get_from(s3)._clone(tracer=self.tracer).onto(s3)
 
         # Create the test bucket
         s3.create_bucket("cheese")
@@ -346,7 +324,6 @@ class BotoTest(TracerTestCase):
     def test_schematized_unspecified_service_name_default_s3_client(self):
         # DEV: To test tag params check create bucket's span
         s3 = boto.s3.connect_to_region("us-east-1")
-        Pin.get_from(s3)._clone(tracer=self.tracer).onto(s3)
 
         # Create the test bucket
         s3.create_bucket("cheese")
@@ -365,7 +342,6 @@ class BotoTest(TracerTestCase):
     def test_schematized_unspecified_service_name_v0_s3_client(self):
         # DEV: To test tag params check create bucket's span
         s3 = boto.s3.connect_to_region("us-east-1")
-        Pin.get_from(s3)._clone(tracer=self.tracer).onto(s3)
 
         # Create the test bucket
         s3.create_bucket("cheese")
@@ -384,7 +360,6 @@ class BotoTest(TracerTestCase):
     def test_schematized_unspecified_service_name_v1_s3_client(self):
         # DEV: To test tag params check create bucket's span
         s3 = boto.s3.connect_to_region("us-east-1")
-        Pin.get_from(s3)._clone(tracer=self.tracer).onto(s3)
 
         # Create the test bucket
         s3.create_bucket("cheese")
@@ -415,9 +390,6 @@ class BotoTest(TracerTestCase):
     @mock_s3
     def test_s3_put(self):
         s3 = boto.s3.connect_to_region("us-east-1")
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(s3)
         s3.create_bucket("mybucket")
         bucket = s3.get_bucket("mybucket")
         k = boto.s3.key.Key(bucket)
@@ -451,9 +423,6 @@ class BotoTest(TracerTestCase):
     @mock_lambda
     def test_unpatch(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(lamb)
         unpatch()
 
         # multiple calls
@@ -464,9 +433,6 @@ class BotoTest(TracerTestCase):
     @mock_s3
     def test_double_patch(self):
         s3 = boto.s3.connect_to_region("us-east-1")
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(s3)
 
         patch()
         patch()
@@ -479,9 +445,6 @@ class BotoTest(TracerTestCase):
     @mock_lambda
     def test_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(lamb)
 
         # multiple calls
         lamb.list_functions()
@@ -507,7 +470,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_env_service_name_default_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
-        Pin.get_from(lamb)._clone(tracer=self.tracer).onto(lamb)
 
         lamb.list_functions()
 
@@ -519,7 +481,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_env_service_name_v0_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
-        Pin.get_from(lamb)._clone(tracer=self.tracer).onto(lamb)
 
         lamb.list_functions()
 
@@ -531,7 +492,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_env_service_name_v1_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
-        Pin.get_from(lamb)._clone(tracer=self.tracer).onto(lamb)
 
         lamb.list_functions()
 
@@ -543,7 +503,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_unspecified_service_name_default_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
-        Pin.get_from(lamb)._clone(tracer=self.tracer).onto(lamb)
 
         lamb.list_functions()
 
@@ -555,7 +514,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_name_v0_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
-        Pin.get_from(lamb)._clone(tracer=self.tracer).onto(lamb)
 
         lamb.list_functions()
 
@@ -567,7 +525,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_name_v1_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
-        Pin.get_from(lamb)._clone(tracer=self.tracer).onto(lamb)
 
         lamb.list_functions()
 
@@ -579,7 +536,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
-        Pin.get_from(lamb)._clone(tracer=self.tracer).onto(lamb)
 
         lamb.list_functions()
 
@@ -591,7 +547,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_operation_name_v1_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
-        Pin.get_from(lamb)._clone(tracer=self.tracer).onto(lamb)
 
         lamb.list_functions()
 
@@ -602,9 +557,6 @@ class BotoTest(TracerTestCase):
     @mock_sts
     def test_sts_client(self):
         sts = boto.sts.connect_to_region("us-west-2")
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(sts)
 
         sts.get_federation_token(12, duration=10)
 
@@ -625,7 +577,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_env_default_sts_client(self):
         sts = boto.sts.connect_to_region("us-west-2")
-        Pin.get_from(sts)._clone(tracer=self.tracer).onto(sts)
 
         sts.get_federation_token(12, duration=10)
 
@@ -639,7 +590,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_env_v0_sts_client(self):
         sts = boto.sts.connect_to_region("us-west-2")
-        Pin.get_from(sts)._clone(tracer=self.tracer).onto(sts)
 
         sts.get_federation_token(12, duration=10)
 
@@ -653,7 +603,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_env_v1_sts_client(self):
         sts = boto.sts.connect_to_region("us-west-2")
-        Pin.get_from(sts)._clone(tracer=self.tracer).onto(sts)
 
         sts.get_federation_token(12, duration=10)
 
@@ -667,7 +616,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict())
     def test_schematized_unspecified_service_default_sts_client(self):
         sts = boto.sts.connect_to_region("us-west-2")
-        Pin.get_from(sts)._clone(tracer=self.tracer).onto(sts)
 
         sts.get_federation_token(12, duration=10)
 
@@ -681,7 +629,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_v0_sts_client(self):
         sts = boto.sts.connect_to_region("us-west-2")
-        Pin.get_from(sts)._clone(tracer=self.tracer).onto(sts)
 
         sts.get_federation_token(12, duration=10)
 
@@ -695,7 +642,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_sts_client(self):
         sts = boto.sts.connect_to_region("us-west-2")
-        Pin.get_from(sts)._clone(tracer=self.tracer).onto(sts)
 
         sts.get_federation_token(12, duration=10)
 
@@ -709,7 +655,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0_sts_client(self):
         sts = boto.sts.connect_to_region("us-west-2")
-        Pin.get_from(sts)._clone(tracer=self.tracer).onto(sts)
 
         sts.get_federation_token(12, duration=10)
 
@@ -723,7 +668,6 @@ class BotoTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_operation_name_sts_client(self):
         sts = boto.sts.connect_to_region("us-west-2")
-        Pin.get_from(sts)._clone(tracer=self.tracer).onto(sts)
 
         sts.get_federation_token(12, duration=10)
 
@@ -742,9 +686,6 @@ class BotoTest(TracerTestCase):
     )
     def test_elasticache_client(self):
         elasticache = boto.elasticache.connect_to_region("us-west-2")
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(elasticache)
 
         elasticache.describe_cache_clusters()
 

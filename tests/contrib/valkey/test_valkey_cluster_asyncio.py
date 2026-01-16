@@ -2,7 +2,6 @@
 import pytest
 import valkey
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.valkey.patch import patch
 from ddtrace.contrib.internal.valkey.patch import unpatch
 from tests.contrib.config import VALKEY_CLUSTER_CONFIG
@@ -27,7 +26,6 @@ async def traced_valkey_cluster(tracer, test_spans):
     startup_nodes = [valkey.asyncio.cluster.ClusterNode(TEST_HOST, int(port)) for port in TEST_PORTS.split(",")]
     valkey_cluster = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
     await valkey_cluster.flushall()
-    Pin._override(valkey_cluster, tracer=tracer)
     try:
         yield valkey_cluster, test_spans
     finally:
@@ -140,7 +138,6 @@ async def test_patch_unpatch(valkey_cluster, tracer, test_spans):
     patch()
 
     r = valkey_cluster
-    Pin._override(r, tracer=tracer)
     await r.get("key")
 
     spans = test_spans.pop()
@@ -160,7 +157,6 @@ async def test_patch_unpatch(valkey_cluster, tracer, test_spans):
     patch()
 
     r = valkey_cluster
-    Pin._override(r, tracer=tracer)
     await r.get("key")
 
     spans = test_spans.pop()
@@ -178,7 +174,6 @@ def test_default_service_name_v1():
 
     import valkey
 
-    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.valkey.patch import patch
     from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
     from tests.contrib.config import VALKEY_CLUSTER_CONFIG
@@ -197,7 +192,6 @@ def test_default_service_name_v1():
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
@@ -231,7 +225,6 @@ def test_user_specified_service_v0():
     import valkey
 
     from ddtrace import config
-    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.valkey.patch import patch
     from tests.contrib.config import VALKEY_CLUSTER_CONFIG
     from tests.utils import TracerSpanContainer
@@ -252,7 +245,6 @@ def test_user_specified_service_v0():
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
@@ -286,7 +278,6 @@ def test_user_specified_service_v1():
     import valkey
 
     from ddtrace import config
-    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.valkey.patch import patch
     from tests.contrib.config import VALKEY_CLUSTER_CONFIG
     from tests.utils import TracerSpanContainer
@@ -307,7 +298,6 @@ def test_user_specified_service_v1():
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
@@ -336,7 +326,6 @@ def test_env_user_specified_valkeycluster_service_v0():
 
     import valkey
 
-    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.valkey.patch import patch
     from tests.contrib.config import VALKEY_CLUSTER_CONFIG
     from tests.utils import TracerSpanContainer
@@ -354,7 +343,6 @@ def test_env_user_specified_valkeycluster_service_v0():
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
@@ -383,7 +371,6 @@ def test_env_user_specified_valkeycluster_service_v1():
 
     import valkey
 
-    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.valkey.patch import patch
     from tests.contrib.config import VALKEY_CLUSTER_CONFIG
     from tests.utils import TracerSpanContainer
@@ -401,7 +388,6 @@ def test_env_user_specified_valkeycluster_service_v1():
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
@@ -435,7 +421,6 @@ def test_service_precedence_v0():
     import valkey
 
     from ddtrace import config
-    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.valkey.patch import patch
     from tests.contrib.config import VALKEY_CLUSTER_CONFIG
     from tests.utils import TracerSpanContainer
@@ -456,7 +441,6 @@ def test_service_precedence_v0():
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
@@ -486,7 +470,6 @@ def test_service_precedence_v1():
     import valkey
 
     from ddtrace import config
-    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.valkey.patch import patch
     from tests.contrib.config import VALKEY_CLUSTER_CONFIG
     from tests.utils import TracerSpanContainer
@@ -507,7 +490,6 @@ def test_service_precedence_v1():
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 

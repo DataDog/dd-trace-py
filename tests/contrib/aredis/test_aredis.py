@@ -4,7 +4,6 @@ import os
 import aredis
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.aredis.patch import patch
 from ddtrace.contrib.internal.aredis.patch import unpatch
 from ddtrace.internal.compat import is_wrapted
@@ -116,23 +115,6 @@ async def test_pipeline_immediate(snapshot_context):
         await p.execute()
 
 
-@pytest.mark.asyncio
-async def test_meta_override(tracer, test_spans):
-    r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
-    pin = Pin.get_from(r)
-    assert pin is not None
-    pin._clone(tags={"cheese": "camembert"}, tracer=tracer).onto(r)
-
-    await r.get("cheese")
-    test_spans.assert_trace_count(1)
-    test_spans.assert_span_count(1)
-    assert test_spans.spans[0].service == "redis"
-    assert test_spans.spans[0].get_tag("component") == "aredis"
-    assert test_spans.spans[0].get_tag("span.kind") == "client"
-    assert test_spans.spans[0].get_tag("db.system") == "redis"
-    assert "cheese" in test_spans.spans[0].get_tags() and test_spans.spans[0].get_tag("cheese") == "camembert"
-
-
 @pytest.mark.parametrize(
     "schema_tuplets",
     [
@@ -151,7 +133,6 @@ import asyncio
 import pytest
 import sys
 from tests.conftest import *
-from ddtrace._trace.pin import Pin
 import aredis
 from tests.contrib.config import REDIS_CONFIG
 from tests.contrib.aredis.test_aredis import traced_aredis
@@ -159,9 +140,6 @@ from tests.contrib.aredis.test_aredis import traced_aredis
 @pytest.mark.asyncio
 async def test(tracer, test_spans):
     r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
-    pin = Pin.get_from(r)
-    assert pin is not None
-    pin._clone(tags={{"cheese": "camembert"}}, tracer=tracer).onto(r)
 
     await r.get("cheese")
     test_spans.assert_trace_count(1)

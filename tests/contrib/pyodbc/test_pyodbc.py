@@ -1,6 +1,5 @@
 import pyodbc
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.pyodbc.patch import patch
 from ddtrace.contrib.internal.pyodbc.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -206,12 +205,6 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
     def _get_conn_tracer(self):
         if not self.conn:
             self.conn = pyodbc.connect(PYODBC_CONNECT_DSN)
-            # Ensure that the default pin is there, with its default value
-            pin = Pin.get_from(self.conn)
-            assert pin
-            # Customize the service
-            # we have to apply it on the existing one since new one won't inherit `app`
-            pin._clone(tracer=self.tracer).onto(self.conn)
 
             return self.conn, self.tracer
 
@@ -219,15 +212,11 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
         unpatch()
         # assert we start unpatched
         conn = pyodbc.connect(PYODBC_CONNECT_DSN)
-        assert not Pin.get_from(conn)
         conn.close()
 
         patch()
         try:
             conn = pyodbc.connect(PYODBC_CONNECT_DSN)
-            pin = Pin.get_from(conn)
-            assert pin
-            pin._clone(tracer=self.tracer).onto(conn)
 
             cursor = conn.cursor()
             cursor.execute("SELECT 1")
@@ -248,24 +237,9 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
 
             # assert we finish unpatched
             conn = pyodbc.connect(PYODBC_CONNECT_DSN)
-            assert not Pin.get_from(conn)
             conn.close()
 
         patch()
-
-    def test_user_pin_override(self):
-        conn, tracer = self._get_conn_tracer()
-        pin = Pin.get_from(conn)
-        pin._clone(service="pin-svc", tracer=self.tracer).onto(conn)
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1")
-        rows = cursor.fetchall()
-        assert len(rows) == 1
-        spans = self.pop_spans()
-        assert len(spans) == 1
-
-        span = spans[0]
-        assert span.service == "pin-svc"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PYODBC_SERVICE="my-pyodbc-service"))
     def test_user_specified_service_integration(self):

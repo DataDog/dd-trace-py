@@ -5,7 +5,6 @@ from celery import Celery
 from celery.contrib.testing.worker import start_worker
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.celery.patch import patch
 from ddtrace.contrib.internal.celery.patch import unpatch
 from tests.utils import TracerSpanContainer
@@ -55,21 +54,15 @@ def celery_config():
 
 @pytest.fixture(autouse=False)
 def traced_redis_celery_app(instrument_celery, tracer):
-    Pin.get_from(redis_celery_app)
-    Pin._override(redis_celery_app, tracer=tracer)
     yield redis_celery_app
 
 
 @pytest.fixture(autouse=False)
 def traced_amqp_celery_app(instrument_celery, tracer):
-    Pin.get_from(amqp_celery_app)
-    Pin._override(amqp_celery_app, tracer=tracer)
     yield amqp_celery_app
 
 
-def test_redis_task(traced_redis_celery_app):
-    tracer = Pin.get_from(traced_redis_celery_app).tracer
-
+def test_redis_task(traced_redis_celery_app, tracer):
     with start_worker(
         traced_redis_celery_app,
         pool="solo",
@@ -86,9 +79,7 @@ def test_redis_task(traced_redis_celery_app):
         assert_traces(tracer, "multiply", t, 6379)
 
 
-def test_amqp_task(instrument_celery, traced_amqp_celery_app):
-    tracer = Pin.get_from(traced_amqp_celery_app).tracer
-
+def test_amqp_task(instrument_celery, traced_amqp_celery_app, tracer):
     with start_worker(
         traced_amqp_celery_app,
         pool="solo",
@@ -147,20 +138,16 @@ def list_broker_celery_app(instrument_celery, tracer):
     def subtract(x, y):
         return x - y
 
-    # Ensure the app is instrumented with the dummy tracer
-    Pin.get_from(app)
-    Pin._override(app, tracer=tracer)
     patch()
     yield app
     unpatch()
 
 
-def test_list_broker_urls(list_broker_celery_app):
+def test_list_broker_urls(list_broker_celery_app, tracer):
     """
     Test that when the broker URL is provided as a list,
     the instrumentation correctly parses the first URL in the list.
     """
-    tracer = Pin.get_from(list_broker_celery_app).tracer
 
     with start_worker(
         list_broker_celery_app,

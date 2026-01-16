@@ -3,7 +3,6 @@ import os
 import consul
 from wrapt import BoundFunctionWrapper
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.consul.patch import patch
 from ddtrace.contrib.internal.consul.patch import unpatch
 from ddtrace.ext import consul as consulx
@@ -18,8 +17,6 @@ CONSUL_HTTP_ADDR = f"{CONSUL_CONFIG['host']}:{CONSUL_CONFIG['port']}"
 
 
 class TestConsulPatch(TracerTestCase):
-    TEST_SERVICE = "test-consul"
-
     def setUp(self):
         if "CONSUL_HTTP_ADDR" in os.environ:
             del os.environ["CONSUL_HTTP_ADDR"]
@@ -29,8 +26,6 @@ class TestConsulPatch(TracerTestCase):
             host=CONSUL_CONFIG["host"],
             port=CONSUL_CONFIG["port"],
         )
-        Pin._override(consul.Consul, service=self.TEST_SERVICE, tracer=self.tracer)
-        Pin._override(consul.Consul.KV, service=self.TEST_SERVICE, tracer=self.tracer)
         self.c = c
 
     def tearDown(self):
@@ -49,7 +44,7 @@ class TestConsulPatch(TracerTestCase):
 
         assert_is_measured(span)
         assert span.span_type == "http"
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "consul"
         assert span.name == consulx.CMD
         assert span.resource == "PUT"
         assert span.error == 0
@@ -74,7 +69,7 @@ class TestConsulPatch(TracerTestCase):
 
         assert_is_measured(span)
         assert span.span_type == "http"
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "consul"
         assert span.name == consulx.CMD
         assert span.resource == "GET"
         assert span.error == 0
@@ -99,7 +94,7 @@ class TestConsulPatch(TracerTestCase):
 
         assert_is_measured(span)
         assert span.span_type == "http"
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "consul"
         assert span.name == consulx.CMD
         assert span.resource == "DELETE"
         assert span.error == 0
@@ -125,7 +120,7 @@ class TestConsulPatch(TracerTestCase):
 
         assert_is_measured(span)
         assert span.span_type == "http"
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "consul"
         assert span.name == consulx.CMD
         assert span.resource == "PUT"
         assert span.error == 0
@@ -175,8 +170,6 @@ class TestSchematization(TracerTestCase):
             host=CONSUL_CONFIG["host"],
             port=CONSUL_CONFIG["port"],
         )
-        Pin._override(consul.Consul, tracer=self.tracer)
-        Pin._override(consul.Consul.KV, tracer=self.tracer)
         self.c = c
 
     def tearDown(self):

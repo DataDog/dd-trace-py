@@ -4,7 +4,6 @@ from unittest import mock
 import pytest
 import valkey
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.valkey.patch import patch
 from ddtrace.contrib.internal.valkey.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -23,7 +22,6 @@ class TestValkeyPatch(TracerTestCase):
         patch()
         r = valkey.Valkey(port=self.TEST_PORT)
         r.flushall()
-        Pin._override(r, tracer=self.tracer)
         self.r = r
 
     def tearDown(self):
@@ -209,9 +207,6 @@ class TestValkeyPatch(TracerTestCase):
 
     def test_meta_override(self):
         r = self.r
-        pin = Pin.get_from(r)
-        if pin:
-            pin._clone(tags={"cheese": "camembert"}).onto(r)
 
         r.get("cheese")
         span = find_redis_span(
@@ -222,7 +217,6 @@ class TestValkeyPatch(TracerTestCase):
             raw_command_tag="valkey.raw_command",
         )
         assert span.service == "valkey"
-        assert "cheese" in span.get_tags() and span.get_tag("cheese") == "camembert"
 
     def test_patch_unpatch(self):
         # Test patch idempotence
@@ -230,7 +224,6 @@ class TestValkeyPatch(TracerTestCase):
         patch()
 
         r = valkey.Valkey(port=VALKEY_CONFIG["port"])
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         # Use find_redis_span to get the specific GET span
@@ -253,7 +246,6 @@ class TestValkeyPatch(TracerTestCase):
         patch()
 
         r = valkey.Valkey(port=VALKEY_CONFIG["port"])
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         # Use find_redis_span to get the specific GET span
@@ -455,16 +447,6 @@ class TestValkeyPatch(TracerTestCase):
             )
             assert span.service == "cfg-valkey", span.service
 
-        self.reset()
-
-        # Manual override
-        Pin._override(self.r, service="mysvc", tracer=self.tracer)
-        self.r.get("cheese")
-        span = find_redis_span(
-            self.get_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
-        )
-        assert span.service == "mysvc", span.service
-
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(
             DD_SERVICE="app-svc", DD_VALKEY_SERVICE="env-specified-valkey-svc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"
@@ -476,16 +458,6 @@ class TestValkeyPatch(TracerTestCase):
             self.get_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
         )
         assert span.service == "env-specified-valkey-svc", span.service
-
-        self.reset()
-
-        # Do a manual override
-        Pin._override(self.r, service="override-valkey", tracer=self.tracer)
-        self.r.get("cheese")
-        span = find_redis_span(
-            self.get_spans(), resource="GET", component="valkey", raw_command_tag="valkey.raw_command"
-        )
-        assert span.service == "override-valkey", span.service
 
 
 class TestValkeyPatchSnapshot(TracerTestCase):
@@ -534,9 +506,6 @@ class TestValkeyPatchSnapshot(TracerTestCase):
     @snapshot()
     def test_meta_override(self):
         r = self.r
-        pin = Pin.get_from(r)
-        if pin:
-            pin._clone(tags={"cheese": "camembert"}).onto(r)
 
         r.get("cheese")
 
@@ -546,7 +515,6 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         patch()
 
         r = valkey.Valkey(port=VALKEY_CONFIG["port"])
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         # Use find_redis_span to get the specific GET span
@@ -569,7 +537,6 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         patch()
 
         r = valkey.Valkey(port=VALKEY_CONFIG["port"])
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         # Use find_redis_span to get the specific GET span
@@ -597,11 +564,7 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         # Global config
         with self.override_config("valkey", dict(service="cfg-valkey")):
             self.r.get("cheese")
-
         self.reset()
-
-        # Manual override
-        Pin._override(self.r, service="mysvc", tracer=self.tracer)
         self.r.get("cheese")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_VALKEY_SERVICE="env-valkey"))
@@ -610,9 +573,6 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         self.r.get("cheese")
 
         self.reset()
-
-        # Do a manual override
-        Pin._override(self.r, service="override-valkey", tracer=self.tracer)
         self.r.get("cheese")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_VALKEY_CMD_MAX_LENGTH="10"))

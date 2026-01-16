@@ -1,4 +1,3 @@
-from ddtrace._trace.pin import Pin
 from tests.utils import TracerSpanContainer
 
 
@@ -60,24 +59,6 @@ async def _test_dbm_propagation_comment_integration_service_name_override(
 
     dbm_comment = (
         f"/*dddb='{db_name}',dddbs='service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-        "ddpv='v7343437-d7ac743'*/ "
-    )
-    await _test_execute(dbm_comment, cursor, wrapped_instance)
-    if execute_many:
-        await _test_execute_many(dbm_comment, cursor, wrapped_instance)
-
-
-async def _test_dbm_propagation_comment_pin_service_name_override(
-    config, cursor, conn, tracer, wrapped_instance, execute_many=True
-):
-    """tests if dbm comment is set in mysql"""
-    db_name = config["db"]
-
-    Pin._override(conn, service="pin-service-name-override", tracer=tracer)
-    Pin._override(cursor, service="pin-service-name-override", tracer=tracer)
-
-    dbm_comment = (
-        f"/*dddb='{db_name}',dddbs='pin-service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
         "ddpv='v7343437-d7ac743'*/ "
     )
     await _test_execute(dbm_comment, cursor, wrapped_instance)

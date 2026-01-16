@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING  # noqa:F401
 import pytest
 
 import ddtrace
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -57,53 +56,46 @@ class TestSQLite(TracerTestCase):
         ddtrace.tracer = backup_tracer
 
     def test_sqlite(self):
-        # ensure we can trace multiple services without stomping
-        services = ["db", "another"]
-        for service in services:
-            db = sqlite3.connect(":memory:")
-            pin = Pin.get_from(db)
-            assert pin
-            pin._clone(service=service, tracer=self.tracer).onto(db)
+        db = sqlite3.connect(":memory:")
+        # Ensure we can run a query and it's correctly traced
+        q = "select * from sqlite_master"
+        start = time.time()
+        cursor = db.execute(q)
+        self.assertIsInstance(cursor, TracedSQLiteCursor)
+        rows = cursor.fetchall()
+        end = time.time()
+        assert not rows
+        self.assert_structure(
+            dict(name="sqlite.query", span_type="sql", resource=q, error=0),
+        )
+        root = self.get_root_span()
+        assert_is_measured(root)
+        self.assertIsNone(root.get_tag("sql.query"))
+        self.assertEqual(root.get_tag("component"), "sqlite")
+        self.assertEqual(root.get_tag("span.kind"), "client")
+        self.assertEqual(root.get_tag("db.system"), "sqlite")
+        assert start <= root.start <= end
+        assert root.duration <= end - start
+        self.reset()
 
-            # Ensure we can run a query and it's correctly traced
-            q = "select * from sqlite_master"
-            start = time.time()
-            cursor = db.execute(q)
-            self.assertIsInstance(cursor, TracedSQLiteCursor)
-            rows = cursor.fetchall()
-            end = time.time()
-            assert not rows
-            self.assert_structure(
-                dict(name="sqlite.query", span_type="sql", resource=q, service=service, error=0),
-            )
-            root = self.get_root_span()
-            assert_is_measured(root)
-            self.assertIsNone(root.get_tag("sql.query"))
-            self.assertEqual(root.get_tag("component"), "sqlite")
-            self.assertEqual(root.get_tag("span.kind"), "client")
-            self.assertEqual(root.get_tag("db.system"), "sqlite")
-            assert start <= root.start <= end
-            assert root.duration <= end - start
-            self.reset()
+        # run a query with an error and ensure all is well
+        q = "select * from some_non_existant_table"
+        with pytest.raises(sqlite3.OperationalError):
+            db.execute(q)
 
-            # run a query with an error and ensure all is well
-            q = "select * from some_non_existant_table"
-            with pytest.raises(sqlite3.OperationalError):
-                db.execute(q)
-
-            self.assert_structure(
-                dict(name="sqlite.query", span_type="sql", resource=q, service=service, error=1),
-            )
-            root = self.get_root_span()
-            assert_is_measured(root)
-            self.assertIsNone(root.get_tag("sql.query"))
-            self.assertEqual(root.get_tag("component"), "sqlite")
-            self.assertEqual(root.get_tag("span.kind"), "client")
-            self.assertEqual(root.get_tag("db.system"), "sqlite")
-            self.assertIsNotNone(root.get_tag(ERROR_STACK))
-            self.assertIn("OperationalError", root.get_tag(ERROR_TYPE))
-            self.assertIn("no such table", root.get_tag(ERROR_MSG))
-            self.reset()
+        self.assert_structure(
+            dict(name="sqlite.query", span_type="sql", resource=q, error=1),
+        )
+        root = self.get_root_span()
+        assert_is_measured(root)
+        self.assertIsNone(root.get_tag("sql.query"))
+        self.assertEqual(root.get_tag("component"), "sqlite")
+        self.assertEqual(root.get_tag("span.kind"), "client")
+        self.assertEqual(root.get_tag("db.system"), "sqlite")
+        self.assertIsNotNone(root.get_tag(ERROR_STACK))
+        self.assertIn("OperationalError", root.get_tag(ERROR_TYPE))
+        self.assertIn("no such table", root.get_tag(ERROR_MSG))
+        self.reset()
 
     def test_sqlite_fetchall_is_traced(self):
         q = "select * from sqlite_master"
@@ -226,9 +218,6 @@ class TestSQLite(TracerTestCase):
         patch()
 
         db = sqlite3.connect(":memory:")
-        pin = Pin.get_from(db)
-        assert pin
-        pin._clone(tracer=self.tracer).onto(db)
         db.cursor().execute("select 'blah'").fetchall()
 
         self.assert_structure(
@@ -248,9 +237,6 @@ class TestSQLite(TracerTestCase):
         patch()
 
         db = sqlite3.connect(":memory:")
-        pin = Pin.get_from(db)
-        assert pin
-        pin._clone(tracer=self.tracer).onto(db)
         db.cursor().execute("select 'blah'").fetchall()
 
         self.assert_structure(
@@ -259,7 +245,6 @@ class TestSQLite(TracerTestCase):
 
     def _given_a_traced_connection(self, tracer):
         db = sqlite3.connect(":memory:")
-        Pin.get_from(db)._clone(tracer=tracer).onto(db)
         return db
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
