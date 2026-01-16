@@ -37,7 +37,7 @@ def item_to_test_ref(item: pytest.Item) -> TestRef:
     default_module, default_suite, default_test = nodeid_to_names(item.nodeid)
 
     # DEBUG: Log for the problematic test
-    if "inject_span" in item.nodeid:
+    if "injection_telemetry" in item.nodeid:
         import logging
 
         log = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ def item_to_test_ref(item: pytest.Item) -> TestRef:
     test_ref = TestRef(suite_ref, custom_test or default_test)
 
     # DEBUG: Log the final TestRef for inject_span test
-    if "inject_span" in item.nodeid:
+    if "injection_telemetry" in item.nodeid:
         print(f"*** NEW PLUGIN FINAL TestRef: {test_ref.suite.module.name}/{test_ref.suite.name}::{test_ref.name} ***")
         log.debug("NEW PLUGIN FINAL TestRef: %s/%s::%s", test_ref.suite.module.name, test_ref.suite.name, test_ref.name)
 

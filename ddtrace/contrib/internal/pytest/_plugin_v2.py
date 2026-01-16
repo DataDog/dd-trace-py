@@ -1035,7 +1035,7 @@ def pytest_report_teststatus(
 def pytest_ddtrace_get_item_module_name(item):
     names = _get_names_from_item(item)
     # DEBUG: Log hook calls for problematic test
-    if "test_extract_query" in item.nodeid:
+    if "injection_telemetry" in item.nodeid:
         log.debug("DEBUG OLD PLUGIN pytest_ddtrace_get_item_module_name: '%s'", names.module)
     return names.module
 
@@ -1048,7 +1048,7 @@ def pytest_ddtrace_get_item_suite_name(item):
     """
     names = _get_names_from_item(item)
     # DEBUG: Log hook calls for problematic test
-    if "test_extract_query" in item.nodeid:
+    if "injection_telemetry" in item.nodeid:
         log.debug("DEBUG OLD PLUGIN pytest_ddtrace_get_item_suite_name: '%s'", names.suite)
     return names.suite
 

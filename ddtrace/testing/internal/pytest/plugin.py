@@ -57,7 +57,13 @@ DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
 SKIPPED_BY_ITR_REASON = "Skipped by Datadog Intelligent Test Runner"
 ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 
-SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
+# SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
+# Handle compatibility with older pytest versions that don't have StashKey
+try:
+    SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
+except AttributeError:
+    # Fallback for pytest < 7.0 - use a simple key
+    SESSION_MANAGER_STASH_KEY = "session_manager_key"
 
 TEST_FRAMEWORK = "pytest"
 
@@ -999,7 +1005,7 @@ def _get_test_parameters_json(item: pytest.Item) -> t.Optional[str]:
     callspec: t.Optional[pytest.python.CallSpec2] = getattr(item, "callspec", None)
 
     # DEBUG: Log callspec details for inject_span test
-    if "inject_span" in item.nodeid:
+    if "injection_telemetry" in item.nodeid:
         log.debug("NEW PLUGIN _get_test_parameters_json: nodeid='%s'", item.nodeid)
         log.debug("NEW PLUGIN callspec exists: %s", callspec is not None)
         if callspec is not None:

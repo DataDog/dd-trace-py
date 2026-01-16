@@ -111,7 +111,6 @@ venv = Venv(
     },
     env={
         "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
-        "DD_PYTEST_USE_NEW_PLUGIN": "true",
         "DD_TESTING_RAISE": "1",
         "DD_REMOTE_CONFIGURATION_ENABLED": "false",
         "DD_INJECTION_ENABLED": "1",
@@ -424,6 +423,10 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "xmltodict": latest,
                 "django": latest,
+            },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "true",
+                "DD_TRACE_DEBUG": "1",
             },
             venvs=[
                 Venv(
@@ -1529,9 +1532,6 @@ venv = Venv(
         Venv(
             name="requests",
             command="pytest {cmdargs} tests/contrib/requests",
-            env={
-                "DD_TRACE_DEBUG": "1",
-            },
             pkgs={
                 "pytest-randomly": latest,
                 "urllib3": "~=1.0",

@@ -201,7 +201,7 @@ class APIClient:
         # Show a sample of known_tests for debugging, focusing on our test of interest
         sample_count = 0
         for test_ref in sorted(known_test_ids, key=lambda t: f"{t.suite.module.name}/{t.suite.name}::{t.name}"):
-            if "inject_span" in test_ref.name or sample_count < 5:
+            if "injection_telemetry" in test_ref.name or sample_count < 15:
                 log.debug(
                     "Known test %d: %s/%s::%s",
                     sample_count + 1,
@@ -210,7 +210,7 @@ class APIClient:
                     test_ref.name,
                 )
                 sample_count += 1
-                if sample_count >= 10:  # Show more samples if inject_span tests are found
+                if sample_count >= 40:  # Show more samples if injection_telemetry tests are found
                     break
 
         log.debug("=== END FINAL KNOWN_TESTS SET ===")

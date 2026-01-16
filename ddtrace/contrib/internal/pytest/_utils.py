@@ -65,17 +65,17 @@ def _encode_test_parameter(parameter: t.Any) -> str:
 def _get_names_from_item(item: pytest.Item) -> TestNames:
     """Gets an item's module, suite, and test names by leveraging the plugin hooks"""
 
-    # Always log for any test with extract_query in the name
-    if "extract_query" in item.nodeid:
-        print(f"*** OLD PLUGIN _get_names_from_item CALLED: nodeid='{item.nodeid}', name='{item.name}' ***")
-        log.debug("DEBUG OLD PLUGIN _get_names_from_item for ANY extract_query test:")
+    # Always log for any test with injection_telemetry in the name
+    if "injection_telemetry" in item.nodeid:
+        log.debug("*** OLD PLUGIN _get_names_from_item CALLED: nodeid='%s', name='%s' ***", item.nodeid, item.name)
+        log.debug("DEBUG OLD PLUGIN _get_names_from_item for ANY injection_telemetry test:")
         log.debug("  item.nodeid: %s", item.nodeid)
         log.debug("  item.name: %s", item.name)
 
     matches = re.match(_NODEID_REGEX, item.nodeid)
 
     # DEBUG: Add logging for the problematic test case
-    if "test_extract_query" in item.nodeid:
+    if "injection_telemetry" in item.nodeid:
         log.debug("DEBUG OLD PLUGIN _get_names_from_item DETAILED:")
         log.debug("  item.nodeid: %s", item.nodeid)
         log.debug("  item.name: %s", item.name)
@@ -85,7 +85,7 @@ def _get_names_from_item(item: pytest.Item) -> TestNames:
 
     if not matches:
         result = TestNames(module="unknown_module", suite="unknown_suite", test=item.name)
-        if "test_extract_query" in item.nodeid:
+        if "injection_telemetry" in item.nodeid:
             log.debug("  FALLBACK RESULT: module='%s', suite='%s', test='%s'", result.module, result.suite, result.test)
         return result
 
@@ -96,7 +96,7 @@ def _get_names_from_item(item: pytest.Item) -> TestNames:
     result = TestNames(module=module_name, suite=suite_name, test=test_name)
 
     # DEBUG: Log the normal path result
-    if "test_extract_query" in item.nodeid:
+    if "injection_telemetry" in item.nodeid:
         log.debug("  NORMAL RESULT: module='%s', suite='%s', test='%s'", result.module, result.suite, result.test)
 
     return result
@@ -115,7 +115,7 @@ def _get_test_id_from_item(item: pytest.Item) -> TestId:
     test_name = item.config.hook.pytest_ddtrace_get_item_test_name(item=item)
 
     # DEBUG: Log the final TestId components for problematic test
-    if "test_extract_query" in item.nodeid:
+    if "injection_telemetry" in item.nodeid:
         log.debug("DEBUG OLD PLUGIN _get_test_id_from_item FINAL:")
         log.debug("  module_name: '%s'", module_name)
         log.debug("  suite_name: '%s'", suite_name)
@@ -126,9 +126,11 @@ def _get_test_id_from_item(item: pytest.Item) -> TestId:
 
     test_id = TestId(suite_id, test_name)
 
-    # DEBUG: Log the final TestId for extract_query test
-    if "test_extract_query" in item.nodeid:
-        print(f"*** OLD PLUGIN FINAL TestId: {test_id.parent.parent.name}/{test_id.parent.name}::{test_id.name} ***")
+    # DEBUG: Log the final TestId for injection_telemetry test
+    if "injection_telemetry" in item.nodeid:
+        log.debug(
+            "*** OLD PLUGIN FINAL TestId: %s/%s::%s ***", test_id.parent.parent.name, test_id.parent.name, test_id.name
+        )
         log.debug("OLD PLUGIN FINAL TestId: %s/%s::%s", test_id.parent.parent.name, test_id.parent.name, test_id.name)
 
     return test_id
@@ -138,8 +140,8 @@ def _get_test_parameters_json(item) -> t.Optional[str]:
     # Test parameters are part of the test ID
     callspec: pytest.python.CallSpec2 = getattr(item, "callspec", None)
 
-    # DEBUG: Log callspec details for extract_query test
-    if "extract_query" in item.nodeid:
+    # DEBUG: Log callspec details for injection_telemetry
+    if "injection_telemetry" in item.nodeid:
         log.debug("OLD PLUGIN _get_test_parameters_json: nodeid='%s'", item.nodeid)
         log.debug("OLD PLUGIN callspec exists: %s", callspec is not None)
         if callspec is not None:

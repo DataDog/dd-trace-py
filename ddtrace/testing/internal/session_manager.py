@@ -238,7 +238,7 @@ class SessionManager:
                             if sample_count >= 10:
                                 break
 
-                is_new = len(self.known_tests) > 0 and test_ref not in self.known_tests
+                is_new = not test.has_parameters() and len(self.known_tests) > 0 and test_ref not in self.known_tests
 
                 # DEBUG: Log the final is_new result for inject_span test
                 if "inject_span" in test_ref.name:
