@@ -4,229 +4,28 @@
 # dependencies = []
 # ///
 """
-Extract CI dependencies and generate locked requirements files.
+Compile locked CI requirements from ci.in.
 
-This script scans all CI configuration files (GitHub Actions, GitLab CI) for
-pip install commands, extracts the package names and version specifiers, and
-creates locked requirements files.
+This script takes ci/requirements/ci.in (manually maintained) and compiles it
+to ci/requirements/ci.txt with locked versions and hashes.
 
 Process:
-1. Scan .github/workflows/*.yml and .gitlab/*.yml for pip install commands
-2. Extract package names and version constraints
-3. Create ci/requirements/ci.in with all dependencies
-4. Run pip-compile to generate ci/requirements/ci.txt
-5. Update GitHub Actions workflows to use locked requirements (GitLab files use explicit versions)
-6. Report what was found and what to do next
+1. Read ci/requirements/ci.in
+2. Run pip-compile (or uv) to generate ci/requirements/ci.txt with locked versions
+3. CI check script validates that all pip installs in workflows match ci.in
 
 Usage:
-    scripts/update-ci-dependencies [--compile] [--update-workflows]
+    scripts/update-ci-dependencies
 
-Options:
-    --compile           Run pip-compile to generate ci.txt (requires pip-tools)
-    --update-workflows  Update CI workflow files to use locked requirements
+The script always runs compilation. To add a new CI dependency:
+1. Add it to ci/requirements/ci.in
+2. Run this script to regenerate ci.txt
+3. Use the check-ci-dependencies script to verify workflows are up to date
 """
 
-import argparse
-from pathlib import Path
-import re
 import subprocess
 import sys
-from typing import Dict
-from typing import List
-from typing import Tuple
-
-
-def find_yaml_files() -> List[Path]:
-    """Find all CI YAML configuration files."""
-    files = []
-
-    # GitHub Actions workflows
-    github_workflows = Path(".github/workflows")
-    if github_workflows.exists():
-        files.extend(github_workflows.glob("*.yml"))
-        files.extend(github_workflows.glob("*.yaml"))
-
-    # GitLab CI files
-    gitlab_dir = Path(".gitlab")
-    if gitlab_dir.exists():
-        files.extend(gitlab_dir.glob("*.yml"))
-        files.extend(gitlab_dir.glob("*.yaml"))
-
-    return sorted(files)
-
-
-def extract_packages_from_command(command: str) -> List[str]:
-    """
-    Extract package specifications from a pip install command.
-
-    Examples:
-        "pip install requests" -> ["requests"]
-        "pip install 'requests>=2.0,<3'" -> ["requests>=2.0,<3"]
-        "pip install pkg1 pkg2==1.0" -> ["pkg1", "pkg2==1.0"]
-    """
-    # Remove leading python -m pip or python3 -m pip
-    normalized = re.sub(r"python3?\s+-m\s+pip\s+install", "pip install", command)
-
-    # Skip if it's installing from requirements file
-    if "-r " in normalized:
-        return []
-
-    # Skip if it's upgrading pip itself
-    if "--upgrade pip" in normalized:
-        return []
-
-    # Skip if installing current package
-    if re.search(r"pip\s+install\s+-e\s+\.", normalized):
-        return []
-    if re.search(r"pip\s+install\s+\.\s*$", normalized):
-        return []
-
-    # Extract the part after "pip install"
-    match = re.search(r"pip\s+install\s+(.+)", normalized)
-    if not match:
-        return []
-
-    args = match.group(1).strip()
-
-    # Remove common flags
-    args = re.sub(r"--upgrade\s+", "", args)
-    args = re.sub(r"--no-cache-dir\s+", "", args)
-    args = re.sub(r"-U\s+", "", args)
-
-    # Split by whitespace, but respect quotes
-    packages = []
-    current = []
-    in_quotes = False
-    quote_char = None
-
-    for char in args:
-        if char in ('"', "'") and not in_quotes:
-            in_quotes = True
-            quote_char = char
-        elif char == quote_char and in_quotes:
-            in_quotes = False
-            quote_char = None
-        elif char.isspace() and not in_quotes:
-            if current:
-                packages.append("".join(current))
-                current = []
-        else:
-            current.append(char)
-
-    if current:
-        packages.append("".join(current))
-
-    # Filter out flags, empty strings, and shell variables
-    filtered = []
-    for p in packages:
-        p = p.strip().strip('"').strip("'")
-        # Skip if empty or starts with dash (flag)
-        if not p or p.startswith("-"):
-            continue
-        # Skip shell variables (${VAR} or $VAR)
-        if p.startswith("$"):
-            continue
-        # Skip if it looks like a path (starts with ./ or /)
-        if p.startswith("./") or p.startswith("/"):
-            continue
-        filtered.append(p)
-
-    return filtered
-
-
-def scan_ci_files() -> Dict[str, List[Tuple[Path, int, str]]]:
-    """
-    Scan all CI files for pip install commands.
-
-    Returns dict mapping package_spec -> [(file, line, command), ...]
-    """
-    package_sources: Dict[str, List[Tuple[Path, int, str]]] = {}
-    yaml_files = find_yaml_files()
-
-    for file_path in yaml_files:
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                content = f.read()
-
-            lines = content.split("\n")
-            for line_num, line in enumerate(lines, 1):
-                # Skip comments
-                if line.strip().startswith("#"):
-                    continue
-
-                # Look for pip install commands
-                if re.search(r"\bpip\s+install\b", line) or re.search(r"\bpython3?\s+-m\s+pip\s+install\b", line):
-                    packages = extract_packages_from_command(line)
-
-                    for pkg in packages:
-                        if pkg not in package_sources:
-                            package_sources[pkg] = []
-                        package_sources[pkg].append((file_path, line_num, line.strip()))
-
-        except Exception as e:
-            print(f"Warning: Error processing {file_path}: {e}", file=sys.stderr)
-            continue
-
-    return package_sources
-
-
-def normalize_package_spec(pkg_spec: str) -> str:
-    """
-    Normalize package specification for deduplication.
-
-    Examples:
-        "requests>=2.0,<3" -> "requests>=2.0,<3"
-        "requests" -> "requests"
-        "requests==2.28.0" and "requests>=2.0,<3" -> keep the more constrained one
-    """
-    return pkg_spec
-
-
-def create_requirements_in(package_sources: Dict[str, List[Tuple[Path, int, str]]]) -> str:
-    """
-    Create the content for ci/requirements/ci.in file.
-
-    Returns the file content as a string.
-    """
-    lines = [
-        "# CI Dependencies",
-        "#",
-        "# This file is automatically generated by scripts/update-ci-dependencies",
-        "# DO NOT EDIT MANUALLY - your changes will be overwritten",
-        "#",
-        "# To update CI dependencies:",
-        "#   1. Modify the pip install commands in CI workflows",
-        "#   2. Run: scripts/update-ci-dependencies --compile",
-        "#",
-        "# All packages below are extracted from CI workflows",
-        "",
-    ]
-
-    # Sort packages for consistency
-    for pkg_spec in sorted(package_sources.keys()):
-        sources = package_sources[pkg_spec]
-
-        # Add comment showing where this package is used
-        lines.append("# Used in:")
-        for file_path, line_num, _ in sources:
-            lines.append(f"#   {file_path}:{line_num}")
-
-        lines.append(pkg_spec)
-        lines.append("")
-
-    return "\n".join(lines)
-
-
-def write_requirements_in(content: str) -> Path:
-    """Write ci/requirements/ci.in file."""
-    requirements_dir = Path("ci/requirements")
-    requirements_dir.mkdir(parents=True, exist_ok=True)
-
-    requirements_in = requirements_dir / "ci.in"
-    with open(requirements_in, "w", encoding="utf-8") as f:
-        f.write(content)
-
-    return requirements_in
+from pathlib import Path
 
 
 def run_pip_compile(requirements_in: Path) -> bool:
@@ -241,13 +40,17 @@ def run_pip_compile(requirements_in: Path) -> bool:
 
     # Try uv first (preferred, faster)
     try:
-        print(f"\nRunning uv pip compile to generate {requirements_txt}...")
+        print(f"Running uv pip compile to generate {requirements_txt}...")
         result = subprocess.run(
             [
                 "uv",
                 "pip",
                 "compile",
                 "--generate-hashes",
+                "--python-platform",
+                "linux",
+                "--python-version",
+                "3.9",
                 "--output-file",
                 str(requirements_txt),
                 str(requirements_in),
@@ -275,7 +78,7 @@ def run_pip_compile(requirements_in: Path) -> bool:
 
     # Fall back to pip-compile
     try:
-        print(f"\nRunning pip-compile to generate {requirements_txt}...")
+        print(f"Running pip-compile to generate {requirements_txt}...")
         result = subprocess.run(
             [
                 "pip-compile",
@@ -306,337 +109,33 @@ def run_pip_compile(requirements_in: Path) -> bool:
         return False
 
 
-def detect_conflicts_and_warnings(package_sources: Dict[str, List[Tuple[Path, int, str]]]) -> List[str]:
-    """
-    Detect version conflicts and unpinned dependencies.
-
-    Returns list of warning messages.
-    """
-    warnings = []
-
-    # Group packages by base name to detect version conflicts
-    base_packages: Dict[str, List[str]] = {}
-    for pkg_spec in package_sources.keys():
-        # Extract base package name (before version specifiers)
-        base_name = re.split(r"[<>=!~\[]", pkg_spec)[0].strip()
-        if base_name not in base_packages:
-            base_packages[base_name] = []
-        base_packages[base_name].append(pkg_spec)
-
-    # Check for conflicts
-    for base_name, specs in base_packages.items():
-        if len(specs) > 1:
-            warnings.append(f"⚠️  Version conflict for '{base_name}':")
-            for spec in specs:
-                sources = package_sources[spec]
-                for file_path, line_num, _ in sources:
-                    warnings.append(f"     {spec} at {file_path}:{line_num}")
-
-    # Check for unpinned packages
-    for pkg_spec in package_sources.keys():
-        # Check if package has no version specifier
-        if not re.search(r"[<>=!~]", pkg_spec):
-            warnings.append(f"⚠️  Unpinned dependency: '{pkg_spec}' (recommended: add version constraint)")
-
-    return warnings
-
-
-def should_replace_pip_install(line: str) -> bool:
-    """
-    Check if a pip install line should be replaced with locked requirements.
-
-    Returns True if the line contains a pip install that should be replaced.
-    """
-    # Skip if it's a comment
-    if line.strip().startswith("#"):
-        return False
-
-    # Must contain pip install
-    if not (re.search(r"\bpip\s+install\b", line) or re.search(r"\bpython3?\s+-m\s+pip\s+install\b", line)):
-        return False
-
-    # Don't replace if installing from requirements file
-    if re.search(r"pip\s+install.*-r\s+[^\s]+\.txt", line):
-        return False
-
-    # Don't replace if upgrading pip itself
-    if re.search(r"pip\s+install.*--upgrade\s+pip\b", line):
-        return False
-
-    # Don't replace if installing with -e flag
-    if re.search(r"pip\s+install\s+-e\s+", line):
-        return False
-
-    # Don't replace if installing current package (pip install .)
-    if re.search(r"pip\s+install\s+\.\s*$", line):
-        return False
-
-    # Don't replace if installing shell variable
-    if re.search(r"\$\{?[\w_]+\}?", line):
-        return False
-
-    # Don't replace if installing local file path
-    if re.search(r"[/.][\w/.-]+\.(whl|tar\.gz|zip)", line):
-        return False
-
-    return True
-
-
-def update_workflow_files(
-    package_sources: Dict[str, List[Tuple[Path, int, str]]], use_composite_action: bool = False
-) -> int:
-    """
-    Update CI workflow files to use locked requirements.
-
-    Note: GitLab CI files (.gitlab/*) are excluded from automatic updates.
-    They use explicit version specifications instead of locked requirements.
-
-    Args:
-        package_sources: Mapping of package specs to their sources
-        use_composite_action: If True, use composite action for GitHub Actions workflows
-
-    Returns the number of files updated.
-    """
-    # Collect files that need updating
-    files_to_update: Dict[Path, List[int]] = {}
-    for sources_list in package_sources.values():
-        for file_path, line_num, _ in sources_list:
-            if file_path not in files_to_update:
-                files_to_update[file_path] = []
-            if line_num not in files_to_update[file_path]:
-                files_to_update[file_path].append(line_num)
-
-    # Sort line numbers in descending order for each file
-    for file_path in files_to_update:
-        files_to_update[file_path].sort(reverse=True)
-
-    updated_count = 0
-
-    for file_path, line_numbers in files_to_update.items():
-        # Skip GitLab CI files - they use explicit versioning instead of locked requirements
-        if str(file_path).startswith(".gitlab/"):
-            print(f"\nSkipping {file_path} (GitLab CI files are excluded from auto-updates)")
-            continue
-
-        print(f"\nUpdating {file_path}...")
-
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                lines = f.readlines()
-
-            # First pass: identify consecutive blocks of pip install commands
-            # Group consecutive line numbers together
-            sorted_lines = sorted(line_numbers)
-            blocks = []
-            current_block = []
-
-            for line_num in sorted_lines:
-                if not current_block or line_num == current_block[-1] + 1:
-                    current_block.append(line_num)
-                else:
-                    if current_block:
-                        blocks.append(current_block)
-                    current_block = [line_num]
-
-            if current_block:
-                blocks.append(current_block)
-
-            # For each block, keep only the first line and mark the rest for deletion
-            lines_to_keep = set()
-            lines_to_delete = set()
-
-            for block in blocks:
-                # Check if lines in this block are actually consecutive pip installs
-                block_is_pip_installs = True
-                for line_num in block:
-                    idx = line_num - 1
-                    if idx < 0 or idx >= len(lines):
-                        block_is_pip_installs = False
-                        break
-                    if not should_replace_pip_install(lines[idx]):
-                        block_is_pip_installs = False
-                        break
-
-                if block_is_pip_installs and len(block) > 1:
-                    # This is a consecutive block of pip installs
-                    lines_to_keep.add(block[0])
-                    for line_num in block[1:]:
-                        lines_to_delete.add(line_num)
-                    print(f"  Block {block[0]}-{block[-1]}: Consolidating {len(block)} pip install commands")
-                else:
-                    # Not a consecutive block or single line
-                    for line_num in block:
-                        lines_to_keep.add(line_num)
-
-            modified = False
-
-            # Second pass: replace the lines we're keeping
-            for line_num in lines_to_keep:
-                idx = line_num - 1
-                if idx < 0 or idx >= len(lines):
-                    continue
-
-                original_line = lines[idx]
-
-                if not should_replace_pip_install(original_line):
-                    continue
-
-                if "ci/requirements/ci.txt" in original_line or "setup-ci-deps" in original_line:
-                    continue
-
-                # Determine indentation
-                match = re.match(r"^(\s*)", original_line)
-                indent = match.group(1) if match else ""
-
-                # Always use direct pip install for automatic updates
-                # The composite action is available for manual workflow optimization
-                if True:
-                    # Determine the appropriate format for direct pip install
-                    if "- run:" in original_line and "pip" in original_line:
-                        new_line = f"{indent}- run: pip install -r ci/requirements/ci.txt\n"
-                    elif re.match(r"^\s*run:\s+pip", original_line):
-                        new_line = f"{indent}run: pip install -r ci/requirements/ci.txt\n"
-                    elif re.match(r"^\s*-\s+(pip|python)", original_line):
-                        new_line = f"{indent}- pip install -r ci/requirements/ci.txt\n"
-                    else:
-                        new_line = f"{indent}pip install -r ci/requirements/ci.txt\n"
-                    print(f"  Line {line_num}: Replaced pip install command")
-
-                lines[idx] = new_line
-                modified = True
-
-            # Third pass: delete the lines marked for deletion
-            for line_num in sorted(lines_to_delete, reverse=True):
-                idx = line_num - 1
-                if 0 <= idx < len(lines):
-                    del lines[idx]
-                    modified = True
-                    print(f"  Line {line_num}: Deleted (part of consolidated block)")
-
-            if modified:
-                # Write updated content
-                with open(file_path, "w", encoding="utf-8") as f:
-                    f.writelines(lines)
-                updated_count += 1
-                print(f"  ✅ Updated {file_path}")
-
-        except Exception as e:
-            print(f"  ❌ Error updating {file_path}: {e}", file=sys.stderr)
-            continue
-
-    return updated_count
-
-
-def parse_arguments() -> argparse.Namespace:
-    """Parse command-line arguments."""
-    parser = argparse.ArgumentParser(
-        description="""
-Extract CI dependencies and generate locked requirements files.
-
-This script scans all CI configuration files (GitHub Actions, GitLab CI) for
-pip install commands, extracts the package names and version specifiers, and
-creates locked requirements files.
-
-Process:
-1. Scan .github/workflows/*.yml and .gitlab/*.yml for pip install commands
-2. Extract package names and version constraints
-3. Create ci/requirements/ci.in with all dependencies
-4. Run pip-compile to generate ci/requirements/ci.txt
-5. Update GitHub Actions workflows to use locked requirements (GitLab files use explicit versions)
-6. Report what was found and what to do next
-        """.strip(),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-
-    parser.add_argument(
-        "--compile",
-        action="store_true",
-        help="Run pip-compile to generate ci.txt (requires pip-tools or uv)",
-    )
-
-    parser.add_argument(
-        "--update-workflows",
-        action="store_true",
-        help="Update GitHub Actions workflow files to use locked requirements (GitLab CI files are excluded)",
-    )
-
-    return parser.parse_args()
-
-
 def main() -> int:
     """Main entry point."""
-    args = parse_arguments()
-    compile_requirements = args.compile
-    update_workflows = args.update_workflows
+    requirements_in = Path("ci/requirements/ci.in")
 
-    print("Scanning CI workflows for pip install commands...")
-    package_sources = scan_ci_files()
-
-    if not package_sources:
-        print("No CI dependencies found!")
+    if not requirements_in.exists():
+        print(f"Error: {requirements_in} not found", file=sys.stderr)
+        print("\nCreate ci/requirements/ci.in with your CI dependencies first.", file=sys.stderr)
+        print("Example:", file=sys.stderr)
+        print("  # ci/requirements/ci.in", file=sys.stderr)
+        print("  pytest>=7.0,<8", file=sys.stderr)
+        print("  ruff>=0.1.0", file=sys.stderr)
         return 1
 
-    print(f"\nFound {len(package_sources)} unique package specifications:")
-    for pkg in sorted(package_sources.keys()):
-        sources = package_sources[pkg]
-        print(f"  {pkg} (used in {len(sources)} place(s))")
+    print(f"Compiling {requirements_in}...\n")
 
-    # Check for conflicts and warnings
-    warnings = detect_conflicts_and_warnings(package_sources)
-    if warnings:
-        print("\n" + "=" * 80)
-        print("WARNINGS:")
-        for warning in warnings:
-            print(warning)
-        print("=" * 80)
+    if not run_pip_compile(requirements_in):
+        print("\n❌ Failed to generate locked requirements")
+        return 1
 
-    print("\nGenerating ci/requirements/ci.in...")
-    content = create_requirements_in(package_sources)
-    requirements_in = write_requirements_in(content)
-    print(f"✅ Created {requirements_in}")
+    requirements_txt = requirements_in.with_suffix(".txt")
+    print(f"\n✅ Successfully generated {requirements_txt}")
+    print("\nNext steps:")
+    print("  1. Review the generated ci/requirements/ci.txt")
+    print("  2. Run scripts/check-ci-dependencies to verify workflows")
+    print("  3. Commit the changes")
 
-    if compile_requirements:
-        if not run_pip_compile(requirements_in):
-            print("\n❌ Failed to generate locked requirements")
-            return 1
-        print(f"\n✅ Successfully generated {requirements_in.with_suffix('.txt')}")
-
-    if update_workflows:
-        if not compile_requirements:
-            print("\n⚠️  Warning: --update-workflows requires --compile to be set first")
-            print("Run with both flags: scripts/update-ci-dependencies --compile --update-workflows")
-            return 1
-
-        print("\nUpdating CI workflow files...")
-
-        updated_count = update_workflow_files(package_sources, use_composite_action=False)
-
-        if updated_count > 0:
-            print(f"\n✅ Successfully updated {updated_count} workflow file(s)")
-            print("\nNext steps:")
-            print("  1. Review the changes: git diff")
-            print("  2. Test the changes in CI")
-            print("  3. Commit the changes")
-        else:
-            print("\n⚠️  No workflow files were updated")
-
-        return 0
-
-    if compile_requirements:
-        print("\nNext steps:")
-        print("  1. Review the generated files in ci/requirements/")
-        print("  2. Update CI workflows:")
-        print("     scripts/update-ci-dependencies --compile --update-workflows")
-        print("  3. Commit the changes")
-        return 0
-    else:
-        print("\nNext steps:")
-        print("  1. Review ci/requirements/ci.in")
-        print("  2. Run with --compile to generate locked ci.txt:")
-        print("     scripts/update-ci-dependencies --compile")
-        print("  3. Update CI workflows:")
-        print("     scripts/update-ci-dependencies --compile --update-workflows")
-        return 0
+    return 0
 
 
 if __name__ == "__main__":

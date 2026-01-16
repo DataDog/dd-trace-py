@@ -4,41 +4,68 @@ Locked CI dependencies ensure reproducible builds and prevent transitive depende
 
 ## Files
 
-- `ci.in` - Source dependencies (auto-generated from CI workflows)
+- `ci.in` - Source dependencies (manually maintained)
 - `ci.txt` - Locked requirements with hashes (auto-generated)
 
-**Do not edit these files manually.** They are generated from `pip install` commands in CI workflows.
+**Edit `ci.in` manually when adding new CI dependencies.** The `ci.txt` file is generated from `ci.in`.
 
 ## GitHub Actions vs GitLab CI
 
-- **GitHub Actions** (`.github/workflows/`): Automatically updated to use `ci/requirements/ci.txt`
+- **GitHub Actions** (`.github/workflows/`): Use locked requirements from `ci/requirements/ci.txt`
 - **GitLab CI** (`.gitlab/`): Uses explicit version specifications (e.g., `pip install 'twine>=5.0,<7'`)
   - GitLab files are checked for version specifications but not auto-updated
   - This allows GitLab CI to have simpler, minimal dependencies without the full locked file
 
-## Quick Start
+## Workflow
 
-### Update dependencies after changing CI workflows
+### Adding a new CI dependency
+
+1. **Add to `ci.in`:**
+   ```bash
+   echo "new-package>=1.0,<2" >> ci/requirements/ci.in
+   ```
+
+2. **Regenerate `ci.txt`:**
+   ```bash
+   scripts/update-ci-dependencies
+   ```
+
+3. **Add to workflow:**
+   ```yaml
+   - name: Install CI dependencies
+     run: pip install -r ci/requirements/ci.txt
+   ```
+
+4. **Verify:**
+   ```bash
+   scripts/check-ci-dependencies
+   ```
+
+### Upgrading dependencies
+
+To upgrade all dependencies to their latest compatible versions:
 
 ```bash
-scripts/update-ci-dependencies --compile --update-workflows
+uv pip compile --generate-hashes --upgrade \
+  --python-platform linux --python-version 3.9 \
+  ci/requirements/ci.in -o ci/requirements/ci.txt
 ```
 
-This scans CI workflows, extracts dependencies, generates locked requirements, and updates workflows.
-
-### Upgrade to latest versions
+Or just run the update script which uses the same flags:
 
 ```bash
-uv pip compile --generate-hashes --upgrade ci/requirements/ci.in -o ci/requirements/ci.txt
+scripts/update-ci-dependencies
 ```
 
 ## Platform-Specific Dependencies (Important!)
 
-**On macOS:** Requirements must be compiled on Linux to include platform-specific dependencies (e.g., `keyring` needs `SecretStorage` on Linux but not macOS).
+**On macOS:** Requirements must be compiled for Linux to include platform-specific dependencies (e.g., `keyring` needs `SecretStorage` on Linux but not macOS).
 
 **Python Version:** Compile for Python 3.9 to ensure compatibility across all CI jobs (the project supports Python 3.9+).
 
-Run this in Docker:
+The `scripts/update-ci-dependencies` script automatically uses the correct platform and Python version flags.
+
+If you need to compile manually in Docker:
 
 ```bash
 docker run --rm -v $(pwd):/work -w /work python:3.9 \
@@ -46,19 +73,24 @@ docker run --rm -v $(pwd):/work -w /work python:3.9 \
   --python-platform linux --python-version 3.9 ci/requirements/ci.in -o ci/requirements/ci.txt'
 ```
 
-Or use uv locally with platform/version flags:
-
-```bash
-uv pip compile --generate-hashes --python-platform linux --python-version 3.9 ci/requirements/ci.in -o ci/requirements/ci.txt
-```
-
 ## CI Validation
 
-The CI pipeline checks that workflows use locked requirements. If it fails:
+The CI pipeline checks that:
+1. All `pip install` commands in workflows use locked requirements or have explicit versions
+2. All packages in workflows are present in `ci.in`
+
+If validation fails:
 
 ```bash
-scripts/update-ci-dependencies --compile --update-workflows
-git add ci/requirements/ .github/ .gitlab/
+# Check what's wrong
+scripts/check-ci-dependencies
+
+# Fix by updating ci.in and regenerating
+vim ci/requirements/ci.in  # Add missing packages
+scripts/update-ci-dependencies
+
+# Commit
+git add ci/requirements/
 git commit -m "chore: update locked CI dependencies"
 ```
 
@@ -82,10 +114,19 @@ pip install 'some-package>=1.0'
 
 ## Troubleshooting
 
-**"CI validation failed" in CI but passes locally?**
-- Platform-specific dependency missing (see section above)
-- Recompile on Linux or with `--python-platform linux`
+**"CI validation failed" - Package not in ci.in?**
+- Add the package to `ci/requirements/ci.in`
+- Run `scripts/update-ci-dependencies`
+
+**"CI validation failed" - No version specified?**
+- Add version constraint: `pip install 'package>=1.0,<2'`
+- Or add exception comment: `# ci-deps: allow`
+
+**Platform-specific dependency missing?**
+- Recompile with `scripts/update-ci-dependencies` (it uses Linux platform flags)
+- Or manually with `--python-platform linux --python-version 3.9`
 
 **Version conflicts?**
-- Standardize package versions across workflows first
-- Then run `scripts/update-ci-dependencies --compile --update-workflows`
+- Check `ci.in` for conflicting version constraints
+- Adjust constraints to be compatible
+- Run `scripts/update-ci-dependencies`
