@@ -14,6 +14,8 @@ from _pytest.runner import runtestprotocol
 import pluggy
 import pytest
 
+from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
+from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
@@ -130,6 +132,64 @@ def _get_relative_module_path_from_item(item: pytest.Item, workspace_path: Path)
     except ValueError:
         # If not within workspace, return as-is (fallback)
         return abs_path
+
+
+def _get_test_location_info(
+    item: pytest.Item, workspace_path: Path
+) -> t.Tuple[t.Optional[str], t.Optional[int], t.Optional[int]]:
+    """
+    Extract test location information (file path, start line, end line) from a pytest item.
+
+    Returns:
+        Tuple of (relative_path, start_line, end_line)
+        - relative_path: path relative to workspace, or None on failure
+        - start_line: starting line number, or None if unavailable
+        - end_line: ending line number, or None if unavailable
+    """
+    try:
+        # Get absolute path from item
+        item_path = Path(item.path if hasattr(item, "path") else getattr(item, "fspath", "unknown")).absolute()
+        relative_path = str(item_path.relative_to(workspace_path))
+
+        # Try to get precise source line information
+        start_line, end_line = _get_source_lines(item, item_path)
+
+        return relative_path, start_line, end_line
+
+    except (ValueError, OSError, Exception):
+        # Fallback to pytest's reportinfo
+        try:
+            path, start_line, _test_name = item.reportinfo()
+            return path, start_line, None
+        except Exception:
+            return None, None, None
+
+
+def _get_source_lines(item: pytest.Item, item_path: Path) -> t.Tuple[t.Optional[int], t.Optional[int]]:
+    """
+    Get start and end line numbers for a test item.
+
+    Returns:
+        Tuple of (start_line, end_line)
+    """
+    if not hasattr(item, "_obj"):
+        # No test object available, fallback to reportinfo
+        try:
+            return item.reportinfo()[1], None
+        except Exception:
+            return None, None
+
+    try:
+        # Get undecorated test object and extract source lines
+        test_method_object = undecorated(item._obj, item.name, item_path)
+        source_lines = get_source_lines_for_test_method(test_method_object)
+        return source_lines  # Returns (start_line, end_line)
+    except Exception:
+        # Fallback to reportinfo
+        try:
+            return item.reportinfo()[1], None
+        except Exception:
+            return None, None
 
 
 class TestPhase:
@@ -253,51 +313,32 @@ class TestOptPlugin:
             pass
 
         def _on_new_test(test: Test) -> None:
-            # Match old plugin logic exactly: use item.path for file, item._obj for test object
-            try:
-                # Get item path like old plugin does
-                item_path = Path(item.path if hasattr(item, "path") else getattr(item, "fspath", "unknown")).absolute()
-                # Convert to relative path
-                relative_path = item_path.relative_to(self.manager.workspace_path)
+            """Initialize test with location, parameters, and custom attributes."""
+            # Get test location information (path and line numbers)
+            relative_path, start_line, end_line = _get_test_location_info(item, self.manager.workspace_path)
 
-                # Get source line info like old plugin
-                start_line = None
-                end_line = None
+            # Set test location
+            if relative_path and start_line is not None:
+                test.set_location(path=relative_path, start_line=start_line)
+            elif relative_path:
+                test.set_location(path=relative_path, start_line=0)
+            else:
+                # Last resort fallback
+                test.set_location(path="unknown", start_line=0)
 
-                if hasattr(item, "_obj"):
-                    # Use same logic as old plugin - get undecorated test object and source lines
-                    from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
-                    from ddtrace.internal.utils.inspection import undecorated
+            # Add end line as a tag if available
+            if end_line:
+                test.tags[TestTag.SOURCE_END] = str(end_line)
 
-                    try:
-                        test_method_object = undecorated(item._obj, item.name, item_path)
-                        source_lines = get_source_lines_for_test_method(test_method_object)
-                        start_line, end_line = source_lines
-                    except Exception:
-                        # Fallback to reportinfo like old plugin
-                        start_line = item.reportinfo()[1]
-                else:
-                    # Fallback to reportinfo like old plugin
-                    start_line = item.reportinfo()[1]
-
-                test.set_location(path=str(relative_path), start_line=start_line or 0)
-
-                # Add end line if available
-                if end_line:
-                    # test.metrics[TestTag.SOURCE_END] = end_line
-                    test.tags[TestTag.SOURCE_END] = str(end_line)
-
-            except (ValueError, OSError, Exception):
-                # Ultimate fallback to original approach
-                path, start_line, _test_name = item.reportinfo()
-                test.set_location(path=path, start_line=start_line or 0)
-
+            # Set test parameters if available
             if parameters := _get_test_parameters_json(item):
                 test.set_parameters(parameters)
 
+            # Mark test as unskippable if needed
             if _is_test_unskippable(item):
                 test.mark_unskippable()
 
+            # Add custom tags if available
             if custom_tags := _get_test_custom_tags(item):
                 test.set_tags(custom_tags)
 
