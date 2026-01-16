@@ -173,7 +173,6 @@ class TestOptPlugin:
         self.extra_failed_reports: t.List[pytest.TestReport] = []
 
     def pytest_sessionstart(self, session: pytest.Session) -> None:
-        log.debug("DEBUG NEW PLUGIN: pytest_sessionstart called - NEW PLUGIN IS ACTIVE!")
         if xdist_worker_input := getattr(session.config, "workerinput", None):
             if session_id := xdist_worker_input.get("dd_session_id"):
                 self.session.set_session_id(session_id)
@@ -230,11 +229,6 @@ class TestOptPlugin:
         self.manager.finish()
 
     def pytest_collection_finish(self, session: pytest.Session) -> None:
-        log.debug("DEBUG NEW PLUGIN: pytest_collection_finish called - collected %d items", len(session.items))
-
-        # Log all test items to see their actual nodeids
-        for i, item in enumerate(session.items):
-            log.debug("  Item %d: nodeid='%s', name='%s'", i, item.nodeid, item.name)
         """
         Discover modules, suites, and tests that have been selected by pytest.
 
@@ -242,14 +236,7 @@ class TestOptPlugin:
         tests that pytest has selection for run (eg: with the use of -k as an argument).
         """
         for item in session.items:
-            log.debug("DEBUG NEW PLUGIN: Creating TestRef for item: nodeid='%s', name='%s'", item.nodeid, item.name)
             test_ref = item_to_test_ref(item)
-            log.debug(
-                "DEBUG NEW PLUGIN: Created TestRef: %s/%s::%s",
-                test_ref.suite.module.name,
-                test_ref.suite.name,
-                test_ref.name,
-            )
             test_module, test_suite, test = self._discover_test(item, test_ref)
 
         self.manager.finish_collection()

@@ -126,53 +126,8 @@ class APIClient:
             return set()
 
         try:
-            # DEBUG: Log the request payload
-            log.debug("=== KNOWN_TESTS API REQUEST ===")
-            log.debug("Request endpoint: /api/v2/ci/libraries/tests")
-            log.debug("Request service: %s", request_data["data"]["attributes"]["service"])
-            log.debug("Request env: %s", request_data["data"]["attributes"]["env"])
-            log.debug("Request repository_url: %s", request_data["data"]["attributes"]["repository_url"])
-            log.debug("Request configurations: %s", request_data["data"]["attributes"]["configurations"])
-
             result = self.connector.post_json("/api/v2/ci/libraries/tests", request_data, telemetry=telemetry)
             result.on_error_raise_exception()
-
-            # DEBUG: Log the response payload
-            log.debug("=== KNOWN_TESTS API RESPONSE ===")
-            log.debug("Response status: success")
-            if result.parsed_response and "data" in result.parsed_response:
-                response_data = result.parsed_response["data"]
-                if "attributes" in response_data and "tests" in response_data["attributes"]:
-                    tests_data = response_data["attributes"]["tests"]
-                    log.debug("Response tests count: %d modules", len(tests_data))
-                    total_tests = sum(len(suites) for suites in tests_data.values() if isinstance(suites, dict))
-                    log.debug("Response total tests: %d tests", total_tests)
-
-                    # Show a sample of the tests for debugging
-                    sample_count = 0
-                    for module, suites in tests_data.items():
-                        if sample_count >= 5:  # Show first 5 tests
-                            break
-                        if isinstance(suites, dict):
-                            for suite, tests in suites.items():
-                                if isinstance(tests, list):
-                                    for test in tests:
-                                        if sample_count < 5:
-                                            log.debug(
-                                                "Sample test %d: %s/%s::%s", sample_count + 1, module, suite, test
-                                            )
-                                            sample_count += 1
-                                        else:
-                                            break
-                                if sample_count >= 5:
-                                    break
-                        if sample_count >= 5:
-                            break
-                else:
-                    log.debug("Response has no tests data")
-            else:
-                log.debug("Response has no data")
-            log.debug("=== END KNOWN_TESTS API RESPONSE ===")
 
         except Exception as e:
             log.exception("Error getting known tests from API: %s", e)

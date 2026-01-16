@@ -424,9 +424,6 @@ venv = Venv(
                 "xmltodict": latest,
                 "django": latest,
             },
-            env={
-                "DD_TRACE_DEBUG": "1",
-            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.14"),

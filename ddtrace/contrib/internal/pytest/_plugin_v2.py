@@ -377,7 +377,6 @@ def _is_pytest_cov_enabled(config) -> bool:
 
 
 def pytest_configure(config: pytest_Config) -> None:
-    log.debug("DEBUG OLD PLUGIN: pytest_configure called - OLD PLUGIN IS ACTIVE!")
     global skip_pytest_runtest_protocol
 
     if os.getenv("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
