@@ -47,7 +47,7 @@ To upgrade all dependencies to their latest compatible versions:
 
 ```bash
 uv pip compile --generate-hashes --upgrade \
-  --python-platform linux --python-version 3.9 \
+  --python-platform linux --python-version 3.11 \
   ci/requirements/ci.in -o ci/requirements/ci.txt
 ```
 
@@ -61,16 +61,16 @@ scripts/update-ci-dependencies
 
 **On macOS:** Requirements must be compiled for Linux to include platform-specific dependencies (e.g., `keyring` needs `SecretStorage` on Linux but not macOS).
 
-**Python Version:** Compile for Python 3.9 to ensure compatibility across all CI jobs (the project supports Python 3.9+).
+**Python Version:** Compile for Python 3.11 to ensure compatibility with CI dependencies like cibuildwheel 3.x (all GitHub Actions workflows using CI dependencies run on Python 3.11+).
 
 The `scripts/update-ci-dependencies` script automatically uses the correct platform and Python version flags.
 
 If you need to compile manually in Docker:
 
 ```bash
-docker run --rm -v $(pwd):/work -w /work python:3.9 \
+docker run --rm -v $(pwd):/work -w /work python:3.11 \
   bash -c 'pip install uv && uv pip compile --generate-hashes \
-  --python-platform linux --python-version 3.9 ci/requirements/ci.in -o ci/requirements/ci.txt'
+  --python-platform linux --python-version 3.11 ci/requirements/ci.in -o ci/requirements/ci.txt'
 ```
 
 ## CI Validation

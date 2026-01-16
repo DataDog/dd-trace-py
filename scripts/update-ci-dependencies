@@ -50,7 +50,7 @@ def run_pip_compile(requirements_in: Path) -> bool:
                 "--python-platform",
                 "linux",
                 "--python-version",
-                "3.9",
+                "3.11",
                 "--output-file",
                 str(requirements_txt),
                 str(requirements_in),

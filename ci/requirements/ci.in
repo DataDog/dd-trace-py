@@ -11,7 +11,7 @@
 
 # GitHub Actions workflows
 PyYAML
-cibuildwheel>=2.20.0,<3
+cibuildwheel>=3.1.0
 codeowners
 ddtrace
 docutils
