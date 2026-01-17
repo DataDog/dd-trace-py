@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    aws_lambda: This fix resolves an issue where user-defined SIGALRM handlers were not restored after TimeoutChannel cleanup, causing custom timeout handlers to stop working after the first Lambda invocation.
