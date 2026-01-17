@@ -938,12 +938,14 @@ def test_wrapping_context_lazy():
 
     (wc := DummyLazyWrappingContext(foo)).wrap()
 
-    assert not DummyLazyWrappingContext.is_wrapped(foo)
+    assert DummyLazyWrappingContext.is_wrapped(foo)
+    assert not _UniversalWrappingContext.is_wrapped(foo)
 
     for _ in range(n := 10):
         assert foo() == free
 
-        assert DummyLazyWrappingContext.is_wrapped(foo)
+        assert not DummyLazyWrappingContext.is_wrapped(foo)
+        assert _UniversalWrappingContext.is_wrapped(foo)
 
     assert wc.count == n
 
@@ -953,7 +955,53 @@ def test_wrapping_context_lazy():
 
     for _ in range(10):
         assert not DummyLazyWrappingContext.is_wrapped(foo)
+        assert not _UniversalWrappingContext.is_wrapped(foo)
 
         assert foo() == free
 
     assert wc.count == 0
+
+
+def test_wrapping_context_lazy_multiple_wrappers():
+    free = 42
+
+    def foo():
+        return free
+
+    class Context1(LazyWrappingContext):
+        def __init__(self, f):
+            super().__init__(f)
+
+            self.count = 0
+
+        def __enter__(self):
+            self.count += 1
+            return super().__enter__()
+
+    class Context2(LazyWrappingContext):
+        def __init__(self, f):
+            super().__init__(f)
+
+            self.count = 0
+
+        def __enter__(self):
+            self.count += 1
+            return super().__enter__()
+
+    (c1 := Context1(foo)).wrap()
+    (c2 := Context2(foo)).wrap()
+
+    for _ in range(n := 10):
+        assert foo() == free
+
+    assert c1.count == c2.count == n
+
+    c1.count = c2.count = 0
+
+    c1.unwrap()
+    c2.unwrap()
+
+    for _ in range(10):
+        assert foo() == free
+
+    assert c1.count == c2.count == 0

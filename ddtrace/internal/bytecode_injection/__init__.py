@@ -10,6 +10,8 @@ from bytecode import Bytecode
 
 from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
+from ddtrace.internal.wrapping import get_function_code
+from ddtrace.internal.wrapping import set_function_code
 
 
 HookType = Callable[[Any], Any]
@@ -172,7 +174,7 @@ def inject_hooks(f: FunctionType, hooks: List[HookInfoType]) -> List[HookInfoTyp
 
     Returns the list of hooks that failed to be injected.
     """
-    abstract_code = Bytecode.from_code(f.__code__)
+    abstract_code = Bytecode.from_code(get_function_code(f))
 
     failed = []
     for hook, line, arg in hooks:
@@ -182,7 +184,7 @@ def inject_hooks(f: FunctionType, hooks: List[HookInfoType]) -> List[HookInfoTyp
             failed.append((hook, line, arg))
 
     if len(failed) < len(hooks):
-        f.__code__ = abstract_code.to_code()
+        set_function_code(f, abstract_code.to_code())
 
     return failed
 
