@@ -3,7 +3,7 @@
         "dependency": "aiobotocore",
         "integration": "aiobotocore",
         "minimum_tracer_supported": "1.0.7",
-        "max_tracer_supported": "2.24.1",
+        "max_tracer_supported": "3.1.0",
         "auto-instrumented": false
     },
     {
@@ -699,7 +699,7 @@
         "minimum_tracer_supported": "0.13.0",
         "max_tracer_supported": "0.13.0",
         "pinned": "true",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "yaaredis",
