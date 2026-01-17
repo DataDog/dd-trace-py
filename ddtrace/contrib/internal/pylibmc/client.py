@@ -71,37 +71,37 @@ class TracedClient(ObjectProxy):
         return traced_client
 
     def add(self, *args, **kwargs):
-        return self._trace_cmd("add", *args, **kwargs)
+        return self.trace_cmd("add", *args, **kwargs)
 
     def get(self, *args, **kwargs):
-        return self._trace_cmd("get", *args, **kwargs)
+        return self.trace_cmd("get", *args, **kwargs)
 
     def set(self, *args, **kwargs):
-        return self._trace_cmd("set", *args, **kwargs)
+        return self.trace_cmd("set", *args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        return self._trace_cmd("delete", *args, **kwargs)
+        return self.trace_cmd("delete", *args, **kwargs)
 
     def gets(self, *args, **kwargs):
-        return self._trace_cmd("gets", *args, **kwargs)
+        return self.trace_cmd("gets", *args, **kwargs)
 
     def touch(self, *args, **kwargs):
-        return self._trace_cmd("touch", *args, **kwargs)
+        return self.trace_cmd("touch", *args, **kwargs)
 
     def cas(self, *args, **kwargs):
-        return self._trace_cmd("cas", *args, **kwargs)
+        return self.trace_cmd("cas", *args, **kwargs)
 
     def incr(self, *args, **kwargs):
-        return self._trace_cmd("incr", *args, **kwargs)
+        return self.trace_cmd("incr", *args, **kwargs)
 
     def decr(self, *args, **kwargs):
-        return self._trace_cmd("decr", *args, **kwargs)
+        return self.trace_cmd("decr", *args, **kwargs)
 
     def append(self, *args, **kwargs):
-        return self._trace_cmd("append", *args, **kwargs)
+        return self.trace_cmd("append", *args, **kwargs)
 
     def prepend(self, *args, **kwargs):
-        return self._trace_cmd("prepend", *args, **kwargs)
+        return self.trace_cmd("prepend", *args, **kwargs)
 
     def get_multi(self, *args, **kwargs):
         return self._trace_multi_cmd("get_multi", *args, **kwargs)
@@ -112,7 +112,7 @@ class TracedClient(ObjectProxy):
     def delete_multi(self, *args, **kwargs):
         return self._trace_multi_cmd("delete_multi", *args, **kwargs)
 
-    def _trace_cmd(self, method_name, *args, **kwargs):
+    def trace_cmd(self, method_name, *args, **kwargs):
         """trace the execution of the method with the given name and will
         patch the first arg.
         """
