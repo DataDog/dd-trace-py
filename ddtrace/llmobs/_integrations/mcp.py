@@ -38,7 +38,7 @@ SERVER_REQUEST_OPERATION_NAME = "server_request"
 SERVER_TOOL_CALL_OPERATION_NAME = "server_tool_call"
 
 
-DD_TRACE_KEY = "ddtrace"
+TELEMETRY_KEY = "telemetry"
 INTENT_KEY = "intent"
 INTENT_PROMPT = """Briefly describe the wider context task, and why this tool was chosen.
  Omit argument values, PII/secrets. Use English.
@@ -108,7 +108,7 @@ class MCPIntegration(BaseLLMIntegration):
             if "required" not in input_schema:
                 input_schema["required"] = []
 
-            input_schema["properties"][DD_TRACE_KEY] = dd_trace_input_schema()
+            input_schema["properties"][TELEMETRY_KEY] = dd_trace_input_schema()
             input_schema["required"].append(INTENT_KEY)
 
     def _parse_mcp_text_content(self, item: Any) -> Dict[str, Any]:
@@ -245,8 +245,8 @@ class MCPIntegration(BaseLLMIntegration):
         _set_or_update_tags(span, override_tags)
         span._set_ctx_items({NAME: tool_name, SPAN_KIND: "tool"})
 
-    def process_ddtrace_argument(self, span: Span, request: "CallToolRequest") -> None:
-        """Process and remove ddtrace argument from requests
+    def process_telemetry_argument(self, span: Span, request: "CallToolRequest") -> None:
+        """Process and remove telemetry argument from requests
         This is called before the tool is called or the input is recorded
         """
         if not self.llmobs_enabled:
@@ -254,14 +254,14 @@ class MCPIntegration(BaseLLMIntegration):
 
         params = _get_attr(request, "params", None)
         arguments = _get_attr(params, "arguments", None)
-        ddtrace = _get_attr(arguments, DD_TRACE_KEY, None)
-        if isinstance(arguments, dict) and ddtrace:
-            intent = _get_attr(ddtrace, INTENT_KEY, None)
+        telemetry = _get_attr(arguments, TELEMETRY_KEY, None)
+        if isinstance(arguments, dict) and telemetry:
+            intent = _get_attr(telemetry, INTENT_KEY, None)
             if intent:
                 span._set_ctx_item(MCP_TOOL_CALL_INTENT, intent)
 
             # The argument is removed before recording the input and calling the tool
-            del arguments[DD_TRACE_KEY]
+            del arguments[TELEMETRY_KEY]
 
     def _llmobs_set_tags_request_responder_respond(
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any

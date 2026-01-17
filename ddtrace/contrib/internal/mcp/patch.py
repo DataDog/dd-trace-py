@@ -243,7 +243,7 @@ def traced_request_responder_enter(mcp, pin: Pin, func, instance, args: tuple, k
     setattr(instance, "_dd_span", span)
 
     if isinstance(request_root, CallToolRequest):
-        integration.process_ddtrace_argument(span, request_root)
+        integration.process_telemetry_argument(span, request_root)
 
     return func(*args, **kwargs)
 
