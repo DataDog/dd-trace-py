@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes an error when attempting to modify an in-progress MCP server span, due to the span being created without a "kind."

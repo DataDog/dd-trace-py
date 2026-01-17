@@ -234,11 +234,15 @@ def traced_request_responder_enter(mcp, pin: Pin, func, instance, args: tuple, k
         SERVER_TOOL_CALL_OPERATION_NAME if isinstance(request_root, CallToolRequest) else SERVER_REQUEST_OPERATION_NAME
     )
 
+    # Span kind must be set upon span creation or else it cannot be updated
+    span_kind = "tool" if isinstance(request_root, CallToolRequest) else "task"
+
     span = integration.trace(
         pin,
         operation_name,
         submit_to_llmobs=True,
         span_name="mcp.{}".format(_get_attr(request_root, "method", "unknown")),
+        kind=span_kind,
     )
     setattr(instance, "_dd_span", span)
 
