@@ -29,6 +29,7 @@ from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
+from ddtrace.llmobs._prompts.prompt import ManagedPrompt
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import _SpanLink
@@ -48,7 +49,13 @@ STANDARD_INTEGRATION_SPAN_NAMES = (
 )
 
 
-def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: bool) -> ValidatedPromptDict:
+def _validate_prompt(
+    prompt: Union[Dict[str, Any], Prompt, ManagedPrompt],
+    strict_validation: bool,
+) -> ValidatedPromptDict:
+    if isinstance(prompt, ManagedPrompt):
+        prompt = prompt.to_annotation_dict()
+
     if not isinstance(prompt, dict):
         raise TypeError(f"Prompt must be a dictionary, received {type(prompt).__name__}.")
 
@@ -56,7 +63,7 @@ def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: b
     prompt_id = prompt.get("id")
     version = prompt.get("version")
     tags = prompt.get("tags")
-    variables = prompt.get("variables")
+    variables: Optional[Dict[str, Any]] = prompt.get("variables") or None
     template = prompt.get("template")
     chat_template = prompt.get("chat_template")
     ctx_variable_keys = prompt.get("rag_context_variables")

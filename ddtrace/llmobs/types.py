@@ -1,6 +1,8 @@
 from typing import Any
+from typing import Callable
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import TypedDict
 from typing import Union
 
@@ -109,3 +111,7 @@ class _SpanLink(TypedDict):
     span_id: str
     trace_id: str
     attributes: Dict[str, str]
+
+
+# Type alias for fallback parameter in get_prompt/from_fallback
+PromptLike = Optional[Union[str, List[Message], Prompt, Callable[[], Union[str, List[Message], Prompt]]]]
