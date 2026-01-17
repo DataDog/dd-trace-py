@@ -61,5 +61,4 @@ def tracer_config(__init__, app, args, kwargs):
         tracer.set_tags(tags)
 
     pin = Pin(service=service)
-    pin._tracer = tracer
     pin.onto(template)

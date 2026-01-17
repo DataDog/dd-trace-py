@@ -14,6 +14,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.trace import tracer
 
 from ..utils import extract_DD_json
 
@@ -148,7 +149,7 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
                     "{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)
                 ),
                 span_type=SpanTypes.HTTP,
-                child_of=child_of if child_of is not None else pin.tracer.context_provider.active(),
+                child_of=child_of if child_of is not None else tracer.context_provider.active(),
                 activate=True,
                 instance=instance,
                 args=args,

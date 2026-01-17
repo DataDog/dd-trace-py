@@ -27,6 +27,7 @@ from ddtrace.llmobs._integrations.mcp import SERVER_TOOL_CALL_OPERATION_NAME
 from ddtrace.llmobs._integrations.mcp import MCPIntegration
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -52,7 +53,7 @@ def _supported_versions() -> Dict[str, str]:
 
 def _set_distributed_headers_into_mcp_request(pin: Pin, request: "ClientRequest") -> "ClientRequest":
     """Inject distributed tracing headers into MCP request metadata."""
-    span = pin.tracer.current_span()
+    span = tracer.current_span()
     if span is None:
         return request
 
@@ -228,7 +229,7 @@ def traced_request_responder_enter(mcp, pin: Pin, func, instance, args: tuple, k
         and config.mcp.distributed_tracing
         and (headers := _extract_distributed_headers_from_mcp_request(request_root))
     ):
-        activate_distributed_headers(pin.tracer, config.mcp, headers)
+        activate_distributed_headers(tracer, config.mcp, headers)
 
     operation_name = (
         SERVER_TOOL_CALL_OPERATION_NAME if isinstance(request_root, CallToolRequest) else SERVER_REQUEST_OPERATION_NAME
