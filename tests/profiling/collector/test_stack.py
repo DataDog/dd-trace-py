@@ -847,7 +847,8 @@ def test_resource_not_collected(tmp_path: Path, tracer: Tracer) -> None:
                 pprof_utils.StackLocation(
                     filename=os.path.basename(__file__),
                     function_name=test_name,
-                    line_no=test_resource_not_collected.__code__.co_firstlineno + 14,
+                    # 18 to fail!
+                    line_no=test_resource_not_collected.__code__.co_firstlineno + 18,
                 )
             ],
         ),
