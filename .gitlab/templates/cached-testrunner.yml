@@ -24,12 +24,12 @@
     deactivate
   cache:
     # Share pip between jobs of the same Python version
-    - key: v5-build_base_venvs-${{PYTHON_VERSION}}-cache-{current_month}
+    - key: v6-build_base_venvs-${{PYTHON_VERSION}}-cache-{current_month}
       paths:
         - .cache
-    - key: v5-build_base_venvs-${{PYTHON_VERSION}}-ext-{current_month}
+    - key: v6-build_base_venvs-${{PYTHON_VERSION}}-ext-{current_month}
       paths:
         - .ext_cache
-    - key: v5-build_base_venvs-${{PYTHON_VERSION}}-download-cache-{current_month}
+    - key: v6-build_base_venvs-${{PYTHON_VERSION}}-download-cache-{current_month}
       paths:
         - .download_cache
