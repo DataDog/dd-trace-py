@@ -210,7 +210,9 @@ class SessionManager:
         if created:
             try:
                 self.collected_tests.add(test_ref)
-                is_new = len(self.known_tests) > 0 and test_ref not in self.known_tests
+
+                is_new = not test.has_parameters() and len(self.known_tests) > 0 and test_ref not in self.known_tests
+
                 test_properties = self.test_properties.get(test_ref) or TestProperties()
                 test.set_attributes(
                     is_new=is_new,

@@ -107,7 +107,7 @@ class APIClient:
         )
 
         try:
-            request_data = {
+            request_data: t.Dict[str, t.Any] = {
                 "data": {
                     "id": str(uuid.uuid4()),
                     "type": "ci_app_libraries_tests_request",
