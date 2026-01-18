@@ -7,7 +7,7 @@ aiokafka,aiokafka,0.9.0,0.12.0,True
 aiomysql,aiomysql,0.1.1,0.2.0,True
 aiopg,aiopg *,0.16.0,1.4.0,True
 algoliasearch,algoliasearch *,2.6.3,2.6.3,True
-anthropic,anthropic,0.28.1,0.74.1,True
+anthropic,anthropic,0.28.1,0.76.0,True
 aredis,aredis,1.1.8,1.1.8,True
 pytest-asyncio,asyncio *,0.21.1,1.2.0,True
 asyncpg,asyncpg,0.23.0,0.30.0,True
@@ -47,7 +47,7 @@ google-adk,google_adk,1.0.0,1.15.1,True
 google-genai,google_genai,1.21.1,1.41.0,True
 graphql-core,graphql,3.1.7,3.2.6,True
 grpcio,grpc,1.34.1,1.75.1,True
-httpx,httpx,0.25.0,0.28.1,True
+httpx,httpx,0.25.2,0.28.1,True
 jinja2,jinja2,2.10.3,3.1.6,True
 confluent-kafka,kafka,1.9.2,2.6.2,True
 kombu,kombu,4.6.11,5.5.4,False
@@ -96,5 +96,5 @@ valkey,valkey,6.0.2,6.1.1,True
 google-cloud-aiplatform,vertexai,1.71.1,1.71.1,True
 vertexai,vertexai,1.71.1,1.71.1,True
 vertica-python,vertica *,0.6.14,0.7.4,True
-vllm,vllm *,0.13.0,0.13.0,False
+vllm,vllm *,0.13.0,0.13.0,True
 yaaredis,yaaredis,2.0.4,3.0.0,True
