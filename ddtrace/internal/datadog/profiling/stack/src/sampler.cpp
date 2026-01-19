@@ -156,10 +156,11 @@ Sampler::sampling_thread(const uint64_t seq_num)
     // The handlers may have been installed during static init, but Python or
     // libraries (faulthandler, Django, FastAPI) can overwrite them afterwards.
     // Re-installing here ensures our handler is active when the sampling thread runs.
-    // Only do this once to avoid overwriting g_old_segv with our own handler.
-    static std::once_flag segv_handler_once;
+    // init_segv_catcher() has internal checks to avoid double-registration.
+    // We call it unconditionally because after fork, the thread-local alt stack
+    // needs to be re-initialized for the new sampling thread.
     if (use_alternative_copy_memory()) {
-        std::call_once(segv_handler_once, init_segv_catcher);
+        init_segv_catcher();
     }
 
     using namespace std::chrono;
