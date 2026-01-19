@@ -61,6 +61,13 @@ EXPECTED_TOOL_DEFINITIONS = [
     ],
 )
 class TestLLMObsAnthropic:
+    def test_content_block_stop_without_content_does_not_crash(self, ddtrace_global_config):
+        """Regression test for beta streaming: content_block_stop can arrive without any content blocks."""
+        from ddtrace.contrib.internal.anthropic._streaming import _on_content_block_stop_chunk
+
+        message = {"content": []}
+        assert _on_content_block_stop_chunk(chunk=None, message=message) == message
+
     @patch("anthropic._base_client.SyncAPIClient.post")
     def test_completion_proxy(
         self,
@@ -68,7 +75,7 @@ class TestLLMObsAnthropic:
         anthropic,
         ddtrace_global_config,
         mock_llmobs_writer,
-        mock_tracer,
+        test_spans,
         request_vcr,
     ):
         llm = anthropic.Anthropic(base_url="http://localhost:4000")
@@ -89,7 +96,7 @@ class TestLLMObsAnthropic:
             temperature=0.8,
             messages=messages,
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_non_llm_span_event(
@@ -120,11 +127,11 @@ class TestLLMObsAnthropic:
             temperature=0.8,
             messages=messages,
         )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
 
-    def test_completion(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
+    def test_completion(self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -146,7 +153,7 @@ class TestLLMObsAnthropic:
                     }
                 ],
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -166,7 +173,7 @@ class TestLLMObsAnthropic:
         )
 
     def test_completion_with_multiple_system_prompts(
-        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr
     ):
         """Ensure llmobs records are emitted for completion endpoints with a list of messages as the system prompt.
 
@@ -195,7 +202,7 @@ class TestLLMObsAnthropic:
                     }
                 ],
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -224,7 +231,7 @@ class TestLLMObsAnthropic:
             )
         )
 
-    def test_error(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
+    def test_error(self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an error.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -248,7 +255,7 @@ class TestLLMObsAnthropic:
                     ],
                 )
 
-                span = mock_tracer.pop_traces()[0][0]
+                span = test_spans.pop_traces()[0][0]
                 assert mock_llmobs_writer.enqueue.call_count == 1
                 mock_llmobs_writer.enqueue.assert_called_with(
                     _expected_llmobs_llm_span_event(
@@ -271,7 +278,7 @@ class TestLLMObsAnthropic:
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
     def test_stream(
-        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr, consume_stream
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr, consume_stream
     ):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
@@ -298,7 +305,7 @@ class TestLLMObsAnthropic:
             )
             consume_stream(stream)
 
-            span = mock_tracer.pop_traces()[0][0]
+            span = test_spans.pop_traces()[0][0]
             assert mock_llmobs_writer.enqueue.call_count == 1
             mock_llmobs_writer.enqueue.assert_called_with(
                 _expected_llmobs_llm_span_event(
@@ -325,7 +332,7 @@ class TestLLMObsAnthropic:
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
     def test_stream_helper(
-        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr, consume_stream
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr, consume_stream
     ):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
@@ -357,7 +364,7 @@ class TestLLMObsAnthropic:
             message = stream.get_final_text()
             assert message is not None
 
-            span = mock_tracer.pop_traces()[0][0]
+            span = test_spans.pop_traces()[0][0]
             assert mock_llmobs_writer.enqueue.call_count == 1
             mock_llmobs_writer.enqueue.assert_called_with(
                 _expected_llmobs_llm_span_event(
@@ -382,7 +389,7 @@ class TestLLMObsAnthropic:
                 )
             )
 
-    def test_image(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
+    def test_image(self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an image input.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -414,7 +421,7 @@ class TestLLMObsAnthropic:
                 ],
             )
 
-            span = mock_tracer.pop_traces()[0][0]
+            span = test_spans.pop_traces()[0][0]
             assert mock_llmobs_writer.enqueue.call_count == 1
             mock_llmobs_writer.enqueue.assert_called_with(
                 _expected_llmobs_llm_span_event(
@@ -438,7 +445,7 @@ class TestLLMObsAnthropic:
             )
 
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
-    def test_tools_sync(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
+    def test_tools_sync(self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -454,7 +461,7 @@ class TestLLMObsAnthropic:
             )
             assert message is not None
 
-        traces = mock_tracer.pop_traces()
+        traces = test_spans.pop_traces()
         span_1 = traces[0][0]
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -504,7 +511,7 @@ class TestLLMObsAnthropic:
                 )
                 assert response is not None
 
-        traces = mock_tracer.pop_traces()
+        traces = test_spans.pop_traces()
         span_2 = traces[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -540,7 +547,7 @@ class TestLLMObsAnthropic:
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
-    async def test_tools_async(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
+    async def test_tools_async(self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -556,7 +563,7 @@ class TestLLMObsAnthropic:
             )
             assert message is not None
 
-        traces = mock_tracer.pop_traces()
+        traces = test_spans.pop_traces()
         span_1 = traces[0][0]
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -606,7 +613,7 @@ class TestLLMObsAnthropic:
                 )
                 assert response is not None
 
-        traces = mock_tracer.pop_traces()
+        traces = test_spans.pop_traces()
         span_2 = traces[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -639,7 +646,7 @@ class TestLLMObsAnthropic:
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
     def test_tools_sync_stream(
-        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr, consume_stream
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr, consume_stream
     ):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
@@ -674,7 +681,7 @@ class TestLLMObsAnthropic:
             },
         ]
 
-        traces = mock_tracer.pop_traces()
+        traces = test_spans.pop_traces()
         span_1 = traces[0][0]
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -728,7 +735,7 @@ class TestLLMObsAnthropic:
             for _ in response:
                 pass
 
-        traces = mock_tracer.pop_traces()
+        traces = test_spans.pop_traces()
         span_2 = traces[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -759,7 +766,7 @@ class TestLLMObsAnthropic:
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
     async def test_tools_async_stream_helper(
-        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr, consume_stream
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr, consume_stream
     ):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
@@ -781,7 +788,7 @@ class TestLLMObsAnthropic:
             raw_message = await stream.get_final_text()
             assert raw_message is not None
 
-        traces = mock_tracer.pop_traces()
+        traces = test_spans.pop_traces()
         span_1 = traces[0][0]
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
@@ -839,7 +846,7 @@ class TestLLMObsAnthropic:
             raw_message = await stream.get_final_text()
             assert raw_message is not None
 
-        traces = mock_tracer.pop_traces()
+        traces = test_spans.pop_traces()
         span_2 = traces[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -867,7 +874,7 @@ class TestLLMObsAnthropic:
         )
 
     def test_completion_prompt_caching(
-        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr
     ):
         llm = anthropic.Anthropic()
         """Test that prompt caching metrics are properly captured for both cache creation and cache read."""
@@ -892,7 +899,7 @@ class TestLLMObsAnthropic:
             )
         with request_vcr.use_cassette("anthropic_completion_cache_read.yaml"):
             llm.messages.create(**inference_args, messages=[{"role": "user", "content": "What is a system"}])
-        spans = mock_tracer.pop_traces()
+        spans = test_spans.pop_traces()
         span1, span2 = spans[0][0], spans[1][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
 
@@ -962,7 +969,7 @@ class TestLLMObsAnthropic:
         )
 
     def test_completion_stream_prompt_caching(
-        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr
     ):
         """Test that prompt caching metrics are properly captured for streamed completions."""
         large_system_prompt = [
@@ -993,7 +1000,7 @@ class TestLLMObsAnthropic:
             for _ in stream2:
                 pass
 
-        spans = mock_tracer.pop_traces()
+        spans = test_spans.pop_traces()
         span1, span2 = spans[0][0], spans[1][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
 
@@ -1063,7 +1070,7 @@ class TestLLMObsAnthropic:
         )
 
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
-    def test_beta_completion(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
+    def test_beta_completion(self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr):
         """Ensure llmobs records are emitted for beta completion endpoints."""
         llm = anthropic.Anthropic()
         with request_vcr.use_cassette("anthropic_completion.yaml"):
@@ -1072,7 +1079,7 @@ class TestLLMObsAnthropic:
                 max_tokens=15,
                 messages=[{"role": "user", "content": "What does Nietzsche mean by 'God is dead'?"}],
             )
-        span = mock_tracer.pop_traces()[0][0]
+        span = test_spans.pop_traces()[0][0]
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,

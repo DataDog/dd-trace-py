@@ -43,6 +43,14 @@ variables:
     paths:
       - "pywheels/*.whl"
       - "pywheels/*.tar.gz"
+      - "debugwheelhouse/*.log"
+
+.upload_wheels_base:
+  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/images/mirror/amazon/aws-cli:2.4.29
+  stage: package
+  variables:
+    BUCKET: dd-trace-py-builds
 
 "build sdist":
   extends: .build_base
@@ -85,14 +93,40 @@ variables:
   tags: [ "macos:sonoma-$ARCH_TAG", "specific:true" ]
   parallel:
     matrix:
-      - ARCH_TAG: "amd64"
-        UV_PYTHON: *PYTHON_VERSIONS
-      - ARCH_TAG: "arm64"
-        UV_PYTHON: *PYTHON_VERSIONS
+      - ARCH_TAG:
+          - "amd64"
+          - "arm64"
+        PYTHON_VERSIONS:
+          - "3.9 3.10"
+          - "3.11 3.12"
+          - "3.13 3.14"
   variables:
     SYSTEM_VERSION_COMPAT: "0"
+  script: |
+    set -euo pipefail
+    for python_version in ${PYTHON_VERSIONS}; do
+      echo -e "\e[0Ksection_start:`date +%s`:build_macos_${python_version}\r\e[0KBuilding macOS wheel for Python ${python_version}"
+
+      export UV_PYTHON="${python_version}"
+      .gitlab/scripts/build-wheel.sh
+
+      echo -e "\e[0Ksection_end:`date +%s`:build_macos_${python_version}\r\e[0K"
+    done
+
+"upload manylinux2014_x86_64":
+  extends: .upload_wheels_base
+  needs:
+    - job: "build linux"
+      artifacts: true
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: *PYTHON_TAGS
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+    - job: "package version"
   script:
-    - .gitlab/scripts/build-wheel.sh
+    - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}" manylinux2014_x86_64
+    - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}" manylinux2014_x86_64
 
 "test sdist":
   image: registry.ddbuild.io/images/mirror/python:3.9.6-alpine3.14
@@ -177,71 +211,20 @@ download_dependency_wheels:
     paths:
       - "pywheels-dep/"
 
-publish-wheels-to-s3:
-  tags: ["arch:amd64"]
-  image: registry.ddbuild.io/images/mirror/amazon/aws-cli:2.4.29
-  stage: package
-  needs:
-    - job: "ddtrace package"
-      artifacts: true
-  variables:
-    BUCKET: dd-trace-py-builds
-  script:
-    - set -euo pipefail
-    - shopt -s nullglob
-    # Find wheels
-    - WHEELS=(pywheels/*.whl)
-    - |
-      if [ ${#WHEELS[@]} -eq 0 ]; then
-        echo "No wheels found in pywheels/"; exit 1
-      fi
-    - echo "Found ${#WHEELS[@]} wheel(s):"
-    - printf ' - %s\n' "${WHEELS[@]}"
+"upload all":
+  extends: .upload_wheels_base
+  needs: [ "ddtrace package", "package version" ]
+  script: |
+    set -euo pipefail
 
-    # Upload all wheels to commit prefix and pipeline-id prefix
-    - aws s3 cp --recursive --exclude "*" --include "*.whl" pywheels "s3://${BUCKET}/${CI_COMMIT_SHA}/"
-    - aws s3 cp --recursive --exclude "*" --include "*.whl" pywheels "s3://${BUCKET}/${CI_PIPELINE_ID}/"
+    # Upload to commit SHA and pipeline ID paths
+    .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}"
+    .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}"
 
-    - |
-      S3_BASE_COMMIT="https://${BUCKET}.s3.amazonaws.com/${CI_COMMIT_SHA}"
-      S3_BASE_PIPE="https://${BUCKET}.s3.amazonaws.com/${CI_PIPELINE_ID}"
-
-      generate_index_html() {
-        local outfile="$1"
-        {
-          echo "<!DOCTYPE html><html lang=\"en\"><body>"
-          for w in "${WHEELS[@]}"; do
-            fname="$(basename "$w")"
-            enc_fname="${fname//+/%2B}"
-            echo "<a href=\"${enc_fname}\">${fname}</a><br>"
-          done
-          echo "</body></html>"
-        } > "${outfile}"
-      }
-
-      # Generate both minimal indexes
-      generate_index_html "index.commit.html"
-      generate_index_html "index.pipeline.html"
-
-      # Upload to each S3 prefix
-      aws s3 cp "index.commit.html" "s3://${BUCKET}/${CI_COMMIT_SHA}/index.html" --content-type text/html
-      aws s3 cp "index.pipeline.html" "s3://${BUCKET}/${CI_PIPELINE_ID}/index.html" --content-type text/html
-
-      # Print the clickable URLs
-      COMMIT_INDEX_URL="${S3_BASE_COMMIT}/index.html"
-      PIPE_INDEX_URL="${S3_BASE_PIPE}/index.html"
-      echo "S3 index (commit):   ${COMMIT_INDEX_URL}"
-      echo "S3 index (pipeline): ${PIPE_INDEX_URL}"
-
-      # Also publish to branch path if on main or a release branch
-      if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]]; then
-        echo "Publishing to ${CI_COMMIT_BRANCH}/ path"
-        aws s3 cp --recursive --exclude "*" --include "*.whl" pywheels "s3://${BUCKET}/${CI_COMMIT_BRANCH}/"
-        generate_index_html "index.branch.html"
-        aws s3 cp "index.branch.html" "s3://${BUCKET}/${CI_COMMIT_BRANCH}/index.html" --content-type text/html
-        BRANCH_INDEX_URL="https://${BUCKET}.s3.amazonaws.com/${CI_COMMIT_BRANCH}/index.html"
-        echo "S3 index (branch):   ${BRANCH_INDEX_URL}"
-      fi
+    # Upload to branch path (only for main/release branches)
+    if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+      .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_BRANCH}"
+    fi
 
 # Extract package version from pyproject.toml and save to dotenv artifact
 "package version":

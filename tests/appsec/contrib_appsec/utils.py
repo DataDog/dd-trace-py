@@ -19,7 +19,6 @@ from ddtrace.internal import constants
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.http import _format_template
 import tests.appsec.rules as rules
-from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -204,7 +203,7 @@ class Contrib_TestClass_For_Threats:
             # substitutions to make a url path from route
             if re.match(r"^\^.*\$$", path):
                 path = path[1:-1]
-            path = re.sub(r"<int:param_int>|\{[a-z_]+:int\}", "123", path)
+            path = re.sub(r"<int:[a-z_]+>|\{[a-z_]+:int\}", "123", path)
             path = re.sub(r"<(str|string):[a-z_]+>|\{[a-z_]+:str\}", "abczx", path)
             if path.endswith("/?"):
                 path = path[:-2]
@@ -1609,6 +1608,8 @@ class Contrib_TestClass_For_Threats:
                     ("urlopen_string", "urlopen"),
                     ("urlopen_request", "urlopen"),
                     ("requests", "request"),
+                    ("httpx", "get"),
+                    ("httpx_async", "get"),
                 ],
                 repeat=2,
             )
@@ -2027,10 +2028,10 @@ class Contrib_TestClass_For_Threats:
             sampling_decision = get_entry_span_tag(constants.SAMPLING_DECISION_TRACE_TAG_KEY)
             assert span_sampling_priority < 2 or sampling_decision != f"-{constants.SamplingMechanism.APPSEC}"
 
-    @pytest.mark.parametrize("endpoint", ["urlopen_request", "urlopen_string"])
+    @pytest.mark.parametrize("endpoint", ["urlopen_request", "urlopen_string", "httpx", "httpx_async"])
     def test_api10(self, endpoint, interface, get_tag):
         """test api10 on downstream request headers on rasp endpoint"""
-        TAG_AGENT: str = "TAG_API10_HEADER"
+        TAG_AGENT: str = "TAG_API10_REQ_HEADERS"
         with override_global_config(
             dict(
                 _asm_enabled=True,
@@ -2048,16 +2049,18 @@ class Contrib_TestClass_For_Threats:
             assert tag == TAG_AGENT, f"[{tag}] is not [{TAG_AGENT}]"
 
     @pytest.mark.parametrize(
-        ("endpoint", "data", "tag"),
+        ("route", "data", "tag"),
         [
-            ("www.datadoghq.com", None, "TAG_API10_HEADER"),
-            ("www.google.com", {"payload": "qw2jedrkjerbgol23ewpfirj2qw3or"}, "TAG_API10_BODY"),
+            ("request-headers", None, "TAG_API10_REQ_HEADERS"),
+            ("request-body", {"payload": "api10-request-body"}, "TAG_API10_REQ_BODY"),
+            ("response-headers", None, "TAG_API10_RESP_HEADERS"),
+            ("response-body", None, "TAG_API10_RESP_BODY"),
+            ("response-status", None, "TAG_API10_RESP_STATUS"),
         ],
     )
-    @pytest.mark.parametrize("integration", ["", "_requests"])
-    def test_api10_addresses(self, integration, endpoint, data, tag, interface, get_tag):
-        """test api10 on downstream request headers and body"""
-        from urllib.parse import quote
+    @pytest.mark.parametrize("integration", ["", "_requests", "_httpx", "_httpx_async"])
+    def test_api10_addresses(self, integration, route, data, tag, interface, api10_http_server_port, get_tag):
+        """test api10 on downstream request/response headers and body"""
 
         with override_global_config(
             dict(
@@ -2069,30 +2072,46 @@ class Contrib_TestClass_For_Threats:
             )
         ):
             self.update_tracer(interface)
-            url = f"/redirect{integration}/{quote(endpoint, safe='')}/"
+            url = f"/redirect{integration}/{route}/{api10_http_server_port}"
             if data:
                 response = interface.client.post(url, data=json.dumps(data), content_type="application/json")
             else:
                 response = interface.client.get(url)
             assert self.status(response) == 200, f"{self.status(response)} is not 200"
             c_tag = get_tag("_dd.appsec.trace.mark")
-            assert c_tag == tag, f"[{c_tag}] is not [{tag}] {response.text[:50]}"
+            assert c_tag == tag, f"[{c_tag}] is not [{tag}] {self.body(response)}"
 
+    @pytest.mark.parametrize("integration", ["", "_requests", "_httpx", "_httpx_async"])
+    def test_api10_addresses_redirects(self, integration, interface, api10_http_server_port, entry_span):
+        INSPECTED_FINAL_RESP_BODY = "apiA-100-004"
+        INSPECTED_REDIRECT_RESP_HEADERS = "apiA-100-006"
+        INSPECTED_REDIRECT_RESP_STATUS = "apiA-100-007"
 
-@contextmanager
-def test_tracer():
-    from ddtrace.internal import core
+        url = f"/redirect{integration}/redirect-source/{api10_http_server_port}"
 
-    tracer = DummyTracer()
-    original_tracer = ddtrace.tracer
-    ddtrace.tracer = tracer
-    core.tracer = tracer
+        with override_global_config(
+            dict(
+                _asm_enabled=True,
+                _api_security_enabled=True,
+                _ep_enabled=True,
+                _asm_static_rule_file=rules.RULES_EXPLOIT_PREVENTION,
+                _dr_sample_rate=1.0,
+            )
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get(url)
+            assert self.status(response) == 200, f"{self.status(response)} is not 200"
+            redirect_response_payload = json.loads(self.body(response)).get("payload")
+            api_response_payload = json.loads(redirect_response_payload).get("payload")
+            assert api_response_payload == "api10-response-body"
 
-    # Yield to our test
-    yield tracer
-    tracer.pop()
-    ddtrace.tracer = original_tracer
-    core.tracer = original_tracer
+            expected_rules = [
+                INSPECTED_FINAL_RESP_BODY,
+                INSPECTED_REDIRECT_RESP_HEADERS,
+                INSPECTED_REDIRECT_RESP_STATUS,
+            ]
+
+            self.check_rules_triggered(sorted(expected_rules), entry_span)
 
 
 @contextmanager

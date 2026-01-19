@@ -1,5 +1,4 @@
 from ddtrace.trace import TraceFilter
-from tests.utils import DummyTracer
 
 from .utils import TornadoTestCase
 
@@ -18,7 +17,6 @@ class TestTornadoSettings(TornadoTestCase):
     """
 
     def get_app(self):
-        self.tracer = DummyTracer()
         super(TestTornadoSettings, self).get_app()
 
     def get_settings(self):

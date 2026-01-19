@@ -2,7 +2,6 @@
 Instrument aiopg to report a span for each executed Postgres queries::
 
     from ddtrace import patch
-    from ddtrace._trace.pin import Pin
     import aiopg
 
     # If not patched yet, you can patch aiopg specifically
@@ -13,6 +12,15 @@ Instrument aiopg to report a span for each executed Postgres queries::
         with (await db.cursor()) as cursor:
             await cursor.execute("SELECT * FROM users WHERE id = 1")
 
-    # Use a pin to specify metadata related to this connection
-    Pin.override(db, service='postgres-users')
+Configuration
+~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.aiopg["service"]
+
+   The service name reported by default for aiopg spans.
+
+   This option can also be set with the ``DD_AIOPG_SERVICE`` environment
+   variable.
+
+   Default: ``"postgres"``
 """

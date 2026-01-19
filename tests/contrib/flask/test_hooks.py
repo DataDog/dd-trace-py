@@ -136,6 +136,8 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         else:
             self.assertEqual(parent.name, "flask.try_trigger_before_first_request_functions")
 
+        self.reset()
+
         # Make a second request to ensure a span isn't created
         req = self.client.get("/")
         self.assertEqual(req.status_code, 200)
@@ -361,6 +363,8 @@ class FlaskHookTestCase(BaseFlaskTestCase):
             self.assertEqual(parent.name, "flask.application")
         else:
             self.assertEqual(parent.name, "flask.try_trigger_before_first_request_functions")
+
+        self.reset()
 
         # Make a second request to ensure a span isn't created
         req = self.client.get("/")

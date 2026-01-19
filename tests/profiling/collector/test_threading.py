@@ -3,6 +3,7 @@ from __future__ import annotations
 import _thread
 import glob
 import os
+import pickle
 import sys
 import threading
 import time
@@ -24,6 +25,7 @@ from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
 from ddtrace.profiling.collector._lock import _ProfiledLock
 from ddtrace.profiling.collector.threading import ThreadingBoundedSemaphoreCollector
+from ddtrace.profiling.collector.threading import ThreadingConditionCollector
 from ddtrace.profiling.collector.threading import ThreadingLockCollector
 from ddtrace.profiling.collector.threading import ThreadingRLockCollector
 from ddtrace.profiling.collector.threading import ThreadingSemaphoreCollector
@@ -39,12 +41,19 @@ PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
 
 # threading.Lock and threading.RLock are factory functions that return _thread types.
 # We reference the underlying _thread types directly to avoid creating instances at import time.
-LockTypeInst = Union[_thread.LockType, _thread.RLock, threading.Semaphore, threading.BoundedSemaphore]
+# threading.Semaphore, threading.BoundedSemaphore, and threading.Condition are Python classes, not factory functions.
+LockTypeInst = Union[
+    _thread.LockType, _thread.RLock, threading.Semaphore, threading.BoundedSemaphore, threading.Condition
+]
 LockTypeClass = Type[LockTypeInst]
 
 # Type alias for collector instances
 CollectorTypeInst = Union[
-    ThreadingLockCollector, ThreadingRLockCollector, ThreadingSemaphoreCollector, ThreadingBoundedSemaphoreCollector
+    ThreadingLockCollector,
+    ThreadingRLockCollector,
+    ThreadingSemaphoreCollector,
+    ThreadingBoundedSemaphoreCollector,
+    ThreadingConditionCollector,
 ]
 CollectorTypeClass = Type[CollectorTypeInst]
 
@@ -97,6 +106,10 @@ class Bar:
         (
             ThreadingBoundedSemaphoreCollector,
             "ThreadingBoundedSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+        ),
+        (
+            ThreadingConditionCollector,
+            "ThreadingConditionCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
         ),
     ],
 )
@@ -562,6 +575,23 @@ class BaseThreadingLockCollectorTest:
 
             # Try this way too
             Foobar(self.lock_class)
+
+    def _assert_pickle_roundtrip(self, obj: object, wrapped_type: type) -> Union[LockTypeClass, LockTypeInst]:
+        """Helper to verify an object can be pickled and unwraps correctly."""
+        assert isinstance(obj, wrapped_type)
+        unpickled = pickle.loads(pickle.dumps(obj))
+        assert not isinstance(unpickled, wrapped_type)
+        return unpickled
+
+    def test_lock_class_pickle(self) -> None:
+        """Test that the wrapped lock class can be pickled (Python 3.14+ forkserver compat)."""
+        with self.collector_class(capture_pct=100):
+            self._assert_pickle_roundtrip(self.lock_class, LockAllocatorWrapper)
+
+    def test_lock_instance_pickle(self) -> None:
+        """Test that profiled lock instances can be pickled (Python 3.14+ forkserver compat)."""
+        with self.collector_class(capture_pct=100):
+            self._assert_pickle_roundtrip(self.lock_class(), _ProfiledLock)
 
     def test_lock_events(self) -> None:
         # The first argument is the recorder.Recorder which is used for the
@@ -1635,3 +1665,15 @@ class TestThreadingBoundedSemaphoreCollector(BaseSemaphoreTest):
             # This proves our profiling wrapper doesn't break BoundedSemaphore's behavior
             with pytest.raises(ValueError, match="Semaphore released too many times"):
                 sem.release()
+
+
+class TestThreadingConditionCollector(BaseThreadingLockCollectorTest):
+    """Test threading.Condition profiling."""
+
+    @property
+    def collector_class(self) -> Type[ThreadingConditionCollector]:
+        return ThreadingConditionCollector
+
+    @property
+    def lock_class(self) -> Type[threading.Condition]:
+        return threading.Condition

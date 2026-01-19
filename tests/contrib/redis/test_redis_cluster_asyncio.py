@@ -7,7 +7,6 @@ from ddtrace.contrib.internal.redis.patch import patch
 from ddtrace.contrib.internal.redis.patch import unpatch
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.contrib.config import REDISCLUSTER_CONFIG
-from tests.utils import DummyTracer
 from tests.utils import assert_is_measured
 
 
@@ -45,11 +44,19 @@ async def test_basics(traced_redis_cluster):
     assert us is None
 
     traces = test_spans.pop_traces()
-    assert len(traces) == 1
-    spans = traces[0]
-    assert len(spans) == 1
-
-    span = spans[0]
+    # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+    all_spans = [span for trace in traces for span in trace]
+    # Find the GET span
+    get_spans = [
+        s
+        for s in all_spans
+        if s.get_tag("component") == "redis" and s.resource == "GET" and s.get_tag("redis.raw_command") == "GET cheese"
+    ]
+    assert len(get_spans) == 1, (
+        f"Expected exactly 1 GET cheese span, got {len(get_spans)}. "
+        f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+    )
+    span = get_spans[0]
     assert_is_measured(span)
     assert span.service == "redis"
     assert span.name == "redis.command"
@@ -70,11 +77,19 @@ async def test_unicode(traced_redis_cluster):
     assert us is None
 
     traces = test_spans.pop_traces()
-    assert len(traces) == 1
-    spans = traces[0]
-    assert len(spans) == 1
-
-    span = spans[0]
+    # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+    all_spans = [span for trace in traces for span in trace]
+    # Find the GET span
+    get_spans = [
+        s
+        for s in all_spans
+        if s.get_tag("component") == "redis" and s.resource == "GET" and s.get_tag("redis.raw_command") == "GET 😐"
+    ]
+    assert len(get_spans) == 1, (
+        f"Expected exactly 1 GET 😐 span, got {len(get_spans)}. "
+        f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+    )
+    span = get_spans[0]
     assert_is_measured(span)
     assert span.service == "redis"
     assert span.name == "redis.command"
@@ -101,11 +116,15 @@ async def test_pipeline(traced_redis_cluster):
         await p.execute()
 
     traces = test_spans.pop_traces()
-    assert len(traces) == 1
-    spans = traces[0]
-    assert len(spans) == 1
-
-    span = spans[0]
+    # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+    all_spans = [span for trace in traces for span in trace]
+    # Find the pipeline span
+    pipeline_spans = [s for s in all_spans if s.get_tag("component") == "redis" and s.resource == "SET\nRPUSH\nHGETALL"]
+    assert len(pipeline_spans) == 1, (
+        f"Expected exactly 1 pipeline span, got {len(pipeline_spans)}. "
+        f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+    )
+    span = pipeline_spans[0]
     assert_is_measured(span)
     assert span.service == "redis"
     assert span.name == "redis.command"
@@ -146,8 +165,15 @@ async def test_pipeline_command_stack_parity_when_visible(traced_redis_cluster):
         await p.execute()
 
     traces = test_spans.pop_traces()
-    spans = traces[0]
-    span = spans[0]
+    # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+    all_spans = [span for trace in traces for span in trace]
+    # Find the pipeline span
+    pipeline_spans = [s for s in all_spans if s.get_tag("component") == "redis" and s.resource == "SET\nGET"]
+    assert len(pipeline_spans) == 1, (
+        f"Expected exactly 1 pipeline span, got {len(pipeline_spans)}. "
+        f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+    )
+    span = pipeline_spans[0]
     assert span.resource == "SET\nGET"
     assert span.get_metric("redis.pipeline_length") == 2
     if queued is not None:
@@ -156,9 +182,7 @@ async def test_pipeline_command_stack_parity_when_visible(traced_redis_cluster):
 
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
 @pytest.mark.asyncio
-async def test_patch_unpatch(redis_cluster):
-    tracer = DummyTracer()
-
+async def test_patch_unpatch(tracer, test_spans, redis_cluster):
     # Test patch idempotence
     patch()
     patch()
@@ -167,7 +191,7 @@ async def test_patch_unpatch(redis_cluster):
     Pin._override(r, tracer=tracer)
     await r.get("key")
 
-    spans = tracer.pop()
+    spans = test_spans.pop()
     assert spans, spans
     assert len(spans) == 1
 
@@ -177,7 +201,7 @@ async def test_patch_unpatch(redis_cluster):
     r = redis_cluster
     await r.get("key")
 
-    spans = tracer.pop()
+    spans = test_spans.pop()
     assert not spans, spans
 
     # Test patch again
@@ -187,7 +211,7 @@ async def test_patch_unpatch(redis_cluster):
     Pin._override(r, tracer=tracer)
     await r.get("key")
 
-    spans = tracer.pop()
+    spans = test_spans.pop()
     assert spans, spans
     assert len(spans) == 1
     unpatch()
@@ -207,18 +231,19 @@ def test_default_service_name_v1():
     from ddtrace.contrib.internal.redis.patch import patch
     from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
     from tests.contrib.config import REDISCLUSTER_CONFIG
-    from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
     patch()
 
     async def test():
+        tracer_scope = scoped_tracer()
+        tracer = tracer_scope.__enter__()
         startup_nodes = [
             redis.asyncio.cluster.ClusterNode(REDISCLUSTER_CONFIG["host"], int(port))
             for port in REDISCLUSTER_CONFIG["ports"].split(",")
         ]
         r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
         Pin.get_from(r)._clone(tracer=tracer).onto(r)
@@ -231,6 +256,7 @@ def test_default_service_name_v1():
         assert len(spans) == 1
         span = spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
+        tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())
 
@@ -253,12 +279,14 @@ def test_user_specified_service_v0():
     from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.redis.patch import patch
     from tests.contrib.config import REDISCLUSTER_CONFIG
-    from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
     patch()
 
     async def test():
+        tracer_scope = scoped_tracer()
+        tracer = tracer_scope.__enter__()
         # # Ensure that the service name was configured
         assert config.service == "mysvc"
 
@@ -267,7 +295,6 @@ def test_user_specified_service_v0():
             for port in REDISCLUSTER_CONFIG["ports"].split(",")
         ]
         r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
         Pin.get_from(r)._clone(tracer=tracer).onto(r)
@@ -280,6 +307,7 @@ def test_user_specified_service_v0():
         assert len(spans) == 1
         span = spans[0]
         assert span.service != "mysvc"
+        tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())
 
@@ -302,12 +330,14 @@ def test_user_specified_service_v1():
     from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.redis.patch import patch
     from tests.contrib.config import REDISCLUSTER_CONFIG
-    from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
     patch()
 
     async def test():
+        tracer_scope = scoped_tracer()
+        tracer = tracer_scope.__enter__()
         # # Ensure that the service name was configured
         assert config.service == "mysvc"
 
@@ -316,7 +346,6 @@ def test_user_specified_service_v1():
             for port in REDISCLUSTER_CONFIG["ports"].split(",")
         ]
         r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
         Pin.get_from(r)._clone(tracer=tracer).onto(r)
@@ -329,6 +358,7 @@ def test_user_specified_service_v1():
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "mysvc"
+        tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())
 
@@ -346,18 +376,19 @@ def test_env_user_specified_rediscluster_service_v0():
     from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.redis.patch import patch
     from tests.contrib.config import REDISCLUSTER_CONFIG
-    from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
     patch()
 
     async def test():
+        tracer_scope = scoped_tracer()
+        tracer = tracer_scope.__enter__()
         startup_nodes = [
             redis.asyncio.cluster.ClusterNode(REDISCLUSTER_CONFIG["host"], int(port))
             for port in REDISCLUSTER_CONFIG["ports"].split(",")
         ]
         r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
         Pin.get_from(r)._clone(tracer=tracer).onto(r)
@@ -370,6 +401,7 @@ def test_env_user_specified_rediscluster_service_v0():
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "myrediscluster"
+        tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())
 
@@ -387,18 +419,19 @@ def test_env_user_specified_rediscluster_service_v1():
     from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.redis.patch import patch
     from tests.contrib.config import REDISCLUSTER_CONFIG
-    from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
     patch()
 
     async def test():
+        tracer_scope = scoped_tracer()
+        tracer = tracer_scope.__enter__()
         startup_nodes = [
             redis.asyncio.cluster.ClusterNode(REDISCLUSTER_CONFIG["host"], int(port))
             for port in REDISCLUSTER_CONFIG["ports"].split(",")
         ]
         r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
         Pin.get_from(r)._clone(tracer=tracer).onto(r)
@@ -411,6 +444,7 @@ def test_env_user_specified_rediscluster_service_v1():
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "myrediscluster"
+        tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())
 
@@ -433,12 +467,14 @@ def test_service_precedence_v0():
     from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.redis.patch import patch
     from tests.contrib.config import REDISCLUSTER_CONFIG
-    from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
     patch()
 
     async def test():
+        tracer_scope = scoped_tracer()
+        tracer = tracer_scope.__enter__()
         # # Ensure that the service name was configured
         assert config.service == "mysvc"
 
@@ -447,7 +483,6 @@ def test_service_precedence_v0():
             for port in REDISCLUSTER_CONFIG["ports"].split(",")
         ]
         r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
         Pin.get_from(r)._clone(tracer=tracer).onto(r)
@@ -460,6 +495,7 @@ def test_service_precedence_v0():
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "myrediscluster"
+        tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())
 
@@ -478,12 +514,14 @@ def test_service_precedence_v1():
     from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.redis.patch import patch
     from tests.contrib.config import REDISCLUSTER_CONFIG
-    from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
     patch()
 
     async def test():
+        tracer_scope = scoped_tracer()
+        tracer = tracer_scope.__enter__()
         # # Ensure that the service name was configured
         assert config.service == "mysvc"
 
@@ -492,7 +530,6 @@ def test_service_precedence_v1():
             for port in REDISCLUSTER_CONFIG["ports"].split(",")
         ]
         r = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
         Pin.get_from(r)._clone(tracer=tracer).onto(r)
@@ -505,5 +542,6 @@ def test_service_precedence_v1():
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "myrediscluster"
+        tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())
