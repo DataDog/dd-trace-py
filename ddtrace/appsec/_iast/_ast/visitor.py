@@ -21,8 +21,6 @@ from ..constants import DEFAULT_SSRF_FUNCTIONS
 from ..constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
 
 
-PY39_PLUS = sys.version_info >= (3, 9, 0)
-
 _PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
 CODE_TYPE_FIRST_PARTY = "first_party"
 CODE_TYPE_DD = "datadog"
@@ -758,21 +756,58 @@ class AstVisitor(ast.NodeTransformer):
         """
         Replace the TemplateStr AST node (PEP-750 template strings) with a Call to the replacement function.
         Template strings contain Interpolation nodes and Constant nodes.
-        We need to unwrap Interpolation nodes to their value expressions.
+        We pass enough information to reconstruct the Template object with correct metadata.
         """
+        # IMPORTANT: Extract original expression texts BEFORE transforming the AST
+        # Store them as attributes on the nodes so we can access them after transformation
+        for node in templatestr_node.values:
+            if hasattr(node, "value") and not isinstance(node, ast.Constant):
+                # This is an Interpolation node - save the original expression text
+                node._original_expr_text = ast.unparse(node.value)
+
+        # Now transform the AST (this will wrap expressions with aspect calls)
         self.generic_visit(templatestr_node)
 
-        # Extract values from Interpolation nodes and keep Constant nodes as-is
-        # Interpolation nodes have a 'value' attribute containing the expression
-        # Constant nodes can be used directly
+        # Build args for the aspect call:
+        # - String constants: passed as-is (ast.Constant nodes)
+        # - Interpolations: pass as ast.Tuple with (value_expr, expr_text, conversion, format_spec)
         args = []
         for node in templatestr_node.values:
-            # Check if this is an Interpolation node (has 'value' attribute)
             if hasattr(node, "value") and not isinstance(node, ast.Constant):
-                # This is an Interpolation node - extract its value expression
-                args.append(node.value)
+                # This is an Interpolation node
+                # Use the original expression text we saved earlier
+                expr_text = getattr(node, "_original_expr_text", ast.unparse(node.value))
+
+                # Get conversion: -1 means no conversion, otherwise 's', 'r', or 'a'
+                conversion_value = getattr(node, "conversion", -1)
+                if conversion_value == -1:
+                    conversion_node = ast.Constant(value=None)
+                else:
+                    # Convert integer to character: 115='s', 114='r', 97='a'
+                    conversion_char = chr(conversion_value) if isinstance(conversion_value, int) else conversion_value
+                    conversion_node = ast.Constant(value=conversion_char)
+
+                # Get format_spec
+                format_spec_node = getattr(node, "format_spec", None)
+                if format_spec_node is None:
+                    format_spec_ast = ast.Constant(value="")
+                else:
+                    # format_spec could be an expression, we'll evaluate it at runtime
+                    format_spec_ast = format_spec_node
+
+                # Create a tuple: (value_expr, expr_text, conversion, format_spec)
+                interp_tuple = ast.Tuple(
+                    elts=[
+                        node.value,  # The expression to evaluate
+                        ast.Constant(value=expr_text),  # Expression text
+                        conversion_node,  # Conversion
+                        format_spec_ast,  # Format spec
+                    ],
+                    ctx=ast.Load(),
+                )
+                args.append(interp_tuple)
             else:
-                # This is a Constant node - use it directly
+                # This is a Constant node (string part)
                 args.append(node)
 
         func_name_node = self._attr_node(
@@ -906,17 +941,15 @@ class AstVisitor(ast.NodeTransformer):
             step = none_node if subscr_node.slice.step is None else subscr_node.slice.step
             call_node.args.extend([subscr_node.value, lower, upper, step])
             self.ast_modified = True
-        elif PY39_PLUS:
+        else:
+            # Index case: subscr_node.slice is directly an unwrapped value
+            # (e.g. Constant for a number, Name for a var, etc)
             if self._is_string_node(subscr_node.slice):
                 return subscr_node
-            # In Py39+ the if subscr_node.slice member is not a Slice, is directly an unwrapped value
-            # for the index (e.g. Constant for a number, Name for a var, etc)
             aspect_split = self._aspect_index.split(".")
             call_node.func.attr = aspect_split[1]
             call_node.func.value.id = aspect_split[0]
             call_node.args.extend([subscr_node.value, subscr_node.slice])
-        else:
-            return subscr_node
+            self.ast_modified = True
 
-        self.ast_modified = True
         return call_node

@@ -4,6 +4,7 @@ from _io import BytesIO
 from _io import StringIO
 import os
 from re import Match
+import sys
 from typing import Any
 from typing import Iterator
 from typing import Literal  # noqa:F401
@@ -13,6 +14,13 @@ from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
+
+
+# Python 3.14+ template strings support
+if sys.version_info >= (3, 14):
+    from string.templatelib import Template as TemplateType
+else:
+    TemplateType = type(None)  # Placeholder for older Python versions
 
 
 class Constant_Class(type):
@@ -180,7 +188,7 @@ class IAST(metaclass=Constant_Class):
     )
 
     TEXT_TYPES = (str, bytes, bytearray)
-    TAINTEABLE_TYPES = (str, bytes, bytearray, Match, BytesIO, StringIO)
+    TAINTEABLE_TYPES = (str, bytes, bytearray, Match, BytesIO, StringIO, TemplateType)
     REQUEST_CONTEXT_KEY: Literal["_iast_env"] = "_iast_env"
 
 

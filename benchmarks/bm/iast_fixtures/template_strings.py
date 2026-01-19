@@ -4,19 +4,19 @@
 from typing import Any
 
 
-def do_template_simple(a: str) -> str:
+def do_template_simple(tainted_input: str) -> str:
     """Simple template string with one interpolation."""
-    return t"{a}"
+    return t"{tainted_input}"
 
 
-def do_template_with_text(a: str) -> str:
+def do_template_with_text(tainted_input: str) -> str:
     """Template string with text and interpolation."""
-    return t"Hello {a}"
+    return t"Hello {tainted_input}"
 
 
-def do_template_multiple_args(a: str, b: str) -> str:
+def do_template_multiple_args(tainted_a: str, tainted_b: str) -> str:
     """Template string with multiple interpolations."""
-    return t"{a} and {b}"
+    return t"{tainted_a} and {tainted_b}"
 
 
 def do_template_operations(a: int, b: int) -> str:
@@ -29,9 +29,9 @@ def do_template_with_format_spec(a: int, spec: str = "05d") -> str:
     return t"{a:{spec}}"
 
 
-def do_template_repr(a: Any) -> str:
+def do_template_repr(tainted_input: Any) -> str:
     """Template string with repr conversion."""
-    return t"{a!r}"
+    return t"{tainted_input!r}"
 
 
 def do_template_repr_twice(a: Any) -> str:
@@ -44,9 +44,9 @@ def do_template_repr_twice_different(a: Any, b: Any) -> str:
     return t"{a!r} {b!r}"
 
 
-def do_template_str_conversion(a: Any) -> str:
+def do_template_str_conversion(tainted_input: Any) -> str:
     """Template string with str conversion."""
-    return t"{a!s}"
+    return t"{tainted_input!s}"
 
 
 def do_template_ascii_conversion(a: Any) -> str:
@@ -59,9 +59,9 @@ def do_template_with_format(a: Any) -> str:
     return t"{a:10}"
 
 
-def do_template_complex(prefix: str, name: str, value: int) -> str:
+def do_template_complex(tainted_prefix: str, tainted_name: str, tainted_value: int) -> str:
     """Complex template string with multiple parts."""
-    return t"{prefix}: {name} = {value}"
+    return t"{tainted_prefix}: {tainted_name} = {tainted_value}"
 
 
 def do_template_nested_expr() -> str:
@@ -88,3 +88,8 @@ def do_template_multiline(a: str, b: str) -> str:
     """Template string spanning multiple lines."""
     return t"""First: {a}
 Second: {b}"""
+
+
+def do_template_with_exception() -> str:
+    """Template string with Exception object created inline."""
+    return t"template {Exception('Testst')}"

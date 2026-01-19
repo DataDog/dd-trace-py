@@ -19,6 +19,7 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._logs import iast_propagation_debug_log
 from ddtrace.appsec._iast._logs import iast_propagation_error_log
 from ddtrace.appsec._iast._taint_tracking import TagMappingMode
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -237,68 +238,104 @@ def build_string_aspect(*args: List[Any]) -> TEXT_TYPES:
     return join_aspect("".join, 1, "", args)
 
 
-def template_string_aspect(*args: List[Any]) -> TEXT_TYPES:
+def template_string_aspect(*args: List[Any]) -> Any:
     """
     Aspect for PEP-750 template strings (t-strings).
 
-    Template strings evaluate to a Template object at runtime, but for IAST purposes,
-    we need to track taint through the string construction process. This aspect
-    handles taint propagation from template values.
+    Template strings evaluate to a Template object at runtime. This aspect
+    reconstructs the Template object from the AST-provided arguments and handles
+    taint propagation.
 
-    The args are already evaluated values (not AST nodes) - they come from the
-    unwrapped Interpolation.value expressions and Constant.value values.
+    The visitor passes:
+    - String constants: as regular strings
+    - Interpolations: as tuples of (value, expr_text, conversion, format_spec)
 
-    If any of the values are tainted, the entire resulting string is tainted.
+    For example, t"Hello {name}" becomes:
+        template_string_aspect("Hello ", (name_value, "name", None, ""))
+
+    If any interpolated value is tainted, the entire Template object is tainted.
+
+    Returns: Template object (from string.templatelib)
     """
     try:
-        # args are already evaluated values (strings, numbers, etc.)
-        # Check if any of the values are tainted
-        has_tainted = any(is_pyobject_tainted(val) for val in args if val is not None)
+        # Import Template and Interpolation from string.templatelib (Python 3.14+)
+        from string.templatelib import Interpolation
+        from string.templatelib import Template
 
-        # Convert all values to strings, preserving taint information
-        # This is necessary because join_aspect expects string values
-        string_args = []
-        for val in args:
-            if val is None:
-                string_args.append("None")
-            elif isinstance(val, IAST.TEXT_TYPES):
-                # Already a string, use as-is
-                string_args.append(val)
-            else:
-                # Convert to string using str_aspect to preserve taint if present
-                str_val = str_aspect(str, 0, val)
-                string_args.append(str_val)
+        template_parts = []
+        taint_info = []  # Track (offset, ranges) for tainted values
 
-        # Build the result string by joining all string values
-        # Similar to build_string_aspect, we use join_aspect to handle the actual string construction
-        result = join_aspect("".join, 1, "", string_args)
+        # Process args to build Template parts and track taint
+        current_offset = 0
+        for arg in args:
+            if isinstance(arg, tuple) and len(arg) == 4:
+                # This is an interpolation: (value, expr_text, conversion, format_spec)
+                value, expr_text, conversion, format_spec = arg
 
-        # If any value was tainted, ensure the result is tainted
-        if has_tainted:
-            # Collect all taint ranges from all tainted values
-            all_ranges = []
-            offset = 0
-            for val in string_args:
-                if val is not None and is_pyobject_tainted(val):
-                    ranges = get_ranges(val)
+                # Handle format_spec - could be a value or need str conversion
+                if format_spec is None:
+                    format_spec_str = ""
+                elif isinstance(format_spec, str):
+                    format_spec_str = format_spec
+                else:
+                    format_spec_str = str_aspect(str, 0, format_spec)
+
+                # Check and store taint info BEFORE creating Interpolation
+                if is_pyobject_tainted(value):
+                    ranges = get_ranges(value)
                     if ranges:
-                        # Shift ranges by the current offset
-                        for r in ranges:
-                            shifted_range = shift_taint_range(r, offset)
-                            all_ranges.append(shifted_range)
-                # Update offset for next value (all are strings now)
-                if val is not None:
-                    offset += len(val)
+                        taint_info.append((current_offset, ranges))
+
+                # Create an Interpolation object with proper metadata
+                interp = Interpolation(
+                    value=value,
+                    expression=expr_text,
+                    conversion=conversion,
+                    format_spec=format_spec_str,
+                )
+                template_parts.append(interp)
+                current_offset += len(str(value))
+            else:
+                # This is a string constant
+                if isinstance(arg, str):
+                    string_part = arg
+                elif arg is not None:
+                    string_part = str(arg)
+                else:
+                    string_part = ""
+
+                # Check if string constant itself is tainted
+                if is_pyobject_tainted(string_part):
+                    ranges = get_ranges(string_part)
+                    if ranges:
+                        taint_info.append((current_offset, ranges))
+
+                template_parts.append(string_part)
+                current_offset += len(string_part)
+
+        # Ensure we have at least one part
+        if len(template_parts) == 0:
+            template_parts.append("")
+
+        # Create the Template object
+        template = Template(*template_parts)
+
+        # Apply taint if any values were tainted
+        if taint_info:
+            all_ranges = []
+            for offset, ranges in taint_info:
+                for r in ranges:
+                    shifted_range = shift_taint_range(r, offset)
+                    all_ranges.append(shifted_range)
 
             if all_ranges:
-                taint_pyobject_with_ranges(result, tuple(all_ranges))
+                taint_pyobject_with_ranges(template, tuple(all_ranges))
 
-        return result
+        return template
     except Exception as e:
         iast_propagation_error_log("template_string_aspect", e)
-        # Fallback: just join the args as strings
-        return "".join(str(arg) for arg in args)
 
+    return Template(*args)
 
 def ljust_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:
     if not orig_function:
