@@ -240,7 +240,7 @@ class TestFinalStatusFeatures:
         assert test_run.tags[TestTag.FINAL_STATUS] == TestStatus.PASS.value
 
     def test_final_status_set_for_retry_scenario(self) -> None:
-        """Test that final status is set only on the last retry."""
+        """Test that final status is set only on the last retry, not on any intermediate retries."""
         from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 
         # Create test references using TestDataFactory
@@ -251,7 +251,7 @@ class TestFinalStatusFeatures:
         mock_manager.is_auto_injected = False
         retry_handler = Mock(spec=AutoTestRetriesHandler)
         retry_handler.should_apply.return_value = True
-        retry_handler.should_retry.side_effect = [True, False]  # Retry once, then stop
+        retry_handler.should_retry.side_effect = [True, True, True, False]  # Retry 3 times, then stop
         retry_handler.get_final_status.return_value = TestStatus.PASS
         retry_handler.get_pretty_name.return_value = "Auto Test Retries"
         retry_handler.set_tags_for_test_run = Mock()
@@ -277,7 +277,17 @@ class TestFinalStatusFeatures:
         )
 
         # Mock _get_test_outcome to return different statuses for retries
-        with patch.object(plugin, "_get_test_outcome", side_effect=[(TestStatus.FAIL, {}), (TestStatus.PASS, {})]):
+        # Initial attempt fails, then 2 retries fail, finally the 3rd retry passes
+        with patch.object(
+            plugin,
+            "_get_test_outcome",
+            side_effect=[
+                (TestStatus.FAIL, {}),  # Initial attempt
+                (TestStatus.FAIL, {}),  # Retry 1
+                (TestStatus.FAIL, {}),  # Retry 2
+                (TestStatus.PASS, {}),  # Retry 3 (final)
+            ],
+        ):
             # Mock trace_context
             with patch("ddtrace.testing.internal.tracer_api.context.trace_context") as mock_trace_context:
                 mock_context = Mock()
@@ -287,18 +297,22 @@ class TestFinalStatusFeatures:
                 with (
                     patch.object(plugin, "_log_test_reports"),
                     patch.object(plugin, "_mark_test_reports_as_retry"),
+                    patch("ddtrace.testing.internal.pytest.plugin.RetryReports.make_final_report"),
                 ):
                     # Call _do_test_runs (simulating a test with retries)
                     plugin._do_test_runs(mock_item, None)
 
-        # Verify that we have 2 test runs (initial + 1 retry)
-        assert len(test.test_runs) == 2
+        # Verify that we have 4 test runs (initial + 3 retries)
+        assert len(test.test_runs) == 4
 
-        # Verify that final status is set only on the last test run
-        first_run = test.test_runs[0]
-        last_run = test.test_runs[1]
+        # Verify that final status is set ONLY on the last test run, not on any intermediate ones
+        for i, test_run in enumerate(test.test_runs[:-1]):  # All runs except the last
+            assert TestTag.FINAL_STATUS not in test_run.tags, (
+                f"Test run {i} should not have FINAL_STATUS tag (only the last run should)"
+            )
 
-        assert TestTag.FINAL_STATUS not in first_run.tags
+        # The last run should have the final status
+        last_run = test.test_runs[-1]
         assert TestTag.FINAL_STATUS in last_run.tags
         assert last_run.tags[TestTag.FINAL_STATUS] == TestStatus.PASS.value
 
