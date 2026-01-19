@@ -6,6 +6,8 @@ from ddtrace.ext import SpanTypes  # noqa: F401
 print(f"ddtrace version {ddtrace.version.__version__}")
 
 from ddtrace.contrib.internal.tornado import patch as tornado_patch  # noqa: E402
+
+
 tornado_patch.patch()  # noqa: E402
 
 from http.server import BaseHTTPRequestHandler  # noqa: E402

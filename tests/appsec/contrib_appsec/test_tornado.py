@@ -1,26 +1,22 @@
-from tornado.testing import AsyncHTTPTestCase
 import pytest
-import asyncio
+from tornado.testing import AsyncHTTPTestCase
 
-from ddtrace._trace.pin import Pin
 from ddtrace.internal.packages import get_version_for_package
 from tests.appsec.contrib_appsec import utils
-from tests.utils import TracerTestCase
-from tests.utils import scoped_tracer
 from tests.appsec.contrib_appsec.tornado_app.app import get_app as tornado_get_app
+from tests.utils import scoped_tracer
 
 
 TORNADO_VERSION = tuple(int(v) for v in get_version_for_package("tornado").split("."))
 
-base_url="http://localhost:%d"
+base_url = "http://localhost:%d"
 
 
 class TornadoTestClient(AsyncHTTPTestCase):
-
-
     def get_app(self):
         self._app = tornado_get_app()
         return self._app
+
 
 def wrap_fetch(original_fetch, ttc, interface, **fetch_kwargs):
     def wrapped_fetch(request, *args, **kwargs):
@@ -47,14 +43,14 @@ def wrap_fetch(original_fetch, ttc, interface, **fetch_kwargs):
                     kwargs["headers"] = {}
                 kwargs["headers"]["Cookie"] = cookie_header
             interface.SERVER_PORT = ttc.get_http_port()
-            future = original_fetch((base_url%interface.SERVER_PORT)+request, *args, raise_error=False, **(fetch_kwargs|kwargs))
+            future = original_fetch(
+                (base_url % interface.SERVER_PORT) + request, *args, raise_error=False, **(fetch_kwargs | kwargs)
+            )
             loop.run_sync(lambda: future)
             res = future.result()
             return res
         finally:
             ttc.tearDown()
-
-
 
     return wrapped_fetch
 
@@ -71,19 +67,17 @@ class Test_Tornado(utils.Contrib_TestClass_For_Threats):
         interface.client.post = wrap_fetch(interface.client.fetch, ttc, interface, method="POST")
         interface.client.options = wrap_fetch(interface.client.fetch, ttc, interface, method="OPTIONS")
 
-
         with scoped_tracer() as tracer:
             interface.tracer = tracer
             interface.printer = printer
             with utils.post_tracer(interface):
                 yield interface
 
-
     def status(self, response):
         return response.code
 
     def headers(self, response):
-        res = {key.lower():val for key, val in response.headers.items()}
+        res = {key.lower(): val for key, val in response.headers.items()}
         return res
 
     def body(self, response):

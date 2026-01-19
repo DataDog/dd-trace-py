@@ -6,7 +6,6 @@ import subprocess
 from typing import AsyncGenerator
 from typing import Optional
 
-import tornado.ioloop
 import tornado.web
 
 from ddtrace._trace.pin import Pin
@@ -21,6 +20,7 @@ fake_db = {
     "bar": {"id": "bar", "name": "Bar", "description": "The bartenders"},
     "testUserID": {"userid": "testUserID", "name": "Test User"},
 }
+
 
 def _create_db() -> sqlite3.Connection:
     db = sqlite3.connect(":memory:")
@@ -428,9 +428,7 @@ class RedirectHttpxAsyncHandler(BaseHandler):
         full_url = f"http://127.0.0.1:{port}/{route}"
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    full_url, timeout=0.5, headers={"TagRoute": route}, follow_redirects=True
-                )
+                response = await client.get(full_url, timeout=0.5, headers={"TagRoute": route}, follow_redirects=True)
                 payload = {"payload": response.text}
         except Exception as e:
             payload = {"error": repr(e)}
