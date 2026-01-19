@@ -409,10 +409,12 @@ class PromptOptimization:
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         project_name: str,
         config: ConfigType,
+        best_iteration_computation: Callable[[Dict[str, Dict[str, Any]]], float],
         _llmobs_instance: Optional["LLMObs"] = None,
         tags: Optional[Dict[str, str]] = None,
         max_iterations: int = 5,
         summary_evaluators: Optional[List[Callable]] = None,
+        stopping_condition: Optional[Callable[[Dict[str, Dict[str, Any]]], bool]] = None,
     ) -> None:
         """Initialize a prompt optimization.
 
@@ -431,9 +433,12 @@ class PromptOptimization:
         :param _llmobs_instance: Internal LLMObs instance.
         :param tags: Optional tags to associate with the optimization.
         :param max_iterations: Maximum number of optimization iterations to run.
-        :param summary_evaluators: Optional list of summary evaluator functions. The first one's
-                                   result will be used as the optimization score.
-        :raises ValueError: If required config parameters are missing.
+        :param summary_evaluators: Optional list of summary evaluator functions.
+        :param stopping_condition: Optional function to determine when to stop optimization.
+                                   Takes summary_evaluations dict and returns True if should stop.
+        :param best_iteration_computation: Function to compute iteration score (REQUIRED).
+                                          Takes summary_evaluations dict and returns float score.
+        :raises ValueError: If required config parameters or best_iteration_computation are missing.
         """
         self.name = name
         self._task = task
@@ -441,6 +446,8 @@ class PromptOptimization:
         self._dataset = dataset
         self._evaluators = evaluators
         self._summary_evaluators = summary_evaluators or []
+        self._stopping_condition = stopping_condition
+        self._best_iteration_computation = best_iteration_computation
         self._tags: Dict[str, str] = tags or {}
         self._tags["project_name"] = project_name
         self._llmobs_instance = _llmobs_instance
@@ -496,15 +503,18 @@ class PromptOptimization:
         current_results, experiment_url = self._run_experiment(iteration, current_prompt, jobs)
 
         # Store baseline results
+        summary_evals = current_results.get("summary_evaluations", {})
+        baseline_score = self._best_iteration_computation(summary_evals)
+
         iteration_data = {
             "iteration": iteration,
             "prompt": current_prompt,
             "results": current_results,
-            "score": self._extract_score(current_results),
+            "score": baseline_score,
             "experiment_url": experiment_url,
         }
         all_iterations.append(iteration_data)
-        best_score = iteration_data["score"]
+        best_score = baseline_score
         best_prompt = current_prompt
         best_results = current_results
 
@@ -527,20 +537,25 @@ class PromptOptimization:
             # Run experiment with improved prompt
             new_results, experiment_url = self._run_experiment(i, new_prompt, jobs)
 
+            # Compute score for this iteration
+            summary_evals = new_results.get("summary_evaluations", {})
+            new_score = self._best_iteration_computation(summary_evals)
+
             # Track iteration results
             iteration_data = {
                 "iteration": i,
                 "prompt": new_prompt,
                 "results": new_results,
-                "score": self._extract_score(new_results),
+                "score": new_score,
+                "summary_evaluations": summary_evals,
                 "experiment_url": experiment_url,
             }
             all_iterations.append(iteration_data)
 
-            # Update best iteration if score improved
-            new_score = iteration_data["score"] or 1.0
-            print(f"Iteration {i} score: {new_score:.2f}")
+            print(f"Iteration {i}")
+            print(f"{summary_evals}")
 
+            # Update best iteration if score improved
             if new_score is not None and (best_score is None or new_score > best_score):
                 improvement = new_score - best_score if best_score is not None else new_score
                 best_iteration = i
@@ -548,10 +563,9 @@ class PromptOptimization:
                 best_prompt = new_prompt
                 best_results = new_results
 
-            # Check if target score has been reached
-            # Default value is 1.0
-            target_score = self._config.get("target", 1.0)
-            if best_score is not None and best_score >= target_score:
+            # Check stopping condition
+            if self._stopping_condition and self._stopping_condition(summary_evals):
+                log.info("Stopping condition met after iteration %d", i)
                 break
 
         # Create result object with full history
@@ -607,49 +621,3 @@ class PromptOptimization:
         )
 
         return experiment_results, experiment.url
-
-    def _extract_score(self, results: Dict[str, Any]) -> Optional[float]:
-        """Extract a single aggregate score from experiment results.
-
-        If summary_evaluators are provided, uses the first key from the first summary evaluator's result.
-        Otherwise, takes the first numeric score found in summary_evaluations.
-
-        :param results: Experiment results dictionary.
-        :return: Aggregate score or None if unable to extract.
-        """
-        # Try to extract from summary_evaluations
-        summary_evals = results.get("summary_evaluations", {})
-        if not summary_evals:
-            raise "No summary evaluations provided."
-
-        # If we have summary evaluators, get the first numeric value from the first evaluator's result
-        if self._summary_evaluators and summary_evals:
-            # Get the first evaluator's results (they are keyed by evaluator name)
-            first_eval_results = None
-            for eval_key in sorted(summary_evals.keys()):
-                first_eval_results = summary_evals[eval_key]
-                break
-
-            if first_eval_results and isinstance(first_eval_results, dict):
-                # Check if there's a 'value' key with nested dict
-                if "value" in first_eval_results and isinstance(first_eval_results["value"], dict):
-                    # Get the first value from the nested dict
-                    for key, value in first_eval_results["value"].items():
-                        if isinstance(value, (int, float)):
-                            print(f"Using score {key}={value:.2f} from summary evaluator")
-                            return float(value)
-
-                # Fallback: return the first numeric value found at top level
-                for key, value in first_eval_results.items():
-                    if isinstance(value, (int, float)):
-                        print(f"Using score {key}={value:.2f} from summary evaluator")
-                        return float(value)
-
-        # Fallback: take the first numeric score found
-        for _, eval_data in summary_evals.items():
-            if isinstance(eval_data, dict):
-                score = eval_data.get("score") or eval_data.get("mean")
-                if isinstance(score, (int, float)):
-                    return float(score)
-
-        return None

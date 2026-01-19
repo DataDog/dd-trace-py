@@ -913,11 +913,13 @@ class LLMObs(Service):
         optimization_task: Callable[[str, str, str], Dict[str, str]],
         dataset: Dataset,
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
+        best_iteration_computation: Callable[[Dict[str, Dict[str, Any]]], float],
         project_name: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
         config: Optional[ConfigType] = None,
         max_iterations: int = 5,
         summary_evaluators: Optional[List[Callable]] = None,
+        stopping_condition: Optional[Callable[[Dict[str, Dict[str, Any]]], bool]] = None,
     ) -> PromptOptimization:
         """Initialize a PromptOptimization to iteratively improve prompts using experiments.
 
@@ -950,10 +952,14 @@ class LLMObs(Service):
                       Additional config values are passed through to the task function.
         :param max_iterations: Maximum number of optimization iterations to run. Default is 5.
         :param summary_evaluators: Optional list of summary evaluator functions that aggregate results
-                                   across all dataset records. The first summary evaluator's first numeric
-                                   value will be used as the optimization score. Each function must accept:
+                                   across all dataset records. Each function must accept:
                                    inputs (list), outputs (list), expected_outputs (list), evaluations (dict)
                                    and return a dict with aggregated metrics.
+        :param best_iteration_computation: Function to compute the score for each iteration (REQUIRED).
+                                          Takes summary_evaluations dict and returns a float score.
+                                          Used to determine which iteration performed best.
+        :param stopping_condition: Optional function to determine when to stop optimization early.
+                                  Takes summary_evaluations dict and returns True if optimization should stop.
         :return: PromptOptimization object. Call ``.run()`` to execute the optimization.
         :raises TypeError: If task, optimization_task, evaluators, or dataset have incorrect types
                           or signatures.
@@ -1035,11 +1041,13 @@ class LLMObs(Service):
             dataset=dataset,
             evaluators=evaluators,
             project_name=project_name or cls._project_name,
-            tags=tags,
             config=config,
+            best_iteration_computation=best_iteration_computation,
             _llmobs_instance=cls._instance,
+            tags=tags,
             max_iterations=max_iterations,
             summary_evaluators=summary_evaluators,
+            stopping_condition=stopping_condition,
         )
 
     @classmethod
