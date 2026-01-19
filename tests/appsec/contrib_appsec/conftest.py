@@ -8,7 +8,11 @@ print(f"ddtrace version {ddtrace.version.__version__}")
 from ddtrace.contrib.internal.tornado import patch as tornado_patch  # noqa: E402
 
 
-tornado_patch.patch()  # noqa: E402
+try:
+    # patch tornado if possible
+    tornado_patch.patch()  # noqa: E402
+except Exception:
+    pass  # nosec
 
 from http.server import BaseHTTPRequestHandler  # noqa: E402
 from http.server import ThreadingHTTPServer  # noqa: E402
