@@ -91,7 +91,8 @@ init_segv_catcher()
         return -1;
     }
 
-    struct sigaction sa{};
+    struct sigaction sa
+    {};
     sa.sa_sigaction = segv_handler;
     sigemptyset(&sa.sa_mask);
     // SA_SIGINFO for 3-arg handler; SA_ONSTACK to run on alt stack; SA_NODEFER to avoid having to use savemask
