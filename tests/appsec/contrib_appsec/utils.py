@@ -2,7 +2,7 @@ from contextlib import contextmanager
 import itertools
 import json
 import sys
-from typing import Any
+from typing import Any, Generator, Tuple
 from typing import Dict
 from typing import List
 from urllib.parse import quote
@@ -47,10 +47,11 @@ _asm_request_context.finalize_asm_env = finalize_wrapper
 
 
 class Interface:
-    def __init__(self, name, framework, client):
-        self.name = name
+    def __init__(self, name:str, framework, client):
+        self.name:str = name
         self.framework = framework
         self.client = client
+        self.version: Tuple[int, ...] = ()
 
     def __repr__(self):
         return f"Interface({self.name}[{self.version}] Python[{sys.version}])"
@@ -72,7 +73,7 @@ class Contrib_TestClass_For_Threats:
     SERVER_PORT = 8000
 
     @pytest.fixture
-    def interface(self) -> Interface:
+    def interface(self, printer) -> Generator[Interface, Any, None]:
         raise NotImplementedError
 
     def status(self, response) -> int:
@@ -82,7 +83,7 @@ class Contrib_TestClass_For_Threats:
         raise NotImplementedError
 
     def location(self, response) -> str:
-        return NotImplementedError
+        raise NotImplementedError
 
     def body(self, response) -> str:
         raise NotImplementedError
