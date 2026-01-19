@@ -92,7 +92,6 @@ def _capture_context(
 def _capture_expressions(
     exprs: List[CaptureExpression],
     scope: Mapping[str, Any],
-    limits: CaptureLimits = DEFAULT_CAPTURE_LIMITS,
 ) -> Dict[str, Any]:
     with HourGlass(duration=CAPTURE_TIME_BUDGET) as hg:
 
@@ -102,7 +101,12 @@ def _capture_expressions(
         return {
             "captureExpressions": {
                 e.name: utils.capture_value(
-                    e.expr.eval(scope), limits.max_level, limits.max_len, limits.max_size, limits.max_fields, timeout
+                    e.expr.eval(scope),
+                    e.limits.max_level,
+                    e.limits.max_len,
+                    e.limits.max_size,
+                    e.limits.max_fields,
+                    timeout,
                 )
                 for e in exprs
             }
@@ -161,7 +165,7 @@ class Snapshot(LogSignal):
             return _capture_context(frame, exc_info, retval=retval, limits=probe.limits)
 
         if probe.capture_expressions:
-            return _capture_expressions(probe.capture_expressions, scope, probe.limits)
+            return _capture_expressions(probe.capture_expressions, scope)
 
         return None
 

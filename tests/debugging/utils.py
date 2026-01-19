@@ -41,7 +41,10 @@ def compile_template(*args):
 def compile_capture_expressions(exprs):
     return {
         "capture_expressions": [
-            CaptureExpression(name=expr["name"], expr=DDRedactedExpression.compile(expr["expr"])) for expr in exprs
+            CaptureExpression(
+                name=expr["name"], expr=DDRedactedExpression.compile(expr["expr"]), limits=DEFAULT_CAPTURE_LIMITS
+            )
+            for expr in exprs
         ],
     }
 
