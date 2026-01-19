@@ -50,9 +50,14 @@ opentracing = [
 opentelemetry = [
     "opentelemetry-exporter-otlp>=1,<2",
 ]
+llmobs-devserver = [
+    "starlette>=0.14.0",
+    "uvicorn>=0.15.0",
+]
 
 [project.scripts]
 ddtrace-run = "ddtrace.commands.ddtrace_run:main"
+ddtrace-llmobs-serve = "ddtrace.llmobs.devserver.cli:main"
 _dd_crashtracker_receiver = "ddtrace.commands._dd_crashtracker_receiver:main"
 
 [project.entry-points.opentelemetry_context]
