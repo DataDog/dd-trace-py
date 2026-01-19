@@ -35,40 +35,32 @@ def _assert_template_structure_matches(result: Template, expected: Template, con
     prefix = f"{context}\n" if context else ""
 
     assert result.strings == expected.strings, (
-        prefix
-        + "Template.strings mismatch\n"
-        f"Expected: {expected.strings!r}\n"
-        f"Actual:   {result.strings!r}"
+        prefix + f"Template.strings mismatch\nExpected: {expected.strings!r}\nActual:   {result.strings!r}"
     )
     assert len(result.interpolations) == len(expected.interpolations), (
-        prefix
-        + "Template.interpolations length mismatch\n"
+        prefix + "Template.interpolations length mismatch\n"
         f"Expected: {len(expected.interpolations)}\n"
         f"Actual:   {len(result.interpolations)}"
     )
 
     for idx, (result_interp, expected_interp) in enumerate(zip(result.interpolations, expected.interpolations)):
         assert result_interp.value == expected_interp.value, (
-            prefix
-            + f"Interpolation[{idx}].value mismatch\n"
+            prefix + f"Interpolation[{idx}].value mismatch\n"
             f"Expected: {expected_interp.value!r}\n"
             f"Actual:   {result_interp.value!r}"
         )
         assert result_interp.expression == expected_interp.expression, (
-            prefix
-            + f"Interpolation[{idx}].expression mismatch\n"
+            prefix + f"Interpolation[{idx}].expression mismatch\n"
             f"Expected: {expected_interp.expression!r}\n"
             f"Actual:   {result_interp.expression!r}"
         )
         assert result_interp.conversion == expected_interp.conversion, (
-            prefix
-            + f"Interpolation[{idx}].conversion mismatch\n"
+            prefix + f"Interpolation[{idx}].conversion mismatch\n"
             f"Expected: {expected_interp.conversion!r}\n"
             f"Actual:   {result_interp.conversion!r}"
         )
         assert result_interp.format_spec == expected_interp.format_spec, (
-            prefix
-            + f"Interpolation[{idx}].format_spec mismatch\n"
+            prefix + f"Interpolation[{idx}].format_spec mismatch\n"
             f"Expected: {expected_interp.format_spec!r}\n"
             f"Actual:   {result_interp.format_spec!r}"
         )
@@ -254,7 +246,7 @@ class TestTemplateStringAspect(BaseReplacement):
         # Simulate: t"Template: {value}" where "Template: " is tainted
         result = ddtrace_aspects.template_string_aspect(tainted_template_part, ("value", "value", None, ""), "")
         value = "value"
-        expected_template = t'Template: {value}'
+        expected_template = t"Template: {value}"
 
         assert isinstance(result, Template)
         _assert_template_structure_matches(result, expected_template)
@@ -448,9 +440,7 @@ class TestTemplateStringIntegration(BaseReplacement):
 
     def test_template_multiple_args_second_tainted(self):
         """Test template string with second argument tainted."""
-        tainted_b = taint_pyobject(
-            "bar", source_name="source2", source_value="bar", source_origin=OriginType.PARAMETER
-        )
+        tainted_b = taint_pyobject("bar", source_name="source2", source_value="bar", source_origin=OriginType.PARAMETER)
         a = "foo"
         result = mod.do_template_multiple_args(a, tainted_b)
 
@@ -473,9 +463,7 @@ class TestTemplateStringIntegration(BaseReplacement):
         tainted_first = taint_pyobject(
             "foo", source_name="source1", source_value="foo", source_origin=OriginType.PARAMETER
         )
-        tainted_b = taint_pyobject(
-            "bar", source_name="source2", source_value="bar", source_origin=OriginType.PARAMETER
-        )
+        tainted_b = taint_pyobject("bar", source_name="source2", source_value="bar", source_origin=OriginType.PARAMETER)
         result = mod.do_template_multiple_args(tainted_first, tainted_b)
 
         from string.templatelib import Interpolation
@@ -827,6 +815,31 @@ class TestTemplateStringIntegration(BaseReplacement):
         assert result.interpolations[0].expression == "Exception('Testst')"
         # No taint since we're not tainting any input
         assert not is_pyobject_tainted(result)
+
+
+def test_template_string_aspect_exception_path_returns_template(monkeypatch):
+    from string.templatelib import Interpolation
+    from string.templatelib import Template
+
+    # Force an exception inside template_string_aspect after it has constructed
+    # the Template object, so the exception handler path is executed.
+    def _raise(*args, **kwargs):
+        raise RuntimeError("forced")
+
+    monkeypatch.setattr(ddtrace_aspects, "taint_pyobject_with_ranges", _raise)
+
+    tainted = taint_pyobject("World", source_name="test", source_value="World", source_origin=OriginType.PARAMETER)
+    result = ddtrace_aspects.template_string_aspect("Hello ", (tainted, "tainted", None, ""), "")
+
+    expected_template = Template(
+        "Hello ",
+        Interpolation(value=tainted, expression="tainted", conversion=None, format_spec=""),
+        "",
+    )
+
+    assert isinstance(result, Template)
+    _assert_template_structure_matches(result, expected_template)
+    assert template_to_str(result) == template_to_str(expected_template)
 
 
 def test_template_string_taint_ranges_positions():

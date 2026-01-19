@@ -19,7 +19,6 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._logs import iast_propagation_debug_log
 from ddtrace.appsec._iast._logs import iast_propagation_error_log
 from ddtrace.appsec._iast._taint_tracking import TagMappingMode
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -238,6 +237,62 @@ def build_string_aspect(*args: List[Any]) -> TEXT_TYPES:
     return join_aspect("".join, 1, "", args)
 
 
+def _template_string_build_parts(
+    args: Tuple[Any, ...],
+    interpolation_type: Any,
+    use_str_aspect_for_format_spec: bool,
+    collect_taint_info: bool,
+) -> Tuple[List[Any], List[Tuple[int, Any]]]:
+    template_parts: List[Any] = []
+    taint_info: List[Tuple[int, Any]] = []
+
+    current_offset = 0
+    for arg in args:
+        if isinstance(arg, tuple) and len(arg) == 4:
+            value, expr_text, conversion, format_spec = arg
+
+            if format_spec is None:
+                format_spec_str = ""
+            elif isinstance(format_spec, str):
+                format_spec_str = format_spec
+            else:
+                format_spec_str = (
+                    str_aspect(str, 0, format_spec) if use_str_aspect_for_format_spec else str(format_spec)
+                )
+
+            if collect_taint_info and is_pyobject_tainted(value):
+                ranges = get_ranges(value)
+                if ranges:
+                    taint_info.append((current_offset, ranges))
+
+            template_parts.append(
+                interpolation_type(
+                    value=value,
+                    expression=expr_text,
+                    conversion=conversion,
+                    format_spec=format_spec_str,
+                )
+            )
+            current_offset += len(str(value))
+        else:
+            if isinstance(arg, str):
+                string_part = arg
+            elif arg is not None:
+                string_part = str(arg)
+            else:
+                string_part = ""
+
+            if collect_taint_info and is_pyobject_tainted(string_part):
+                ranges = get_ranges(string_part)
+                if ranges:
+                    taint_info.append((current_offset, ranges))
+
+            template_parts.append(string_part)
+            current_offset += len(string_part)
+
+    return template_parts, taint_info
+
+
 def template_string_aspect(*args: List[Any]) -> Any:
     """
     Aspect for PEP-750 template strings (t-strings).
@@ -257,61 +312,17 @@ def template_string_aspect(*args: List[Any]) -> Any:
 
     Returns: Template object (from string.templatelib)
     """
+    # Import Template and Interpolation from string.templatelib (Python 3.14+)
+    from string.templatelib import Interpolation
+    from string.templatelib import Template
+
     try:
-        # Import Template and Interpolation from string.templatelib (Python 3.14+)
-        from string.templatelib import Interpolation
-        from string.templatelib import Template
-
-        template_parts = []
-        taint_info = []  # Track (offset, ranges) for tainted values
-
-        # Process args to build Template parts and track taint
-        current_offset = 0
-        for arg in args:
-            if isinstance(arg, tuple) and len(arg) == 4:
-                # This is an interpolation: (value, expr_text, conversion, format_spec)
-                value, expr_text, conversion, format_spec = arg
-
-                # Handle format_spec - could be a value or need str conversion
-                if format_spec is None:
-                    format_spec_str = ""
-                elif isinstance(format_spec, str):
-                    format_spec_str = format_spec
-                else:
-                    format_spec_str = str_aspect(str, 0, format_spec)
-
-                # Check and store taint info BEFORE creating Interpolation
-                if is_pyobject_tainted(value):
-                    ranges = get_ranges(value)
-                    if ranges:
-                        taint_info.append((current_offset, ranges))
-
-                # Create an Interpolation object with proper metadata
-                interp = Interpolation(
-                    value=value,
-                    expression=expr_text,
-                    conversion=conversion,
-                    format_spec=format_spec_str,
-                )
-                template_parts.append(interp)
-                current_offset += len(str(value))
-            else:
-                # This is a string constant
-                if isinstance(arg, str):
-                    string_part = arg
-                elif arg is not None:
-                    string_part = str(arg)
-                else:
-                    string_part = ""
-
-                # Check if string constant itself is tainted
-                if is_pyobject_tainted(string_part):
-                    ranges = get_ranges(string_part)
-                    if ranges:
-                        taint_info.append((current_offset, ranges))
-
-                template_parts.append(string_part)
-                current_offset += len(string_part)
+        template_parts, taint_info = _template_string_build_parts(
+            tuple(args),
+            Interpolation,
+            use_str_aspect_for_format_spec=True,
+            collect_taint_info=True,
+        )
 
         # Ensure we have at least one part
         if len(template_parts) == 0:
@@ -335,7 +346,17 @@ def template_string_aspect(*args: List[Any]) -> Any:
     except Exception as e:
         iast_propagation_error_log("template_string_aspect", e)
 
-    return Template(*args)
+        fallback_parts, _ = _template_string_build_parts(
+            tuple(args),
+            Interpolation,
+            use_str_aspect_for_format_spec=False,
+            collect_taint_info=False,
+        )
+        if not fallback_parts:
+            fallback_parts.append("")
+
+        return Template(*fallback_parts)
+
 
 def ljust_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:
     if not orig_function:
