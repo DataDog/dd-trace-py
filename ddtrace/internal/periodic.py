@@ -123,6 +123,16 @@ class ForksafeAwakeablePeriodicService(AwakeablePeriodicService):
 
 
 class Timer:
+    """
+    A simple one-shot timer that calls timeout after the specified interval.
+
+    :param interval: The interval in seconds after which to call timeout.
+
+    The timer can be started with start() and stopped with stop(). The timer can
+    be reset with reset(), which stops the timer (if running) and starts it
+    again.
+    """
+
     def __init__(self, interval: float) -> None:
         self._interval = interval
         self._set_worker()
