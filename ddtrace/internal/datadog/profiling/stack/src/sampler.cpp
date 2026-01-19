@@ -173,6 +173,16 @@ Sampler::sampling_thread(const uint64_t seq_num)
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
 
+        // AIDEV-NOTE: Debug check - detect if another library overwrote our signal handler
+        static bool handler_warning_printed = false;
+        if (use_alternative_copy_memory() && !is_segv_handler_installed() && !handler_warning_printed) {
+            std::cerr << getpid() << " WARNING: SIGSEGV handler was overwritten by another library! "
+                      << "Profiler safe_memcpy may crash." << std::endl;
+            handler_warning_printed = true;
+            // Re-install our handler
+            init_segv_catcher();
+        }
+
         // Perform the sample
         for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
             for_each_thread(interp, [&](PyThreadState* tstate, ThreadInfo& thread) {

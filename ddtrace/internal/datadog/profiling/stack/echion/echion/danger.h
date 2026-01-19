@@ -24,6 +24,10 @@
 int
 init_segv_catcher();
 
+// AIDEV-NOTE: Debug helper to check if our handler is still installed
+bool
+is_segv_handler_installed();
+
 #if defined PL_LINUX
 ssize_t
 safe_memcpy_wrapper(pid_t,

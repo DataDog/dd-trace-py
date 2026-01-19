@@ -55,7 +55,12 @@ disarm_fault_handler()
 static void
 segv_handler(int signo, siginfo_t*, void*)
 {
+    // AIDEV-NOTE: Debug logging for crash investigation - remove after debugging
+    const char* msg_armed = "segv_handler: armed, jumping\n";
+    const char* msg_unarmed = "segv_handler: NOT armed, re-raising\n";
+
     if (!t_handler_armed) {
+        (void)write(STDERR_FILENO, msg_unarmed, strlen(msg_unarmed));
         struct sigaction* old = (signo == SIGSEGV) ? &g_old_segv : &g_old_bus;
         // Restore the previous handler and re-raise so default/old handling occurs.
         sigaction(signo, old, nullptr);
@@ -63,8 +68,20 @@ segv_handler(int signo, siginfo_t*, void*)
         return;
     }
 
+    (void)write(STDERR_FILENO, msg_armed, strlen(msg_armed));
     // Jump back to the armed site. Use 1 so sigsetjmp returns nonzero.
     siglongjmp(t_jmpenv, 1);
+}
+
+// AIDEV-NOTE: Debug helper to check if our handler is still installed
+bool
+is_segv_handler_installed()
+{
+    struct sigaction current;
+    if (sigaction(SIGSEGV, nullptr, &current) != 0) {
+        return false;
+    }
+    return current.sa_sigaction == segv_handler;
 }
 
 int
@@ -74,8 +91,7 @@ init_segv_catcher()
         return -1;
     }
 
-    struct sigaction sa
-    {};
+    struct sigaction sa{};
     sa.sa_sigaction = segv_handler;
     sigemptyset(&sa.sa_mask);
     // SA_SIGINFO for 3-arg handler; SA_ONSTACK to run on alt stack; SA_NODEFER to avoid having to use savemask
