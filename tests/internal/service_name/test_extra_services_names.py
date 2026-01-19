@@ -5,41 +5,49 @@ import pytest
 
 
 @pytest.mark.skipif(sys.platform in ("win32", "cygwin"), reason="Fork not supported on Windows")
-@pytest.mark.subprocess(env={"DD_REMOTE_CONFIGURATION_ENABLED": "true"}, err=None)
-def test_config_extra_service_names_fork():
-    import ddtrace.auto  # noqa
-    import ddtrace  # noqa
+def test_config_extra_service_names_fork(run_python_code_in_subprocess):
+    code = """
+import ddtrace.auto
+import ddtrace
 
-    import os
-    import sys
-    import time
+import re
+import os
+import sys
+import time
 
-    children = []
-    for i in range(10):
-        pid = os.fork()
-        if pid == 0:
-            # Child process
-            service_name = f"extra_service_{i}"
-            ddtrace.config._add_extra_service(service_name)
-            # Ensure the child has time to save the service
-            for _ in range(30):
-                time.sleep(0.1)
-                if service_name in set(ddtrace.config._extra_services_queue.peekall()):
-                    break
-            else:
-                msg = f"extra service name '{service_name}' not emitted by child"
-                raise RuntimeError(msg)
-            sys.exit(0)
+children = []
+for i in range(10):
+    pid = os.fork()
+    if pid == 0:
+        # Child process
+        service_name = f"extra_service_{i}"
+        ddtrace.config._add_extra_service(service_name)
+        # Ensure the child has time to save the service
+        for _ in range(30):
+            time.sleep(0.1)
+            if service_name in set(ddtrace.config._extra_services_queue.peekall()):
+                break
         else:
-            # Parent process
-            children.append(pid)
+            msg = f"extra service name '{service_name}' not emitted by child"
+            raise RuntimeError(msg)
+        sys.exit(0)
+    else:
+        # Parent process
+        children.append(pid)
 
-    for pid in children:
-        os.waitpid(pid, 0)
+for pid in children:
+    os.waitpid(pid, 0)
 
-    extra_services = ddtrace.config._get_extra_services()
-    extra_services.discard("sqlite")  # coverage
-    assert {f"extra_service_{i}" for i in range(10)} <= extra_services, extra_services
+extra_services = ddtrace.config._get_extra_services()
+extra_services.discard("sqlite")  # coverage
+assert len(extra_services) == 10, extra_services
+assert all(re.match(r"extra_service_\\d+", service) for service in extra_services), extra_services
+"""
+
+    env = os.environ.copy()
+    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (stdout, stderr, status)
 
 
 def test_config_extra_service_names_duplicates(run_python_code_in_subprocess):
