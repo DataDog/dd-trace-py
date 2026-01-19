@@ -86,7 +86,7 @@ class EvaluatorResult:
         reasoning: Optional[str] = None,
         assessment: Optional[str] = None,
         metadata: Optional[Dict[str, JSONType]] = None,
-        tags: Optional[Dict[str, str]] = None,
+        tags: Optional[Dict[str, JSONType]] = None,
     ) -> None:
         self.value = value
         self.reasoning = reasoning
@@ -362,7 +362,7 @@ class Experiment:
         name: str,
         task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
         dataset: Dataset,
-        evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
+        evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]]],
         project_name: str,
         description: str = "",
         tags: Optional[Dict[str, str]] = None,
@@ -581,9 +581,9 @@ class Experiment:
             record: DatasetRecord = self._dataset[idx]
             input_data = record["input_data"]
             expected_output = record["expected_output"]
-            evals_dict = {}
+            evals_dict: Dict[str, Dict[str, JSONType]] = {}
             for evaluator in self._evaluators:
-                eval_result: JSONType = None
+                eval_result_value: JSONType = None
                 eval_err: JSONType = None
                 extra_return_values: Dict[str, JSONType] = {}
                 try:
@@ -598,8 +598,9 @@ class Experiment:
                             extra_return_values["metadata"] = eval_result.metadata
                         if eval_result.tags:
                             extra_return_values["tags"] = eval_result.tags
-                        eval_result = eval_result.value
-
+                        eval_result_value = eval_result.value
+                    else:
+                        eval_result_value = eval_result
                 except Exception as e:
                     exc_type, exc_value, exc_tb = sys.exc_info()
                     exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
@@ -612,7 +613,7 @@ class Experiment:
                     if raise_errors:
                         raise RuntimeError(f"Evaluator {evaluator.__name__} failed on row {idx}") from e
                 evals_dict[evaluator.__name__] = {
-                    "value": eval_result,
+                    "value": eval_result_value,
                     "error": eval_err,
                     **extra_return_values,
                 }
