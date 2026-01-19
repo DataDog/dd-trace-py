@@ -304,9 +304,10 @@ class TestOptPlugin:
             test_run = test.make_test_run()
             test_run.start(start_ns=test.start_ns)
             self._set_test_run_data(test_run, item, context)
-            test_run.set_final_status(test_run.get_status())
             test_run.finish()
-            test.set_status(test_run.get_status())
+            final_status = test_run.get_status()
+            test_run.set_final_status(final_status)
+            test.set_status(final_status)
             self.manager.writer.put_item(test_run)
 
         test.finish()
