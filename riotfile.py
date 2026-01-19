@@ -416,6 +416,9 @@ venv = Venv(
         Venv(
             name="telemetry",
             command="pytest {cmdargs} tests/telemetry/",
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "true",
+            },
             pkgs={
                 "requests": latest,
                 "gunicorn": latest,
