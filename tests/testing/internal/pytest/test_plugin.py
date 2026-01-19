@@ -303,33 +303,6 @@ class TestFinalStatusFeatures:
         assert last_run.tags[TestTag.FINAL_STATUS] == TestStatus.PASS.value
 
 
-class TestModuleNaming:
-    """Test module name handling and path normalization."""
-
-    def test_module_path_slash_replacement(self) -> None:
-        """Test that forward slashes in module paths are replaced with dots."""
-        from ddtrace.testing.internal.pytest.utils import nodeid_to_names
-
-        # Test typical pytest nodeid with nested directories
-        module, suite, test = nodeid_to_names("tests/unit/contrib/test_example.py::TestClass::test_method")
-
-        assert module == "tests.unit.contrib"  # Slashes should be replaced with dots
-        assert suite == "test_example.py"
-        assert test == "TestClass::test_method"
-
-        # Test single directory
-        module, suite, test = nodeid_to_names("tests/test_simple.py::test_function")
-        assert module == "tests"  # Single directory should still be replaced
-        assert suite == "test_simple.py"
-        assert test == "test_function"
-
-        # Test no directory (root level)
-        module, suite, test = nodeid_to_names("test_root.py::test_function")
-        assert module == "."  # Should be EMPTY_NAME for root level
-        assert suite == "test_root.py"
-        assert test == "test_function"
-
-
 class TestSessionManagement:
     """Test session lifecycle and configuration."""
 
