@@ -10,6 +10,7 @@ from ddtrace.llmobs.decorators import llm
 from ddtrace.llmobs.decorators import retrieval
 from ddtrace.llmobs.decorators import task
 from ddtrace.llmobs.decorators import tool
+from ddtrace.llmobs.decorators import trace
 from ddtrace.llmobs.decorators import workflow
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
@@ -850,3 +851,47 @@ def test_generator_for_class_does_not_annotate_self(llmobs, llmobs_events, decor
 
     input_value = json.loads(llmobs_events[0]["meta"]["input"]["value"])
     assert input_value == {"a": 1, "b": 2}
+
+
+def test_trace_decorator(llmobs, llmobs_events):
+    """Test that the trace decorator works and defaults to creating workflow spans."""
+    @trace(name="test_function", session_id="test_session_id")
+    def f():
+        pass
+
+    f()
+    span = llmobs._instance.tracer.pop()[0]
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "workflow", session_id="test_session_id")
+
+
+def test_trace_decorator_default_kwargs(llmobs, llmobs_events):
+    """Test that the trace decorator works with default kwargs."""
+    @trace()
+    def f():
+        pass
+
+    f()
+    span = llmobs._instance.tracer.pop()[0]
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "workflow")
+
+
+def test_decorators_can_be_imported_from_llmobs_module():
+    """Test that all decorators can be imported directly from ddtrace.llmobs."""
+    from ddtrace.llmobs import agent as agent_import
+    from ddtrace.llmobs import embedding as embedding_import
+    from ddtrace.llmobs import llm as llm_import
+    from ddtrace.llmobs import retrieval as retrieval_import
+    from ddtrace.llmobs import task as task_import
+    from ddtrace.llmobs import tool as tool_import
+    from ddtrace.llmobs import trace as trace_import
+    from ddtrace.llmobs import workflow as workflow_import
+
+    # Verify they are the same as the ones from decorators module
+    assert agent_import is agent
+    assert embedding_import is embedding
+    assert llm_import is llm
+    assert retrieval_import is retrieval
+    assert task_import is task
+    assert tool_import is tool
+    assert trace_import is trace
+    assert workflow_import is workflow
