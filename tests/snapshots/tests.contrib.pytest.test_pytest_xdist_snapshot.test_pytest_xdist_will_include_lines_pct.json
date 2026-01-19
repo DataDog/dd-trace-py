@@ -66,6 +66,7 @@
       "runtime.version": "3.12.11",
       "span.kind": "test",
       "test.command": "pytest --ddtrace -n 1",
+      "test.final_status": "pass",
       "test.framework": "pytest",
       "test.framework_version": "8.4.2",
       "test.module": "",

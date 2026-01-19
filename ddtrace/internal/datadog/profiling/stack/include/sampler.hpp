@@ -2,6 +2,8 @@
 #include "constants.hpp"
 #include "stack_renderer.hpp"
 
+#include "echion/strings.h"
+
 #include <atomic>
 
 namespace Datadog {
@@ -50,6 +52,7 @@ class Sampler
                       PyObject* _asyncio_scheduled_tasks,
                       PyObject* _asyncio_eager_tasks);
     void link_tasks(PyObject* parent, PyObject* child);
+    void weak_link_tasks(PyObject* parent, PyObject* child);
     void sampling_thread(const uint64_t seq_num);
     void track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* frame);
     void untrack_greenlet(uintptr_t greenlet_id);
@@ -62,6 +65,9 @@ class Sampler
     // self-time, and we're not currently accounting for the echion self-time.
     void set_interval(double new_interval);
     void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
+
+    // Delegates to the StackRenderer to clear its caches after fork
+    void postfork_child();
 };
 
 } // namespace Datadog

@@ -227,6 +227,15 @@ Sampler::get()
 }
 
 void
+Sampler::postfork_child()
+{
+    // Clear renderer caches to avoid using stale interned string/function IDs
+    if (renderer_ptr) {
+        renderer_ptr->postfork_child();
+    }
+}
+
+void
 _stack_atfork_child()
 {
     // The only thing we need to do at fork is to propagate the PID to echion
@@ -234,11 +243,17 @@ _stack_atfork_child()
     _set_pid(getpid());
     ThreadSpanLinks::postfork_child();
 
+    // Clear renderer caches to avoid using stale interned IDs
+    Sampler::get().postfork_child();
+
     // `thread_info_map_lock` and `task_link_map_lock` are global locks held in echion
     // NB placement-new to re-init and leak the mutex because doing anything else is UB
     new (&thread_info_map_lock) std::mutex;
     new (&task_link_map_lock) std::mutex;
     new (&greenlet_info_map_lock) std::mutex;
+
+    // Reset the string_table mutex to avoid deadlock if fork happened while it was held
+    string_table.postfork_child();
 }
 
 __attribute__((constructor)) void
@@ -365,6 +380,13 @@ Sampler::link_tasks(PyObject* parent, PyObject* child)
 {
     std::lock_guard<std::mutex> guard(task_link_map_lock);
     task_link_map[child] = parent;
+}
+
+void
+Sampler::weak_link_tasks(PyObject* parent, PyObject* child)
+{
+    std::lock_guard<std::mutex> guard(task_link_map_lock);
+    weak_task_link_map[child] = parent;
 }
 
 void
