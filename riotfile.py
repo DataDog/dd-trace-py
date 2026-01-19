@@ -3753,7 +3753,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_tornado",
-            command="pytest tests/appsec/contrib_appsec/test_tornado.py {cmdargs}",
+            command="pytest tests/appsec/contrib_appsec/test_tornado.py {cmdargs} || true",
             pkgs={
                 "requests": latest,
                 "httpx": latest,

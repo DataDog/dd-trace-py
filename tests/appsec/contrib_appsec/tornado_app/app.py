@@ -6,7 +6,6 @@ import subprocess
 from typing import AsyncGenerator
 from typing import Optional
 
-from pydantic import BaseModel
 import tornado.ioloop
 import tornado.web
 
@@ -22,18 +21,6 @@ fake_db = {
     "bar": {"id": "bar", "name": "Bar", "description": "The bartenders"},
     "testUserID": {"userid": "testUserID", "name": "Test User"},
 }
-
-
-class Item(BaseModel):
-    id: str
-    name: str
-    description: Optional[str] = None
-
-
-class User(BaseModel):
-    userid: int
-    name: str
-
 
 def _create_db() -> sqlite3.Connection:
     db = sqlite3.connect(":memory:")
@@ -162,7 +149,7 @@ class AsmNoParamHandler(BaseHandler):
         body = {
             "path_params": {"param_int": 0, "param_str": ""},
             "query_params": query_params,
-            "headers": self._headers(),
+            "headers": dict(self._headers),
             "cookies": self._cookies(),
             "body": self.request.body.decode("utf-8"),
             "method": self.request.method,
@@ -585,6 +572,6 @@ def get_app() -> tornado.web.Application:
         ]
     )
     for spec in app.wildcard_router.rules:
-        if isinstance(spec.target, type) and issubclass(spec.target, NewServiceHandler):
+        if isinstance(spec.target, type) and issubclass(spec.target, NewServiceHandler) and hasattr(spec, "kwargs"):
             spec.kwargs["app"] = app
     return app
