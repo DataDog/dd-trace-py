@@ -107,8 +107,6 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
 class Span(SpanData):
     __slots__ = [
         # Public span attributes
-        "service",
-        "name",
         "resource",
         "_span_api",
         "span_id",
