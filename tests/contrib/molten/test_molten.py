@@ -61,7 +61,7 @@ class TestMolten(TracerTestCase):
         self.client = TestClient(self.app)
 
     def tearDown(self):
-        super(TestMolten, self).setUp()
+        super(TestMolten, self).tearDown()
         unpatch()
 
     def make_request(self, headers=None, params=None, route=None):

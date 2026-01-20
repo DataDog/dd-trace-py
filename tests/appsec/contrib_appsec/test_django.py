@@ -59,6 +59,7 @@ class Test_Django(utils.Contrib_TestClass_For_Threats):
         client.post = patch_post
 
         interface = utils.Interface("django", django, client)
+        interface.SERVER_PORT = self.SERVER_PORT
         interface.version = django.VERSION
         with scoped_tracer() as tracer:
             interface.tracer = tracer

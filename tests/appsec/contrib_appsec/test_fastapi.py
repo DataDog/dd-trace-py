@@ -68,7 +68,9 @@ class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
             interface.version = FASTAPI_VERSION
             interface.tracer = tracer
             interface.printer = printer
-            yield interface
+            interface.SERVER_PORT = self.SERVER_PORT
+            with utils.post_tracer(interface):
+                yield interface
 
     def status(self, response):
         return response.status_code
