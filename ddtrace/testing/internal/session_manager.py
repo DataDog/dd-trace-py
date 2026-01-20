@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 import typing as t
 
+from ddtrace.settings import config as ddconfig
 from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import DEFAULT_ENV_NAME
@@ -66,7 +67,7 @@ class SessionManager:
 
         self.is_auto_injected = bool(os.getenv("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
 
-        self.env = os.environ.get("_CI_DD_ENV") or os.environ.get("DD_ENV") or DEFAULT_ENV_NAME
+        self.env = os.getenv("_CI_DD_ENV", ddconfig.env or DEFAULT_ENV_NAME)
 
         self.api_client = APIClient(
             service=self.service,

@@ -507,7 +507,6 @@ venv = Venv(
             env={
                 "DD_PYTEST_USE_NEW_PLUGIN": "true",
                 "DD_TRACE_DEBUG": "1",
-                "_CI_DD_ENV": "prod",
             },
             pys=select_pys(),
             venvs=[
