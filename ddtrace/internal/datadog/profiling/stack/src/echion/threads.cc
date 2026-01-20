@@ -626,18 +626,29 @@ Result<void>
 ThreadInfo::update_cpu_time()
 {
 #if defined PL_LINUX
-    struct timespec ts;
-    if (clock_gettime(cpu_clock_id, &ts)) {
+    struct timespec ts1;
+    if (clock_gettime(cpu_clock_id, &ts1)) {
         // If the clock is invalid, we skip updating the CPU time.
         // This can happen if we try to compute CPU time for a thread that has exited.
         if (errno == EINVAL) {
+            this->running_ = false;
             return Result<void>::ok();
         }
 
         return ErrorKind::CpuTimeError;
     }
 
-    this->cpu_time = TS_TO_MICROSECOND(ts);
+    this->cpu_time = TS_TO_MICROSECOND(ts1);
+
+    // Determine if running by checking if CPU time advances between two back-to-back
+    // measurements. This is done here to avoid a separate is_running() call with
+    // its own syscalls (reduces 3 syscalls per thread to 2).
+    struct timespec ts2;
+    if (clock_gettime(cpu_clock_id, &ts2) != 0) {
+        this->running_ = false;
+    } else {
+        this->running_ = (ts1.tv_sec != ts2.tv_sec || ts1.tv_nsec != ts2.tv_nsec);
+    }
 #elif defined PL_DARWIN
     thread_basic_info_data_t info;
     mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
@@ -648,6 +659,7 @@ ThreadInfo::update_cpu_time()
         // If the thread is invalid, we skip updating the CPU time.
         // This can happen if we try to compute CPU time for a thread that has exited.
         if (kr == KERN_INVALID_ARGUMENT) {
+            this->running_ = false;
             return Result<void>::ok();
         }
 
@@ -655,10 +667,13 @@ ThreadInfo::update_cpu_time()
     }
 
     if (info.flags & TH_FLAGS_IDLE) {
+        this->running_ = false;
         return Result<void>::ok();
     }
 
     this->cpu_time = TV_TO_MICROSECOND(info.user_time) + TV_TO_MICROSECOND(info.system_time);
+    // On macOS, thread_info already gives us run_state, so no need to check if the clock is advancing
+    this->running_ = (info.run_state == TH_STATE_RUNNING);
 #endif
 
     return Result<void>::ok();
@@ -667,30 +682,8 @@ ThreadInfo::update_cpu_time()
 bool
 ThreadInfo::is_running()
 {
-#if defined PL_LINUX
-    struct timespec ts1, ts2;
-
-    // Get two back-to-back times
-    if (clock_gettime(cpu_clock_id, &ts1) != 0)
-        return false;
-    if (clock_gettime(cpu_clock_id, &ts2) != 0)
-        return false;
-
-    // If the CPU time has advanced, the thread is running
-    return (ts1.tv_sec != ts2.tv_sec || ts1.tv_nsec != ts2.tv_nsec);
-
-#elif defined PL_DARWIN
-    thread_basic_info_data_t info;
-    mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
-    kern_return_t kr = thread_info(
-      static_cast<thread_act_t>(this->mach_port), THREAD_BASIC_INFO, reinterpret_cast<thread_info_t>(&info), &count);
-
-    if (kr != KERN_SUCCESS)
-        return false;
-
-    return info.run_state == TH_STATE_RUNNING;
-
-#endif
+    // Running state is computed in update_cpu_time by taking two back-to-back measurements of the CPU time.
+    return this->running_;
 }
 
 void
