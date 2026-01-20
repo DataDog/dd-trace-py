@@ -109,7 +109,7 @@ class TestOptWriter(BaseWriter):
             "*": {
                 "language": "python",
                 "runtime-id": uuid.uuid4().hex,
-                "library_version": f"{__version__}",
+                "library_version": f"{__version__}#beta_pytest_plugin",
                 "_dd.origin": "ciapp-test",
                 "_dd.p.dm": "-0",  # what is this?
             },
