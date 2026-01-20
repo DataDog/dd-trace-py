@@ -515,14 +515,10 @@ class ffe:
         def __init__(self, config_bytes: bytes) -> None: ...
         def resolve_value(self, flag_key: str, expected_type: ffe.FlagType, context: dict) -> ffe.ResolutionDetails: ...
 
-# A nullable str passed to native code.
-# If it is str it should be utf8 encodable, if it is bytes it should
-# already be utf8 encoded
-Utf8ReprStr = Union[str, bytes, None]
 
 class SpanData:
-    name: Utf8ReprStr
-    service: Utf8ReprStr
+    name: str
+    service: Optional[str]
 
     def __init__(
         self,
