@@ -300,6 +300,9 @@ Current Limitations
 Resources and References
 ------------------------
 
+**Datadog Fuzzing Platform (internal):**
+  https://datadoghq.atlassian.net/wiki/spaces/RESENG/pages/2147976713/Fuzzing
+
 **libFuzzer documentation:**
   https://llvm.org/docs/LibFuzzer.html
 
