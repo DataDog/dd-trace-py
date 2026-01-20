@@ -354,7 +354,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
 
             # Span priority was unset, but as we keep 1 per min, it should be kept
             # Since we have a rate limiter, priorities used are AUTO_KEEP and AUTO_REJECT
-            assert span._metrics["_sampling_priority_v1"] == AUTO_KEEP
+            assert span._metrics["_sampling_priority_v1"] == AUTO_KEEP, "Sampling priority should be AUTO_KEEP (1)"
 
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "0"}):
