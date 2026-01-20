@@ -1,5 +1,4 @@
 use std::{
-    fmt,
     ops::Deref as _,
     ptr::{self, NonNull},
 };
@@ -35,7 +34,7 @@ impl PyBackedString {
         }
     }
 
-    fn from_string<'py>(py: Python<'py>, s: &str) -> Self {
+    pub fn from_string<'py>(py: Python<'py>, s: &str) -> Self {
         let s = PyString::new(py, s);
         // SAFETY: s is valid UTF-8 so the conversion should normally never fail
         Self::try_from(s).unwrap()

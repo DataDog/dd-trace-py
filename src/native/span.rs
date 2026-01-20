@@ -1,14 +1,9 @@
-use std::ptr;
-
 use pyo3::{
-    Bound, FromPyObject, Py, PyAny, PyObject, PyResult, Python, exceptions::PyValueError, types::{
-        PyBytesMethods as _, PyInt, PyList, PyModule, PyModuleMethods as _, PyString,
-        PyStringMethods as _,
-    }
+    types::{PyInt, PyList, PyModule, PyModuleMethods as _},
+    Bound, FromPyObject, PyAny, PyObject, PyResult, Python,
 };
 
 use crate::py_string::PyBackedString;
-
 
 #[pyo3::pyclass(name = "SpanEventData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
@@ -81,13 +76,16 @@ impl SpanLinkData {
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
 pub struct SpanData {
-    data: libdd_trace_utils::span::Span<PyBackedString>
+    data: libdd_trace_utils::span::Span<PyBackedString>,
 }
 
-fn optional_obj_to_py_str(py: Python<'_>, v: Option<&Bound<'_, PyAny>>) -> PyResult<PyBackedString> {
+fn optional_obj_to_py_str(
+    py: Python<'_>,
+    v: Option<&Bound<'_, PyAny>>,
+) -> PyResult<PyBackedString> {
     match v {
         Some(ob) => PyBackedString::extract_bound(ob),
-        None => Ok(PyBackedString::py_none(py))
+        None => Ok(PyBackedString::py_none(py)),
     }
 }
 

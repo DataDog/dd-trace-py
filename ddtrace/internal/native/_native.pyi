@@ -1,9 +1,10 @@
 from enum import Enum
-from typing import Any, Union
+from typing import Any
 from typing import Dict
 from typing import List
 from typing import Literal
 from typing import Optional
+from typing import Union
 
 from ddtrace.internal.constants import SPAN_API_DATADOG
 
