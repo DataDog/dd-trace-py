@@ -79,8 +79,8 @@ run-tests-trigger:
  needs:
    - job: tests-gen
      artifacts: true
-  variables:
-    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES}"
+ variables:
+   UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES}"
  # Allow the child job to fail if explicitly asked
  rules:
    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
