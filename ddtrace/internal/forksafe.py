@@ -20,13 +20,15 @@ _registry = []  # type: typing.List[typing.Callable[[], None]]
 _registry_before_fork = []  # type: typing.List[typing.Callable[[], None]]
 _registry_after_parent = []  # type: typing.List[typing.Callable[[], None]]
 
+# Some integrations might require after-fork hooks to be executed after the
+# actual call to os.fork with earlier versions of Python (<= 3.6), else issues
+# like SIGSEGV will occur. Setting this to True will cause the after-fork hooks
+# to be executed after the actual fork, which seems to prevent the issue.
+_soft = True
+
 
 # Flag to determine, from the parent process, if fork has been called
 _forked = False
-
-
-# Flag to control whether after-fork hooks should execute
-_after_fork_hooks_enabled = True
 
 
 def set_forked():
@@ -39,30 +41,8 @@ def has_forked():
     return _forked
 
 
-def disable_after_fork_hooks():
-    """Disable the execution of after-fork hooks. Used to avoid conflicting with"""
-    global _after_fork_hooks_enabled
-    _after_fork_hooks_enabled = False
-
-
-def enable_after_fork_hooks():
-    """Enable the execution of after-fork hooks."""
-    global _after_fork_hooks_enabled
-    _after_fork_hooks_enabled = True
-
-
-def execute_after_fork_hooks():
-    """Manually execute the after-fork hooks."""
-    run_hooks(_registry)
-
-
 def run_hooks(registry):
     # type: (typing.List[typing.Callable[[], None]]) -> None
-    # Check if after-fork hooks should be skipped
-    if registry is _registry and not _after_fork_hooks_enabled:
-        log.debug("After-fork hooks are disabled, skipping execution")
-        return
-
     for hook in list(registry):
         try:
             hook()
