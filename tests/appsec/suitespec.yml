@@ -226,7 +226,7 @@ suites:
     retry: 2
     runner: riot
   appsec_threats_flask:
-    parallelism: 4
+    parallelism: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -242,7 +242,7 @@ suites:
     retry: 2
     runner: riot
   appsec_threats_tornado:
-    parallelism: 4
+    parallelism: 6
     paths:
       - '@bootstrap'
       - '@core'
