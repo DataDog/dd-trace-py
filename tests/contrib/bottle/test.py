@@ -23,16 +23,11 @@ class TraceBottleTest(TracerTestCase):
 
     def setUp(self):
         super(TraceBottleTest, self).setUp()
-
-        # provide a dummy tracer
-        self._original_tracer = ddtrace.tracer
-        ddtrace.tracer = self.tracer
         # provide a Bottle app
         self.app = bottle.Bottle()
 
     def tearDown(self):
-        # restore the tracer
-        ddtrace.tracer = self._original_tracer
+        super(TraceBottleTest, self).tearDown()
 
     def _trace_app(self, tracer=None, extra_environ={}):
         self.app.install(TracePlugin(service=SERVICE, tracer=tracer))
