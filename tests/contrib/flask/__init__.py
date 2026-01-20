@@ -43,9 +43,6 @@ class BaseFlaskTestCase(TracerTestCase):
         # Unpatch Flask
         unpatch()
 
-    def get_spans(self):
-        return self.tracer.pop()
-
     def assert_is_wrapped(self, obj):
         self.assertTrue(is_wrapted(obj), "{} is not wrapped".format(obj))
 

@@ -4,14 +4,15 @@
 
 #pragma once
 
-#include <Python.h>
+// Py_BUILD_CORE must be defined before Python.h to avoid conflicting
+// declarations between public and internal headers (e.g., PyObject_GC_IsFinalized)
 #define Py_BUILD_CORE
+#include <Python.h>
 
 #if PY_VERSION_HEX >= 0x030e0000
 #include <internal/pycore_tstate.h>
 #endif
 
-#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <mutex>
@@ -19,7 +20,7 @@
 #include <unordered_map>
 
 #if defined PL_LINUX
-#include <time.h>
+#include <ctime>
 #elif defined PL_DARWIN
 #include <mach/clock.h>
 #include <mach/mach.h>
@@ -32,6 +33,8 @@
 #include <echion/stacks.h>
 #include <echion/tasks.h>
 #include <echion/timing.h>
+
+class EchionSampler;
 
 class ThreadInfo
 {
@@ -52,6 +55,7 @@ class ThreadInfo
     mach_port_t mach_port;
 #endif
     microsecond_t cpu_time;
+    bool running_ = false;
 
     uintptr_t asyncio_loop = 0;
     uintptr_t tstate_addr = 0; // Remote address of PyThreadState for accessing asyncio_tasks_head
@@ -120,75 +124,6 @@ class ThreadInfo
     [[nodiscard]] Result<void> get_tasks_from_linked_list(uintptr_t head_addr, std::vector<TaskInfo::Ptr>& tasks);
 #endif
 };
-
-inline Result<void>
-ThreadInfo::update_cpu_time()
-{
-#if defined PL_LINUX
-    struct timespec ts;
-    if (clock_gettime(cpu_clock_id, &ts)) {
-        // If the clock is invalid, we skip updating the CPU time.
-        // This can happen if we try to compute CPU time for a thread that has exited.
-        if (errno == EINVAL) {
-            return Result<void>::ok();
-        }
-
-        return ErrorKind::CpuTimeError;
-    }
-
-    this->cpu_time = TS_TO_MICROSECOND(ts);
-#elif defined PL_DARWIN
-    thread_basic_info_data_t info;
-    mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
-    kern_return_t kr = thread_info((thread_act_t)this->mach_port, THREAD_BASIC_INFO, (thread_info_t)&info, &count);
-
-    if (kr != KERN_SUCCESS) {
-        // If the thread is invalid, we skip updating the CPU time.
-        // This can happen if we try to compute CPU time for a thread that has exited.
-        if (kr == KERN_INVALID_ARGUMENT) {
-            return Result<void>::ok();
-        }
-
-        return ErrorKind::CpuTimeError;
-    }
-
-    if (info.flags & TH_FLAGS_IDLE) {
-        return Result<void>::ok();
-    }
-
-    this->cpu_time = TV_TO_MICROSECOND(info.user_time) + TV_TO_MICROSECOND(info.system_time);
-#endif
-
-    return Result<void>::ok();
-}
-
-inline bool
-ThreadInfo::is_running()
-{
-#if defined PL_LINUX
-    struct timespec ts1, ts2;
-
-    // Get two back-to-back times
-    if (clock_gettime(cpu_clock_id, &ts1) != 0)
-        return false;
-    if (clock_gettime(cpu_clock_id, &ts2) != 0)
-        return false;
-
-    // If the CPU time has advanced, the thread is running
-    return (ts1.tv_sec != ts2.tv_sec || ts1.tv_nsec != ts2.tv_nsec);
-
-#elif defined PL_DARWIN
-    thread_basic_info_data_t info;
-    mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
-    kern_return_t kr = thread_info((thread_act_t)this->mach_port, THREAD_BASIC_INFO, (thread_info_t)&info, &count);
-
-    if (kr != KERN_SUCCESS)
-        return false;
-
-    return info.run_state == TH_STATE_RUNNING;
-
-#endif
-}
 
 // ----------------------------------------------------------------------------
 
@@ -773,83 +708,5 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
 // ----------------------------------------------------------------------------
 using PyThreadStateCallback = std::function<void(PyThreadState*, ThreadInfo&)>;
 
-static void
-for_each_thread(InterpreterInfo& interp, PyThreadStateCallback callback)
-{
-    std::unordered_set<PyThreadState*> threads;
-    std::unordered_set<PyThreadState*> seen_threads;
-
-    threads.clear();
-    seen_threads.clear();
-
-    // Start from the thread list head
-    threads.insert(static_cast<PyThreadState*>(interp.tstate_head));
-
-    while (!threads.empty()) {
-        // Pop the next thread
-        PyThreadState* tstate_addr = *threads.begin();
-        threads.erase(threads.begin());
-
-        // Mark the thread as seen
-        seen_threads.insert(tstate_addr);
-
-        // Since threads can be created and destroyed at any time, we make
-        // a copy of the structure before trying to read its fields.
-        PyThreadState tstate;
-        if (copy_type(tstate_addr, tstate))
-            // We failed to copy the thread so we skip it.
-            continue;
-
-        // Enqueue the unseen threads that we can reach from this thread.
-        if (tstate.next != NULL && seen_threads.find(tstate.next) == seen_threads.end())
-            threads.insert(tstate.next);
-        if (tstate.prev != NULL && seen_threads.find(tstate.prev) == seen_threads.end())
-            threads.insert(tstate.prev);
-
-        {
-            const std::lock_guard<std::mutex> guard(thread_info_map_lock);
-
-            if (thread_info_map.find(tstate.thread_id) == thread_info_map.end()) {
-                // If the threading module was not imported in the target then
-                // we mistakenly take the hypno thread as the main thread. We
-                // assume that any missing thread is the actual main thread,
-                // provided we don't already have a thread with the name
-                // "MainThread". Note that this can also happen on shutdown, so
-                // we need to avoid doing anything in that case.
-#if PY_VERSION_HEX >= 0x030b0000
-                auto native_id = tstate.native_thread_id;
-#else
-                auto native_id = getpid();
-#endif
-                bool main_thread_tracked = false;
-                for (auto& kv : thread_info_map) {
-                    if (kv.second->name == "MainThread") {
-                        main_thread_tracked = true;
-                        break;
-                    }
-                }
-                if (main_thread_tracked)
-                    continue;
-
-                auto maybe_thread_info = ThreadInfo::create(tstate.thread_id, native_id, "MainThread");
-                if (!maybe_thread_info) {
-                    // We failed to create the thread info object so we skip it.
-                    // We'll likely try again later with the valid thread
-                    // information.
-                    continue;
-                }
-
-                thread_info_map.emplace(tstate.thread_id, std::move(*maybe_thread_info));
-            }
-
-            // Update the tstate_addr for thread info, so we can access
-            // asyncio_tasks_head field from `_PyThreadStateImpl` struct
-            // later when we unwind tasks.
-            auto thread_info = thread_info_map.find(tstate.thread_id)->second.get();
-            thread_info->tstate_addr = reinterpret_cast<uintptr_t>(tstate_addr);
-
-            // Call back with the copied thread state
-            callback(&tstate, *thread_info);
-        }
-    }
-}
+void
+for_each_thread(EchionSampler& echion, InterpreterInfo& interp, PyThreadStateCallback callback);

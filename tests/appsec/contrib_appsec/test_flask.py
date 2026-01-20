@@ -5,6 +5,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.internal.packages import get_version_for_package
 from tests.appsec.contrib_appsec import utils
 from tests.utils import TracerTestCase
+from tests.utils import scoped_tracer
 
 
 FLASK_VERSION = tuple(int(v) for v in get_version_for_package("flask").split("."))
@@ -81,9 +82,10 @@ class Test_Flask(utils.Contrib_TestClass_For_Threats):
 
         bftc.client.post = patch_post
 
-        with utils.test_tracer() as tracer:
+        with scoped_tracer() as tracer:
             interface.tracer = tracer
             interface.printer = printer
+            interface.SERVER_PORT = self.SERVER_PORT
             with utils.post_tracer(interface):
                 yield interface
 

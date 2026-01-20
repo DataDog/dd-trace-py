@@ -52,7 +52,7 @@ class MySQLCore(object):
         assert rowcount == 1
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         span = spans[0]
@@ -82,7 +82,7 @@ class MySQLCore(object):
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
             assert len(rows) == 1
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 2
 
             span = spans[0]
@@ -113,7 +113,7 @@ class MySQLCore(object):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         span = spans[0]
@@ -143,7 +143,7 @@ class MySQLCore(object):
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
             assert len(rows) == 1
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 2
 
             span = spans[0]
@@ -175,7 +175,7 @@ class MySQLCore(object):
         cursor.execute(query)
         rows = cursor.fetchall()
         assert len(rows) == 3
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.get_tag("sql.query") is None
@@ -189,7 +189,7 @@ class MySQLCore(object):
             cursor.execute(query)
             rows = cursor.fetchall()
             assert len(rows) == 3
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 2
             span = spans[0]
             assert span.get_tag("sql.query") is None
@@ -226,7 +226,7 @@ class MySQLCore(object):
         assert rows[1][0] == "foo"
         assert rows[1][1] == "this is foo"
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         span = spans[1]
         assert span.get_tag("sql.query") is None
@@ -263,7 +263,7 @@ class MySQLCore(object):
             assert rows[1][0] == "foo"
             assert rows[1][1] == "this is foo"
 
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 3
             span = spans[1]
             assert span.get_tag("sql.query") is None
@@ -296,7 +296,7 @@ class MySQLCore(object):
         cursor.execute("SELECT @_sp_sum_2;")
         assert cursor.fetchone()[0] == 42
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert spans, spans
 
         # number of spans depends on MySQL implementation details,
@@ -326,7 +326,7 @@ class MySQLCore(object):
         conn, tracer = self._get_conn_tracer()
 
         conn.commit()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "mysql"
@@ -336,7 +336,7 @@ class MySQLCore(object):
         conn, tracer = self._get_conn_tracer()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "mysql"
@@ -359,7 +359,7 @@ class MySQLCore(object):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service != "mysvc"
 
@@ -380,7 +380,7 @@ class MySQLCore(object):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service == "mysvc"
 
@@ -397,7 +397,7 @@ class MySQLCore(object):
             assert rowcount == 1
             rows = cursor.fetchall()
             assert len(rows) == 1
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 1
 
             span = spans[0]
@@ -538,7 +538,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         span = spans[0]
@@ -554,7 +554,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service == "mysvc"
 
@@ -568,7 +568,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service == "mysvc"
 
@@ -580,20 +580,20 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
     def test_trace_connect(self):
         # No span when trace_connect is False (the default)
         self._connect_with_kwargs().close()
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         assert not spans
 
         with self.override_config("mysqldb", dict(trace_connect=True)):
             self._connect_with_kwargs().close()
 
-            spans = self.tracer.pop()
+            spans = self.pop_spans()
 
             self.assertEqual(len(spans), 1)
             span = spans[0]
@@ -607,7 +607,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
     def test_trace_connect_env_var_config(self):
         self._connect_with_kwargs().close()
 
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
 
         self.assertEqual(len(spans), 1)
         span = spans[0]
@@ -623,7 +623,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
 
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         span = spans[0]
         assert span.name == "mysql.query"
@@ -634,7 +634,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
 
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         span = spans[0]
         assert span.name == "mysql.query"

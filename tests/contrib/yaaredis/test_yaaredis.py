@@ -215,7 +215,6 @@ def test_full_command_in_resource_env():
 
 @pytest.mark.snapshot
 @pytest.mark.asyncio
-@pytest.mark.parametrize("use_global_tracer", [True])
 async def test_full_command_in_resource_config(tracer, traced_yaaredis):
     with override_config("yaaredis", dict(resource_only_command=False)):
         with tracer.trace("web-request", service="test"):

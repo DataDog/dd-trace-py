@@ -1,13 +1,11 @@
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.litellm.patch import patch
 from ddtrace.contrib.internal.litellm.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
 from tests.contrib.litellm.utils import get_request_vcr
 from tests.contrib.litellm.utils import model_list
 from tests.llmobs._utils import TestLLMObsSpanWriter
-from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 
@@ -46,7 +44,7 @@ def litellm(ddtrace_global_config, monkeypatch):
 
 
 @pytest.fixture
-def litellm_llmobs(mock_tracer, llmobs_span_writer):
+def litellm_llmobs(tracer, llmobs_span_writer):
     llmobs_service.disable()
     with override_global_config(
         {
@@ -54,18 +52,10 @@ def litellm_llmobs(mock_tracer, llmobs_span_writer):
             "_dd_api_key": "<not-a-real-key>",
         }
     ):
-        llmobs_service.enable(_tracer=mock_tracer, integrations_enabled=False)
+        llmobs_service.enable(_tracer=tracer, integrations_enabled=False)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         yield llmobs_service
     llmobs_service.disable()
-
-
-@pytest.fixture
-def mock_tracer(litellm):
-    mock_tracer = DummyTracer()
-    pin = Pin.get_from(litellm)
-    pin._override(litellm, tracer=mock_tracer)
-    yield mock_tracer
 
 
 @pytest.fixture

@@ -1,4 +1,4 @@
-#!/usr/bin/env bash -eu
+#!/usr/bin/bash
 
 set -eu
 

@@ -157,6 +157,7 @@
       "test.browser.name": "chrome",
       "test.browser.version": "131.0.6778.85",
       "test.command": "pytest --ddtrace -s --ddtrace-patch-all",
+      "test.final_status": "pass",
       "test.framework": "pytest",
       "test.framework_version": "8.3.4",
       "test.is_browser": "true",

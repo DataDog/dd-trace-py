@@ -27,6 +27,7 @@ from tests.profiling.collector import pprof_utils
 
 
 if TYPE_CHECKING:
+    # We need the pyright: ignore because pprof_pb2 does not exist as a real module, only as a pyi.
     from tests.profiling.collector import pprof_pb2  # pyright: ignore[reportMissingModuleSource]
 
 
