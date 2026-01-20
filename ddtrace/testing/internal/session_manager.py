@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 import typing as t
 
-from ddtrace.settings import config as ddconfig
+from ddtrace import config as ddconfig
 from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import DEFAULT_ENV_NAME
