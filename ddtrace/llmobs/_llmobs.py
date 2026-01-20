@@ -941,7 +941,7 @@ class LLMObs(Service):
         :param evaluators: A list of evaluator functions to measure task performance.
                           Each evaluator must accept parameters ``input_data`` (dict), ``output_data``
                           (task output), and ``expected_output`` (expected result from dataset).
-                          Should return a dict with evaluation metrics.
+                          Should return a JSON-serializable value with the evaluation results.
         :param project_name: The name of the project to organize optimization runs. Defaults to the
                             project name set in ``LLMObs.enable()``.
         :param tags: A dictionary of string key-value tag pairs to associate with the optimization.
