@@ -28,7 +28,7 @@ __all__ = [
 ]
 
 
-# Forking state management. This ia a barrier the either prevents new threads
+# Forking state management. This is a barrier to either prevent new threads
 # from being started while forking, or to allow a thread to be started
 # completely if a fork comes in the middle of it.
 _forking = False
