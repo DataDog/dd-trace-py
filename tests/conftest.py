@@ -265,12 +265,20 @@ def snapshot(request):
         else:
             token = request_token(request).replace(" ", "_").replace(os.path.sep, "_")
 
-        mgr = _snapshot_context(token, *snap.args, **snap.kwargs)
-        snapshot = mgr.__enter__()
-        yield snapshot
-        # Skip doing any checks if the test was skipped
-        if hasattr(request.node, "rep_call") and not request.node.rep_call.skipped:
-            mgr.__exit__(None, None, None)
+        # AIDEV-NOTE: Pop DD_GIT_REPOSITORY_URL to prevent it from being added to span tags
+        # This env var is set in CI but should not affect snapshot tests
+        git_repo_url = os.environ.pop("DD_GIT_REPOSITORY_URL", None)
+        try:
+            mgr = _snapshot_context(token, *snap.args, **snap.kwargs)
+            snapshot = mgr.__enter__()
+            yield snapshot
+            # Skip doing any checks if the test was skipped
+            if hasattr(request.node, "rep_call") and not request.node.rep_call.skipped:
+                mgr.__exit__(None, None, None)
+        finally:
+            # Restore the env var if it was set
+            if git_repo_url is not None:
+                os.environ["DD_GIT_REPOSITORY_URL"] = git_repo_url
     else:
         yield
 
