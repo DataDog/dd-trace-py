@@ -241,6 +241,22 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
     runner: riot
+  appsec_threats_tornado:
+    parallelism: 4
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@asgi'
+      - '@wsgi'
+      - '@flask'
+      - '@remoteconfig'
+      - tests/appsec/*
+      - tests/appsec/contrib_appsec/*
+    retry: 2
+    runner: riot
   urllib:
     paths:
       - '@bootstrap'
