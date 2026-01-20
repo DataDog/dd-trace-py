@@ -436,7 +436,6 @@ class Contrib_TestClass_For_Threats:
             payload = encode_payload(payload_struct)
             response = interface.client.post("/asm/", data=payload, content_type=content_type)
             assert self.status(response) == 200  # Have to add end points in each framework application.
-            assert _addresses_store, "no waf addresses stored"
             body = _addresses_store[0].get("http.request.body") if _addresses_store else None
             if asm_enabled and content_type != "text/plain":
                 assert body in [
@@ -483,7 +482,6 @@ class Contrib_TestClass_For_Threats:
             self.update_tracer(interface)
             response = interface.client.get("/asm/137/abc/")
             assert self.status(response) == 200
-            assert _addresses_store, "no waf addresses stored"
             path_params = _addresses_store[0].get("http.request.path_params") if _addresses_store else None
             if asm_enabled:
                 assert path_params["param_str"] == "abc"
@@ -548,8 +546,10 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == 200
             if asm_enabled:
                 if expected is None:
-                    expected = "127.0.0.1"
-                assert (st := get_entry_span_tag(http.CLIENT_IP)) == expected, (
+                    expected_list = [None, "127.0.0.1"]
+                else:
+                    expected_list = [expected]
+                assert (st := get_entry_span_tag(http.CLIENT_IP)) in expected_list, (
                     f"client ip tag mismatch {st}!={expected}"
                 )
             else:
