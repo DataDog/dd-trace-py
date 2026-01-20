@@ -319,6 +319,10 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
 
             context = HTTPPropagator.extract(headers)
 
+            # Verify context.sampling_priority is None (set by extract when _apm_tracing_enabled=False)
+            assert context.sampling_priority is None, (
+                f"Extracted context.sampling_priority should be None, got {context.sampling_priority}"
+            )
             # Diagnostic assertions to identify rate limiter exhaustion
             assert tracer.context_provider.active() is None, "Context provider has active context before test"
             sampling_processor = tracer._span_aggregator.sampling_processor
@@ -326,9 +330,10 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
                 f"_apm_opt_out should be True, got {sampling_processor._apm_opt_out}"
             )
             limiter = tracer._sampler.limiter
-            assert limiter.rate_limit == 1, f"Rate limit should be 1, got {limiter.rate_limit}"
+            tokens_before = limiter.tokens
+            assert 1 == limiter.rate_limit, f"Rate limit should be 1, got {limiter.rate_limit}"
             assert limiter.time_window == 60e9, f"Time window should be 60e9, got {limiter.time_window}"
-            assert limiter.tokens >= 1, f"Rate limiter should have at least 1 token, got {limiter.tokens}"
+            assert tokens_before >= 1, f"Rate limiter should have at least 1 token, got {tokens_before}"
             tracer.context_provider.activate(context)
 
             with tracer.trace("local_root_span0") as span:
@@ -354,6 +359,26 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
 
             # Span priority was unset, but as we keep 1 per min, it should be kept
             # Since we have a rate limiter, priorities used are AUTO_KEEP and AUTO_REJECT
+            # Post-span diagnostics to understand sampling failure
+            actual_priority = span._metrics.get("_sampling_priority_v1")
+            if actual_priority != AUTO_KEEP:
+                sampler = tracer._sampler
+                diag_info = (
+                    f"Sampling failed: got {actual_priority}, expected {AUTO_KEEP}. "
+                    f"Limiter tokens BEFORE span: {tokens_before}, "
+                    f"Limiter tokens AFTER span: {limiter.tokens}, "
+                    f"Limiter rate_limit: {limiter.rate_limit}, "
+                    f"Sampler type: {type(sampler).__name__}, "
+                    f"Sampler limiter id: {id(sampler.limiter)}, "
+                    f"Original limiter id: {id(limiter)}, "
+                    f"_rate_limit_always_on: {getattr(sampler, '_rate_limit_always_on', 'N/A')}, "
+                    f"Sampler rules: {getattr(sampler, 'rules', 'N/A')}, "
+                    f"Sampler _agent_based_samplers: {getattr(sampler, '_agent_based_samplers', 'N/A')}, "
+                    f"span._context._meta: {span._context._meta}, "
+                    f"span.context.sampling_priority: {span.context.sampling_priority}, "
+                    f"span._metrics: {span._metrics}"
+                )
+                assert False, diag_info
             assert span._metrics["_sampling_priority_v1"] == AUTO_KEEP, "Sampling priority should be AUTO_KEEP (1)"
 
         finally:

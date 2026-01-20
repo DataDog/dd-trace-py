@@ -362,7 +362,7 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
-            command="pytest -v {cmdargs} tests/tracer/",
+            command="pytest -v {cmdargs} tests/tracer/ --randomly-seed=3284012467",
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
