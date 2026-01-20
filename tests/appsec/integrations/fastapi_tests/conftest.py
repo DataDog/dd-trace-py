@@ -11,7 +11,7 @@ from . import app
 @pytest.fixture
 def tracer():
     fastapi_patch()
-    with scoped_tracer() as (tracer, _):
+    with scoped_tracer() as tracer:
         yield tracer
     fastapi_unpatch()
 

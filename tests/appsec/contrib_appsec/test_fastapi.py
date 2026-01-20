@@ -21,7 +21,7 @@ class Test_FastAPI(utils.Contrib_TestClass_For_Threats):
 
         # for fastapi, test tracer needs to be set before the app is created
         # contrary to other frameworks
-        with scoped_tracer() as (tracer, _):
+        with scoped_tracer() as tracer:
             application = get_app()
 
             client = TestClient(application, base_url="http://localhost:%d" % self.SERVER_PORT)

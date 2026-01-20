@@ -38,7 +38,7 @@ def engine():
 
 @pytest.fixture
 def tracer(engine):
-    with scoped_tracer() as (tracer, _):
+    with scoped_tracer() as tracer:
         Pin._override(engine, tracer=tracer)
         starlette_patch()
         yield tracer

@@ -17,7 +17,7 @@ if __name__ == "__main__":
     assert pin
 
     tracer_scope = scoped_tracer()
-    pin._tracer, _ = tracer_scope.__enter__()
+    pin._tracer = tracer_scope.__enter__()
     with TracerSpanContainer(pin._tracer) as tsc:
         r.flushall()
         spans = tsc.pop_spans()

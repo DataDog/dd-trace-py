@@ -61,7 +61,7 @@ def assert_sampling_decision_tags(
 
 
 def create_span(name="test.span", service=""):
-    with scoped_tracer() as (tracer, _):
+    with scoped_tracer() as tracer:
         span = tracer.trace(name=name, service=service)
         span.finish()
         return span

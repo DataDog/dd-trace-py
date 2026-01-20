@@ -288,6 +288,13 @@ def override_http_config(integration, values):
 @contextlib.contextmanager
 def scoped_tracer():
     """Provides a test-scoped global tracer with no configuration leaks."""
+    with scoped_tracer_with_container() as (tracer, _):
+        yield tracer
+
+
+@contextlib.contextmanager
+def scoped_tracer_with_container():
+    """Provides a test-scoped global tracer with no configuration leaks."""
     try:
         send_to_agent = check_test_agent_status()
         with TracerSpanContainer(ddtrace.tracer, send_to_agent) as wc:
@@ -538,8 +545,8 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
     def setUp(self):
         """Before each test case, configure the global tracer with a DummyWriter"""
         self.tracer = ddtrace.tracer
-        self.scoped_tracer = scoped_tracer()
-        self.tracer, self.writer_container = self.scoped_tracer.__enter__()
+        self.scoped_tracer_with_container = scoped_tracer_with_container()
+        self.tracer, self.writer_container = self.scoped_tracer_with_container.__enter__()
         super(TracerTestCase, self).setUp()
 
     def tearDown(self):
@@ -547,7 +554,7 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
         try:
             super(TracerTestCase, self).tearDown()
         finally:
-            self.scoped_tracer.__exit__(None, None, None)
+            self.scoped_tracer_with_container.__exit__(None, None, None)
             self.reset()
 
     def get_spans(self):
@@ -924,6 +931,7 @@ class TestSpanNode(TestSpan, TestSpanContainer):
             root, _children = child
             spans[i].assert_matches(parent_id=self.span_id, trace_id=self.trace_id, _parent=self)
             spans[i].assert_structure(root, _children)
+
 
 class TracerSpanContainer(object):
     def __init__(self, tracer: ddtrace.trace.Tracer, send_to_agent: bool = False):
