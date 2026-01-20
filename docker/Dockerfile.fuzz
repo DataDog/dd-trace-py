@@ -2,9 +2,11 @@
 #
 # Build:
 #   $ docker build -f docker/Dockerfile.fuzz -t ddtrace-py-stackv2-fuzz .
-# Run: 
+# Run:
 #   $ docker run --rm -it -v "$PWD/.fuzz:/fuzz" ddtrace-py-stackv2-fuzz
 
+# TODO(taegyunkim): Add this image to Datadog/images, and update
+# .gitlab/fuzz.yml to use the same images.
 FROM debian:trixie-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
