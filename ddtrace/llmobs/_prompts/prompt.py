@@ -210,12 +210,12 @@ class ManagedPrompt:
         )
 
 
-_VARIABLE_PATTERN = re.compile(r"\{\{\s*(\w+)\s*\}\}")
+_VARIABLE_PATTERN = re.compile(r"\{\s*(\w+)\s*\}")
 
 
 def _safe_substitute(template: str, variables: Dict[str, str]) -> str:
     """
-    Substitute {{variable}} placeholders with values from variables dict.
+    Substitute {variable} placeholders with values from variables dict.
 
     Missing variables are left as-is (safe substitution).
     """
