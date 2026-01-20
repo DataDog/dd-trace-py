@@ -7,7 +7,6 @@ import typing as t
 
 from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.ci import CITag
-from ddtrace.testing.internal.constants import DEFAULT_ENV_NAME
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.testing.internal.env_tags import get_env_tags
 from ddtrace.testing.internal.git import Git
@@ -68,7 +67,7 @@ class SessionManager:
 
         self.env = os.getenv("_CI_DD_ENV", os.getenv("DD_ENV", None))
         if self.env is None:
-            self.env = self.connector_setup.default_env(default=DEFAULT_ENV_NAME)
+            self.env = self.connector_setup.default_env()
 
         self.api_client = APIClient(
             service=self.service,

@@ -21,6 +21,7 @@ import uuid
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_HOSTNAME
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_PORT
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_SOCKET_FILE
+from ddtrace.testing.internal.constants import DEFAULT_ENV_NAME
 from ddtrace.testing.internal.constants import DEFAULT_SITE
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.telemetry import ErrorType
@@ -79,9 +80,8 @@ class BackendConnectorSetup:
         """
         pass
 
-    @abstractmethod
-    def default_env(self, default) -> str:
-        return default
+    def default_env(self) -> str:
+        return DEFAULT_ENV_NAME
 
     @classmethod
     def detect_setup(cls) -> BackendConnectorSetup:
@@ -157,9 +157,6 @@ class BackendConnectorAgentlessSetup(BackendConnectorSetup):
         self.site = site
         self.api_key = api_key
 
-    def default_env(self, default) -> str:
-        return default
-
     def get_connector_for_subdomain(self, subdomain: Subdomain) -> BackendConnector:
         if subdomain == Subdomain.CITESTCYCLE and (agentless_url := os.environ.get("DD_CIVISIBILITY_AGENTLESS_URL")):
             url = agentless_url
@@ -179,7 +176,7 @@ class BackendConnectorEVPProxySetup(BackendConnectorSetup):
         self.base_path = base_path
         self.use_gzip = use_gzip
 
-    def default_env(self, default) -> str:
+    def default_env(self) -> str:
         try:
             connector = BackendConnector(self.url)
             result = connector.get_json("/info", max_attempts=2)
@@ -191,9 +188,10 @@ class BackendConnectorEVPProxySetup(BackendConnectorSetup):
             raise SetupError(f"Error connecting to Datadog agent at {self.url}: {result.error_description}")
 
         if result:
-            default_env = result.parsed_response.get("config", {}).get("default_env", default)
+            default_env = result.parsed_response.get("config", {}).get("default_env", DEFAULT_ENV_NAME)
             return default_env
-        return default
+
+        return DEFAULT_ENV_NAME
 
     def get_connector_for_subdomain(self, subdomain: Subdomain) -> BackendConnector:
         return BackendConnector(
