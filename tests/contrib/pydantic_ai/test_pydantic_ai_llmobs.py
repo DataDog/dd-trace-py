@@ -84,7 +84,7 @@ class TestLLMObsPydanticAI:
         assert llmobs_events[0] == expected_run_agent_span_event(span, output)
 
     @pytest.mark.parametrize("stream_method", ["stream_structured", "stream_responses"])
-    async def test_agent_run_stream_structured(
+    async def test_agent_run_stream_method(
         self, pydantic_ai, request_vcr, llmobs_events, test_spans, stream_method
     ):
         if stream_method == "stream_responses" and PYDANTIC_AI_VERSION < (0, 8, 1):
@@ -149,7 +149,7 @@ class TestLLMObsPydanticAI:
         )
 
     @pytest.mark.parametrize("stream_method", ["stream_structured", "stream_responses"])
-    async def test_agent_run_stream_structured_with_tool(
+    async def test_agent_run_stream_method_with_tool(
         self, pydantic_ai, request_vcr, llmobs_events, test_spans, stream_method
     ):
         if stream_method == "stream_responses" and PYDANTIC_AI_VERSION < (0, 8, 1):

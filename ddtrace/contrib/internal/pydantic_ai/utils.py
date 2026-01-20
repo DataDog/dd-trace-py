@@ -119,7 +119,7 @@ class TracedPydanticStreamedRunResult(wrapt.ObjectProxy):
 
 
 class TracedPydanticGenerator(wrapt.ObjectProxy):
-    def __init__(self, wrapped, span, integration, args, kwargs, delta=False, responses=False):
+    def __init__(self, wrapped, span, integration, args, kwargs, delta=False):
         super().__init__(wrapped)
         self._self_dd_span = span
         self._self_dd_integration = integration
