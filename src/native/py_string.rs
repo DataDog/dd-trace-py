@@ -12,10 +12,11 @@ use pyo3::{
 use libdd_trace_utils::span::SpanText;
 
 /// A Python bytes/str backed utf-8 string we can read without needing access to the GIL
-/// that can be put in a libdatadog span
+/// that can be put in a libdatadog span.
 pub struct PyBackedString {
+    /// memory view over the python object bytes, or static data
     data: ptr::NonNull<str>,
-    #[allow(unused)]
+    /// Prevents the underlying Python object from being garbage collected.
     storage: Option<Py<PyAny>>,
 }
 
@@ -73,7 +74,14 @@ impl<'py> pyo3::IntoPyObject<'py> for &PyBackedString {
     }
 }
 
-// Py bytes as immutable and can thus be safely shared between threads
+// PyBackedString can be safely shared between threads because:
+// 1. Python str (PyUnicode) and bytes objects are immutable after creation
+// 2. The `storage` field keeps the Python object alive, preventing deallocation
+// 3. For PyString, `to_str()` returns a pointer to either:
+//    - The compact ASCII buffer (for ASCII-only strings), or
+//    - A UTF-8 cache that's lazily created and stored on the object
+//    Both are stable for the lifetime of the PyUnicode object.
+// 4. For PyBytes, the internal buffer is immutable and stable.
 unsafe impl Sync for PyBackedString {}
 unsafe impl Send for PyBackedString {}
 

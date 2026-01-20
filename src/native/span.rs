@@ -79,7 +79,7 @@ pub struct SpanData {
     data: libdd_trace_utils::span::Span<PyBackedString>,
 }
 
-fn optional_obj_to_py_str(
+fn backed_string_from_optional(
     py: Python<'_>,
     v: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PyBackedString> {
@@ -136,7 +136,7 @@ impl SpanData {
         links: Option<Bound<'p, PyList>>,
     ) -> PyResult<()> {
         self.data.name = name;
-        self.data.service = optional_obj_to_py_str(py, service)?;
+        self.data.service = backed_string_from_optional(py, service)?;
         Ok(())
     }
 
