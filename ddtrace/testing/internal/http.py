@@ -79,6 +79,10 @@ class BackendConnectorSetup:
         """
         pass
 
+    @abstractmethod
+    def default_env(self, default) -> str:
+        return default
+
     @classmethod
     def detect_setup(cls) -> BackendConnectorSetup:
         """
@@ -153,6 +157,9 @@ class BackendConnectorAgentlessSetup(BackendConnectorSetup):
         self.site = site
         self.api_key = api_key
 
+    def default_env(self, default) -> str:
+        return default
+
     def get_connector_for_subdomain(self, subdomain: Subdomain) -> BackendConnector:
         if subdomain == Subdomain.CITESTCYCLE and (agentless_url := os.environ.get("DD_CIVISIBILITY_AGENTLESS_URL")):
             url = agentless_url
@@ -171,6 +178,22 @@ class BackendConnectorEVPProxySetup(BackendConnectorSetup):
         self.url = url
         self.base_path = base_path
         self.use_gzip = use_gzip
+
+    def default_env(self, default) -> str:
+        try:
+            connector = BackendConnector(self.url)
+            result = connector.get_json("/info", max_attempts=2)
+            connector.close()
+        except Exception as e:
+            raise SetupError(f"Error connecting to Datadog agent at {self.url}: {e}")
+
+        if result.error_type:
+            raise SetupError(f"Error connecting to Datadog agent at {self.url}: {result.error_description}")
+
+        if result:
+            default_env = result.parsed_response.get("config", {}).get("default_env", default)
+            return default_env
+        return default
 
     def get_connector_for_subdomain(self, subdomain: Subdomain) -> BackendConnector:
         return BackendConnector(
@@ -288,7 +311,7 @@ class BackendConnector(threading.local):
                 result.error_type = ErrorType.BAD_JSON
                 result.error_description = str(e)
             except Exception as e:
-                log.exception("Error parsing respose for %s %s", method, path)
+                log.exception("Error parsing response for %s %s", method, path)
                 result.error_type = ErrorType.UNKNOWN
                 result.error_description = str(e)
 

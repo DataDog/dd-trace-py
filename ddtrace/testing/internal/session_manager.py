@@ -66,19 +66,9 @@ class SessionManager:
 
         self.is_auto_injected = bool(os.getenv("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
 
-        # AIDEV-NOTE: Lazy import of ddtrace.config to avoid circular import issues.
-        # The pytest plugin loads early, before ddtrace may be fully initialized.
-        # Match the old plugin's behavior: os.getenv("_CI_DD_ENV", config.env)
-        try:
-            # Disable unused import warning pylint: disable=W0611
-            import ddtrace  # noqa: F401
-            from ddtrace import config as ddconfig
-
-            self.env = os.getenv("_CI_DD_ENV", ddconfig.env)
-        except ImportError:
-            log.debug("Import error for ddtrace/ddconfig, fallback to env vars")
-            # If ddtrace can't be imported, fall back to env vars only
-            self.env = os.getenv("_CI_DD_ENV") or os.getenv("DD_ENV") or DEFAULT_ENV_NAME
+        self.env = os.getenv("_CI_DD_ENV", os.getenv("DD_ENV", None))
+        if self.env is None:
+            self.env = self.connector_setup.default_env(default=DEFAULT_ENV_NAME)
 
         self.api_client = APIClient(
             service=self.service,
