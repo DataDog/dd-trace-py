@@ -84,9 +84,7 @@ class TestLLMObsPydanticAI:
         assert llmobs_events[0] == expected_run_agent_span_event(span, output)
 
     @pytest.mark.parametrize("stream_method", ["stream_structured", "stream_responses"])
-    async def test_agent_run_stream_method(
-        self, pydantic_ai, request_vcr, llmobs_events, test_spans, stream_method
-    ):
+    async def test_agent_run_stream_method(self, pydantic_ai, request_vcr, llmobs_events, test_spans, stream_method):
         if stream_method == "stream_responses" and PYDANTIC_AI_VERSION < (0, 8, 1):
             pytest.skip("pydantic-ai < 0.8.1 does not support stream_responses")
 
