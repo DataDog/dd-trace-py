@@ -550,7 +550,6 @@ def _on_httpx_request_started(ctx: ExecutionContext) -> None:
         return
 
     analyze_body = should_analyze_body_response(asm_context)
-    asm_context.downstream_requests += 1
     ctx.set_item(APPSEC_SSRF_ANALYZE_BODY_KEY, analyze_body)
 
 
@@ -584,6 +583,7 @@ def _on_httpx_client_send_single_request_started(ctx: ExecutionContext) -> None:
         addresses,
         rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
     )
+    asm_context.downstream_requests += 1
     if blocking_config := get_blocked():
         raise BlockingException(blocking_config, EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, raw_url)
 
