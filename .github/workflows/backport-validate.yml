@@ -22,10 +22,27 @@ jobs:
       #  with:
       #    scope: DataDog/dd-trace-py
       #    policy: self.backport.create-pr
+      #
       - name: Check Conflicts
         env:
           BACKPORT_LABEL: ${{ github.event.label.name }}
-          PR_BRANCH: ${{ github.ref.name }}
+          PR_BRANCH: ${{ github.ref_name }}
+        id: backport_validation
         run: |
-          echo "backport label: ${BACKPORT_LABEL}"
-          echo "branch: ${PR_BRANCH}"
+          echo "backport label: ${BACKPORT_LABEL}\nbranch: ${PR_BRANCH}"
+          echo "results<<EOF" >> "$GITHUB_OUTPUT"
+          echo "backport label: ${BACKPORT_LABEL}\nbranch: ${PR_BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Comment PR
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
+        with:
+          file-path: comment.txt
+          comment-tag: backport_validation
+          mode: upsert
+          message: |
+            Backport information
+
+            ```
+            ${{ steps.backport_validation.outputs.results }}
+            ```
