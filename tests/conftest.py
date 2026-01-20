@@ -160,11 +160,6 @@ def pytest_configure(config):
 
 
 @pytest.fixture
-def use_dummy_writer():
-    yield True
-
-
-@pytest.fixture
 def auto_enable_crashtracking():
     # Crashtracking is only supported on linux right now
     # TODO: Default to `True` when Windows and Darwin are supported
@@ -180,8 +175,8 @@ def enable_crashtracking(auto_enable_crashtracking):
 
 
 @pytest.fixture
-def tracer(use_dummy_writer):
-    with scoped_tracer(use_dummy_writer) as tracer:
+def tracer():
+    with scoped_tracer() as tracer:
         yield tracer
 
 

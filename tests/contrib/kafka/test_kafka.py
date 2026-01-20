@@ -391,7 +391,6 @@ import sys
 
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.kafka.patch import patch
-from tests.conftest import use_dummy_writer
 from tests.conftest import test_spans
 from tests.contrib.kafka.conftest import consumer
 from tests.contrib.kafka.conftest import patch_kafka
@@ -606,7 +605,6 @@ from tests.contrib.kafka.conftest import kafka_topic
 from tests.contrib.kafka.conftest import producer
 from tests.conftest import tracer
 from tests.conftest import test_spans
-from tests.conftest import use_dummy_writer
 from tests.contrib.kafka.conftest import patch_kafka
 from tests.contrib.kafka.conftest import kafka_tracer
 from tests.contrib.kafka.conftest import should_filter_empty_polls
