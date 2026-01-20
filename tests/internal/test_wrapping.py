@@ -920,21 +920,22 @@ def test_wrapping_context_method_leaks():
     assert new_method_count <= method_count + 1
 
 
+class DummyLazyWrappingContext(LazyWrappingContext):
+    def __init__(self, f):
+        super().__init__(f)
+
+        self.count = 0
+
+    def __enter__(self):
+        self.count += 1
+        return super().__enter__()
+
+
 def test_wrapping_context_lazy():
     free = 42
 
     def foo():
         return free
-
-    class DummyLazyWrappingContext(LazyWrappingContext):
-        def __init__(self, f):
-            super().__init__(f)
-
-            self.count = 0
-
-        def __enter__(self):
-            self.count += 1
-            return super().__enter__()
 
     (wc := DummyLazyWrappingContext(foo)).wrap()
 
@@ -1005,3 +1006,28 @@ def test_wrapping_context_lazy_multiple_wrappers():
         assert foo() == free
 
     assert c1.count == c2.count == 0
+
+
+def test_wrapping_context_lazy_unwrap_before_call():
+    free = 42
+
+    def foo():
+        return free
+
+    (wc := DummyLazyWrappingContext(foo)).wrap()
+
+    assert DummyLazyWrappingContext.is_wrapped(foo)
+    assert not _UniversalWrappingContext.is_wrapped(foo)
+
+    wc.unwrap()
+
+    assert not DummyLazyWrappingContext.is_wrapped(foo)
+    assert not _UniversalWrappingContext.is_wrapped(foo)
+
+    for _ in range(10):
+        assert foo() == free
+
+        assert not DummyLazyWrappingContext.is_wrapped(foo)
+        assert not _UniversalWrappingContext.is_wrapped(foo)
+
+    assert wc.count == 0

@@ -454,6 +454,12 @@ class LazyWrappingContext(WrappingContext):
                 assert self._trampoline is None  # nosec
                 super().unwrap()
             elif self._trampoline is not None:
+                wf = t.cast(LazyWrappedFunction, self.__wrapped__)
+                if hasattr(wf, "__dd_lazy_contexts__"):
+                    wf.__dd_lazy_contexts__.remove(self)
+                    if not wf.__dd_lazy_contexts__:
+                        del wf.__dd_lazy_contexts__
+
                 unwrap(t.cast(WrappedFunction, self.__wrapped__), self._trampoline)
                 self._trampoline = None
 
