@@ -16,11 +16,15 @@ from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
 
 
+TEXT_TYPES = (str, bytes, bytearray)
+
+TAINTEABLE_TYPES = TEXT_TYPES + (Match, BytesIO, StringIO)
+
 # Python 3.14+ template strings support
 if sys.version_info >= (3, 14):
     from string.templatelib import Template as TemplateType
-else:
-    TemplateType = type(None)  # Placeholder for older Python versions
+
+    TAINTEABLE_TYPES += (TemplateType,)
 
 
 class Constant_Class(type):
@@ -187,8 +191,8 @@ class IAST(metaclass=Constant_Class):
         (TELEMETRY_OFF_VERBOSITY, TELEMETRY_OFF_NAME),
     )
 
-    TEXT_TYPES = (str, bytes, bytearray)
-    TAINTEABLE_TYPES = (str, bytes, bytearray, Match, BytesIO, StringIO, TemplateType)
+    TEXT_TYPES = TEXT_TYPES
+    TAINTEABLE_TYPES = TAINTEABLE_TYPES
     REQUEST_CONTEXT_KEY: Literal["_iast_env"] = "_iast_env"
 
 
