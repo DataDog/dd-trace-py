@@ -70,11 +70,13 @@ class SessionManager:
         # The pytest plugin loads early, before ddtrace may be fully initialized.
         # Match the old plugin's behavior: os.getenv("_CI_DD_ENV", config.env)
         try:
-            # import ddtrace
+            # Disable unused import warning pylint: disable=W0611
+            import ddtrace  # noqa: F401
             from ddtrace import config as ddconfig
 
             self.env = os.getenv("_CI_DD_ENV", ddconfig.env)
         except ImportError:
+            log.debug("Import error for ddtrace/ddconfig, fallback to env vars")
             # If ddtrace can't be imported, fall back to env vars only
             self.env = os.getenv("_CI_DD_ENV") or os.getenv("DD_ENV") or DEFAULT_ENV_NAME
 
