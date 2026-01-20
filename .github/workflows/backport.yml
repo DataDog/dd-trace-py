@@ -38,3 +38,25 @@ jobs:
           # Include the original labels from the merged PR (minus any matching label_pattern)
           labels_template: "<% print(JSON.stringify(labels)) %>"
           title_template: "<%= title %> [backport <%= base %>]"
+
+  validate-backport:
+    name: Validate Backport
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    if: >
+      github.event.action == 'labeled' && contains(github.event.label.name, 'backport')
+    steps:
+      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+        id: octo-sts
+        with:
+          scope: DataDog/dd-trace-py
+          policy: self.backport.create-pr
+      - name: Check Conflicts
+        env:
+          BACKPORT_LABEL: ${{ github.event.label.name }}
+          PR_BRANCH: ${{ GITHUB_REF_NAME }}
+        run: |
+          echo "backport label: ${BACKPORT_LABEL}"
+          echo "branch: ${PR_BRANCH}"
