@@ -20,6 +20,7 @@ appsec
 AppSec
 aredis
 args
+ASAN
 ascii
 asgi
 asm
@@ -120,6 +121,9 @@ flamegraph
 fnmatch
 formatter
 freezegun
+fuzzer
+fuzzers
+fuzzing
 gdb
 genai
 generativeai
@@ -135,6 +139,8 @@ grpc
 gRPC
 gunicorn
 Gunicorn
+harness
+harnesses
 hostname
 hostnames
 hotspot
@@ -168,8 +174,10 @@ kwarg
 kwargs
 langchain
 langchain_community
+libclang
 libdatadog
 libddwaf
+libFuzzer
 lifecycle
 linters
 litellm
@@ -313,6 +321,7 @@ tokenizer
 tracecontext
 tracestate
 tweens
+UBSAN
 # docs/configuration.rst
 uest
 unbuffered
