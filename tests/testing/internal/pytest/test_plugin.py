@@ -195,6 +195,130 @@ class TestSkippingAndITRFeatures:
         assert len(tm_skip_calls) == 1, "Disabled test should be skipped with test management reason"
 
 
+class TestFinalStatusFeatures:
+    """Test final status tag functionality."""
+
+    def test_final_status_set_for_single_test_run(self) -> None:
+        """Test that final status is set for tests without retries."""
+        # Create test references using TestDataFactory
+        test_ref = TestDataFactory.create_test_ref("test_module", "test_suite.py", "test_function")
+
+        # Create mock session manager
+        mock_manager = session_manager_mock().build_mock()
+        mock_manager.is_auto_injected = False
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        # Create test
+        test = mock_test(test_ref)
+        mock_manager.discover_test.return_value = (test.module, test.suite, test)
+
+        # Store test in plugin's dictionary
+        plugin.tests_by_nodeid = {"test_module/test_suite.py::test_function": test}
+
+        # Create mock pytest item and reports
+        mock_config = Mock()
+        mock_config.get_terminal_writer.return_value = Mock()
+        mock_item = (
+            pytest_item_mock("test_module/test_suite.py::test_function")
+            .with_attribute("fixturenames", [])
+            .with_attribute("config", mock_config)
+            .build()
+        )
+
+        # Mock _get_test_outcome to return a passing test
+        with patch.object(plugin, "_get_test_outcome", return_value=(TestStatus.PASS, {})):
+            # Mock trace_context
+            with patch("ddtrace.testing.internal.tracer_api.context.trace_context") as mock_trace_context:
+                mock_context = Mock()
+                mock_trace_context.return_value.__enter__.return_value = mock_context
+
+                # Call _do_test_runs (simulating a test without retries)
+                plugin._do_test_runs(mock_item, None)
+
+        # Verify that final status was set on the test run
+        assert len(test.test_runs) == 1
+        test_run = test.test_runs[0]
+        assert TestTag.FINAL_STATUS in test_run.tags
+        assert test_run.tags[TestTag.FINAL_STATUS] == TestStatus.PASS.value
+
+    def test_final_status_set_for_retry_scenario(self) -> None:
+        """Test that final status is set only on the last retry, not on any intermediate retries."""
+        from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
+
+        # Create test references using TestDataFactory
+        test_ref = TestDataFactory.create_test_ref("test_module", "test_suite.py", "test_function")
+
+        # Create mock session manager with retry handler
+        mock_manager = session_manager_mock().build_mock()
+        mock_manager.is_auto_injected = False
+        retry_handler = Mock(spec=AutoTestRetriesHandler)
+        retry_handler.should_apply.return_value = True
+        retry_handler.should_retry.side_effect = [True, True, True, False]  # Retry 3 times, then stop
+        retry_handler.get_final_status.return_value = TestStatus.PASS
+        retry_handler.get_pretty_name.return_value = "Auto Test Retries"
+        retry_handler.set_tags_for_test_run = Mock()
+
+        mock_manager.retry_handlers = [retry_handler]
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        # Create test
+        test = mock_test(test_ref)
+        mock_manager.discover_test.return_value = (test.module, test.suite, test)
+
+        # Store test in plugin's dictionary
+        plugin.tests_by_nodeid = {"test_module/test_suite.py::test_function": test}
+
+        # Create mock pytest item
+        mock_config = Mock()
+        mock_config.get_terminal_writer.return_value = Mock()
+        mock_item = (
+            pytest_item_mock("test_module/test_suite.py::test_function")
+            .with_attribute("fixturenames", [])
+            .with_attribute("config", mock_config)
+            .build()
+        )
+
+        # Mock _get_test_outcome to return different statuses for retries
+        # Initial attempt fails, then 2 retries fail, finally the 3rd retry passes
+        with patch.object(
+            plugin,
+            "_get_test_outcome",
+            side_effect=[
+                (TestStatus.FAIL, {}),  # Initial attempt
+                (TestStatus.FAIL, {}),  # Retry 1
+                (TestStatus.FAIL, {}),  # Retry 2
+                (TestStatus.PASS, {}),  # Retry 3 (final)
+            ],
+        ):
+            # Mock trace_context
+            with patch("ddtrace.testing.internal.tracer_api.context.trace_context") as mock_trace_context:
+                mock_context = Mock()
+                mock_trace_context.return_value.__enter__.return_value = mock_context
+
+                # Mock other methods to avoid side effects
+                with (
+                    patch.object(plugin, "_log_test_reports"),
+                    patch.object(plugin, "_mark_test_reports_as_retry"),
+                    patch("ddtrace.testing.internal.pytest.plugin.RetryReports.make_final_report"),
+                ):
+                    # Call _do_test_runs (simulating a test with retries)
+                    plugin._do_test_runs(mock_item, None)
+
+        # Verify that we have 4 test runs (initial + 3 retries)
+        assert len(test.test_runs) == 4
+
+        # Verify that final status is set ONLY on the last test run, not on any intermediate ones
+        for i, test_run in enumerate(test.test_runs[:-1]):  # All runs except the last
+            assert TestTag.FINAL_STATUS not in test_run.tags, (
+                f"Test run {i} should not have FINAL_STATUS tag (only the last run should)"
+            )
+
+        # The last run should have the final status
+        last_run = test.test_runs[-1]
+        assert TestTag.FINAL_STATUS in last_run.tags
+        assert last_run.tags[TestTag.FINAL_STATUS] == TestStatus.PASS.value
+
+
 class TestSessionManagement:
     """Test session lifecycle and configuration."""
 
