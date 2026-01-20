@@ -141,7 +141,7 @@ def get_app():
     async def new_service(service_name: str, request: Request):  # noqa: B008
         import ddtrace
 
-        ddtrace.config.fastapi.service = service_name
+        ddtrace.config.fastapi._default_service = service_name
         return HTMLResponse(service_name, 200)
 
     async def slow_numbers(minimum, maximum):

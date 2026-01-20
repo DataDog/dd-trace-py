@@ -60,7 +60,7 @@ def multi_view(param_int=0, param_str=""):
 def new_service(service_name: str):
     import ddtrace
 
-    ddtrace.config.flask.service = service_name
+    ddtrace.config.flask._default_service = service_name
     return service_name
 
 

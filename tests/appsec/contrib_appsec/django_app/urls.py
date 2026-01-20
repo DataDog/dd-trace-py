@@ -374,7 +374,7 @@ def login_user_sdk(request):
 def new_service(request, service_name: str):
     import ddtrace
 
-    ddtrace.config.django.service = service_name
+    ddtrace.config.django._default_service = service_name
     return HttpResponse(service_name, status=200)
 
 
