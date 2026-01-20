@@ -31,7 +31,7 @@ jobs:
       - name: Check Conflicts
         env:
           BACKPORT_LABEL: ${{ github.event.label.name }}
-          PR_BRANCH: ${{ github.base_ref }}
+          PR_BRANCH: ${{ github.head_ref }}
         id: backport_validation
         run: |
           TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
@@ -42,6 +42,7 @@ jobs:
           echo "backport target branch: ${TARGET_BRANCH}" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
+          cd dd-trace-py
           git fetch ${TARGET_BRANCH}
           git merge ${TARGET_BRANCH}
 
