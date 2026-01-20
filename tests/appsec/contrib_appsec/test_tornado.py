@@ -55,7 +55,6 @@ def wrap_fetch(original_fetch, ttc, interface, **fetch_kwargs):
     return wrapped_fetch
 
 
-@pytest.mark.xfail(reason="Tornado tests are in wip", strict=False)
 class Test_Tornado(utils.Contrib_TestClass_For_Threats):
     @pytest.fixture
     def interface(self, printer):
