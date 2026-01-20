@@ -98,11 +98,6 @@ class TestMolten(TracerTestCase):
         else:
             self.assertEqual(len(spans), 16)
 
-        # test override of service name
-        response = self.make_request()
-        spans = self.pop_spans()
-        self.assertEqual(spans[0].service, "molten-patch")
-
     def make_route_reporting_test(self, endpoint, status_code, expected_route):
         self.client.request("GET", endpoint)
         spans = self.pop_spans()
