@@ -56,7 +56,7 @@ jobs:
       - name: Check Conflicts
         env:
           BACKPORT_LABEL: ${{ github.event.label.name }}
-          PR_BRANCH: ${{ GITHUB_REF_NAME }}
+          PR_BRANCH: ${{ github.ref.name }}
         run: |
           echo "backport label: ${BACKPORT_LABEL}"
           echo "branch: ${PR_BRANCH}"
