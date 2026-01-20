@@ -30,6 +30,7 @@ from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSeria
 from ddtrace.internal.ci_visibility.recorder import CIVisibilityTracer
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
 from ddtrace.internal.ci_visibility.recorder import _is_item_itr_skippable
+from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH_V4
 from ddtrace.internal.settings._config import Config
@@ -42,7 +43,6 @@ from tests.ci_visibility.util import _ci_override_env
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.ci_visibility.util import set_up_mock_civisibility
-from tests.utils import DummyCIVisibilityWriter
 from tests.utils import TracerTestCase
 from tests.utils import override_global_config
 
@@ -709,7 +709,7 @@ class TestCIVisibilityWriter(TracerTestCase):
                     "ddtrace.internal.ci_visibility.writer.config._ci_visibility_agentless_url", "https://foo.bar"
                 ),
             ):
-                dummy_writer = DummyCIVisibilityWriter()
+                dummy_writer = CIVisibilityWriter()
                 assert dummy_writer.intake_url == "https://foo.bar"
 
     def test_civisibilitywriter_coverage_agentless_url(self):
@@ -720,7 +720,7 @@ class TestCIVisibilityWriter(TracerTestCase):
                 DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
             )
         ):
-            dummy_writer = DummyCIVisibilityWriter(coverage_enabled=True)
+            dummy_writer = CIVisibilityWriter(coverage_enabled=True)
             assert dummy_writer.intake_url == "https://citestcycle-intake.datadoghq.com"
 
             cov_client = dummy_writer._clients[1]
@@ -728,7 +728,7 @@ class TestCIVisibilityWriter(TracerTestCase):
 
             with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
                 _get_connection.return_value.getresponse.return_value.status = 200
-                dummy_writer._put("", {}, cov_client, no_trace=True)
+                dummy_writer._put(b"", {}, cov_client, no_trace=True)
                 _get_connection.assert_any_call("https://citestcov-intake.datadoghq.com", 2.0)
 
     def test_civisibilitywriter_coverage_agentless_with_intake_url_param(self):
@@ -739,7 +739,7 @@ class TestCIVisibilityWriter(TracerTestCase):
                 DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
             )
         ):
-            dummy_writer = DummyCIVisibilityWriter(intake_url="https://some-url.com", coverage_enabled=True)
+            dummy_writer = CIVisibilityWriter(intake_url="https://some-url.com", coverage_enabled=True)
             assert dummy_writer.intake_url == "https://some-url.com"
 
             cov_client = dummy_writer._clients[1]
@@ -750,7 +750,7 @@ class TestCIVisibilityWriter(TracerTestCase):
                 mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()),
             ):
                 _get_connection.return_value.getresponse.return_value.status = 200
-                dummy_writer._put("", {}, cov_client, no_trace=True)
+                dummy_writer._put(b"", {}, cov_client, no_trace=True)
                 _get_connection.assert_any_call("https://citestcov-intake.datadoghq.com", 2.0)
 
     def test_civisibilitywriter_coverage_evp_proxy_url(self):
@@ -767,7 +767,7 @@ class TestCIVisibilityWriter(TracerTestCase):
             ) as agent_url_mock,
             mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()),
         ):
-            dummy_writer = DummyCIVisibilityWriter(use_evp=True, coverage_enabled=True)
+            dummy_writer = CIVisibilityWriter(use_evp=True, coverage_enabled=True)
 
             test_client = dummy_writer._clients[0]
             assert test_client.ENDPOINT == "/evp_proxy/v2/api/v2/citestcycle"
@@ -776,7 +776,7 @@ class TestCIVisibilityWriter(TracerTestCase):
 
             with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
                 _get_connection.return_value.getresponse.return_value.status = 200
-                dummy_writer._put("", {}, cov_client, no_trace=True)
+                dummy_writer._put(b"", {}, cov_client, no_trace=True)
                 _get_connection.assert_any_call(agent_url_mock, 2.0)
 
 

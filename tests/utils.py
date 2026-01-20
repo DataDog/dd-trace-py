@@ -30,10 +30,7 @@ from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal import process_tags
-from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
-from ddtrace.internal.encoding import JSONEncoder
-from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
 from ddtrace.internal.packages import Distribution
 from ddtrace.internal.packages import _package_for_root_module_mapping
 from ddtrace.internal.packages import _third_party_packages
@@ -798,41 +795,6 @@ class TestSpan(Span):
             )
 
 
-class DummyCIVisibilityWriter(CIVisibilityWriter):
-    def __init__(self, *args, **kwargs):
-        CIVisibilityWriter.__init__(self, *args, **kwargs)
-        self.spans = []
-        self.traces = []
-        self.json_encoder = JSONEncoder()
-        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
-        self._encoded = None
-
-    def write(self, spans=None):
-        if spans:
-            # the traces encoding expect a list of traces so we
-            # put spans in a list like we do in the real execution path
-            # with both encoders
-            traces = [spans]
-            self.spans += spans
-            self.traces += traces
-        CIVisibilityWriter.write(self, spans=spans)
-        # take a snapshot of the writer buffer for tests to inspect
-        if spans:
-            self._encoded = self._encoder._build_payload([spans])
-
-    def pop(self):
-        # type: () -> List[Span]
-        s = self.spans
-        self.spans = []
-        return s
-
-    def pop_traces(self):
-        # type: () -> List[List[Span]]
-        traces = self.traces
-        self.traces = []
-        return traces
-
-
 class TestSpanNode(TestSpan, TestSpanContainer):
     """
     A :class:`tests.utils.span.TestSpan` which is used as part of a span tree.
@@ -960,7 +922,7 @@ class TracerSpanContainer(object):
         self.spans.extend(spans)
         self.traces.append(spans)
         if self.send_to_agent:
-            self.writer.write(spans)
+            self.real_writer_write(spans)
 
     def pop_spans(self):
         spans = self.spans

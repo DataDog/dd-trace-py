@@ -3,8 +3,6 @@ import os
 import typing as t
 from unittest import mock
 
-import ddtrace
-import ddtrace.ext.test_visibility  # noqa: F401
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility._test_visibility_base import TestId
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
@@ -15,16 +13,13 @@ from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
 from ddtrace.internal.ci_visibility.recorder import CIVisibilityTracer
 from ddtrace.internal.settings._config import Config
-from tests.utils import DummyCIVisibilityWriter
 from tests.utils import override_env
 
 
 @contextmanager
 def _patch_dummy_writer():
-    original = ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter
-    ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = DummyCIVisibilityWriter
+    # TODO: Remove _patch_dummy_writer from tests, it is now a no-op
     yield
-    ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter = original
 
 
 def _get_default_civisibility_ddconfig(itr_skipping_level: ITR_SKIPPING_LEVEL = ITR_SKIPPING_LEVEL.TEST):
