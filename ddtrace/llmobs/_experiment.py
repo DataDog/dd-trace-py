@@ -79,6 +79,22 @@ class TaskResult(TypedDict):
     error: Dict[str, Optional[str]]
 
 
+class EvaluatorResult:
+    def __init__(
+        self,
+        value: JSONType,
+        reasoning: Optional[str] = None,
+        assessment: Optional[str] = None,
+        metadata: Optional[Dict[str, JSONType]] = None,
+        tags: Optional[Dict[str, JSONType]] = None,
+    ) -> None:
+        self.value = value
+        self.reasoning = reasoning
+        self.assessment = assessment
+        self.metadata = metadata
+        self.tags = tags
+
+
 class EvaluationResult(TypedDict):
     idx: int
     evaluations: Dict[str, Dict[str, JSONType]]
@@ -346,7 +362,7 @@ class Experiment:
         name: str,
         task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
         dataset: Dataset,
-        evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
+        evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]]],
         project_name: str,
         description: str = "",
         tags: Optional[Dict[str, str]] = None,
@@ -565,12 +581,26 @@ class Experiment:
             record: DatasetRecord = self._dataset[idx]
             input_data = record["input_data"]
             expected_output = record["expected_output"]
-            evals_dict = {}
+            evals_dict: Dict[str, Dict[str, JSONType]] = {}
             for evaluator in self._evaluators:
-                eval_result: JSONType = None
+                eval_result_value: JSONType = None
                 eval_err: JSONType = None
+                extra_return_values: Dict[str, JSONType] = {}
                 try:
                     eval_result = evaluator(input_data, output_data, expected_output)
+
+                    if isinstance(eval_result, EvaluatorResult):
+                        if eval_result.reasoning:
+                            extra_return_values["reasoning"] = eval_result.reasoning
+                        if eval_result.assessment:
+                            extra_return_values["assessment"] = eval_result.assessment
+                        if eval_result.metadata:
+                            extra_return_values["metadata"] = eval_result.metadata
+                        if eval_result.tags:
+                            extra_return_values["tags"] = eval_result.tags
+                        eval_result_value = eval_result.value
+                    else:
+                        eval_result_value = eval_result
                 except Exception as e:
                     exc_type, exc_value, exc_tb = sys.exc_info()
                     exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
@@ -583,8 +613,9 @@ class Experiment:
                     if raise_errors:
                         raise RuntimeError(f"Evaluator {evaluator.__name__} failed on row {idx}") from e
                 evals_dict[evaluator.__name__] = {
-                    "value": eval_result,
+                    "value": eval_result_value,
                     "error": eval_err,
+                    **extra_return_values,
                 }
             evaluation: EvaluationResult = {"idx": idx, "evaluations": evals_dict}
             evaluations.append(evaluation)
@@ -690,8 +721,11 @@ class Experiment:
         trace_id: str,
         timestamp_ns: int,
         source: str = "custom",
+        reasoning: Optional[str] = None,
+        assessment: Optional[str] = None,
+        metadata: Optional[Dict[str, JSONType]] = None,
+        tags: Optional[Dict[str, str]] = None,
     ) -> "LLMObsExperimentEvalMetricEvent":
-        metric_type = None
         if eval_value is None:
             metric_type = "categorical"
         elif isinstance(eval_value, bool):
@@ -701,7 +735,7 @@ class Experiment:
         else:
             metric_type = "categorical"
             eval_value = str(eval_value).lower()
-        return {
+        eval_metric: LLMObsExperimentEvalMetricEvent = {
             "metric_source": source,
             "span_id": span_id,
             "trace_id": trace_id,
@@ -710,9 +744,16 @@ class Experiment:
             "label": eval_name,
             f"{metric_type}_value": eval_value,  # type: ignore
             "error": err,
-            "tags": convert_tags_dict_to_list(self._tags),
+            "tags": convert_tags_dict_to_list(tags),
             "experiment_id": self._id,
         }
+        if reasoning:
+            eval_metric["reasoning"] = reasoning
+        if assessment:
+            eval_metric["assessment"] = assessment
+        if metadata:
+            eval_metric["metadata"] = metadata
+        return eval_metric
 
     def _generate_metrics_from_exp_results(
         self, experiment_result: ExperimentRun
@@ -738,6 +779,16 @@ class Experiment:
                     span_id,
                     trace_id,
                     timestamp_ns,
+                    reasoning=str(eval_data.get("reasoning")) if isinstance(eval_data.get("reasoning"), str) else None,
+                    assessment=str(eval_data.get("assessment"))
+                    if isinstance(eval_data.get("assessment"), str)
+                    else None,
+                    metadata=cast(Dict[str, JSONType], eval_data.get("metadata"))
+                    if isinstance(eval_data.get("metadata"), Dict)
+                    else None,
+                    tags=cast(Dict[str, str], eval_data.get("tags"))
+                    if isinstance(eval_data.get("tags"), Dict)
+                    else None,
                 )
                 eval_metrics.append(eval_metric)
 
