@@ -31,13 +31,19 @@ jobs:
       - name: Check Conflicts
         env:
           BACKPORT_LABEL: ${{ github.event.label.name }}
-          PR_BRANCH: ${{ github.ref_name }}
+          PR_BRANCH: ${{ github.base_ref }}
         id: backport_validation
         run: |
-          echo "backport label: ${BACKPORT_LABEL}\nbranch: ${PR_BRANCH}"
+          TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
+
           echo "results<<EOF" >> "$GITHUB_OUTPUT"
-          echo "backport label: ${BACKPORT_LABEL}\nbranch: ${PR_BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "backport label: ${BACKPORT_LABEL}" >> "$GITHUB_OUTPUT"
+          echo "branch: ${PR_BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "backport target branch: ${TARGET_BRANCH}" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
+
+          git fetch ${TARGET_BRANCH}
+          git merge ${TARGET_BRANCH}
 
       - name: Comment PR
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
