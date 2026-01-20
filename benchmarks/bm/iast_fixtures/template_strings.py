@@ -93,3 +93,25 @@ Second: {b}"""
 def do_template_with_exception() -> str:
     """Template string with Exception object created inline."""
     return t"template {Exception('Testst')}"
+
+
+def do_template_operations_more(a: int, b: int) -> str:
+    """Template string with multiple arithmetic expressions."""
+    return t"{a} + {b} = {a + b}; {a} * {b} = {a * b}; {a} - {b} = {a - b}"
+
+
+def do_template_operations_with_parens(a: int, b: int) -> str:
+    """Template string with parentheses and precedence-sensitive expressions."""
+    return t"({a} + {b}) * 2 = {(a + b) * 2}"
+
+
+def do_template_attribute_and_subscript() -> str:
+    """Template string with attribute and subscript expressions."""
+
+    class Obj:
+        def __init__(self):
+            self.value = "ok"
+
+    obj = Obj()
+    arr = ["x", "y"]
+    return t"{obj.value}:{arr[1]}"

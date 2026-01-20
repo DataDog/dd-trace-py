@@ -12,7 +12,6 @@ import sys
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
@@ -494,6 +493,44 @@ class TestTemplateStringIntegration(BaseReplacement):
         assert template_to_str(result) == "5 + 3 = 8"
         assert not is_pyobject_tainted(result)
 
+    def test_template_operations_more_no_taint(self):
+        """Test template string with multiple operations, no taint."""
+        a = 10
+        b = 4
+        result = mod.do_template_operations_more(a, b)
+        expected_template = t"{a} + {b} = {a + b}; {a} * {b} = {a * b}; {a} - {b} = {a - b}"
+        assert isinstance(result, Template)
+        _assert_template_structure_matches(result, expected_template)
+        assert template_to_str(result) == "10 + 4 = 14; 10 * 4 = 40; 10 - 4 = 6"
+        assert not is_pyobject_tainted(result)
+
+    def test_template_operations_with_parens_no_taint(self):
+        """Test precedence-sensitive parentheses expressions, no taint."""
+        a = 5
+        b = 3
+        result = mod.do_template_operations_with_parens(a, b)
+        expected_template = t"({a} + {b}) * 2 = {(a + b) * 2}"
+        assert isinstance(result, Template)
+        _assert_template_structure_matches(result, expected_template)
+        assert template_to_str(result) == "(5 + 3) * 2 = 16"
+        assert not is_pyobject_tainted(result)
+
+    def test_template_attribute_and_subscript_no_taint(self):
+        """Test template string with attribute/subscript expressions, no taint."""
+        result = mod.do_template_attribute_and_subscript()
+
+        class Obj:
+            def __init__(self):
+                self.value = "ok"
+
+        obj = Obj()
+        arr = ["x", "y"]
+        expected_template = t"{obj.value}:{arr[1]}"
+        assert isinstance(result, Template)
+        _assert_template_structure_matches(result, expected_template)
+        assert template_to_str(result) == "ok:y"
+        assert not is_pyobject_tainted(result)
+
     def test_template_repr_no_taint(self):
         """Test template string with repr conversion, no taint."""
         tainted_input = "test"
@@ -842,6 +879,29 @@ def test_template_string_aspect_exception_path_returns_template(monkeypatch):
     assert template_to_str(result) == template_to_str(expected_template)
 
 
+def test_template_string_is_pyobject_tainted_raises_falls_back(monkeypatch):
+    from string.templatelib import Interpolation
+    from string.templatelib import Template
+
+    def _raise(*args, **kwargs):
+        raise RuntimeError("forced")
+
+    monkeypatch.setattr(ddtrace_aspects, "is_pyobject_tainted", _raise)
+
+    tainted = taint_pyobject("World", source_name="test", source_value="World", source_origin=OriginType.PARAMETER)
+    result = ddtrace_aspects.template_string_aspect("Hello ", (tainted, "tainted", None, ""), "")
+
+    expected_template = Template(
+        "Hello ",
+        Interpolation(value=tainted, expression="tainted", conversion=None, format_spec=""),
+        "",
+    )
+
+    assert isinstance(result, Template)
+    _assert_template_structure_matches(result, expected_template)
+    assert template_to_str(result) == template_to_str(expected_template)
+
+
 def test_template_string_taint_ranges_positions():
     """Test that taint ranges are positioned correctly in template strings."""
     # Create tainted inputs
@@ -995,7 +1055,10 @@ def test_template_string_aspect_large_html_template():
         (content, "content", None, ""),
         "</p>\n</body>\n</html>",
     )
-    expected_template = t"<!DOCTYPE html>\n<html>\n<head>\n    <title>{title}</title>\n</head>\n<body>\n    <h1>Hello, {username}!</h1>\n    <p>{content}</p>\n</body>\n</html>"
+    expected_template = (
+        t"<!DOCTYPE html>\n<html>\n<head>\n    <title>{title}</title>\n</head>\n<body>\n    <h1>Hello, {username}!"
+        t"</h1>\n    <p>{content}</p>\n</body>\n</html>"
+    )
 
     expected = (
         "<!DOCTYPE html>\n<html>\n<head>\n    <title>"
@@ -1036,7 +1099,10 @@ def test_template_string_aspect_large_html_template_with_taint(iast_context_defa
         (content, "content", None, ""),
         "</p>\n</body>\n</html>",
     )
-    expected_template = t"<!DOCTYPE html>\n<html>\n<head>\n    <title>{title}</title>\n</head>\n<body>\n    <h1>Hello, {username}!</h1>\n    <p>{content}</p>\n</body>\n</html>"
+    expected_template = (
+        t"<!DOCTYPE html>\n<html>\n<head>\n    <title>{title}</title>\n</head>\n<body>\n    <h1>Hello, {username}!"
+        t"</h1>\n    <p>{content}</p>\n</body>\n</html>"
+    )
     # Result should be tainted because username and content are tainted
     assert isinstance(result, Template)
     _assert_template_structure_matches(result, expected_template)
