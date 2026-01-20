@@ -586,7 +586,7 @@ class PromptOptimization:
         iteration: int,
         prompt: str,
         jobs: int,
-    ) -> tuple[Dict[str, Any], str]:
+    ) -> tuple[ExperimentResult, str]:
         """Run an experiment for a given iteration and prompt.
 
         :param iteration: The iteration number.
