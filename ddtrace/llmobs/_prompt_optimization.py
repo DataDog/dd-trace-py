@@ -95,7 +95,7 @@ class OptimizationIteration:
             result = self._optimization_task(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
-                model=self._config["optimization_model_name"],
+                config=self._config,
             )
         except Exception as e:
             log.error(
@@ -404,7 +404,7 @@ class PromptOptimization:
         self,
         name: str,
         task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
-        optimization_task: Callable[[str, str, str], Dict[str, str]],
+        optimization_task: Callable[[str, str, dict], Dict[str, str]],
         dataset: Dataset,
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         project_name: str,
@@ -421,7 +421,7 @@ class PromptOptimization:
         :param name: Name of the optimization run.
         :param task: Task function to execute. Must accept ``input_data`` and ``config`` parameters.
         :param optimization_task: Function to generate prompt improvements. Must accept
-                                  ``system_prompt`` (str), ``user_prompt`` (str), and ``model`` (str).
+                                  ``system_prompt`` (str), ``user_prompt`` (str), and ``config`` (dict).
                                   Must return dict with ``new_prompt`` and ``reasoning`` keys.
         :param dataset: Dataset to run experiments on.
         :param evaluators: List of evaluator functions to measure task performance.
