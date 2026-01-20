@@ -25,61 +25,46 @@ if TYPE_CHECKING:
     from ..event import IntegrationEvent
 
 
-class MessagingContextExtractionHook(BaseHook):
+class MessagingContextPropagationHook(BaseHook):
     """
-    Extracts distributed trace context from incoming messages.
+    Handles distributed context propagation for messaging integrations.
 
-    Runs before span creation (on_event) so the extracted context
-    can be used as the parent for the new span.
+    - For consume events: extracts context from incoming message headers (on_event)
+    - For send events: injects context into outgoing message headers (on_span_start)
     """
 
     event_names = [
         "integration.event.messaging.consume",
+        "integration.event.messaging.send",
     ]
 
-    def on_event(self, event: "IntegrationEvent") -> None:
-        """Extract trace context from incoming message headers."""
-        # Check if distributed tracing is enabled for this integration
+    def _is_propagation_enabled(self, event: "IntegrationEvent") -> bool:
+        """Check if distributed tracing is enabled for this integration."""
         integration_config = getattr(dd_config, event.integration.name, None)
-        if integration_config and not getattr(integration_config, "distributed_tracing_enabled", True):
+        return not integration_config or getattr(integration_config, "distributed_tracing_enabled", True)
+
+    def _get_adapter(self, event: "IntegrationEvent"):
+        """Get the carrier adapter for this integration."""
+        adapter_class = event.integration.carrier_adapter or DefaultHeaderAdapter
+        return adapter_class()
+
+    def on_event(self, event: "IntegrationEvent") -> None:
+        """Extract trace context from incoming message headers (consume only)."""
+        if event.event_type != "consume" or not self._is_propagation_enabled(event):
             return
 
-        integration = event.integration
-        adapter_class = integration.carrier_adapter or DefaultHeaderAdapter
-        adapter = adapter_class()
-
-        headers = adapter.extract(event.payload)
+        headers = self._get_adapter(event).extract(event.payload)
         if headers:
             parent = HTTPPropagator.extract(headers)
             event.extracted_context = parent
             core.set_item("extracted_parent_ctx", parent)
 
-
-class MessagingContextInjectionHook(BaseHook):
-    """
-    Injects distributed trace context into outgoing messages.
-
-    Runs after span creation (on_span_start) so we have a span
-    context to inject into the message headers.
-    """
-
-    event_names = [
-        "integration.event.messaging.send",
-    ]
-
     def on_span_start(self, event: "IntegrationEvent", span: "Span") -> None:
-        """Inject span's trace context into outgoing message headers."""
-        # Check if distributed tracing is enabled for this integration
-        integration_config = getattr(dd_config, event.integration.name, None)
-        if integration_config and not getattr(integration_config, "distributed_tracing_enabled", True):
+        """Inject span's trace context into outgoing message headers (send only)."""
+        if event.event_type != "send" or not self._is_propagation_enabled(event):
             return
 
-        integration = event.integration
-        adapter_class = integration.carrier_adapter or DefaultHeaderAdapter
-        adapter = adapter_class()
-
-        # Inject the span's context into the payload headers
-        adapter.inject(event.payload, span.context)
+        self._get_adapter(event).inject(event.payload, span.context)
 
 
 class MessagingSpanTaggingHook(BaseHook):
@@ -149,22 +134,17 @@ class MessagingSpanTaggingHook(BaseHook):
 
 
 # Singleton instances for registration
-_context_extraction_hook = None
-_context_injection_hook = None
+_context_propagation_hook = None
 _span_tagging_hook = None
 
 
 def register_messaging_hooks() -> None:
     """Register all messaging hooks."""
-    global _context_extraction_hook, _context_injection_hook, _span_tagging_hook
+    global _context_propagation_hook, _span_tagging_hook
 
-    if _context_extraction_hook is None:
-        _context_extraction_hook = MessagingContextExtractionHook()
-        _context_extraction_hook.register()
-
-    if _context_injection_hook is None:
-        _context_injection_hook = MessagingContextInjectionHook()
-        _context_injection_hook.register()
+    if _context_propagation_hook is None:
+        _context_propagation_hook = MessagingContextPropagationHook()
+        _context_propagation_hook.register()
 
     if _span_tagging_hook is None:
         _span_tagging_hook = MessagingSpanTaggingHook()
@@ -173,15 +153,11 @@ def register_messaging_hooks() -> None:
 
 def unregister_messaging_hooks() -> None:
     """Unregister all messaging hooks (for testing)."""
-    global _context_extraction_hook, _context_injection_hook, _span_tagging_hook
+    global _context_propagation_hook, _span_tagging_hook
 
-    if _context_extraction_hook is not None:
-        _context_extraction_hook.unregister()
-        _context_extraction_hook = None
-
-    if _context_injection_hook is not None:
-        _context_injection_hook.unregister()
-        _context_injection_hook = None
+    if _context_propagation_hook is not None:
+        _context_propagation_hook.unregister()
+        _context_propagation_hook = None
 
     if _span_tagging_hook is not None:
         _span_tagging_hook.unregister()
