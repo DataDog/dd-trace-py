@@ -71,8 +71,6 @@ tests-gen:
   artifacts:
     paths:
       - .gitlab/tests-gen.yml
-    reports:
-      dotenv: tests-gen.env
 
 run-tests-trigger:
  stage: tests
