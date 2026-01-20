@@ -108,8 +108,7 @@ class OptimizationIteration:
             result = {}
 
         # Parse the result dict
-        improved_prompt = result.get("new_prompt")
-        reasoning = result.get("reasoning")
+        improved_prompt = result.get("prompt")
 
         if not improved_prompt:
             log.warning(
@@ -422,7 +421,7 @@ class PromptOptimization:
         :param task: Task function to execute. Must accept ``input_data`` and ``config`` parameters.
         :param optimization_task: Function to generate prompt improvements. Must accept
                                   ``system_prompt`` (str), ``user_prompt`` (str), and ``config`` (dict).
-                                  Must return dict with ``new_prompt`` and ``reasoning`` keys.
+                                  Must return dict with ``prompt`` key.
         :param dataset: Dataset to run experiments on.
         :param evaluators: List of evaluator functions to measure task performance.
         :param project_name: Project name for organizing optimization runs.

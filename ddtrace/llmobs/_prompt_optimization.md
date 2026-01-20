@@ -19,14 +19,12 @@ You must respond with a JSON object containing two fields:
 
 ```json
 {
-  "new_prompt": "Your improved prompt here...",
-  "reasoning": "Detailed explanation of what caused the false positive, what specific changes you made, how the fix preserves correct behavior for good examples, and how it maintains the original intent..."
+  "prompt": "Your improved prompt here...",
 }
 ```
 
 **Required Fields:**
-- `new_prompt`: The complete improved prompt text
-- `reasoning`: Your detailed analysis and explanation
+- `prompt`: The complete improved prompt text
 
 ## Prompt Output Format Requirements
 
