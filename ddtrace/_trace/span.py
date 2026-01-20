@@ -187,8 +187,6 @@ class Span(SpanData):
 
         super().__init__(name, service, resource, span_type, trace_id, span_id, parent_id, start, span_api, links)
 
-        self.name = name
-        self.service = service
         self.resource = resource or name
         self.span_type = span_type
         self._span_api = span_api

@@ -8,6 +8,7 @@ mod ffe;
 mod library_config;
 mod log;
 mod span;
+mod py_string;
 
 use pyo3::prelude::*;
 

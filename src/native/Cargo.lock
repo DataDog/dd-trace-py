@@ -512,9 +512,11 @@ dependencies = [
  "libdd-library-config",
  "libdd-log",
  "libdd-profiling-ffi",
+ "libdd-trace-utils",
  "pyo3",
  "pyo3-build-config",
  "pyo3-ffi",
+ "serde",
  "tracing",
 ]
 

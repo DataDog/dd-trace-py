@@ -1,7 +1,14 @@
+use std::ptr;
+
 use pyo3::{
-    types::{PyInt, PyList, PyModule, PyModuleMethods as _},
-    Bound, PyObject, PyResult, Python,
+    Bound, FromPyObject, Py, PyAny, PyObject, PyResult, Python, exceptions::PyValueError, types::{
+        PyBytesMethods as _, PyInt, PyList, PyModule, PyModuleMethods as _, PyString,
+        PyStringMethods as _,
+    }
 };
+
+use crate::py_string::PyBackedString;
+
 
 #[pyo3::pyclass(name = "SpanEventData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
@@ -73,7 +80,16 @@ impl SpanLinkData {
 
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
-pub struct SpanData {}
+pub struct SpanData {
+    data: libdd_trace_utils::span::Span<PyBackedString>
+}
+
+fn optional_obj_to_py_str(py: Python<'_>, v: Option<&Bound<'_, PyAny>>) -> PyResult<PyBackedString> {
+    match v {
+        Some(ob) => PyBackedString::extract_bound(ob),
+        None => Ok(PyBackedString::py_none(py))
+    }
+}
 
 #[pyo3::pymethods]
 impl SpanData {
@@ -109,9 +125,9 @@ impl SpanData {
     ))]
     fn __init__<'p>(
         &mut self,
-        _py: Python<'p>,
-        name: PyObject,
-        service: Option<PyObject>,
+        py: Python<'p>,
+        name: PyBackedString,
+        service: Option<&Bound<'p, PyAny>>,
         resource: Option<PyObject>,
         span_type: Option<PyObject>,
         trace_id: Option<&Bound<'p, PyInt>>,
@@ -121,7 +137,29 @@ impl SpanData {
         span_api: Option<PyObject>,
         links: Option<Bound<'p, PyList>>,
     ) -> PyResult<()> {
+        self.data.name = name;
+        self.data.service = optional_obj_to_py_str(py, service)?;
         Ok(())
+    }
+
+    #[getter]
+    fn get_name(&self) -> &PyBackedString {
+        &self.data.name
+    }
+
+    #[setter]
+    fn set_name(&mut self, name: PyBackedString) {
+        self.data.name = name;
+    }
+
+    #[getter]
+    fn get_service(&self) -> &PyBackedString {
+        &self.data.service
+    }
+
+    #[setter]
+    fn set_service(&mut self, service: PyBackedString) {
+        self.data.service = service;
     }
 }
 
