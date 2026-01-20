@@ -918,7 +918,7 @@ class LLMObs(Service):
         tags: Optional[Dict[str, str]] = None,
         config: Optional[ConfigType] = None,
         max_iterations: int = 5,
-        summary_evaluators: Optional[List[Callable]] = None,
+        summary_evaluators: Optional[List[Callable[[List, List, List, Dict], Dict]]] = None,
         stopping_condition: Optional[Callable[[Dict[str, Dict[str, Any]]], bool]] = None,
     ) -> PromptOptimization:
         """Initialize a PromptOptimization to iteratively improve prompts using experiments.

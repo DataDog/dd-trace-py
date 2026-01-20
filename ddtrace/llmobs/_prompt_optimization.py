@@ -412,7 +412,7 @@ class PromptOptimization:
         _llmobs_instance: Optional["LLMObs"] = None,
         tags: Optional[Dict[str, str]] = None,
         max_iterations: int = 5,
-        summary_evaluators: Optional[List[Callable]] = None,
+        summary_evaluators: Optional[List[Callable[[List, List, List, Dict], Dict]]] = None,
         stopping_condition: Optional[Callable[[Dict[str, Dict[str, Any]]], bool]] = None,
     ) -> None:
         """Initialize a prompt optimization.
@@ -433,6 +433,8 @@ class PromptOptimization:
         :param tags: Optional tags to associate with the optimization.
         :param max_iterations: Maximum number of optimization iterations to run.
         :param summary_evaluators: Optional list of summary evaluator functions.
+                                   Each must accept (inputs: List, outputs: List, expected_outputs: List, evaluations: Dict)
+                                   and return Dict with aggregated metrics.
         :param stopping_condition: Optional function to determine when to stop optimization.
                                    Takes summary_evaluations dict and returns True if should stop.
         :param compute_score: Function to compute iteration score (REQUIRED).
