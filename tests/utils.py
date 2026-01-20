@@ -1261,7 +1261,6 @@ def snapshot_context(
             os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join(
                 ["%s:%s" % (k, v) for k, v in existing_headers.items()]
             )
-        git_repo_url = os.environ.pop("DD_GIT_REPOSITORY_URL")
         try:
             query = urllib.parse.urlencode(
                 {
@@ -1300,8 +1299,6 @@ def snapshot_context(
                     del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
                 del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
 
-        if git_repo_url:
-            os.environ["DD_GIT_REPOSITORY_URL"] = git_repo_url
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
 
         # Wait for the traces to be available
@@ -1381,18 +1378,26 @@ def snapshot(
             else token_override
         )
 
-        with snapshot_context(
-            token,
-            ignores=ignores,
-            tracer=ddtrace.tracer,
-            async_mode=async_mode,
-            variants=variants,
-            wait_for_num_traces=wait_for_num_traces,
-        ):
-            # Run the test.
-            if include_tracer:
-                kwargs["tracer"] = ddtrace.tracer
-            return wrapped(*args, **kwargs)
+        # AIDEV-NOTE: Pop DD_GIT_REPOSITORY_URL early to prevent it from being added to span tags
+        # This env var is set in CI but should not affect snapshot tests
+        git_repo_url = os.environ.pop("DD_GIT_REPOSITORY_URL", None)
+        try:
+            with snapshot_context(
+                token,
+                ignores=ignores,
+                tracer=ddtrace.tracer,
+                async_mode=async_mode,
+                variants=variants,
+                wait_for_num_traces=wait_for_num_traces,
+            ):
+                # Run the test.
+                if include_tracer:
+                    kwargs["tracer"] = ddtrace.tracer
+                return wrapped(*args, **kwargs)
+        finally:
+            # Restore the env var if it was set
+            if git_repo_url is not None:
+                os.environ["DD_GIT_REPOSITORY_URL"] = git_repo_url
 
     return wrapper
 
