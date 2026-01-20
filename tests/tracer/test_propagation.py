@@ -319,6 +319,16 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
 
             context = HTTPPropagator.extract(headers)
 
+            # Diagnostic assertions to identify rate limiter exhaustion
+            assert tracer.context_provider.active() is None, "Context provider has active context before test"
+            sampling_processor = tracer._span_aggregator.sampling_processor
+            assert sampling_processor._apm_opt_out is True, (
+                f"_apm_opt_out should be True, got {sampling_processor._apm_opt_out}"
+            )
+            limiter = tracer._sampler.limiter
+            assert limiter.rate_limit == 1, f"Rate limit should be 1, got {limiter.rate_limit}"
+            assert limiter.time_window == 60e9, f"Time window should be 60e9, got {limiter.time_window}"
+            assert limiter.tokens >= 1, f"Rate limiter should have at least 1 token, got {limiter.tokens}"
             tracer.context_provider.activate(context)
 
             with tracer.trace("local_root_span0") as span:
