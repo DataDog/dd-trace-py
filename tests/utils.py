@@ -778,7 +778,11 @@ class TestSpan(Span):
     def __getattribute__(self, name):
         _span = super().__getattribute__("_span")
         if hasattr(_span, name):
-            return getattr(_span, name)
+            result = getattr(_span, name)
+            # If the attribute returns the wrapped span itself, return the wrapper instead
+            if result is _span:
+                return self
+            return result
         return super().__getattribute__(name)
 
     def __getattr__(self, key):
