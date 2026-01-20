@@ -1261,6 +1261,7 @@ def snapshot_context(
             os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join(
                 ["%s:%s" % (k, v) for k, v in existing_headers.items()]
             )
+        git_repo_url = os.environ.pop("DD_GIT_REPOSITORY_URL")
         try:
             query = urllib.parse.urlencode(
                 {
@@ -1299,6 +1300,8 @@ def snapshot_context(
                     del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
                 del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
 
+        if git_repo_url:
+            os.environ["DD_GIT_REPOSITORY_URL"] = git_repo_url
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
 
         # Wait for the traces to be available
