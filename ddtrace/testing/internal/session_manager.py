@@ -82,6 +82,10 @@ class SessionManager:
         self.show_settings()
 
         self.known_tests = self.api_client.get_known_tests() if self.settings.known_tests_enabled else set()
+        log.debug("Known tests fetched from backend: %d tests", len(self.known_tests))
+        if self.known_tests:
+            log.debug("Sample known tests (first 5): %s", list(self.known_tests)[:5])
+
         self.test_properties = (
             self.api_client.get_test_management_properties() if self.settings.test_management.enabled else {}
         )
@@ -143,6 +147,13 @@ class SessionManager:
                 new_tests = self.collected_tests - self.known_tests
                 total_tests = len(new_tests) + len(self.known_tests)
                 new_tests_percentage = len(new_tests) / total_tests * 100
+                log.debug(
+                    "EFD: collected_tests=%d, known_tests=%d, new_tests=%d (%.1f%%)",
+                    len(self.collected_tests),
+                    len(self.known_tests),
+                    len(new_tests),
+                    new_tests_percentage,
+                )
                 is_faulty_session = (
                     len(new_tests) > self.settings.early_flake_detection.faulty_session_threshold
                     and new_tests_percentage > self.settings.early_flake_detection.faulty_session_threshold
@@ -211,7 +222,20 @@ class SessionManager:
             try:
                 self.collected_tests.add(test_ref)
 
-                is_new = not test.has_parameters() and len(self.known_tests) > 0 and test_ref not in self.known_tests
+                # AIDEV-NOTE: Determine if test is new by comparing against known_tests from backend
+                has_parameters = test.has_parameters()
+                known_tests_count = len(self.known_tests)
+                in_known_tests = test_ref in self.known_tests
+                is_new = not has_parameters and known_tests_count > 0 and not in_known_tests
+
+                log.debug(
+                    "Test discovery: %s | has_params=%s, known_tests_count=%d, in_known_tests=%s, is_new=%s",
+                    test_ref,
+                    has_parameters,
+                    known_tests_count,
+                    in_known_tests,
+                    is_new,
+                )
 
                 test_properties = self.test_properties.get(test_ref) or TestProperties()
                 test.set_attributes(

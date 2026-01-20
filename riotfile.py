@@ -416,9 +416,6 @@ venv = Venv(
         Venv(
             name="telemetry",
             command="pytest {cmdargs} tests/telemetry/",
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
-            },
             pkgs={
                 "requests": latest,
                 "gunicorn": latest,
@@ -506,6 +503,10 @@ venv = Venv(
             pkgs={
                 "msgpack": [latest],
                 "pytest-randomly": latest,
+            },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "true",
+                "DD_TRACE_DEBUG": "1",
             },
             pys=select_pys(),
             venvs=[
