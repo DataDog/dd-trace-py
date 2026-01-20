@@ -692,7 +692,7 @@ class TestPymongoSocketTracing(TracerTestCase):
     @staticmethod
     def check_socket_metadata(span):
         assert span.name == "pymongo.%s" % _CHECKOUT_FN_NAME
-        assert span.service == "testdb"
+        assert span.service == "pymongo"
         assert span.span_type == SpanTypes.MONGODB
         assert span.get_tag("out.host") == "localhost"
         assert span.get_tag("component") == "pymongo"
