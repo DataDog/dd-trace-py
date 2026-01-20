@@ -107,7 +107,7 @@ def test_inferred_spans_api_gateway_default(client, test_spans, test_endpoint, i
                     api_gateway_resource="GET /",
                     method="GET",
                     status_code=test_endpoint["status_code"],
-                    url="local/",
+                    url="https://local/",
                     start=1736973768,
                     is_distributed=headers == distributed_headers,
                     distributed_trace_id=1,
@@ -126,7 +126,9 @@ def test_schematized_service_names(ddtrace_run_python_code_in_subprocess, schema
     code = """
 import pytest
 import sys
+
 from tests.contrib.djangorestframework.conftest import *
+from tests.conftest import *
 
 def test(client, test_spans):
     response = client.get("/users/")
@@ -160,6 +162,7 @@ def test_schematized_operation_names(ddtrace_run_python_code_in_subprocess, sche
     code = """
 import pytest
 import sys
+from tests.conftest import *
 from tests.contrib.djangorestframework.conftest import *
 
 def test(client, test_spans):

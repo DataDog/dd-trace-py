@@ -34,19 +34,19 @@ def test_tb_frames_from_exception_chain():
         c()
     except Exception as e:
         chain, _ = replay.unwind_exception_chain(e, e.__traceback__)
-        frames = replay.get_tb_frames_from_exception_chain(chain)
+        frames = list(replay.get_tb_frames_from_exception_chain(chain))
         # There are two tracebacks in the chain: one for KeyError and one for
         # ValueError. The innermost goes from the call to a in b up to the point
         # where the exception is raised in a. The outermost goes from the call
         # in this test function up to the point in b where the exception from a
         # is caught and the the KeyError is raised.
         assert len(frames) == 2 + 3
-        assert [f.tb_frame.f_code.co_name for f in frames] == [
-            "b",
-            "a",
-            "test_tb_frames_from_exception_chain",
-            "c",
-            "b",
+        assert [(n, f.tb_frame.f_code.co_name) for n, f in frames] == [
+            (2, "a"),
+            (1, "b"),
+            (5, "b"),
+            (4, "c"),
+            (3, "test_tb_frames_from_exception_chain"),
         ]
 
 
@@ -426,3 +426,77 @@ class ExceptionReplayTestCase(TracerTestCase):
             assert span.get_tag("_dd.debug.error.1.file") == __file__.replace(".pyc", ".py")
             assert span.get_tag("_dd.debug.error.1.function") == "a"
             assert span.get_tag("_dd.debug.error.1.line")
+
+
+def test_replay_functions_benchmark(benchmark):
+    """Benchmark replay.py functions directly without tracer overhead."""
+    import uuid
+
+    from ddtrace.trace import Span
+
+    def create_chained_exception(depth):
+        """Create a chain of exceptions with specified depth."""
+        try:
+            if depth == 0:
+                raise ValueError(uuid.uuid4())
+            else:
+                create_chained_exception(depth - 1)
+        except Exception:
+            raise RuntimeError(f"level {depth}") from None
+
+    def get_exception_with_traceback(depth):
+        """Capture an exception with its traceback."""
+        try:
+            create_chained_exception(depth)
+        except RuntimeError as e:
+            return e, e.__traceback__
+        return None, None
+
+    # Pre-create exceptions to benchmark just the replay functions
+    with exception_replay() as uploader:
+        handler = replay.SpanExceptionHandler()
+        handler.__uploader__ = uploader.collector
+        exc, tb = get_exception_with_traceback(100)
+        span = Span("test")
+
+        def run_replay_functions():
+            # This benchmarks just unwind_exception_chain and get_tb_frames_from_exception_chain
+            chain, exc_id = replay.unwind_exception_chain(exc, tb)
+            # Consume the generator fully to measure its cost
+            frames = list(replay.get_tb_frames_from_exception_chain(chain))
+
+            called = False
+            if tb is not None and exc_id is not None:
+                called = True
+                for _, _tb in frames:
+                    handler._attach_tb_frame_snapshot_to_span(span, _tb, exc_id, only_user_code=False)
+
+            assert len(frames) > 0
+            assert called
+
+        benchmark(run_replay_functions)
+
+
+def test_unwind_exception_chain_circular_reference():
+    """Test that unwind_exception_chain handles circular exception chains."""
+    import signal
+
+    exc1 = ValueError("first")
+    exc2 = RuntimeError("second")
+    exc1.__cause__ = exc2
+    exc2.__cause__ = exc1
+
+    def timeout_handler(signum, frame):
+        raise TimeoutError("unwind_exception_chain stuck in infinite loop")
+
+    old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(2)
+
+    try:
+        chain, exc_id = replay.unwind_exception_chain(exc1, exc1.__traceback__)
+        assert len(chain) <= 2
+    except TimeoutError:
+        pytest.fail("unwind_exception_chain entered an infinite loop on circular __cause__ chain")
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)

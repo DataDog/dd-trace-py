@@ -1,9 +1,8 @@
 from collections import ChainMap
 from enum import Enum
 import os
-from typing import Dict  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Dict
+from typing import Optional
 
 from envier import Env
 

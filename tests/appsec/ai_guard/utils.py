@@ -14,35 +14,48 @@ from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.appsec.ai_guard import AIGuardClient
 from ddtrace.appsec.ai_guard._api_client import Message
 from ddtrace.internal.settings.asm import ai_guard_config
-from tests.utils import DummyTracer
+from tests.utils import TracerSpanContainer
 
 
 def random_string(length: int) -> str:
     return "".join(random.choice(string.ascii_letters) for _ in range(length))
 
 
-def find_ai_guard_span(tracer: DummyTracer) -> Span:
-    spans = tracer.get_spans()
+def find_ai_guard_span(test_spans: TracerSpanContainer) -> Span:
+    spans = test_spans.spans
     assert len(spans) == 1
     span = spans[0]
     assert span.name == AI_GUARD.RESOURCE_TYPE
     return span
 
 
-def assert_ai_guard_span(tracer: DummyTracer, messages: List[Message], tags: Dict[str, Any]) -> None:
-    span = find_ai_guard_span(tracer)
+def assert_ai_guard_span(
+    test_spans: TracerSpanContainer,
+    tags: Dict[str, Any],
+    meta_struct: Dict[str, Any],
+) -> None:
+    span = find_ai_guard_span(test_spans)
     for tag, value in tags.items():
         assert tag in span.get_tags(), f"Missing {tag} from spans tags"
         assert span.get_tag(tag) == value, f"Wrong value {span.get_tag(tag)}, expected {value}"
     struct = span._get_struct_tag(AI_GUARD.TAG)
-    assert struct["messages"] == messages
+    for meta, value in meta_struct.items():
+        assert meta in struct.keys(), f"Missing {meta} from meta_struct keys"
+        assert struct[meta] == value, f"Wrong value {struct[meta]}, expected {value}"
 
 
-def mock_evaluate_response(action: str, reason: str = "", block: bool = True) -> Mock:
+def mock_evaluate_response(action: str, reason: str = "", tags: List[str] = None, block: bool = True) -> Mock:
     mock_response = Mock()
     mock_response.status = 200
     mock_response.get_json.return_value = {
-        "data": {"attributes": {"action": action, "reason": reason, "is_blocking_enabled": block}}
+        "data": {
+            "attributes": {
+                "action": action,
+                "reason": reason,
+                "tags": tags if tags else [],
+                "is_blocking_enabled": block,
+            }
+        }
     }
     return mock_response
 
@@ -52,13 +65,15 @@ def assert_mock_execute_request_call(
     ai_guard_client: AIGuardClient,
     messages: List[Message],
     meta: Optional[Dict[str, Any]] = None,
+    endpoint: Optional[str] = None,
 ):
     expected_attributes = {"messages": messages, "meta": meta or {"service": config.service, "env": config.env}}
 
     expected_payload = {"data": {"attributes": expected_attributes}}
 
+    expected_endpoint = endpoint if endpoint else ai_guard_client._endpoint
     mock_execute_request.assert_called_once_with(
-        f"{ai_guard_client._endpoint}/evaluate",
+        f"{expected_endpoint}/evaluate",
         expected_payload,
     )
 

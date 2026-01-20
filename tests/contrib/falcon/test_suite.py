@@ -30,7 +30,7 @@ class FalconTestCase(FalconTestMixin):
 
     def test_404(self):
         self.make_test_call("/fake_endpoint", expected_status_code=404)
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -56,7 +56,7 @@ class FalconTestCase(FalconTestMixin):
             if FALCON_VERSION < (3, 0, 0):
                 assert 0
 
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -76,7 +76,7 @@ class FalconTestCase(FalconTestMixin):
         out = self.make_test_call("/200", expected_status_code=200, query_string=query_string)
         assert out.content.decode("utf-8") == "Success"
 
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -115,7 +115,7 @@ class FalconTestCase(FalconTestMixin):
     def make_route_reporting_test(self, endpoint, status, expected_route):
         _ = self.make_test_call(endpoint)
 
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -150,7 +150,7 @@ class FalconTestCase(FalconTestMixin):
         assert out.status_code == 201
         assert out.content.decode("utf-8") == "Success"
 
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -170,7 +170,7 @@ class FalconTestCase(FalconTestMixin):
         out = self.make_test_call("/500", expected_status_code=500)
         assert out.content.decode("utf-8") == "Failure"
 
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -189,7 +189,7 @@ class FalconTestCase(FalconTestMixin):
     def test_404_exception(self):
         self.make_test_call("/not_found", expected_status_code=404)
 
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -209,7 +209,7 @@ class FalconTestCase(FalconTestMixin):
         # it should not have the stacktrace when a 404 exception is raised
         self.make_test_call("/not_found", expected_status_code=404)
 
-        traces = self.tracer.pop_traces()
+        traces = self.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -224,32 +224,11 @@ class FalconTestCase(FalconTestMixin):
         assert span.get_tag("component") == "falcon"
         assert span.get_tag("span.kind") == "server"
 
-    def test_falcon_request_hook(self):
-        @config.falcon.hooks.on("request")
-        def on_falcon_request(span, request, response):
-            span.set_tag("my.custom", "tag")
-
-        out = self.make_test_call("/200", expected_status_code=200)
-        assert out.content.decode("utf-8") == "Success"
-
-        traces = self.tracer.pop_traces()
-        assert len(traces) == 1
-        assert len(traces[0]) == 1
-        span = traces[0][0]
-        assert span.get_tag("http.request.headers.my_header") is None
-        assert span.get_tag("http.response.headers.my_response_header") is None
-
-        assert span.name == "falcon.request"
-
-        assert span.get_tag("my.custom") == "tag"
-
-        assert span.error == 0
-
     def test_http_header_tracing(self):
         with self.override_config("falcon", {}):
             config.falcon.http.trace_headers(["my-header", "my-response-header"])
             self.make_test_call("/200", headers={"my-header": "my_value"})
-            traces = self.tracer.pop_traces()
+            traces = self.pop_traces()
 
         assert len(traces) == 1
         assert len(traces[0]) == 1
@@ -282,7 +261,7 @@ class FalconTestCase(FalconTestMixin):
                 ]:
                     with override_global_config(dict(_inferred_proxy_services_enabled=setting_enabled)):
                         self.make_test_call(test_endpoint["endpoint"], headers=test_headers)
-                        traces = self.tracer.pop_traces()
+                        traces = self.pop_traces()
                         if setting_enabled:
                             aws_gateway_span = traces[0][0]
                             web_span = traces[0][1]
@@ -301,7 +280,7 @@ class FalconTestCase(FalconTestMixin):
                                 api_gateway_resource="GET /",
                                 method="GET",
                                 status_code=test_endpoint["status"],
-                                url="local/",
+                                url="https://local/",
                                 start=1736973768.0,
                                 is_distributed=False,
                                 distributed_trace_id=1,

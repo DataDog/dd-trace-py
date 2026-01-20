@@ -8,5 +8,5 @@ build:
     - cargo install --force --root /home/docs/.asdf --git https://github.com/DataDog/libdatadog --bin dedup_headers tools
     - git fetch --unshallow || true
     - pip install riot
-    - riot -v run --pass-env build_docs
+    - READTHEDOCS=1 riot -v run --pass-env build_docs
     - mv docs/_build $READTHEDOCS_OUTPUT

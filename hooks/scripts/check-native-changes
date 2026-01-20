@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+#
+# Check for changes in native code files and alert developer to rebuild
+# Used by post-merge and post-checkout hooks
+#
+# Usage: check-native-changes <prev-ref> <current-ref>
+#
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+PREV_REF="${1:-HEAD@{1}}"
+CURRENT_REF="${2:-HEAD}"
+
+# Native file patterns to check
+NATIVE_PATTERNS=(
+    "*.c"
+    "*.cpp"
+    "*.h"
+    "*.hpp"
+    "*.rs"
+    "*.pyx"
+    "*.pxd"
+    "Cargo.toml"
+    "Cargo.lock"
+    "setup.py"
+    "pyproject.toml"
+)
+
+# Check if we're in a git repository
+if ! git rev-parse --git-dir > /dev/null 2>&1; then
+    exit 0
+fi
+
+# Function to check for native file changes
+check_native_changes() {
+    local prev_ref=$1
+    local current_ref=$2
+    local changed_files=()
+
+    # Build the git diff command with all patterns
+    local pattern_args=()
+    for pattern in "${NATIVE_PATTERNS[@]}"; do
+        pattern_args+=(":(glob)**/$pattern")
+    done
+
+    # Get changed files matching our patterns
+    if git rev-parse "$prev_ref" >/dev/null 2>&1; then
+        while IFS= read -r file; do
+            if [ -n "$file" ]; then
+                changed_files+=("$file")
+            fi
+        done < <(git diff --name-only "$prev_ref" "$current_ref" -- "${pattern_args[@]}" 2>/dev/null || true)
+    fi
+
+    echo "${changed_files[@]}"
+}
+
+# Main logic
+main() {
+    local changed_files
+    changed_files=$(check_native_changes "$PREV_REF" "$CURRENT_REF")
+
+    if [ -n "$changed_files" ]; then
+        echo ""
+        echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${RED}⚠️  NATIVE CODE CHANGES DETECTED${NC}"
+        echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo ""
+        echo -e "${BLUE}The following native code files have changed:${NC}"
+        echo ""
+
+        # Display changed files (limit to first 10 to avoid spam)
+        local count=0
+        for file in $changed_files; do
+            if [ $count -lt 10 ]; then
+                echo -e "  ${GREEN}•${NC} $file"
+                ((count++))
+            fi
+        done
+
+        # Count total changes
+        local total_changes
+        total_changes=$(echo "$changed_files" | wc -w)
+        if [ "$total_changes" -gt 10 ]; then
+            echo -e "  ${YELLOW}... and $((total_changes - 10)) more file(s)${NC}"
+        fi
+
+        echo ""
+        echo -e "${YELLOW}You need to rebuild native extensions!${NC}"
+        echo ""
+        echo -e "${BLUE}Run one of the following commands:${NC}"
+        echo ""
+        echo -e "  ${GREEN}# Quick rebuild (recommended):${NC}"
+        echo -e "    pip install -e ."
+        echo ""
+        echo -e "  ${GREEN}# Full clean rebuild:${NC}"
+        echo -e "    pip install -e . --force-reinstall --no-deps --no-build-isolation"
+        echo ""
+        echo -e "  ${GREEN}# Using project scripts:${NC}"
+        echo -e "    scripts/ddtest pip install -e ."
+        echo ""
+        echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo ""
+    fi
+}
+
+main "$@"

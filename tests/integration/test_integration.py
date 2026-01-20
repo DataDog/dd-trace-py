@@ -12,7 +12,6 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_native_writer
 from tests.integration.utils import skip_if_testagent
-from tests.utils import DummyTracer
 from tests.utils import call_program
 
 
@@ -21,9 +20,8 @@ FOUR_KB = 1 << 12
 
 @mock.patch("signal.signal")
 @mock.patch("signal.getsignal")
-def test_shutdown_on_exit_signal(mock_get_signal, mock_signal):
+def test_shutdown_on_exit_signal(mock_get_signal, mock_signal, tracer):
     mock_get_signal.return_value = None
-    tracer = DummyTracer()
     register_on_exit_signal(tracer._atexit)
     assert mock_signal.call_count == 2
     assert mock_signal.call_args_list[0][0][0] == signal.SIGTERM
@@ -110,6 +108,7 @@ def test_uds_wrong_socket_path():
                 "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
                 3,
                 exc_info=True,
+                extra={"send_to_telemetry": False},
             )
         ]
     log.error.assert_has_calls(calls)
@@ -385,6 +384,7 @@ def test_trace_generates_error_logs_when_trace_agent_url_invalid():
                 "http://localhost:8125/{}/traces".format(encoding if encoding else "v0.5"),
                 3,
                 exc_info=True,
+                extra={"send_to_telemetry": False},
             )
         ]
     log.error.assert_has_calls(calls)

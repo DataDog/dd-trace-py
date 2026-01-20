@@ -6,6 +6,7 @@ import fastapi
 from fastapi.testclient import TestClient
 import httpx
 import pytest
+import starlette
 
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.starlette.patch import patch as patch_starlette
@@ -675,7 +676,7 @@ def test_websocket_tracing_not_separate_traces(test_spans, snapshot_app):
 
 
 @pytest.mark.snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
-def test_long_running_websocket_session(test_spans, snapshot_app):
+def test_long_running_websocket_session(snapshot_app):
     client = TestClient(snapshot_app)
 
     with override_config("fastapi", dict(trace_asgi_websocket_messages=True)):
@@ -694,14 +695,15 @@ def test_long_running_websocket_session(test_spans, snapshot_app):
             assert "bye" in farewell
 
 
-def test_dont_trace_websocket_by_default(client, test_spans):
+def test_dont_trace_websocket_when_disabled(client, test_spans):
     initial_event_count = len(test_spans.pop_traces())
-    with client.websocket_connect("/ws") as websocket:
-        data = websocket.receive_json()
-        assert data == {"test": "Hello WebSocket"}
-        websocket.send_text("ping")
-        spans = test_spans.pop_traces()
-        assert len(spans) <= initial_event_count
+    with override_config("fastapi", dict(trace_asgi_websocket_messages=False)):
+        with client.websocket_connect("/ws") as websocket:
+            data = websocket.receive_json()
+            assert data == {"test": "Hello WebSocket"}
+            websocket.send_text("ping")
+            spans = test_spans.pop_traces()
+            assert len(spans) <= initial_event_count
 
 
 def _run_websocket_context_propagation_test():
@@ -749,8 +751,6 @@ def test_websocket_context_propagation(snapshot_app):
     _run_websocket_context_propagation_test()
 
 
-# Ignoring span link attributes until values are
-# normalized: https://github.com/DataDog/dd-apm-test-agent/issues/154
 @snapshot(ignores=["meta._dd.span_links"])
 def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
     """Tests if background tasks have been traced but excluded from span duration"""
@@ -913,7 +913,7 @@ def test_inferred_spans_api_gateway(client, tracer, test_spans, test, inferred_p
                 api_gateway_resource="GET /",
                 method="GET",
                 status_code=test["status_code"],
-                url="local/",
+                url="https://local/",
                 start=1736973768,
                 is_distributed=test_headers["type"] == "distributed",
                 distributed_trace_id=1,
@@ -981,3 +981,26 @@ def test_baggage_span_tagging_baggage_api(client, tracer, test_spans):
     assert request_span.get_tag("baggage.account.id") is None
     assert request_span.get_tag("baggage.user.id") is None
     assert request_span.get_tag("baggage.session.id") is None
+
+
+@pytest.mark.skipif(
+    parse_version(starlette.__version__) < parse_version("0.24.0"),
+    reason="Starlette < 0.24.0 has middleware initialization incompatible with copyreg.dispatch_table fix",
+)
+def test_fastapi_app_is_picklable(tracer):
+    """Validate FastAPI apps remain picklable after ddtrace instrumentation."""
+    cloudpickle = pytest.importorskip("cloudpickle")
+
+    from fastapi import FastAPI
+
+    app = FastAPI()
+
+    @app.get("/test")
+    def test_endpoint():
+        return {"status": "ok"}
+
+    # Should not raise NotImplementedError from wrapt.FunctionWrapper
+    # This succeeds because _register_wrapt_pickle_reducers() was called during patch()
+    pickled = cloudpickle.dumps(app)
+    assert pickled is not None
+    assert len(pickled) > 0

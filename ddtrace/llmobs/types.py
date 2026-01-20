@@ -102,6 +102,7 @@ class _Meta(TypedDict, total=False):
     expected_output: _MetaIO
     evaluations: Any
     tool_definitions: List[ToolDefinition]
+    intent: str
 
 
 class _SpanLink(TypedDict):

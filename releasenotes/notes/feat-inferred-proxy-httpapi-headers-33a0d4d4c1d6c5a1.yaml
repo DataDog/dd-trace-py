@@ -1,0 +1,12 @@
+---
+features:
+  - |
+    tracing: Proxy inferred spans now differentiate between API Gateway v1 and v2 apis by emitting the ``aws.httpapi`` span name
+    for v2 apis when the API Gateway sets the ``x-dd-proxy`` header to ``aws-httpapi``. Additionally, the tag ``http.route`` and the
+    resource name of the span now contains the api resource path instead of the path when propagated with the ``x-dd-proxy-resource-path``
+    header.
+  - |
+    AAP: Proxy inferred spans now contain events when AppSec is enabled so that they are reported on the App and API Protection Endpoint Catalog.
+fixes:
+  - |
+    tracing: Proxy inferred spans used to omit the ``https://`` scheme prefix as part of the `http.url` tag; this caused the entire url to be parsed as the http path.

@@ -29,8 +29,13 @@ MAX_CHILD_UPLOADERS = 1  # max one child
 
 def _rc_callback(data: t.Sequence[Payload]):
     with shared_pid_file.lock_exclusive() as f:
+        if (pid := str(os.getpid())) not in (pids := set(shared_pid_file.peekall_unlocked(f))):
+            # Store the PID of the current process so that we know which processes
+            # have Symbol DB enabled.
+            shared_pid_file.put_unlocked(f, pid)
+
         if (get_ancestor_runtime_id() is not None and has_forked()) or len(
-            set(shared_pid_file.peekall_unlocked(f))
+            pids - {pid, str(os.getppid())}
         ) >= MAX_CHILD_UPLOADERS:
             log.debug("[PID %d] SymDB: Disabling Symbol DB in child process", os.getpid())
             # We assume that forking is being used for spawning child worker
@@ -43,10 +48,6 @@ def _rc_callback(data: t.Sequence[Payload]):
                 SymbolDatabaseUploader.uninstall()
 
             return
-
-        # Store the PID of the current process so that we know which processes
-        # have Symbol DB enabled.
-        shared_pid_file.put_unlocked(f, str(os.getpid()))
 
     for payload in data:
         if payload.metadata is None:

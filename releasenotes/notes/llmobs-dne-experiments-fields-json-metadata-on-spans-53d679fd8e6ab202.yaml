@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    LLM Observability: Experiments spans now contain metadata from the dataset record.
+  - |
+    LLM Observability: Experiments spans' input, output, expected_output fields are now emitted as is so that if data in
+    any of the columns are objects, they can be searchable in Datadog. 

@@ -6,7 +6,6 @@ inspect.currentframe() returns None, preventing AttributeError when accessing
 f_back and other crashes.
 """
 
-import sys
 from unittest import mock
 
 import pytest
@@ -165,7 +164,6 @@ class TestCodeInjectionInspectSafety:
         data = _get_iast_data()
         assert len(data["vulnerabilities"]) == 1
 
-    @pytest.mark.skipif(sys.version_info < (3, 8), reason="Mock spec issues with older Python")
     def test_eval_no_globals_extraction_on_currentframe_none(self, iast_context_defaults):
         """
         Verify that when currentframe returns None, we don't try to access f_back.

@@ -20,7 +20,7 @@ from tests.appsec.iast.taint_sinks._taint_sinks_utils import get_parametrize
     "evidence_input,sources_expected,vulnerabilities_expected,element", list(get_parametrize(VULN_UNVALIDATED_REDIRECT))
 )
 def test_unvalidated_redirect_redaction_suite(
-    evidence_input, sources_expected, vulnerabilities_expected, iast_context_defaults, element
+    iast_context_defaults, evidence_input, sources_expected, vulnerabilities_expected, element
 ):
     tainted_object = evidence_input_value = evidence_input.get("value", "")
     if evidence_input_value:

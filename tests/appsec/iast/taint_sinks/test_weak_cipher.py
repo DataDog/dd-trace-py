@@ -1,3 +1,4 @@
+import sys
 from unittest import mock
 
 import pytest
@@ -35,6 +36,7 @@ def iast_context_blowfish_configured():
     yield from iast_context(dict(DD_IAST_ENABLED="true", DD_IAST_WEAK_CIPHER_ALGORITHMS="BLOWFISH, RC2"))
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="pycryptodome is not compatible with Python 3.14")
 @pytest.mark.parametrize(
     "mode,cipher_func",
     [
@@ -59,6 +61,7 @@ def test_weak_cipher_crypto_des(iast_context_defaults, mode, cipher_func):
     assert vulnerabilities[0].evidence.value == cipher_func
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="pycryptodome is not compatible with Python 3.14")
 @pytest.mark.parametrize(
     "mode,cipher_func",
     [
@@ -83,6 +86,7 @@ def test_weak_cipher_crypto_blowfish(iast_context_defaults, mode, cipher_func):
     assert vulnerabilities[0].evidence.value == cipher_func
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="pycryptodome is not compatible with Python 3.14")
 @pytest.mark.parametrize(
     "mode,cipher_func",
     [
@@ -107,6 +111,7 @@ def test_weak_cipher_rc2(mode, cipher_func, iast_context_defaults):
     assert vulnerabilities[0].evidence.value == cipher_func
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="pycryptodome is not compatible with Python 3.14")
 def test_weak_cipher_rc4(iast_context_defaults):
     cipher_arc4()
     span_report = get_iast_reporter()
@@ -140,6 +145,7 @@ def test_weak_cipher_cryptography_blowfish(iast_context_defaults, algorithm, cip
     assert vulnerabilities[0].hash == hash_value
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="pycryptodome is not compatible with Python 3.14")
 def test_weak_cipher_blowfish__des_rc2_configured(iast_context_des_rc2_configured):
     from Crypto.Cipher import Blowfish
 
@@ -149,6 +155,7 @@ def test_weak_cipher_blowfish__des_rc2_configured(iast_context_des_rc2_configure
     assert span_report is None
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="pycryptodome is not compatible with Python 3.14")
 def test_weak_cipher_rc2__rc4_configured(iast_context_rc4_configured):
     from Crypto.Cipher import ARC2
 
@@ -178,6 +185,7 @@ def test_weak_cipher_cryptography_blowfish_configured(iast_context_blowfish_conf
     assert vulnerabilities[0].type == VULN_WEAK_CIPHER_TYPE
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="pycryptodome is not compatible with Python 3.14")
 def test_weak_cipher_rc4_unpatched(iast_context_defaults):
     _testing_unpatch_iast()
     cipher_arc4()
@@ -204,6 +212,7 @@ def test_weak_cipher_deduplication(iast_context_deduplication_enabled):
         _end_iast_context_and_oce()
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="pycryptodome is not compatible with Python 3.14")
 def test_weak_cipher_secure(iast_context_defaults):
     cipher_secure()
     span_report = get_iast_reporter()
@@ -211,6 +220,7 @@ def test_weak_cipher_secure(iast_context_defaults):
     assert span_report is None
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason="pycryptodome is not compatible with Python 3.14")
 def test_weak_cipher_secure_multiple_calls_error(iast_context_defaults):
     for _ in range(50):
         cipher_secure()

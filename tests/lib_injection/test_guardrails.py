@@ -50,7 +50,7 @@ TEST_CASES = [
         id="mixed_multi_incomp_one_comp",
     ),
     pytest.param({}, [], id="no_relevant_packages"),
-    pytest.param({"click": "0.1"}, [], id="unrelated_package"),
+    pytest.param({"click": "8.0"}, [], id="unrelated_package"),
 ]
 
 

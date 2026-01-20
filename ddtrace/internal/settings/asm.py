@@ -11,6 +11,7 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._constants import IAST_TRUNCATION_MAX_VALUE_LENGTH_DEFAULT
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
@@ -81,6 +82,9 @@ class ASMConfig(DDConfig):
     _iast_debug = DDConfig.var(bool, IAST.ENV_DEBUG, default=False, private=True)
     _iast_propagation_debug = DDConfig.var(bool, IAST.ENV_PROPAGATION_DEBUG, default=False, private=True)
     _iast_telemetry_report_lvl = DDConfig.var(str, IAST.ENV_TELEMETRY_REPORT_LVL, default=TELEMETRY_INFORMATION_NAME)
+    _iast_truncation_max_value_length = DDConfig.var(
+        int, IAST.ENV_DD_IAST_TRUNCATION_MAX_VALUE_LENGTH, default=IAST_TRUNCATION_MAX_VALUE_LENGTH_DEFAULT
+    )
     _apm_tracing_enabled = DDConfig.var(bool, APPSEC.APM_TRACING_ENV, default=True)
     _use_metastruct_for_triggers = True
     _use_metastruct_for_iast = True
@@ -208,8 +212,10 @@ class ASMConfig(DDConfig):
         "_asm_obfuscation_parameter_key_regexp",
         "_asm_obfuscation_parameter_value_regexp",
         "_asm_processed_span_types",
+        "_asm_http_span_types",
         "_apm_tracing_enabled",
         "_bypass_instrumentation_for_waf",
+        "_is_testing_instrumentation_for_waf",
         "_iast_enabled",
         "_iast_request_sampling",
         "_iast_debug",
@@ -218,6 +224,7 @@ class ASMConfig(DDConfig):
         "_iast_security_controls",
         "_iast_is_testing",
         "_iast_use_root_span",
+        "_iast_truncation_max_value_length",
         "_ep_enabled",
         "_use_metastruct_for_triggers",
         "_use_metastruct_for_iast",
@@ -259,9 +266,10 @@ class ASMConfig(DDConfig):
         + r"?\d+)?)|(X\'[0-9A-Fa-f]+\')|(B\'[01]+\'))$",
     )
     _bypass_instrumentation_for_waf = False
+    _is_testing_instrumentation_for_waf = False
 
     # IAST supported on python 3.6 to 3.13 and never on windows
-    _iast_supported: bool = ((3, 6, 0) <= sys.version_info < (3, 14, 0)) and not (
+    _iast_supported: bool = ((3, 6, 0) <= sys.version_info < (3, 15, 0)) and not (
         sys.platform.startswith("win") or sys.platform.startswith("cygwin")
     )
 

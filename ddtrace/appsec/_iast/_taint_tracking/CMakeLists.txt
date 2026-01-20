@@ -49,7 +49,11 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_definitions(-DDONT_COMPILE_ABSEIL) # Define DONT_COMPILE_ABSEIL preprocessor variable
 else()
     message("Release, RelWithDebInfo, or MinSizeRel mode: using abseil (DD_COMPILE_ABSEIL unset or not 0/false)")
-    FetchContent_Declare(absl URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20250127.1.zip")
+    FetchContent_Declare(
+        absl
+        URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20250127.1.zip"
+        TIMEOUT 180
+        INACTIVITY_TIMEOUT 120 DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
     FetchContent_MakeAvailable(absl)
 endif()
 
@@ -59,6 +63,7 @@ file(
     GLOB
     SOURCE_FILES
     "*.cpp"
+    "api/*.cpp"
     "context/*.cpp"
     "aspects/*.cpp"
     "initializer/*.cpp"
@@ -69,6 +74,7 @@ file(
     GLOB
     HEADER_FILES
     "*.h"
+    "api/*.h"
     "context/*.h"
     "aspects/*.h"
     "initializer/*.h"
@@ -85,6 +91,9 @@ message(STATUS "PYTHON_LIBRARIES = ${PYTHON_LIBRARIES}")
 message(STATUS "PYTHON_EXECUTABLE = ${PYTHON_EXECUTABLE}")
 message(STATUS "PYTHON_INCLUDE_DIRS = ${PYTHON_INCLUDE_DIRS}")
 # message(STATUS "ICU_LIBRARIES = ${ICU_LIBRARIES}") message(STATUS "ICU_INCLUDE_DIRS = ${ICU_INCLUDE_DIRS}")
+
+# For pybind11 3.0: Use legacy Python detection (compatible with wheel building)
+set(PYBIND11_FINDPYTHON OFF)
 
 add_subdirectory(_vendor/pybind11)
 if(NATIVE_TESTING)

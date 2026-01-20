@@ -3,7 +3,7 @@ detached = true
 python = "3.10"
 dependencies = [
     "click==8.1.7",
-    "cython-lint==0.15.0",
+    "cython-lint==0.18.1",
     "codespell==2.4.1",
     "bandit==1.8.2",
     "mypy==1.15.0",
@@ -17,7 +17,7 @@ dependencies = [
     "packaging==23.1",
     "pygments==2.16.1",
     "riot==0.20.1",
-    "ruff==0.14.5",
+    "ruff==0.14.10",
     "clang-format==18.1.5",
     "cmake-format==0.6.13",
     "ruamel.yaml==0.18.6",
@@ -26,7 +26,7 @@ dependencies = [
 
 [envs.lint.scripts]
 format_check = [
-    "ruff format --check {args:.}",
+    "ruff format --check --no-cache {args:.}",
 ]
 cmakeformat_check = [
     "bash scripts/cmake-format.sh"
@@ -36,14 +36,14 @@ cformat_check = [
 ]
 style = [
     "format_check",
-    "ruff check {args:.}",
+    "ruff check --no-cache {args:.}",
     "cython-lint {args:.}",
     "cformat_check",
     "cmakeformat_check",
 ]
 fmt = [
-    "ruff format {args:.}",
-    "ruff check --fix {args:.}",
+    "ruff format --no-cache {args:.}",
+    "ruff check --fix --no-cache {args:.}",
     "style",
 ]
 # checks should encapsulate all rules used in pre-check
@@ -141,6 +141,7 @@ python = ["3.10", "3.11", "3.12"]
 
 [envs.profiling_pytorch]
 dependencies = [
+    "protobuf",
     "pytest",
     "pytest-cov",
     "requests",
@@ -158,7 +159,7 @@ DD_PROFILING_PYTORCH_ENABLED = "true"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest tests/profiling_v2/test_pytorch.py -vvv --capture=tee-sys",
+    "python -m pytest tests/profiling/test_pytorch.py -vvv --capture=tee-sys",
 ]
 
 [[envs.profiling_pytorch.matrix]]

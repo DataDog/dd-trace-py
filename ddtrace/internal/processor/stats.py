@@ -14,7 +14,7 @@ from ddtrace.internal import compat
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.version import get_version
+from ddtrace.version import __version__
 
 from ...constants import _SPAN_MEASURED_KEY
 from .. import agent
@@ -105,7 +105,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         )
         self._headers: Dict[str, str] = {
             "Datadog-Meta-Lang": "python",
-            "Datadog-Meta-Tracer-Version": get_version(),
+            "Datadog-Meta-Tracer-Version": __version__,
             "Content-Type": "application/msgpack",
         }
         self._hostname = ""

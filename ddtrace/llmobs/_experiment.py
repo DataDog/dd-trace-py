@@ -17,7 +17,6 @@ from typing import cast
 from typing import overload
 import uuid
 
-import ddtrace
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -25,8 +24,10 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
+from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.version import __version__
 
 
 if TYPE_CHECKING:
@@ -76,6 +77,22 @@ class TaskResult(TypedDict):
     output: JSONType
     metadata: Dict[str, JSONType]
     error: Dict[str, Optional[str]]
+
+
+class EvaluatorResult:
+    def __init__(
+        self,
+        value: JSONType,
+        reasoning: Optional[str] = None,
+        assessment: Optional[str] = None,
+        metadata: Optional[Dict[str, JSONType]] = None,
+        tags: Optional[Dict[str, JSONType]] = None,
+    ) -> None:
+        self.value = value
+        self.reasoning = reasoning
+        self.assessment = assessment
+        self.metadata = metadata
+        self.tags = tags
 
 
 class EvaluationResult(TypedDict):
@@ -186,7 +203,10 @@ class Dataset:
             logger.debug("dataset delta is %d, using batch update", delta_size)
             updated_records = list(self._updated_record_ids_to_new_fields.values())
             new_version, new_record_ids = self._dne_client.dataset_batch_update(
-                self._id, list(self._new_records_by_record_id.values()), updated_records, self._deleted_record_ids
+                self._id,
+                list(self._new_records_by_record_id.values()),
+                updated_records,
+                self._deleted_record_ids,
             )
 
             # attach record ids to newly created records
@@ -214,7 +234,11 @@ class Dataset:
             **record,
             "record_id": record_id,
         }
-        self._records[index] = {**self._records[index], **record, "record_id": record_id}
+        self._records[index] = {
+            **self._records[index],
+            **record,
+            "record_id": record_id,
+        }
 
     def append(self, record: DatasetRecordRaw) -> None:
         record_id: str = uuid.uuid4().hex
@@ -338,7 +362,7 @@ class Experiment:
         name: str,
         task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
         dataset: Dataset,
-        evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
+        evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]]],
         project_name: str,
         description: str = "",
         tags: Optional[Dict[str, str]] = None,
@@ -347,7 +371,13 @@ class Experiment:
         summary_evaluators: Optional[
             List[
                 Callable[
-                    [List[DatasetRecordInputType], List[JSONType], List[JSONType], Dict[str, List[JSONType]]], JSONType
+                    [
+                        List[DatasetRecordInputType],
+                        List[JSONType],
+                        List[JSONType],
+                        Dict[str, List[JSONType]],
+                    ],
+                    JSONType,
                 ]
             ]
         ] = None,
@@ -360,7 +390,10 @@ class Experiment:
         self._summary_evaluators = summary_evaluators or []
         self._description = description
         self._tags: Dict[str, str] = tags or {}
-        self._tags["ddtrace.version"] = str(ddtrace.__version__)
+        self._tags["ddtrace.version"] = str(__version__)
+        self._tags["project_name"] = project_name
+        self._tags["dataset_name"] = dataset.name
+        self._tags["experiment_name"] = name
         self._config: Dict[str, JSONType] = config or {}
         self._runs: int = runs or 1
         self._llmobs_instance = _llmobs_instance
@@ -377,7 +410,12 @@ class Experiment:
         self._id: Optional[str] = None
         self._run_name: Optional[str] = None
 
-    def run(self, jobs: int = 1, raise_errors: bool = False, sample_size: Optional[int] = None) -> ExperimentResult:
+    def run(
+        self,
+        jobs: int = 1,
+        raise_errors: bool = False,
+        sample_size: Optional[int] = None,
+    ) -> ExperimentResult:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             raise ValueError(
                 "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
@@ -386,8 +424,12 @@ class Experiment:
 
         project = self._llmobs_instance._dne_client.project_create_or_get(self._project_name)
         self._project_id = project.get("_id", "")
+        self._tags["project_id"] = self._project_id
 
-        experiment_id, experiment_run_name = self._llmobs_instance._dne_client.experiment_create(
+        (
+            experiment_id,
+            experiment_run_name,
+        ) = self._llmobs_instance._dne_client.experiment_create(
             self.name,
             self._dataset._id,
             self._project_id,
@@ -434,7 +476,14 @@ class Experiment:
             return None
         idx, record = idx_record
         with self._llmobs_instance._experiment(
-            name=self._task.__name__, experiment_id=self._id, run_id=str(run._id), run_iteration=run._run_iteration
+            name=self._task.__name__,
+            experiment_id=self._id,
+            run_id=str(run._id),
+            run_iteration=run._run_iteration,
+            dataset_name=self._dataset.name,
+            project_name=self._project_name,
+            project_id=self._project_id,
+            experiment_name=self.name,
         ) as span:
             span_context = self._llmobs_instance.export_span(span=span)
             if span_context:
@@ -456,7 +505,11 @@ class Experiment:
             except Exception:
                 span.set_exc_info(*sys.exc_info())
             self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
-            span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, safe_json(record["expected_output"]))
+
+            span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
+            if "metadata" in record:
+                span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
+
             return {
                 "idx": idx,
                 "span_id": span_id,
@@ -476,7 +529,11 @@ class Experiment:
             }
 
     def _run_task(
-        self, jobs: int, run: _ExperimentRunInfo, raise_errors: bool = False, sample_size: Optional[int] = None
+        self,
+        jobs: int,
+        run: _ExperimentRunInfo,
+        raise_errors: bool = False,
+        sample_size: Optional[int] = None,
     ) -> List[TaskResult]:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return []
@@ -498,7 +555,9 @@ class Experiment:
         task_results = []
         with ThreadPoolExecutor(max_workers=jobs) as executor:
             for result in executor.map(
-                self._process_record, enumerate(subset_dataset), itertools.repeat(run, len(subset_dataset))
+                self._process_record,
+                enumerate(subset_dataset),
+                itertools.repeat(run, len(subset_dataset)),
             ):
                 if not result:
                     continue
@@ -522,26 +581,51 @@ class Experiment:
             record: DatasetRecord = self._dataset[idx]
             input_data = record["input_data"]
             expected_output = record["expected_output"]
-            evals_dict = {}
+            evals_dict: Dict[str, Dict[str, JSONType]] = {}
             for evaluator in self._evaluators:
-                eval_result: JSONType = None
+                eval_result_value: JSONType = None
                 eval_err: JSONType = None
+                extra_return_values: Dict[str, JSONType] = {}
                 try:
                     eval_result = evaluator(input_data, output_data, expected_output)
+
+                    if isinstance(eval_result, EvaluatorResult):
+                        if eval_result.reasoning:
+                            extra_return_values["reasoning"] = eval_result.reasoning
+                        if eval_result.assessment:
+                            extra_return_values["assessment"] = eval_result.assessment
+                        if eval_result.metadata:
+                            extra_return_values["metadata"] = eval_result.metadata
+                        if eval_result.tags:
+                            extra_return_values["tags"] = eval_result.tags
+                        eval_result_value = eval_result.value
+                    else:
+                        eval_result_value = eval_result
                 except Exception as e:
                     exc_type, exc_value, exc_tb = sys.exc_info()
                     exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
                     exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-                    eval_err = {"message": str(exc_value), "type": exc_type_name, "stack": exc_stack}
+                    eval_err = {
+                        "message": str(exc_value),
+                        "type": exc_type_name,
+                        "stack": exc_stack,
+                    }
                     if raise_errors:
                         raise RuntimeError(f"Evaluator {evaluator.__name__} failed on row {idx}") from e
-                evals_dict[evaluator.__name__] = {"value": eval_result, "error": eval_err}
+                evals_dict[evaluator.__name__] = {
+                    "value": eval_result_value,
+                    "error": eval_err,
+                    **extra_return_values,
+                }
             evaluation: EvaluationResult = {"idx": idx, "evaluations": evals_dict}
             evaluations.append(evaluation)
         return evaluations
 
     def _run_summary_evaluators(
-        self, task_results: List[TaskResult], eval_results: List[EvaluationResult], raise_errors: bool = False
+        self,
+        task_results: List[TaskResult],
+        eval_results: List[EvaluationResult],
+        raise_errors: bool = False,
     ) -> List[EvaluationResult]:
         evaluations: List[EvaluationResult] = []
         inputs: List[DatasetRecordInputType] = []
@@ -575,10 +659,17 @@ class Experiment:
                 exc_type, exc_value, exc_tb = sys.exc_info()
                 exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
                 exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-                eval_err = {"message": str(exc_value), "type": exc_type_name, "stack": exc_stack}
+                eval_err = {
+                    "message": str(exc_value),
+                    "type": exc_type_name,
+                    "stack": exc_stack,
+                }
                 if raise_errors:
                     raise RuntimeError(f"Summary evaluator {summary_evaluator.__name__} failed") from e
-            evals_dict[summary_evaluator.__name__] = {"value": eval_result, "error": eval_err}
+            evals_dict[summary_evaluator.__name__] = {
+                "value": eval_result,
+                "error": eval_err,
+            }
             evaluation: EvaluationResult = {"idx": idx, "evaluations": evals_dict}
             evaluations.append(evaluation)
 
@@ -630,8 +721,11 @@ class Experiment:
         trace_id: str,
         timestamp_ns: int,
         source: str = "custom",
+        reasoning: Optional[str] = None,
+        assessment: Optional[str] = None,
+        metadata: Optional[Dict[str, JSONType]] = None,
+        tags: Optional[Dict[str, str]] = None,
     ) -> "LLMObsExperimentEvalMetricEvent":
-        metric_type = None
         if eval_value is None:
             metric_type = "categorical"
         elif isinstance(eval_value, bool):
@@ -641,7 +735,7 @@ class Experiment:
         else:
             metric_type = "categorical"
             eval_value = str(eval_value).lower()
-        return {
+        eval_metric: LLMObsExperimentEvalMetricEvent = {
             "metric_source": source,
             "span_id": span_id,
             "trace_id": trace_id,
@@ -650,9 +744,16 @@ class Experiment:
             "label": eval_name,
             f"{metric_type}_value": eval_value,  # type: ignore
             "error": err,
-            "tags": convert_tags_dict_to_list(self._tags),
+            "tags": convert_tags_dict_to_list(tags),
             "experiment_id": self._id,
         }
+        if reasoning:
+            eval_metric["reasoning"] = reasoning
+        if assessment:
+            eval_metric["assessment"] = assessment
+        if metadata:
+            eval_metric["metadata"] = metadata
+        return eval_metric
 
     def _generate_metrics_from_exp_results(
         self, experiment_result: ExperimentRun
@@ -672,7 +773,22 @@ class Experiment:
                     continue
                 eval_value = eval_data.get("value")
                 eval_metric = self._generate_metric_from_evaluation(
-                    eval_name, eval_value, eval_data.get("error"), span_id, trace_id, timestamp_ns
+                    eval_name,
+                    eval_value,
+                    eval_data.get("error"),
+                    span_id,
+                    trace_id,
+                    timestamp_ns,
+                    reasoning=str(eval_data.get("reasoning")) if isinstance(eval_data.get("reasoning"), str) else None,
+                    assessment=str(eval_data.get("assessment"))
+                    if isinstance(eval_data.get("assessment"), str)
+                    else None,
+                    metadata=cast(Dict[str, JSONType], eval_data.get("metadata"))
+                    if isinstance(eval_data.get("metadata"), Dict)
+                    else None,
+                    tags=cast(Dict[str, str], eval_data.get("tags"))
+                    if isinstance(eval_data.get("tags"), Dict)
+                    else None,
                 )
                 eval_metrics.append(eval_metric)
 

@@ -1,23 +1,28 @@
-rsplit_aspect: &rsplit_aspect
-  warmups: 1
+rsplit_aspect: &default_aspect
+  warmups: 10
+  internal_loop: 100
   function_name: "iast_rsplit_aspect"
+  iast_enabled: true
 
 rsplit_noaspect:
-  <<: *rsplit_aspect
+  <<: *default_aspect
   function_name: "rsplit_noaspect"
+  iast_enabled: false
 
-split_aspect: &split_aspect
-  warmups: 1
+split_aspect:
+  <<: *default_aspect
   function_name: "iast_split_aspect"
 
 split_noaspect:
-  <<: *split_aspect
+  <<: *default_aspect
   function_name: "split_noaspect"
+  iast_enabled: false
 
-splitlines_aspect: &splitlines_aspect
-  warmups: 1
+splitlines_aspect:
+  <<: *default_aspect
   function_name: "iast_splitlines_aspect"
 
 splitlines_noaspect:
-  <<: *splitlines_aspect
+  <<: *default_aspect
   function_name: "splitlines_noaspect"
+  iast_enabled: false

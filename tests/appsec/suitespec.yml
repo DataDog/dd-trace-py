@@ -27,7 +27,7 @@ suites:
     runner: riot
     snapshot: true
   appsec_iast_default:
-    parallelism: 5
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -42,7 +42,7 @@ suites:
   appsec_iast_memcheck:
     env:
       CI_DEBUG_TRACE: 'true'
-    parallelism: 4
+    parallelism: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -56,7 +56,7 @@ suites:
     runner: riot
     timeout: 30m
   appsec_iast_native:
-    parallelism: 6
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -74,13 +74,14 @@ suites:
     runner: hatch
     timeout: 50m
   appsec_iast_packages:
+    venvs_per_job: 1
     paths:
       - '@appsec_iast'
       - tests/appsec/iast_packages/*
     runner: riot
     timeout: 50m
   iast_tdd_propagation:
-    parallelism: 5
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -110,7 +111,7 @@ suites:
     env:
       TEST_POSTGRES_HOST: postgres
       TEST_MYSQL_HOST: mysql
-    parallelism: 6
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -125,8 +126,17 @@ suites:
     services:
       - postgres
       - mysql
+  appsec_integrations_stripe:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - tests/appsec/integrations/stripe_tests/*
+    retry: 2
+    runner: riot
   appsec_integrations_langchain:
-    parallelism: 15
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -139,7 +149,7 @@ suites:
     retry: 2
     runner: riot
   appsec_integrations_flask:
-    parallelism: 13
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -154,7 +164,7 @@ suites:
       - testagent
     timeout: 40m
   appsec_integrations_django:
-    parallelism: 16
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -169,7 +179,7 @@ suites:
       - testagent
     timeout: 30m
   appsec_integrations_fastapi:
-    parallelism: 17
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -260,6 +270,7 @@ suites:
       - tests/appsec/ai_guard/api/*
     retry: 2
     runner: riot
+    venvs_per_job: 1
   ai_guard_langchain:
     paths:
       - '@bootstrap'
@@ -271,3 +282,4 @@ suites:
     runner: riot
     services:
       - testagent
+    venvs_per_job: 2

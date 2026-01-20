@@ -14,8 +14,8 @@ The middleware can be used manually via the following command::
     application = DDWSGIMiddleware(application)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.wsgi["service"]
 

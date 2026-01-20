@@ -44,7 +44,7 @@ if VERSION_TUPLE < (6, 1, 0):
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"tornado": ">=6.0.0"}
+    return {"tornado": ">=6.1"}
 
 
 def patch():

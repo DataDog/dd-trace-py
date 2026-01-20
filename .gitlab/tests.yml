@@ -44,7 +44,6 @@ include:
     DD_FAST_BUILD = "1"
 
 
-
 .test_base_hatch_snapshot:
   extends: .test_base_hatch
   services:
@@ -100,6 +99,31 @@ include:
     - !reference [.test_base_riot, before_script]
     # DEV: All job variables get shared with services, setting `DD_TRACE_AGENT_URL` on the testagent will tell it to forward all requests to the
     # agent at that host. Therefore setting this as a variable will cause recursive requests to the testagent
+    - export DD_TRACE_AGENT_URL="http://testagent:9126"
+    - ln -s "${CI_PROJECT_DIR}" "/home/bits/project"
+
+.test_base_riot_gpu:
+  extends: .test_base_riot
+  image: !reference [.testrunner_gpu, image]
+  tags: !reference [.testrunner_gpu, tags]
+  timeout: 40m
+  parallel: 2
+  variables:
+    KUBERNETES_MEMORY_REQUEST: "12Gi"
+    KUBERNETES_MEMORY_LIMIT: "12Gi"
+    KUBERNETES_CPU_REQUEST: "2"
+    KUBERNETES_CPU_LIMIT: "2"
+  before_script:
+    - !reference [.testrunner_gpu, before_script]
+    - !reference [.test_base_riot, before_script]
+
+.test_base_riot_gpu_snapshot:
+  extends: .test_base_riot_gpu
+  services:
+    - !reference [.test_base_riot_gpu, services]
+    - !reference [.services, testagent]
+  before_script:
+    - !reference [.test_base_riot_gpu, before_script]
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
     - ln -s "${CI_PROJECT_DIR}" "/home/bits/project"
 

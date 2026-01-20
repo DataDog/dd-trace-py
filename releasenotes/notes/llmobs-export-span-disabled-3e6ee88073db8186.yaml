@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where ``LLMObs.export_span()`` would raise when LLMObs is disabled.

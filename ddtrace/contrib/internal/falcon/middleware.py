@@ -81,10 +81,6 @@ class TraceMiddleware(object):
 
         route = req.root_path or "" + req.uri_template
 
-        # Emit span hook for this response
-        # DEV: Emit before closing so they can overwrite `span.resource` if they want
-        config.falcon.hooks.emit("request", span, req, resp)
-
         core.dispatch(
             "web.request.finish", (span, config.falcon, None, None, status, None, None, resp._headers, route, True)
         )

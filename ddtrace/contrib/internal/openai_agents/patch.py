@@ -9,8 +9,12 @@ from ddtrace.contrib.internal.openai_agents.processor import LLMObsTraceProcesso
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module_async
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.openai_agents import OpenAIAgentsIntegration
+
+
+log = get_logger(__name__)
 
 
 config._add("openai_agents", {})
@@ -43,8 +47,11 @@ async def _patched_run_single_turn(agents, pin, func, instance, args, kwargs, ag
     current_span = pin.tracer.current_span()
     result = await func(*args, **kwargs)
 
-    integration = agents._datadog_integration
-    integration.tag_agent_manifest(current_span, args, kwargs, agent_index)
+    if current_span is None:
+        log.debug("No current span available, skipping tag_agent_manifest")
+    else:
+        integration = agents._datadog_integration
+        integration.tag_agent_manifest(current_span, args, kwargs, agent_index)
 
     return result
 

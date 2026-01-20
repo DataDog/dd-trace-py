@@ -1,0 +1,64 @@
+[[
+  {
+    "name": "vllm.request",
+    "service": "tests.contrib.vllm",
+    "resource": "vllm.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "llm",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6936a27e00000000",
+      "language": "python",
+      "runtime-id": "3ba78b6a59db4075ba8116247bfff62c",
+      "vllm.request.model": "BAAI/bge-reranker-v2-m3",
+      "vllm.request.provider": "vllm"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 573.0,
+      "vllm.latency.inference": 0.045261238992679864,
+      "vllm.latency.prefill": 0.045261238992679864,
+      "vllm.latency.queue": 0.00014211301458999515,
+      "vllm.latency.ttft": 0.04782295227050781
+    },
+    "duration": 48812318,
+    "start": 1765188222587318528
+  }],
+[
+  {
+    "name": "vllm.request",
+    "service": "tests.contrib.vllm",
+    "resource": "vllm.request",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "llm",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6936a27e00000000",
+      "language": "python",
+      "runtime-id": "3ba78b6a59db4075ba8116247bfff62c",
+      "vllm.request.model": "BAAI/bge-reranker-v2-m3",
+      "vllm.request.provider": "vllm"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 573.0,
+      "vllm.latency.inference": 0.012816611037123948,
+      "vllm.latency.prefill": 0.012816611037123948,
+      "vllm.latency.queue": 7.789989467710257e-06,
+      "vllm.latency.ttft": 0.05951714515686035
+    },
+    "duration": 61092922,
+    "start": 1765188222587809024
+  }]]

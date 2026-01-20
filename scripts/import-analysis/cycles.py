@@ -59,8 +59,6 @@ def compare(args):
         print()
 
     if new_cycles := pr.keys() - base.keys():
-        print("# Circular import analysis")
-        print()
         print("## 🚨 New circular imports detected 🚨")
         print()
         print(

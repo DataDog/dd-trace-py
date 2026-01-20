@@ -22,8 +22,9 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
+from ddtrace.internal.utils.fnv import fnv1_64
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.version import get_version
+from ddtrace.version import __version__
 
 from .._encoding import packb
 from ..agent import get_connection
@@ -34,7 +35,6 @@ from ..periodic import PeriodicService
 from ..writer import _human_size
 from .encoding import decode_var_int_64
 from .encoding import encode_var_int_64
-from .fnv import fnv1_64
 from .schemas.schema_builder import SchemaBuilder
 from .schemas.schema_sampler import SchemaSampler
 
@@ -114,7 +114,7 @@ class DataStreamsProcessor(PeriodicService):
         # Have the bucket size match the interval in which flushes occur.
         self._bucket_size_ns = int(interval * 1e9)  # type: int
         self._buckets = defaultdict(lambda: Bucket(defaultdict(PathwayStats), defaultdict(int), defaultdict(int)))  # type: DefaultDict[int, Bucket]
-        self._version = get_version()
+        self._version = __version__
         self._headers = {
             "Datadog-Meta-Lang": "python",
             "Datadog-Meta-Tracer-Version": self._version,
@@ -420,7 +420,8 @@ class DataStreamsCtx:
         def get_bytes(s):
             return bytes(s, encoding="utf-8")
 
-        b = get_bytes(self.service) + get_bytes(self.env)
+        b = get_bytes(self.service) + get_bytes(self.env) + process_tags.base_hash_bytes
+
         for t in tags:
             b += get_bytes(t)
         node_hash = fnv1_64(b)

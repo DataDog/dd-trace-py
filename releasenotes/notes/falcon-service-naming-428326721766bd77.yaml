@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    falcon: Fixes ``DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED`` support, which was previously ignored.

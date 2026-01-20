@@ -89,6 +89,30 @@ def test_data_streams_processor():
     assert processor._buckets[bucket_time_ns].pathway_stats[aggr_key_2].full_pathway_latency.count == 1
 
 
+@pytest.mark.subprocess(
+    env=dict(
+        DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="true",
+    )
+)
+def test_new_pathway_uses_container_tags_hash():
+    from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+    from ddtrace.internal.process_tags import compute_base_hash
+
+    processor = DataStreamsProcessor("http://localhost:8126")
+    mocked_time = 1642544540
+
+    ctx = processor.new_pathway(now_sec=mocked_time)
+    ctx.set_checkpoint(["direction:out", "topic:topicA", "type:kafka"])
+    hash_without_base = ctx.hash
+
+    compute_base_hash("container-hash-123")
+    ctx_with_base = processor.new_pathway(now_sec=mocked_time)
+    ctx_with_base.set_checkpoint(["direction:out", "topic:topicA", "type:kafka"])
+    hash_with_base = ctx_with_base.hash
+
+    assert hash_without_base != hash_with_base
+
+
 def test_data_streams_loop_protection():
     ctx = processor.set_checkpoint(["direction:in", "topic:topicA", "type:kafka"])
     parent_hash = ctx.hash

@@ -319,10 +319,12 @@ def test_symbols_fork_uploads():
 
     for _ in range(10):
         if not (pid := os.fork()):
-            _rc_callback(rc_data)
-            assert SymbolDatabaseUploader.is_installed() != (
-                get_ancestor_runtime_id() is not None and forksafe.has_forked()
-            )
+            # Call the RC callback multiple times to check for stability
+            for i in range(10):
+                _rc_callback(rc_data)
+                assert SymbolDatabaseUploader.is_installed() != (
+                    get_ancestor_runtime_id() is not None and forksafe.has_forked()
+                ), f"iteration {i} is stable"
             os._exit(0)
 
         pids.append(pid)

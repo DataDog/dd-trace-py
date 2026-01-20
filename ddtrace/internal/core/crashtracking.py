@@ -54,7 +54,7 @@ def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
     runtime_version = platform.python_version()
     if runtime_version:
         tags["runtime_version"] = runtime_version
-    library_version = version.get_version()
+    library_version = version.__version__
     if library_version:
         tags["library_version"] = library_version
     if process_tags:
@@ -119,10 +119,17 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
         None,  # unix_socket_path
     )
 
-    # Create crashtracker receiver configuration
+    receiver_env = {}
+
+    # Don't pass all env vars to the receiver process, because there are
+    # conflicts with export location derivation
+    crashtracking_enabled = os.environ.get("DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED")
+    if crashtracking_enabled is not None:
+        receiver_env["DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED"] = crashtracking_enabled
+
     receiver_config = CrashtrackerReceiverConfig(
         [],  # args
-        {},  # env
+        receiver_env,
         dd_crashtracker_receiver,  # path_to_receiver_binary
         crashtracker_config.stderr_filename,
         crashtracker_config.stdout_filename,
@@ -130,7 +137,7 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
 
     tags = _get_tags(additional_tags)
 
-    metadata = CrashtrackerMetadata("dd-trace-py", version.get_version(), "python", tags)
+    metadata = CrashtrackerMetadata("dd-trace-py", version.__version__, "python", tags)
 
     return config, receiver_config, metadata
 
@@ -152,6 +159,11 @@ def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
         if config is None or receiver_config is None or metadata is None:
             print("Failed to start crashtracker: failed to construct crashtracker configuration", file=sys.stderr)
             return False
+
+        # TODO: Add this back in post Code Freeze (need to update config registry)
+        # crashtracker_init(
+        #     config, receiver_config, metadata, emit_runtime_stacks=crashtracker_config.emit_runtime_stacks
+        # )
 
         crashtracker_init(config, receiver_config, metadata)
 

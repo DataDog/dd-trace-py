@@ -3,10 +3,10 @@
 #include "libdatadog_helpers.hpp"
 #include "sample.hpp"
 
-#include <mutex>
 #include <numeric>
 #include <string>
 #include <string_view>
+#include <unistd.h>
 #include <utility>
 #include <vector>
 
@@ -51,6 +51,13 @@ Datadog::UploaderBuilder::set_runtime_id(std::string_view _runtime_id)
 }
 
 void
+Datadog::UploaderBuilder::set_process_id()
+{
+    auto pid = getpid();
+    process_id = std::to_string(pid);
+}
+
+void
 Datadog::UploaderBuilder::set_runtime_version(std::string_view _runtime_version)
 {
     if (!_runtime_version.empty()) {
@@ -80,6 +87,14 @@ Datadog::UploaderBuilder::set_tag(std::string_view _key, std::string_view _val)
 
     if (!_key.empty() && !_val.empty()) {
         user_tags[std::string(_key)] = std::string(_val);
+    }
+}
+
+void
+Datadog::UploaderBuilder::set_process_tags(std::string_view p_tags)
+{
+    if (!p_tags.empty()) {
+        process_tags = p_tags;
     }
 }
 
@@ -134,6 +149,7 @@ Datadog::UploaderBuilder::build()
         { ExportTagKey::runtime_id, runtime_id },
         { ExportTagKey::runtime_version, runtime_version },
         { ExportTagKey::profiler_version, profiler_version },
+        { ExportTagKey::process_id, process_id }
     };
 
     for (const auto& [tag, data] : tag_data) {
@@ -173,7 +189,7 @@ Datadog::UploaderBuilder::build()
         return errmsg;
     }
 
-    auto ddog_exporter = &res.ok;
+    auto* ddog_exporter = &res.ok;
 
     auto set_timeout_result = ddog_prof_Exporter_set_timeout(ddog_exporter, max_timeout_ms);
     if (set_timeout_result.tag == DDOG_VOID_RESULT_ERR) {
@@ -218,6 +234,6 @@ Datadog::UploaderBuilder::build()
     // This was necessary to avoid double-free from calling ddog_prof_Exporter_drop()
     // in the destructor of Uploader. See comments in uploader.hpp for more details.
     return std::variant<Datadog::Uploader, std::string>{
-        std::in_place_type<Datadog::Uploader>, output_filename, *ddog_exporter, encoded.ok, std::move(stats)
+        std::in_place_type<Datadog::Uploader>, output_filename, *ddog_exporter, encoded.ok, stats, process_tags
     };
 }

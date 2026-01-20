@@ -9,6 +9,7 @@ from ddtrace.llmobs._constants import BILLABLE_CHARACTER_COUNT_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
@@ -150,6 +151,8 @@ def extract_generation_metrics_google_genai(response) -> Dict[str, Any]:
         usage[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
     if total_tokens is not None:
         usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
+    if thought_tokens is not None:
+        usage[REASONING_OUTPUT_TOKENS_METRIC_KEY] = thought_tokens
 
     return usage
 

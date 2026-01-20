@@ -4,7 +4,6 @@
 #include <iostream>
 #include <string>
 #include <string_view>
-#include <variant>
 
 extern "C"
 {
@@ -12,6 +11,9 @@ extern "C"
 }
 
 namespace Datadog {
+
+ddog_prof_StringId2
+intern_string(std::string_view s);
 
 // There's currently no need to offer custom tags, so there's no interface for
 // it.  Instead, tags are keyed and populated based on this table, then
@@ -26,6 +28,7 @@ namespace Datadog {
     X(runtime_version, "runtime_version")                                                                              \
     X(runtime, "runtime")                                                                                              \
     X(runtime_id, "runtime-id")                                                                                        \
+    X(process_id, "process_id")                                                                                        \
     X(profiler_version, "profiler_version")                                                                            \
     X(library_version, "library_version")                                                                              \
     X(profile_seq, "profile_seq")                                                                                      \
@@ -138,6 +141,41 @@ add_tag(ddog_Vec_Tag& tags, const ExportTagKey key, std::string_view val, std::s
 
     return add_tag(tags, key_sv, val, errmsg);
 }
+
+namespace internal {
+
+ddog_prof_ProfilesDictionaryHandle
+get_profiles_dictionary();
+
+// Decreases the refcount on the Profiles Dictionary handle.
+// This should be called before the process exits.
+// Note that this may not free it immediately if something else
+// (e.g. the Profile object) still holds a reference to it.
+void
+release_profiles_dictionary();
+
+// Initialize cached interned strings (required after creating/recreating the ProfilesDictionary)
+void
+init_interned_strings();
+
+// Reset tag and label key caches (required after fork)
+void
+reset_key_caches();
+
+// Fork-safe cached interning for tag and label keys
+// Must come after enum definitions to know the sizes
+
+// Reset tag key and label key caches
+void
+reset_key_caches();
+
+ddog_prof_StringId2
+to_interned_string(ExportTagKey key);
+
+ddog_prof_StringId2
+to_interned_string(ExportLabelKey key);
+
+} // namespace internal
 
 // Keep macros from propagating
 #undef X_STR

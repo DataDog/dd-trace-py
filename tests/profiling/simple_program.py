@@ -7,7 +7,7 @@ from ddtrace.profiling import bootstrap
 from ddtrace.profiling.collector import stack
 
 
-for running_collector in bootstrap.profiler._profiler._collectors:
+for running_collector in bootstrap.profiler._profiler._collectors:  # pyright: ignore[reportAttributeAccessIssue]
     if isinstance(running_collector, stack.StackCollector):
         break
 else:

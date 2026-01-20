@@ -14,6 +14,8 @@ components:
     - ddtrace/contrib/internal/selenium/*
   unittest:
     - ddtrace/contrib/internal/unittest/*
+  testing:
+    - ddtrace/testing/*
 suites:
   ci_visibility:
     parallelism: 4
@@ -26,6 +28,7 @@ suites:
       - '@pytest'
       - '@codeowners'
       - '@unittest'
+      - '@testing'
       - tests/ci_visibility/*
       - tests/snapshots/test_api_fake_runners.*
     runner: riot
@@ -41,7 +44,7 @@ suites:
     runner: riot
     snapshot: true
   pytest:
-    parallelism: 12
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -51,11 +54,27 @@ suites:
       - '@ci_visibility'
       - '@coverage'
       - '@codeowners'
+      - '@testing'
       - tests/contrib/pytest/*
       - tests/contrib/pytest_benchmark/*
       - tests/contrib/pytest_bdd/*
       - tests/contrib/pytest_flaky/*
       - tests/snapshots/tests.contrib.pytest.*
+    runner: riot
+    snapshot: true
+  testing:
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pytest'
+      - '@ci_visibility'
+      - '@coverage'
+      - '@codeowners'
+      - '@testing'
+      - tests/testing/*
     runner: riot
     snapshot: true
   selenium:
@@ -69,6 +88,7 @@ suites:
       - '@pytest'
       - '@unittest'
       - '@selenium'
+      - '@testing'
       - tests/contrib/selenium/*
       - tests/snapshots/test_selenium*
     runner: riot
@@ -80,6 +100,7 @@ suites:
       - '@unittest'
       - '@ci_visibility'
       - '@coverage'
+      - '@testing'
       - tests/contrib/unittest/*
       - tests/snapshots/tests.contrib.unittest.*
     runner: riot

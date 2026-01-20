@@ -67,7 +67,7 @@ config._add(
         use_legacy_resource_format=asbool(os.getenv("DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT", default=False)),
         trace_asgi_websocket_messages=_get_config(
             "DD_TRACE_WEBSOCKET_MESSAGES_ENABLED",
-            default=_get_config("DD_ASGI_TRACE_WEBSOCKET", default=False, modifier=asbool),
+            default=_get_config("DD_ASGI_TRACE_WEBSOCKET", default=True, modifier=asbool),
             modifier=asbool,
         ),
         asgi_websocket_messages_inherit_sampling=asbool(
@@ -473,7 +473,8 @@ def _patch(django):
     def _(m):
         import channels
 
-        channels_version = parse_version(channels.__version__)
+        channels_version_str = getattr(channels, "__version__", "")
+        channels_version = parse_version(channels_version_str)
         if channels_version >= parse_version("3.0"):
             # ASGI3 is only supported in channels v3.0+
             trace_utils.wrap(m, "URLRouter.__init__", unwrap_views)

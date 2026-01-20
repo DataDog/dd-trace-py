@@ -159,6 +159,91 @@ response_tool_function_expected_output_streamed = [
     }
 ]
 
+
+def mock_response_mcp_tool_call():
+    from openai.types.responses import Response
+
+    return Response.model_construct(
+        model="gpt-5-2025-08-07",
+        output=[
+            {
+                "id": "mcpl_0f873afd7ff4f5b30168ffa1f4a5cc81a09c93896d6090f9eb",
+                "server_label": "dice_roller",
+                "tools": [
+                    {
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {
+                                "notation": {
+                                    "type": "string",
+                                    "description": (
+                                        'Dice notation. Examples: "1d20+5" (basic), "2d20kh1" (advantage), '
+                                        '"2d20kl1" (disadvantage), "4d6kh3" (stats), "3d6!" (exploding), '
+                                        '"4d6r1" (reroll 1s), "5d10>7" (successes)'
+                                    ),
+                                },
+                                "label": {
+                                    "type": "string",
+                                    "description": 'Optional label e.g., "Attack roll", "Fireball damage"',
+                                },
+                                "verbose": {
+                                    "type": "boolean",
+                                    "description": "Show detailed breakdown of individual dice results",
+                                },
+                            },
+                            "required": ["notation"],
+                            "additionalProperties": False,
+                            "$schema": "http://json-schema.org/draft-07/schema#",
+                        },
+                        "name": "dice_roll",
+                        "annotations": {"read_only": False},
+                        "description": (
+                            "Roll dice using standard notation. IMPORTANT: For D&D advantage use '2d20kh1' (NOT '2d20')"
+                        ),
+                    },
+                ],
+                "type": "mcp_list_tools",
+            },
+            {
+                "id": "rs_0f873afd7ff4f5b30168ffa1f5d91c81a0890e78a4873fbc1b",
+                "summary": [],
+                "type": "reasoning",
+            },
+            {
+                "id": "mcp_0f873afd7ff4f5b30168ffa1f7ddec81a0a114abda192da6b3",
+                "arguments": '{"notation":"2d4+1","label":"2d4+1 roll","verbose":true}',
+                "name": "dice_roll",
+                "server_label": "dice_roller",
+                "type": "mcp_call",
+                "output": "You rolled 2d4+1 for 2d4+1 roll:\n🎲 Total: 8\n📊 Breakdown: 2d4:[3,4] + 1",
+            },
+            {
+                "id": "msg_0f873afd7ff4f5b30168ffa1f8e7f881a0aaec9b8bbc246900",
+                "content": [
+                    {
+                        "text": "You rolled 2d4+1:\n- Total: 8\n- Breakdown: 2d4 → [3, 4] + 1",
+                        "type": "output_text",
+                    }
+                ],
+                "role": "assistant",
+                "type": "message",
+            },
+        ],
+        temperature=1.0,
+        top_p=1.0,
+        tool_choice="auto",
+        truncation="disabled",
+        text={"format": {"type": "text"}, "verbosity": "medium"},
+        usage={
+            "input_tokens": 642,
+            "input_tokens_details": {"cached_tokens": 0},
+            "output_tokens": 206,
+            "output_tokens_details": {"reasoning_tokens": 128},
+            "total_tokens": 848,
+        },
+    )
+
+
 # VCR is used to capture and store network requests made to OpenAI.
 # This is done to avoid making real calls to the API which could introduce
 # flakiness and cost.
@@ -180,3 +265,28 @@ def get_openai_vcr(subdirectory_name=""):
         # Ignore requests to the agent
         ignore_localhost=True,
     )
+
+
+def assert_prompt_tracking(
+    span_event,
+    prompt_id,
+    prompt_version,
+    variables,
+    expected_chat_template,
+    expected_messages,
+    *,
+    prompt_tracking_instrumentation_method="auto",
+    prompt_multimodal=False,
+):
+    """Helper to assert prompt tracking metadata and template extraction."""
+    assert "prompt" in span_event["meta"]["input"]
+    actual_prompt = span_event["meta"]["input"]["prompt"]
+    assert actual_prompt["id"] == prompt_id
+    assert actual_prompt["version"] == prompt_version
+    assert actual_prompt["variables"] == variables
+    assert "chat_template" in actual_prompt
+    assert actual_prompt["chat_template"] == expected_chat_template
+    assert span_event["meta"]["input"]["messages"] == expected_messages
+    assert f"prompt_tracking_instrumentation_method:{prompt_tracking_instrumentation_method}" in span_event["tags"]
+    if prompt_multimodal:
+        assert "prompt_multimodal:true" in span_event["tags"]

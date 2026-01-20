@@ -11,7 +11,6 @@ import mock
 import pytest
 
 from ddtrace import config
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.settings._agent import get_agent_hostname
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 import ddtrace.internal.telemetry
@@ -274,6 +273,7 @@ import opentelemetry
         {"name": "DD_IAST_SECURITY_CONTROLS_CONFIGURATION", "origin": "default", "value": ""},
         {"name": "DD_IAST_STACK_TRACE_ENABLED", "origin": "default", "value": True},
         {"name": "DD_IAST_TELEMETRY_VERBOSITY", "origin": "default", "value": "INFORMATION"},
+        {"name": "DD_IAST_TRUNCATION_MAX_VALUE_LENGTH", "origin": "default", "value": 250},
         {"name": "DD_IAST_VULNERABILITIES_PER_REQUEST", "origin": "default", "value": 2},
         {"name": "DD_INJECTION_ENABLED", "origin": "env_var", "value": "tracer"},
         {"name": "DD_INJECT_FORCE", "origin": "env_var", "value": True},
@@ -290,7 +290,7 @@ import opentelemetry
         {"name": "DD_PROFILING_AGENTLESS", "origin": "default", "value": False},
         {"name": "DD_PROFILING_API_TIMEOUT_MS", "origin": "default", "value": 10000},
         {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "env_var", "value": 5.0},
-        {"name": "DD_PROFILING_ENABLED", "origin": "env_var", "value": PYTHON_VERSION_INFO < (3, 14)},
+        {"name": "DD_PROFILING_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_PROFILING_ENABLE_ASSERTS", "origin": "default", "value": False},
         {"name": "DD_PROFILING_ENABLE_CODE_PROVENANCE", "origin": "default", "value": True},
         {"name": "DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
@@ -1101,6 +1101,35 @@ def test_add_integration_error_log_with_log_collection_disabled(mock_time, telem
             assert len(log_events) == 0
     finally:
         telemetry_config.LOG_COLLECTION_ENABLED = original_value
+
+
+def test_error_log_handler_strips_skipped_suffix(mock_time, telemetry_writer, test_agent_session):
+    """Test that DDTelemetryErrorHandler strips [x skipped] suffix from error messages"""
+    import logging
+
+    ddtrace_logger = logging.getLogger("ddtrace")
+
+    ddtrace_logger.error("Error message [123 skipped]")
+    telemetry_writer.periodic(force_flush=True)
+
+    log_events = test_agent_session.get_events("logs")
+    assert len(log_events) == 1
+
+    logs = log_events[0]["payload"]["logs"]
+    assert len(logs) == 1
+    assert logs[0]["message"] == "Error message"
+
+    test_agent_session.clear()
+
+    ddtrace_logger.error("Normal error message [something]")
+    telemetry_writer.periodic(force_flush=True)
+
+    log_events = test_agent_session.get_events("logs")
+    assert len(log_events) == 1
+
+    logs = log_events[0]["payload"]["logs"]
+    assert len(logs) == 1
+    assert logs[0]["message"] == "Normal error message [something]"
 
 
 @pytest.mark.parametrize(

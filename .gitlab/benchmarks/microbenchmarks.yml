@@ -1,3 +1,11 @@
+include:
+- project: 'DataDog/benchmarking-platform-tools'
+  file: 'images/templates/gitlab/check-slo-breaches.template.yml'
+
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible
+
 stages:
   - build
   - test
@@ -10,10 +18,10 @@ variables:
   PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2025-04-12-5990e2d
   GITHUB_CLI_IMAGE: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   BENCHMARKING_BRANCH: dd-trace-py
+  BENCHMARKING_COMMIT_SHA: 32681a9f805f4d62cf6bd7d205ddeb83ab72288d
 
 .benchmarks:
   stage: test
-  when: on_success
   tags: ["runner:apm-k8s-tweaked-metal"]
   image: $MICROBENCHMARKS_CI_IMAGE
   rules:
@@ -23,27 +31,36 @@ variables:
   timeout: 30m
   dependencies: [ "baseline:build", "candidate" ]
   script: |
-    export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
-
     if [[ -n "$CI_JOB_TOKEN" ]];
     then
       git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     fi
     git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
+    (cd /platform && git reset --hard "${BENCHMARKING_COMMIT_SHA}")
     export PATH="$PATH:/platform/steps"
 
-    capture-hardware-software-info.sh
+    for SCENARIO in $(echo "$SCENARIOS" | tr -s '[:space:]' ' ');
+    do
+      export REPORTS_DIR="$(pwd)/reports/${SCENARIO}/" && (mkdir -p "${REPORTS_DIR}" || :)
 
-    if [[ $SCENARIO =~ ^flask_* || $SCENARIO =~ ^django_* ]];
-    then
-      BP_SCENARIO=$SCENARIO bp-runner "${CI_PROJECT_DIR:-.}/.gitlab/benchmarks/bp-runner.yml" --debug -t
-    else
-      run-benchmarks.sh
-    fi
+      capture-hardware-software-info.sh
 
-    analyze-results.sh
+      if [[ $SCENARIO =~ ^flask_* || $SCENARIO =~ ^django_* ]];
+      then
+        BP_SCENARIO=$SCENARIO bp-runner "${CI_PROJECT_DIR:-.}/.gitlab/benchmarks/bp-runner.yml" --debug -t
+      else
+        run-benchmarks.sh
+      fi
 
-    upload-results-to-s3.sh || :
+      # Join all config results into a single results.json
+      .gitlab/benchmarks/steps/combine-results.sh "/artifacts/${CI_JOB_ID}-${SCENARIO}/candidate/"
+      .gitlab/benchmarks/steps/combine-results.sh "/artifacts/${CI_JOB_ID}-${SCENARIO}/baseline/"
+
+      analyze-results.sh
+      upload-results-to-s3.sh || :
+      # Copy converted JSON reports to common location
+      cp $REPORTS_DIR/*.converted.json $(pwd)/reports/
+    done
 
     # We have to move artifacts to ${CI_PROJECT_DIR} if we want to attach as GitLab artifact
     cp -R /artifacts ${CI_PROJECT_DIR}/
@@ -128,7 +145,8 @@ candidate:
   tags: [ "arch:amd64" ]
   needs:
     - pipeline: $PARENT_PIPELINE_ID
-      job: download_ddtrace_artifacts
+      job: "build linux: [amd64, cp39-cp39, v85383392-751efc0-manylinux2014_x86_64]"
+      artifacts: true
   script: |
     cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl ./
     echo "CANDIDATE_WHL=$(ls *.whl | head -n 1)" | tee candidate.env
@@ -144,41 +162,24 @@ candidate:
 microbenchmarks:
   extends: .benchmarks
   parallel:
+    # DEV: The organization into these groups is mostly arbitrary, based on observed runtimes and
+    #      trying to keep total runtime per job <10 minutes
     matrix:
-      - SCENARIO:
-        - "span"
-        - "tracer"
-        - "sampling_rule_matches"
-        - "set_http_meta"
-        - "django_simple"
-        - "flask_simple"
-        - "flask_sqli"
-        - "core_api"
-        - "otel_span"
-        - "otel_sdk_span"
-        - "appsec_iast_aspects"
-        - "appsec_iast_aspects_ospath"
-        - "appsec_iast_aspects_re_module"
-        - "appsec_iast_aspects_split"
+      - CPUS_PER_RUN: "1"
+        SCENARIOS:
+        - "span tracer core_api set_http_meta telemetry_add_metric otel_span otel_sdk_span recursive_computation sampling_rule_matches"
+        - "http_propagation_extract http_propagation_inject rate_limiter appsec_iast_aspects appsec_iast_aspects_ospath appsec_iast_aspects_re_module appsec_iast_aspects_split appsec_iast_propagation"
+        - "packages_package_for_root_module_mapping packages_update_imported_dependencies"
+      - CPUS_PER_RUN: "2"
+        SCENARIOS:
+        - "django_simple flask_simple flask_sqli errortracking_django_simple errortracking_flask_sqli startup"
         # Flaky timeouts on starting up
         # - "appsec_iast_django_startup"
-        # TOOD: Re-enable when this issue is resolved:
-        #   AttributeError: 'OverheadControl' object has no attribute 'release_request'
-        # - "appsec_iast_propagation"
-        - "errortracking_django_simple"
         # They take a long time to run and frequently time out
         # TODO: Make benchmarks faster, or run less frequently, or as macrobenchmarks
         # - "appsec_iast_django_startup"
-        - "errortracking_flask_sqli"
         # Flaky. Timeout errors
         # - "encoder"
-        - "http_propagation_extract"
-        - "http_propagation_inject"
-        - "rate_limiter"
-        - "packages_package_for_root_module_mapping"
-        - "packages_update_imported_dependencies"
-        - "recursive_computation"
-        - "telemetry_add_metric"
         # They take a long time to run, and now need the agent running
         # TODO: Make benchmarks faster, or run less frequently, or as macrobenchmarks
         # - "startup"
@@ -210,10 +211,13 @@ benchmarks-pr-comment:
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME # The branch or tag name for which project is built.
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
 
+# Unlike pre-release SLO checks that run unconditionally (which have
+# "when: always"), this PR-level check runs only if benchmarks succeed.
+# Since benchmark failures block the PR directly, this job blocks the PR if
+# benchmarks succeed but there are SLO breaches.
 check-slo-breaches:
+  extends: .check-slo-breaches
   stage: gate
-  tags: ["arch:amd64"]
-  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
   artifacts:
     name: "artifacts"
     when: always
@@ -221,6 +225,7 @@ check-slo-breaches:
       - artifacts/
       - reports/
     expire_in: 3 months
-  script:
-    - export ARTIFACTS_DIR="$(pwd)/reports/"
-    - bp-runner .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
+  variables:
+    DDOCTOSTS_POLICY: "gitlab.github-access.read"
+    ARTIFACTS_DIR: "reports/"
+    SLO_FILE: ".gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml"

@@ -8,6 +8,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+from ddtrace.internal import core
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.trace import Span
 
@@ -350,6 +351,8 @@ def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
 
             attributes["stacktrace"] = tb
             span._set_tag_str(ERROR_STACK, tb)
+
+            core.dispatch("span.exception", (span, exc_type, exc_val, exc_tb))
 
         if error.path is not None:
             path = ",".join([str(path_obj) for path_obj in error.path])

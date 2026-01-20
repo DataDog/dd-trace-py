@@ -21,6 +21,7 @@ from ddtrace.appsec._constants import Constant_Class
 from ddtrace.appsec._utils import Block_config
 from ddtrace.appsec._utils import Telemetry_result
 from ddtrace.appsec._utils import get_triggers
+from ddtrace.appsec._utils import is_inferred_span
 from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
@@ -155,11 +156,10 @@ class DownstreamRequests:
 
 
 def should_analyze_body_response(env) -> bool:
-    """Must be called only after should_analyze_downstream returned True."""
+    """Check if we should analyze body for API10."""
     DownstreamRequests.counter += 1
-    env.downstream_requests += 1
     return (
-        env.downstream_requests <= asm_config._dr_body_limit_per_request
+        env.downstream_requests < asm_config._dr_body_limit_per_request
         and (DownstreamRequests.counter * KNUTH_FACTOR) % UINT64_MAX <= DownstreamRequests.sampling_rate
     )
 
@@ -242,6 +242,14 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
             entry_span._set_struct_tag(APPSEC.STRUCT, {"triggers": report_list})
         else:
             entry_span.set_tag(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
+
+        parent = entry_span._parent
+        if parent is not None and is_inferred_span(parent):
+            if asm_config._use_metastruct_for_triggers:
+                parent._set_struct_tag(APPSEC.STRUCT, {"triggers": report_list})
+            else:
+                parent.set_tag(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
+
         env.waf_triggers = []
     telemetry_results: Telemetry_result = env.telemetry
 

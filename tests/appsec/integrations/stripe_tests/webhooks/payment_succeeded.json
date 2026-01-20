@@ -1,0 +1,82 @@
+{
+  "id": "evt_3SfLaHAiRiHgXZJi1zkfOgYb",
+  "object": "event",
+  "api_version": "2025-11-17.clover",
+  "created": 1765981209,
+  "data": {
+    "object": {
+      "id": "pi_3SfLaHAiRiHgXZJi1eWpxaFZ",
+      "object": "payment_intent",
+      "amount": 2000,
+      "amount_capturable": 0,
+      "amount_details": {
+        "tip": {}
+      },
+      "amount_received": 2000,
+      "application": null,
+      "application_fee_amount": null,
+      "automatic_payment_methods": null,
+      "canceled_at": null,
+      "cancellation_reason": null,
+      "capture_method": "automatic_async",
+      "client_secret": "pi_3SfLaHAiRiHgXZJi1eWpxaFZ_secret_IISL5TYLiIQEz9qQx8IQtKRwZ",
+      "confirmation_method": "automatic",
+      "created": 1765981209,
+      "currency": "usd",
+      "customer": null,
+      "customer_account": null,
+      "description": "(created by Stripe CLI)",
+      "excluded_payment_method_types": null,
+      "last_payment_error": null,
+      "latest_charge": "ch_3SfLaHAiRiHgXZJi1Ybx6NtB",
+      "livemode": false,
+      "metadata": {},
+      "next_action": null,
+      "on_behalf_of": null,
+      "payment_method": "pm_1SfLaGAiRiHgXZJiOouXV4O9",
+      "payment_method_configuration_details": null,
+      "payment_method_options": {
+        "card": {
+          "installments": null,
+          "mandate_options": null,
+          "network": null,
+          "request_three_d_secure": "automatic"
+        }
+      },
+      "payment_method_types": [
+        "card"
+      ],
+      "processing": null,
+      "receipt_email": null,
+      "review": null,
+      "setup_future_usage": null,
+      "shipping": {
+        "address": {
+          "city": "San Francisco",
+          "country": "US",
+          "line1": "510 Townsend St",
+          "line2": null,
+          "postal_code": "94103",
+          "state": "CA"
+        },
+        "carrier": null,
+        "name": "Jenny Rosen",
+        "phone": null,
+        "tracking_number": null
+      },
+      "source": null,
+      "statement_descriptor": null,
+      "statement_descriptor_suffix": null,
+      "status": "succeeded",
+      "transfer_data": null,
+      "transfer_group": null
+    }
+  },
+  "livemode": false,
+  "pending_webhooks": 2,
+  "request": {
+    "id": "req_eAOgu0qhGI2CXZ",
+    "idempotency_key": "58441845-e091-4842-abb5-1b704294e0f3"
+  },
+  "type": "payment_intent.succeeded"
+}

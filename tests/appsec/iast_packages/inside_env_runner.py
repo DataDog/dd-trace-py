@@ -1,15 +1,9 @@
-import ast
+from ast import unparse
 import importlib
 import sys
 from traceback import format_exc
 
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
-
-
-if hasattr(ast, "unparse"):
-    unparse = ast.unparse
-else:
-    from astunparse import unparse
 
 
 def _iast_patched_module_and_patched_source(module_name):

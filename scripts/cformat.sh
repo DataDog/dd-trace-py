@@ -34,6 +34,7 @@ enumerate_files() {
         '*.c'
         '*.h'
         '*.cpp'
+        '*.cc'
         '*.hpp'
     )
 
@@ -45,7 +46,12 @@ enumerate_files() {
         find_conditions=("${find_conditions[@]:1}")  # Remove first -o
         find "$BASE_DIR" -type f \( "${find_conditions[@]}" \)
     else
-        git ls-files "${extensions[@]}"
+        # Only check modified files (staged, unstaged, and committed in current branch vs main)
+        {
+            git diff --name-only "$(git merge-base origin/main HEAD)"
+            git diff --name-only --cached
+            git diff --name-only
+        } | sort -u | grep -E '\.(c|h|cpp|cc|hpp)$' || true
     fi
 }
 
@@ -75,11 +81,22 @@ done
 [[ -n "${CFORMAT_ALL:-}" ]] && ENUM_ALL=true
 [[ -n "${CFORMAT_BIN:-}" ]] && CLANG_FORMAT="$CFORMAT_BIN"
 
+# Always print the clang-format version for easier debugging in CI/dev envs.
+if command -v "$CLANG_FORMAT" >/dev/null 2>&1; then
+    echo "$(${CLANG_FORMAT} --version)"
+else
+    echo "clang-format version: <not found> (CLANG_FORMAT=${CLANG_FORMAT})"
+fi
+
 if [[ "$UPDATE_MODE" == "true" ]]; then
     # Update mode: Format files in-place
     enumerate_files \
         | exclude_patterns \
         | while IFS= read -r file; do
+            # Skip files that don't exist (e.g., deleted but still in git ls-files)
+            if [[ ! -f "$file" ]]; then
+                continue
+            fi
             echo "Formatting $file";
             ${CLANG_FORMAT} -i "$file"
         done
@@ -87,6 +104,10 @@ else
     # Check mode: Compare formatted output to existing files
     has_diff=0
     while IFS= read -r filename; do
+        # Skip files that don't exist (e.g., deleted but still in git ls-files)
+        if [[ ! -f "$filename" ]]; then
+            continue
+        fi
         CFORMAT_TMP=$(mktemp)
         ${CLANG_FORMAT} "$filename" > "$CFORMAT_TMP"
         if ! diff -u "$filename" "$CFORMAT_TMP"; then

@@ -49,7 +49,6 @@ def test_fstring_with_bytes():
 
 
 @pytest.mark.skip_iast_check_logs
-@pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
 @seed(42)
 @settings(max_examples=1000)
 @given(non_empty_text)
@@ -63,7 +62,6 @@ def test_fstring_tainted(text):
 
 
 @pytest.mark.skip_iast_check_logs
-@pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
 @seed(42)
 @settings(max_examples=1000)
 @given(non_empty_binary)
@@ -93,7 +91,6 @@ def test_fstring_tainted_byte():
     assert result == "b'text'"
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
 @seed(42)
 @settings(max_examples=1000)
 @given(non_empty_text)
@@ -152,7 +149,6 @@ def test_fstring_fill_spaces_integers_invalid_format(text, spec):
         assert str(excinfo.value) == "Invalid format specifier"
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
 @seed(42)
 @settings(max_examples=1000)
 @given(non_empty_text)
@@ -166,7 +162,6 @@ def test_repr_fstring_tainted(text):
     assert is_pyobject_tainted(result)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
 @given(non_empty_text)
 def test_repr_fstring_with_format_tainted(text):
     string_input = taint_pyobject(

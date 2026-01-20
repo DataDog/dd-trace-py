@@ -4,7 +4,6 @@ import glob
 import os
 import re
 from typing import TYPE_CHECKING
-from typing import Any
 from typing import List
 from typing import Optional
 from typing import Sequence
@@ -63,13 +62,15 @@ def reinterpret_int_as_int64(value: int) -> int:
 
 
 class StackLocation:
-    def __init__(self, function_name: str, filename: str, line_no: int):
+    def __init__(self, function_name: str, filename: str, line_no: int) -> None:
         self.function_name = function_name
         self.filename = filename
         self.line_no = line_no
 
-    def __repr__(self):
-        return f"{self.filename}:{self.function_name}:{self.line_no}"
+    def __repr__(self) -> str:
+        filename = self.filename or "<any file>"
+        line_no = str(self.line_no) if self.line_no != -1 else "<any line>"
+        return f"{filename}:{self.function_name}:{line_no}"
 
 
 class LockEventType(Enum):
@@ -84,11 +85,11 @@ class EventBaseClass:
         local_root_span_id: Optional[int] = None,
         trace_type: Optional[str] = None,
         trace_endpoint: Optional[str] = None,
-        thread_id: Union[int, None] = None,
-        thread_name: Union[str, None] = None,
-        class_name: Union[str, None] = None,
-        task_id: Union[int, None] = None,
-        task_name: Union[str, None] = None,
+        thread_id: Optional[int] = None,
+        thread_name: Optional[str] = None,
+        class_name: Optional[str] = None,
+        task_id: Optional[int] = None,
+        task_name: Optional[str] = None,
     ):
         self.span_id = reinterpret_int_as_int64(clamp_to_uint64(span_id)) if span_id else None
         self.local_root_span_id = (
@@ -104,7 +105,9 @@ class EventBaseClass:
 
 
 class StackEvent(EventBaseClass):
-    def __init__(self, locations: Optional[Any] = None, exception_type=None, *args, **kwargs):
+    def __init__(
+        self, locations: Optional[Sequence[StackLocation]] = None, exception_type: Optional[str] = None, *args, **kwargs
+    ) -> None:
         self.locations = locations
         self.exception_type = exception_type
         super().__init__(*args, **kwargs)
@@ -140,7 +143,9 @@ class LockReleaseEvent(LockEvent):
         super().__init__(event_type=LockEventType.RELEASE, *args, **kwargs)
 
 
-def parse_newest_profile(filename_prefix: str) -> pprof_pb2.Profile:
+def parse_newest_profile(
+    filename_prefix: str, assert_samples: bool = True, allow_penultimate: bool = False
+) -> pprof_pb2.Profile:
     """Parse the newest profile that has given filename prefix. The profiler
     outputs profile file with following naming convention:
     <filename_prefix>.<pid>.<counter>.pprof, and in tests, we'd want to parse
@@ -156,7 +161,22 @@ def parse_newest_profile(filename_prefix: str) -> pprof_pb2.Profile:
         serialized_data = dctx.stream_reader(fp).read()
     profile = pprof_pb2.Profile()
     profile.ParseFromString(serialized_data)
-    assert len(profile.sample) > 0, "No samples found in profile"
+
+    if allow_penultimate and len(profile.sample) == 0 and len(files) > 1:
+        # The newest profile file may be empty if it was just created and has not yet accumulated samples.
+        # In this case, we try to parse the (second-to-last) file instead, which is more likely
+        # to contain complete data. We temporarily rename the newest file so parse_newest_profile picks
+        # the previous one.
+        temp_filename = filename + ".temp"
+        os.rename(filename, temp_filename)
+        try:
+            return parse_newest_profile(filename_prefix, assert_samples, allow_penultimate=False)
+        finally:
+            os.rename(temp_filename, filename)
+
+    if assert_samples:
+        assert len(profile.sample) > 0, "No samples found in profile"
+
     return profile
 
 
@@ -187,9 +207,28 @@ def get_function_with_id(profile: pprof_pb2.Profile, function_id: int) -> pprof_
     return next(function for function in profile.function if function.id == function_id)
 
 
+def get_location_from_id(profile: pprof_pb2.Profile, location_id: int) -> StackLocation:
+    """Get a StackLocation tuple from a location ID.
+
+    Args:
+        profile: The pprof profile containing location and function data
+        location_id: The location ID to look up
+
+    Returns:
+        A StackLocation with function_name, filename, and line_no
+    """
+    location = get_location_with_id(profile, location_id)
+    line = location.line[0]
+    function = get_function_with_id(profile, line.function_id)
+    function_name = profile.string_table[function.name]
+    filename = profile.string_table[function.filename]
+    line_no = line.line
+    return StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+
 def assert_lock_events_of_type(
     profile: pprof_pb2.Profile,
-    expected_events: List[LockEvent],
+    expected_events: Sequence[LockEvent],
     event_type: LockEventType,
 ):
     samples = get_samples_with_value_type(
@@ -221,8 +260,8 @@ def assert_lock_events_of_type(
 
 def assert_lock_events(
     profile: pprof_pb2.Profile,
-    expected_acquire_events: Union[List[LockEvent], None] = None,
-    expected_release_events: Union[List[LockEvent], None] = None,
+    expected_acquire_events: Union[Sequence[LockEvent], None] = None,
+    expected_release_events: Union[Sequence[LockEvent], None] = None,
 ):
     if expected_acquire_events:
         assert_lock_events_of_type(profile, expected_acquire_events, LockEventType.ACQUIRE)
@@ -231,21 +270,25 @@ def assert_lock_events(
 
 
 def assert_str_label(string_table: Sequence[str], sample, key: str, expected_value: Optional[str]):
-    if expected_value:
-        label = get_label_with_key(string_table, sample, key)
-        # We use fullmatch to ensure that the whole string matches the expected value
-        # and not just a substring
-        assert label is not None, "Label {} not found in sample".format(key)
-        assert re.fullmatch(expected_value, string_table[label.str]), "Expected {} got {} for label {}".format(
-            expected_value, string_table[label.str], key
-        )
+    if not expected_value:
+        return
+
+    label = get_label_with_key(string_table, sample, key)
+    # We use fullmatch to ensure that the whole string matches the expected value
+    # and not just a substring
+    assert label is not None, f"Label {key} not found in sample"
+    assert re.fullmatch(expected_value, string_table[label.str]), (
+        f"Expected {expected_value} got {string_table[label.str]} for label {key}"
+    )
 
 
 def assert_num_label(string_table: Sequence[str], sample, key: str, expected_value: Optional[int]):
-    if expected_value:
-        label = get_label_with_key(string_table, sample, key)
-        assert label is not None, "Label {} not found in sample".format(key)
-        assert label.num == expected_value, "Expected {} got {} for label {}".format(expected_value, label.num, key)
+    if not expected_value:
+        return
+
+    label = get_label_with_key(string_table, sample, key)
+    assert label is not None, f"Label {key} not found in sample"
+    assert label.num == expected_value, f"Expected {expected_value} got {label.num} for label {key}"
 
 
 def assert_base_event(string_table: Sequence[str], sample: pprof_pb2.Sample, expected_event: EventBaseClass):
@@ -297,7 +340,9 @@ def assert_lock_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expe
     assert_base_event(profile.string_table, sample, expected_event)
 
 
-def assert_sample_has_locations(profile, sample, expected_locations: Optional[List[StackLocation]]):
+def assert_sample_has_locations(
+    profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expected_locations: Optional[Sequence[StackLocation]]
+) -> None:
     if not expected_locations:
         return
 
@@ -337,27 +382,38 @@ def assert_sample_has_locations(profile, sample, expected_locations: Optional[Li
         if DEBUG_TEST:
             print(loc)
 
-    assert checked, "Expected locations {} not found in sample locations: {}".format(
-        expected_locations, sample_loc_strs
-    )
+    assert checked, f"Expected locations {expected_locations} not found in sample locations: {sample_loc_strs}"
 
 
-def assert_stack_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expected_event: StackEvent):
-    # Check that the sample has label "exception type" with value
-    assert_str_label(profile.string_table, sample, "exception type", expected_event.exception_type)
-    assert_sample_has_locations(profile, sample, expected_event.locations)
-    assert_base_event(profile.string_table, sample, expected_event)
+def assert_stack_event(
+    profile: pprof_pb2.Profile,
+    sample: pprof_pb2.Sample,
+    expected_event: StackEvent,
+    print_samples_on_failure: bool = False,
+) -> None:
+    try:
+        # Check that the sample has label "exception type" with value (no-op if expected_event.exception_type is None)
+        assert_str_label(profile.string_table, sample, "exception type", expected_event.exception_type)
+        assert_sample_has_locations(profile, sample, expected_event.locations)
+        assert_base_event(profile.string_table, sample, expected_event)
+    except AssertionError as e:
+        if print_samples_on_failure:
+            print_all_samples(profile)
+
+        raise e
 
 
 def assert_profile_has_sample(
     profile: pprof_pb2.Profile,
-    samples: List[pprof_pb2.Sample],
+    samples: Sequence[pprof_pb2.Sample],
     expected_sample: StackEvent,
-):
+    print_samples_on_failure: bool = False,
+) -> None:
     found = False
     for sample in samples:
         try:
-            assert_stack_event(profile, sample, expected_sample)
+            # Pass print_samples_on_failure=False since we will print them later if needed
+            assert_stack_event(profile, sample, expected_sample, print_samples_on_failure=False)
             found = True
             break
         except AssertionError as e:
@@ -365,4 +421,35 @@ def assert_profile_has_sample(
             if DEBUG_TEST:
                 print(e)
 
-    assert found, "Expected samples not found in profile"
+    error_description = "Expected samples not found in profile "
+    if not found:
+        error_description += str(expected_sample.locations)
+        if expected_sample.task_name:
+            error_description += ", task name " + expected_sample.task_name
+
+        if expected_sample.thread_name:
+            error_description += ", thread name " + expected_sample.thread_name
+
+        if print_samples_on_failure:
+            print_all_samples(profile)
+
+    assert found, error_description
+
+
+def print_all_samples(profile: pprof_pb2.Profile) -> None:
+    """Print all samples in the profile with function name, filename, and line number."""
+    for sample_idx, sample in enumerate(profile.sample):
+        print(f"Sample {sample_idx}:")
+        print("Labels:")
+        for label in sample.label:
+            print(f"  {profile.string_table[label.key]}: {profile.string_table[label.str]}")
+        print("Locations:")
+        for location_id in sample.location_id:
+            location = get_location_with_id(profile, location_id)
+            for line in location.line:
+                function = get_function_with_id(profile, line.function_id)
+                function_name = profile.string_table[function.name]
+                filename = profile.string_table[function.filename]
+                line_no = line.line
+                print(f"  {filename}:{function_name}:{line_no}")
+        print()

@@ -1,5 +1,6 @@
 import os
 
+import psycopg
 import psycopg2
 import pymysql
 
@@ -15,6 +16,18 @@ def get_psycopg2_connection():
         host=POSTGRES_HOST,
         port=5432,
         database="postgres",
+        options="-c statement_timeout=1000",
+    )
+    return connection
+
+
+def get_psycopg3_connection():
+    connection = psycopg.connect(
+        user="postgres",
+        password="postgres",
+        host=POSTGRES_HOST,
+        port=5432,
+        dbname="postgres",
         options="-c statement_timeout=1000",
     )
     return connection

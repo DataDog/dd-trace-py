@@ -54,6 +54,14 @@ struct StringArena
 
 } // namespace internal
 
+using string_id = ddog_prof_StringId2;
+using function_id = ddog_prof_FunctionId2;
+
+string_id
+intern_string(std::string_view s);
+function_id
+intern_function(string_id name, string_id filename);
+
 class SampleManager; // friend
 
 class Sample
@@ -71,18 +79,19 @@ class Sample
     static inline bool timeline_enabled = false;
 
     // Keeps temporary buffer of frames in the stack
-    std::vector<ddog_prof_Location> locations;
+    std::vector<ddog_prof_Location2> locations;
     size_t dropped_frames = 0;
     uint64_t samples = 0;
 
     // Storage for labels
-    std::vector<ddog_prof_Label> labels{};
+    std::vector<ddog_prof_Label2> labels{};
 
     // Storage for values
     std::vector<int64_t> values = {};
 
     // Additional metadata
-    int64_t endtime_ns = 0; // end of the event
+    int64_t endtime_ns = 0;         // end of the event
+    bool reverse_locations = false; // whether to reverse locations when exporting/flushing
 
     // Backing memory for string copies
     internal::StringArena string_storage{};
@@ -92,6 +101,7 @@ class Sample
     bool push_label(ExportLabelKey key, std::string_view val);
     bool push_label(ExportLabelKey key, int64_t val);
     void push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line);
+    void push_frame_impl(function_id function_id, uint64_t address, int64_t line);
     void clear_buffers();
 
     // Add values
@@ -101,6 +111,8 @@ class Sample
     bool push_release(int64_t lock_time, int64_t count);
     bool push_alloc(int64_t size, int64_t count);
     bool push_heap(int64_t size);
+    void reset_alloc();
+    void reset_heap();
     bool push_gpu_gputime(int64_t time, int64_t count);
     bool push_gpu_memory(int64_t size, int64_t count);
     bool push_gpu_flops(int64_t flops, int64_t count);
@@ -119,24 +131,32 @@ class Sample
     bool push_absolute_ns(int64_t timestamp_ns);
 
     // Interacts with static Sample state
-    bool is_timeline_enabled() const;
+    static bool is_timeline_enabled();
     static void set_timeline(bool enabled);
 
     // Pytorch GPU metadata
     bool push_gpu_device_name(std::string_view device_name);
 
     // Assumes frames are pushed in leaf-order
-    void push_frame(std::string_view name,     // for ddog_prof_Function
-                    std::string_view filename, // for ddog_prof_Function
-                    uint64_t address,          // for ddog_prof_Location
-                    int64_t line               // for ddog_prof_Location
+    void push_frame(std::string_view name, std::string_view filename, uint64_t address, int64_t line);
+    void push_frame(function_id function_id, // for ddog_prof_Location
+                    uint64_t address,        // for ddog_prof_Location
+                    int64_t line             // for ddog_prof_Location
     );
 
+    // Set whether to reverse locations when exporting/flushing
+    void set_reverse_locations(bool reverse) { reverse_locations = reverse; }
+
     // Flushes the current buffer, clearing it
-    bool flush_sample(bool reverse_locations = false);
+    bool flush_sample();
+
+    // Exports the sample data to the profile without clearing buffers
+    // This is useful when the Sample object is embedded and will be destroyed later
+    bool export_sample();
 
     static ProfileBorrow profile_borrow();
     static void postfork_child();
+    static void cleanup();
     Sample(SampleType _type_mask, unsigned int _max_nframes);
 
     // friend class SampleManager;

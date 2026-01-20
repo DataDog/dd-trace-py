@@ -1,5 +1,6 @@
 import importlib
 import os
+from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Set
@@ -7,7 +8,6 @@ from typing import Union
 
 from wrapt.importer import when_imported
 
-from ddtrace.internal.compat import Path
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.vendor.debtcollector import deprecate
@@ -27,6 +27,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 log = get_logger(__name__)
+
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
@@ -109,6 +110,7 @@ PATCH_MODULES = {
     "anthropic": True,
     "crewai": True,
     "pydantic_ai": True,
+    "vllm": True,
     "subprocess": True,
     "unittest": True,
     "coverage": False,

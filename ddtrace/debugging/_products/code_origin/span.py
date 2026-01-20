@@ -1,5 +1,7 @@
 import enum
 from functools import partial
+from types import FunctionType
+from types import MethodType
 import typing as t
 
 import ddtrace.internal.core as core
@@ -32,22 +34,17 @@ def start():
     # We need to instrument the entrypoints on boot because this is the only
     # time the tracer will notify us of entrypoints being registered.
     @partial(core.on, "service_entrypoint.patch")
-    def _(f: t.Callable) -> None:
+    def _(f: t.Union[FunctionType, MethodType]) -> None:
         from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 
         SpanCodeOriginProcessorEntry.instrument_view(f)
 
     log.debug("Registered entrypoint patching hook for code origin for spans")
 
-    if config.span.enabled:
-        from ddtrace.debugging._origin.span import SpanCodeOriginProcessorExit
-
-        SpanCodeOriginProcessorExit.enable()
-
-        _start()
     # If dynamic instrumentation is enabled, and code origin for spans is not explicitly disabled,
-    # we'll enable entry spans only.
-    elif product_manager.is_enabled(DI_PRODUCT_KEY) and config.value_source(CO_ENABLED) == ValueSource.DEFAULT:
+    # we'll enable code origin for spans.
+    di_enabled = product_manager.is_enabled(DI_PRODUCT_KEY) and config.value_source(CO_ENABLED) == ValueSource.DEFAULT
+    if config.span.enabled or di_enabled:
         _start()
 
 
@@ -62,16 +59,9 @@ def _stop():
 
 
 def stop(join=False):
-    if config.span.enabled:
-        from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
-        from ddtrace.debugging._origin.span import SpanCodeOriginProcessorExit
-
-        SpanCodeOriginProcessorEntry.disable()
-        SpanCodeOriginProcessorExit.disable()
-    elif product_manager.is_enabled(DI_PRODUCT_KEY):
-        from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
-
-        SpanCodeOriginProcessorEntry.disable()
+    di_enabled = product_manager.is_enabled(DI_PRODUCT_KEY) and config.value_source(CO_ENABLED) == ValueSource.DEFAULT
+    if config.span.enabled or di_enabled:
+        _stop()
 
 
 def at_exit(join=False):

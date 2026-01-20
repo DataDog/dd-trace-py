@@ -165,6 +165,25 @@ class PsycopgCore(TracerTestCase):
             dict(name="postgres.query"),
         )
 
+    def test_patch_closed_connection(self):
+        """
+        Patching a closed connection should not throw an error.
+        (psycopg2 handles this gracefully)
+        """
+        from ddtrace.contrib.internal.psycopg.connection import Psycopg2TracedConnection
+        from ddtrace.contrib.internal.psycopg.connection import patch_conn
+
+        conn = psycopg2.connect(**POSTGRES_CONFIG)
+        conn.close()
+
+        try:
+            patched_connection = patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection)
+        except psycopg2.OperationalError as e:
+            self.fail(f"patched_connection has ran into an OperationalError: {e}")
+
+        # When the connection is closed, we return the plain connection
+        self.assertIs(patched_connection, conn)
+
     def test_disabled_execute(self):
         conn = self._get_conn()
         self.tracer.enabled = False

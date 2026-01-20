@@ -566,7 +566,7 @@ Subprocess
 
 Tornado
 ^^^^^^^
-.. automodule:: ddtrace.contrib.tornado
+.. automodule:: ddtrace.contrib.internal.tornado
 
 
 .. _unittest:
@@ -611,6 +611,13 @@ Vertica
 .. automodule:: ddtrace.contrib.internal.vertica
 
 .. _webbrowser:
+
+vLLM
+^^^^
+.. automodule:: ddtrace.contrib.internal.vllm
+
+
+.. _vllm:
 
 Webbrowser
 ^^^^^^^^^^

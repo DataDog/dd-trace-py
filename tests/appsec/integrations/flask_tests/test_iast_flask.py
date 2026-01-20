@@ -9,6 +9,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patches.json_tainting import patch as patch_json
+from ddtrace.appsec._iast._taint_tracking import initialize_native_state
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
@@ -48,6 +49,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 _iast_request_sampling=100.0,
             )
         ):
+            initialize_native_state()
             patch_sqlite_sqli()
             patch_insecure_cookie()
             patch_header_injection()

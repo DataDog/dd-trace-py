@@ -1,0 +1,86 @@
+interactions:
+- request:
+    body: duration=once&percent_off=25
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '28'
+      Content-Type:
+      - application/x-www-form-urlencoded
+      Idempotency-Key:
+      - 325df2a1-1413-49aa-8cf2-6f7457a7e216
+      Stripe-Version:
+      - 2025-11-17.clover
+      User-Agent:
+      - Stripe/v1 PythonBindings/14.0.1
+      X-Stripe-Client-User-Agent:
+      - '{"bindings_version": "14.0.1", "lang": "python", "publisher": "stripe", "httplib":
+        "requests", "lang_version": "3.13.9", "platform": "macOS-15.7.1-arm64-arm-64bit-Mach-O",
+        "uname": "Darwin COMP-L0DW2Y27YN 24.6.0 Darwin Kernel Version 24.6.0: Mon
+        Aug 11 21:15:09 PDT 2025; root:xnu-11417.140.69.701.11~1/RELEASE_ARM64_T6041
+        arm64 arm"}'
+    method: POST
+    uri: https://api.stripe.com/v1/coupons
+  response:
+    body:
+      string: '{"id": "gN7nSKKV", "object": "coupon", "amount_off": null, "created":
+        1765976089, "currency": null, "duration": "once", "duration_in_months": null,
+        "livemode": false, "max_redemptions": null, "metadata": {}, "name": null,
+        "percent_off": 25.0, "redeem_by": null, "times_redeemed": 0, "valid": true}'
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Methods:
+      - GET, HEAD, PUT, PATCH, POST, DELETE
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Request-Id, Stripe-Manage-Version, Stripe-Should-Retry, X-Stripe-External-Auth-Required,
+        X-Stripe-Privileged-Session-Required
+      Access-Control-Max-Age:
+      - '300'
+      Cache-Control:
+      - no-cache, no-store
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '329'
+      Content-Security-Policy:
+      - base-uri 'none'; default-src 'none'; form-action 'none'; frame-ancestors 'none';
+        img-src 'self'; script-src 'self' 'report-sample'; style-src 'self'; worker-src
+        'none'; upgrade-insecure-requests; report-uri https://q.stripe.com/csp-violation?q=nsflD-6BfmJXwYG_M4KcdRRd6asfZGovly0Lgx4zgWIrkaHc1evvLs56gFqHQJ8tu3tW6bHuek_20os4
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 17 Dec 2025 12:54:49 GMT
+      Idempotency-Key:
+      - 325df2a1-1413-49aa-8cf2-6f7457a7e216
+      Original-Request:
+      - req_iXyGRxq7vVKUKh
+      Request-Id:
+      - req_iXyGRxq7vVKUKh
+      Server:
+      - nginx
+      Strict-Transport-Security:
+      - max-age=63072000; includeSubDomains; preload
+      Stripe-Should-Retry:
+      - 'false'
+      Stripe-Version:
+      - 2025-11-17.clover
+      Vary:
+      - Origin
+      X-Stripe-Priority-Routing-Enabled:
+      - 'true'
+      X-Stripe-Routing-Context-Priority-Tier:
+      - api-testmode
+      X-Wc:
+      - ABGHIJ
+    status:
+      code: 200
+      message: OK
+version: 1
