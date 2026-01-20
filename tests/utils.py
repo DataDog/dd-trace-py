@@ -1238,6 +1238,10 @@ def snapshot_context(
     if not tracer:
         tracer = ddtrace.tracer
 
+    # AIDEV-NOTE: Pop DD_GIT_REPOSITORY_URL to prevent it from being added to span tags
+    # This env var is set in CI but should not affect snapshot tests
+    git_repo_url = os.environ.pop("DD_GIT_REPOSITORY_URL", None)
+
     parsed = parse.urlparse(tracer._span_aggregator.writer.intake_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
     try:
@@ -1339,6 +1343,10 @@ def snapshot_context(
             else:
                 pytest.xfail(result)
     finally:
+        # Restore DD_GIT_REPOSITORY_URL if it was set
+        if git_repo_url is not None:
+            os.environ["DD_GIT_REPOSITORY_URL"] = git_repo_url
+
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
         conn.getresponse()
