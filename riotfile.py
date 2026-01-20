@@ -3767,21 +3767,21 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=["3.9", "3.10", "3.12"],
+                    pys=["3.9", "3.12"],
                     pkgs={
                         "tornado": "~=6.3",
                     },
                     venvs=_appsec_threats_iast_variants,
                 ),
                 Venv(
-                    pys=["3.9", "3.11", "3.12"],
+                    pys=["3.9", "3.12"],
                     pkgs={
                         "tornado": "~=6.4",
                     },
                     venvs=_appsec_threats_iast_variants,
                 ),
                 Venv(
-                    pys=["3.10", "3.12", "3.14"],
+                    pys=["3.10", "3.14"],
                     pkgs={
                         "tornado": "~=6.5",
                     },
