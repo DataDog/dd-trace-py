@@ -722,6 +722,12 @@ for_each_thread(EchionSampler& echion, InterpreterInfo& interp, PyThreadStateCal
         {
             const std::lock_guard<std::mutex> guard(echion.thread_info_map_lock());
 
+            if (echion.thread_info_map().find(tstate.thread_id) == echion.thread_info_map().end()) {
+              // We failed to find ThreadInfo for thread_id, maybe there's a
+              // race condition between this call and `register_thread()`.
+              continue;
+            }
+
             // Update the tstate_addr for thread info, so we can access
             // asyncio_tasks_head field from `_PyThreadStateImpl` struct
             // later when we unwind tasks.
