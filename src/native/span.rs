@@ -79,14 +79,15 @@ pub struct SpanData {
     data: libdd_trace_utils::span::Span<PyBackedString>,
 }
 
-fn backed_string_from_optional(
-    py: Python<'_>,
-    v: Option<&Bound<'_, PyAny>>,
-) -> PyResult<PyBackedString> {
-    match v {
-        Some(ob) => PyBackedString::extract_bound(ob),
-        None => Ok(PyBackedString::py_none(py)),
-    }
+/// Extract PyBackedString from Python object, falling back to empty string on error
+fn extract_backed_string_or_default(obj: &Bound<'_, PyAny>) -> PyBackedString {
+    PyBackedString::extract_bound(obj).unwrap_or_default()
+}
+
+/// Extract PyBackedString from Python object, falling back to None on error
+fn extract_backed_string_or_none(obj: &Bound<'_, PyAny>) -> PyBackedString {
+    let py = obj.py();
+    PyBackedString::extract_bound(obj).unwrap_or_else(|_| PyBackedString::py_none(py))
 }
 
 #[pyo3::pymethods]
@@ -124,7 +125,7 @@ impl SpanData {
     fn __init__<'p>(
         &mut self,
         py: Python<'p>,
-        name: PyBackedString,
+        name: &Bound<'p, PyAny>,
         service: Option<&Bound<'p, PyAny>>,
         resource: Option<PyObject>,
         span_type: Option<PyObject>,
@@ -135,8 +136,12 @@ impl SpanData {
         span_api: Option<PyObject>,
         links: Option<Bound<'p, PyList>>,
     ) -> PyResult<()> {
-        self.data.name = name;
-        self.data.service = backed_string_from_optional(py, service)?;
+        // Use setters to avoid duplicating validation logic
+        self.set_name(name);
+        match service {
+            Some(obj) => self.set_service(obj),
+            None => self.data.service = PyBackedString::py_none(py),
+        }
         Ok(())
     }
 
@@ -146,8 +151,8 @@ impl SpanData {
     }
 
     #[setter]
-    fn set_name(&mut self, name: PyBackedString) {
-        self.data.name = name;
+    fn set_name(&mut self, name: &Bound<'_, PyAny>) {
+        self.data.name = extract_backed_string_or_default(name);
     }
 
     #[getter]
@@ -156,8 +161,8 @@ impl SpanData {
     }
 
     #[setter]
-    fn set_service(&mut self, service: PyBackedString) {
-        self.data.service = service;
+    fn set_service(&mut self, service: &Bound<'_, PyAny>) {
+        self.data.service = extract_backed_string_or_none(service);
     }
 }
 
