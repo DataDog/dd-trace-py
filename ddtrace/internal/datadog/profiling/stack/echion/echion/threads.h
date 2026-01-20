@@ -54,6 +54,7 @@ class ThreadInfo
     mach_port_t mach_port;
 #endif
     microsecond_t cpu_time;
+    bool running_ = false;
 
     uintptr_t asyncio_loop = 0;
     uintptr_t tstate_addr = 0; // Remote address of PyThreadState for accessing asyncio_tasks_head
