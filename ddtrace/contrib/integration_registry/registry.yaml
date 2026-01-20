@@ -642,7 +642,7 @@ integrations:
   tested_versions_by_dependency:
     psycopg:
       min: 3.0.18
-      max: 3.2.10
+      max: 3.3.2
     psycopg2-binary:
       min: 2.9.10
       max: 2.9.10
