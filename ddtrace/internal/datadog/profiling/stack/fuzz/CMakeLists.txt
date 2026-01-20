@@ -5,8 +5,21 @@ cmake_minimum_required(VERSION 3.19)
 option(STACK_USE_LIBFUZZER "Link fuzz targets with libFuzzer (-fsanitize=fuzzer)" OFF)
 
 add_executable(
-    fuzz_echion_remote_read ../src/echion/danger.cc ../src/echion/frame.cc ../src/echion/long.cc
-                            ../src/echion/stack_chunk.cc ../src/echion/strings.cc fuzz_echion_remote_read.cpp)
+    fuzz_echion_remote_read
+    ../src/echion/danger.cc
+    ../src/echion/frame.cc
+    ../src/echion/greenlets.cc
+    ../src/echion/interp.cc
+    ../src/echion/long.cc
+    ../src/echion/mirrors.cc
+    ../src/echion/stack_chunk.cc
+    ../src/echion/stacks.cc
+    ../src/echion/strings.cc
+    ../src/echion/tasks.cc
+    ../src/echion/threads.cc
+    ../src/echion/timing.cc
+    ../src/echion/vm.cc
+    fuzz_echion_remote_read.cpp)
 
 target_include_directories(fuzz_echion_remote_read PRIVATE ../include)
 target_include_directories(fuzz_echion_remote_read SYSTEM PRIVATE ${Python3_INCLUDE_DIRS} ../echion ../include/vendored
