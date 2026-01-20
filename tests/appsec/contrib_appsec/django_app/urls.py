@@ -372,9 +372,11 @@ def login_user_sdk(request):
 
 @csrf_exempt
 def new_service(request, service_name: str):
-    import ddtrace
-
-    ddtrace.config.django._default_service = service_name
+    ddtrace.config.django.service = service_name
+    with tracer.start_span("span_with_new_service", service=service_name):
+        # Generate a root span with the new service name. On span finish,
+        # the service name will be added to the extra services queue.
+        pass
     return HttpResponse(service_name, status=200)
 
 

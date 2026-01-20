@@ -9,6 +9,7 @@ from flask import Flask
 from flask import request
 
 # from ddtrace.appsec.iast import ddtrace_iast_flask_patch
+from ddtrace import config
 import ddtrace.constants
 from ddtrace.trace import tracer
 from tests.webclient import PingFilter
@@ -58,9 +59,11 @@ def multi_view(param_int=0, param_str=""):
 @app.route("/new_service/<string:service_name>/", methods=["GET", "POST", "OPTIONS"])
 @app.route("/new_service/<string:service_name>", methods=["GET", "POST", "OPTIONS"])
 def new_service(service_name: str):
-    import ddtrace
-
-    ddtrace.config.flask._default_service = service_name
+    config.flask.service = service_name
+    with tracer.start_span("span_with_new_service", service=service_name):
+        # Generate a root span with the new service name. On span finish,
+        # the service name will be added to the extra services queue.
+        pass
     return service_name
 
 

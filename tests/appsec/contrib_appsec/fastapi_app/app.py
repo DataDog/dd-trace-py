@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from ddtrace import config
 import ddtrace.constants
 from ddtrace.trace import tracer
 
@@ -139,9 +140,11 @@ def get_app():
     @app.get("/new_service/{service_name:str}")
     @app.post("/new_service/{service_name:str}")
     async def new_service(service_name: str, request: Request):  # noqa: B008
-        import ddtrace
-
-        ddtrace.config.fastapi._default_service = service_name
+        config.fastapi.service = service_name
+        with tracer.start_span("span_with_new_service", service=service_name):
+            # Generate a root span with the new service name. On span finish,
+            # the service name will be added to the extra services queue.
+            pass
         return HTMLResponse(service_name, 200)
 
     async def slow_numbers(minimum, maximum):
