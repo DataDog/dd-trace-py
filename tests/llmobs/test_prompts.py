@@ -16,7 +16,7 @@ TEXT_PROMPT_RESPONSE = {
     "prompt_id": "greeting",
     "version": "v1",
     "label": "prod",
-    "template": "Hello {{name}}!",
+    "template": "Hello {name}!",
 }
 
 CHAT_PROMPT_RESPONSE = {
@@ -24,8 +24,8 @@ CHAT_PROMPT_RESPONSE = {
     "version": "v2",
     "label": "prod",
     "template": [
-        {"role": "system", "content": "You are {{persona}}."},
-        {"role": "user", "content": "{{question}}"},
+        {"role": "system", "content": "You are {persona}."},
+        {"role": "user", "content": "{question}"},
     ],
 }
 
@@ -33,7 +33,7 @@ DEV_PROMPT_RESPONSE = {
     "prompt_id": "greeting",
     "version": "dev-v1",
     "label": "dev",
-    "template": "DEBUG: Hello {{name}}!",
+    "template": "DEBUG: Hello {name}!",
 }
 
 
@@ -157,7 +157,7 @@ class TestFallback:
     def test_string_fallback_on_error(self):
         """String fallback used when API returns 500."""
         with mock_api(500, "Internal Server Error"):
-            prompt = LLMObs.get_prompt("greeting", fallback="Default: {{name}}")
+            prompt = LLMObs.get_prompt("greeting", fallback="Default: {name}")
 
         assert prompt.source == "fallback"
         assert prompt.format(name="Bob") == "Default: Bob"
@@ -165,7 +165,7 @@ class TestFallback:
     def test_chat_fallback_on_404(self):
         """Chat template fallback when prompt not found."""
         with mock_api(404, "Not Found"):
-            prompt = LLMObs.get_prompt("missing", fallback=[{"role": "user", "content": "Hi {{name}}"}])
+            prompt = LLMObs.get_prompt("missing", fallback=[{"role": "user", "content": "Hi {name}"}])
 
         assert prompt.source == "fallback"
         assert prompt.format(name="Alice") == [{"role": "user", "content": "Hi Alice"}]
@@ -177,7 +177,7 @@ class TestFallback:
         def get_fallback():
             nonlocal call_count
             call_count += 1
-            return {"template": "Lazy: {{name}}", "version": "local-v1"}
+            return {"template": "Lazy: {name}", "version": "local-v1"}
 
         with mock_api(500, "Error"):
             prompt = LLMObs.get_prompt("greeting", fallback=get_fallback)
@@ -263,7 +263,7 @@ class TestCacheControl:
 
         # Cache should be evicted, next call uses fallback
         with mock_api(404, "Not Found"):
-            prompt3 = LLMObs.get_prompt("greeting", fallback="Fallback: {{name}}")
+            prompt3 = LLMObs.get_prompt("greeting", fallback="Fallback: {name}")
         assert prompt3.source == "fallback"
         assert prompt3.format(name="Bob") == "Fallback: Bob"
 
