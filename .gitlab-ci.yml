@@ -59,6 +59,7 @@ tests-gen:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   script:
+    - echo "UNPIN_DEPENDENCIES=${UNPIN_DEPENDENCIES}" | tee -a tests-gen.env
     - |
       if [ -z ${GH_TOKEN} ]
       then
@@ -70,10 +71,16 @@ tests-gen:
   artifacts:
     paths:
       - .gitlab/tests-gen.yml
+    reports:
+      dotenv: tests-gen.env
 
 run-tests-trigger:
  stage: tests
- needs: [ tests-gen ]
+ needs:
+   - job: tests-gen
+     artifacts: true
+  variables:
+    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES}"
  # Allow the child job to fail if explicitly asked
  rules:
    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
