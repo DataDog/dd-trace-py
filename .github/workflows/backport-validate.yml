@@ -14,6 +14,7 @@ jobs:
     permissions:
       contents: write
       id-token: write
+      pull-requests: write
     if: >
       github.event.action == 'labeled' && contains(github.event.label.name, 'backport')
     steps:
@@ -23,6 +24,10 @@ jobs:
       #    scope: DataDog/dd-trace-py
       #    policy: self.backport.create-pr
       #
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
       - name: Check Conflicts
         env:
           BACKPORT_LABEL: ${{ github.event.label.name }}
