@@ -1,23 +1,16 @@
 cmake_minimum_required(VERSION 3.19)
 
-# Fuzz targets are built only when stack/CMakeLists.txt has BUILD_FUZZING=ON.
-# The caller is expected to provide compiler/linker flags for libFuzzer
-# (e.g. -fsanitize=fuzzer,address,undefined).
-
+# Fuzz targets are built only when stack/CMakeLists.txt has BUILD_FUZZING=ON. The caller is expected to provide
+# compiler/linker flags for libFuzzer (e.g. -fsanitize=fuzzer,address,undefined).
 option(STACK_USE_LIBFUZZER "Link fuzz targets with libFuzzer (-fsanitize=fuzzer)" OFF)
 
-add_executable(fuzz_echion_remote_read
-    fuzz_echion_remote_read.cpp
-    ../src/echion/frame.cc
-    ../src/echion/danger.cc
-    ../src/echion/stack_chunk.cc
-    ../src/echion/strings.cc
-    ../src/echion/long.cc
-)
+add_executable(
+    fuzz_echion_remote_read ../src/echion/danger.cc ../src/echion/frame.cc ../src/echion/long.cc
+                            ../src/echion/stack_chunk.cc ../src/echion/strings.cc fuzz_echion_remote_read.cpp)
 
 target_include_directories(fuzz_echion_remote_read PRIVATE ../include)
 target_include_directories(fuzz_echion_remote_read SYSTEM PRIVATE ${Python3_INCLUDE_DIRS} ../echion ../include/vendored
-                                                                ../include/util)
+                                                                  ../include/util)
 
 # Ensure echion headers take the fuzz hook in vm.h
 target_compile_definitions(fuzz_echion_remote_read PRIVATE ECHION_FUZZING)
@@ -42,5 +35,3 @@ add_ddup_config(fuzz_echion_remote_read)
 if(Python3_LIBRARIES)
     target_link_libraries(fuzz_echion_remote_read PRIVATE ${Python3_LIBRARIES})
 endif()
-
-
