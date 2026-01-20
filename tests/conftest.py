@@ -299,8 +299,16 @@ def snapshot_context(request):
     def _snapshot(**kwargs):
         if "token" not in kwargs:
             kwargs["token"] = token
-        with _snapshot_context(**kwargs) as snapshot:
-            yield snapshot
+        # AIDEV-NOTE: Pop DD_GIT_REPOSITORY_URL to prevent it from being added to span tags
+        # This env var is set in CI but should not affect snapshot tests
+        git_repo_url = os.environ.pop("DD_GIT_REPOSITORY_URL", None)
+        try:
+            with _snapshot_context(**kwargs) as snapshot:
+                yield snapshot
+        finally:
+            # Restore the env var if it was set
+            if git_repo_url is not None:
+                os.environ["DD_GIT_REPOSITORY_URL"] = git_repo_url
 
     return _snapshot
 
