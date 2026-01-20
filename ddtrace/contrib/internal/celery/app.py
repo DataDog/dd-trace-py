@@ -19,7 +19,6 @@ from ddtrace.contrib.internal.celery.signals import trace_retry
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 
 
