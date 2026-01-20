@@ -4,7 +4,6 @@ from typing import Dict
 from typing import List
 from typing import Literal
 from typing import Optional
-from typing import Union
 
 from ddtrace.internal.constants import SPAN_API_DATADOG
 
@@ -514,7 +513,6 @@ class ffe:
     class Configuration:
         def __init__(self, config_bytes: bytes) -> None: ...
         def resolve_value(self, flag_key: str, expected_type: ffe.FlagType, context: dict) -> ffe.ResolutionDetails: ...
-
 
 class SpanData:
     name: str
