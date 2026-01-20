@@ -408,7 +408,7 @@ class PromptOptimization:
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         project_name: str,
         config: ConfigType,
-        best_iteration_computation: Callable[[Dict[str, Dict[str, Any]]], float],
+        compute_score: Callable[[Dict[str, Dict[str, Any]]], float],
         _llmobs_instance: Optional["LLMObs"] = None,
         tags: Optional[Dict[str, str]] = None,
         max_iterations: int = 5,
@@ -435,9 +435,9 @@ class PromptOptimization:
         :param summary_evaluators: Optional list of summary evaluator functions.
         :param stopping_condition: Optional function to determine when to stop optimization.
                                    Takes summary_evaluations dict and returns True if should stop.
-        :param best_iteration_computation: Function to compute iteration score (REQUIRED).
-                                          Takes summary_evaluations dict and returns float score.
-        :raises ValueError: If required config parameters or best_iteration_computation are missing.
+        :param compute_score: Function to compute iteration score (REQUIRED).
+                              Takes summary_evaluations dict and returns float score.
+        :raises ValueError: If required config parameters or compute_score are missing.
         """
         self.name = name
         self._task = task
@@ -446,7 +446,7 @@ class PromptOptimization:
         self._evaluators = evaluators
         self._summary_evaluators = summary_evaluators or []
         self._stopping_condition = stopping_condition
-        self._best_iteration_computation = best_iteration_computation
+        self._compute_score = compute_score
         self._tags: Dict[str, str] = tags or {}
         self._tags["project_name"] = project_name
         self._llmobs_instance = _llmobs_instance
@@ -487,7 +487,7 @@ class PromptOptimization:
                 "and create the optimization via `LLMObs.prompt_optimization(...)` before running."
             )
 
-        print(f"Starting prompt optimization: {self.name}")
+        log.info(f"Starting prompt optimization: {self.name}")
 
         # Track all iteration results
         all_iterations = []
@@ -503,7 +503,7 @@ class PromptOptimization:
 
         # Store baseline results
         summary_evals = current_results.get("summary_evaluations", {})
-        baseline_score = self._best_iteration_computation(summary_evals)
+        baseline_score = self._compute_score(summary_evals)
 
         iteration_data = {
             "iteration": iteration,
@@ -538,7 +538,7 @@ class PromptOptimization:
 
             # Compute score for this iteration
             summary_evals = new_results.get("summary_evaluations", {})
-            new_score = self._best_iteration_computation(summary_evals)
+            new_score = self._compute_score(summary_evals)
 
             # Track iteration results
             iteration_data = {
@@ -551,8 +551,8 @@ class PromptOptimization:
             }
             all_iterations.append(iteration_data)
 
-            print(f"Iteration {i}")
-            print(f"{summary_evals}")
+            log.info(f"Iteration {i}")
+            log.info(f"{summary_evals}")
 
             # Update best iteration if score improved
             if new_score is not None and (best_score is None or new_score > best_score):
