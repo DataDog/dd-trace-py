@@ -18,7 +18,6 @@ add_executable(
     ../src/echion/tasks.cc
     ../src/echion/threads.cc
     ../src/echion/timing.cc
-    ../src/echion/vm.cc
     fuzz_echion_remote_read.cpp)
 
 target_include_directories(fuzz_echion_remote_read PRIVATE ../include)
