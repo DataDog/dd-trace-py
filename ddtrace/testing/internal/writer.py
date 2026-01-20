@@ -149,29 +149,30 @@ class TestOptWriter(BaseWriter):
         return msgpack_packb(payload)
 
     def _send_events(self, events: t.List[Event]) -> None:
-        with StopWatch() as serialization_time:
-            packs = self._split_pack_events(events)
+        pass
+        # with StopWatch() as serialization_time:
+        #     packs = self._split_pack_events(events)
 
-        TelemetryAPI.get().record_event_payload_serialization_seconds("test_cycle", serialization_time.elapsed())
+        # TelemetryAPI.get().record_event_payload_serialization_seconds("test_cycle", serialization_time.elapsed())
 
-        for pack in packs:
-            result = self.connector.request(
-                "POST",
-                "/api/v2/citestcycle",
-                data=pack,
-                headers={"Content-Type": "application/msgpack"},
-                send_gzip=True,
-            )
+        # for pack in packs:
+        #     result = self.connector.request(
+        #         "POST",
+        #         "/api/v2/citestcycle",
+        #         data=pack,
+        #         headers={"Content-Type": "application/msgpack"},
+        #         send_gzip=True,
+        #     )
 
-            self.connector.close()
+        #     self.connector.close()
 
-            TelemetryAPI.get().record_event_payload(
-                endpoint="test_cycle",
-                payload_size=len(pack),
-                request_seconds=result.elapsed_seconds,
-                events_count=len(events),
-                error=result.error_type,
-            )
+        #     TelemetryAPI.get().record_event_payload(
+        #         endpoint="test_cycle",
+        #         payload_size=len(pack),
+        #         request_seconds=result.elapsed_seconds,
+        #         events_count=len(events),
+        #         error=result.error_type,
+        #     )
 
 
 class TestCoverageWriter(BaseWriter):
@@ -202,38 +203,39 @@ class TestCoverageWriter(BaseWriter):
         return msgpack_packb({"version": 2, "coverages": events})
 
     def _send_events(self, events: t.List[Event]) -> None:
-        with StopWatch() as serialization_time:
-            packs = self._split_pack_events(events)
+        pass
+        # with StopWatch() as serialization_time:
+        #     packs = self._split_pack_events(events)
 
-        TelemetryAPI.get().record_event_payload_serialization_seconds("code_coverage", serialization_time.elapsed())
+        # TelemetryAPI.get().record_event_payload_serialization_seconds("code_coverage", serialization_time.elapsed())
 
-        for pack in packs:
-            files = [
-                FileAttachment(
-                    name="coverage1",
-                    filename="coverage1.msgpack",
-                    content_type="application/msgpack",
-                    data=pack,
-                ),
-                FileAttachment(
-                    name="event",
-                    filename="event.json",
-                    content_type="application/json",
-                    data=b'{"dummy":true}',
-                ),
-            ]
+        # for pack in packs:
+        #     files = [
+        #         FileAttachment(
+        #             name="coverage1",
+        #             filename="coverage1.msgpack",
+        #             content_type="application/msgpack",
+        #             data=pack,
+        #         ),
+        #         FileAttachment(
+        #             name="event",
+        #             filename="event.json",
+        #             content_type="application/json",
+        #             data=b'{"dummy":true}',
+        #         ),
+        #     ]
 
-            result = self.connector.post_files("/api/v2/citestcov", files=files, send_gzip=True)
+        #     result = self.connector.post_files("/api/v2/citestcov", files=files, send_gzip=True)
 
-            self.connector.close()
+        #     self.connector.close()
 
-            TelemetryAPI.get().record_event_payload(
-                endpoint="code_coverage",
-                payload_size=len(pack),
-                request_seconds=result.elapsed_seconds,
-                events_count=len(events),
-                error=result.error_type,
-            )
+        #     TelemetryAPI.get().record_event_payload(
+        #         endpoint="code_coverage",
+        #         payload_size=len(pack),
+        #         request_seconds=result.elapsed_seconds,
+        #         events_count=len(events),
+        #         error=result.error_type,
+        #     )
 
 
 def serialize_test_run(test_run: TestRun) -> Event:
