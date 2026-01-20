@@ -391,7 +391,9 @@ class TestOptPlugin:
             test_run.start(start_ns=test.start_ns)
             self._set_test_run_data(test_run, item, context)
             test_run.finish()
-            test.set_status(test_run.get_status())
+            final_status = test_run.get_status()
+            test_run.set_final_status(final_status)
+            test.set_status(final_status)
             self.manager.writer.put_item(test_run)
 
         test.finish()
@@ -453,6 +455,12 @@ class TestOptPlugin:
             self._log_test_reports(item, reports)
             test_run.finish()
             test.set_status(test_run.get_status())
+
+        # Set final status on the last test run (single location for both retry and non-retry paths)
+        if test.test_runs:
+            test.test_runs[-1].set_final_status(test.get_status())
+
+        for test_run in test.test_runs:
             self.manager.writer.put_item(test_run)
 
     def _set_test_run_data(self, test_run: TestRun, item: pytest.Item, context: TestContext) -> None:
@@ -507,9 +515,6 @@ class TestOptPlugin:
 
         final_status = retry_handler.get_final_status(test)
         test.set_status(final_status)
-
-        for test_run in test.test_runs:
-            self.manager.writer.put_item(test_run)
 
         # Log final status.
         final_report = retry_reports.make_final_report(test, item, final_status)
