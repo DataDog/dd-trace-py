@@ -70,8 +70,7 @@ class Test_Tornado(utils.Contrib_TestClass_For_Threats):
         with scoped_tracer() as tracer:
             interface.tracer = tracer
             interface.printer = printer
-            with utils.post_tracer(interface):
-                yield interface
+            yield interface
 
     def status(self, response):
         return response.code
