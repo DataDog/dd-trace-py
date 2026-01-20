@@ -17,11 +17,11 @@ jobs:
     if: >
       github.event.action == 'labeled' && contains(github.event.label.name, 'backport')
     steps:
-      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
-        id: octo-sts
-        with:
-          scope: DataDog/dd-trace-py
-          policy: self.backport.create-pr
+      #- uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+      #  id: octo-sts
+      #  with:
+      #    scope: DataDog/dd-trace-py
+      #    policy: self.backport.create-pr
       - name: Check Conflicts
         env:
           BACKPORT_LABEL: ${{ github.event.label.name }}
