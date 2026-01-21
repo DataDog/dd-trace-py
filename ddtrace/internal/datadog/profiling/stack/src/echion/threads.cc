@@ -692,9 +692,6 @@ for_each_thread(EchionSampler& echion, InterpreterInfo& interp, PyThreadStateCal
     std::unordered_set<PyThreadState*> threads;
     std::unordered_set<PyThreadState*> seen_threads;
 
-    threads.clear();
-    seen_threads.clear();
-
     // Start from the thread list head
     threads.insert(static_cast<PyThreadState*>(interp.tstate_head));
 
@@ -722,43 +719,17 @@ for_each_thread(EchionSampler& echion, InterpreterInfo& interp, PyThreadStateCal
         {
             const std::lock_guard<std::mutex> guard(echion.thread_info_map_lock());
 
-            if (echion.thread_info_map().find(tstate.thread_id) == echion.thread_info_map().end()) {
-                // If the threading module was not imported in the target then
-                // we mistakenly take the hypno thread as the main thread. We
-                // assume that any missing thread is the actual main thread,
-                // provided we don't already have a thread with the name
-                // "MainThread". Note that this can also happen on shutdown, so
-                // we need to avoid doing anything in that case.
-#if PY_VERSION_HEX >= 0x030b0000
-                auto native_id = tstate.native_thread_id;
-#else
-                auto native_id = getpid();
-#endif
-                bool main_thread_tracked = false;
-                for (auto& kv : echion.thread_info_map()) {
-                    if (kv.second->name == "MainThread") {
-                        main_thread_tracked = true;
-                        break;
-                    }
-                }
-                if (main_thread_tracked)
-                    continue;
-
-                auto maybe_thread_info = ThreadInfo::create(tstate.thread_id, native_id, "MainThread");
-                if (!maybe_thread_info) {
-                    // We failed to create the thread info object so we skip it.
-                    // We'll likely try again later with the valid thread
-                    // information.
-                    continue;
-                }
-
-                echion.thread_info_map().emplace(tstate.thread_id, std::move(*maybe_thread_info));
+            auto it = echion.thread_info_map().find(tstate.thread_id);
+            if (it == echion.thread_info_map().end()) {
+                // We failed to find ThreadInfo for thread_id, maybe there's a
+                // race condition between this call and `register_thread()`.
+                continue;
             }
 
             // Update the tstate_addr for thread info, so we can access
             // asyncio_tasks_head field from `_PyThreadStateImpl` struct
             // later when we unwind tasks.
-            auto thread_info = echion.thread_info_map().find(tstate.thread_id)->second.get();
+            auto thread_info = it->second.get();
             thread_info->tstate_addr = reinterpret_cast<uintptr_t>(tstate_addr);
 
             // Call back with the copied thread state
