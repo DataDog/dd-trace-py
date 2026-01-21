@@ -43,6 +43,7 @@ class Sampler
     uint64_t sampler_thread_count = 0;
 
     bool do_adaptive_sampling = true;
+    bool do_exception_profiling = true;
     void adapt_sampling_interval();
 
   public:
@@ -70,6 +71,8 @@ class Sampler
     // self-time, and we're not currently accounting for the echion self-time.
     void set_interval(double new_interval);
     void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
+    void set_exception_profiling(bool value) { do_exception_profiling = value; }
+    bool exception_profiling_enabled() const { return do_exception_profiling; }
 
     // Delegates to the StackRenderer to clear its caches after fork
     void postfork_child();

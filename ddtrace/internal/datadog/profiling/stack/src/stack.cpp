@@ -218,6 +218,20 @@ stack_set_adaptive_sampling(PyObject* Py_UNUSED(self), PyObject* args)
 }
 
 static PyObject*
+stack_set_exception_profiling(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    int do_exception_profiling = true;
+
+    if (!PyArg_ParseTuple(args, "|p", &do_exception_profiling)) {
+        return NULL;
+    }
+
+    Sampler::get().set_exception_profiling(do_exception_profiling);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 track_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
 {
     uintptr_t greenlet_id; // map key
@@ -310,6 +324,7 @@ static PyMethodDef _stack_methods[] = {
     { "update_greenlet_frame", update_greenlet_frame, METH_VARARGS, "Update the frame of a greenlet" },
 
     { "set_adaptive_sampling", stack_set_adaptive_sampling, METH_VARARGS, "Set adaptive sampling" },
+    { "set_exception_profiling", stack_set_exception_profiling, METH_VARARGS, "Enable/disable exception profiling" },
     { NULL, NULL, 0, NULL }
 };
 

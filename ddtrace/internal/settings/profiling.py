@@ -352,12 +352,25 @@ class ProfilingConfigPytorch(DDConfig):
     )
 
 
+class ProfilingConfigException(DDConfig):
+    __item__ = __prefix__ = "exception"
+
+    enabled = DDConfig.v(
+        bool,
+        "enabled",
+        default=True,
+        help_type="Boolean",
+        help="Whether to enable the exception profiler",
+    )
+
+
 # Include all the sub-configs
 ProfilingConfig.include(ProfilingConfigStack, namespace="stack")
 ProfilingConfig.include(ProfilingConfigLock, namespace="lock")
 ProfilingConfig.include(ProfilingConfigMemory, namespace="memory")
 ProfilingConfig.include(ProfilingConfigHeap, namespace="heap")
 ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
+ProfilingConfig.include(ProfilingConfigException, namespace="exception")
 
 config = ProfilingConfig()
 report_configuration(config)
@@ -405,6 +418,8 @@ def config_str(config) -> str:
         configured_features.append("heap")
     if config.pytorch.enabled:
         configured_features.append("pytorch")
+    if config.exception.enabled:
+        configured_features.append("exception")
     configured_features.append("exp_dd")
     configured_features.append("CAP" + str(config.capture_pct))
     configured_features.append("MAXF" + str(config.max_frames))

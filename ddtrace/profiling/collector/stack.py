@@ -20,13 +20,20 @@ class StackCollector(collector.Collector):
     __slots__ = (
         "nframes",
         "tracer",
+        "exception_profiling",
     )
 
-    def __init__(self, nframes: typing.Optional[int] = None, tracer: typing.Optional[Tracer] = None):
+    def __init__(
+        self,
+        nframes: typing.Optional[int] = None,
+        tracer: typing.Optional[Tracer] = None,
+        exception_profiling: typing.Optional[bool] = None,
+    ):
         super().__init__()
 
         self.nframes = nframes if nframes is not None else config.max_frames
         self.tracer = tracer
+        self.exception_profiling = exception_profiling if exception_profiling is not None else config.exception.enabled
 
     def __repr__(self) -> str:
         class_name = self.__class__.__name__
@@ -47,6 +54,7 @@ class StackCollector(collector.Collector):
         # TODO take the `threading` import out of here and just handle it in v2 startup
         threading.init_stack()
         stack.set_adaptive_sampling(config.stack.adaptive_sampling)
+        stack.set_exception_profiling(self.exception_profiling)
         stack.start()
 
     def _start_service(self) -> None:
