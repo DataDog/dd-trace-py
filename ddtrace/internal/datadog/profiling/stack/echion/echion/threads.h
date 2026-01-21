@@ -353,8 +353,9 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
                 //       actually was on CPU when the Python Thread Stack was captured. One way to work around this
                 //       may be to look at every Task Stack and match it against the Thread Stack. This would be
                 //       somewhat costly though, and so far I have not seen a single instance of this race condition.
-                size_t frames_to_push =
-                  (python_stack.size() > task_stack_size) ? python_stack.size() - task_stack_size : 0;
+                size_t frames_to_push = (python_stack.size() > upper_python_stack_size + task_stack_size)
+                                          ? python_stack.size() - upper_python_stack_size - task_stack_size
+                                          : 0;
                 for (size_t i = 0; i < frames_to_push; i++) {
                     const auto& python_frame = python_stack[frames_to_push - i - 1];
                     stack.push_front(python_frame);
