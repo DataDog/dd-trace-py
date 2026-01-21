@@ -913,7 +913,7 @@ class LLMObs(Service):
         optimization_task: Callable[[str, str, str], Dict[str, str]],
         dataset: Dataset,
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
-        best_iteration_computation: Callable[[Dict[str, Dict[str, Any]]], float],
+        compute_score: Callable[[Dict[str, Dict[str, Any]]], float],
         project_name: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
         config: Optional[ConfigType] = None,
@@ -955,7 +955,7 @@ class LLMObs(Service):
                                    across all dataset records. Each function must accept:
                                    inputs (list), outputs (list), expected_outputs (list), evaluations (dict)
                                    and return a dict with aggregated metrics.
-        :param best_iteration_computation: Function to compute the score for each iteration (REQUIRED).
+        :param compute_score: Function to compute the score for each iteration (REQUIRED).
                                           Takes summary_evaluations dict and returns a float score.
                                           Used to determine which iteration performed best.
         :param stopping_condition: Optional function to determine when to stop optimization early.
@@ -1042,7 +1042,7 @@ class LLMObs(Service):
             evaluators=evaluators,
             project_name=project_name or cls._project_name,
             config=config,
-            best_iteration_computation=best_iteration_computation,
+            compute_score=compute_score,
             _llmobs_instance=cls._instance,
             tags=tags,
             max_iterations=max_iterations,
