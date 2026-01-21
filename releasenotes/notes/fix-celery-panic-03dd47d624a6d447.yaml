@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    celery: This fix resolves panics in the NativeWriter caused by celery clausing file descriptors when starting beat.
+    celery: This fix resolves panics in the NativeWriter caused by celery closing file descriptors when starting beat.
