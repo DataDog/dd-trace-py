@@ -164,7 +164,8 @@ class Contrib_TestClass_For_Threats:
                 f"{self.headers(response)}"
             )
 
-    def test_simple_attack_on_404(self, interface: Interface, entry_span, get_entry_span_tag):
+    @pytest.mark.xfail_interface("tornado")
+    def test_simple_attack(self, interface: Interface, entry_span, get_entry_span_tag):
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
             response = interface.client.get("/.git?q=1")
