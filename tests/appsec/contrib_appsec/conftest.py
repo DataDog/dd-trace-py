@@ -215,7 +215,6 @@ def printer(request):
 
     return printer
 
+
 def pytest_configure(config):
-    config.addinivalue_line(
-        "markers", "xfail_interface: mark test to be xfailed for the given interface"
-    )
+    config.addinivalue_line("markers", "xfail_interface: mark test to be xfailed for the given interface")

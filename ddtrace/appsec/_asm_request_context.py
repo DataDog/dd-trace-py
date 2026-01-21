@@ -736,3 +736,5 @@ def asm_listen():
 
     core.on("context.ended.django.traced_get_response", _on_context_ended)
     core.on("django.traced_get_response.pre", set_block_request_callable)
+
+    core.on("tornado.start_request", _call_waf_first)
