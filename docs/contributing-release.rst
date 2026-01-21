@@ -57,9 +57,10 @@ Ensure you have followed the prerequisite steps above.
 
 .. code-block:: bash
 
-    $ git checkout main
+    $ git checkout A.B  # previous release branch
     $ git pull
-    $ git checkout -b X.Y
+    $ git checkout -b X.Y  # new release branch
+    $ git merge main -Xtheirs
     $ git push -u origin X.Y
 
 2. If you're releasing an X.Y.0 version, update the ``version`` attribute in ``pyproject.toml`` to the ``dev``
