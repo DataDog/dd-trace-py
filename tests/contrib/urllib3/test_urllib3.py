@@ -3,7 +3,6 @@ import pytest
 import urllib3
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -33,7 +32,6 @@ class BaseUrllib3TestCase(TracerTestCase):
 
         patch()
         self.http = urllib3.PoolManager()
-        Pin._override(urllib3.connectionpool.HTTPConnectionPool, tracer=self.tracer)
 
     def tearDown(self):
         super(BaseUrllib3TestCase, self).tearDown()
