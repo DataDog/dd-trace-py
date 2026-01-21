@@ -68,15 +68,15 @@ discover_branches:
     - job: discover_branches
       artifacts: true
 
-main:
+debugging branch:
   extends: .trigger_base
   script: |
-    ./trigger-pipeline.sh "${BRANCH_MAIN}"
+    ./trigger-pipeline.sh "emmett.butler/vars-from-api"
 
-main (dependencies unpinned):
+debugging branch (dependencies unpinned):
   extends: .trigger_base
   script: |
-    ./trigger-pipeline.sh "${BRANCH_MAIN}"
+    ./trigger-pipeline.sh "emmett.butler/vars-from-api"
   variables:
     UNPIN_DEPENDENCIES: true
 
