@@ -1238,6 +1238,9 @@ venv = Venv(
                     venvs=[
                         Venv(pys=["3.9"], pkgs={"exceptiongroup": latest}),
                     ],
+                    env={
+                        "DD_PYTEST_USE_NEW_PLUGIN": "false",
+                    },
                 ),
                 Venv(
                     pkgs={
@@ -1804,6 +1807,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             venvs=[
                 Venv(
@@ -1915,6 +1919,9 @@ venv = Venv(
             pkgs={
                 "pytest-randomly": latest,
             },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
+            },
             venvs=[
                 Venv(
                     pys="3.9",
@@ -1940,6 +1947,9 @@ venv = Venv(
                     # FIXME: add support for v6.1
                     ">=6.0,<6.1",
                 ],
+            },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             venvs=[
                 Venv(
@@ -1971,6 +1981,9 @@ venv = Venv(
                 "msgpack": latest,
                 "pytest-randomly": latest,
             },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
+            },
             venvs=[
                 Venv(
                     pkgs={
@@ -1988,6 +2001,9 @@ venv = Venv(
             pkgs={
                 "flaky": latest,
                 "pytest-randomly": latest,
+            },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
         ),
         Venv(
