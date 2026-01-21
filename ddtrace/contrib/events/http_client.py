@@ -28,15 +28,25 @@ class HttpClientRequestEvent(ContextEvent):
     """HTTP client request event"""
 
     event_name = HttpClientEvents.HTTP_REQUEST.value
+    span_kind = SpanKind.CLIENT
 
-    def __new__(cls, req, config, url, query, target_host):
+    @classmethod
+    def get_default_tags(cls):
+        return {
+            COMPONENT: cls.component,
+            SPAN_KIND: cls.span_kind,
+        }
+
+    def __new__(cls, req, config, url, query, target_host, tags=None):
+        cls.component = config.integration_name
+
         return {
             "event_name": cls.event_name,
             "span_type": SpanTypes.HTTP,
             "span_name": schematize_url_operation("http.request", protocol="http", direction=SpanDirection.OUTBOUND),
             "call_trace": True,
             "request": req,
-            "tags": {COMPONENT: config.integration_name, SPAN_KIND: SpanKind.CLIENT},
+            "tags": cls.get_tags(tags),
             "config": config,
             "url": url,
             "query": query,

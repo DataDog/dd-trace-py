@@ -20,11 +20,23 @@ class BaseEvent:
 
 class ContextEvent:
     event_name: str
+    span_kind: str
+    component: str
+
     _start_span: bool = True
     _end_span: bool = True
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
+
+        required_attrs = [
+            attr
+            for attr in ContextEvent.__dict__
+            if not attr.startswith("_") and not callable(getattr(ContextEvent, attr, None))
+        ]
+        missing_attrs = [attr for attr in required_attrs if not hasattr(cls, attr)]
+        if missing_attrs:
+            raise TypeError(f"{cls.__name__} must define class attributes: {', '.join(missing_attrs)}")
 
         core.on(
             f"context.started.{cls.event_name}",
@@ -36,6 +48,22 @@ class ContextEvent:
             cls._registered_context_ended,
             name=f"{cls.__name__}_ended",
         )
+
+    @classmethod
+    def get_default_tags(cls):
+        """
+        Returns the default tags for this event type.
+        Subclasses should override this method to provide their own default tags.
+        """
+        return {}
+
+    @classmethod
+    def get_tags(cls, additional_tags=None):
+        """Merges default tags with additional instance-specific tags."""
+        tags = cls.get_default_tags()
+        if additional_tags:
+            tags.update(additional_tags)
+        return tags
 
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
