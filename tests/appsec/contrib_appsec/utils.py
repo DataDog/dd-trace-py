@@ -1553,7 +1553,6 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/")
             assert self.status(response) == 200
 
-    @pytest.mark.xfail_interface("tornado")
     def test_multiple_service_name(self, interface):
         import time
 
