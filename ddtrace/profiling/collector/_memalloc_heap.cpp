@@ -212,12 +212,6 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
     }
 
     std::unique_ptr<traceback_t> tb = std::move(node.mapped());
-    if (tb && !tb->reported) {
-        /* If the sample hasn't been reported yet, set heap size to zero and export it */
-        tb->sample.reset_heap();
-        tb->sample.export_sample();
-        tb->reported = true;
-    }
     pool_put_no_cpython(std::move(tb));
 }
 
@@ -266,13 +260,9 @@ heap_tracker_t::export_heap_no_cpython()
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
-    /* Iterate over live samples and mark them as reported */
+    /* Iterate over live samples and export them */
     for (const auto& [ptr, tb] : allocs_m) {
-        if (tb->reported) {
-            tb->sample.reset_alloc();
-        }
         tb->sample.export_sample();
-        tb->reported = true;
     }
 }
 
@@ -365,6 +355,14 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
     }
 
     auto tb = heap_tracker_t::instance->pool_get_invokes_cpython(size, allocated_memory_val, max_nframe);
+
+    // Export allocation sample right away to avoid holding it
+    tb->sample.export_sample();
+    // Reset the allocation data, keep heap data for tracking
+    tb->sample.reset_alloc();
+    // pool_get_invokes_copython() doesn't push heap data to sample to avoid
+    // pushing allocation data twice, we do it here
+    tb->sample.push_heap(size);
 
     // Check that instance is still valid after GIL release in constructor
     if (heap_tracker_t::instance) {

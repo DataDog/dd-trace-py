@@ -11,8 +11,6 @@
 class traceback_t
 {
   public:
-    /* True if this sample has been reported previously */
-    bool reported;
     /* Sample object storing the stacktrace */
     Datadog::Sample sample;
 
