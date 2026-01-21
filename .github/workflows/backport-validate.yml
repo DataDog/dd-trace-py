@@ -41,7 +41,7 @@ jobs:
           echo "branch: ${PR_BRANCH}" >> "$GITHUB_OUTPUT"
           echo "backport target branch: ${TARGET_BRANCH}" >> "$GITHUB_OUTPUT"
 
-          echo "`git merge ${TARGET_BRANCH}`" >> "$GITHUB_OUTPUT"
+          git merge origin/${TARGET_BRANCH} &> "$GITHUB_OUTPUT"
 
           echo "EOF" >> "$GITHUB_OUTPUT"
 
