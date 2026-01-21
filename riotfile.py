@@ -3260,7 +3260,7 @@ venv = Venv(
         ),
         Venv(
             name="llmobs",
-            command="pytest -p no:ddtrace {cmdargs} tests/llmobs",
+            command="pytest -p no:ddtrace tests/llmobs",
             pkgs={
                 "vcrpy": latest,
                 "pytest-asyncio": "==0.21.1",
