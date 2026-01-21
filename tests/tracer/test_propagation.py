@@ -374,7 +374,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
                     f"_rate_limit_always_on: {getattr(sampler, '_rate_limit_always_on', 'N/A')}, "
                     f"Sampler rules: {getattr(sampler, 'rules', 'N/A')}, "
                     f"Sampler _agent_based_samplers: {getattr(sampler, '_agent_based_samplers', 'N/A')}, "
-                    f"span._context._meta: {span._context._meta}, "
+                    f"span.context._meta: {span.context._meta}, "
                     f"span.context.sampling_priority: {span.context.sampling_priority}, "
                     f"span._metrics: {span._metrics}"
                 )
