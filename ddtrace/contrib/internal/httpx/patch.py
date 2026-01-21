@@ -10,15 +10,13 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_binary
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
@@ -91,19 +89,36 @@ async def _wrapped_async_send_single_request(
             ctx.set_item("response", resp)
 
 
+def httpx_url_to_str(url) -> str:
+    """
+    Helper to convert the httpx.URL parts from bytes to a str
+    """
+    scheme = url.raw_scheme
+    host = url.raw_host
+    port = url.port
+    raw_path = url.raw_path
+    url = scheme + b"://" + host
+    if port is not None:
+        url += b":" + ensure_binary(str(port))
+    url += raw_path
+
+    return ensure_text(url)
+
+
 async def _wrapped_async_send(
     wrapped: BoundFunctionWrapper, instance: httpx.AsyncClient, args: Tuple[httpx.Request], kwargs: Dict[str, Any]
 ):
-    req = get_argument_value(args, kwargs, 0, "request")
+    req: httpx.Request = get_argument_value(args, kwargs, 0, "request")  # type: ignore
 
-    with core.context_with_data(
-        "httpx.request",
-        call_trace=True,
-        span_name=schematize_url_operation("http.request", protocol="http", direction=SpanDirection.OUTBOUND),
-        span_type=SpanTypes.HTTP,
+    with core.context_with_event(
+        HttpClientRequestEvent(
+            req,
+            config.httpx,
+            url=httpx_url_to_str(req.url),
+            query=req.url.query,
+            target_host=req.url.host,
+        ),
         service=_get_service_name(req),
-        tags=HTTP_REQUEST_TAGS,
-        request=req,
     ) as ctx:
         resp = None
         try:
@@ -116,16 +131,17 @@ async def _wrapped_async_send(
 def _wrapped_sync_send(
     wrapped: BoundFunctionWrapper, instance: httpx.AsyncClient, args: Tuple[httpx.Request], kwargs: Dict[str, Any]
 ):
-    req = get_argument_value(args, kwargs, 0, "request")
+    req: httpx.Request = get_argument_value(args, kwargs, 0, "request")  # type: ignore
 
-    with core.context_with_data(
-        "httpx.request",
-        call_trace=True,
-        span_name=schematize_url_operation("http.request", protocol="http", direction=SpanDirection.OUTBOUND),
-        span_type=SpanTypes.HTTP,
+    with core.context_with_event(
+        HttpClientRequestEvent(
+            req,
+            config.httpx,
+            url=httpx_url_to_str(req.url),
+            query=req.url.query,
+            target_host=req.url.host,
+        ),
         service=_get_service_name(req),
-        tags=HTTP_REQUEST_TAGS,
-        request=req,
     ) as ctx:
         resp = None
         try:
