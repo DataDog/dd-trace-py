@@ -119,7 +119,9 @@ class heap_tracker_t
     static heap_tracker_t* instance;
 
     /* Traceback pool operations */
-    std::unique_ptr<traceback_t> pool_get_invokes_cpython(size_t size, size_t weighted_size, uint16_t max_nframe);
+    std::unique_ptr<traceback_t> pool_get_with_alloc_data_invokes_cpython(size_t size,
+                                                                          size_t weighted_size,
+                                                                          uint16_t max_nframe);
     void pool_put_no_cpython(std::unique_ptr<traceback_t> tb);
 
   private:
@@ -146,7 +148,7 @@ class heap_tracker_t
 // Pool implementation
 // _invokes_cpython suffix: calls traceback_t::reset() and constructor which invoke CPython APIs
 std::unique_ptr<traceback_t>
-heap_tracker_t::pool_get_invokes_cpython(size_t size, size_t weighted_size, uint16_t max_nframe)
+heap_tracker_t::pool_get_with_alloc_data_invokes_cpython(size_t size, size_t weighted_size, uint16_t max_nframe)
 {
     /* Try to get a traceback from the pool */
     if (!pool.empty()) {
@@ -258,8 +260,7 @@ heap_tracker_t::export_heap_no_cpython()
     memalloc_gil_debug_guard_t guard(gil_guard);
 
     /* Iterate over live samples and export them */
-    for (const auto& [ptr, tb] : allocs_m) {
-        (void)ptr; // Suppress unused variable warning
+    for (const auto& [[maybe_unused]] ptr, tb] : allocs_m) {
         tb->sample.export_sample();
     }
 }
@@ -352,14 +353,15 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
         return;
     }
 
-    auto tb = heap_tracker_t::instance->pool_get_invokes_cpython(size, allocated_memory_val, max_nframe);
+    auto tb =
+      heap_tracker_t::instance->pool_get_with_alloc_data_invokes_cpython(size, allocated_memory_val, max_nframe);
 
     // Export allocation sample right away to avoid holding it
     tb->sample.export_sample();
     // Reset the allocation data, keep heap data for tracking
     tb->sample.reset_alloc();
-    // pool_get_invokes_copython() doesn't push heap data to sample to avoid
-    // pushing allocation data twice, we do it here
+    // pool_get_with_alloc_data_invokes_cpython() creates sample with allocation data only (no heap data)
+    // to avoid double-pushing allocation data, we manually push heap data here
     // TODO(dsn): figure out if this actually makes sense, or if we should use the weighted size
     tb->sample.push_heap(size);
 
