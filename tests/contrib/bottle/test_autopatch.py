@@ -18,6 +18,9 @@ class TraceBottleTest(TracerTestCase):
         super().setUp()
         self.app = bottle.Bottle()
 
+    def tearDown(self):
+        super(TraceBottleTest, self).tearDown()
+
     def _trace_app(self):
         self.app = webtest.TestApp(self.app)
 
