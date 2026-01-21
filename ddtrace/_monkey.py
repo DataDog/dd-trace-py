@@ -36,6 +36,7 @@ PATCH_MODULES = {
     "aredis": True,
     "asyncio": True,
     "avro": True,
+    "aws_durable_execution_sdk_python": True,
     "boto": True,
     "botocore": True,
     "bottle": True,
