@@ -1,5 +1,6 @@
 from collections import deque
 
+from ddtrace.contrib import trace_utils
 from tornado.web import HTTPError
 
 from ddtrace import config
@@ -42,6 +43,37 @@ def execute(func, handler, args, kwargs):
             headers_case_sensitive=True,
         ) as ctx:
             req_span = ctx.span
+            request = handler.request
+            for key, value in request.__dict__.items():
+                if key.startswith("_"):
+                    continue
+                print(f"\n(> request attribute: {key}[{type(value)}] = {value}")
+
+            for key, value in handler.__dict__.items():
+                if key.startswith("_"):
+                    continue
+                print(f"\n|> handler attribute: {key}[{type(value)}] = {value}")
+
+            method = getattr(request, "method", "")
+            protocol = getattr(request, "protocol", "http")
+            host = getattr(request, "host", "")
+            uri = getattr(request, "uri", "")
+            full_url = f"{protocol}://{host}{uri}"
+            query_string = getattr(request, "query", "")
+            query_parameters = request.arguments if hasattr(request, "arguments") else getattr(request, "query_arguments", {})
+            headers = getattr(request, "headers", {})
+
+            trace_utils.set_http_meta(
+                req_span, config.tornado
+                method=method,
+                url=full_url,
+                query=query_string,
+                request_headers=headers,
+                raw_uri=full_url,
+                parsed_query=query_parameters,
+                peer_ip=request.remote_ip,
+                headers_are_case_sensitive=True,
+            )
 
             ctx.set_item("req_span", req_span)
             core.dispatch("web.request.start", (ctx, config.tornado))
