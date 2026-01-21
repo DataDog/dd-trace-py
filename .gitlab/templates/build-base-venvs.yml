@@ -19,7 +19,7 @@ build_base_venvs:
   script: |
     set -e -o pipefail
     echo "UNPIN_DEPENDENCIES: ${{UNPIN_DEPENDENCIES}}"
-    if [[ ${{UNPIN_DEPENDENCIES:-"false"}} == "true" ]]
+    if [[ "${{UNPIN_DEPENDENCIES:-"false"}}" == "true" ]]
     then
       python scripts/allow_prerelease_dependencies.py
       export PIP_PRE=true
