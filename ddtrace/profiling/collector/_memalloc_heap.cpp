@@ -260,7 +260,8 @@ heap_tracker_t::export_heap_no_cpython()
     memalloc_gil_debug_guard_t guard(gil_guard);
 
     /* Iterate over live samples and export them */
-    for (const auto& [[maybe_unused]] ptr, tb] : allocs_m) {
+    for (const auto& [ptr, tb] : allocs_m) {
+        (void)ptr; // Suppress unused variable warning
         tb->sample.export_sample();
     }
 }
