@@ -74,6 +74,8 @@ tests-gen:
 run-tests-trigger:
  stage: tests
  needs: [ tests-gen ]
+ variables:
+   UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
  # Allow the child job to fail if explicitly asked
  rules:
    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
@@ -417,7 +419,6 @@ lib_injection_tests:
   tags: [ "arch:amd64" ]
   image: ${PROFILING_NATIVE_IMAGE}
   timeout: 90m
-  allow_failure: true
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
     CARGO_BUILD_JOBS: "12"

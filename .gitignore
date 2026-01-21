@@ -153,6 +153,7 @@ pip_cache_shared_venvs/
 
 # Claude
 CLAUDE.local.md
+.claude/settings.local.json
 
 # Riot
 .riot/venv*
