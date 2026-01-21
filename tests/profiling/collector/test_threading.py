@@ -547,6 +547,8 @@ def test_safe_for_instrumentation_decorator_handles_shallow_stack() -> None:
         end = time.monotonic_ns()
         profiled_lock._flush_sample(start, end, is_acquire=False)
 
+    ddup.upload()
+
 
 def test_profiled_lock_init_handles_shallow_stack() -> None:
     """
@@ -573,6 +575,8 @@ def test_profiled_lock_init_handles_shallow_stack() -> None:
     assert profiled_lock.acquire()
     profiled_lock.release()
     assert profiled_lock.init_location == "unknown:0"
+
+    ddup.upload()
 
 
 def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
