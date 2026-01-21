@@ -219,6 +219,20 @@ stack_set_adaptive_sampling(PyObject* Py_UNUSED(self), PyObject* args)
 }
 
 static PyObject*
+stack_set_uvloop_mode(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    int uvloop_mode = false;
+
+    if (!PyArg_ParseTuple(args, "|p", &uvloop_mode)) {
+        return NULL;
+    }
+
+    Sampler::get().set_uvloop_mode(uvloop_mode);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 track_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
 {
     uintptr_t greenlet_id; // map key
@@ -312,6 +326,7 @@ static PyMethodDef _stack_methods[] = {
     { "update_greenlet_frame", update_greenlet_frame, METH_VARARGS, "Update the frame of a greenlet" },
 
     { "set_adaptive_sampling", stack_set_adaptive_sampling, METH_VARARGS, "Set adaptive sampling" },
+    { "set_uvloop_mode", stack_set_uvloop_mode, METH_VARARGS, "Enable uvloop-specific stack unwinding" },
     { NULL, NULL, 0, NULL }
 };
 

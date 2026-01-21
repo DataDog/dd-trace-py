@@ -28,10 +28,6 @@
 #include <opcode.h>
 #endif // PY_VERSION_HEX >= 0x30b0000
 
-#include <mutex>
-#include <unordered_map>
-#include <vector>
-
 #include <echion/config.h>
 #include <echion/errors.h>
 #include <echion/frame.h>
@@ -42,6 +38,8 @@
 #include <echion/timing.h>
 
 #include <echion/cpython/tasks.h>
+
+class EchionSampler;
 
 // Max number of recursive calls GenInfo::GenInfo and TaskInfo::TaskInfo can do
 // before raising an error.
@@ -139,3 +137,10 @@ class TaskInfo
 
     size_t unwind(EchionSampler& echion, FrameStack&);
 };
+
+// Checks whether a Frame is the uvloop.run coroutine wrapper.
+// When uvloop.run is used, the top-level Task contains a wrapper coroutine
+// named "run.<locals>.wrapper" that just validates the loop type and awaits the user's main
+// coroutine. We skip this frame to keep the stack clean and consistent with regular asyncio.
+bool
+is_uvloop_wrapper_frame(const EchionSampler& echion, const Frame& frame);

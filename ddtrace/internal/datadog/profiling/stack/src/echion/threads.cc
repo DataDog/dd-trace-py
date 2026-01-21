@@ -1,3 +1,5 @@
+#include <echion/state.h>
+#include <echion/tasks.h>
 #include <echion/threads.h>
 
 #include <echion/echion_sampler.h>
@@ -27,37 +29,64 @@ Result<void>
 ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
 {
     // The size of the "pure Python" stack (before asyncio Frames).
-    // Defaults to the full Python stack size (and updated if we find the "_run" Frame)
+    // Defaults to the full Python stack size (and updated if we find the boundary frame)
     size_t upper_python_stack_size = python_stack.size();
 
-    // Check if the Python stack contains "_run".
+    // Check if the Python stack contains the asyncio boundary frame.
+    // For regular asyncio, this is "Handle._run" from asyncio/events.py.
+    // For uvloop, this is "Runner.run" from asyncio/runners.py (uvloop uses asyncio.Runner internally).
     // To avoid having to do string comparisons every time we unwind Tasks, we keep track
-    // of the cache key of the "_run" Frame.
-    auto& frame_cache_key = echion.frame_cache_key();
+    // of the cache key of the boundary frame.
+
+    // Note: We use separate cache keys for asyncio and uvloop because switching between them
+    // (though unlikely at runtime) would cause incorrect boundary detection otherwise.
+    auto& asyncio_frame_cache_key = echion.asyncio_frame_cache_key();
+    auto& uvloop_frame_cache_key = echion.uvloop_frame_cache_key();
+
+    auto& frame_cache_key = echion.using_uvloop() ? uvloop_frame_cache_key : asyncio_frame_cache_key;
+
     if (!frame_cache_key) {
         for (size_t i = 0; i < python_stack.size(); i++) {
             const auto& frame = python_stack[i].get();
             const auto& frame_name = echion.string_table().lookup(frame.name)->get();
 
+            bool is_boundary_frame = false;
+
+            if (echion.using_uvloop()) {
+                // For uvloop, the boundary frame is Runner.run from asyncio/runners.py
 #if PY_VERSION_HEX >= 0x030b0000
-            // After Python 3.11, function names in Frames are qualified with e.g. the class name, so we
-            // can use the qualified name to identify the "_run" Frame.
-            constexpr std::string_view _run = "Handle._run";
-            auto is_run_frame = frame_name == _run;
+                constexpr std::string_view runner_run = "Runner.run";
+                is_boundary_frame = frame_name == runner_run;
 #else
-            // Before Python 3.11, function names in Frames are not qualified, so we
-            // can use the filename to identify the "_run" Frame.
-            constexpr std::string_view asyncio_runners_py = "asyncio/events.py";
-            constexpr std::string_view _run = "_run";
-            auto filename = echion.string_table().lookup(frame.filename)->get();
-            auto is_asyncio = filename.rfind(asyncio_runners_py) == filename.size() - asyncio_runners_py.size();
-            auto is_run_frame = is_asyncio && (frame_name.rfind(_run) == frame_name.size() - _run.size());
+                constexpr std::string_view asyncio_runners_py = "asyncio/runners.py";
+                constexpr std::string_view run = "run";
+                auto filename = echion.string_table().lookup(frame.filename)->get();
+                auto is_asyncio = filename.rfind(asyncio_runners_py) == filename.size() - asyncio_runners_py.size();
+                is_boundary_frame = is_asyncio && (frame_name == run);
 #endif
-            if (is_run_frame) {
+            } else {
+                // For regular asyncio, the boundary frame is Handle._run from asyncio/events.py
+#if PY_VERSION_HEX >= 0x030b0000
+                // After Python 3.11, function names in Frames are qualified with e.g. the class name, so we
+                // can use the qualified name to identify the "_run" Frame.
+                constexpr std::string_view _run = "Handle._run";
+                is_boundary_frame = frame_name == _run;
+#else
+                // Before Python 3.11, function names in Frames are not qualified, so we
+                // can use the filename to identify the "_run" Frame.
+                constexpr std::string_view asyncio_events_py = "asyncio/events.py";
+                constexpr std::string_view _run = "_run";
+                auto filename = echion.string_table().lookup(frame.filename)->get();
+                auto is_asyncio = filename.rfind(asyncio_events_py) == filename.size() - asyncio_events_py.size();
+                is_boundary_frame = is_asyncio && (frame_name.rfind(_run) == frame_name.size() - _run.size());
+#endif
+            }
+
+            if (is_boundary_frame) {
                 // Although Frames are stored in an LRUCache, the cache key is ALWAYS the same
                 // even if the Frame gets evicted from the cache.
                 // This means we can keep the cache key and re-use it to determine
-                // whether we see the "_run" Frame in the Python stack.
+                // whether we see the boundary Frame in the Python stack.
                 frame_cache_key = frame.cache_key;
                 upper_python_stack_size = python_stack.size() - i;
                 break;
@@ -200,6 +229,11 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
                                           : 0;
                 for (size_t i = 0; i < frames_to_push; i++) {
                     const auto& python_frame = python_stack[frames_to_push - i - 1];
+
+                    // Skip the uvloop wrapper frame if present in the Python stack
+                    if (echion.using_uvloop() && is_uvloop_wrapper_frame(echion, python_frame.get())) {
+                        continue;
+                    }
                     stack.push_front(python_frame);
                 }
             }

@@ -36,8 +36,14 @@ class EchionSampler
     PyObject* asyncio_scheduled_tasks_ = nullptr;
     PyObject* asyncio_eager_tasks_ = nullptr;
 
+    // Flag to indicate that uvloop is in use.
+    // When true, the stack unwinding logic uses Runner.run as the boundary frame
+    // instead of Handle._run, and skips the uvloop wrapper frame.
+    bool using_uvloop_ = false;
+
     // Task unwinding state
-    std::optional<Frame::Key> frame_cache_key_;
+    std::optional<Frame::Key> asyncio_frame_cache_key_;
+    std::optional<Frame::Key> uvloop_frame_cache_key_;
     std::unordered_set<PyObject*> previous_task_objects_;
 
     // Caches
@@ -71,13 +77,17 @@ class EchionSampler
     PyObject* asyncio_scheduled_tasks() const { return asyncio_scheduled_tasks_; }
     PyObject* asyncio_eager_tasks() const { return asyncio_eager_tasks_; }
 
+    bool using_uvloop() const { return using_uvloop_; }
+    void set_using_uvloop(bool value) { using_uvloop_ = value; }
+
     void init_asyncio(PyObject* scheduled_tasks, PyObject* eager_tasks)
     {
         asyncio_scheduled_tasks_ = scheduled_tasks;
         asyncio_eager_tasks_ = (eager_tasks != Py_None) ? eager_tasks : nullptr;
     }
 
-    std::optional<Frame::Key>& frame_cache_key() { return frame_cache_key_; }
+    std::optional<Frame::Key>& asyncio_frame_cache_key() { return asyncio_frame_cache_key_; }
+    std::optional<Frame::Key>& uvloop_frame_cache_key() { return uvloop_frame_cache_key_; }
     std::unordered_set<PyObject*>& previous_task_objects() { return previous_task_objects_; }
 
     // Accessor for StringTable operations

@@ -76,6 +76,7 @@ class Sampler
     // self-time, and we're not currently accounting for the echion self-time.
     void set_interval(double new_interval);
     void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
+    void set_uvloop_mode(bool value);
 
     // Delegates to the StackRenderer to clear its caches after fork
     void postfork_child();

@@ -1,8 +1,10 @@
+#include <echion/echion_sampler.h>
 #include <echion/tasks.h>
 
 #include <echion/echion_sampler.h>
 
 #include <stack>
+#include <vector>
 
 Result<GenInfo::Ptr>
 GenInfo::create(PyObject* gen_addr)
@@ -132,6 +134,32 @@ TaskInfo::create(EchionSampler& echion, TaskObj* task_addr)
       reinterpret_cast<PyObject*>(task_addr), loop, std::move(*maybe_coro), name, std::move(waiter));
 }
 
+// When uvloop.run() is used, the top-level Task contains a wrapper coroutine
+// named "run.<locals>.wrapper" that just validates the loop type and awaits the user's main
+// coroutine. We skip this frame to keep the stack clean and consistent with regular asyncio.
+bool
+is_uvloop_wrapper_frame(const EchionSampler& echion, const Frame& frame)
+{
+    if (!echion.using_uvloop()) {
+        return false;
+    }
+
+    const auto& frame_name = string_table.lookup(frame.name)->get();
+
+#if PY_VERSION_HEX >= 0x030b0000
+    // Python 3.11+: qualified name includes the enclosing function
+    constexpr std::string_view wrapper_name = "run.<locals>.wrapper";
+    return frame_name == wrapper_name;
+#else
+    // Python < 3.11: just check for "wrapper" in uvloop/__init__.py
+    constexpr std::string_view uvloop_init_py = "uvloop/__init__.py";
+    constexpr std::string_view wrapper = "wrapper";
+    auto filename = string_table.lookup(frame.filename)->get();
+    auto is_uvloop = filename.rfind(uvloop_init_py) == filename.size() - uvloop_init_py.size();
+    return is_uvloop && (frame_name == wrapper);
+#endif
+}
+
 size_t
 TaskInfo::unwind(EchionSampler& echion, FrameStack& stack)
 {
@@ -167,6 +195,13 @@ TaskInfo::unwind(EchionSampler& echion, FrameStack& stack)
         if (new_frames == 0) {
             break;
         }
+
+        // Skip the uvloop wrapper frame if present (only at the outermost level of the top-level Task)
+        if (!stack.empty() && is_uvloop_wrapper_frame(echion, stack.back().get())) {
+            stack.pop_back();
+            continue;
+        }
+
         count += 1;
     }
 

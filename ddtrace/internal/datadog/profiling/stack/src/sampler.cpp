@@ -479,3 +479,9 @@ Sampler::update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame)
         entry->second->frame = frame;
     }
 }
+
+void
+Sampler::set_uvloop_mode(bool value)
+{
+    echion->set_using_uvloop(value);
+}
