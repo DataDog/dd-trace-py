@@ -517,7 +517,7 @@ integrations:
   tested_versions_by_dependency:
     litellm:
       min: 1.65.4
-      max: 1.65.4
+      max: 1.80.16
 
 - integration_name: logbook
   is_external_package: true
