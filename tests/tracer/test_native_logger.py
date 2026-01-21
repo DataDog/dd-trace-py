@@ -93,11 +93,16 @@ def test_logger_subprocess(
     backend, configured_level, message_level, should_log, tmp_path, ddtrace_run_python_code_in_subprocess
 ):
     log_path = tmp_path / f"{backend}_{configured_level}_{message_level}.log"
+    # Use absolute path to avoid subprocess working directory issues
+    log_path_abs = str(log_path.resolve())
+    # Ensure parent directory exists (tmp_path fixture should guarantee this)
+    if not tmp_path.exists():
+        tmp_path.mkdir(parents=True, exist_ok=True)
 
     env = os.environ.copy()
     env["_DD_TRACE_WRITER_NATIVE"] = "1"
     env["_DD_NATIVE_LOGGING_BACKEND"] = backend
-    env["_DD_NATIVE_LOGGING_FILE_PATH"] = log_path
+    env["_DD_NATIVE_LOGGING_FILE_PATH"] = log_path_abs
     env["_DD_NATIVE_LOGGING_LOG_LEVEL"] = configured_level
 
     message = f"msg_{uuid.uuid4().hex}"
