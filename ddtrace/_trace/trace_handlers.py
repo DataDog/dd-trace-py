@@ -141,7 +141,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
     call_trace = ctx.get_item("call_trace", call_trace)
     # Look for the tracer in the context, or fallback to the global tracer
-    tracer = ctx.get_item("tracer") or (ctx.get_item("middleware") or ctx.get_item("pin") or ddtrace).tracer
+    tracer = ddtrace.trace.tracer
     integration_config = ctx.get_item("integration_config")
     if integration_config and activate_distributed_headers:
         trace_utils.activate_distributed_headers(
@@ -306,7 +306,7 @@ def _on_inferred_proxy_finish(ctx):
 
 
 def _on_traced_request_context_started_flask(ctx):
-    current_span = ctx.get_item("pin").tracer.current_span()
+    current_span = ddtrace.tracer.current_span()
     if not ctx.get_item("pin").enabled or not current_span:
         return
 
@@ -773,7 +773,7 @@ def _on_end_of_traced_method_in_fork(ctx):
     """Force flush to agent since the process `os.exit()`s
     immediately after this method returns
     """
-    ctx.get_item("pin").tracer.flush()
+    ddtrace.tracer.flush()
 
 
 def _on_botocore_bedrock_process_response_converse(

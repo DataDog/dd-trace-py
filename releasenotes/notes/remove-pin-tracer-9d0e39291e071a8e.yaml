@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    tracing: Removes ``tracer`` property from ``from ddtrace._trace.pin.Pin`` class. Use ``ddtrace.trace.tracer`` instead.
