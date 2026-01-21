@@ -11,6 +11,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.kafka.events import KafkaMessagingProduceEvent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import kafka as kafkax
@@ -18,11 +19,11 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
 from ddtrace.internal.constants import MESSAGING_SYSTEM
+from ddtrace.internal.datastreams.kafka import KafkaDsmProduceEvent
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -163,59 +164,36 @@ def unpatch():
 
 
 def traced_produce(func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
-        return func(*args, **kwargs)
-
     topic = get_argument_value(args, kwargs, 0, "topic") or ""
-    core.set_item("kafka_topic", topic)
-    try:
-        value = get_argument_value(args, kwargs, 1, "value")
-    except ArgumentError:
-        value = None
-    message_key = kwargs.get("key", "") or ""
-    partition = kwargs.get("partition", -1)
     headers = get_argument_value(args, kwargs, 6, "headers", optional=True) or {}
-    with pin.tracer.trace(
-        schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
-        service=trace_utils.ext_service(pin, config.kafka),
-        span_type=SpanTypes.WORKER,
-    ) as span:
-        cluster_id = _get_cluster_id(instance, topic)
-        core.set_item("kafka_cluster_id", cluster_id)
-        if cluster_id:
-            span._set_tag_str(kafkax.CLUSTER_ID, cluster_id)
+    message_key = kwargs.get("key", "") or ""
 
-        core.dispatch("kafka.produce.start", (instance, args, kwargs, isinstance(instance, _SerializingProducer), span))
+    if _SerializingProducer is not None and isinstance(instance, _SerializingProducer):
+        serialized_key = serialize_key(instance, topic, message_key, headers)
+        if serialized_key is not None:
+            message_key = serialized_key
 
-        span._set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
-        span._set_tag_str(COMPONENT, config.kafka.integration_name)
-        span._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
-        span._set_tag_str(kafkax.TOPIC, topic)
-        if topic:
-            # Should fall back to broker id if topic is not provided but it is not readily available here
-            span._set_tag_str(MESSAGING_DESTINATION_NAME, topic)
+    with core.context_with_event(
+        KafkaMessagingProduceEvent(
+            config=config.kafka,
+            operation=kafkax.PRODUCE,
+            provider="kafka",
+            topic=topic,
+            bootstrap_servers=instance._dd_bootstrap_servers,
+            messaging_system=kafkax.SERVICE,
+            cluster_id=_get_cluster_id(instance, topic),
+            message_key=message_key,
+            value=get_argument_value(args, kwargs, 1, "value", True),
+            partition=kwargs.get("partition", -1),
+            headers=headers,
+        ),
+        service=trace_utils.ext_service(None, config.kafka),
+    ) as ctx:
+        args, kwargs = set_argument_value(args, kwargs, 6, "headers", headers, override_unset=True)
+        core.dispatch_event(
+            KafkaDsmProduceEvent(), instance, args, kwargs, isinstance(instance, _SerializingProducer), ctx.span
+        )
 
-        if _SerializingProducer is not None and isinstance(instance, _SerializingProducer):
-            serialized_key = serialize_key(instance, topic, message_key, headers)
-            if serialized_key is not None:
-                span._set_tag_str(kafkax.MESSAGE_KEY, serialized_key)
-        else:
-            span._set_tag_str(kafkax.MESSAGE_KEY, message_key)
-
-        span.set_tag(kafkax.PARTITION, partition)
-        span._set_tag_str(kafkax.TOMBSTONE, str(value is None))
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
-        if instance._dd_bootstrap_servers is not None:
-            span._set_tag_str(kafkax.HOST_LIST, instance._dd_bootstrap_servers)
-
-        # inject headers with Datadog tags if trace propagation is enabled
-        if config.kafka.distributed_tracing_enabled:
-            # inject headers with Datadog tags:
-            headers = get_argument_value(args, kwargs, 6, "headers", True) or {}
-            Propagator.inject(span.context, headers)
-            args, kwargs = set_argument_value(args, kwargs, 6, "headers", headers, override_unset=True)
         return func(*args, **kwargs)
 
 

@@ -4,6 +4,7 @@ from confluent_kafka import TopicPartition
 
 from ddtrace import config
 from ddtrace.internal import core
+from ddtrace.internal.core.events import BaseEvent
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
 from ddtrace.internal.logger import get_logger
@@ -22,59 +23,66 @@ disable_header_injection = False
 log = get_logger(__name__)
 
 
-def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
-    from . import data_streams_processor as processor
+class KafkaDsmProduceEvent(BaseEvent):
+    event_name = "kafka.produce.start"
 
-    topic = core.find_item("kafka_topic")
-    cluster_id = core.find_item("kafka_cluster_id")
-    message = get_argument_value(args, kwargs, MESSAGE_ARG_POSITION, "value", optional=True)
-    key = get_argument_value(args, kwargs, KEY_ARG_POSITION, KEY_KWARG_NAME, optional=True)
-    headers = kwargs.get("headers", {})
+    def __init__(self):
+        if config._data_streams_enabled:
+            super().__init__()
 
-    payload_size = 0
-    payload_size += _calculate_byte_size(message)
-    payload_size += _calculate_byte_size(key)
-    payload_size += _calculate_byte_size(headers)
+    def on_event(self, instance, args, kwargs, is_serializing, span):
+        from . import data_streams_processor as processor
 
-    edge_tags = ["direction:out", "topic:" + topic, "type:kafka"]
-    if cluster_id:
-        edge_tags.append("kafka_cluster_id:" + str(cluster_id))
+        topic = core.find_item("kafka_topic")
+        cluster_id = core.find_item("kafka_cluster_id")
+        message = get_argument_value(args, kwargs, MESSAGE_ARG_POSITION, "value", optional=True)
+        key = get_argument_value(args, kwargs, KEY_ARG_POSITION, KEY_KWARG_NAME, optional=True)
+        headers = kwargs.get("headers", {})
 
-    ctx = processor().set_checkpoint(edge_tags, payload_size=payload_size, span=span)
-    if not disable_header_injection:
-        DsmPathwayCodec.encode(ctx, headers)
-        kwargs["headers"] = headers
+        payload_size = 0
+        payload_size += _calculate_byte_size(message)
+        payload_size += _calculate_byte_size(key)
+        payload_size += _calculate_byte_size(headers)
 
-    on_delivery_kwarg = "on_delivery"
-    on_delivery_arg = 5
-    on_delivery = None
-    try:
-        on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg)
-    except ArgumentError:
-        if not is_serializing:
-            on_delivery_kwarg = "callback"
-            on_delivery_arg = 4
-            on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg, optional=True)
+        edge_tags = ["direction:out", "topic:" + topic, "type:kafka"]
+        if cluster_id:
+            edge_tags.append("kafka_cluster_id:" + str(cluster_id))
 
-    def wrapped_callback(err, msg):
-        global disable_header_injection
-        if err is None:
-            reported_offset = msg.offset() if isinstance(msg.offset(), INT_TYPES) else -1
-            processor().track_kafka_produce(msg.topic(), msg.partition(), reported_offset, time.time())
-        elif err.code() == -1 and not disable_header_injection:
-            disable_header_injection = True
-            log.error(
-                "Kafka Broker responded with UNKNOWN_SERVER_ERROR (-1). Please look at broker logs for more "
-                "information. Tracer message header injection for Kafka is disabled."
-            )
-        if on_delivery is not None:
-            on_delivery(err, msg)
+        ctx = processor().set_checkpoint(edge_tags, payload_size=payload_size, span=span)
+        if not disable_header_injection:
+            DsmPathwayCodec.encode(ctx, headers)
+            kwargs["headers"] = headers
 
-    try:
-        args, kwargs = set_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg, wrapped_callback)
-    except ArgumentError:
-        # we set the callback even if it's not set by the client, to track produce calls correctly.
-        kwargs[on_delivery_kwarg] = wrapped_callback
+        on_delivery_kwarg = "on_delivery"
+        on_delivery_arg = 5
+        on_delivery = None
+        try:
+            on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg)
+        except ArgumentError:
+            if not is_serializing:
+                on_delivery_kwarg = "callback"
+                on_delivery_arg = 4
+                on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg, optional=True)
+
+        def wrapped_callback(err, msg):
+            global disable_header_injection
+            if err is None:
+                reported_offset = msg.offset() if isinstance(msg.offset(), INT_TYPES) else -1
+                processor().track_kafka_produce(msg.topic(), msg.partition(), reported_offset, time.time())
+            elif err.code() == -1 and not disable_header_injection:
+                disable_header_injection = True
+                log.error(
+                    "Kafka Broker responded with UNKNOWN_SERVER_ERROR (-1). Please look at broker logs for more "
+                    "information. Tracer message header injection for Kafka is disabled."
+                )
+            if on_delivery is not None:
+                on_delivery(err, msg)
+
+        try:
+            args, kwargs = set_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg, wrapped_callback)
+        except ArgumentError:
+            # we set the callback even if it's not set by the client, to track produce calls correctly.
+            kwargs[on_delivery_kwarg] = wrapped_callback
 
 
 def dsm_kafka_message_consume(instance, message, span):
@@ -135,6 +143,5 @@ def dsm_kafka_message_commit(instance, args, kwargs):
 
 
 if config._data_streams_enabled:
-    core.on("kafka.produce.start", dsm_kafka_message_produce)
     core.on("kafka.consume.start", dsm_kafka_message_consume)
     core.on("kafka.commit.start", dsm_kafka_message_commit)
