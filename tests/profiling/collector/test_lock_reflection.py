@@ -108,8 +108,21 @@ ASYNCIO_LOCK_CONFIGS: List[Tuple[Type[Any], Type[Any], str]] = [
 
 
 def get_public_methods(obj: Any) -> Set[str]:
-    """Get all public method names of an object."""
+    """Get all public method names of an object.
+
+    Note: This only finds methods visible in dir(). Methods delegated via
+    __getattr__ won't appear here but are still accessible.
+    """
     return {name for name in dir(obj) if not name.startswith("_") and callable(getattr(obj, name, None))}
+
+
+def check_method_accessible(obj: Any, method_name: str) -> bool:
+    """Check if a method is accessible on an object (even if via __getattr__)."""
+    try:
+        method = getattr(obj, method_name)
+        return callable(method)
+    except AttributeError:
+        return False
 
 
 def get_dunder_methods(cls: Type[Any]) -> Set[str]:
@@ -271,7 +284,11 @@ class TestProfiledLockInterface:
     def test_profiled_lock_has_all_public_methods(
         self, lock_class: Type[Any], collector_class: Type[Any], name: str
     ) -> None:
-        """Verify wrapped lock exposes all public methods of the original."""
+        """Verify wrapped lock exposes all public methods of the original.
+
+        Note: Methods may be delegated via __getattr__ and not appear in dir(),
+        but they should still be accessible via getattr().
+        """
         init_ddup(f"test_public_methods_{name}")
 
         # Get methods from unwrapped instance
@@ -281,13 +298,15 @@ class TestProfiledLockInterface:
         with collector_class(capture_pct=100):
             wrapped_class = getattr(threading, name)
             wrapped_instance = wrapped_class()
-            wrapped_methods = get_public_methods(wrapped_instance)
 
-            # All original methods should be available on wrapped instance
-            missing_methods = original_methods - wrapped_methods
-            assert not missing_methods, (
-                f"Wrapped {name} missing methods: {missing_methods}. "
-                f"Original has: {sorted(original_methods)}, wrapped has: {sorted(wrapped_methods)}"
+            # All original methods should be ACCESSIBLE on wrapped instance
+            # (even if delegated via __getattr__ and not in dir())
+            inaccessible_methods = {
+                method for method in original_methods if not check_method_accessible(wrapped_instance, method)
+            }
+            assert not inaccessible_methods, (
+                f"Wrapped {name} has inaccessible methods: {inaccessible_methods}. "
+                f"Original has: {sorted(original_methods)}"
             )
 
     @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
@@ -483,20 +502,16 @@ class TestBehavioralEquivalence:
 
             lock.release()
 
-    @pytest.mark.parametrize(
-        "lock_class,collector_class,name",
-        [
-            (threading.Lock, ThreadingLockCollector, "Lock"),
-            (threading.RLock, ThreadingRLockCollector, "RLock"),
-        ],
-    )
-    def test_locked_method(self, lock_class: Type[Any], collector_class: Type[Any], name: str) -> None:
-        """Verify locked() method works correctly."""
-        init_ddup(f"test_locked_{name}")
+    def test_locked_method(self) -> None:
+        """Verify locked() method works correctly.
 
-        with collector_class(capture_pct=100):
-            wrapped_class = getattr(threading, name)
-            lock = wrapped_class()
+        Note: Only threading.Lock has a locked() method. RLock doesn't have it
+        in Python < 3.13, and Semaphore/Condition don't have it at all.
+        """
+        init_ddup("test_locked_Lock")
+
+        with ThreadingLockCollector(capture_pct=100):
+            lock = threading.Lock()
 
             assert not lock.locked()
             lock.acquire()
