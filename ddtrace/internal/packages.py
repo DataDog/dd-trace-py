@@ -52,16 +52,14 @@ def _get_site_packages() -> t.List[Path]:
     except Exception:  # nosec
         pass
 
-    # Add paths from sys.path that look like site-packages
+    # Add paths from sys.path that end with "site-packages" directory name only
+    # This matches importlib.metadata.distributions() behavior which scans sys.path
+    # but we're more conservative by only including directories named "site-packages"
     for path_str in sys.path:
         if not path_str:
             continue
         path = Path(path_str)
-        if (
-            path.exists()
-            and (path.name == "site-packages" or "site-packages" in str(path))
-            and path not in site_packages
-        ):
+        if path.exists() and path.name == "site-packages" and path not in site_packages:
             site_packages.append(path)
 
     _OPTIMIZED_CACHE["site_packages"] = site_packages
@@ -85,25 +83,54 @@ def _parse_metadata_fast(metadata_content: str) -> t.Tuple[t.Optional[str], t.Op
 
 
 def _find_distributions_optimized() -> t.Iterator[t.Tuple[str, str, Path]]:
-    """Find all .dist-info and .egg-info directories and extract package info."""
-    for site_pkg in _get_site_packages():
-        if not site_pkg.exists():
-            continue
+    """Find all .dist-info and .egg-info directories using importlib.metadata for discovery."""
+    import importlib.metadata as importlib_metadata
 
-        try:
-            for item in site_pkg.iterdir():
-                if not item.is_dir():
+    # Use importlib.metadata for discovery to ensure we match its behavior exactly
+    # This avoids issues with finding packages that aren't in the working set
+    try:
+        for dist in importlib_metadata.distributions():
+            # Get the distribution path
+            if hasattr(dist, "_path"):
+                dist_path = Path(dist._path)
+            elif hasattr(dist, "locate_file"):
+                # Try to get the path from locate_file
+                try:
+                    located = dist.locate_file("")
+                    if located:
+                        dist_path = Path(str(located))
+                    else:
+                        continue
+                except Exception:
                     continue
+            else:
+                continue
 
-                # Check for .dist-info or .egg-info
-                match = _DIST_INFO_PATTERN.match(item.name)
-                if match:
-                    name, version, _ = match.groups()
-                    yield name, version, item
+            # Extract name and version from the directory name
+            match = _DIST_INFO_PATTERN.match(dist_path.name)
+            if match:
+                name, version, _ = match.groups()
+                yield name, version, dist_path
+    except Exception:
+        # Fallback to filesystem scanning if importlib.metadata fails
+        for site_pkg in _get_site_packages():
+            if not site_pkg.exists():
+                continue
 
-        except (PermissionError, OSError):
-            # Skip directories we can't read
-            continue
+            try:
+                for item in site_pkg.iterdir():
+                    if not item.is_dir():
+                        continue
+
+                    # Check for .dist-info or .egg-info
+                    match = _DIST_INFO_PATTERN.match(item.name)
+                    if match:
+                        name, version, _ = match.groups()
+                        yield name, version, item
+
+            except (PermissionError, OSError):
+                # Skip directories we can't read
+                continue
 
 
 def _optimized_get_distributions() -> t.Dict[str, str]:
@@ -112,6 +139,23 @@ def _optimized_get_distributions() -> t.Dict[str, str]:
         return _OPTIMIZED_CACHE["distributions"]
 
     distributions = {}
+
+    # Get pkg_resources working set to filter out packages that aren't actually in the working set
+    # This prevents finding transitive dependencies that aren't importable
+    try:
+        import pkg_resources
+
+        # Normalize names: pkg_resources uses both hyphens and underscores, so store both forms
+        working_set_names = set()
+        for pkg in pkg_resources.working_set:
+            name_lower = pkg.project_name.lower()
+            working_set_names.add(name_lower)
+            # Also add normalized forms (replace - with _ and vice versa)
+            working_set_names.add(name_lower.replace("-", "_"))
+            working_set_names.add(name_lower.replace("_", "-"))
+    except Exception:
+        # If pkg_resources fails, don't filter
+        working_set_names = None
 
     for name, version, dist_path in _find_distributions_optimized():
         # Verify by reading METADATA if available
@@ -125,14 +169,18 @@ def _optimized_get_distributions() -> t.Dict[str, str]:
                     content = f.read()
                 parsed_name, parsed_version = _parse_metadata_fast(content)
                 if parsed_name and parsed_version:
-                    distributions[parsed_name.lower()] = parsed_version
+                    # Only include if in working set (or if we couldn't get working set)
+                    if working_set_names is None or parsed_name.lower() in working_set_names:
+                        distributions[parsed_name.lower()] = parsed_version
                     continue
             except (OSError, UnicodeDecodeError):
                 pass
 
         # Fallback to directory name parsing
         if name and version:
-            distributions[name.lower()] = version
+            # Only include if in working set (or if we couldn't get working set)
+            if working_set_names is None or name.lower() in working_set_names:
+                distributions[name.lower()] = version
 
     _OPTIMIZED_CACHE["distributions"] = distributions
     return distributions
