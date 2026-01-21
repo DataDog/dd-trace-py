@@ -482,6 +482,7 @@ def test_submit_no_wait(tracer, test_spans):
     work_spans = [s for s in all_spans if s.name == "work"]
 
     # Verify relationships
+    assert root_span.parent_id is None
     assert task_span.parent_id == root_span.span_id
     assert task_span.trace_id == root_span.trace_id
 
