@@ -11,23 +11,23 @@ import os
 # Configure environment for staging (DD_API_KEY should be set via dd-auth)
 os.environ.setdefault("DD_API_KEY", "test-api-key")
 os.environ.setdefault("DD_LLMOBS_PROMPTS_ENDPOINT", "https://api.datad0g.com")
-os.environ.setdefault("DD_LLMOBS_ML_APP", "customer-chatbot")
+os.environ.setdefault("DD_LLMOBS_ML_APP", "session-summary-eval")
 
 from ddtrace.llmobs import LLMObs
 
 
-prompt = LLMObs.get_prompt("assistant", label="prod")
+prompt = LLMObs.get_prompt("summary", label="prod")
 
 print("Chat template with multiple roles:")
 for msg in prompt.template:
-    print(f"  [{msg['role']}]: {msg['content'][:50]}...")
+    content_preview = msg['content'][:80].replace('\n', ' ')
+    print(f"  [{msg['role']}]: {content_preview}...")
+print()
+print(f"Variables: {prompt.variables}")
 print()
 
-rendered = prompt.format(
-    company="Anthropic",
-    assistant_name="Claude",
-    user_message="How do I reset my password?",
-)
-print("Rendered conversation:")
+rendered = prompt.format(event_context="view,/home,0\naction,click-button,1000")
+print("Rendered conversation (first message truncated):")
 for msg in rendered:
-    print(f"  {msg['role'].upper()}: {msg['content']}")
+    content_preview = msg['content'][:100].replace('\n', ' ')
+    print(f"  {msg['role'].upper()}: {content_preview}...")
