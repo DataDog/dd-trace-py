@@ -1,5 +1,7 @@
 import pytest
 
+from ddtrace.contrib.internal.litellm.patch import get_version
+from ddtrace.internal.utils.version import parse_version
 from tests.contrib.litellm.utils import get_cassette_name
 from tests.utils import override_global_config
 
@@ -90,12 +92,23 @@ async def test_litellm_atext_completion(litellm, snapshot_context, request_vcr, 
                     pass
 
 
-@pytest.mark.parametrize("model", ["command-r", "anthropic/claude-3-5-sonnet-20240620"])
+@pytest.mark.parametrize("model", ["command-r", "anthropic/claude-sonnet-4-5-20250929"])
 def test_litellm_completion_different_models(litellm, snapshot_context, request_vcr, model):
+    model_base = model.split("/")[0]
+    is_new_litellm = parse_version(get_version()) >= (1, 74, 15)
+
+    if model == "command-r" and is_new_litellm:
+        pytest.skip("Cassette not yet generated for command-r on litellm >= 1.74.15")
+
+    if is_new_litellm:
+        cassette_name = f"completion_{model_base}_v1_74_15.yaml"
+    else:
+        cassette_name = f"completion_{model_base}.yaml"
+
     with snapshot_context(
         token="tests.contrib.litellm.test_litellm.test_litellm_completion", ignores=["meta.litellm.request.model"]
     ):
-        with request_vcr.use_cassette(f"completion_{model.split('/')[0]}.yaml"):
+        with request_vcr.use_cassette(cassette_name):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             litellm.completion(
                 model=model,
