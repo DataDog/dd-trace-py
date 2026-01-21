@@ -450,10 +450,7 @@ def test_submit_no_wait(tracer, test_spans):
         # This is our expected scenario
         assert tracer.current_trace_context() is not None
         assert tracer.current_span() is None
-
-        # DEV: This is the regression case that was raising
-        # tracer.current_span().set_tag("work", "done")
-
+        # Generate a span to ensure the trace context is propagated
         with tracer.trace("work"):
             pass
 
@@ -476,16 +473,16 @@ def test_submit_no_wait(tracer, test_spans):
 
     all_spans = test_spans.pop()
 
-    # Find spans by name
+    # Find spans by name, for async scenarios spans could be flushed in any order
     root_span = next(s for s in all_spans if s.name == "main")
     task_span = next(s for s in all_spans if s.name == "task")
     work_spans = [s for s in all_spans if s.name == "work"]
 
-    # Verify relationships
+    # Verify task span is a child of the root span
     assert root_span.parent_id is None
     assert task_span.parent_id == root_span.span_id
     assert task_span.trace_id == root_span.trace_id
-
+    # Verify work spans are children of the task span
     assert len(work_spans) == 4
     for work_span in work_spans:
         assert work_span.parent_id == task_span.span_id
