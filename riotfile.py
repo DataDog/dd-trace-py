@@ -118,6 +118,7 @@ venv = Venv(
         "DD_PATCH_MODULES": "unittest:false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
         "CARGO_BUILD_JOBS": "12",
+        "DD_PYTEST_USE_NEW_PLUGIN": "true",
     },
     venvs=[
         Venv(
@@ -161,7 +162,6 @@ venv = Venv(
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
             },
         ),
         Venv(
@@ -211,7 +211,6 @@ venv = Venv(
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
                 "DD_IAST_DEDUPLICATE_ENABLED": "false",
                 "DD_IAST_REQUEST_SAMPLING": "100",
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
             },
         ),
         Venv(
@@ -233,7 +232,6 @@ venv = Venv(
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
                 "DD_IAST_DEDUPLICATE_ENABLED": "false",
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
             },
         ),
         Venv(
@@ -254,7 +252,6 @@ venv = Venv(
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
             },
             venvs=[
                 Venv(
@@ -313,7 +310,6 @@ venv = Venv(
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
             },
             venvs=[
                 Venv(
@@ -352,7 +348,6 @@ venv = Venv(
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "PYTHONFAULTHANDLER": "1",
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
             },
             venvs=[
                 Venv(
@@ -386,7 +381,6 @@ venv = Venv(
             env={
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
             },
             venvs=[
                 Venv(
@@ -511,9 +505,6 @@ venv = Venv(
                 "msgpack": [latest],
                 "pytest-randomly": latest,
             },
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
-            },
             pys=select_pys(),
             venvs=[
                 Venv(
@@ -537,7 +528,6 @@ venv = Venv(
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED": "0",  # DEV: Temporary, remove once merged
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
             },
             command="pytest -v {cmdargs} tests/internal/",
             pkgs={
@@ -571,9 +561,6 @@ venv = Venv(
         Venv(
             name="lib_injection",
             command="pytest {cmdargs} tests/lib_injection/",
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
-            },
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -591,9 +578,6 @@ venv = Venv(
                 "elasticsearch": latest,
                 "pynamodb": "<6.0",
                 "pytest-randomly": latest,
-            },
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
             },
             venvs=[
                 Venv(
@@ -639,9 +623,6 @@ venv = Venv(
         Venv(
             name="runtime",
             command="pytest {cmdargs} tests/runtime/",
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
-            },
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -655,9 +636,6 @@ venv = Venv(
         Venv(
             name="smoke_test",
             command="python tests/smoke_test.py {cmdargs}",
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
-            },
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -667,9 +645,6 @@ venv = Venv(
         Venv(
             name="ddtracerun",
             command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
-            },
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -684,9 +659,6 @@ venv = Venv(
         Venv(
             name="debugger",
             command="pytest {cmdargs} tests/debugging/",
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
-            },
             pkgs={
                 "msgpack": latest,
                 "httpretty": latest,
@@ -700,9 +672,6 @@ venv = Venv(
         Venv(
             name="errortracker",
             command="pytest {cmdargs} tests/errortracking/",
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
-            },
             pkgs={
                 "flask": latest,
             },
@@ -767,9 +736,6 @@ venv = Venv(
         Venv(
             name="httplib",
             command="pytest {cmdargs} tests/contrib/httplib",
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
-            },
             pkgs={
                 "pytest-randomly": latest,
             },
@@ -778,9 +744,6 @@ venv = Venv(
         Venv(
             name="logging",
             command="pytest {cmdargs} tests/contrib/logging",
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
-            },
             pkgs={
                 "pytest-randomly": latest,
             },
@@ -789,9 +752,6 @@ venv = Venv(
         Venv(
             name="falcon",
             command="pytest {cmdargs} tests/contrib/falcon",
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
-            },
             pkgs={
                 "pytest-randomly": latest,
             },
@@ -823,9 +783,6 @@ venv = Venv(
                 "WebTest": latest,
                 "pytest-randomly": latest,
             },
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
-            },
             venvs=[
                 Venv(
                     command="pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' tests/contrib/bottle/",
@@ -851,9 +808,6 @@ venv = Venv(
         Venv(
             name="celery",
             command="pytest {cmdargs} tests/contrib/celery",
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
-            },
             pkgs={
                 "more_itertools": "<8.11.0",
                 "pytest-randomly": latest,
@@ -890,9 +844,6 @@ venv = Venv(
         Venv(
             name="cherrypy",
             command="python -m pytest {cmdargs} tests/contrib/cherrypy",
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
-            },
             pkgs={
                 "pytest-randomly": latest,
             },
@@ -945,9 +896,6 @@ venv = Venv(
             name="ddtrace_api",
             command="pytest {cmdargs} tests/contrib/ddtrace_api",
             pkgs={"ddtrace-api": "==0.0.1", "requests": latest},
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
-            },
             pys=select_pys(),
         ),
         # Django  Python version support
@@ -986,7 +934,6 @@ venv = Venv(
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
                 # TODO: Remove once pkg_resources warnings are no longer emitted from this internal module
                 "PYTHONWARNINGS": "ignore::UserWarning:ddtrace.internal.module",
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
             },
             venvs=[
                 Venv(
@@ -3284,6 +3231,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             venvs=[
                 Venv(
