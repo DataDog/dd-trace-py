@@ -3,7 +3,6 @@
 
 .multi_os_test_base:
   stage: tests
-  needs: ["download_ddtrace_artifacts"]
   variables:
     DD_IAST_ENABLED: "false"
     DD_REMOTE_CONFIGURATION_ENABLED: "false"
@@ -38,16 +37,7 @@ os tests ubuntu:
 os tests macos:
   extends: .multi_os_test_base
   tags: ["macos:sonoma-amd64", "specific:true"]
-  needs:
-    - job: "build macos"
-      parallel:
-        matrix:
-          - ARCH_TAG: "amd64"
-            UV_PYTHON: "3.10"
-          - ARCH_TAG: "amd64"
-            UV_PYTHON: "3.12"
-          - ARCH_TAG: "amd64"
-            UV_PYTHON: "3.14"
+  needs: [ "build macos" ]
   variables:
     WHEEL_PATTERN: "macosx*x86_64.whl"
     PLATFORM: "macOS"
@@ -57,6 +47,6 @@ os tests macos:
 os tests windows:
   extends: .multi_os_test_base
   tags: ["windows-v2:2022"]
-  needs: ["download_ddtrace_artifacts"]
+  needs: ["download windows wheels"]
   script:
     - powershell -File .gitlab/scripts/multi-os-tests.ps1

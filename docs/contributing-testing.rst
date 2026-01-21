@@ -139,6 +139,37 @@ To fix this:
     # inside the testrunner shell, started with scripts/ddtest
     $ DD_AGENT_PORT=9126 riot -v run --pass-env ...
 
+Why are my Docker tests failing with permission errors on Linux?
+-----------------------------------------------------------------
+
+On Linux systems, when running tests with ``scripts/ddtest`` or ``scripts/run-tests``, you may encounter permission errors or file ownership issues. This happens because the container user's ID and group ID must match your local user's IDs.
+
+To fix this, create a ``docker-compose.override.yml`` file in the repository root with the following contents:
+
+.. code-block:: yaml
+
+    services:
+      testrunner:
+        user: "${UID}:${GID}"
+
+Then, ensure your shell has the ``UID`` and ``GID`` environment variables set:
+
+.. code-block:: bash
+
+    export UID="$(id -u)"
+    export GID="$(id -g)"
+
+You can add these exports to your shell profile (e.g., ``.bashrc``, ``.zshrc``) to make them persistent across sessions.
+
+After setting this up, run your tests normally:
+
+.. code-block:: bash
+
+    $ scripts/ddtest
+    $ scripts/run-tests
+
+The ``docker-compose.override.yml`` file is git-ignored and won't be committed, so each developer can have their own local configuration.
+
 Why is my CI run failing with a message about requirements files?
 -----------------------------------------------------------------
 

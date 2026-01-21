@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: This fix resolves an issue where a race condition during PeriodicThread shutdown caused random crashes on Python 3.14+ during application finalization.

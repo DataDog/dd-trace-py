@@ -7,7 +7,9 @@ import pytest
 from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import AIGuardClientError
+from ddtrace.appsec.ai_guard import ContentPart
 from ddtrace.appsec.ai_guard import Function
+from ddtrace.appsec.ai_guard import ImageURL
 from ddtrace.appsec.ai_guard import Message
 from ddtrace.appsec.ai_guard import Options
 from ddtrace.appsec.ai_guard import ToolCall
@@ -17,6 +19,7 @@ from tests.appsec.ai_guard.utils import assert_ai_guard_span
 from tests.appsec.ai_guard.utils import assert_mock_execute_request_call
 from tests.appsec.ai_guard.utils import find_ai_guard_span
 from tests.appsec.ai_guard.utils import mock_evaluate_response
+from tests.appsec.ai_guard.utils import override_ai_guard_config
 from tests.appsec.ai_guard.utils import random_string
 from tests.utils import override_global_config
 
@@ -40,7 +43,18 @@ TOOL_OUTPUT = [
 PROMPT = [
     *TOOL_OUTPUT,
     Message(role="assistant", content="2 + 2 is 5"),
-    Message(role="user", content="Are you sure?"),
+    Message(
+        role="user",
+        content=[
+            ContentPart(type="input_text", text="what's in this image?"),
+            ContentPart(
+                type="input_image",
+                image_url=ImageURL(
+                    url="https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
+                ),
+            ),
+        ],
+    ),
 ]
 
 
@@ -86,7 +100,7 @@ def test_evaluate_method(
     mock_execute_request,
     telemetry_mock,
     ai_guard_client,
-    tracer,
+    test_spans,
     action,
     reason,
     tags,
@@ -121,7 +135,7 @@ def test_evaluate_method(
     if tags:
         expected_meta_struct.update({"attack_categories": tags})
     assert_ai_guard_span(
-        tracer,
+        test_spans,
         expected_tags,
         expected_meta_struct,
     )
@@ -207,7 +221,7 @@ def test_evaluate_invalid_action(mock_execute_request, telemetry_mock, ai_guard_
 
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-def test_span_meta_messages_truncation(mock_execute_request, telemetry_mock, ai_guard_client, tracer):
+def test_span_meta_messages_truncation(mock_execute_request, telemetry_mock, ai_guard_client, test_spans):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     messages = []
@@ -215,31 +229,38 @@ def test_span_meta_messages_truncation(mock_execute_request, telemetry_mock, ai_
         messages.append(Message(role="user", content="Tell me 10 things I should know about DataDog"))
     ai_guard_client.evaluate(messages)
 
-    span = find_ai_guard_span(tracer)
+    span = find_ai_guard_span(test_spans)
     meta = span._get_struct_tag(AI_GUARD.TAG)
     assert len(meta["messages"]) == ai_guard_config._ai_guard_max_messages_length
     assert_telemetry(telemetry_mock, "ai_guard.truncated", (("type", "messages"),))
 
 
+@pytest.mark.parametrize("content_part", [True, False])
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-def test_span_meta_content_truncation(mock_execute_request, telemetry_mock, ai_guard_client, tracer):
+def test_span_meta_content_truncation(mock_execute_request, telemetry_mock, ai_guard_client, test_spans, content_part):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     random_output = random_string(ai_guard_config._ai_guard_max_content_size + 1)
+    if content_part:
+        messages = [Message(role="user", content=[ContentPart(type="text", text=random_output)])]
+    else:
+        messages = [Message(role="user", content=random_output)]
+    ai_guard_client.evaluate(messages)
 
-    ai_guard_client.evaluate([Message(role="user", content=random_output)])
-
-    span = find_ai_guard_span(tracer)
+    span = find_ai_guard_span(test_spans)
     meta = span._get_struct_tag(AI_GUARD.TAG)
     prompt = meta["messages"][0]
-    assert len(prompt["content"]) == ai_guard_config._ai_guard_max_content_size
+    content = prompt["content"]
+    if content_part:
+        content = content[0]["text"]
+    assert len(content) == ai_guard_config._ai_guard_max_content_size
     assert_telemetry(telemetry_mock, "ai_guard.truncated", (("type", "content"),))
 
 
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-def test_message_immutability(mock_execute_request, telemetry_mock, ai_guard_client, tracer):
+def test_message_immutability(mock_execute_request, telemetry_mock, ai_guard_client, tracer, test_spans):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     messages = [
@@ -255,7 +276,7 @@ def test_message_immutability(mock_execute_request, telemetry_mock, ai_guard_cli
             )
         )
 
-    span = tracer.get_spans()[1]  # AI Guard span
+    span = test_spans.spans[1]  # AI Guard span
     meta = span._get_struct_tag(AI_GUARD.TAG)
     messages = meta["messages"]
     assert len(messages) == 1
@@ -283,3 +304,51 @@ def test_meta_attribute(mock_execute_request):
             messages,
             {"service": "test-service", "env": "test-env"},
         )
+
+
+@pytest.mark.parametrize(
+    "site,config,param,expected",
+    [
+        pytest.param(
+            "datadoghq.com",
+            "",
+            "",
+            "https://app.datadoghq.com/api/v2/ai-guard",
+        ),
+        pytest.param(
+            "ap1.datadoghq.com",
+            "",
+            "",
+            "https://ap1.datadoghq.com/api/v2/ai-guard",
+        ),
+        pytest.param(
+            "datadoghq.com",
+            "https://from-config",
+            "",
+            "https://from-config",
+        ),
+        pytest.param(
+            "datadoghq.com",
+            "",
+            "https://from-param",
+            "https://from-param",
+        ),
+        pytest.param(
+            "datadoghq.com",
+            "https://from-config",
+            "https://from-param",
+            "https://from-param",
+        ),
+    ],
+)
+def test_endpoint_discovery(site, config, param, expected):
+    with override_global_config(
+        dict(
+            _dd_site=site,
+            _dd_api_key="test-api-key",
+            _dd_app_key="test-app-key",
+        )
+    ):
+        with override_ai_guard_config(dict(_ai_guard_endpoint=config)):
+            client = new_ai_guard_client(endpoint=param)
+            assert client._endpoint == expected

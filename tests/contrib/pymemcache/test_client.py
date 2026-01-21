@@ -10,13 +10,11 @@ import pytest
 import wrapt
 
 # project
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.pymemcache.client import WrappedClient
 from ddtrace.contrib.internal.pymemcache.patch import patch
 from ddtrace.contrib.internal.pymemcache.patch import unpatch
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import override_config
 
@@ -263,14 +261,12 @@ class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
 
     def test_service_name_override(self):
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
-        Pin._override(client, service="testsvcname")
         client.set(b"key", b"value", noreply=False)
         result = client.get(b"key")
         assert _str(result) == "value"
 
         spans = self.get_spans()
-        self.assertEqual(spans[0].service, "testsvcname")
-        self.assertEqual(spans[1].service, "testsvcname")
+        assert len(spans) == 2
 
 
 class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
@@ -279,8 +275,6 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
     def make_client(self, mock_socket_values, **kwargs):
         from pymemcache.client.hash import HashClient
 
-        tracer = DummyTracer()
-        Pin._override(pymemcache, tracer=tracer)
         self.client = HashClient([(TEST_HOST, TEST_PORT)], **kwargs)
 
         class _MockClient(Client):
@@ -319,74 +313,36 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
     def test_service_name_override_hashclient(self):
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
         assert len(client.clients) == 1
-        for _c in client.clients.values():
-            Pin._override(_c, service="testsvcname")
         client.set(b"key", b"value", noreply=False)
         result = client.get(b"key")
         assert _str(result) == "value"
 
         spans = self.get_spans()
         assert len(spans) == 2
-        self.assertEqual(spans[0].service, "testsvcname")
-        self.assertEqual(spans[1].service, "testsvcname")
 
     def test_service_name_override_hashclient_pooling(self):
         client = self.make_client([b""], use_pooling=True)
-        Pin._override(client, service="testsvcname")
         client.set(b"key", b"value")
         assert len(client.clients) == 1
         spans = self.get_spans()
         assert len(spans) == 1
-        self.assertEqual(spans[0].service, "testsvcname")
 
 
 class PymemcacheClientConfiguration(TracerTestCase):
     """Ensure that pymemache can be configured properly."""
 
     def setUp(self):
+        super().setUp()
         patch()
 
     def tearDown(self):
+        super().tearDown()
         unpatch()
 
     def make_client(self, mock_socket_values, **kwargs):
-        tracer = DummyTracer()
-        Pin._override(pymemcache, tracer=tracer)
         self.client = pymemcache.client.base.Client((TEST_HOST, TEST_PORT), **kwargs)
         self.client.sock = MockSocket(list(mock_socket_values))
         return self.client
-
-    def test_same_tracer(self):
-        """Ensure same tracer reference is used by the pin on pymemache and
-        Clients.
-        """
-        client = pymemcache.client.base.Client((TEST_HOST, TEST_PORT))
-        self.assertEqual(Pin.get_from(client).tracer, Pin.get_from(pymemcache).tracer)
-
-    def test_override_parent_pin(self):
-        """Test that the service set on `pymemcache` is used for Clients."""
-        Pin._override(pymemcache, service="mysvc")
-        client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
-        client.set(b"key", b"value", noreply=False)
-
-        pin = Pin.get_from(pymemcache)
-        tracer = pin.tracer
-        spans = tracer.pop()
-
-        self.assertEqual(spans[0].service, "mysvc")
-
-    def test_override_client_pin(self):
-        """Test that the service set on `pymemcache` is used for Clients."""
-        client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
-        Pin._override(client, service="mysvc2")
-
-        client.set(b"key", b"value", noreply=False)
-
-        pin = Pin.get_from(pymemcache)
-        tracer = pin.tracer
-        spans = tracer.pop()
-
-        self.assertEqual(spans[0].service, "mysvc2")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service_default(self):
@@ -403,9 +359,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
         client.set(b"key", b"value", noreply=False)
 
-        pin = Pin.get_from(pymemcache)
-        tracer = pin.tracer
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service != "mysvc"
 
@@ -424,9 +378,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
         client.set(b"key", b"value", noreply=False)
 
-        pin = Pin.get_from(pymemcache)
-        tracer = pin.tracer
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service != "mysvc"
 
@@ -445,9 +397,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
         client.set(b"key", b"value", noreply=False)
 
-        pin = Pin.get_from(pymemcache)
-        tracer = pin.tracer
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service == "mysvc"
 
@@ -461,9 +411,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
         client.set(b"key", b"value", noreply=False)
 
-        pin = Pin.get_from(pymemcache)
-        tracer = pin.tracer
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
@@ -475,9 +423,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
         client.set(b"key", b"value", noreply=False)
 
-        pin = Pin.get_from(pymemcache)
-        tracer = pin.tracer
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].name == "memcached.command"
 
@@ -489,8 +435,6 @@ class PymemcacheClientConfiguration(TracerTestCase):
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
         client.set(b"key", b"value", noreply=False)
 
-        pin = Pin.get_from(pymemcache)
-        tracer = pin.tracer
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].name == "memcached.command"

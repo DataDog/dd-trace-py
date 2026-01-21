@@ -7,8 +7,8 @@ Enabling
 The azure_functions integration is enabled by default when using :ref:`import ddtrace.auto<ddtraceauto>`.
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.azure_functions["service"]
 

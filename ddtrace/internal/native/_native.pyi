@@ -5,6 +5,8 @@ from typing import List
 from typing import Literal
 from typing import Optional
 
+from ddtrace.internal.constants import SPAN_API_DATADOG
+
 class DDSketch:
     def __init__(self): ...
     def add(self, value: float) -> None: ...
@@ -511,3 +513,32 @@ class ffe:
     class Configuration:
         def __init__(self, config_bytes: bytes) -> None: ...
         def resolve_value(self, flag_key: str, expected_type: ffe.FlagType, context: dict) -> ffe.ResolutionDetails: ...
+
+class SpanData:
+    def __init__(
+        self,
+        name: str,
+        service: Optional[str] = None,
+        resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+        trace_id: Optional[int] = None,
+        span_id: Optional[int] = None,
+        parent_id: Optional[int] = None,
+        start: Optional[int] = None,
+        span_api: str = SPAN_API_DATADOG,
+        links: Optional[List[Any]] = None,
+    ): ...
+
+class SpanEventData:
+    def __init__(self, name: str, attributes: Optional[Dict[str, Any]], time_unix_nano: Optional[int]): ...
+
+class SpanLinkData:
+    def __init__(
+        self,
+        trace_id: int,
+        span_id: int,
+        tracestate: Optional[str] = None,
+        flags: Optional[int] = None,
+        attributes: Optional[Dict[str, str]] = None,
+        _dropped_attributes: int = 0,
+    ): ...

@@ -108,6 +108,9 @@ class LoggerTestCase(BaseTestCase):
         log.setLevel(logging.INFO)
         ddtrace.internal.logger._rate_limit = 0
 
+        # Clear buckets in case any were created during logger setup
+        ddtrace.internal.logger._buckets.clear()
+
         # Log a bunch of times very quickly (this is fast)
         for _ in range(1000):
             log.info("test")
@@ -115,7 +118,7 @@ class LoggerTestCase(BaseTestCase):
         # Assert that we did not perform any rate limiting
         self.assertEqual(call_handlers.call_count, 1000)
 
-        # Our buckets are empty
+        # Our buckets are empty (no rate limit means no buckets should be created)
         self.assertEqual(ddtrace.internal.logger._buckets, dict())
 
     @mock.patch("logging.Logger.callHandlers")
@@ -125,14 +128,14 @@ class LoggerTestCase(BaseTestCase):
             When effective level is DEBUG
                 Always calls the base `Logger.handle`
         """
-        # Our buckets are empty
-        self.assertEqual(ddtrace.internal.logger._buckets, dict())
-
         # Configure an INFO logger with no rate limit
         log = get_logger("test.logger")
         log.setLevel(logging.DEBUG)
         assert log.getEffectiveLevel() == logging.DEBUG
         assert ddtrace.internal.logger._rate_limit > 0
+
+        # Clear buckets in case any were created during logger setup
+        ddtrace.internal.logger._buckets.clear()
 
         # Log a bunch of times very quickly (this is fast)
         for level in ALL_LEVEL_NAMES:
@@ -141,10 +144,9 @@ class LoggerTestCase(BaseTestCase):
                 log_fn("test")
 
         # Assert that we did not perform any rate limiting
-        total = 1000 * len(ALL_LEVEL_NAMES)
-        self.assertTrue(total <= call_handlers.call_count <= total + 1)
+        self.assertEqual(call_handlers.call_count, 1000 * len(ALL_LEVEL_NAMES))
 
-        # Our buckets are empty
+        # Our buckets are empty (DEBUG level logging should not create buckets)
         self.assertEqual(ddtrace.internal.logger._buckets, dict())
 
     @mock.patch("logging.Logger.callHandlers")
@@ -338,20 +340,20 @@ def test_logger_does_not_add_handler_when_configured():
 
 
 def test_logger_log_level_from_env(monkeypatch):
-    monkeypatch.setenv("_DD_TESTING_DEBUG_LOG_LEVEL", "DEBUG")
-    monkeypatch.setenv("_DD_TESTING_WARNING_LOG_LEVEL", "WARNING")
+    monkeypatch.setenv("_DD_EXAMPLE_DEBUG_LOG_LEVEL", "DEBUG")
+    monkeypatch.setenv("_DD_EXAMPLE_WARNING_LOG_LEVEL", "WARNING")
     monkeypatch.setenv("_DD_PACKAGE_WITH_UNDERSCORE_SUBMODULE_LOG_LEVEL", "ERROR")
 
     import ddtrace.internal.logger as dd_logger
 
     with mock.patch.object(dd_logger, "LOG_LEVEL_TRIE", dd_logger.LoggerPrefix.build_trie()):
-        assert get_logger("ddtrace.testing.debug.foo.bar").level == logging.DEBUG
-        assert get_logger("ddtrace.testing.debug.foo").level == logging.DEBUG
-        assert get_logger("ddtrace.testing.debug").level == logging.DEBUG
-        assert get_logger("ddtrace.testing").level < logging.DEBUG
+        assert get_logger("ddtrace.example.debug.foo.bar").level == logging.DEBUG
+        assert get_logger("ddtrace.example.debug.foo").level == logging.DEBUG
+        assert get_logger("ddtrace.example.debug").level == logging.DEBUG
+        assert get_logger("ddtrace.example").level < logging.DEBUG
 
-        assert get_logger("ddtrace.testing.warning.foo.bar").level == logging.WARNING
-        assert get_logger("ddtrace.testing.warning.foo").level == logging.WARNING
-        assert get_logger("ddtrace.testing.warning").level == logging.WARNING
+        assert get_logger("ddtrace.example.warning.foo.bar").level == logging.WARNING
+        assert get_logger("ddtrace.example.warning.foo").level == logging.WARNING
+        assert get_logger("ddtrace.example.warning").level == logging.WARNING
 
         assert get_logger("ddtrace.package_with_underscore.submodule").level == logging.ERROR

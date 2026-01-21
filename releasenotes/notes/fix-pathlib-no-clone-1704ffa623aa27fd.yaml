@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    exception replay: fix a gevent support issue that could cause an exception
+    when Exception Replay tries to figure out if a frame belongs to user code
+    for capturing. 

@@ -128,7 +128,7 @@ class TestTestItem:
         """Test TestItem.start() with default time."""
         item = MockTestItem(name="test_item")
 
-        with patch("time.time_ns", return_value=1000000000):
+        with patch("ddtrace.internal.utils.time.Time.time_ns", return_value=1000000000):
             item.start()
 
         assert item.start_ns == 1000000000
@@ -146,7 +146,7 @@ class TestTestItem:
         item = MockTestItem(name="test_item")
         assert item.start_ns is None
 
-        with patch("time.time_ns", return_value=1000000000):
+        with patch("ddtrace.internal.utils.time.Time.time_ns", return_value=1000000000):
             item.ensure_started()
 
         assert item.start_ns == 1000000000
@@ -164,7 +164,7 @@ class TestTestItem:
         item = MockTestItem(name="test_item")
         item.start_ns = 1000000000
 
-        with patch("time.time_ns", return_value=2000000000):
+        with patch("ddtrace.internal.utils.time.Time.time_ns", return_value=2000000000):
             item.finish()
 
         assert item.duration_ns == 1000000000  # 2000000000 - 1000000000
@@ -182,7 +182,7 @@ class TestTestItem:
         item = MockTestItem(name="test_item")
         item.start_ns = 1000000000
 
-        with patch("time.time_ns", return_value=3000000000):
+        with patch("ddtrace.internal.utils.time.Time.time_ns", return_value=3000000000):
             seconds = item.seconds_so_far()
 
         assert seconds == 2.0  # (3000000000 - 1000000000) / 1e9

@@ -39,6 +39,7 @@ set_target_properties(
 include(FetchContent)
 include(AnalysisFunc)
 include(FindCppcheck)
+include(FindClangtidy)
 
 find_package(Python3 COMPONENTS Interpreter Development)
 
@@ -55,8 +56,25 @@ if(NOT Threads_FOUND OR NOT CMAKE_USE_PTHREADS_INIT)
 endif()
 
 # Specify the target C-extension that we want to build
-add_library(${EXTENSION_NAME} SHARED src/echion/danger.cc src/echion/frame.cc src/sampler.cpp src/stack.cpp
-                                     src/stack_renderer.cpp src/thread_span_links.cpp)
+add_library(
+    ${EXTENSION_NAME} SHARED
+    src/echion/danger.cc
+    src/echion/frame.cc
+    src/echion/greenlets.cc
+    src/echion/interp.cc
+    src/echion/long.cc
+    src/echion/mirrors.cc
+    src/echion/stack_chunk.cc
+    src/echion/stacks.cc
+    src/echion/strings.cc
+    src/echion/tasks.cc
+    src/echion/threads.cc
+    src/echion/timing.cc
+    src/echion/vm.cc
+    src/sampler.cpp
+    src/stack.cpp
+    src/stack_renderer.cpp
+    src/thread_span_links.cpp)
 
 # Add common config
 add_ddup_config(${EXTENSION_NAME})
@@ -70,6 +88,9 @@ add_cppcheck_target(
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+# Static analysis
+add_clangtidy_target(${EXTENSION_NAME})
 
 # Never build with native unwinding, since this is not currently used
 target_compile_definitions(${EXTENSION_NAME} PRIVATE UNWIND_NATIVE_DISABLE)

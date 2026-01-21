@@ -676,7 +676,7 @@ def test_websocket_tracing_not_separate_traces(test_spans, snapshot_app):
 
 
 @pytest.mark.snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
-def test_long_running_websocket_session(test_spans, snapshot_app):
+def test_long_running_websocket_session(snapshot_app):
     client = TestClient(snapshot_app)
 
     with override_config("fastapi", dict(trace_asgi_websocket_messages=True)):
@@ -695,14 +695,15 @@ def test_long_running_websocket_session(test_spans, snapshot_app):
             assert "bye" in farewell
 
 
-def test_dont_trace_websocket_by_default(client, test_spans):
+def test_dont_trace_websocket_when_disabled(client, test_spans):
     initial_event_count = len(test_spans.pop_traces())
-    with client.websocket_connect("/ws") as websocket:
-        data = websocket.receive_json()
-        assert data == {"test": "Hello WebSocket"}
-        websocket.send_text("ping")
-        spans = test_spans.pop_traces()
-        assert len(spans) <= initial_event_count
+    with override_config("fastapi", dict(trace_asgi_websocket_messages=False)):
+        with client.websocket_connect("/ws") as websocket:
+            data = websocket.receive_json()
+            assert data == {"test": "Hello WebSocket"}
+            websocket.send_text("ping")
+            spans = test_spans.pop_traces()
+            assert len(spans) <= initial_event_count
 
 
 def _run_websocket_context_propagation_test():
@@ -750,8 +751,6 @@ def test_websocket_context_propagation(snapshot_app):
     _run_websocket_context_propagation_test()
 
 
-# Ignoring span link attributes until values are
-# normalized: https://github.com/DataDog/dd-apm-test-agent/issues/154
 @snapshot(ignores=["meta._dd.span_links"])
 def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
     """Tests if background tasks have been traced but excluded from span duration"""

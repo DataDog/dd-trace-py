@@ -2,11 +2,9 @@
 import pytest
 import valkey
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.valkey.patch import patch
 from ddtrace.contrib.internal.valkey.patch import unpatch
 from tests.contrib.config import VALKEY_CLUSTER_CONFIG
-from tests.utils import DummyTracer
 from tests.utils import assert_is_measured
 
 
@@ -28,7 +26,6 @@ async def traced_valkey_cluster(tracer, test_spans):
     startup_nodes = [valkey.asyncio.cluster.ClusterNode(TEST_HOST, int(port)) for port in TEST_PORTS.split(",")]
     valkey_cluster = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
     await valkey_cluster.flushall()
-    Pin._override(valkey_cluster, tracer=tracer)
     try:
         yield valkey_cluster, test_spans
     finally:
@@ -43,11 +40,21 @@ async def test_basics(traced_valkey_cluster):
     assert us is None
 
     traces = test_spans.pop_traces()
-    assert len(traces) == 1
-    spans = traces[0]
-    assert len(spans) == 1
-
-    span = spans[0]
+    # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+    all_spans = [span for trace in traces for span in trace]
+    # Find the GET span
+    get_spans = [
+        s
+        for s in all_spans
+        if s.get_tag("component") == "valkey"
+        and s.resource == "GET"
+        and s.get_tag("valkey.raw_command") == "GET cheese"
+    ]
+    assert len(get_spans) == 1, (
+        f"Expected exactly 1 GET cheese span, got {len(get_spans)}. "
+        f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+    )
+    span = get_spans[0]
     assert_is_measured(span)
     assert span.service == "valkey"
     assert span.name == "valkey.command"
@@ -67,11 +74,19 @@ async def test_unicode(traced_valkey_cluster):
     assert us is None
 
     traces = test_spans.pop_traces()
-    assert len(traces) == 1
-    spans = traces[0]
-    assert len(spans) == 1
-
-    span = spans[0]
+    # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+    all_spans = [span for trace in traces for span in trace]
+    # Find the GET span
+    get_spans = [
+        s
+        for s in all_spans
+        if s.get_tag("component") == "valkey" and s.resource == "GET" and s.get_tag("valkey.raw_command") == "GET 😐"
+    ]
+    assert len(get_spans) == 1, (
+        f"Expected exactly 1 GET 😐 span, got {len(get_spans)}. "
+        f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+    )
+    span = get_spans[0]
     assert_is_measured(span)
     assert span.service == "valkey"
     assert span.name == "valkey.command"
@@ -94,11 +109,17 @@ async def test_pipeline(traced_valkey_cluster):
         await p.execute()
 
     traces = test_spans.pop_traces()
-    assert len(traces) == 1
-    spans = traces[0]
-    assert len(spans) == 1
-
-    span = spans[0]
+    # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+    all_spans = [span for trace in traces for span in trace]
+    # Find the pipeline span
+    pipeline_spans = [
+        s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "SET\nRPUSH\nHGETALL"
+    ]
+    assert len(pipeline_spans) == 1, (
+        f"Expected exactly 1 pipeline span, got {len(pipeline_spans)}. "
+        f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+    )
+    span = pipeline_spans[0]
     assert_is_measured(span)
     assert span.service == "valkey"
     assert span.name == "valkey.command"
@@ -111,18 +132,15 @@ async def test_pipeline(traced_valkey_cluster):
 
 
 @pytest.mark.asyncio
-async def test_patch_unpatch(valkey_cluster):
-    tracer = DummyTracer()
-
+async def test_patch_unpatch(valkey_cluster, tracer, test_spans):
     # Test patch idempotence
     patch()
     patch()
 
     r = valkey_cluster
-    Pin._override(r, tracer=tracer)
     await r.get("key")
 
-    spans = tracer.pop()
+    spans = test_spans.pop()
     assert spans, spans
     assert len(spans) == 1
 
@@ -132,17 +150,16 @@ async def test_patch_unpatch(valkey_cluster):
     r = valkey_cluster
     await r.get("key")
 
-    spans = tracer.pop()
+    spans = test_spans.pop()
     assert not spans, spans
 
     # Test patch again
     patch()
 
     r = valkey_cluster
-    Pin._override(r, tracer=tracer)
     await r.get("key")
 
-    spans = tracer.pop()
+    spans = test_spans.pop()
     assert spans, spans
     assert len(spans) == 1
     unpatch()
@@ -157,34 +174,39 @@ def test_default_service_name_v1():
 
     import valkey
 
-    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.valkey.patch import patch
     from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
     from tests.contrib.config import VALKEY_CLUSTER_CONFIG
-    from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
     patch()
 
     async def test():
+        tracer_scope = scoped_tracer()
+        tracer = tracer_scope.__enter__()
         startup_nodes = [
             valkey.asyncio.cluster.ClusterNode(VALKEY_CLUSTER_CONFIG["host"], int(port))
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
         ]
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
         traces = test_spans.pop_traces()
-        assert len(traces) == 1
-        spans = traces[0]
-        assert len(spans) == 1
-        span = spans[0]
+        # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+        all_spans = [span for trace in traces for span in trace]
+        # Find the GET span
+        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+        assert len(get_spans) == 1, (
+            f"Expected exactly 1 GET span, got {len(get_spans)}. "
+            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+        )
+        span = get_spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
+        tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())
 
@@ -203,15 +225,16 @@ def test_user_specified_service_v0():
     import valkey
 
     from ddtrace import config
-    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.valkey.patch import patch
     from tests.contrib.config import VALKEY_CLUSTER_CONFIG
-    from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
     patch()
 
     async def test():
+        tracer_scope = scoped_tracer()
+        tracer = tracer_scope.__enter__()
         # # Ensure that the service name was configured
         assert config.service == "mysvc"
 
@@ -220,19 +243,23 @@ def test_user_specified_service_v0():
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
         ]
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
         traces = test_spans.pop_traces()
-        assert len(traces) == 1
-        spans = traces[0]
-        assert len(spans) == 1
-        span = spans[0]
+        # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+        all_spans = [span for trace in traces for span in trace]
+        # Find the GET span
+        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+        assert len(get_spans) == 1, (
+            f"Expected exactly 1 GET span, got {len(get_spans)}. "
+            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+        )
+        span = get_spans[0]
         assert span.service != "mysvc"
+        tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())
 
@@ -251,15 +278,16 @@ def test_user_specified_service_v1():
     import valkey
 
     from ddtrace import config
-    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.valkey.patch import patch
     from tests.contrib.config import VALKEY_CLUSTER_CONFIG
-    from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
     patch()
 
     async def test():
+        tracer_scope = scoped_tracer()
+        tracer = tracer_scope.__enter__()
         # # Ensure that the service name was configured
         assert config.service == "mysvc"
 
@@ -268,19 +296,23 @@ def test_user_specified_service_v1():
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
         ]
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
         traces = test_spans.pop_traces()
-        assert len(traces) == 1
-        spans = traces[0]
-        assert len(spans) == 1
-        span = spans[0]
+        # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+        all_spans = [span for trace in traces for span in trace]
+        # Find the GET span
+        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+        assert len(get_spans) == 1, (
+            f"Expected exactly 1 GET span, got {len(get_spans)}. "
+            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+        )
+        span = get_spans[0]
         assert span.service == "mysvc"
+        tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())
 
@@ -294,33 +326,38 @@ def test_env_user_specified_valkeycluster_service_v0():
 
     import valkey
 
-    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.valkey.patch import patch
     from tests.contrib.config import VALKEY_CLUSTER_CONFIG
-    from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
     patch()
 
     async def test():
+        tracer_scope = scoped_tracer()
+        tracer = tracer_scope.__enter__()
         startup_nodes = [
             valkey.asyncio.cluster.ClusterNode(VALKEY_CLUSTER_CONFIG["host"], int(port))
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
         ]
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
         traces = test_spans.pop_traces()
-        assert len(traces) == 1
-        spans = traces[0]
-        assert len(spans) == 1
-        span = spans[0]
+        # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+        all_spans = [span for trace in traces for span in trace]
+        # Find the GET span
+        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+        assert len(get_spans) == 1, (
+            f"Expected exactly 1 GET span, got {len(get_spans)}. "
+            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+        )
+        span = get_spans[0]
         assert span.service == "myvalkeycluster"
+        tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())
 
@@ -334,33 +371,38 @@ def test_env_user_specified_valkeycluster_service_v1():
 
     import valkey
 
-    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.valkey.patch import patch
     from tests.contrib.config import VALKEY_CLUSTER_CONFIG
-    from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
     patch()
 
     async def test():
+        tracer_scope = scoped_tracer()
+        tracer = tracer_scope.__enter__()
         startup_nodes = [
             valkey.asyncio.cluster.ClusterNode(VALKEY_CLUSTER_CONFIG["host"], int(port))
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
         ]
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
         traces = test_spans.pop_traces()
-        assert len(traces) == 1
-        spans = traces[0]
-        assert len(spans) == 1
-        span = spans[0]
+        # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+        all_spans = [span for trace in traces for span in trace]
+        # Find the GET span
+        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+        assert len(get_spans) == 1, (
+            f"Expected exactly 1 GET span, got {len(get_spans)}. "
+            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+        )
+        span = get_spans[0]
         assert span.service == "myvalkeycluster"
+        tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())
 
@@ -379,15 +421,16 @@ def test_service_precedence_v0():
     import valkey
 
     from ddtrace import config
-    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.valkey.patch import patch
     from tests.contrib.config import VALKEY_CLUSTER_CONFIG
-    from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
     patch()
 
     async def test():
+        tracer_scope = scoped_tracer()
+        tracer = tracer_scope.__enter__()
         # # Ensure that the service name was configured
         assert config.service == "mysvc"
 
@@ -396,19 +439,23 @@ def test_service_precedence_v0():
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
         ]
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
         traces = test_spans.pop_traces()
-        assert len(traces) == 1
-        spans = traces[0]
-        assert len(spans) == 1
-        span = spans[0]
+        # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+        all_spans = [span for trace in traces for span in trace]
+        # Find the GET span
+        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+        assert len(get_spans) == 1, (
+            f"Expected exactly 1 GET span, got {len(get_spans)}. "
+            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+        )
+        span = get_spans[0]
         assert span.service == "myvalkeycluster"
+        tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())
 
@@ -423,15 +470,16 @@ def test_service_precedence_v1():
     import valkey
 
     from ddtrace import config
-    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.valkey.patch import patch
     from tests.contrib.config import VALKEY_CLUSTER_CONFIG
-    from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
+    from tests.utils import scoped_tracer
 
     patch()
 
     async def test():
+        tracer_scope = scoped_tracer()
+        tracer = tracer_scope.__enter__()
         # # Ensure that the service name was configured
         assert config.service == "mysvc"
 
@@ -440,18 +488,22 @@ def test_service_precedence_v1():
             for port in VALKEY_CLUSTER_CONFIG["ports"].split(",")
         ]
         r = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
-        tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
         traces = test_spans.pop_traces()
-        assert len(traces) == 1
-        spans = traces[0]
-        assert len(spans) == 1
-        span = spans[0]
+        # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
+        all_spans = [span for trace in traces for span in trace]
+        # Find the GET span
+        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+        assert len(get_spans) == 1, (
+            f"Expected exactly 1 GET span, got {len(get_spans)}. "
+            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+        )
+        span = get_spans[0]
         assert span.service == "myvalkeycluster"
+        tracer_scope.__exit__(None, None, None)
 
     asyncio.run(test())

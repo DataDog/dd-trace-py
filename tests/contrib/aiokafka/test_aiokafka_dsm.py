@@ -1,18 +1,14 @@
 from aiokafka.structs import TopicPartition
-import mock
 import pytest
 
 from ddtrace.contrib.internal.aiokafka.patch import patch
 from ddtrace.contrib.internal.aiokafka.patch import unpatch
+from ddtrace.internal.datastreams import data_streams_processor
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.native import DDSketch
-from ddtrace.internal.service import ServiceStatus
-from ddtrace.internal.service import ServiceStatusError
-from tests.utils import DummyTracer
-from tests.utils import override_global_tracer
 
 from .utils import BOOTSTRAP_SERVERS
 from .utils import GROUP_ID
@@ -31,32 +27,12 @@ def patch_aiokafka():
 
 
 @pytest.fixture
-def tracer():
-    tracer = DummyTracer()
-    with override_global_tracer(tracer):
-        yield tracer
-        tracer.flush()
-    tracer.shutdown()
-
-
-@pytest.fixture
-def dsm_processor(tracer):
-    processor = tracer.data_streams_processor
-    # Clean up any existing context to prevent test pollution
-    try:
-        del processor._current_context.value
-    except AttributeError:
-        pass
-
-    with mock.patch("ddtrace.internal.datastreams.data_streams_processor", return_value=processor):
-        yield processor
-
-        try:
-            processor.shutdown(timeout=5)
-        except ServiceStatusError as e:
-            # Expected: processor already stopped by tracer shutdown during test teardown
-            if e.current_status == ServiceStatus.RUNNING:
-                raise
+def dsm_processor():
+    processor = data_streams_processor(reset=True)
+    assert processor is not None, "Datastream Monitoring is not enabled"
+    yield processor
+    # Processor should be recreated by the tracer fixture
+    processor.shutdown(timeout=5)
 
 
 @pytest.mark.asyncio

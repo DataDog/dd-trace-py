@@ -5,7 +5,6 @@ import sys
 
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.contrib.internal.subprocess.patch import SubprocessCmdLine
 from ddtrace.contrib.internal.subprocess.patch import patch
@@ -238,15 +237,14 @@ def test_truncation(cmdline_obj, expected_str, expected_list, truncated):
 
 
 @pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
-def test_ossystem(tracer, config):
+def test_ossystem(tracer, test_spans, config):
     with override_global_config(config):
         patch()
-        Pin.get_from(os)._clone(tracer=tracer).onto(os)
         with tracer.trace("ossystem_test"):
             ret = os.system("dir -l /")
             assert ret == 0
 
-        spans = tracer.pop()
+        spans = test_spans.pop()
         assert spans
         assert len(spans) == 2
         span = spans[1]
@@ -259,19 +257,14 @@ def test_ossystem(tracer, config):
 
 
 @pytest.mark.parametrize("config", PATCH_DISABLED_CONFIGURATIONS)
-def test_ossystem_disabled(tracer, config):
+def test_ossystem_disabled(tracer, test_spans, config):
     with override_global_config(config):
         patch()
-        pin = Pin.get_from(os)
-        # Pin may be None if _load_modules is False (patch returns early)
-        # Pin will be set if _load_modules is True but instrumentation is disabled
-        if pin is not None:
-            pin._clone(tracer=tracer).onto(os)
         with tracer.trace("ossystem_test"):
             ret = os.system("dir -l /")
             assert ret == 0
 
-        spans = tracer.pop()
+        spans = test_spans.pop()
         assert spans
 
         assert len(spans) == 1
@@ -279,10 +272,9 @@ def test_ossystem_disabled(tracer, config):
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Only for Linux")
-def test_fork(tracer):
+def test_fork(tracer, test_spans):
     with override_global_config(dict(_asm_enabled=True)):
         patch()
-        Pin.get_from(os)._clone(tracer=tracer).onto(os)
         with tracer.trace("ossystem_test"):
             pid = os.fork()
             if pid == 0:
@@ -294,7 +286,7 @@ def test_fork(tracer):
 
                 pytest.exit("in forked child", returncode=0)
 
-        spans = tracer.pop()
+        spans = test_spans.pop()
         assert spans
         assert len(spans) >= 2
         _assert_root_span_empty_system_data(spans[0])
@@ -306,15 +298,14 @@ def test_fork(tracer):
         assert not span.get_tag(COMMANDS.TRUNCATED)
 
 
-def test_unpatch(tracer):
+def test_unpatch(tracer, test_spans):
     with override_global_config(dict(_asm_enabled=True)):
         patch()
-        Pin.get_from(os)._clone(tracer=tracer).onto(os)
         with tracer.trace("os.system"):
             ret = os.system("dir -l /")
             assert ret == 0
 
-        spans = tracer.pop()
+        spans = test_spans.pop()
         assert spans
         assert len(spans) == 2
         span = spans[1]
@@ -322,15 +313,11 @@ def test_unpatch(tracer):
 
     unpatch()
     with override_global_config(dict(_ep_enabled=False)):
-        # After unpatch, Pin is removed, so we need to create a new one
-        # to verify that even with a Pin set, no subprocess spans are created
-        Pin().onto(os)
-        Pin.get_from(os)._clone(tracer=tracer).onto(os)
         with tracer.trace("os.system_unpatch"):
             ret = os.system("dir -l /")
             assert ret == 0
 
-        spans = tracer.pop()
+        spans = test_spans.pop()
         assert spans
         assert len(spans) == 1
         span = spans[0]
@@ -343,7 +330,7 @@ def test_unpatch(tracer):
     assert not getattr(subprocess, "_datadogpatch", False)
 
 
-def test_ossystem_noappsec(tracer):
+def test_ossystem_noappsec(tracer, test_spans):
     with override_global_config(dict(_ep_enabled=False)):
         patch()
         assert not hasattr(os.system, "__wrapped__")
@@ -352,17 +339,16 @@ def test_ossystem_noappsec(tracer):
 
 
 @pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
-def test_ospopen(tracer, config):
+def test_ospopen(tracer, test_spans, config):
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
         with tracer.trace("os.popen"):
             pipe = os.popen("dir -li /")
             content = pipe.read()
             assert content
             pipe.close()
 
-        spans = tracer.pop()
+        spans = test_spans.pop()
         assert spans
         assert len(spans) == 3
         span = spans[2]
@@ -399,10 +385,9 @@ _PARAMS_ENV = _PARAMS + [{"fooenv": "bar"}]  # type: ignore
         (os.spawnvpe, os.P_NOWAIT, _PARAMS_ENV),
     ],
 )
-def test_osspawn_variants(tracer, function, mode, arguments):
+def test_osspawn_variants(tracer, test_spans, function, mode, arguments):
     with override_global_config(dict(_asm_enabled=True)):
         patch()
-        Pin.get_from(os)._clone(tracer=tracer).onto(os)
 
         if "_" in function.__name__:
             # wrapt changes function names when debugging
@@ -423,7 +408,7 @@ def test_osspawn_variants(tracer, function, mode, arguments):
             else:
                 assert ret > 0  # for P_NOWAIT returned value is the pid
 
-        spans = tracer.pop()
+        spans = test_spans.pop()
         assert spans
         # assert len(spans) > 1
         span = spans[1]
@@ -439,15 +424,14 @@ def test_osspawn_variants(tracer, function, mode, arguments):
 
 
 @pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
-def test_subprocess_init_shell_true(tracer, config):
+def test_subprocess_init_shell_true(tracer, test_spans, config):
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
             subp = subprocess.Popen(["dir", "-li", "/"], shell=True)
             subp.wait()
 
-        spans = tracer.pop()
+        spans = test_spans.pop()
         assert spans
         assert len(spans) == 3
         span = spans[2]
@@ -460,15 +444,14 @@ def test_subprocess_init_shell_true(tracer, config):
 
 
 @pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
-def test_subprocess_init_shell_false(tracer, config):
+def test_subprocess_init_shell_false(tracer, test_spans, config):
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
             subp = subprocess.Popen(["dir", "-li", "/"], shell=False)
             subp.wait()
 
-        spans = tracer.pop()
+        spans = test_spans.pop()
         assert spans
         assert len(spans) == 3
         span = spans[2]
@@ -481,7 +464,6 @@ def test_subprocess_wait_shell_false(tracer, config):
     args = ["dir", "-li", "/"]
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
             subp = subprocess.Popen(args=args, shell=False)
             subp.wait()
@@ -495,7 +477,6 @@ def test_subprocess_wait_shell_false(tracer, config):
 def test_subprocess_wait_shell_true(tracer, config):
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
             subp = subprocess.Popen(args=["dir", "-li", "/"], shell=True)
             subp.wait()
@@ -504,15 +485,14 @@ def test_subprocess_wait_shell_true(tracer, config):
 
 
 @pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
-def test_subprocess_run(tracer, config):
+def test_subprocess_run(tracer, test_spans, config):
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.wait"):
             result = subprocess.run(["dir", "-l", "/"], shell=True)
             assert result.returncode == 0
 
-        spans = tracer.pop()
+        spans = test_spans.pop()
         assert spans
         assert len(spans) == 4
         _assert_root_span_empty_system_data(spans[0])
@@ -695,17 +675,16 @@ def test_cache_maxsize():
         SubprocessCmdLine._CACHE_MAXSIZE = orig_cache_maxsize
 
 
-def test_subprocess_communicate(tracer):
+def test_subprocess_communicate(tracer, test_spans):
     with override_global_config(dict(_asm_enabled=True)):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.wait"):
             subp = subprocess.Popen(args=["dir", "-li", "/"], shell=True)
             subp.communicate()
             subp.wait()
             assert subp.returncode == 0
 
-        spans = tracer.pop()
+        spans = test_spans.pop()
         assert spans
         assert len(spans) == 4
         span = spans[2]
@@ -735,11 +714,10 @@ def test_os_spawn_argument_errors(tracer):
 
 
 @pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
-def test_nested_subprocess_calls(tracer, config):
+def test_nested_subprocess_calls(tracer, test_spans, config):
     """Test subprocess that spawns another subprocess - verify span ordering"""
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
 
         with tracer.trace("parent_operation"):
             # Parent subprocess that calls another subprocess
@@ -751,7 +729,7 @@ def test_nested_subprocess_calls(tracer, config):
             assert result.returncode == 0
             assert "parent" in result.stdout
 
-        spans = tracer.pop()
+        spans = test_spans.pop()
         assert spans
         assert len(spans) >= 3  # parent trace + at least 2 subprocess spans
 
@@ -765,11 +743,10 @@ def test_nested_subprocess_calls(tracer, config):
 
 
 @pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
-def test_complex_shell_command_with_pipes(tracer, config):
+def test_complex_shell_command_with_pipes(tracer, test_spans, config):
     """Test complex shell commands with pipes and redirections"""
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
 
         with tracer.trace("complex_shell"):
             # Complex shell command with pipes
@@ -779,7 +756,7 @@ def test_complex_shell_command_with_pipes(tracer, config):
             assert result.returncode == 0
             assert result.stdout.strip() == "1"
 
-        spans = tracer.pop()
+        spans = test_spans.pop()
         assert spans
         i = 0
         for span in spans:
@@ -793,12 +770,10 @@ def test_complex_shell_command_with_pipes(tracer, config):
 
 
 @pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
-def test_mixed_subprocess_functions_sequence(tracer, config):
+def test_mixed_subprocess_functions_sequence(tracer, test_spans, config):
     """Test sequence of different subprocess functions and verify span order"""
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
-        Pin.get_from(os)._clone(tracer=tracer).onto(os)
 
         with tracer.trace("mixed_subprocess_operations"):
             # Use different subprocess functions in sequence
@@ -812,7 +787,7 @@ def test_mixed_subprocess_functions_sequence(tracer, config):
             with os.popen("echo 'os.popen'") as pipe:
                 pipe.read()
 
-        spans = tracer.pop()
+        spans = test_spans.pop()
         assert spans
 
         # Verify we have spans for all different functions
@@ -826,13 +801,12 @@ def test_mixed_subprocess_functions_sequence(tracer, config):
 
 
 @pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
-def test_concurrent_subprocess_calls(tracer, config):
+def test_concurrent_subprocess_calls(tracer, test_spans, config):
     """Test multiple subprocess calls and verify all are traced"""
     import threading
 
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
 
         results = []
 
@@ -856,7 +830,7 @@ def test_concurrent_subprocess_calls(tracer, config):
             for thread in threads:
                 thread.join()
 
-        spans = tracer.pop()
+        spans = test_spans.pop()
         assert spans
 
         # Should have spans for all subprocess calls
@@ -906,11 +880,10 @@ def test_subprocess_error_propagation_nested(tracer, config):
 
 
 @pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
-def test_subprocess_resource_cleanup_on_error(tracer, config):
+def test_subprocess_resource_cleanup_on_error(tracer, test_spans, config):
     """Test that resources are properly cleaned up when subprocess fails"""
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
 
         with tracer.trace("cleanup_test"):
             # Test that file descriptors are properly managed even on errors
@@ -926,7 +899,7 @@ def test_subprocess_resource_cleanup_on_error(tracer, config):
                     proc.terminate()
                     proc.wait()
 
-        spans = tracer.pop()
+        spans = test_spans.pop()
         subprocess_spans = [s for s in spans if s.name == COMMANDS.SPAN_NAME]
         assert len(subprocess_spans) >= 1
 

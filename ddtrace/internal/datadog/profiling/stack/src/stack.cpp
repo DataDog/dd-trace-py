@@ -187,6 +187,23 @@ stack_link_tasks(PyObject* self, PyObject* args)
 }
 
 static PyObject*
+stack_weak_link_tasks(PyObject* self, PyObject* args)
+{
+    (void)self;
+    PyObject *parent, *child;
+
+    if (!PyArg_ParseTuple(args, "OO", &parent, &child)) {
+        return NULL;
+    }
+
+    Py_BEGIN_ALLOW_THREADS;
+    Sampler::get().weak_link_tasks(parent, child);
+    Py_END_ALLOW_THREADS;
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_set_adaptive_sampling(PyObject* Py_UNUSED(self), PyObject* args)
 {
     int do_adaptive_sampling = false;
@@ -210,7 +227,7 @@ track_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
     if (!PyArg_ParseTuple(args, "lOO", &greenlet_id, &name, &frame))
         return NULL;
 
-    auto maybe_greenlet_name = string_table.key(name);
+    auto maybe_greenlet_name = string_table.key(name, StringTag::GreenletName);
     if (!maybe_greenlet_name) {
         // We failed to get this task but we keep going
         PyErr_SetString(PyExc_RuntimeError, "Failed to get greenlet name from the string table");
@@ -285,6 +302,7 @@ static PyMethodDef _stack_methods[] = {
     { "track_asyncio_loop", stack_track_asyncio_loop, METH_VARARGS, "Map the name of a task with its identifier" },
     { "init_asyncio", stack_init_asyncio, METH_VARARGS, "Initialise asyncio tracking" },
     { "link_tasks", stack_link_tasks, METH_VARARGS, "Link two tasks" },
+    { "weak_link_tasks", stack_weak_link_tasks, METH_VARARGS, "Weakly link two tasks" },
     // greenlet support
     { "track_greenlet", track_greenlet, METH_VARARGS, "Map a greenlet with its identifier" },
     { "untrack_greenlet", untrack_greenlet, METH_VARARGS, "Untrack a terminated greenlet" },
