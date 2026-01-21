@@ -18,7 +18,7 @@ LOG = logging.getLogger(__name__)
 
 # Try to use fast Rust implementation if available
 try:
-    from ddtrace._native import distributions as _distributions
+    from ddtrace.internal.native._native import distributions as _distributions
 
     LOG.debug("Using Rust-optimized distributions() implementation")
 except (ImportError, AttributeError):
