@@ -53,16 +53,18 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
             bool is_boundary_frame = false;
 
             if (echion.using_uvloop()) {
-                // For uvloop, the boundary frame is Runner.run from asyncio/runners.py
+                // For uvloop, the boundary frame depends on the Python version:
+                // - Python 3.11+: Runner.run from asyncio/runners.py (uvloop uses asyncio.Runner)
+                // - Python < 3.11: run from uvloop/__init__.py (uvloop has its own implementation)
 #if PY_VERSION_HEX >= 0x030b0000
                 constexpr std::string_view runner_run = "Runner.run";
                 is_boundary_frame = frame_name == runner_run;
 #else
-                constexpr std::string_view asyncio_runners_py = "asyncio/runners.py";
+                constexpr std::string_view uvloop_init_py = "uvloop/__init__.py";
                 constexpr std::string_view run = "run";
                 auto filename = echion.string_table().lookup(frame.filename)->get();
-                auto is_asyncio = filename.rfind(asyncio_runners_py) == filename.size() - asyncio_runners_py.size();
-                is_boundary_frame = is_asyncio && (frame_name == run);
+                auto is_uvloop = filename.rfind(uvloop_init_py) == filename.size() - uvloop_init_py.size();
+                is_boundary_frame = is_uvloop && (frame_name == run);
 #endif
             } else {
                 // For regular asyncio, the boundary frame is Handle._run from asyncio/events.py

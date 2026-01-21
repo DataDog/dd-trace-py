@@ -1,5 +1,10 @@
 """Shared utilities for profiling collector tests."""
 
+import asyncio
+import os
+from typing import Any
+from typing import Coroutine
+
 from ddtrace.internal.datadog.profiling import ddup
 
 
@@ -19,3 +24,14 @@ def init_ddup(test_name: str) -> None:
         output_filename="/tmp/" + test_name,
     )
     ddup.start()
+
+
+def async_run(coro: Coroutine[Any, Any, Any]) -> None:
+    use_uvloop = os.environ.get("USE_UVLOOP", "0") == "1"
+
+    if use_uvloop:
+        import uvloop
+
+        uvloop.run(coro)
+    else:
+        asyncio.run(coro)
