@@ -222,7 +222,7 @@ class SessionManager:
         if created:
             try:
                 self.collected_tests.add(test_ref)
-                
+
                 has_parameters = test.has_parameters()
                 known_tests_count = len(self.known_tests)
                 in_known_tests = test_ref in self.known_tests
