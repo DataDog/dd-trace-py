@@ -159,5 +159,5 @@ DEFAULT_PROMPTS_TIMEOUT = 5.0  # seconds for all prompt fetch operations
 DEFAULT_PROMPTS_LABEL = "prod"  # default label when not specified
 
 # Prompt Registry API
-PROMPTS_ENDPOINT = "/api/unstable/llmobs/prompts"
+PROMPTS_ENDPOINT = "/api/unstable/llm-obs/v1/prompts"
 PROMPTS_SUBDOMAIN = "api"
