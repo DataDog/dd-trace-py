@@ -1189,7 +1189,11 @@ class LLMObs(Service):
             span = cls._instance._current_span()
             if span is None:
                 telemetry.record_span_exported(span, "no_active_span")
-                raise LLMObsExportSpanError("No span provided and no active LLMObs-generated span found.")
+                raise LLMObsExportSpanError(
+                    "No span provided and no active LLMObs-generated span found. "
+                    "Ensure you pass the span explicitly using LLMObs.export_span(span=<your_span>) "
+                    "when exporting from a different thread or async task than where the span was created."
+                )
         error = None
         try:
             if span.span_type != SpanTypes.LLM:
@@ -1630,7 +1634,11 @@ class LLMObs(Service):
                 span = cls._instance._current_span()
                 if span is None:
                     error = "invalid_span_no_active_spans"
-                    raise LLMObsExportSpanError("No span provided and no active LLMObs-generated span found.")
+                    raise LLMObsExportSpanError(
+                        "No span provided and no active LLMObs-generated span found. "
+                        "Ensure you pass the span explicitly using LLMObs.annotate(span=<your_span>, ...) "
+                        "when annotating from a different thread or async task than where the span was created."
+                    )
             if span.span_type != SpanTypes.LLM:
                 error = "invalid_span_type"
                 raise LLMObsExportSpanError("Span must be an LLMObs-generated span.")
