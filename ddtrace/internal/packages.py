@@ -17,14 +17,13 @@ from ddtrace.internal.utils.cache import callonce
 LOG = logging.getLogger(__name__)
 
 # Try to use fast Rust implementation if available
-_USE_RUST_DISTRIBUTIONS = False
 try:
-    from ddtrace._native import distributions as _rust_distributions
-    _USE_RUST_DISTRIBUTIONS = True
+    from ddtrace._native import distributions as _distributions
     LOG.debug("Using Rust-optimized distributions() implementation")
 except (ImportError, AttributeError):
+    import importlib.metadata as importlib_metadata
+    _distributions = importlib_metadata.distributions
     LOG.debug("Rust distributions() not available, falling back to Python implementation")
-    _rust_distributions = None
 
 Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str)])
 
@@ -37,28 +36,10 @@ def get_distributions() -> t.Mapping[str, str]:
     """returns the mapping from distribution name to version for all distributions in a python path"""
     pkgs = {}
 
-    if _USE_RUST_DISTRIBUTIONS:
-        # Use fast Rust implementation
-        try:
-            for dist in _rust_distributions():
-                name = dist.name
-                version = dist.version
-                if name and version:
-                    pkgs[name.lower()] = version
-            return pkgs
-        except Exception:
-            LOG.warning("Rust distributions() failed, falling back to Python", exc_info=True)
-            # Fall through to Python implementation
-
-    # Python fallback
-    import importlib.metadata as importlib_metadata
-
-    for dist in importlib_metadata.distributions():
-        # PKG-INFO and/or METADATA files are parsed when dist.metadata is accessed
-        # Optimization: we should avoid accessing dist.metadata more than once
-        metadata = dist.metadata
-        name = metadata["name"]
-        version = metadata["version"]
+    for dist in _distributions():
+        # Both Rust and Python implementations provide .name and .version
+        name = dist.name
+        version = dist.version
         if name and version:
             pkgs[name.lower()] = version
 
@@ -207,9 +188,7 @@ def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
         mapping = {}
 
         # Use Rust implementation if available (now supports dist.files)
-        dists = _rust_distributions() if _USE_RUST_DISTRIBUTIONS else importlib_metadata.distributions()
-
-        for dist in dists:
+        for dist in _distributions():
             if not (files := dist.files):
                 continue
             metadata = dist.metadata
@@ -347,12 +326,8 @@ def _packages_distributions() -> t.Mapping[str, t.List[str]]:
     True
     """
     # Use Rust implementation if available (now supports dist.read_text() and dist.files)
-    import importlib.metadata as importlib_metadata
-
     pkg_to_dist = collections.defaultdict(list)
-    dists = _rust_distributions() if _USE_RUST_DISTRIBUTIONS else importlib_metadata.distributions()
-
-    for dist in dists:
+    for dist in _distributions():
         for pkg in _top_level_declared(dist) or _top_level_inferred(dist):
             pkg_to_dist[pkg].append(dist.metadata["Name"])
     return dict(pkg_to_dist)
