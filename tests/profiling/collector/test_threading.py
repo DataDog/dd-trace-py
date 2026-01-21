@@ -512,57 +512,67 @@ def test_all_exceptions_suppressed_by_default() -> None:
         lock.release()
 
 
-# def test_safe_for_instrumentation_decorator_handles_shallow_stack() -> None:
-#     """
-#     Test that @_safe_for_instrumentation decorator catches ValueError from sys._getframe,
-#     which occurs when the call stack is too shallow.
-#     """
-#     init_ddup("test_safe_for_instrumentation_decorator_handles_shallow_stack")
+def test_safe_for_instrumentation_decorator_handles_shallow_stack() -> None:
+    """
+    Test that @_safe_for_instrumentation decorator catches ValueError from sys._getframe,
+    which occurs when the call stack is too shallow.
+    """
+    from ddtrace.profiling import collector as profiling_collector
 
-#     real_lock = threading.Lock()
-#     capture_sampler = collector.CaptureSampler(capture_pct=100)
-#     profiled_lock = _ProfiledLock(
-#         wrapped=real_lock,
-#         tracer=None,
-#         max_nframes=64,
-#         capture_sampler=capture_sampler,
-#     )
+    init_ddup("test_safe_for_instrumentation_decorator_handles_shallow_stack")
 
-#     # Mock sys._getframe to raise ValueError (simulating shallow stack)
-#     with mock.patch("sys._getframe", side_effect=ValueError("call stack is not deep enough")):
-#         # Test _update_name - should NOT raise
-#         assert profiled_lock.name is None
-#         profiled_lock._update_name()
-#         assert profiled_lock.name is None
+    real_lock = threading.Lock()
+    capture_sampler = profiling_collector.CaptureSampler(capture_pct=100)
+    profiled_lock = _ProfiledLock(
+        wrapped=real_lock,
+        tracer=None,
+        max_nframes=64,
+        capture_sampler=capture_sampler,
+    )
 
-#         # Test _flush_sample - should NOT raise
-#         profiled_lock.acquired_time = time.monotonic_ns()
-#         profiled_lock.name = "test_lock"
-#         start = time.monotonic_ns()
-#         end = time.monotonic_ns()
-#         profiled_lock._flush_sample(start, end, is_acquire=False)
+    # Mock sys._getframe at MODULE level (not globally) to avoid affecting pytest/other code
+    with mock.patch(
+        "ddtrace.profiling.collector._lock.sys._getframe",
+        side_effect=ValueError("call stack is not deep enough"),
+    ):
+        # Test _update_name - should NOT raise
+        assert profiled_lock.name is None
+        profiled_lock._update_name()
+        assert profiled_lock.name is None
+
+        # Test _flush_sample - should NOT raise
+        profiled_lock.acquired_time = time.monotonic_ns()
+        profiled_lock.name = "test_lock"
+        start = time.monotonic_ns()
+        end = time.monotonic_ns()
+        profiled_lock._flush_sample(start, end, is_acquire=False)
 
 
-# def test_profiled_lock_init_handles_shallow_stack() -> None:
-#     """
-#     Test that _ProfiledLock constructor doesn't crash when sys._getframe raises ValueError,
-#     which occurs when the call stack is too shallow.
-#     """
-#     real_lock = threading.Lock()
-#     capture_sampler = collector.CaptureSampler(capture_pct=100)
+def test_profiled_lock_init_handles_shallow_stack() -> None:
+    """
+    Test that _ProfiledLock constructor doesn't crash when sys._getframe raises ValueError,
+    which occurs when the call stack is too shallow.
+    """
+    from ddtrace.profiling import collector as profiling_collector
 
-#     # Mock sys._getframe to raise ValueError (simulating shallow stack)
-#     with mock.patch("sys._getframe", side_effect=ValueError("call stack is not deep enough")):
-#         profiled_lock = _ProfiledLock(
-#             wrapped=real_lock,
-#             tracer=None,
-#             max_nframes=64,
-#             capture_sampler=capture_sampler,
-#         )
+    real_lock = threading.Lock()
+    capture_sampler = profiling_collector.CaptureSampler(capture_pct=100)
 
-#     assert profiled_lock.acquire()
-#     profiled_lock.release()
-#     assert profiled_lock.init_location == "unknown:0"
+    # Mock sys._getframe at MODULE level (not globally) to avoid affecting pytest/other code
+    with mock.patch(
+        "ddtrace.profiling.collector._lock.sys._getframe",
+        side_effect=ValueError("call stack is not deep enough"),
+    ):
+        profiled_lock = _ProfiledLock(
+            wrapped=real_lock,
+            tracer=None,
+            max_nframes=64,
+            capture_sampler=capture_sampler,
+        )
+
+    assert profiled_lock.acquire()
+    profiled_lock.release()
+    assert profiled_lock.init_location == "unknown:0"
 
 
 def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
