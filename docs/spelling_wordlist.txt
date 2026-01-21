@@ -4,8 +4,8 @@ adk
 agentless
 aiobotocore
 aiohttp
-aiomysql
 aiokafka
+aiomysql
 aiopg
 aioredis
 algolia
@@ -20,6 +20,7 @@ appsec
 AppSec
 aredis
 args
+ARN
 ASAN
 ascii
 asgi
@@ -39,7 +40,6 @@ avro
 Avro
 aws
 AWS
-ARN
 backend
 backends
 backoff
@@ -69,13 +69,13 @@ composable
 config
 contextvar
 contextvars
+contrib
 coroutine
 coroutines
 CPU
 CPython
 CUPTI
 Cython
-contrib
 datadog
 datadoghq
 dataset
@@ -84,8 +84,10 @@ datastores
 dbapi
 ddtrace
 deallocating
+debuggability
 decompiling
 deprecations
+dereferences
 DES
 deserializing
 django
@@ -207,6 +209,7 @@ mysql
 MySQL
 mysqlclient
 mysqldb
+onboarding
 # tests/contrib/openai/test_openai_v1.py
 Nam
 namespace
