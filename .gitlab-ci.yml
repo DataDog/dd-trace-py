@@ -55,10 +55,14 @@ include:
 tests-gen:
   stage: tests
   extends: .testrunner
+  variables:
+    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   script:
+    - |
+      echo "UNPIN_DEPENDENCIES: ${UNPIN_DEPENDENCIES:-}"
     - |
       if [ -z ${GH_TOKEN} ]
       then
