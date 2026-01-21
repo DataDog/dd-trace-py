@@ -5,7 +5,6 @@ import requests
 
 from ddtrace import config
 from ddtrace import tracer
-from ddtrace.contrib.events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import _sanitized_url
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.internal import core
@@ -14,6 +13,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.opentelemetry.constants import OTLP_EXPORTER_HEADER_IDENTIFIER
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import get_argument_value
+
+from .events import RequestsHttpClientRequestEvent
 
 
 log = get_logger(__name__)
@@ -84,7 +85,7 @@ def _wrap_send(func, instance, args, kwargs):
     host_without_port = hostname.split(":")[0] if hostname is not None else None
 
     with core.context_with_event(
-        HttpClientRequestEvent(
+        RequestsHttpClientRequestEvent(
             request,
             config.requests,
             url=request.url,

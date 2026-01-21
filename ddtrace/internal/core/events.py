@@ -54,7 +54,9 @@ class ContextEvent:
         if cls._start_span:
             _start_span(ctx, call_trace, **kwargs)
 
-        cls._on_context_started(ctx, call_trace, **kwargs)
+        for base_cls in reversed(cls.__mro__[:-1]):
+            if issubclass(base_cls, ContextEvent) and "_on_context_started" in base_cls.__dict__:
+                base_cls._on_context_started(ctx, call_trace, **kwargs)
 
     @classmethod
     def _registered_context_ended(
@@ -62,7 +64,9 @@ class ContextEvent:
         ctx: core.ExecutionContext,
         exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
-        cls._on_context_ended(ctx, exc_info)
+        for base_cls in reversed(cls.__mro__[:-1]):
+            if issubclass(base_cls, ContextEvent) and "_on_context_ended" in base_cls.__dict__:
+                base_cls._on_context_ended(ctx, exc_info)
 
         if cls._end_span:
             _finish_span(ctx, exc_info)
