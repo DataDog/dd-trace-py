@@ -1,7 +1,6 @@
 import pytest
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -130,7 +129,6 @@ class TestVertica(TracerTestCase):
 
             conn = vertica_python.connect(**VERTICA_CONFIG)
             cur = conn.cursor()
-            Pin._override(cur, tracer=self.tracer)
             with conn:
                 cur.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
         spans = self.pop_spans()
@@ -161,19 +159,15 @@ class TestVertica(TracerTestCase):
             import vertica_python
 
             conn = vertica_python.connect(**VERTICA_CONFIG)
-            Pin._override(conn, service="mycustomservice", tracer=self.tracer)
             conn.cursor()  # should be traced now
             conn.close()
         spans = self.pop_spans()
         assert len(spans) == 1
         assert spans[0].name == "get_cursor"
-        assert spans[0].service == "mycustomservice"
 
     def test_execute_metadata(self):
         """Metadata related to an `execute` call should be captured."""
         conn, cur = self.test_conn
-
-        Pin._override(cur, tracer=self.test_tracer)
 
         with conn:
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
@@ -203,8 +197,6 @@ class TestVertica(TracerTestCase):
     def test_cursor_override(self):
         """Test overriding the tracer with our own."""
         conn, cur = self.test_conn
-
-        Pin._override(cur, tracer=self.test_tracer)
 
         with conn:
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
@@ -368,7 +360,6 @@ class TestVertica(TracerTestCase):
 
         assert config.service == "mysvc"
         conn, cur = self.test_conn
-        Pin._override(cur, tracer=self.test_tracer)
         with conn:
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
@@ -392,7 +383,6 @@ class TestVertica(TracerTestCase):
 
         assert config.service == "mysvc"
         conn, cur = self.test_conn
-        Pin._override(cur, tracer=self.test_tracer)
         with conn:
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
@@ -416,7 +406,6 @@ class TestVertica(TracerTestCase):
 
         assert config.service == "mysvc"
         conn, cur = self.test_conn
-        Pin._override(cur, tracer=self.test_tracer)
         with conn:
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
@@ -434,7 +423,6 @@ class TestVertica(TracerTestCase):
             should result in the default DD_SERVICE the span service
         """
         conn, cur = self.test_conn
-        Pin._override(cur, tracer=self.test_tracer)
         with conn:
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
@@ -452,7 +440,6 @@ class TestVertica(TracerTestCase):
             should result in the default DD_SERVICE the span service
         """
         conn, cur = self.test_conn
-        Pin._override(cur, tracer=self.test_tracer)
         with conn:
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
