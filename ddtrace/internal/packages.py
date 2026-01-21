@@ -16,6 +16,16 @@ from ddtrace.internal.utils.cache import callonce
 
 LOG = logging.getLogger(__name__)
 
+# Try to use fast Rust implementation if available
+_USE_RUST_DISTRIBUTIONS = False
+try:
+    from ddtrace._native import distributions as _rust_distributions
+    _USE_RUST_DISTRIBUTIONS = True
+    LOG.debug("Using Rust-optimized distributions() implementation")
+except (ImportError, AttributeError):
+    LOG.debug("Rust distributions() not available, falling back to Python implementation")
+    _rust_distributions = None
+
 Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str)])
 
 
@@ -25,9 +35,24 @@ _PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None
 @callonce
 def get_distributions() -> t.Mapping[str, str]:
     """returns the mapping from distribution name to version for all distributions in a python path"""
+    pkgs = {}
+
+    if _USE_RUST_DISTRIBUTIONS:
+        # Use fast Rust implementation
+        try:
+            for dist in _rust_distributions():
+                name = dist.name
+                version = dist.version
+                if name and version:
+                    pkgs[name.lower()] = version
+            return pkgs
+        except Exception:
+            LOG.warning("Rust distributions() failed, falling back to Python", exc_info=True)
+            # Fall through to Python implementation
+
+    # Python fallback
     import importlib.metadata as importlib_metadata
 
-    pkgs = {}
     for dist in importlib_metadata.distributions():
         # PKG-INFO and/or METADATA files are parsed when dist.metadata is accessed
         # Optimization: we should avoid accessing dist.metadata more than once
@@ -181,6 +206,8 @@ def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
     try:
         mapping = {}
 
+        # Note: For this function we need dist.files which the Rust implementation
+        # doesn't provide yet, so we always use the Python implementation here
         for dist in importlib_metadata.distributions():
             if not (files := dist.files):
                 continue
@@ -318,6 +345,8 @@ def _packages_distributions() -> t.Mapping[str, t.List[str]]:
     >>> all(isinstance(dist, collections.abc.Sequence) for dist in pkgs.values())
     True
     """
+    # Note: This function needs dist.read_text() and dist.files which the Rust
+    # implementation doesn't provide yet, so we always use Python implementation
     import importlib.metadata as importlib_metadata
 
     pkg_to_dist = collections.defaultdict(list)
