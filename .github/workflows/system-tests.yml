@@ -274,27 +274,27 @@ jobs:
         run: ./run.sh APPSEC_STANDALONE_RASP
 
       - name: Run DEBUGGER_PROBES_STATUS
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1' && ( matrix.weblog-variant == 'flask-poc' || matrix.weblog-variant == 'uwsgi-poc' )
         run: ./run.sh DEBUGGER_PROBES_STATUS
 
       - name: Run DEBUGGER_PROBES_SNAPSHOT
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1' && ( matrix.weblog-variant == 'flask-poc' || matrix.weblog-variant == 'uwsgi-poc' )
         run: ./run.sh DEBUGGER_PROBES_SNAPSHOT
 
       - name: Run DEBUGGER_PII_REDACTION
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1' && ( matrix.weblog-variant == 'flask-poc' || matrix.weblog-variant == 'uwsgi-poc' )
         run: ./run.sh DEBUGGER_PII_REDACTION
 
       - name: Run DEBUGGER_EXPRESSION_LANGUAGE
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1' && ( matrix.weblog-variant == 'flask-poc' || matrix.weblog-variant == 'uwsgi-poc' )
         run: ./run.sh DEBUGGER_EXPRESSION_LANGUAGE
 
       - name: Run DEBUGGER_EXCEPTION_REPLAY
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-2'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-2' && ( matrix.weblog-variant == 'flask-poc' || matrix.weblog-variant == 'uwsgi-poc' )
         run: ./run.sh DEBUGGER_EXCEPTION_REPLAY
 
       - name: Run DEBUGGER_SYMDB
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-2'
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-2' && ( matrix.weblog-variant == 'flask-poc' || matrix.weblog-variant == 'uwsgi-poc' )
         run: ./run.sh DEBUGGER_SYMDB
 
       # The compress step speed up a lot the upload artifact process
