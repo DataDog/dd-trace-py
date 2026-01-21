@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: A bug where ``asyncio`` task stacks could contain duplicated frames when the task was on-CPU is now fixed.
+    The stack now correctly shows each frame only once.
+
