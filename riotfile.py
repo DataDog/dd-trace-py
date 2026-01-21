@@ -2967,13 +2967,25 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/litellm",
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
-                "litellm": "==1.65.4",
                 "vcrpy": latest,
                 "pytest-asyncio": latest,
                 "botocore": latest,
                 "boto3": latest,
-                "openai": "==1.68.2",
             },
+            venvs=[
+                Venv(
+                    pkgs={
+                        "litellm": "==1.65.4",
+                        "openai": "==1.68.2",
+                    },
+                ),
+                Venv(
+                    pkgs={
+                        "litellm": "==1.80.16",
+                        "openai": ">=2.8.0",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="anthropic",
