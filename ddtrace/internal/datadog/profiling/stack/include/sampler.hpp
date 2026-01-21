@@ -1,8 +1,13 @@
 #pragma once
+
+#include <atomic>
+
 #include "constants.hpp"
 #include "stack_renderer.hpp"
 
-#include <atomic>
+#include "echion/strings.h"
+
+class EchionSampler;
 
 namespace Datadog {
 
@@ -11,6 +16,8 @@ class Sampler
     // This class manages the initialization of echion as well as the sampling thread.
     // The underlying echion instance it manages keeps much of its state globally, so this class is a singleton in order
     // to keep it aligned with the echion state.
+    std::unique_ptr<EchionSampler> echion;
+
   private:
     std::shared_ptr<StackRenderer> renderer_ptr;
 
@@ -50,6 +57,7 @@ class Sampler
                       PyObject* _asyncio_scheduled_tasks,
                       PyObject* _asyncio_eager_tasks);
     void link_tasks(PyObject* parent, PyObject* child);
+    void weak_link_tasks(PyObject* parent, PyObject* child);
     void sampling_thread(const uint64_t seq_num);
     void track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* frame);
     void untrack_greenlet(uintptr_t greenlet_id);
@@ -62,6 +70,9 @@ class Sampler
     // self-time, and we're not currently accounting for the echion self-time.
     void set_interval(double new_interval);
     void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
+
+    // Delegates to the StackRenderer to clear its caches after fork
+    void postfork_child();
 };
 
 } // namespace Datadog

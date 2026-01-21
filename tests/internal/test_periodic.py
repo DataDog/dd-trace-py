@@ -124,13 +124,16 @@ def test_awakeable_periodic_service():
 
 def test_forksafe_awakeable_periodic_service():
     queue = [None]
+    periodic_ran = Event()
 
     class AwakeMe(periodic.ForksafeAwakeablePeriodicService):
         def reset(self):
             queue.clear()
+            periodic_ran.clear()
 
         def periodic(self):
             queue.append(len(queue))
+            periodic_ran.set()
 
     awake_me = AwakeMe(1)
     awake_me.start()
@@ -144,6 +147,7 @@ def test_forksafe_awakeable_periodic_service():
         assert not queue
 
         awake_me.awake()
+        periodic_ran.wait(timeout=5)  # Wait for periodic() to complete
         assert queue
         os._exit(42)
 

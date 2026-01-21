@@ -671,6 +671,30 @@ class TracerTestCases(TracerTestCase):
             assert span.context.dd_user_id == user_id_string
             assert user_id == "44Om44O844K244O8SUQ="
 
+    def test_tracer_wrap_executor_shutdown(self):
+        assert self.tracer._wrap_executor is None
+        self.tracer._wrap_executor = lambda *args, **kwargs: None
+
+        @self.tracer.wrap()
+        def f():
+            pass
+
+        f()
+
+        spans = self.pop_spans()
+        # Wrap executor should override the default tracing function
+        assert len(spans) == 0
+        self.tracer.shutdown()
+        # After shutdown, the wrap executor should be reset
+        assert self.tracer._wrap_executor is None
+
+    def test_tracer_context_provider_shutdown(self):
+        context = Context(trace_id=1, span_id=1)
+        self.tracer.context_provider.activate(context)
+        assert self.tracer.context_provider.active() == context
+        self.tracer.shutdown()
+        assert self.tracer.context_provider.active() is None
+
 
 @pytest.mark.subprocess(env=dict(DD_AGENT_PORT=None, DD_AGENT_HOST=None, DD_TRACE_AGENT_URL=None))
 def test_tracer_url_default():
@@ -1327,7 +1351,8 @@ def test_ctx(tracer, test_spans):
     assert s3.parent_id == s2.span_id
     assert s4.parent_id == s1.span_id
     assert s1.trace_id == s2.trace_id == s3.trace_id == s4.trace_id
-    assert s1.get_metric(_SAMPLING_PRIORITY_KEY) == 1
+    # Agent based sampling may set the sampling priority to either 0 or 1.
+    assert s1.get_metric(_SAMPLING_PRIORITY_KEY) in (AUTO_KEEP, AUTO_REJECT)
     assert s2.get_metric(_SAMPLING_PRIORITY_KEY) is None
     assert _ORIGIN_KEY not in s1.get_tags()
 

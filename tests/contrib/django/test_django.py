@@ -3,6 +3,7 @@ import itertools
 import os
 import subprocess
 import types
+import uuid
 
 import django
 from django.core.signals import request_started
@@ -2273,37 +2274,54 @@ def test_urlpatterns_repath(client, test_spans):
 
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
 @pytest.mark.django_db
-def test_user_name_included(client, test_spans):
+@pytest.mark.parametrize("pk_type", ["int", "uuid"])
+def test_user_name_included(client, test_spans, pk_type):
     """
     When making a request to a Django app with user name included
         We correctly add the `django.user.name` tag to the root span
     """
-    resp = client.get("/authenticated/")
+    resp = client.get(f"/authenticated/{pk_type}/")
     assert resp.status_code == 200
 
     # user name should be present in root span tags
     root = test_spans.get_root_span()
     assert root.get_tag("django.user.name") == "Jane Doe"
     assert root.get_tag("django.user.is_authenticated") == "True"
-    assert root.get_tag(user.ID) == "1"
+
+    if pk_type == "int":
+        assert root.get_tag(user.ID) == "1"
+    else:
+        assert root.get_tag(user.ID) is not None
+        try:
+            uuid.UUID(root.get_tag(user.ID))
+        except ValueError:
+            assert False, "User ID span tag was not a valid UUID"
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
+@pytest.mark.parametrize("pk_type", ["int", "uuid"])
 @pytest.mark.django_db
-def test_user_name_excluded(client, test_spans):
+def test_user_name_excluded(client, test_spans, pk_type):
     """
     When making a request to a Django app with user name excluded
         We correctly omit the `django.user.name` tag to the root span
     """
     with override_config("django", dict(include_user_name=False)):
-        resp = client.get("/authenticated/")
+        resp = client.get(f"/authenticated/{pk_type}/")
     assert resp.status_code == 200
 
     # user name should not be present in root span tags
     root = test_spans.get_root_span()
     assert "django.user.name" not in root.get_tags()
     assert root.get_tag("django.user.is_authenticated") == "True"
-    assert root.get_tag(user.ID) == "1"
+    if pk_type == "int":
+        assert root.get_tag(user.ID) == "1"
+    else:
+        assert root.get_tag(user.ID) is not None
+        try:
+            uuid.UUID(root.get_tag(user.ID))
+        except ValueError:
+            assert False, "User ID span tag was not a valid UUID"
 
 
 def test_django_use_handler_resource_format(client, test_spans):
