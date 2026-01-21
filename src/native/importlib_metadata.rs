@@ -26,12 +26,10 @@ struct PackagePath {
 
 impl Clone for PackagePath {
     fn clone(&self) -> Self {
-        Python::with_gil(|py| {
-            PackagePath {
-                parts: self.parts.clone_ref(py),
-                path_str: self.path_str.clone(),
-                dist_path: self.dist_path.clone(),
-            }
+        Python::with_gil(|py| PackagePath {
+            parts: self.parts.clone_ref(py),
+            path_str: self.path_str.clone(),
+            dist_path: self.dist_path.clone(),
         })
     }
 }
@@ -48,17 +46,25 @@ impl PackagePath {
 
     /// Read the file content as text
     fn read_text(&self, _py: Python) -> PyResult<String> {
-        let full_path = self.dist_path.parent()
+        let full_path = self
+            .dist_path
+            .parent()
             .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Invalid dist path"))?
             .join(&self.path_str);
 
-        fs::read_to_string(&full_path)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("Failed to read {}: {}", self.path_str, e)))
+        fs::read_to_string(&full_path).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyIOError, _>(format!(
+                "Failed to read {}: {}",
+                self.path_str, e
+            ))
+        })
     }
 
     /// Locate the file and return its absolute path
     fn locate(&self) -> PyResult<PathBuf> {
-        let full_path = self.dist_path.parent()
+        let full_path = self
+            .dist_path
+            .parent()
             .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Invalid dist path"))?
             .join(&self.path_str);
         Ok(full_path)
@@ -66,7 +72,11 @@ impl PackagePath {
 }
 
 /// Parse RECORD file and return list of PackagePath objects
-fn parse_record_file(record_path: &Path, dist_path: &PathBuf, py: Python) -> PyResult<Vec<Py<PackagePath>>> {
+fn parse_record_file(
+    record_path: &Path,
+    dist_path: &PathBuf,
+    py: Python,
+) -> PyResult<Vec<Py<PackagePath>>> {
     let content = match fs::read_to_string(record_path) {
         Ok(c) => c,
         Err(_) => return Ok(Vec::new()),
@@ -190,7 +200,8 @@ fn scan_directory_for_dists(dir_path: &Path) -> Vec<DistInfo> {
 /// Adaptive scan: sequential for typical sys.path, parallel for large
 fn scan_all_distributions(paths: &[PathBuf]) -> Vec<DistInfo> {
     // Sequential scan is faster for typical sys.path (< 10 directories)
-    paths.iter()
+    paths
+        .iter()
         .flat_map(|path| scan_directory_for_dists(path))
         .collect()
 }
@@ -225,7 +236,11 @@ impl Distribution {
         // Try installed-files.txt (for egg-info)
         let installed_files_path = self.path.join("installed-files.txt");
         if installed_files_path.exists() {
-            return Ok(Some(parse_record_file(&installed_files_path, &self.path, py)?));
+            return Ok(Some(parse_record_file(
+                &installed_files_path,
+                &self.path,
+                py,
+            )?));
         }
 
         // No files list available
@@ -274,10 +289,12 @@ pub fn distributions(py: Python) -> PyResult<Vec<Py<Distribution>>> {
         if let Some(ref text) = info.metadata_text {
             let parsed = parse_metadata_fast(text);
 
-            let name = parsed.get("name")
+            let name = parsed
+                .get("name")
                 .cloned()
                 .unwrap_or_else(|| info.name.clone());
-            let version = parsed.get("version")
+            let version = parsed
+                .get("version")
                 .cloned()
                 .unwrap_or_else(|| "unknown".to_string());
 
