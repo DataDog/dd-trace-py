@@ -101,7 +101,8 @@ def _find_distributions_optimized() -> t.Iterator[t.Tuple[str, str, Path]]:
                         dist_path = Path(str(located))
                     else:
                         continue
-                except Exception:
+                except Exception:  # nosec B112
+                    # Skip distributions we can't locate - this is intentional for robustness
                     continue
             else:
                 continue
