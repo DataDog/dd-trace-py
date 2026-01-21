@@ -448,8 +448,9 @@ class PromptOptimization:
         :param project_name: Project name for organizing optimization runs.
         :param config: Configuration dictionary. Must contain:
                       - ``prompt``: Initial prompt template
-                      - ``optimization_model_name``: Model to use for optimization
-                      - ``model_name``: Model to use for task execution
+                      - ``model_name`` (optional): Model to use for task execution
+                      - ``optimization_model_name`` (optional): Model to use for optimization execution
+                      - ``evaluation_output_format``: the output format required
         :param _llmobs_instance: Internal LLMObs instance.
         :param tags: Optional tags to associate with the optimization.
         :param max_iterations: Maximum number of optimization iterations to run.
@@ -478,14 +479,14 @@ class PromptOptimization:
         if not config:
             raise ValueError("config parameter is required")
 
-        required_keys = ["prompt", "optimization_model_name", "model_name"]
+        required_keys = ["prompt"]
         missing_keys = [key for key in required_keys if key not in config]
         if missing_keys:
             raise ValueError(f"config must contain keys: {missing_keys}")
 
         self._initial_prompt = config["prompt"]
-        self._optimization_model_name = config["optimization_model_name"]
-        self._model_name = config["model_name"]
+        self._optimization_model_name = config.get("optimization_model_name")
+        self._model_name = config.get("model_name")
         self._config = config
         # Optional: specify which metric to optimize (default: use first found)
         self._optimization_metric = config.get("optimization_metric", None)
