@@ -422,7 +422,7 @@ def gen_build_base_venvs() -> None:
     on the cached testrunner job, which is also generated dynamically.
     """
     with TESTS_GEN.open("a") as f:
-        f.write(template("build-base-venvs"))
+        f.write(template("build-base-venvs", unpin_dependencies=os.getenv("UNPIN_DEPENDENCIES", "false")))
 
 
 def gen_debugger_exploration() -> None:

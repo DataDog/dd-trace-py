@@ -11,7 +11,7 @@ build_base_venvs:
     DD_PROFILING_NATIVE_TESTS: '1'
     DD_USE_SCCACHE: '1'
     DD_FAST_BUILD: '1'
-    UNPIN_DEPENDENCIES: "${{UNPIN_DEPENDENCIES:-}}"
+    UNPIN_DEPENDENCIES: "{unpin_dependencies}"
   rules:
     - if: '$CI_COMMIT_REF_NAME == "main"'
       variables:
