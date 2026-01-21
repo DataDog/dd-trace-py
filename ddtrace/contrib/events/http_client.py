@@ -37,13 +37,13 @@ class HttpClientRequestEvent(ContextEvent):
             SPAN_KIND: cls.span_kind,
         }
 
-    def __new__(cls, req, config, url, query, target_host, tags=None):
+    def __new__(cls, operation_name, req, config, url, query, target_host, tags=None):
         cls.component = config.integration_name
 
         return {
             "event_name": cls.event_name,
             "span_type": SpanTypes.HTTP,
-            "span_name": schematize_url_operation("http.request", protocol="http", direction=SpanDirection.OUTBOUND),
+            "span_name": schematize_url_operation(operation_name, protocol="http", direction=SpanDirection.OUTBOUND),
             "call_trace": True,
             "request": req,
             "tags": cls.get_tags(tags),

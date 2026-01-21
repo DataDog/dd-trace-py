@@ -306,7 +306,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert len(spans) == 2
         s = spans[1]
 
-        assert s.name == "http.request"
+        assert s.name == "requests.request"
         assert s.service == "requests"
 
     def test_parent_without_service_name(self):
@@ -320,7 +320,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert len(spans) == 2
         s = spans[1]
 
-        assert s.name == "http.request"
+        assert s.name == "requests.request"
         assert s.service == "requests"
         assert s.resource == "GET /status/200"
 
@@ -336,7 +336,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             assert len(spans) == 2
             s = spans[1]
 
-            assert s.name == "http.request"
+            assert s.name == "requests.request"
             assert s.service == "clients"
 
     def test_split_by_domain_with_ampersat(self):
@@ -507,7 +507,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = self.session.get(URL_200)
         assert out.status_code == 200
         spans = self.pop_spans()
-        assert spans[0].name == "http.request"
+        assert spans[0].name == "requests.request"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematization_operation_name_v1(self):

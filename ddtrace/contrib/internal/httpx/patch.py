@@ -22,6 +22,8 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
+from .utils import httpx_url_to_str
+
 
 HTTPX_VERSION = parse_version(httpx.__version__)
 HTTP_REQUEST_TAGS = {COMPONENT: config.httpx.integration_name, SPAN_KIND: SpanKind.CLIENT}
@@ -89,22 +91,6 @@ async def _wrapped_async_send_single_request(
             ctx.set_item("response", resp)
 
 
-def httpx_url_to_str(url) -> str:
-    """
-    Helper to convert the httpx.URL parts from bytes to a str
-    """
-    scheme = url.raw_scheme
-    host = url.raw_host
-    port = url.port
-    raw_path = url.raw_path
-    url = scheme + b"://" + host
-    if port is not None:
-        url += b":" + ensure_binary(str(port))
-    url += raw_path
-
-    return ensure_text(url)
-
-
 async def _wrapped_async_send(
     wrapped: BoundFunctionWrapper, instance: httpx.AsyncClient, args: Tuple[httpx.Request], kwargs: Dict[str, Any]
 ):
@@ -112,8 +98,9 @@ async def _wrapped_async_send(
 
     with core.context_with_event(
         HttpClientRequestEvent(
-            req,
-            config.httpx,
+            operation_name="http.request",
+            config=config.httpx,
+            req=req,
             url=httpx_url_to_str(req.url),
             query=req.url.query,
             target_host=req.url.host,
@@ -135,8 +122,9 @@ def _wrapped_sync_send(
 
     with core.context_with_event(
         HttpClientRequestEvent(
-            req,
-            config.httpx,
+            operation_name="http.request",
+            config=config.httpx,
+            req=req,
             url=httpx_url_to_str(req.url),
             query=req.url.query,
             target_host=req.url.host,

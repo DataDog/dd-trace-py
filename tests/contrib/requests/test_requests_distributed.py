@@ -17,7 +17,7 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
         assert "x-datadog-parent-id" in headers
         assert root_span.trace_id == get_128_bit_trace_id_from_headers(headers)
         req_span = tracer.current_span()
-        assert "http.request" == req_span.name
+        assert "requests.request" == req_span.name
         assert str(req_span.span_id) == headers["x-datadog-parent-id"]
         return True
 
@@ -93,7 +93,7 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
             spans = self.pop_spans()
             root, req = spans
             assert "root" == root.name
-            assert "http.request" == req.name
+            assert "requests.request" == req.name
             assert root.trace_id == req.trace_id
             assert root.span_id == req.parent_id
 
@@ -136,7 +136,7 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
                 spans = self.pop_spans()
                 root, req = spans
                 assert "root" == root.name
-                assert "http.request" == req.name
+                assert "requests.request" == req.name
                 assert root.trace_id == req.trace_id
                 assert root.span_id == req.parent_id
 
