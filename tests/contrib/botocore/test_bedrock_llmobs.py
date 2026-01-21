@@ -4,7 +4,6 @@ import mock
 from mock import patch as mock_patch
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs import LLMObs as llmobs_service
 from tests.contrib.botocore.bedrock_utils import _MODELS
@@ -226,8 +225,6 @@ class TestLLMObsBedrock:
 
             session = botocore.session.get_session()
             sqs_client = session.create_client("sqs", region_name="us-east-1")
-            pin = Pin.get_from(sqs_client)
-            pin._override(sqs_client, tracer=tracer)
             try:
                 sqs_client.list_queues()
             except ClientError:

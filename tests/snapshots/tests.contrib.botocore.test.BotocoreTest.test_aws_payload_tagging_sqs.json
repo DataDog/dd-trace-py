@@ -1,7 +1,7 @@
 [[
   {
     "name": "sqs.command",
-    "service": "test-botocore-tracing.sqs",
+    "service": "aws.sqs",
     "resource": "sqs.receivemessage",
     "trace_id": 0,
     "span_id": 1,
@@ -135,7 +135,7 @@
 [
   {
     "name": "sqs.command",
-    "service": "test-botocore-tracing.sqs",
+    "service": "aws.sqs",
     "resource": "sqs.sendmessage",
     "trace_id": 3,
     "span_id": 1,
