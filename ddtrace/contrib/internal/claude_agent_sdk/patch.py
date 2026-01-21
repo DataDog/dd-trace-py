@@ -1,7 +1,7 @@
 import sys
-from typing import Dict
 
 import claude_agent_sdk
+from claude_agent_sdk import ResultMessage
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
@@ -21,33 +21,21 @@ log = get_logger(__name__)
 config._add("claude_agent_sdk", {})
 
 
-def _supported_versions() -> Dict[str, str]:
-    return {"claude_agent_sdk": ">=0.1.0"}
-
-
 def get_version() -> str:
     return getattr(claude_agent_sdk, "__version__", "")
 
 
-@with_traced_module
-def traced_query_async_generator(claude_agent_sdk, pin, func, instance, args, kwargs):
-    """Trace the standalone query() async generator function."""
-    integration = claude_agent_sdk._datadog_integration
-
-    operation_name = "claude_agent_sdk.query"
-    span_name = "claude_agent_sdk.query"
-
+def _trace_async_generator(integration, pin, func, args, kwargs, operation_name, span_name, operation, instance=None):
+    """Common helper for tracing async generators that yield messages."""
     span = integration.trace(
         pin,
         operation_name,
         submit_to_llmobs=True,
         span_name=span_name,
-        model="",  # model not known at call time for this SDK
+        model="",
+        instance=instance,
     )
 
-    # Set peer service precursor tags for PeerServiceProcessor
-    # span.kind=client indicates this is an outbound request
-    # out.host is used as the peer service identifier
     span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
     span._set_tag_str(net.TARGET_HOST, "api.anthropic.com")
 
@@ -68,47 +56,103 @@ def traced_query_async_generator(claude_agent_sdk, pin, func, instance, args, kw
             span.set_exc_info(*sys.exc_info())
             raise
         finally:
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response_messages, operation="query")
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response_messages, operation=operation)
             span.finish()
 
     return _generator()
 
 
 @with_traced_module
-async def traced_client_query(claude_agent_sdk, pin, func, instance, args, kwargs):
-    """Trace ClaudeSDKClient.query() method - sends a message to the transport."""
+def traced_query_async_generator(claude_agent_sdk, pin, func, _instance, args, kwargs):
+    """Trace the standalone query() async generator function."""
     integration = claude_agent_sdk._datadog_integration
+    return _trace_async_generator(
+        integration, pin, func, args, kwargs,
+        operation_name="claude_agent_sdk.query",
+        span_name="claude_agent_sdk.query",
+        operation="query",
+    )
 
-    operation_name = "ClaudeSDKClient.query"
-    span_name = "claude_agent_sdk.client_query"
+
+@with_traced_module
+async def traced_client_query(claude_agent_sdk, pin, func, instance, args, kwargs):
+    """Trace ClaudeSDKClient.query() - starts span, closed by receive_messages."""
+    integration = claude_agent_sdk._datadog_integration
 
     span = integration.trace(
         pin,
-        operation_name,
+        "claude_agent_sdk.request",
         submit_to_llmobs=True,
-        span_name=span_name,
-        model="",  # model not known at call time for this SDK
+        span_name="claude_agent_sdk.request",
+        model="",
         instance=instance,
     )
 
-    # Set peer service precursor tags for PeerServiceProcessor
-    # span.kind=client indicates this is an outbound request
-    # out.host is used as the peer service identifier
     span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
     span._set_tag_str(net.TARGET_HOST, "api.anthropic.com")
 
-    result = None
+    # Store span and query info on instance for receive_messages to close
+    instance._datadog_span = span
+    instance._datadog_query_args = args
+    instance._datadog_query_kwargs = kwargs
+
     try:
-        result = await func(*args, **kwargs)
-        return result
+        return await func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        # ClaudeSDKClient.query returns None - it just sends the message
-        # The prompt is in args[0] or kwargs["prompt"]
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="client_query")
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="request")
         span.finish()
+        instance._datadog_span = None
+        raise
+
+
+@with_traced_module
+def traced_receive_messages(claude_agent_sdk, _pin, func, instance, args, kwargs):
+    """Trace ClaudeSDKClient.receive_messages() - closes span started by query()."""
+    integration = claude_agent_sdk._datadog_integration
+
+    # Get span started by query(), if any
+    span = getattr(instance, "_datadog_span", None)
+    query_args = getattr(instance, "_datadog_query_args", ())
+    query_kwargs = getattr(instance, "_datadog_query_kwargs", {})
+
+    try:
+        agen = func(*args, **kwargs)
+    except Exception:
+        if span:
+            span.set_exc_info(*sys.exc_info())
+            integration.llmobs_set_tags(span, args=query_args, kwargs=query_kwargs, response=None, operation="request")
+            span.finish()
+            instance._datadog_span = None
+        raise
+
+    async def _generator():
+        response_messages = []
+        try:
+            async for message in agen:
+                response_messages.append(message)
+                yield message
+                # Close span when we receive a ResultMessage
+                if span and isinstance(message, ResultMessage):
+                    integration.llmobs_set_tags(
+                        span, args=query_args, kwargs=query_kwargs, response=response_messages, operation="request"
+                    )
+                    span.finish()
+                    instance._datadog_span = None
+        except Exception:
+            if span:
+                span.set_exc_info(*sys.exc_info())
+            raise
+        finally:
+            # Close span if not already closed (e.g., generator exhausted without ResultMessage)
+            if getattr(instance, "_datadog_span", None) is span and span is not None:
+                integration.llmobs_set_tags(
+                    span, args=query_args, kwargs=query_kwargs, response=response_messages, operation="request"
+                )
+                span.finish()
+                instance._datadog_span = None
+
+    return _generator()
 
 
 def patch():
@@ -124,6 +168,7 @@ def patch():
 
     wrap("claude_agent_sdk", "query", traced_query_async_generator(claude_agent_sdk))
     wrap("claude_agent_sdk", "ClaudeSDKClient.query", traced_client_query(claude_agent_sdk))
+    wrap("claude_agent_sdk", "ClaudeSDKClient.receive_messages", traced_receive_messages(claude_agent_sdk))
 
 
 def unpatch():
@@ -135,5 +180,6 @@ def unpatch():
 
     unwrap(claude_agent_sdk, "query")
     unwrap(claude_agent_sdk.ClaudeSDKClient, "query")
+    unwrap(claude_agent_sdk.ClaudeSDKClient, "receive_messages")
 
     delattr(claude_agent_sdk, "_datadog_integration")
