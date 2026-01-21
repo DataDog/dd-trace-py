@@ -542,3 +542,73 @@ class SpanLinkData:
         attributes: Optional[Dict[str, str]] = None,
         _dropped_attributes: int = 0,
     ): ...
+
+class PackagePath:
+    """
+    Represents a file path within a distribution.
+    """
+
+    @property
+    def parts(self) -> tuple[str, ...]:
+        """
+        Returns the path components as a tuple.
+        """
+        ...
+    def read_text(self) -> str:
+        """
+        Read the file content as text.
+        :raises IOError: If the file cannot be read.
+        """
+        ...
+    def locate(self) -> str:
+        """
+        Locate the file and return its absolute path.
+        """
+        ...
+    def __repr__(self) -> str: ...
+    def __str__(self) -> str: ...
+
+class Distribution:
+    """
+    Represents a Python distribution (package).
+    """
+
+    @property
+    def name(self) -> str:
+        """
+        The distribution name.
+        """
+        ...
+    @property
+    def version(self) -> str:
+        """
+        The distribution version.
+        """
+        ...
+    @property
+    def metadata(self) -> Dict[str, str]:
+        """
+        The distribution metadata.
+        """
+        ...
+    @property
+    def files(self) -> Optional[List[PackagePath]]:
+        """
+        The list of files in this distribution, or None if not available.
+        """
+        ...
+    def read_text(self, filename: str) -> Optional[str]:
+        """
+        Read a text file from the distribution directory.
+        :param filename: The name of the file to read.
+        :return: The file contents, or None if the file doesn't exist.
+        """
+        ...
+    def __repr__(self) -> str: ...
+
+def distributions() -> List[Distribution]:
+    """
+    Fast Rust implementation of importlib.metadata.distributions().
+    Returns a list of all distributions found in sys.path.
+    """
+    ...

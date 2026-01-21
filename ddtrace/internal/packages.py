@@ -17,6 +17,7 @@ from ddtrace.internal.utils.cache import callonce
 LOG = logging.getLogger(__name__)
 
 # Try to use fast Rust implementation if available
+_distributions: t.Callable[[], t.Iterable[t.Any]]
 try:
     from ddtrace.internal.native._native import distributions as _distributions
 
