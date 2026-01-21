@@ -74,6 +74,7 @@ RESPONSE=$(
 )
 
 echo "Response from API:"
+echo "$RESPONSE"
 echo $(echo $RESPONSE | jq '.')
 
 PIPELINE_ID=$(echo "$RESPONSE" | jq -r '.pipeline.id')
