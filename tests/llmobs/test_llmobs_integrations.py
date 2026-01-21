@@ -1,12 +1,16 @@
 import mock
 import pytest
 
+from ddtrace._trace.pin import Pin
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 
 
 @pytest.fixture(scope="function")
 def mock_integration_config(ddtrace_global_config):
-    yield mock.Mock()
+    myint = IntegrationConfig(ddtrace_global_config, "myint", service="dummy_service")
+    ddtrace_global_config.myint = myint
+    return myint
 
 
 @pytest.fixture(scope="function")
@@ -16,14 +20,6 @@ def ddtrace_global_config():
         mock_global_config._llmobs_sample_rate = 1.0
         mock_global_config._dd_api_key = "<not-a-real-key>"
         yield mock_global_config
-
-
-@pytest.fixture(scope="function")
-def mock_pin(tracer):
-    mock_pin = mock.Mock()
-    mock_pin.tracer = tracer
-    mock_pin.service = "dummy_service"
-    yield mock_pin
 
 
 @mock.patch("ddtrace.llmobs._integrations.base.LLMObs")
@@ -37,25 +33,23 @@ def test_integration_llmobs_enabled(mock_llmobs, mock_integration_config):
 
 
 @mock.patch("ddtrace.llmobs._integrations.base.LLMObs")
-def test_pc_span_sampling_llmobs(mock_llmobs, mock_integration_config, mock_pin):
+def test_pc_span_sampling_llmobs(mock_llmobs, mock_integration_config, tracer):
     mock_llmobs.enabled = True
     integration = BaseLLMIntegration(mock_integration_config)
-    integration.pin = mock_pin
-    with mock_pin.tracer.trace("Dummy span") as mock_span:
+    with tracer.trace("Dummy span") as mock_span:
         assert integration.is_pc_sampled_llmobs(mock_span) is True
     mock_llmobs.enabled = False
     integration = BaseLLMIntegration(mock_integration_config)
-    integration.pin = mock_pin
-    with mock_pin.tracer.trace("Dummy span") as mock_span:
+    with tracer.trace("Dummy span") as mock_span:
         assert integration.is_pc_sampled_llmobs(mock_span) is False
 
 
-def test_integration_trace(mock_integration_config, mock_pin, test_spans):
+def test_integration_trace(mock_integration_config, test_spans):
     integration = BaseLLMIntegration(mock_integration_config)
     mock_set_base_span_tags = mock.Mock()
     integration._set_base_span_tags = mock_set_base_span_tags
-    integration.pin = mock_pin
-    with integration.trace(mock_pin, "dummy_operation_id"):
+
+    with integration.trace(Pin(), "dummy_operation_id"):
         pass
     span = test_spans.pop()
     assert span is not None

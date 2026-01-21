@@ -8,7 +8,7 @@ from typing import Optional
 
 import tornado.web
 
-from ddtrace._trace.pin import Pin
+from ddtrace import config
 import ddtrace.constants
 from ddtrace.trace import tracer
 
@@ -177,9 +177,11 @@ class NewServiceHandler(BaseHandler):
         self._app = app
 
     async def _handle(self, service_name: str) -> None:
-        import ddtrace
-
-        Pin._override(self._app, service=service_name, tracer=ddtrace.tracer)
+        config.tornado.service = service_name
+        with tracer.start_span("span_with_new_service", service=service_name):
+            # Generate a root span with the new service name. On span finish,
+            # the service name will be added to the extra services queue.
+            pass
         self.set_header("Content-Type", "text/html")
         self.write(service_name)
 

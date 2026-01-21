@@ -156,7 +156,7 @@
 [
   {
     "name": "events.command",
-    "service": "test-botocore-tracing.events",
+    "service": "aws.events",
     "resource": "events.putevents",
     "trace_id": 4,
     "span_id": 1,
@@ -251,7 +251,7 @@
 [
   {
     "name": "events.command",
-    "service": "test-botocore-tracing.events",
+    "service": "aws.events",
     "resource": "events.deleteeventbus",
     "trace_id": 6,
     "span_id": 1,
