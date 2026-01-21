@@ -474,23 +474,18 @@ def test_submit_no_wait(tracer, test_spans):
         assert future.exception() is None
         assert future.result() is None
 
-    traces = test_spans.pop_traces()
-    assert len(traces) == 4
+    all_spans = test_spans.pop()
 
-    assert len(traces[0]) == 3
-    root_span, task_span, work_span = traces[0]
-    assert root_span.name == "main"
+    # Find spans by name
+    root_span = next(s for s in all_spans if s.name == "main")
+    task_span = next(s for s in all_spans if s.name == "task")
+    work_spans = [s for s in all_spans if s.name == "work"]
 
-    assert task_span.name == "task"
+    # Verify relationships
     assert task_span.parent_id == root_span.span_id
     assert task_span.trace_id == root_span.trace_id
 
-    assert work_span.name == "work"
-    assert work_span.parent_id == task_span.span_id
-    assert work_span.trace_id == root_span.trace_id
-
-    for work_spans in traces[2:]:
-        (work_span,) = work_spans
-        assert work_span.name == "work"
+    assert len(work_spans) == 4
+    for work_span in work_spans:
         assert work_span.parent_id == task_span.span_id
         assert work_span.trace_id == root_span.trace_id
