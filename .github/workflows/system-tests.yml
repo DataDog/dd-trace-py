@@ -109,7 +109,9 @@ jobs:
         weblog-variant: [flask-poc, uwsgi-poc , django-poc, fastapi, python3.12, django-py3.13]
         scenario: [remote-config, appsec, appsec-1, other, debugger-1, debugger-2]
         exclude:
-          - scenario: [debugger-1, debugger-2]
+          - scenario: debugger-1
+            weblog-variant: [django-poc, python3.12, django-py3.13, fastapi]
+          - scenario: debugger-2
             weblog-variant: [django-poc, python3.12, django-py3.13, fastapi]
       fail-fast: false
     env:
