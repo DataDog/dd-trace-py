@@ -692,9 +692,6 @@ for_each_thread(EchionSampler& echion, InterpreterInfo& interp, PyThreadStateCal
     std::unordered_set<PyThreadState*> threads;
     std::unordered_set<PyThreadState*> seen_threads;
 
-    threads.clear();
-    seen_threads.clear();
-
     // Start from the thread list head
     threads.insert(static_cast<PyThreadState*>(interp.tstate_head));
 
