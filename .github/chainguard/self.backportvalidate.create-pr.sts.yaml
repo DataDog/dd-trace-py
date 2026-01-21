@@ -7,8 +7,7 @@ claim_pattern:
   ref_type: "branch"
   ref: ".+"
   ref_path: "refs/heads/.+"
-  ref_protected: "true"
-  job_workflow_ref: DataDog/dd-trace-py/\.github/workflows/backport-validate\.yml@refs/heads/main
+  job_workflow_ref: DataDog/dd-trace-py/\.github/workflows/backport-validate\.yml
 
 permissions:
   contents: write
