@@ -305,7 +305,9 @@ class TestOptPlugin:
             test_run.start(start_ns=test.start_ns)
             self._set_test_run_data(test_run, item, context)
             test_run.finish()
-            test.set_status(test_run.get_status())
+            final_status = test_run.get_status()
+            test_run.set_final_status(final_status)
+            test.set_status(final_status)
             self.manager.writer.put_item(test_run)
 
         test.finish()
@@ -367,6 +369,12 @@ class TestOptPlugin:
             self._log_test_reports(item, reports)
             test_run.finish()
             test.set_status(test_run.get_status())
+
+        # Set final status on the last test run (single location for both retry and non-retry paths)
+        if test.test_runs:
+            test.test_runs[-1].set_final_status(test.get_status())
+
+        for test_run in test.test_runs:
             self.manager.writer.put_item(test_run)
 
     def _set_test_run_data(self, test_run: TestRun, item: pytest.Item, context: TestContext) -> None:
@@ -421,9 +429,6 @@ class TestOptPlugin:
 
         final_status = retry_handler.get_final_status(test)
         test.set_status(final_status)
-
-        for test_run in test.test_runs:
-            self.manager.writer.put_item(test_run)
 
         # Log final status.
         final_report = retry_reports.make_final_report(test, item, final_status)
@@ -615,7 +620,7 @@ class TestOptPlugin:
 
         To make the extra failed reports collected during retries (see `get_extra_failed_report` for details) show up
         with the rest of the failure exception reports, we modify them to look like normal failures, and append them to
-        the failed reports. After they have been shown by pytest, we undo the change so tha the final count of failed
+        the failed reports. After they have been shown by pytest, we undo the change so that the final count of failed
         tests is not affected.
         """
         # Do not show dd_retry in final stats.
@@ -731,8 +736,8 @@ class RetryReports:
         attempting to fix the test, and the attempt fails, we need to provide some feedback on the failure.
 
         Note that we only report _one_ failure per test (either the one embedded in the 'failed' final report, or the
-        one retured by this function), even if the test failed multiple times. This is to avoid spamming the test output
-        with multiple copies of the same error.
+        one returned by this function), even if the test failed multiple times. This is to avoid spamming the test
+        output with multiple copies of the same error.
         """
         suppress_errors = (test.is_quarantined() or test.is_disabled()) and not test.is_attempt_to_fix()
         if suppress_errors:
