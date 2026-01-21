@@ -5,9 +5,13 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include "_memalloc_allocation.h"
+#include "_memalloc_allocation_profiler.h"
 #include "_memalloc_debug.h"
-#include "_memalloc_heap.h"
+#include "_memalloc_heap_profiler.h"
+#include "_memalloc_heap_sample.h"
 #include "_memalloc_reentrant.h"
+#include "_memalloc_stacktrace.h"
 #include "_memalloc_tb.h"
 #include "_pymacro.h"
 
@@ -50,14 +54,30 @@ memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
 {
     void* ptr;
     memalloc_context_t* memalloc_ctx = (memalloc_context_t*)ctx;
+    size_t size = nelem * elsize;
 
     if (use_calloc)
         ptr = memalloc_ctx->pymem_allocator_obj.calloc(memalloc_ctx->pymem_allocator_obj.ctx, nelem, elsize);
     else
-        ptr = memalloc_ctx->pymem_allocator_obj.malloc(memalloc_ctx->pymem_allocator_obj.ctx, nelem * elsize);
+        ptr = memalloc_ctx->pymem_allocator_obj.malloc(memalloc_ctx->pymem_allocator_obj.ctx, size);
 
     if (ptr) {
-        memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr, nelem * elsize, memalloc_ctx->domain);
+        // Allocation profiling - fire-and-forget, independent sampling
+        if (allocation_profiler_t::instance) {
+            uint64_t allocated_memory_val = 0;
+            if (allocation_profiler_t::instance->should_sample_no_cpython(size, &allocated_memory_val)) {
+                allocation_profiler_t::instance->track_allocation_invokes_cpython(
+                    size, allocated_memory_val, memalloc_ctx->max_nframe);
+            }
+        }
+
+        // Heap profiling - tracks ptr for free, independent sampling
+        if (heap_profiler_t::instance) {
+            if (heap_profiler_t::instance->should_sample_no_cpython(size)) {
+                heap_profiler_t::instance->track_allocation_invokes_cpython(
+                    ptr, size, memalloc_ctx->max_nframe);
+            }
+        }
     }
 
     return ptr;
@@ -84,8 +104,28 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
     // TODO(dsn): With Python free-threading, allocators must be thread-safe even for non-RAW domains.
     // We may need to add synchronization here in the future to avoid races between realloc and untrack.
     if (ptr2) {
-        memalloc_heap_untrack_no_cpython(ptr);
-        memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
+        // Untrack old heap allocation (if it was tracked)
+        if (heap_profiler_t::instance) {
+            heap_profiler_t::instance->untrack_no_cpython(ptr);
+        }
+
+        // Track as new allocation with independent sampling for both profilers
+        // Allocation profiling - fire-and-forget
+        if (allocation_profiler_t::instance) {
+            uint64_t allocated_memory_val = 0;
+            if (allocation_profiler_t::instance->should_sample_no_cpython(new_size, &allocated_memory_val)) {
+                allocation_profiler_t::instance->track_allocation_invokes_cpython(
+                    new_size, allocated_memory_val, memalloc_ctx->max_nframe);
+            }
+        }
+
+        // Heap profiling - tracks ptr2 for free
+        if (heap_profiler_t::instance) {
+            if (heap_profiler_t::instance->should_sample_no_cpython(new_size)) {
+                heap_profiler_t::instance->track_allocation_invokes_cpython(
+                    ptr2, new_size, memalloc_ctx->max_nframe);
+            }
+        }
     }
 
     return ptr2;
@@ -141,10 +181,28 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         return NULL;
     }
 
-    if (!traceback_t::init_invokes_cpython())
+    // Initialize shared stacktrace module
+    if (!memalloc_stacktrace::init_invokes_cpython())
         return NULL;
 
-    if (!memalloc_heap_tracker_init_no_cpython((uint32_t)heap_sample_size))
+    // Initialize allocation sample module
+    if (!allocation_sample_t::init_invokes_cpython())
+        return NULL;
+
+    // Initialize heap sample module
+    if (!heap_sample_t::init_invokes_cpython())
+        return NULL;
+
+    // Initialize allocation profiler (fire-and-forget, same sampling rate for now)
+    if (!memalloc_allocation_profiler_init_no_cpython((uint32_t)heap_sample_size))
+        return NULL;
+
+    // Initialize heap profiler (tracks live allocations, same sampling rate for now)
+    if (!memalloc_heap_profiler_init_no_cpython((uint32_t)heap_sample_size))
+        return NULL;
+
+    // Keep old traceback init for backward compatibility (will be removed later)
+    if (!traceback_t::init_invokes_cpython())
         return NULL;
 
     PyMemAllocatorEx alloc;
@@ -187,9 +245,20 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
      * or memalloc_heap. The higher-level collector deals with this. */
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
 
-    memalloc_heap_tracker_deinit_no_cpython();
+    // Deinitialize allocation profiler
+    memalloc_allocation_profiler_deinit_no_cpython();
 
-    /* Finally, we know in-progress sampling won't use the buffer pool, so clear it out */
+    // Deinitialize heap profiler
+    memalloc_heap_profiler_deinit_no_cpython();
+
+    // Deinitialize sample modules
+    allocation_sample_t::deinit_invokes_cpython();
+    heap_sample_t::deinit_invokes_cpython();
+
+    // Deinitialize shared stacktrace module
+    memalloc_stacktrace::deinit_invokes_cpython();
+
+    /* Keep old traceback deinit for backward compatibility (will be removed later) */
     traceback_t::deinit_invokes_cpython();
 
     memalloc_enabled = false;
@@ -210,7 +279,8 @@ memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
         return NULL;
     }
 
-    memalloc_heap_no_cpython();
+    // Export current heap state from the new heap profiler
+    memalloc_heap_export_no_cpython();
     Py_RETURN_NONE;
 }
 

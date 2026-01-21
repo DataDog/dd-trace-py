@@ -55,7 +55,17 @@ if(NOT TARGET Python3::Python)
 endif()
 
 # Source files for the extension
-set(SOURCE_FILES _memalloc.cpp _memalloc_tb.cpp _memalloc_heap.cpp _memalloc_reentrant.cpp)
+set(SOURCE_FILES
+    _memalloc.cpp
+    _memalloc_tb.cpp
+    _memalloc_heap.cpp
+    _memalloc_reentrant.cpp
+    _memalloc_stacktrace.cpp
+    _memalloc_allocation.cpp
+    _memalloc_heap_sample.cpp
+    _memalloc_allocation_profiler.cpp
+    _memalloc_heap_profiler.cpp
+)
 
 # Get the extension name from setup.py or use default Note: EXTENSION_NAME from setup.py already includes the full
 # suffix
