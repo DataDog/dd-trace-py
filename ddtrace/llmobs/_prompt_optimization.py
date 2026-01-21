@@ -1,5 +1,6 @@
 """Prompt optimization framework for iteratively improving LLM prompts."""
 
+import random
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
@@ -58,6 +59,7 @@ class OptimizationIteration:
         current_results: Dict[str, Any],
         optimization_task: Callable,
         config: ConfigType,
+        labelization_function: Callable[[Dict[str, Any]], str],
     ) -> None:
         """Initialize an optimization iteration.
 
@@ -66,12 +68,15 @@ class OptimizationIteration:
         :param current_results: Results from the previous experiment run.
         :param optimization_task: Function to generate prompt improvements.
         :param config: Configuration for the optimization task.
+        :param labelization_function: Function to generate labels from individual results.
+                                     Takes an individual result dict and returns a string label.
         """
         self.iteration = iteration
         self.current_prompt = current_prompt
         self.current_results = current_results
         self._optimization_task = optimization_task
         self._config = config
+        self._labelization_function = labelization_function
 
     def run(self) -> str:
         """Run the optimization task to generate an improved prompt.
@@ -93,28 +98,24 @@ class OptimizationIteration:
 
         # Step 3 & 4: Call optimization LLM
         try:
-            result = self._optimization_task(
+            improved_prompt = self._optimization_task(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 config=self._config,
             )
         except Exception as e:
-            log.error(
-                "Iteration %d: Failed to run optimization_task with model '%s'",
-                self.iteration,
-                self._config.get("optimization_model_name", "unknown"),
+            log.error(f"""
+                Iteration {self.iteration}: Failed to run optimization_task
+                with model '{self._config.get("optimization_model_name", "unknown")}'
+            """
             )
-            log.error("Exception type: %s", type(e).__name__)
-            log.error("Exception type: %s", str(e))
-            result = {}
-
-        # Parse the result dict
-        improved_prompt = result.get("prompt")
+            log.error(f"Exception type: {type(e).__name__}")
+            log.error(f"Exception type: {str(e)}")
+            improved_prompt = ""
 
         if not improved_prompt:
             log.warning(
-                "Iteration %d: optimization_task returned empty 'new_prompt', keeping current prompt",
-                self.iteration,
+                f"Iteration {self.iteration}: optimization_task returned empty 'new_prompt', keeping current prompt",
             )
             return self.current_prompt
 
@@ -166,78 +167,56 @@ class OptimizationIteration:
 
         return system_prompt
 
-    def _build_user_prompt(self) -> str:
-        """Build user prompt with current prompt and evaluation examples.
+    def _add_examples(self, individual_results: List[Dict[str, Any]]) -> str:
+        """Add examples of each label type using the labelization function.
 
-        Includes:
-        - Current prompt being optimized
-        - Performance metrics
-        - Examples from results (TP, TN, FP, FN if available)
+        Applies the labelization function to each individual result to generate labels,
+        then selects one random example for each unique label.
 
-        :return: User prompt string.
+        :param individual_results: List of experiment result dicts.
+        :return: Formatted string with examples, or empty string if no examples found.
         """
-        prompt_parts = [f"Initial Prompt:\n{self.current_prompt}\n"]
+        if not individual_results or not self._labelization_function:
+            return ""
 
-        # Extract examples from evaluation results
-        results = self.current_results
-        summary_evals = results.get("summary_evaluations")
+        # Step 1: Apply labelization function to each result and collect by label
+        examples_by_label = {}
+        for result in individual_results:
+            try:
+                label = self._labelization_function(result)
+                if label:  # Only add if label is not None or empty
+                    if label not in examples_by_label:
+                        examples_by_label[label] = []
+                    examples_by_label[label].append(result)
+            except Exception as e:
+                log.warning(f"Labelization function failed for result: {e}")
+                continue
 
-        # Add performance metrics if available
-        if summary_evals:
-            prompt_parts.append("Performance Metrics:")
-            for _, summary_metric_data in summary_evals.items():
-                for metric_name, metric_data in summary_metric_data.get("value", {}).items():
-                    prompt_parts.append(f"- {metric_name}: {metric_data}")
-            prompt_parts.append("")
+        if not examples_by_label:
+            return ""
 
-        # Get individual results to find examples
-        individual_results = results.get("rows", [])
+        if len(examples_by_label) > 10:
+            log.warning(f"Too many distinct labels: {len(examples_by_label)}")
+            return ""
 
-        if individual_results:
-            # Find examples of each type
-            fp_example = self._find_example(individual_results, "false_positive")
-            fn_example = self._find_example(individual_results, "false_negative")
-            tn_example = self._find_example(individual_results, "true_negative")
-            tp_example = self._find_example(individual_results, "true_positive")
+        # Step 2: Randomly select one example for each label
+        examples = {}
+        for label, label_examples in examples_by_label.items():
+            if label_examples:
+                examples[label] = random.choice(label_examples)
 
-            # Add BAD examples first (FP, FN)
-            if fp_example:
-                prompt_parts.append("BAD EXAMPLE (False Positive):")
-                prompt_parts.append(self._format_example(fp_example))
+        if not examples:
+            return ""
 
-            if fn_example:
-                prompt_parts.append("BAD EXAMPLE (False Negative):")
-                prompt_parts.append(self._format_example(fn_example))
+        # Step 3: Format examples with proper headers
+        formatted_parts = ["## Examples from Current Evaluation\n"]
 
-            # Add GOOD examples (TN, TP)
-            if tn_example:
-                prompt_parts.append("GOOD EXAMPLE (True Negative):")
-                prompt_parts.append(self._format_example(tn_example))
+        for label, example in sorted(examples.items(), key=lambda x: str(x[0])):
+            formatted_parts.append(f"### {label}\n")
+            formatted_parts.append(self._format_example(example))
+            formatted_parts.append("")  # Add spacing between examples
 
-            if tp_example:
-                prompt_parts.append("GOOD EXAMPLE (True Positive):")
-                prompt_parts.append(self._format_example(tp_example))
-
-        return "\n\n".join(prompt_parts)
-
-    def _find_example(self, results: List[Dict[str, Any]], example_type: str) -> Optional[Dict[str, Any]]:
-        """Find an example of specified type from results.
-
-        The evaluators in evaluations are like this:
-        {'evaluator_function_name': {'value': 'returned_value', 'error': None}}
-
-        :param results: List of experiment results.
-        :param example_type: Type to find (false_positive, false_negative, true_positive, true_negative).
-        :return: Example dict or None.
-        """
-        for result in results:
-            evaluations = result.get("evaluations", {})
-            # Check if any evaluation matches the type
-            for _, eval_data in evaluations.items():
-                label = eval_data.get("value", "")
-                if example_type in label:
-                    return result
-        return None
+        return "\n".join(formatted_parts)
 
     def _format_example(self, example: Dict[str, Any]) -> str:
         """Format an example for display in the user prompt.
@@ -269,6 +248,39 @@ class OptimizationIteration:
                     parts.append(f"Reasoning ({eval_name}):\n{eval_data['reasoning']}")
 
         return "\n".join(parts)
+
+    def _build_user_prompt(self) -> str:
+        """Build user prompt with current prompt and evaluation examples.
+
+        Includes:
+        - Current prompt being optimized
+        - Performance metrics
+        - Examples from results (TP, TN, FP, FN if available)
+
+        :return: User prompt string.
+        """
+        prompt_parts = [f"Initial Prompt:\n{self.current_prompt}\n"]
+
+        # Extract examples from evaluation results
+        results = self.current_results
+        summary_evals = results.get("summary_evaluations")
+
+        # Add performance metrics if available
+        if summary_evals:
+            prompt_parts.append("Performance Metrics:")
+            for _, summary_metric_data in summary_evals.items():
+                for metric_name, metric_data in summary_metric_data.get("value", {}).items():
+                    prompt_parts.append(f"- {metric_name}: {metric_data}")
+            prompt_parts.append("")
+
+        # Get individual results to find examples
+        individual_results = results.get("rows", [])
+
+        if individual_results:
+            prompt_parts.append(self._add_examples(individual_results))
+
+        final_prompt = "\n\n".join(prompt_parts)
+        return final_prompt
 
 
 class OptimizationResult:
@@ -404,12 +416,13 @@ class PromptOptimization:
         self,
         name: str,
         task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
-        optimization_task: Callable[[str, str, dict], Dict[str, str]],
+        optimization_task: Callable[[str, str, dict], str],
         dataset: Dataset,
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         project_name: str,
         config: ConfigType,
         compute_score: Callable[[Dict[str, Dict[str, Any]]], float],
+        labelization_function: Callable[[Dict[str, Any]], str],
         _llmobs_instance: Optional["LLMObs"] = None,
         tags: Optional[Dict[str, str]] = None,
         max_iterations: int = 5,
@@ -422,9 +435,16 @@ class PromptOptimization:
         :param task: Task function to execute. Must accept ``input_data`` and ``config`` parameters.
         :param optimization_task: Function to generate prompt improvements. Must accept
                                   ``system_prompt`` (str), ``user_prompt`` (str), and ``config`` (dict).
-                                  Must return dict with ``prompt`` key.
+                                  Must return the new prompt.
         :param dataset: Dataset to run experiments on.
         :param evaluators: List of evaluator functions to measure task performance.
+        :param compute_score: Function to compute iteration score (REQUIRED).
+                             Takes summary_evaluations dict from the experiment result and returns float score.
+                             Used to compare and rank different prompt iterations.
+        :param labelization_function: Function to generate labels from individual results (REQUIRED).
+                                     Takes an individual result dict (with "evaluations" key) and returns a string label.
+                                     Used to categorize examples shown to the optimization LLM.
+                                     Example: lambda r: "Very good" if r["evaluations"]["score"] >= 0.8 else "Bad"
         :param project_name: Project name for organizing optimization runs.
         :param config: Configuration dictionary. Must contain:
                       - ``prompt``: Initial prompt template
@@ -437,9 +457,7 @@ class PromptOptimization:
                                    Each must accept (inputs: List, outputs: List, expected_outputs: List, evaluations: Dict)
                                    and return Dict with aggregated metrics.
         :param stopping_condition: Optional function to determine when to stop optimization.
-                                   Takes summary_evaluations dict and returns True if should stop.
-        :param compute_score: Function to compute iteration score (REQUIRED).
-                              Takes summary_evaluations dict and returns float score.
+                                   Takes summary_evaluations dict from the experiment result and returns True if should stop.
         :raises ValueError: If required config parameters or compute_score are missing.
         """
         self.name = name
@@ -449,6 +467,7 @@ class PromptOptimization:
         self._evaluators = evaluators
         self._summary_evaluators = summary_evaluators or []
         self._stopping_condition = stopping_condition
+        self._labelization_function = labelization_function
         self._compute_score = compute_score
         self._tags: Dict[str, str] = tags or {}
         self._tags["project_name"] = project_name
@@ -516,11 +535,11 @@ class PromptOptimization:
             "experiment_url": experiment_url,
         }
         all_iterations.append(iteration_data)
-        best_score = baseline_score
+        best_score = baseline_score or 0.0
         best_prompt = current_prompt
         best_results = current_results
 
-        log.info("Baseline score: %.4f", best_score if best_score is not None else 0.0)
+        log.info(f"Baseline score: {best_score:.3f}")
 
         # Run optimization iterations
         for i in range(1, self._max_iterations + 1):
@@ -531,6 +550,7 @@ class PromptOptimization:
                 current_results=best_results,
                 optimization_task=self._optimization_task,
                 config=self._config,
+                labelization_function=self._labelization_function,
             )
 
             # Generate improved prompt
@@ -567,7 +587,7 @@ class PromptOptimization:
 
             # Check stopping condition
             if self._stopping_condition and self._stopping_condition(summary_evals):
-                log.info("Stopping condition met after iteration %d", i)
+                log.info(f"Stopping condition met after iteration {i}")
                 break
 
         # Create result object with full history

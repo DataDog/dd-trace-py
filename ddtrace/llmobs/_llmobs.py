@@ -910,9 +910,10 @@ class LLMObs(Service):
         cls,
         name: str,
         task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
-        optimization_task: Callable[[str, str, str], Dict[str, str]],
+        optimization_task: Callable[[str, str, str], str],
         dataset: Dataset,
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
+        labelization_function: Callable[[Dict[str, Any]], str],
         compute_score: Callable[[Dict[str, Dict[str, Any]]], float],
         project_name: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
@@ -932,8 +933,8 @@ class LLMObs(Service):
                      Should return the task output as a JSON-serializable value.
         :param optimization_task: Function that calls an LLM to generate improved prompts.
                                   Must accept parameters ``system_prompt`` (str), ``user_prompt`` (str),
-                                  and ``model`` (str). Should return a dict with keys ``new_prompt`` (str)
-                                  and ``reasoning`` (str). The system_prompt contains optimization instructions
+                                  and ``model`` (str). Should return the new prompt (str).
+                                  The system_prompt contains optimization instructions
                                   loaded from template, and user_prompt contains the current prompt with
                                   evaluation examples.
         :param dataset: The dataset to run experiments on, created with ``LLMObs.create_dataset()``
@@ -942,6 +943,10 @@ class LLMObs(Service):
                           Each evaluator must accept parameters ``input_data`` (dict), ``output_data``
                           (task output), and ``expected_output`` (expected result from dataset).
                           Should return a JSON-serializable value with the evaluation results.
+        :param labelization_function: Function to generate labels from individual experiment results (REQUIRED).
+                                     Takes an individual result dict (containing "evaluations" key) and returns
+                                     a string label. Used to categorize examples shown to the optimization LLM.
+                                     Example: ``lambda r: "Very good" if r["evaluations"]["score"] >= 0.8 else "Bad"``
         :param project_name: The name of the project to organize optimization runs. Defaults to the
                             project name set in ``LLMObs.enable()``.
         :param tags: A dictionary of string key-value tag pairs to associate with the optimization.
@@ -956,10 +961,10 @@ class LLMObs(Service):
                                    inputs (list), outputs (list), expected_outputs (list), evaluations (dict)
                                    and return a dict with aggregated metrics.
         :param compute_score: Function to compute the score for each iteration (REQUIRED).
-                                          Takes summary_evaluations dict and returns a float score.
+                                          Takes summary_evaluations dict from the experiment result and returns a float score.
                                           Used to determine which iteration performed best.
         :param stopping_condition: Optional function to determine when to stop optimization early.
-                                  Takes summary_evaluations dict and returns True if optimization should stop.
+                                  Takes summary_evaluations dict from the experiment result and returns True if optimization should stop.
         :return: PromptOptimization object. Call ``.run()`` to execute the optimization.
         :raises TypeError: If task, optimization_task, evaluators, or dataset have incorrect types
                           or signatures.
@@ -985,19 +990,34 @@ class LLMObs(Service):
                     ],
                     response_format={"type": "json_object"},
                 )
-                return json.loads(response.choices[0].message.content)
+                new_prompt = json.loads(response.choices[0].message.content)["new_prompt"]
+                return new_prompt
 
             def accuracy_evaluator(input_data, output_data, expected_output):
                 is_correct = output_data["answer"] == expected_output["answer"]
-                return {"score": 1.0 if is_correct else 0.0}
+                return "correct" if is_correct else "incorrect"
+
+            def summary_evaluator(inputs, outputs, expected_outputs, evaluations):
+                correct_count = sum(1 for e in evaluations if e == "correct")
+                return {"accuracy": correct_count / len(evaluations)}
+
+            def compute_score(summary_evaluations):
+                return summary_evaluations["summary_evaluator"]["value"]["accuracy"]
+
+            def labelization_function(individual_result):
+                eval_value = individual_result["evaluations"]["accuracy_evaluator"]["value"]
+                return "Correct answer" if eval_value == "correct" else "Incorrect answer"
 
             dataset = LLMObs.create_dataset(name="qa_pairs", ...)
-            opt = LLMObs.prompt_optimization(
+            opt = LLMObs._prompt_optimization(
                 name="optimize_qa",
                 task=my_task,
                 optimization_task=optimize_prompt,
                 dataset=dataset,
                 evaluators=[accuracy_evaluator],
+                labelization_function=labelization_function,
+                compute_score=compute_score,
+                summary_evaluators=[summary_evaluator],
                 config={
                     "prompt": "Answer the question: {question}",
                     "optimization_model_name": "gpt-4",
@@ -1042,6 +1062,7 @@ class LLMObs(Service):
             evaluators=evaluators,
             project_name=project_name or cls._project_name,
             config=config,
+            labelization_function=labelization_function,
             compute_score=compute_score,
             _llmobs_instance=cls._instance,
             tags=tags,
