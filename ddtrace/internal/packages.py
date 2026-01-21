@@ -25,9 +25,7 @@ except (ImportError, AttributeError):
     import importlib.metadata as importlib_metadata
 
     _distributions = importlib_metadata.distributions
-    LOG.debug(
-        "Rust distributions() not available, falling back to Python implementation"
-    )
+    LOG.debug("Rust distributions() not available, falling back to Python implementation")
 
 Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str)])
 
@@ -106,11 +104,7 @@ def get_version_for_package(name: str) -> str:
 def _effective_root(rel_path: Path, parent: Path) -> str:
     base = rel_path.parts[0]
     root = parent / base
-    return (
-        base
-        if root.is_dir() and (root / "__init__.py").exists()
-        else "/".join(rel_path.parts[:2])
-    )
+    return base if root.is_dir() and (root / "__init__.py").exists() else "/".join(rel_path.parts[:2])
 
 
 # DEV: Since we can't lock on sys.path, these operations can be racy.
@@ -144,9 +138,7 @@ def _root_module(path: Path) -> str:
     for parent_path in resolve_sys_path():
         try:
             relative = path.relative_to(parent_path)
-            if min_relative_path is None or len(relative.parents) < len(
-                min_relative_path.parents
-            ):
+            if min_relative_path is None or len(relative.parents) < len(min_relative_path.parents):
                 min_relative_path, max_parent_path = relative, parent_path
         except ValueError:
             pass
@@ -205,11 +197,7 @@ def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
             d = Distribution(name=metadata["name"], version=metadata["version"])
             for f in files:
                 root = f.parts[0]
-                if (
-                    root.endswith(".dist-info")
-                    or root.endswith(".egg-info")
-                    or root == ".."
-                ):
+                if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":
                     continue
                 if is_namespace(f):
                     root = "/".join(f.parts[:2])
@@ -232,11 +220,7 @@ def _third_party_packages() -> set:
     from importlib.resources import read_binary
 
     return (
-        set(
-            decompress(read_binary("ddtrace.internal", "third-party.tar.gz"))
-            .decode("utf-8")
-            .splitlines()
-        )
+        set(decompress(read_binary("ddtrace.internal", "third-party.tar.gz")).decode("utf-8").splitlines())
         | tp_config.includes
     ) - tp_config.excludes
 
@@ -284,9 +268,9 @@ def is_stdlib(path: Path) -> bool:
     if not rpath.is_absolute() or rpath.is_symlink():
         rpath = rpath.resolve()
 
-    return (
-        rpath.is_relative_to(stdlib_path) or rpath.is_relative_to(platstdlib_path)
-    ) and not (rpath.is_relative_to(purelib_path) or rpath.is_relative_to(platlib_path))
+    return (rpath.is_relative_to(stdlib_path) or rpath.is_relative_to(platstdlib_path)) and not (
+        rpath.is_relative_to(purelib_path) or rpath.is_relative_to(platlib_path)
+    )
 
 
 @cached(maxsize=256)
@@ -382,8 +366,7 @@ def _get_toplevel_name(name) -> str:
     """
     return _topmost(name) or (
         # python/typeshed#10328
-        inspect.getmodulename(name)
-        or str(name)
+        inspect.getmodulename(name) or str(name)
     )
 
 

@@ -74,7 +74,7 @@ impl PackagePath {
 /// Parse RECORD file and return list of PackagePath objects
 fn parse_record_file(
     record_path: &Path,
-    dist_path: &PathBuf,
+    dist_path: &Path,
     py: Python,
 ) -> PyResult<Vec<Py<PackagePath>>> {
     let content = match fs::read_to_string(record_path) {
@@ -110,7 +110,7 @@ fn parse_record_file(
         let package_path = PackagePath {
             parts: py_parts.unbind(),
             path_str: filename.to_string(),
-            dist_path: dist_path.clone(),
+            dist_path: dist_path.to_path_buf(),
         };
 
         files.push(Py::new(py, package_path)?);
@@ -208,7 +208,7 @@ fn scan_all_distributions(paths: &[PathBuf]) -> Vec<DistInfo> {
 
 /// Distribution class - Python object representing a distribution
 #[pyclass]
-struct Distribution {
+pub struct Distribution {
     #[pyo3(get)]
     name: String,
     path: PathBuf,
