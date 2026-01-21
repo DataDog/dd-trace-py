@@ -61,7 +61,8 @@ tests-gen:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   script:
-    - echo "UNPIN_DEPENDENCIES: ${{UNPIN_DEPENDENCIES}}"
+    - |
+      echo "UNPIN_DEPENDENCIES: ${{UNPIN_DEPENDENCIES}}"
     - |
       if [ -z ${GH_TOKEN} ]
       then
