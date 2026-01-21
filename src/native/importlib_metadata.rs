@@ -1,11 +1,11 @@
 /// Fast Rust implementation of importlib_metadata.distributions()
 /// Optimized for performance with caching and efficient directory scanning
+/// Version 2: Adds support for dist.files and dist.read_text()
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList};
+use pyo3::types::{PyDict, PyList, PyTuple};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 
 /// Lightweight distribution info (before creating Python objects)
 #[derive(Clone, Debug)]
@@ -13,6 +13,100 @@ struct DistInfo {
     name: String,
     path: PathBuf,
     metadata_text: Option<String>,
+}
+
+/// PackagePath - represents a file path within a distribution
+#[pyclass]
+struct PackagePath {
+    #[pyo3(get)]
+    parts: Py<PyTuple>,
+    path_str: String,
+    dist_path: PathBuf,
+}
+
+impl Clone for PackagePath {
+    fn clone(&self) -> Self {
+        Python::with_gil(|py| {
+            PackagePath {
+                parts: self.parts.clone_ref(py),
+                path_str: self.path_str.clone(),
+                dist_path: self.dist_path.clone(),
+            }
+        })
+    }
+}
+
+#[pymethods]
+impl PackagePath {
+    fn __repr__(&self) -> String {
+        self.path_str.clone()
+    }
+
+    fn __str__(&self) -> String {
+        self.path_str.clone()
+    }
+
+    /// Read the file content as text
+    fn read_text(&self, _py: Python) -> PyResult<String> {
+        let full_path = self.dist_path.parent()
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Invalid dist path"))?
+            .join(&self.path_str);
+
+        fs::read_to_string(&full_path)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("Failed to read {}: {}", self.path_str, e)))
+    }
+
+    /// Locate the file and return its absolute path
+    fn locate(&self) -> PyResult<PathBuf> {
+        let full_path = self.dist_path.parent()
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyValueError, _>("Invalid dist path"))?
+            .join(&self.path_str);
+        Ok(full_path)
+    }
+}
+
+/// Parse RECORD file and return list of PackagePath objects
+fn parse_record_file(record_path: &Path, dist_path: &PathBuf, py: Python) -> PyResult<Vec<Py<PackagePath>>> {
+    let content = match fs::read_to_string(record_path) {
+        Ok(c) => c,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    let mut files = Vec::new();
+
+    for line in content.lines() {
+        if line.is_empty() {
+            continue;
+        }
+
+        // RECORD format: filename,hash,size
+        let filename = match line.split(',').next() {
+            Some(f) => f,
+            None => continue,
+        };
+
+        // Convert filename to parts tuple
+        let parts: Vec<&str> = if filename.contains('/') {
+            filename.split('/').collect()
+        } else if filename.contains('\\') {
+            filename.split('\\').collect()
+        } else {
+            vec![filename]
+        };
+
+        // Create PyTuple for parts
+        let py_parts = PyTuple::new(py, &parts)?;
+
+        let package_path = PackagePath {
+            parts: py_parts.unbind(),
+            path_str: filename.to_string(),
+            dist_path: dist_path.clone(),
+        };
+
+        files.push(Py::new(py, package_path)?);
+    }
+
+    Ok(files)
 }
 
 /// Parse RFC 822 style metadata quickly
@@ -118,6 +212,35 @@ impl Distribution {
     fn __repr__(&self) -> String {
         format!("<Distribution('{}', '{}')>", self.name, self.version)
     }
+
+    /// Get the list of files in this distribution (lazy-loaded)
+    #[getter]
+    fn files(&self, py: Python) -> PyResult<Option<Vec<Py<PackagePath>>>> {
+        // Try RECORD file first (for wheel/dist-info)
+        let record_path = self.path.join("RECORD");
+        if record_path.exists() {
+            return Ok(Some(parse_record_file(&record_path, &self.path, py)?));
+        }
+
+        // Try installed-files.txt (for egg-info)
+        let installed_files_path = self.path.join("installed-files.txt");
+        if installed_files_path.exists() {
+            return Ok(Some(parse_record_file(&installed_files_path, &self.path, py)?));
+        }
+
+        // No files list available
+        Ok(None)
+    }
+
+    /// Read a text file from the distribution directory
+    fn read_text(&self, filename: &str) -> PyResult<Option<String>> {
+        let file_path = self.path.join(filename);
+
+        match fs::read_to_string(&file_path) {
+            Ok(content) => Ok(Some(content)),
+            Err(_) => Ok(None),
+        }
+    }
 }
 
 /// Fast distributions() implementation
@@ -180,6 +303,7 @@ pub fn distributions(py: Python) -> PyResult<Vec<Py<Distribution>>> {
 /// Python module for importlib_metadata
 pub fn register_importlib_metadata(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Distribution>()?;
+    m.add_class::<PackagePath>()?;
     m.add_function(wrap_pyfunction!(distributions, m)?)?;
     Ok(())
 }

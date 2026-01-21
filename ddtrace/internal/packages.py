@@ -206,9 +206,10 @@ def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
     try:
         mapping = {}
 
-        # Note: For this function we need dist.files which the Rust implementation
-        # doesn't provide yet, so we always use the Python implementation here
-        for dist in importlib_metadata.distributions():
+        # Use Rust implementation if available (now supports dist.files)
+        dists = _rust_distributions() if _USE_RUST_DISTRIBUTIONS else importlib_metadata.distributions()
+
+        for dist in dists:
             if not (files := dist.files):
                 continue
             metadata = dist.metadata
@@ -345,12 +346,13 @@ def _packages_distributions() -> t.Mapping[str, t.List[str]]:
     >>> all(isinstance(dist, collections.abc.Sequence) for dist in pkgs.values())
     True
     """
-    # Note: This function needs dist.read_text() and dist.files which the Rust
-    # implementation doesn't provide yet, so we always use Python implementation
+    # Use Rust implementation if available (now supports dist.read_text() and dist.files)
     import importlib.metadata as importlib_metadata
 
     pkg_to_dist = collections.defaultdict(list)
-    for dist in importlib_metadata.distributions():
+    dists = _rust_distributions() if _USE_RUST_DISTRIBUTIONS else importlib_metadata.distributions()
+
+    for dist in dists:
         for pkg in _top_level_declared(dist) or _top_level_inferred(dist):
             pkg_to_dist[pkg].append(dist.metadata["Name"])
     return dict(pkg_to_dist)
