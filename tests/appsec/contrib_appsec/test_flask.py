@@ -85,6 +85,7 @@ class Test_Flask(utils.Contrib_TestClass_For_Threats):
         with scoped_tracer() as tracer:
             interface.tracer = tracer
             interface.printer = printer
+            interface.SERVER_PORT = self.SERVER_PORT
             with utils.post_tracer(interface):
                 yield interface
 

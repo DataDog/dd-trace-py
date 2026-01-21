@@ -18,7 +18,14 @@ build_base_venvs:
     - when: always
   script: |
     set -e -o pipefail
+    echo "UNPIN_DEPENDENCIES: ${{UNPIN_DEPENDENCIES}}"
+    if [[ ${{UNPIN_DEPENDENCIES:-"false"}} == "true" ]]
+    then
+      python scripts/allow_prerelease_dependencies.py
+      export PIP_PRE=true
+    fi
     riot -P -v generate --python=$PYTHON_VERSION
+    .riot/venv_py3*/bin/pip freeze
     echo "Running smoke tests"
     riot -v run -s --python=$PYTHON_VERSION smoke_test
   artifacts:
