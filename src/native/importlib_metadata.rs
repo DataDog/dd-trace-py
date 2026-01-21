@@ -243,6 +243,12 @@ impl Distribution {
             )?));
         }
 
+        // Try SOURCES.txt (for egg-info in development mode)
+        let sources_path = self.path.join("SOURCES.txt");
+        if sources_path.exists() {
+            return Ok(Some(parse_record_file(&sources_path, &self.path, py)?));
+        }
+
         // No files list available
         Ok(None)
     }
@@ -269,7 +275,12 @@ pub fn distributions(py: Python) -> PyResult<Vec<Py<Distribution>>> {
     let mut paths = Vec::with_capacity(path_list.len());
     for item in path_list.iter() {
         if let Ok(path_str) = item.extract::<String>() {
-            let path = PathBuf::from(path_str);
+            // Empty string in sys.path means current directory
+            let path = if path_str.is_empty() {
+                PathBuf::from(".")
+            } else {
+                PathBuf::from(path_str)
+            };
             if path.exists() && path.is_dir() {
                 paths.push(path);
             }

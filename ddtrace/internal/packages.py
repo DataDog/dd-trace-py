@@ -162,11 +162,9 @@ def _root_module(path: Path) -> str:
 
 @callonce
 def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
-    import importlib.metadata as importlib_metadata
-
     namespaces: t.Dict[str, bool] = {}
 
-    def is_namespace(f: importlib_metadata.PackagePath):
+    def is_namespace(f):
         root = f.parts[0]
         try:
             return namespaces[root]
