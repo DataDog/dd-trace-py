@@ -19,7 +19,9 @@ from ddtrace.testing.internal.pytest.plugin import XdistTestOptPlugin
 from ddtrace.testing.internal.pytest.plugin import _encode_test_parameter
 from ddtrace.testing.internal.pytest.plugin import _get_exception_tags
 from ddtrace.testing.internal.pytest.plugin import _get_module_path_from_item
+from ddtrace.testing.internal.pytest.plugin import _get_source_lines
 from ddtrace.testing.internal.pytest.plugin import _get_test_command
+from ddtrace.testing.internal.pytest.plugin import _get_test_location_info
 from ddtrace.testing.internal.pytest.plugin import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.plugin import _get_user_property
 from ddtrace.testing.internal.pytest.utils import nodeid_to_names
@@ -461,7 +463,7 @@ class TestNodeIdToTestRef:
         nodeid = "tests/internal/test_example.py::TestClass::test_method"
         module, suite, test = nodeid_to_names(nodeid)
 
-        assert module == "tests/internal"
+        assert module == "tests.internal"
         assert suite == "test_example.py"
         assert test == "TestClass::test_method"
 
@@ -470,7 +472,7 @@ class TestNodeIdToTestRef:
         nodeid = "test_example.py::test_function"
         module, suite, test = nodeid_to_names(nodeid)
 
-        assert module == "."
+        assert module == ""  # Empty string for root-level tests (matches old plugin)
         assert suite == "test_example.py"
         assert test == "test_function"
 
@@ -479,8 +481,8 @@ class TestNodeIdToTestRef:
         nodeid = "some_weird_format"
         module, suite, test = nodeid_to_names(nodeid)
 
-        assert module == "."
-        assert suite == "."
+        assert module == "unknown_module"  # Fallback for invalid nodeids (matches old plugin)
+        assert suite == "unknown_suite"  # Fallback for invalid nodeids (matches old plugin)
         assert test == "some_weird_format"
 
 
@@ -523,6 +525,38 @@ class TestHelperFunctions:
         result = _get_module_path_from_item(mock_item)
 
         assert result == Path.cwd()
+
+    def test_get_relative_module_path_from_item_within_workspace(self) -> None:
+        """Test _get_relative_module_path_from_item when path is within workspace."""
+        from pathlib import Path
+
+        from ddtrace.testing.internal.pytest.plugin import _get_relative_module_path_from_item
+
+        mock_item = Mock()
+        mock_path = Mock()
+        mock_path.absolute.return_value.parent = Path("/workspace/tests/unit")
+        mock_item.path = mock_path
+
+        workspace_path = Path("/workspace")
+        result = _get_relative_module_path_from_item(mock_item, workspace_path)
+
+        assert str(result) == "tests/unit"  # Should be relative to workspace
+
+    def test_get_relative_module_path_from_item_outside_workspace(self) -> None:
+        """Test _get_relative_module_path_from_item when path is outside workspace."""
+        from pathlib import Path
+
+        from ddtrace.testing.internal.pytest.plugin import _get_relative_module_path_from_item
+
+        mock_item = Mock()
+        mock_path = Mock()
+        mock_path.absolute.return_value.parent = Path("/some/other/path")
+        mock_item.path = mock_path
+
+        workspace_path = Path("/workspace")
+        result = _get_relative_module_path_from_item(mock_item, workspace_path)
+
+        assert str(result) == "/some/other/path"  # Should return absolute path as fallback
 
     def test_get_exception_tags_with_excinfo(self) -> None:
         """Test _get_exception_tags with valid exception info."""
@@ -610,6 +644,178 @@ class TestHelperFunctions:
         # Memory address should be removed
         assert "at 0x" not in result
         assert result == "'MyObject'"
+
+    def test_get_source_lines_with_obj(self) -> None:
+        """Test _get_source_lines when item has _obj attribute."""
+        from pathlib import Path
+
+        mock_item = Mock()
+        mock_item._obj = lambda: None  # Mock test object
+        mock_item.name = "test_function"
+        item_path = Path("/workspace/tests/test_file.py")
+
+        with (
+            patch("ddtrace.testing.internal.pytest.plugin.undecorated") as mock_undecorated,
+            patch("ddtrace.testing.internal.pytest.plugin.get_source_lines_for_test_method") as mock_get_lines,
+        ):
+            mock_undecorated.return_value = mock_item._obj
+            mock_get_lines.return_value = (10, 20)
+
+            start_line, end_line = _get_source_lines(mock_item, item_path)
+
+            assert start_line == 10
+            assert end_line == 20
+            mock_undecorated.assert_called_once_with(mock_item._obj, "test_function", item_path)
+            mock_get_lines.assert_called_once()
+
+    def test_get_source_lines_without_obj(self) -> None:
+        """Test _get_source_lines when item doesn't have _obj attribute."""
+        from pathlib import Path
+
+        mock_item = Mock()
+        del mock_item._obj  # Remove _obj attribute
+        mock_item.reportinfo.return_value = ("/path/to/file.py", 15, "test_name")
+        item_path = Path("/workspace/tests/test_file.py")
+
+        start_line, end_line = _get_source_lines(mock_item, item_path)
+
+        assert start_line == 15
+        assert end_line == 0
+
+    def test_get_source_lines_exception_fallback(self) -> None:
+        """Test _get_source_lines falls back to reportinfo on exception."""
+        from pathlib import Path
+
+        mock_item = Mock()
+        mock_item._obj = lambda: None
+        mock_item.name = "test_function"
+        mock_item.reportinfo.return_value = ("/path/to/file.py", 25, "test_name")
+        item_path = Path("/workspace/tests/test_file.py")
+
+        with (
+            patch("ddtrace.testing.internal.pytest.plugin.undecorated") as mock_undecorated,
+            patch("ddtrace.testing.internal.pytest.plugin.get_source_lines_for_test_method"),
+        ):
+            # Simulate exception in undecorated
+            mock_undecorated.side_effect = Exception("Test error")
+
+            start_line, end_line = _get_source_lines(mock_item, item_path)
+
+            assert start_line == 25
+            assert end_line == 0
+            mock_item.reportinfo.assert_called_once()
+
+    def test_get_source_lines_all_failures(self) -> None:
+        """Test _get_source_lines when all methods fail."""
+        from pathlib import Path
+
+        mock_item = Mock()
+        mock_item._obj = lambda: None
+        mock_item.name = "test_function"
+        mock_item.reportinfo.side_effect = Exception("reportinfo failed")
+        item_path = Path("/workspace/tests/test_file.py")
+
+        with (
+            patch("ddtrace.testing.internal.pytest.plugin.undecorated") as mock_undecorated,
+            patch("ddtrace.testing.internal.pytest.plugin.get_source_lines_for_test_method"),
+        ):
+            mock_undecorated.side_effect = Exception("undecorated failed")
+
+            start_line, end_line = _get_source_lines(mock_item, item_path)
+
+            assert start_line == 0
+            assert end_line == 0
+
+    def test_get_test_location_info_success(self) -> None:
+        """Test _get_test_location_info with successful path extraction."""
+        from pathlib import Path
+
+        mock_item = Mock()
+        # Mock path as a string that will be converted to Path by the function
+        mock_item.path = "/workspace/tests/test_file.py"
+
+        workspace_path = Path("/workspace")
+
+        with patch("ddtrace.testing.internal.pytest.plugin._get_source_lines") as mock_get_lines:
+            mock_get_lines.return_value = (10, 20)
+
+            relative_path, start_line, end_line = _get_test_location_info(mock_item, workspace_path)
+
+            assert relative_path == "tests/test_file.py"
+            assert start_line == 10
+            assert end_line == 20
+
+    def test_get_test_location_info_with_fspath_fallback(self) -> None:
+        """Test _get_test_location_info falls back to fspath when path is missing."""
+        from pathlib import Path
+
+        mock_item = Mock(spec=[])  # Empty spec means no attributes by default
+        # Set only fspath, not path
+        mock_item.fspath = "/workspace/tests/test_file.py"
+
+        workspace_path = Path("/workspace")
+
+        with patch("ddtrace.testing.internal.pytest.plugin._get_source_lines") as mock_get_lines:
+            mock_get_lines.return_value = (15, 0)
+
+            relative_path, start_line, end_line = _get_test_location_info(mock_item, workspace_path)
+
+            assert relative_path == "tests/test_file.py"
+            assert start_line == 15
+            assert end_line == 0
+
+    def test_get_test_location_info_reportinfo_fallback(self) -> None:
+        """Test _get_test_location_info falls back to reportinfo on path exception."""
+        from pathlib import Path
+
+        mock_item = Mock()
+        # Use a path that will cause an exception when relative_to is called
+        # (path outside workspace) - this triggers ValueError
+        mock_item.path = "/other/location/tests/test_file.py"
+        mock_item.reportinfo.return_value = ("relative/path.py", 30, "test_name")
+
+        workspace_path = Path("/workspace")
+
+        relative_path, start_line, end_line = _get_test_location_info(mock_item, workspace_path)
+
+        assert relative_path == "relative/path.py"
+        assert start_line == 30
+        assert end_line == 0
+
+    def test_get_test_location_info_all_failures(self) -> None:
+        """Test _get_test_location_info when all methods fail."""
+        from pathlib import Path
+
+        mock_item = Mock()
+        # Use an invalid path that will cause Path() to fail
+        mock_item.path = None  # This will cause Path(None) to raise TypeError
+        mock_item.reportinfo.side_effect = Exception("reportinfo failed")
+
+        workspace_path = Path("/workspace")
+
+        relative_path, start_line, end_line = _get_test_location_info(mock_item, workspace_path)
+
+        assert relative_path is None
+        assert start_line == 0
+        assert end_line == 0
+
+    def test_get_test_location_info_outside_workspace(self) -> None:
+        """Test _get_test_location_info when test is outside workspace."""
+        from pathlib import Path
+
+        mock_item = Mock()
+        # Path is outside workspace - will cause ValueError in relative_to()
+        mock_item.path = "/other/location/tests/test_file.py"
+        mock_item.reportinfo.return_value = ("tests/test_file.py", 10, "test_name")
+
+        workspace_path = Path("/workspace")
+
+        # Should fall back to reportinfo when path is not relative to workspace
+        relative_path, start_line, end_line = _get_test_location_info(mock_item, workspace_path)
+
+        assert relative_path == "tests/test_file.py"
+        assert start_line == 10
+        assert end_line == 0
 
 
 class TestPrivateMethods:
