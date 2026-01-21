@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    profiling: It is now possible to profile applications using ``uvloop`` with ``asyncio``.

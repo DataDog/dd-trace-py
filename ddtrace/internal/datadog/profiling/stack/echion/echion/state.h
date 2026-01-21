@@ -24,3 +24,8 @@
 inline PyObject* asyncio_current_tasks = NULL;
 inline PyObject* asyncio_scheduled_tasks = NULL; // WeakSet
 inline PyObject* asyncio_eager_tasks = NULL;     // set
+
+// Flag to indicate that uvloop is in use.
+// When true, the stack unwinding logic uses Runner.run as the boundary frame
+// instead of Handle._run, and skips the uvloop wrapper frame.
+inline bool using_uvloop = false;

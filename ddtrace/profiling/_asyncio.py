@@ -256,3 +256,70 @@ def get_event_loop_for_thread(thread_id: int) -> typing.Optional["asyncio.Abstra
     global THREAD_LINK
 
     return THREAD_LINK.get_object(thread_id) if THREAD_LINK is not None else None
+
+
+@ModuleWatchdog.after_module_imported("uvloop")
+def _(uvloop: ModuleType) -> None:
+    """Hook uvloop to track event loops.
+
+    uvloop doesn't inherit from BaseDefaultEventLoopPolicy, and on Python 3.11+
+    uvloop.run() uses asyncio.Runner which bypasses set_event_loop entirely.
+    We hook new_event_loop to catch all uvloop loop creations.
+
+    We also hook EventLoopPolicy.set_event_loop for the deprecated uvloop.install()
+    + asyncio.run() pattern.
+    """
+    global THREAD_LINK
+
+    import asyncio
+
+    if THREAD_LINK is None:
+        THREAD_LINK = _threading._ThreadLink()
+
+    init_stack: bool = config.stack.enabled and stack.is_available
+
+    # Enable uvloop-specific stack unwinding in the native profiler.
+    # This changes the boundary frame detection from Handle._run to Runner.run,
+    # and skips the uvloop wrapper frame in task stacks.
+    if init_stack:
+        stack.set_uvloop_mode(True)
+
+    # Wrap uvloop.new_event_loop to track loops when they're created
+    new_event_loop_func = getattr(uvloop, "new_event_loop", None)
+    if new_event_loop_func is not None:
+
+        @partial(wrap, new_event_loop_func)
+        def _(
+            f: typing.Callable[..., "asyncio.AbstractEventLoop"],
+            args: tuple[typing.Any, ...],
+            kwargs: dict[str, typing.Any],
+        ) -> "asyncio.AbstractEventLoop":
+            loop = f(*args, **kwargs)
+            if init_stack:
+                stack.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
+                # Ensure asyncio task tracking is initialized
+                _call_init_asyncio(asyncio)
+            assert THREAD_LINK is not None  # nosec: assert is used for typing
+            THREAD_LINK.clear_threads(set(sys._current_frames().keys()))
+            THREAD_LINK.link_object(loop)
+            return loop
+
+    # Wrap uvloop.EventLoopPolicy.set_event_loop for uvloop.install() + asyncio.run() pattern
+    policy_class = getattr(uvloop, "EventLoopPolicy", None)
+    if policy_class is not None and hasattr(policy_class, "set_event_loop"):
+
+        @partial(wrap, policy_class.set_event_loop)
+        def _(
+            f: typing.Callable[..., typing.Any], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]
+        ) -> typing.Any:
+            loop: typing.Optional["asyncio.AbstractEventLoop"] = get_argument_value(args, kwargs, 1, "loop")
+            try:
+                if init_stack and loop is not None:
+                    stack.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
+                    _call_init_asyncio(asyncio)
+                return f(*args, **kwargs)
+            finally:
+                assert THREAD_LINK is not None  # nosec: assert is used for typing
+                THREAD_LINK.clear_threads(set(sys._current_frames().keys()))
+                if loop is not None:
+                    THREAD_LINK.link_object(loop)

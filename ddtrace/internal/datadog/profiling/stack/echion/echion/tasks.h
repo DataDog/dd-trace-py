@@ -147,3 +147,10 @@ inline std::mutex task_link_map_lock;
 // ----------------------------------------------------------------------------
 
 inline std::vector<std::unique_ptr<StackInfo>> current_tasks;
+
+// Checks whether a Frame is the uvloop.run coroutine wrapper.
+// When uvloop.run is used, the top-level Task contains a wrapper coroutine
+// named "run.<locals>.wrapper" that just validates the loop type and awaits the user's main
+// coroutine. We skip this frame to keep the stack clean and consistent with regular asyncio.
+bool
+is_uvloop_wrapper_frame(const Frame& frame);

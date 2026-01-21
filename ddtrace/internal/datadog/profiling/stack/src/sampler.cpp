@@ -72,10 +72,7 @@ void
 Sampler::adapt_sampling_interval()
 {
 #if defined(__linux__)
-    struct timespec ts
-    {
-        0, 0
-    };
+    struct timespec ts{ 0, 0 };
 
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
     auto new_process_count = static_cast<uint64_t>(ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000);
@@ -439,4 +436,10 @@ Sampler::update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame)
         // Update the frame of the greenlet
         entry->second->frame = frame;
     }
+}
+
+void
+Sampler::set_uvloop_mode(bool value)
+{
+    using_uvloop = value;
 }
