@@ -7,6 +7,7 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import TypedDict
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._experiment import Dataset
@@ -42,6 +43,16 @@ TIPS = {
     "validation": "Include validation steps or self-checking mechanisms in the prompt.",
     "priorities": "Clearly state what aspects are most important when there are trade-offs.",
 }
+
+
+class IterationData(TypedDict):
+      """Data for a single optimization iteration."""
+      iteration: int
+      prompt: str
+      results: ExperimentResult
+      score: float
+      experiment_url: str
+      summary_evaluations: Dict[str, Dict[str, JSONType]]
 
 
 class OptimizationIteration:
@@ -315,19 +326,14 @@ class OptimizationResult:
         self,
         name: str,
         initial_prompt: str,
-        iterations: List[Dict[str, Any]],
+        iterations: List[IterationData],
         best_iteration: int,
     ) -> None:
         """Initialize optimization results.
 
         :param name: Name of the optimization run.
         :param initial_prompt: The starting prompt.
-        :param iterations: List of results from each iteration. Each dict contains:
-                          - iteration: int (iteration number)
-                          - prompt: str (the prompt used)
-                          - results: dict (full experiment results)
-                          - score: float (aggregate score)
-                          - experiment_url: str (URL to view experiment in Datadog UI)
+        :param iterations: List of results from each iteration (IterationData).
         :param best_iteration: Index of the iteration with best performance.
         """
         self.name = name
@@ -340,36 +346,31 @@ class OptimizationResult:
         """Get the best performing prompt from all iterations."""
         if not self.iterations or self.best_iteration >= len(self.iterations):
             return self.initial_prompt
-        return self.iterations[self.best_iteration].get("prompt", self.initial_prompt)
+        return self.iterations[self.best_iteration]["prompt"]
 
     @property
     def best_score(self) -> Optional[float]:
         """Get the evaluation score of the best iteration."""
         if not self.iterations or self.best_iteration >= len(self.iterations):
             return None
-        return self.iterations[self.best_iteration].get("score")
+        return self.iterations[self.best_iteration]["score"]
 
     @property
     def best_experiment_url(self) -> Optional[str]:
         """Get the experiment URL for the best iteration."""
         if not self.iterations or self.best_iteration >= len(self.iterations):
             return None
-        return self.iterations[self.best_iteration].get("experiment_url")
+        return self.iterations[self.best_iteration]["experiment_url"]
 
     @property
     def total_iterations(self) -> int:
         """Get the total number of iterations run (including baseline)."""
         return len(self.iterations)
 
-    def get_history(self) -> List[Dict[str, Any]]:
+    def get_history(self) -> List[IterationData]:
         """Get the full optimization history with all iterations.
 
-        Returns a list of dicts, one per iteration, containing:
-        - iteration: The iteration number (0 = baseline)
-        - prompt: The prompt used in this iteration
-        - score: The evaluation score achieved
-        - results: Full experiment results dict
-        - experiment_url: URL to view experiment in Datadog UI
+        Returns a list of IterationData dicts, one per iteration.
 
         :return: List of iteration results.
         """
@@ -380,14 +381,14 @@ class OptimizationResult:
 
         :return: List of scores in iteration order.
         """
-        return [it.get("score", 0.0) for it in self.iterations]
+        return [it["score"] for it in self.iterations]
 
     def get_prompt_history(self) -> List[str]:
         """Get list of prompts across all iterations.
 
         :return: List of prompts in iteration order.
         """
-        return [it.get("prompt", "") for it in self.iterations]
+        return [it["prompt"] for it in self.iterations]
 
     def summary(self) -> str:
         """Get a human-readable summary of the optimization results.
@@ -403,17 +404,17 @@ class OptimizationResult:
 
         # Add best iteration's summary evaluations
         for iteration in self.iterations:
-            if iteration.get("iteration") == self.best_iteration:
-                summary_evals = iteration.get("summary_evaluations")
+            if iteration["iteration"] == self.best_iteration:
+                summary_evals = iteration["summary_evaluations"]
                 if summary_evals:
                     lines.append(f"\nBest iteration summary evaluations:\n{summary_evals}")
                 break
 
         lines.append("\nScore progression:")
         for iteration in self.iterations:
-            iter_num = iteration.get("iteration", 0)
-            score = iteration.get("score")
-            url = iteration.get('experiment_url')
+            iter_num = iteration["iteration"]
+            score = iteration["score"]
+            url = iteration["experiment_url"]
             marker = " <- BEST" if iter_num == self.best_iteration else ""
             lines.append(f"Iteration {iter_num} (score: {score:.4f}): {url}{marker}")
 
@@ -527,7 +528,7 @@ class PromptOptimization:
         log.info(f"Starting prompt optimization: {self.name}")
 
         # Track all iteration results
-        all_iterations = []
+        all_iterations: List[IterationData] = []
         best_iteration = 0
         best_score = None
         best_prompt = None
@@ -542,12 +543,13 @@ class PromptOptimization:
         summary_evals = current_results.get("summary_evaluations", {})
         baseline_score = self._compute_score(summary_evals)
 
-        iteration_data = {
+        iteration_data: IterationData = {
             "iteration": iteration,
             "prompt": current_prompt,
             "results": current_results,
             "score": baseline_score,
             "experiment_url": experiment_url,
+            "summary_evaluations": summary_evals,
         }
         all_iterations.append(iteration_data)
         best_score = baseline_score or 0.0
@@ -579,13 +581,13 @@ class PromptOptimization:
             new_score = self._compute_score(summary_evals)
 
             # Track iteration results
-            iteration_data = {
+            iteration_data: IterationData = {
                 "iteration": i,
                 "prompt": new_prompt,
                 "results": new_results,
                 "score": new_score,
-                "summary_evaluations": summary_evals,
                 "experiment_url": experiment_url,
+                "summary_evaluations": summary_evals,
             }
             all_iterations.append(iteration_data)
 
