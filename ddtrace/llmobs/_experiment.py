@@ -17,6 +17,8 @@ from typing import cast
 from typing import overload
 import uuid
 
+from typing_extensions import TypeGuard
+
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -25,6 +27,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
+from ddtrace.llmobs._evaluators.base import EvaluatorResult
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.version import __version__
@@ -32,11 +35,37 @@ from ddtrace.version import __version__
 
 if TYPE_CHECKING:
     from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._evaluators.base import BaseEvaluator
     from ddtrace.llmobs._writer import LLMObsExperimentEvalMetricEvent
     from ddtrace.llmobs._writer import LLMObsExperimentsClient
 
 
 logger = get_logger(__name__)
+
+
+def _is_class_evaluator(evaluator: Any) -> TypeGuard["BaseEvaluator"]:
+    """Check if an evaluator is a class-based evaluator (inherits from BaseEvaluator).
+
+    :param evaluator: The evaluator to check
+    :return: True if it's a class-based evaluator, False otherwise
+    """
+    from ddtrace.llmobs._evaluators.base import BaseEvaluator
+
+    return isinstance(evaluator, BaseEvaluator)
+
+
+def _is_function_evaluator(
+    evaluator: Union[Callable[[Any, Any, Any], Any], "BaseEvaluator"],
+) -> TypeGuard[Callable[[Any, Any, Any], Any]]:
+    """Check if an evaluator is a function-based evaluator.
+
+    :param evaluator: The evaluator to check
+    :return: True if it's a function evaluator, False otherwise
+    """
+    from ddtrace.llmobs._evaluators.base import BaseEvaluator
+
+    return not isinstance(evaluator, BaseEvaluator)
+
 
 JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
 NonNoneJSONType = Union[str, int, float, bool, List[JSONType], Dict[str, JSONType]]
@@ -77,22 +106,6 @@ class TaskResult(TypedDict):
     output: JSONType
     metadata: Dict[str, JSONType]
     error: Dict[str, Optional[str]]
-
-
-class EvaluatorResult:
-    def __init__(
-        self,
-        value: JSONType,
-        reasoning: Optional[str] = None,
-        assessment: Optional[str] = None,
-        metadata: Optional[Dict[str, JSONType]] = None,
-        tags: Optional[Dict[str, JSONType]] = None,
-    ) -> None:
-        self.value = value
-        self.reasoning = reasoning
-        self.assessment = assessment
-        self.metadata = metadata
-        self.tags = tags
 
 
 class EvaluationResult(TypedDict):
@@ -362,7 +375,12 @@ class Experiment:
         name: str,
         task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
         dataset: Dataset,
-        evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]]],
+        evaluators: List[
+            Union[
+                Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
+                "BaseEvaluator",
+            ]
+        ],
         project_name: str,
         description: str = "",
         tags: Optional[Dict[str, str]] = None,
@@ -575,20 +593,54 @@ class Experiment:
         return task_results
 
     def _run_evaluators(self, task_results: List[TaskResult], raise_errors: bool = False) -> List[EvaluationResult]:
+        """Run evaluators on task results.
+
+        Supports both class-based (BaseEvaluator) and function-based evaluators.
+
+        :param task_results: List of task results to evaluate
+        :param raise_errors: Whether to raise exceptions on evaluation errors
+        """
+        from ddtrace.llmobs._evaluators.base import EvaluatorContext
+
         evaluations: List[EvaluationResult] = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
             record: DatasetRecord = self._dataset[idx]
             input_data = record["input_data"]
             expected_output = record["expected_output"]
+            metadata = record.get("metadata", {})
             evals_dict: Dict[str, Dict[str, JSONType]] = {}
+
             for evaluator in self._evaluators:
                 eval_result_value: JSONType = None
                 eval_err: JSONType = None
+                evaluator_name = ""
                 extra_return_values: Dict[str, JSONType] = {}
-                try:
-                    eval_result = evaluator(input_data, output_data, expected_output)
 
+                try:
+                    if _is_class_evaluator(evaluator):
+                        # Class-based evaluator
+                        evaluator_name = evaluator.name
+                        context = EvaluatorContext(
+                            input_data=input_data,
+                            output_data=output_data,
+                            expected_output=expected_output,
+                            metadata=metadata,
+                            span_id=task_result.get("span_id"),
+                            trace_id=task_result.get("trace_id"),
+                            config=self._config,
+                        )
+                        eval_result = evaluator.evaluate(context)
+                    elif _is_function_evaluator(evaluator):
+                        # Function-based evaluator (legacy)
+                        evaluator_name = evaluator.__name__
+                        eval_result = evaluator(input_data, output_data, expected_output)
+                    else:
+                        # Should not happen, but handle gracefully
+                        evaluator_name = str(evaluator)
+                        eval_result = None
+
+                    # Handle EvaluatorResult return type
                     if isinstance(eval_result, EvaluatorResult):
                         if eval_result.reasoning:
                             extra_return_values["reasoning"] = eval_result.reasoning
@@ -601,6 +653,7 @@ class Experiment:
                         eval_result_value = eval_result.value
                     else:
                         eval_result_value = eval_result
+
                 except Exception as e:
                     exc_type, exc_value, exc_tb = sys.exc_info()
                     exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
@@ -611,8 +664,9 @@ class Experiment:
                         "stack": exc_stack,
                     }
                     if raise_errors:
-                        raise RuntimeError(f"Evaluator {evaluator.__name__} failed on row {idx}") from e
-                evals_dict[evaluator.__name__] = {
+                        raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
+
+                evals_dict[evaluator_name] = {
                     "value": eval_result_value,
                     "error": eval_err,
                     **extra_return_values,

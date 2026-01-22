@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import time
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -133,6 +134,10 @@ from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.version import __version__
+
+
+if TYPE_CHECKING:
+    from ddtrace.llmobs._evaluators.base import BaseEvaluator
 
 
 log = get_logger(__name__)
@@ -910,7 +915,12 @@ class LLMObs(Service):
         name: str,
         task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
         dataset: Dataset,
-        evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]]],
+        evaluators: List[
+            Union[
+                Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
+                "BaseEvaluator",
+            ]
+        ],
         description: str = "",
         project_name: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
@@ -935,8 +945,10 @@ class LLMObs(Service):
         :param name: The name of the experiment.
         :param task: The task function to run. Must accept parameters ``input_data`` and ``config``.
         :param dataset: The dataset to run the experiment on, created with LLMObs.pull/create_dataset().
-        :param evaluators: A list of evaluator functions to evaluate the task output.
-                           Must accept parameters ``input_data``, ``output_data``, and ``expected_output``.
+        :param evaluators: A list of evaluator functions or BaseEvaluator instances to evaluate the task output.
+                           Function-based evaluators must accept parameters ``input_data``, ``output_data``,
+                           and ``expected_output``.
+                           Class-based evaluators must inherit from BaseEvaluator and implement the evaluate method.
         :param project_name: The name of the project to save the experiment to.
         :param description: A description of the experiment.
         :param tags: A dictionary of string key-value tag pairs to associate with the experiment.
@@ -948,6 +960,8 @@ class LLMObs(Service):
         :param runs: The number of times to run the experiment, or, run the task for every dataset record the defined
                      number of times.
         """
+        from ddtrace.llmobs._evaluators.base import BaseEvaluator
+
         if not callable(task):
             raise TypeError("task must be a callable function.")
         sig = inspect.signature(task)
@@ -956,9 +970,21 @@ class LLMObs(Service):
             raise TypeError("Task function must have 'input_data' and 'config' parameters.")
         if not isinstance(dataset, Dataset):
             raise TypeError("Dataset must be an LLMObs Dataset object.")
-        if not evaluators or not all(callable(evaluator) for evaluator in evaluators):
-            raise TypeError("Evaluators must be a list of callable functions.")
+        if not evaluators or not all(
+            callable(evaluator) or isinstance(evaluator, BaseEvaluator) for evaluator in evaluators
+        ):
+            raise TypeError("Evaluators must be a list of callable functions or BaseEvaluator instances.")
+
+        # Validate evaluators
         for evaluator in evaluators:
+            if isinstance(evaluator, BaseEvaluator):
+                # Class-based evaluator - validation is handled by the class itself
+                continue
+
+            # Function-based evaluator - validate signature
+            if not callable(evaluator):
+                raise TypeError(f"Evaluator {evaluator} must be callable or an instance of BaseEvaluator.")
+
             sig = inspect.signature(evaluator)
             params = sig.parameters
             evaluator_required_params = ("input_data", "output_data", "expected_output")
