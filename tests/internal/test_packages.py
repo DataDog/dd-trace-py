@@ -38,8 +38,8 @@ def test_get_distributions():
     # Get packages from stdlib importlib.metadata (Python fallback implementation)
     stdlib_pkgs = {}
     for dist in stdlib_im.distributions():
-        name = dist.metadata['Name']
-        version = dist.metadata['Version']
+        name = dist.metadata["Name"]
+        version = dist.metadata["Version"]
         if name and version:
             stdlib_pkgs[name.lower()] = version
 
