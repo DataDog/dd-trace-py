@@ -1238,10 +1238,6 @@ def snapshot_context(
     if not tracer:
         tracer = ddtrace.tracer
 
-    # AIDEV-NOTE: Pop DD_GIT_REPOSITORY_URL to prevent it from being added to span tags
-    # This env var is set in CI but should not affect snapshot tests
-    git_repo_url = os.environ.pop("DD_GIT_REPOSITORY_URL", None)
-
     parsed = parse.urlparse(tracer._span_aggregator.writer.intake_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
     try:
@@ -1343,10 +1339,6 @@ def snapshot_context(
             else:
                 pytest.xfail(result)
     finally:
-        # Restore DD_GIT_REPOSITORY_URL if it was set
-        if git_repo_url is not None:
-            os.environ["DD_GIT_REPOSITORY_URL"] = git_repo_url
-
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
         conn.getresponse()
@@ -1386,26 +1378,18 @@ def snapshot(
             else token_override
         )
 
-        # AIDEV-NOTE: Pop DD_GIT_REPOSITORY_URL early to prevent it from being added to span tags
-        # This env var is set in CI but should not affect snapshot tests
-        git_repo_url = os.environ.pop("DD_GIT_REPOSITORY_URL", None)
-        try:
-            with snapshot_context(
-                token,
-                ignores=ignores,
-                tracer=ddtrace.tracer,
-                async_mode=async_mode,
-                variants=variants,
-                wait_for_num_traces=wait_for_num_traces,
-            ):
-                # Run the test.
-                if include_tracer:
-                    kwargs["tracer"] = ddtrace.tracer
-                return wrapped(*args, **kwargs)
-        finally:
-            # Restore the env var if it was set
-            if git_repo_url is not None:
-                os.environ["DD_GIT_REPOSITORY_URL"] = git_repo_url
+        with snapshot_context(
+            token,
+            ignores=ignores,
+            tracer=ddtrace.tracer,
+            async_mode=async_mode,
+            variants=variants,
+            wait_for_num_traces=wait_for_num_traces,
+        ):
+            # Run the test.
+            if include_tracer:
+                kwargs["tracer"] = ddtrace.tracer
+            return wrapped(*args, **kwargs)
 
     return wrapper
 
