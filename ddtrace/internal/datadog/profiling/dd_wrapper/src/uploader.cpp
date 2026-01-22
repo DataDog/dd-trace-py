@@ -73,7 +73,7 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile& encoded, std::string
 }
 
 bool
-Datadog::Uploader::upload()
+Datadog::Uploader::upload_unlocked()
 {
     if (!output_filename.empty()) {
         return export_to_file(encoded_profile, profiler_stats.get_internal_metadata_json());
@@ -107,49 +107,51 @@ Datadog::Uploader::upload()
     };
 
     bool ret = true;
-    // The upload operation sets up some global state in libdatadog (the tokio runtime), so
-    // we ensure exclusivity here.
-    {
-        const std::lock_guard<std::mutex> lock_guard(upload_lock);
+    // Before starting a new upload, we need to cancel the current one (if it exists).
+    // To do that, we exchange the current cancellation token with a new one (which will be used for our own upload)
+    // If the current cancellation token was not null, then we use it to cancel the ongoing upload, then drop it.
+    // Other threads can use our own cancellation token to cancel our upload as soon as we have exchanged it.
+    // Note: we need to make (and use) a clone of the new cancellation token for the request, in case another thread
+    // cancels our upload and drops the handle (which would free the token).
+    auto new_cancel = ddog_CancellationToken_new();
+    auto new_cancel_clone_for_request = ddog_CancellationToken_clone(&new_cancel);
+    auto current_cancel = cancel.exchange(new_cancel);
 
-        // Before starting a new upload, we need to cancel the current one (if it exists).
-        // To do that, we exchange the current cancellation token with a new one (which will be used for our own upload)
-        // If the current cancellation token was not null, then we use it to cancel the ongoing upload, then drop it.
-        // Other threads can use our own cancellation token to cancel our upload as soon as we have exchanged it.
-        // Note: we need to make (and use) a clone of the new cancellation token for the request, in case another thread
-        // cancels our upload and drops the handle (which would free the token).
-        auto new_cancel = ddog_CancellationToken_new();
-        auto new_cancel_clone_for_request = ddog_CancellationToken_clone(&new_cancel);
-        auto current_cancel = cancel.exchange(new_cancel);
-
-        if (current_cancel.inner != nullptr) {
-            ddog_CancellationToken_cancel(&current_cancel);
-            ddog_CancellationToken_drop(&current_cancel);
-        }
-
-        // Build and send the request in one call
-        ddog_prof_Result_HttpStatus res = ddog_prof_Exporter_send_blocking(&ddog_exporter,
-                                                                           &encoded_profile,
-                                                                           files_to_compress,
-                                                                           nullptr, // optional_additional_tags
-                                                                           optional_process_tags_ptr,
-                                                                           &internal_metadata_json_slice,
-                                                                           nullptr, // optional_info_json
-                                                                           &new_cancel_clone_for_request);
-
-        if (res.tag ==
-            DDOG_PROF_RESULT_HTTP_STATUS_ERR_HTTP_STATUS) { // NOLINT (cppcoreguidelines-pro-type-union-access)
-            auto err = res.err;                             // NOLINT (cppcoreguidelines-pro-type-union-access)
-            errmsg = err_to_msg(&err, "Error uploading");
-            std::cerr << errmsg << std::endl;
-            ddog_Error_drop(&err);
-            ret = false;
-        }
-        ddog_CancellationToken_drop(&new_cancel_clone_for_request);
-        ddog_prof_Exporter_drop(&ddog_exporter);
+    if (current_cancel.inner != nullptr) {
+        ddog_CancellationToken_cancel(&current_cancel);
+        ddog_CancellationToken_drop(&current_cancel);
     }
 
+    // Build and send the request in one call
+    ddog_prof_Result_HttpStatus res = ddog_prof_Exporter_send_blocking(&ddog_exporter,
+                                                                       &encoded_profile,
+                                                                       files_to_compress,
+                                                                       nullptr, // optional_additional_tags
+                                                                       optional_process_tags_ptr,
+                                                                       &internal_metadata_json_slice,
+                                                                       nullptr, // optional_info_json
+                                                                       &new_cancel_clone_for_request);
+
+    if (res.tag == DDOG_PROF_RESULT_HTTP_STATUS_ERR_HTTP_STATUS) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+        auto err = res.err;                                        // NOLINT (cppcoreguidelines-pro-type-union-access)
+        errmsg = err_to_msg(&err, "Error uploading");
+        std::cerr << errmsg << std::endl;
+        ddog_Error_drop(&err);
+        ret = false;
+    }
+    ddog_CancellationToken_drop(&new_cancel_clone_for_request);
+    ddog_prof_Exporter_drop(&ddog_exporter);
+
     return ret;
+}
+
+bool
+Datadog::Uploader::upload()
+{
+    // The upload operation sets up some global state in libdatadog (the tokio runtime), so
+    // we ensure exclusivity here.
+    const std::lock_guard<std::mutex> lock_guard(upload_lock);
+    return upload_unlocked();
 }
 
 void
