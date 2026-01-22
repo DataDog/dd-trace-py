@@ -914,7 +914,7 @@ class LLMObs(Service):
         dataset: Dataset,
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         summary_evaluators: List[Callable[[List, List, List, Dict], Dict]],
-        labelization_function: Callable[[Dict[str, Any]], str],
+        labelization_function: Optional[Callable[[Dict[str, Any]], str]],
         compute_score: Callable[[Dict[str, Dict[str, Any]]], float],
         config: ConfigType,
         project_name: Optional[str] = None,
