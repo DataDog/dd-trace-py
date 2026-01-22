@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-import math
 import random
 import sys
 import threading
@@ -21,46 +20,8 @@ from ddtrace.profiling import collector
 LOG = logging.getLogger(__name__)
 HAS_MONITORING = hasattr(sys, "monitoring")
 _current_thread = threading.current_thread
-
-
-def _poisson_sample(lam: float) -> int:
-    # Knuth's algorithm for Poisson sampling (avoids numpy dependency)
-    if lam <= 0:
-        return 1
-    L = math.exp(-lam)
-    k = 0
-    p = 1.0
-    while p > L:
-        k += 1
-        p *= random.random()
-    return max(1, k - 1)
-
-
-class _ThreadLocalSamplerState(threading.local):
-    # Thread-local state to avoid lock contention
-    __slots__ = ("next_sample", "sampling_interval")
-
-    def __init__(self, sampling_interval: int):
-        super().__init__()
-        self.sampling_interval = sampling_interval
-        self.next_sample = 0
-
-
-class ExceptionSampler:
-    # Poisson sampler with thread-local state (lock-free)
-    __slots__ = ("sampling_interval", "_local")
-
-    def __init__(self, sampling_interval: int = 100):
-        self.sampling_interval = sampling_interval
-        self._local = _ThreadLocalSamplerState(sampling_interval)
-
-    def should_sample(self) -> bool:
-        local = self._local
-        local.next_sample -= 1
-        if local.next_sample <= 0:
-            local.next_sample = _poisson_sample(local.sampling_interval)
-            return True
-        return False
+# Exponential distribution gives Poisson process inter-arrival times
+_expovariate = random.expovariate
 
 
 class ExceptionCollector(collector.Collector):
@@ -68,10 +29,11 @@ class ExceptionCollector(collector.Collector):
         "max_nframe",
         "sampling_interval",
         "collect_message",
-        "sampler",
         "_original_excepthook",
         "_total_exceptions",
         "_sampled_exceptions",
+        "_sample_counter",
+        "_next_sample",
     )
 
     def __init__(
@@ -88,10 +50,11 @@ class ExceptionCollector(collector.Collector):
         self.collect_message = (
             collect_message if collect_message is not None else getattr(config.exception, "collect_message", True)
         )
-        self.sampler = ExceptionSampler(self.sampling_interval)
         self._original_excepthook = None
         self._total_exceptions = 0
         self._sampled_exceptions = 0
+        self._sample_counter = 0
+        self._next_sample = self.sampling_interval
 
     def __enter__(self) -> Self:
         self.start()
@@ -150,25 +113,29 @@ class ExceptionCollector(collector.Collector):
         LOG.info("ExceptionCollector stopped: total=%d, sampled=%d", self._total_exceptions, self._sampled_exceptions)
 
     def _on_exception_handled(self, code: Any, instruction_offset: int, exception: BaseException) -> None:
-        # Called once per caught exception (sys.monitoring callback)
         self._total_exceptions += 1
-        if self.sampler.should_sample():
+        self._sample_counter += 1
+        if self._sample_counter >= self._next_sample:
+            # Exponential inter-arrival time gives Poisson process (single fast call)
+            self._next_sample = max(1, int(_expovariate(1.0 / self.sampling_interval)))
+            self._sample_counter = 0
             try:
                 self._collect_exception(type(exception), exception, exception.__traceback__)
                 self._sampled_exceptions += 1
             except Exception:
-                LOG.debug("Failed to collect exception sample", exc_info=True)
+                pass
 
     def _excepthook(self, exc_type: Type[BaseException], exc_value: BaseException, exc_traceback: TracebackType) -> None:
-        # Called for uncaught exceptions
         self._total_exceptions += 1
-        if self.sampler.should_sample():
+        self._sample_counter += 1
+        if self._sample_counter >= self._next_sample:
+            self._next_sample = max(1, int(_expovariate(1.0 / self.sampling_interval)))
+            self._sample_counter = 0
             try:
                 self._collect_exception(exc_type, exc_value, exc_traceback)
                 self._sampled_exceptions += 1
             except Exception:
-                LOG.debug("Failed to collect exception sample", exc_info=True)
-
+                pass
         if self._original_excepthook:
             self._original_excepthook(exc_type, exc_value, exc_traceback)
 
