@@ -422,13 +422,31 @@ import logging
 
     assert_log_files(tmpdir.strpath, "testlog.log", 0)
 
-@pytest.mark.parametrize("dd_log_level", ["NOTSET", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "notset","debug", "info", "warning", "error", "critical"])
+
+@pytest.mark.parametrize(
+    "dd_log_level",
+    [
+        "NOTSET",
+        "DEBUG",
+        "INFO",
+        "WARNING",
+        "ERROR",
+        "CRITICAL",
+        "notset",
+        "debug",
+        "info",
+        "warning",
+        "error",
+        "critical",
+    ],
+)
 def test_dd_trace_log_level_overrides_root_logger(dd_log_level, run_python_code_in_subprocess):
     """
     When DD_TRACE_LOG_LEVEL is set, it overrides the root logger level even if
     logging.basicConfig() is called after importing ddtrace.
     """
     import logging
+
     env = os.environ.copy()
     env["DD_TRACE_LOG_LEVEL"] = dd_log_level
     level_value = getattr(logging, dd_log_level.upper())
@@ -440,7 +458,7 @@ import ddtrace
 logging.basicConfig(level=logging.DEBUG)
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.level == logging.{dd_log_level.upper()}
-# When using NOTSET, getEffectiveLevel() returns the parent logger's level 
+# When using NOTSET, getEffectiveLevel() returns the parent logger's level
 if logging.{dd_log_level.upper()} == logging.NOTSET:
     assert ddtrace_logger.getEffectiveLevel() == logging.DEBUG
     level_value = logging.DEBUG
@@ -465,12 +483,12 @@ for level_num, level_name in levels_to_test:
     assert status == 0, err
 
     levels_to_check = [
-        (logging.NOTSET, b'notset'),
-        (logging.DEBUG, b'debug'),
-        (logging.INFO, b'info'),
-        (logging.WARNING, b'warning'),
-        (logging.ERROR, b'error'),
-        (logging.CRITICAL, b'critical'),
+        (logging.NOTSET, b"notset"),
+        (logging.DEBUG, b"debug"),
+        (logging.INFO, b"info"),
+        (logging.WARNING, b"warning"),
+        (logging.ERROR, b"error"),
+        (logging.CRITICAL, b"critical"),
     ]
     # For NOTSET, effective level is parent's level, so use that for filtering
     effective_level = logging.DEBUG if level_value == logging.NOTSET else level_value
@@ -478,9 +496,9 @@ for level_num, level_name in levels_to_test:
         if level_num == logging.NOTSET:
             continue
         if level_num >= effective_level:
-            assert level_bytes + b' log' in err
+            assert level_bytes + b" log" in err
         else:
-            assert level_bytes + b' log should not appear' not in err
+            assert level_bytes + b" log should not appear" not in err
 
 
 def test_dd_trace_debug_takes_precedence_over_dd_trace_log_level(run_python_code_in_subprocess):
@@ -537,7 +555,9 @@ ddtrace_logger.info('this is an info log')
     assert b"this is an info log" in err
 
 
-@pytest.mark.parametrize("run_in_subprocess", ["run_python_code_in_subprocess", "ddtrace_run_python_code_in_subprocess"])
+@pytest.mark.parametrize(
+    "run_in_subprocess", ["run_python_code_in_subprocess", "ddtrace_run_python_code_in_subprocess"]
+)
 def test_dd_trace_log_level_invalid_value(run_in_subprocess, request):
     """Invalid DD_TRACE_LOG_LEVEL logs warning and inherits from root."""
     env = os.environ.copy()

@@ -34,7 +34,8 @@ def configure_ddtrace_logger() -> None:
         - Takes precedence over DD_TRACE_LOG_LEVEL
 
     When DD_TRACE_LOG_LEVEL is set to NOTSET, DEBUG, INFO, WARNING, ERROR, or CRITICAL:
-        - The ddtrace logger level will be set to values from the list other than NOTSET (follows the root logger's level)
+        - The ddtrace logger level will be set to the specified value
+        - When NOTSET is used, getEffectiveLevel() returns the parent logger's level (inherits from root)
         - Overrides the default root logger behavior
         - Log levels are derived from https://docs.python.org/3/library/logging.html#levels
         - If DD_TRACE_DEBUG is also enabled, DD_TRACE_DEBUG takes precedence
@@ -77,7 +78,7 @@ def _configure_ddtrace_debug_logger(logger):
             logger.setLevel(log_level_value)
         except AttributeError:
             log.warning(
-                "DD_TRACE_LOG_LEVEL is invalid (%s) and not set. Log level must be NOTSET/DEBUG/INFO/WARNING/ERROR/CRITICAL.",
+                "DD_TRACE_LOG_LEVEL is invalid (%s). Must be NOTSET/DEBUG/INFO/WARNING/ERROR/CRITICAL.",
                 log_level_upper,
             )
 
