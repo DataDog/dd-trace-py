@@ -225,7 +225,7 @@ class PromptManager:
         """Fetch a prompt from the Datadog Prompt Registry."""
         conn = None
         try:
-            intake_url = self._get_intake_url()
+            intake_url = self._endpoint_override or PROMPTS_BASE_URL
             path = self._build_path(prompt_id, label)
             headers = self._build_headers()
 
@@ -248,12 +248,6 @@ class PromptManager:
         finally:
             if conn is not None:
                 conn.close()
-
-    def _get_intake_url(self) -> str:
-        """Get the base intake URL for the Prompt Registry."""
-        if self._endpoint_override:
-            return self._endpoint_override
-        return PROMPTS_BASE_URL
 
     def _build_path(self, prompt_id: str, label: str) -> str:
         """Build the request path for fetching a prompt.
