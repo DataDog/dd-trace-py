@@ -1042,7 +1042,7 @@ class LLMObs(Service):
         if "system_prompt" not in params or "user_prompt" not in params:
             raise TypeError(
                 "optimization_task function must have 'system_prompt' and 'user_prompt' parameters. "
-                "It should call an LLM with these prompts and return a dict with 'new_prompt' and 'reasoning'."
+                "It should call an LLM with these prompts and return an optimized prompt."
             )
 
         if not isinstance(dataset, Dataset):
