@@ -243,7 +243,7 @@ def record_activate_distributed_headers(error: Optional[str]):
 
 
 def record_prompt_source(source: str, prompt_id: str):
-    """Record the source of a prompt fetch (l1_cache, l2_cache, registry, fallback)."""
+    """Record the source of a prompt fetch (hot_cache, warm_cache, registry, fallback)."""
     tags = [("from", source), ("prompt_id", prompt_id)]
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,
