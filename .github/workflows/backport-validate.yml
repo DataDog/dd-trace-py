@@ -25,6 +25,8 @@ jobs:
           BACKPORT_LABEL: ${{ github.event.label.name }}
           PR_BRANCH: ${{ github.head_ref }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_NAME: ${{ secrets.GITHUB_NAME }}
+          GH_EMAIL: ${{ secrets.GITHUB_EMAIL }}
         id: backport_validation
         run: |
           TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
@@ -34,6 +36,9 @@ jobs:
           echo "branch: ${PR_BRANCH}" >> "$GITHUB_OUTPUT"
           echo "backport target branch: ${TARGET_BRANCH}" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
+
+          git config --global user.name "${GH_NAME}";
+          git config --global user.email "${GH_EMAIL}";
 
           git merge origin/${TARGET_BRANCH}
 
