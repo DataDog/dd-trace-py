@@ -240,7 +240,8 @@ class Test(TestItem["TestSuite", "TestRun"]):
 
     def set_location(self, path: t.Union[os.PathLike[t.Any], str], start_line: int) -> None:
         self.tags[TestTag.SOURCE_FILE] = str(path)
-        self.metrics[TestTag.SOURCE_START] = start_line
+        if start_line:
+            self.tags[TestTag.SOURCE_START] = str(start_line)
 
     def get_source_file(self) -> t.Optional[str]:
         return self.tags.get(TestTag.SOURCE_FILE)
@@ -418,6 +419,7 @@ class TestTag:
 
     SOURCE_FILE = "test.source.file"
     SOURCE_START = "test.source.start"
+    SOURCE_END = "test.source.end"
 
     CODEOWNERS = "test.codeowners"
 
