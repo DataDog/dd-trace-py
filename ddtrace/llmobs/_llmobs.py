@@ -1372,21 +1372,23 @@ class LLMObs(Service):
         """
         prompt_manager = cls._ensure_prompt_manager()
         if prompt_manager is None:
-            return cls._create_fallback_prompt(prompt_id, label, fallback)
+            from ddtrace.llmobs._prompts import ManagedPrompt
+
+            return ManagedPrompt.from_fallback(prompt_id, label or DEFAULT_PROMPTS_LABEL, fallback)
 
         return prompt_manager.get_prompt(prompt_id, label, fallback)
 
     @classmethod
-    def clear_prompt_cache(cls, l1: bool = True, l2: bool = True) -> None:
+    def clear_prompt_cache(cls, hot: bool = True, warm: bool = True) -> None:
         """Clear the prompt cache.
 
         Args:
-            l1: If True, clear the hot (in-memory) cache. Defaults to True.
-            l2: If True, clear the warm (file-based) cache. Defaults to True.
+            hot: If True, clear the hot (in-memory) cache. Defaults to True.
+            warm: If True, clear the warm (file-based) cache. Defaults to True.
         """
         if cls._prompt_manager is not None:
-            cls._prompt_manager.clear_cache(l1=l1, l2=l2)
-        elif l2:
+            cls._prompt_manager.clear_cache(hot=hot, warm=warm)
+        elif warm:
             # Clear file cache even if manager is not initialized
             from ddtrace.llmobs._prompts.cache import WarmCache
 
@@ -1451,18 +1453,6 @@ class LLMObs(Service):
             cache_dir=cache_dir,
             timeout=timeout,
         )
-
-    @classmethod
-    def _create_fallback_prompt(
-        cls,
-        prompt_id: str,
-        label: Optional[str],
-        fallback: PromptLike,
-    ) -> "ManagedPrompt":
-        """Create a fallback prompt when manager is not available."""
-        from ddtrace.llmobs._prompts import ManagedPrompt
-
-        return ManagedPrompt.from_fallback(prompt_id, label or DEFAULT_PROMPTS_LABEL, fallback)
 
     @classmethod
     def flush(cls) -> None:
