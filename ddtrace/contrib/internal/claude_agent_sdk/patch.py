@@ -1,4 +1,5 @@
 import sys
+from typing import Dict
 
 import claude_agent_sdk
 from claude_agent_sdk import ResultMessage
@@ -23,6 +24,10 @@ config._add("claude_agent_sdk", {})
 
 def get_version() -> str:
     return getattr(claude_agent_sdk, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"claude-agent-sdk": ">=0.1.0"}
 
 
 def _trace_async_generator(integration, pin, func, args, kwargs, operation_name, span_name, operation, instance=None):
@@ -50,26 +55,30 @@ def _trace_async_generator(integration, pin, func, args, kwargs, operation_name,
             raise
 
         response_messages = []
+        agen_closed = False
         try:
             async for message in agen:
                 response_messages.append(message)
                 yield message
         except GeneratorExit:
             # Generator was closed early - clean up underlying generator
-            try:
-                await agen.aclose()
-            except Exception:  # nosec B110
-                pass
+            if not agen_closed:
+                try:
+                    await agen.aclose()
+                    agen_closed = True
+                except Exception:  # nosec B110
+                    pass
             raise
         except Exception:
             span.set_exc_info(*sys.exc_info())
             raise
         finally:
             # Always close underlying generator and finish span
-            try:
-                await agen.aclose()
-            except Exception:  # nosec B110
-                pass
+            if not agen_closed:
+                try:
+                    await agen.aclose()
+                except Exception:  # nosec B110
+                    pass
             integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response_messages, operation=operation)
             span.finish()
 
@@ -149,6 +158,7 @@ def traced_receive_messages(claude_agent_sdk, _pin, func, instance, args, kwargs
             raise
 
         response_messages = []
+        agen_closed = False
         try:
             async for message in agen:
                 response_messages.append(message)
@@ -162,10 +172,12 @@ def traced_receive_messages(claude_agent_sdk, _pin, func, instance, args, kwargs
                     instance._datadog_span = None
         except GeneratorExit:
             # Generator was closed early - clean up underlying generator
-            try:
-                await agen.aclose()
-            except Exception:  # nosec B110
-                pass
+            if not agen_closed:
+                try:
+                    await agen.aclose()
+                    agen_closed = True
+                except Exception:  # nosec B110
+                    pass
             raise
         except Exception:
             if span:
@@ -173,10 +185,11 @@ def traced_receive_messages(claude_agent_sdk, _pin, func, instance, args, kwargs
             raise
         finally:
             # Always close underlying generator
-            try:
-                await agen.aclose()
-            except Exception:  # nosec B110
-                pass
+            if not agen_closed:
+                try:
+                    await agen.aclose()
+                except Exception:  # nosec B110
+                    pass
             # Close span if not already closed (e.g., generator exhausted without ResultMessage)
             if getattr(instance, "_datadog_span", None) is span and span is not None:
                 integration.llmobs_set_tags(
