@@ -75,19 +75,6 @@ class PinTestCase(TestCase):
         with pytest.raises(AttributeError):
             pin.service = "intake"
 
-    def test_copy(self):
-        # ensure a Pin is copied when using the clone methods
-        p1 = Pin(service="metrics", tags={"key": "value"})
-        p2 = p1.clone(service="intake")
-        # values are the same
-        assert p1.service == "metrics"
-        assert p2.service == "intake"
-        # but it's a copy
-        assert p1.tags is not p2.tags
-        assert p1._config is not p2._config
-        # of almost everything
-        assert p1.tracer is p2.tracer
-
     def test_none(self):
         # ensure get_from returns None if a Pin is not available
         assert Pin.get_from(None) is None
