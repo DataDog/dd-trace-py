@@ -7,7 +7,6 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Union
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._experiment import Dataset
@@ -15,7 +14,6 @@ from ddtrace.llmobs._experiment import Experiment
 
 from ddtrace.llmobs._experiment import ExperimentResult
 from ddtrace.llmobs._experiment import JSONType
-from ddtrace.llmobs._experiment import NonNoneJSONType
 from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import DatasetRecordInputType
 
@@ -499,8 +497,6 @@ class PromptOptimization:
         self._optimization_model_name = config.get("optimization_model_name")
         self._model_name = config.get("model_name")
         self._config = config
-        # Optional: specify which metric to optimize (default: use first found)
-        self._optimization_metric = config.get("optimization_metric", None)
 
     def run(
         self,
@@ -532,7 +528,7 @@ class PromptOptimization:
 
         # Run baseline experiment with initial prompt
         iteration = 0
-        current_prompt = self._initial_prompt
+        current_prompt = str(self._initial_prompt)
         current_results, experiment_url = self._run_experiment(iteration, current_prompt, jobs)
 
         # Store baseline results
@@ -591,7 +587,6 @@ class PromptOptimization:
 
             # Update best iteration if score improved
             if new_score is not None and (best_score is None or new_score > best_score):
-                improvement = new_score - best_score if best_score is not None else new_score
                 best_iteration = i
                 best_score = new_score
                 best_prompt = new_prompt
@@ -605,7 +600,7 @@ class PromptOptimization:
         # Create result object with full history
         result = OptimizationResult(
             name=self.name,
-            initial_prompt=self._initial_prompt,
+            initial_prompt=str(self._initial_prompt),
             iterations=all_iterations,
             best_iteration=best_iteration,
         )
