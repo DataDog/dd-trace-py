@@ -271,7 +271,6 @@ push_pyframe_to_sample(Datadog::Sample& sample, PyFrameObject* frame)
         filename_sv = unicode_to_string_view(code->co_filename);
     }
 
-    // Push frame to Sample (leaf to root order)
     // push_frame copies the strings immediately into its StringArena
     sample.push_frame(name_sv, filename_sv, 0, lineno_val);
 
