@@ -1,7 +1,7 @@
 stages:
-  - fuzz
   - package
   - tests
+  - fuzz
   - shared-pipeline
   - benchmarks
   - release
