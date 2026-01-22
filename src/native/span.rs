@@ -87,7 +87,8 @@ fn extract_backed_string_or_default(obj: &Bound<'_, PyAny>) -> PyBackedString {
 /// Extract PyBackedString from Python object, falling back to None on error
 fn extract_backed_string_or_none(obj: &Bound<'_, PyAny>) -> PyBackedString {
     let py = obj.py();
-    obj.extract::<PyBackedString>().unwrap_or_else(|_| PyBackedString::py_none(py))
+    obj.extract::<PyBackedString>()
+        .unwrap_or_else(|_| PyBackedString::py_none(py))
 }
 
 #[pyo3::pymethods]
