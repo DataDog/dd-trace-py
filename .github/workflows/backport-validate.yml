@@ -34,6 +34,7 @@ jobs:
 
           TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
           MERGE_BASE=$(git merge-base origin/main origin/${PR_BRANCH})
+          HEAD_HASH=$(git rev-parse HEAD)
           git diff ${MERGE_BASE} > ../backport.patch
           cat ../backport.patch
           git checkout origin/${TARGET_BRANCH}
@@ -50,7 +51,6 @@ jobs:
           else
             echo "This change is marked for backport to ${TARGET_BRANCH} and it does not conflict with that branch." | tee -a "$GITHUB_OUTPUT"
           fi
-          HEAD_HASH=$(git rev-parse HEAD)
           echo "The patch used to test backporting was" | tee -a "$GITHUB_OUTPUT"
           echo "\`\`\`" >> "$GITHUB_OUTPUT"
           echo "git diff ${HEAD_HASH} ${MERGE_BASE}" | tee -a "$GITHUB_OUTPUT"
