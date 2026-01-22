@@ -1099,7 +1099,7 @@ class LLMObs(Service):
             runs=runs,
             is_distributed=True,
         )
-        experiment._init_experiment()
+        experiment._init_experiment(False)
         return experiment
 
     @classmethod

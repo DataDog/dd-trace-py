@@ -657,8 +657,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         experiments = response_data.get("data", [])
         if len(experiments) < 1:
             raise ValueError(f"No experiments found for ID {id}")
-
-        experiment = experiments[0]
+        experiment = experiments[0]["attributes"]
         project_id = experiment["project_id"]
         dataset_id = experiment["dataset_id"]
 
@@ -702,6 +701,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             is_distributed=True,
         )
         experiment_obj._run_name = experiment["name"]
+        experiment_obj._id = id
         return experiment_obj
 
     def experiment_create(
@@ -714,6 +714,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         tags: Optional[List[str]] = None,
         description: Optional[str] = None,
         runs: Optional[int] = 1,
+        ensure_unique: Optional[bool] = True,
     ) -> Tuple[str, str]:
         path = "/api/unstable/llm-obs/v1/experiments"
         resp = self.request(
@@ -730,7 +731,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                         "dataset_version": dataset_version,
                         "config": exp_config or {},
                         "metadata": {"tags": cast(JSONType, tags or [])},
-                        "ensure_unique": True,
+                        "ensure_unique": ensure_unique,
                         "run_count": runs,
                     },
                 }
