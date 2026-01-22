@@ -1,0 +1,66 @@
+name: Validate Backport
+on:
+  pull_request_target:
+    types:
+      - labeled
+  pull_request:
+    types:
+      - labeled
+
+jobs:
+  validate-backport:
+    name: Validate Backport
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    if: >
+      github.event.action == 'labeled' && contains(github.event.label.name, 'backport')
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Check Conflicts
+        env:
+          BACKPORT_LABEL: ${{ github.event.label.name }}
+          PR_BRANCH: ${{ github.head_ref }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        id: backport_validation
+        run: |
+
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+
+          TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
+          MERGE_BASE=$(git merge-base origin/main origin/${PR_BRANCH})
+          git diff ${MERGE_BASE} > ../backport.patch
+          cat ../backport.patch
+          git checkout origin/${TARGET_BRANCH}
+          ERROR=$(git apply ../backport.patch 2>&1)
+
+          echo "results<<EOF" >> "$GITHUB_OUTPUT"
+          echo "backport label: ${BACKPORT_LABEL}" | tee -a "$GITHUB_OUTPUT"
+          echo "branch: ${PR_BRANCH}" | tee -a "$GITHUB_OUTPUT"
+          echo "backport target branch: ${TARGET_BRANCH}" | tee -a "$GITHUB_OUTPUT"
+          echo "merge base: ${MERGE_BASE}" | tee -a "$GITHUB_OUTPUT"
+          echo "apply error: ${ERROR}" | tee -a "$GITHUB_OUTPUT"
+          if [[ ! -z "$ERROR" ]]
+          then
+            echo "Patch apply error: " >> "$GITHUB_OUTPUT"
+            echo "$ERROR" >> "$GITHUB_OUTPUT"
+          fi
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Comment PR
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
+        with:
+          file-path: comment.txt
+          comment-tag: backport_validation
+          mode: upsert
+          message: |
+            Backport information
+
+            ```
+            ${{ steps.backport_validation.outputs.results }}
+            ```
