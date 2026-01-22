@@ -58,7 +58,7 @@ def _trace_async_generator(integration, pin, func, args, kwargs, operation_name,
             # Generator was closed early - clean up underlying generator
             try:
                 await agen.aclose()
-            except Exception:
+            except Exception:  # nosec B110
                 pass
             raise
         except Exception:
@@ -68,7 +68,7 @@ def _trace_async_generator(integration, pin, func, args, kwargs, operation_name,
             # Always close underlying generator and finish span
             try:
                 await agen.aclose()
-            except Exception:
+            except Exception:  # nosec B110
                 pass
             integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response_messages, operation=operation)
             span.finish()
@@ -164,7 +164,7 @@ def traced_receive_messages(claude_agent_sdk, _pin, func, instance, args, kwargs
             # Generator was closed early - clean up underlying generator
             try:
                 await agen.aclose()
-            except Exception:
+            except Exception:  # nosec B110
                 pass
             raise
         except Exception:
@@ -175,7 +175,7 @@ def traced_receive_messages(claude_agent_sdk, _pin, func, instance, args, kwargs
             # Always close underlying generator
             try:
                 await agen.aclose()
-            except Exception:
+            except Exception:  # nosec B110
                 pass
             # Close span if not already closed (e.g., generator exhausted without ResultMessage)
             if getattr(instance, "_datadog_span", None) is span and span is not None:
