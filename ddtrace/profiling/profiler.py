@@ -195,11 +195,7 @@ class _ProfilerInstance(service.Service):
         if self._stack_collector_enabled:
             LOG.debug("Profiling collector (stack) enabled")
             try:
-                # Note: Pass exception_profiling=False to stack collector to avoid C++ abort
-                # The Python ExceptionCollector handles exception profiling instead
-                self._collectors.append(
-                    stack.StackCollector(tracer=self.tracer, exception_profiling=False)
-                )
+                self._collectors.append(stack.StackCollector(tracer=self.tracer))
                 LOG.debug("Profiling collector (stack) initialized")
             except Exception:
                 LOG.error("Failed to start stack collector, disabling.", exc_info=True)

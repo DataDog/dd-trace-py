@@ -13,7 +13,6 @@ import logging
 import sys
 import threading
 from types import TracebackType
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 from typing import Type
@@ -24,10 +23,6 @@ from typing_extensions import Self
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
-
-
-if TYPE_CHECKING:
-    from ddtrace.internal.datadog.profiling.ddup import SampleHandle
 
 
 LOG = logging.getLogger(__name__)
@@ -75,12 +70,10 @@ class ExceptionCollector(collector.Collector):
         super().__init__()
         self.max_nframe = max_nframe if max_nframe is not None else config.max_frames
         self.sampling_interval = (
-            sampling_interval if sampling_interval is not None
-            else getattr(config.exception, "sampling_interval", 100)
+            sampling_interval if sampling_interval is not None else getattr(config.exception, "sampling_interval", 100)
         )
         self.collect_message = (
-            collect_message if collect_message is not None
-            else getattr(config.exception, "collect_message", True)
+            collect_message if collect_message is not None else getattr(config.exception, "collect_message", True)
         )
 
         self.sampler = ExceptionSampler(self.sampling_interval)
@@ -114,7 +107,7 @@ class ExceptionCollector(collector.Collector):
                 sys.monitoring.register_callback(
                     sys.monitoring.PROFILER_ID,
                     sys.monitoring.events.EXCEPTION_HANDLED,
-                    self._monitoring_exception_handled_callback
+                    self._monitoring_exception_handled_callback,
                 )
                 # Also register excepthook for uncaught exceptions
                 self._original_excepthook = sys.excepthook
@@ -135,7 +128,7 @@ class ExceptionCollector(collector.Collector):
         LOG.info(
             "ExceptionCollector started with sampling_interval=%d, collect_message=%s",
             self.sampling_interval,
-            self.collect_message
+            self.collect_message,
         )
 
     def _stop_service(self) -> None:
@@ -156,13 +149,13 @@ class ExceptionCollector(collector.Collector):
         LOG.info(
             "ExceptionCollector stopped. Stats: total=%d, sampled=%d",
             self._stats["total_exceptions"],
-            self._stats["sampled_exceptions"]
+            self._stats["sampled_exceptions"],
         )
 
     def _monitoring_exception_handled_callback(
         self,
-        code: Any, #unused
-        instruction_offset: int, #unused righ t now
+        code: Any,  # unused
+        instruction_offset: int,  # unused righ t now
         exception: BaseException,
     ) -> None:
         """Callback for sys.monitoring EXCEPTION_HANDLED events (Python 3.12+).
@@ -234,11 +227,13 @@ class ExceptionCollector(collector.Collector):
             frame = tb.tb_frame
             code = frame.f_code
 
-            frames.append({
-                "filename": code.co_filename,
-                "function": code.co_name,
-                "lineno": tb.tb_lineno,
-            })
+            frames.append(
+                {
+                    "filename": code.co_filename,
+                    "function": code.co_name,
+                    "lineno": tb.tb_lineno,
+                }
+            )
 
             tb = tb.tb_next
             frame_count += 1
@@ -267,11 +262,12 @@ class ExceptionCollector(collector.Collector):
             handle.push_exceptioninfo(exception_type, 1)
 
             import threading
+
             current_thread = threading.current_thread()
             handle.push_threadinfo(
                 current_thread.ident or 0,
                 current_thread.native_id if hasattr(current_thread, "native_id") else 0,
-                current_thread.name
+                current_thread.name,
             )
 
             # Add stack frames; reversed
@@ -280,7 +276,7 @@ class ExceptionCollector(collector.Collector):
                     frame["function"],
                     frame["filename"],
                     0,  # address
-                    frame["lineno"]
+                    frame["lineno"],
                 )
 
             handle.flush_sample()

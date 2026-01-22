@@ -5,6 +5,7 @@ import os
 import sys
 import time
 
+
 # Check Python version
 if sys.version_info < (3, 14):
     print(f"Python {sys.version_info.major}.{sys.version_info.minor} - sys.monitoring not available")
@@ -53,7 +54,7 @@ def print_samples(samples, max_samples=5):
         print(f"  Message: {sample.get('exception_message', 'N/A')}")
         print(f"  Stack trace ({len(sample['frames'])} frames):")
         # Show first 5 and last 5 frames if there are many
-        frames = sample['frames']
+        frames = sample["frames"]
         if len(frames) <= 10:
             for j, frame in enumerate(frames):
                 print(f"    {j + 1}. {frame['function']} ({frame['filename']}:{frame['lineno']})")
@@ -80,9 +81,12 @@ def main():
     EXCEPTION_COUNT = 100_000
     STACK_DEPTH = 50
 
-    print(f"Python {sys.version_info.major}.{sys.version_info.minor} - Exception Profiling: {'ON' if exception_profiling_enabled else 'OFF'}")
+    print(
+        f"Python {sys.version_info.major}.{sys.version_info.minor} - Exception Profiling: {
+            'ON' if exception_profiling_enabled else 'OFF'
+        }"
+    )
 
-    exc_collector = None
     if exception_profiling_enabled:
         # Start profiler with exception profiling
         profiler = Profiler(_exception_profiling_enabled=True)
@@ -92,30 +96,35 @@ def main():
         if show_samples:
             for collector in profiler._collectors:
                 if isinstance(collector, exception.ExceptionCollector):
-                    exc_collector = collector
                     # Save the original _collect_exception method
                     original_collect = collector._collect_exception
 
                     def capturing_collect(exc_type, exc_value, exc_traceback, _orig=original_collect):
                         # Capture sample data before calling original
-                        exception_type = f"{exc_type.__module__}.{exc_type.__name__}" if exc_type.__module__ else exc_type.__name__
+                        exception_type = (
+                            f"{exc_type.__module__}.{exc_type.__name__}" if exc_type.__module__ else exc_type.__name__
+                        )
                         frames = []
                         tb = exc_traceback
                         while tb is not None:
                             frame = tb.tb_frame
                             code = frame.f_code
-                            frames.append({
-                                "filename": code.co_filename,
-                                "function": code.co_name,
-                                "lineno": tb.tb_lineno,
-                            })
+                            frames.append(
+                                {
+                                    "filename": code.co_filename,
+                                    "function": code.co_name,
+                                    "lineno": tb.tb_lineno,
+                                }
+                            )
                             tb = tb.tb_next
 
-                        captured_samples.append({
-                            "exception_type": exception_type,
-                            "exception_message": str(exc_value),
-                            "frames": frames,
-                        })
+                        captured_samples.append(
+                            {
+                                "exception_type": exception_type,
+                                "exception_message": str(exc_value),
+                                "frames": frames,
+                            }
+                        )
 
                         # Call original
                         return _orig(exc_type, exc_value, exc_traceback)
