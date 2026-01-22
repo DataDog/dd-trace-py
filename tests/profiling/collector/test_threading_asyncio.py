@@ -40,7 +40,8 @@ def test_lock_acquire_events():
     t = threading.Thread(target=asyncio_run, name="foobar")
     t.start()
     t.join()
-    p.stop()
+    # Avoid hanging on scheduler join in CI; flush is enough for this test.
+    p._profiler.stop(flush=True, join=False)
 
     expected_filename = "test_threading_asyncio.py"
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
