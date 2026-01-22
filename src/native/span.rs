@@ -124,7 +124,7 @@ impl SpanData {
     ))]
     fn __init__<'p>(
         &mut self,
-        _py: Python<'p>,
+        py: Python<'p>,
         name: Py<PyAny>,
         service: Option<Py<PyAny>>,
         resource: Option<Py<PyAny>>,
