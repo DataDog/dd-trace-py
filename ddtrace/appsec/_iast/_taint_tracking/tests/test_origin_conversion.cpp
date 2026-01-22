@@ -1,8 +1,8 @@
-#include <tests/test_common.hpp>
-#include <taint_tracking/source.h>
-#include <string>
 #include <algorithm>
 #include <map>
+#include <string>
+#include <taint_tracking/source.h>
+#include <tests/test_common.hpp>
 #include <vector>
 
 using OriginConversionTest = ::testing::Test;
