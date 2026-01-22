@@ -66,10 +66,10 @@ class OptimizationIteration:
         self,
         iteration: int,
         current_prompt: str,
-        current_results: Dict[str, Any],
+        current_results: ExperimentResult,
         optimization_task: Callable,
         config: ConfigType,
-        labelization_function: Callable[[Dict[str, Any]], str],
+        labelization_function: Optional[Callable[[Dict[str, Any]], str]],
     ) -> None:
         """Initialize an optimization iteration.
 
@@ -159,7 +159,7 @@ class OptimizationIteration:
                     "## Prompt Output Format Requirements",
                     "The optimized prompt must guide the LLM to produce JSON output with this structure:",
                     "\n",
-                    output_format,
+                    str(output_format),
                     "\n",
                     "**If this output format is not clearly specified in the initial prompt**",
                     "**add it as your first improvement step**",
@@ -199,11 +199,11 @@ class OptimizationIteration:
         :param individual_results: List of experiment result dicts.
         :return: Formatted string with examples, or empty string if no examples found.
         """
-        if not individual_results or not self._labelization_function:
+        if not individual_results or self._labelization_function is None:
             return ""
 
         # Step 1: Apply labelization function to each result and collect by label
-        examples_by_label = {}
+        examples_by_label: Dict[str, List[Dict[str, Any]]] = {}
         for result in individual_results:
             try:
                 label = self._labelization_function(result)
@@ -589,7 +589,7 @@ class PromptOptimization:
             new_score = self._compute_score(summary_evals)
 
             # Track iteration results
-            iteration_data: IterationData = {
+            iteration_data = {
                 "iteration": i,
                 "prompt": new_prompt,
                 "results": new_results,
@@ -644,16 +644,22 @@ class PromptOptimization:
         config_updates = {"model_name": self._model_name, "prompt": prompt}
         experiment_config = self._config | config_updates
 
+        # Get runs value and ensure it's int or None
+        runs_value = self._config.get("runs")
+        runs_int: Optional[int] = None
+        if runs_value is not None and isinstance(runs_value, int):
+            runs_int = runs_value
+
         experiment = Experiment(
             name=f"{self.name}_{iteration_name}",
             project_name=self._tags["project_name"],
             dataset=self._dataset,
             task=self._task,
-            evaluators=self._evaluators,
-            summary_evaluators=self._summary_evaluators,
+            evaluators=self._evaluators,  # type: ignore[arg-type]
+            summary_evaluators=self._summary_evaluators,  # type: ignore[arg-type]
             _llmobs_instance=self._llmobs_instance,
             config=experiment_config,
-            runs=self._config.get("runs"),
+            runs=runs_int,
         )
 
         experiment_results = experiment.run(
