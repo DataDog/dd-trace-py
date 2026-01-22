@@ -28,6 +28,7 @@ class ManagedPrompt:
 
     STABLE API:
         - format(**vars) -> str | List[Dict]
+        - to_annotation_dict(**vars) -> Dict[str, Any]
 
     INTERNAL (may change):
         - All fields (id, version, label, source, template, variables)
