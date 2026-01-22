@@ -25,8 +25,6 @@ jobs:
           BACKPORT_LABEL: ${{ github.event.label.name }}
           PR_BRANCH: ${{ github.head_ref }}
         id: backport_validation
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
 
@@ -36,7 +34,7 @@ jobs:
           echo "backport target branch: ${TARGET_BRANCH}" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
-          git merge origin/${TARGET_BRANCH}
+          GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} git merge origin/${TARGET_BRANCH}
 
       - name: Comment PR
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
