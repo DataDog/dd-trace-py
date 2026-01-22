@@ -4,6 +4,7 @@ Since claude-agent-sdk uses subprocess/CLI transport (not HTTP), we mock
 the internal transport layer instead of using VCR.
 """
 
+import os
 from unittest.mock import MagicMock
 from unittest.mock import patch as mock_patch
 
@@ -19,6 +20,7 @@ from tests.contrib.claude_agent_sdk.utils import MOCK_MULTI_TURN_RESPONSE_SEQUEN
 from tests.contrib.claude_agent_sdk.utils import MOCK_QUERY_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_USE_RESPONSE_SEQUENCE
 from tests.utils import override_config
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -67,11 +69,16 @@ def claude_agent_sdk(ddtrace_global_config, ddtrace_config_claude_agent_sdk):
     global_config.update(ddtrace_global_config)
     with override_global_config(global_config):
         with override_config("claude_agent_sdk", ddtrace_config_claude_agent_sdk):
-            patch()
-            import claude_agent_sdk
+            with override_env(
+                dict(
+                    ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
+                )
+            ):
+                patch()
+                import claude_agent_sdk
 
-            yield claude_agent_sdk
-            unpatch()
+                yield claude_agent_sdk
+                unpatch()
 
 
 @pytest.fixture
