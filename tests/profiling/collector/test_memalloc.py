@@ -1015,7 +1015,7 @@ def test_memalloc_sample_size(
         assert predicate(_derive_default_heap_sample_size(config.heap, default))
 
 
-def test_memory_collector_stack_order_example_conflict(tmp_path: Path) -> None:
+def test_memory_collector_stack_order(tmp_path: Path) -> None:
     """Test that stack frames are reported in leaf-to-root order (innermost to outermost).
 
     This test verifies the fix for upside-down flamegraphs by ensuring that when we have
