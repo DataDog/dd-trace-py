@@ -159,15 +159,26 @@ def pytest_configure(config):
     )
 
 
-@pytest.fixture(autouse=True, scope="session")
+@pytest.fixture(autouse=True, scope="function")
 def remove_git_repo_url_from_test_env():
     """
-    Remove DD_GIT_REPOSITORY_URL from the test environment.
+    Remove DD_GIT_REPOSITORY_URL from tests while keeping it for the pytest plugin.
 
-    The pytest plugin needs this env var during initialization to collect git metadata,
-    but we don't want individual tests to see it (to avoid interfering with test behavior).
+    The pytest plugin reads this env var during initialization to collect git metadata,
+    but individual tests shouldn't see it (to avoid unexpected span tags in assertions).
     """
-    # At this point, pytest plugin has already read the env var during pytest_load_initial_conftests
+    import ddtrace.internal.gitmetadata
+
+    # Clear the repository URL from the config cache
+    ddtrace.internal.gitmetadata.config.repository_url = ""
+
+    # Clear the repository URL from the global cache tuple if it exists
+    # The tuple is (repository_url, commit_sha, main_package)
+    if ddtrace.internal.gitmetadata._GITMETADATA_TAGS is not None:
+        _, commit_sha, main_package = ddtrace.internal.gitmetadata._GITMETADATA_TAGS
+        ddtrace.internal.gitmetadata._GITMETADATA_TAGS = ("", commit_sha, main_package)
+
+    # Remove the env var so it doesn't get re-read
     os.environ.pop("DD_GIT_REPOSITORY_URL", None)
     yield
 
