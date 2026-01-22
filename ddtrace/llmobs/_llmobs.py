@@ -1325,11 +1325,11 @@ class LLMObs(Service):
     @classmethod
     def _ensure_prompt_manager(cls) -> Optional["PromptManager"]:
         # Double-checked locking for thread-safe initialization.
-        if cls._prompt_manager is None:
+        if not cls._prompt_manager_initialized:
             with cls._prompt_manager_lock:
-                if cls._prompt_manager is None:
+                if not cls._prompt_manager_initialized:
                     cls._prompt_manager = cls._initialize_prompt_manager()
-        cls._prompt_manager_initialized = cls._prompt_manager is not None
+                    cls._prompt_manager_initialized = True
         return cls._prompt_manager
 
     @classmethod
