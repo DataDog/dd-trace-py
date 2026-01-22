@@ -44,6 +44,10 @@ impl PackagePath {
         self.path_str.clone()
     }
 
+    fn __fspath__(&self) -> String {
+        self.path_str.clone()
+    }
+
     /// Read the file content as text
     fn read_text(&self, _py: Python) -> PyResult<String> {
         let full_path = self

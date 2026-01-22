@@ -365,7 +365,8 @@ def _get_toplevel_name(name) -> str:
     """
     return _topmost(name) or (
         # python/typeshed#10328
-        inspect.getmodulename(name) or str(name)
+        # Convert to str to handle PackagePath objects that may not implement __fspath__
+        inspect.getmodulename(str(name)) or str(name)
     )
 
 
