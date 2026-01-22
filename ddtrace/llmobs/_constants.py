@@ -160,4 +160,4 @@ DEFAULT_PROMPTS_LABEL = "prod"  # default label when not specified
 
 # Prompt Registry API
 PROMPTS_ENDPOINT = "/api/unstable/llm-obs/v1/prompts"
-PROMPTS_SUBDOMAIN = "api"
+PROMPTS_BASE_URL = "https://api.datadoghq.com"

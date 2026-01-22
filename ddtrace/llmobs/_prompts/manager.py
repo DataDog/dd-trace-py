@@ -11,8 +11,8 @@ from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_MAX_SIZE
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_LABEL
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_TIMEOUT
+from ddtrace.llmobs._constants import PROMPTS_BASE_URL
 from ddtrace.llmobs._constants import PROMPTS_ENDPOINT
-from ddtrace.llmobs._constants import PROMPTS_SUBDOMAIN
 from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._prompts.cache import HotCache
 from ddtrace.llmobs._prompts.cache import WarmCache
@@ -42,7 +42,6 @@ class PromptManager:
     def __init__(
         self,
         api_key: str,
-        site: str,
         ml_app: str,
         app_key: Optional[str] = None,
         endpoint_override: Optional[str] = None,
@@ -56,7 +55,6 @@ class PromptManager:
     ) -> None:
         self._api_key = api_key
         self._app_key = app_key
-        self._site = site
         self._ml_app = ml_app
         self._endpoint_override = endpoint_override.rstrip("/") if endpoint_override else None
         self._timeout = timeout
@@ -255,7 +253,7 @@ class PromptManager:
         """Get the base intake URL for the Prompt Registry."""
         if self._endpoint_override:
             return self._endpoint_override
-        return f"https://{PROMPTS_SUBDOMAIN}.{self._site}"
+        return PROMPTS_BASE_URL
 
     def _build_path(self, prompt_id: str, label: str) -> str:
         """Build the request path for fetching a prompt.
