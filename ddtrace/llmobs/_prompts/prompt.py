@@ -120,7 +120,7 @@ class ManagedPrompt:
             id=data["id"],
             version=data["version"],
             label=data["label"],
-            source="cache",
+            source=data.get("source", "cache"),
             template=data["template"],
             variables=data.get("variables", []),
         )
