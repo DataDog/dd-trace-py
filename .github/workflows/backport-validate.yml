@@ -1,0 +1,57 @@
+name: Validate Backport
+on:
+  pull_request_target:
+    types:
+      - labeled
+  pull_request:
+    types:
+      - labeled
+
+jobs:
+  validate-backport:
+    name: Validate Backport
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    if: >
+      github.event.action == 'labeled' && contains(github.event.label.name, 'backport')
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Check Conflicts
+        env:
+          BACKPORT_LABEL: ${{ github.event.label.name }}
+          PR_BRANCH: ${{ github.head_ref }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        id: backport_validation
+        run: |
+          TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
+
+          echo "results<<EOF" >> "$GITHUB_OUTPUT"
+          echo "backport label: ${BACKPORT_LABEL}" | tee -a "$GITHUB_OUTPUT"
+          echo "branch: ${PR_BRANCH}" | tee -a "$GITHUB_OUTPUT"
+          echo "backport target branch: ${TARGET_BRANCH}" | tee -a "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+
+          git diff origin/main > ../backport.patch
+          git checkout origin/${TARGET_BRANCH}
+          git apply ../backport.patch
+
+
+      - name: Comment PR
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
+        with:
+          file-path: comment.txt
+          comment-tag: backport_validation
+          mode: upsert
+          message: |
+            Backport information
+
+            ```
+            ${{ steps.backport_validation.outputs.results }}
+            ```
