@@ -10,6 +10,9 @@ from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import PromptLike
 
 
+TemplateType = Union[str, List[Dict[str, str]], List[Message]]
+
+
 class ManagedPrompt:
     """
     An immutable prompt template retrieved from the Datadog Prompt Registry.
@@ -26,7 +29,7 @@ class ManagedPrompt:
     _version: str
     _label: str
     _source: Literal["registry", "cache", "fallback"]
-    _template: Union[str, List[Dict[str, str]], List[Message]]
+    _template: TemplateType
     _variables: List[str]
 
     def __init__(
@@ -35,7 +38,7 @@ class ManagedPrompt:
         version: str,
         label: str,
         source: Literal["registry", "cache", "fallback"],
-        template: Union[str, List[Dict[str, str]], List[Message]],
+        template: TemplateType,
         variables: Optional[List[str]] = None,
     ) -> None:
         # Use object.__setattr__ to bypass our immutability guard
@@ -69,7 +72,7 @@ class ManagedPrompt:
         return self._source
 
     @property
-    def template(self) -> Union[str, List[Dict[str, str]], List[Message]]:
+    def template(self) -> TemplateType:
         return self._template
 
     @property
@@ -97,7 +100,7 @@ class ManagedPrompt:
             str (for text templates) or List[Dict[str, str]] (for chat templates)
         """
         if isinstance(self._template, str):
-            return self._render_text(self._template, variables)
+            return _safe_substitute(self._template, variables)
         else:
             return self._render_chat(self._template, variables)
 
@@ -129,10 +132,6 @@ class ManagedPrompt:
 
         return result
 
-    def _render_text(self, template: str, variables: Dict[str, str]) -> str:
-        """Render a text template with safe substitution."""
-        return _safe_substitute(template, variables)
-
     def _render_chat(
         self, messages: Union[List[Dict[str, str]], List[Message]], variables: Dict[str, str]
     ) -> List[Dict[str, str]]:
@@ -147,6 +146,29 @@ class ManagedPrompt:
     def __repr__(self) -> str:
         return (
             f"ManagedPrompt(id={self._id!r}, version={self._version!r}, label={self._label!r}, source={self._source!r})"
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a JSON-compatible dict."""
+        return {
+            "id": self._id,
+            "version": self._version,
+            "label": self._label,
+            "source": self._source,
+            "template": self._template,
+            "variables": self._variables,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ManagedPrompt":
+        """Deserialize from a dict."""
+        return cls(
+            prompt_id=data["id"],
+            version=data["version"],
+            label=data["label"],
+            source="cache",
+            template=data["template"],
+            variables=data.get("variables", []),
         )
 
     def _with_source(self, source: Literal["registry", "cache", "fallback"]) -> "ManagedPrompt":
@@ -179,26 +201,16 @@ class ManagedPrompt:
         Returns:
             A ManagedPrompt with source="fallback".
         """
-        if fallback is None:
-            return cls(
-                prompt_id=prompt_id,
-                version="fallback",
-                label=label,
-                source="fallback",
-                template="",
-                variables=[],
-            )
+        template: TemplateType = ""
+        version = "fallback"
 
-        value = fallback() if callable(fallback) else fallback
-
-        if isinstance(value, dict):
-            template: Union[str, List[Dict[str, str]], List[Message]] = (
-                value.get("template") or value.get("chat_template") or ""
-            )
-            version = value.get("version", "fallback") or "fallback"
-        else:
-            template = value
-            version = "fallback"
+        if fallback is not None:
+            value = fallback() if callable(fallback) else fallback
+            if isinstance(value, dict):
+                template = value.get("template") or value.get("chat_template") or ""
+                version = value.get("version") or "fallback"
+            else:
+                template = value
 
         return cls(
             prompt_id=prompt_id,
