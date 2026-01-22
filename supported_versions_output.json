@@ -169,6 +169,13 @@
         "auto-instrumented": false
     },
     {
+        "dependency": "claude-agent-sdk",
+        "integration": "claude_agent_sdk",
+        "minimum_tracer_supported": "0.1.21",
+        "max_tracer_supported": "0.1.21",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "python-consul",
         "integration": "consul",
         "minimum_tracer_supported": "1.1.0",
@@ -404,6 +411,14 @@
         "integration": "litellm",
         "minimum_tracer_supported": "1.65.4",
         "max_tracer_supported": "1.65.4",
+        "pinned": "true",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "llama-index-core",
+        "integration": "llama_index",
+        "minimum_tracer_supported": "0.10.68.post1",
+        "max_tracer_supported": "0.14.13",
         "pinned": "true",
         "auto-instrumented": true
     },

@@ -1,0 +1,42 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"user","content":"Explain what Python is in one sentence."}],"model":"gpt-4o-mini","stream":false,"temperature":0.0}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '137'
+      Content-Type:
+      - application/json
+      Host:
+      - api.openai.com
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: '{"id":"chatcmpl-test456","object":"chat.completion","created":1700000000,"model":"gpt-4o-mini","choices":[{"index":0,"message":{"role":"assistant","content":"Python is a high-level, interpreted programming language known for its readability and versatility."},"finish_reason":"stop"}],"usage":{"prompt_tokens":14,"completion_tokens":18,"total_tokens":32}}'
+    headers:
+      CF-RAY:
+      - 9c211d551c2ed953-EWR
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 22 Jan 2026 18:29:02 GMT
+      Server:
+      - cloudflare
+      openai-model:
+      - gpt-4o-mini
+      openai-processing-ms:
+      - '150'
+      x-request-id:
+      - req_b703d47965af474bbea636fecd9d7532
+    status:
+      code: 200
+      message: OK
+version: 1

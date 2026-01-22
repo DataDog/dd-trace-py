@@ -3005,6 +3005,18 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="llama_index",
+            command="pytest {cmdargs} tests/contrib/llama_index",
+            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pkgs={
+                "vcrpy": latest,
+                "pytest-asyncio": latest,
+                "llama-index": ["~=0.10.0", latest],
+                "llama-index-llms-openai": latest,
+                "llama-index-embeddings-openai": latest,
+            },
+        ),
+        Venv(
             name="anthropic",
             command="pytest {cmdargs} tests/contrib/anthropic",
             pkgs={

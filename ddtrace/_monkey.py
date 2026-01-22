@@ -107,6 +107,7 @@ PATCH_MODULES = {
     "tornado": False,
     "openai": True,
     "langchain": True,
+    "llama_index": True,
     "anthropic": True,
     "crewai": True,
     "pydantic_ai": True,
@@ -166,6 +167,7 @@ _MODULES_FOR_CONTRIB = {
     "google_adk": ("google.adk",),
     "google_genai": ("google.genai",),
     "langchain": ("langchain_core",),
+    "llama_index": ("llama_index.core",),
     "langgraph": (
         "langgraph",
         "langgraph.graph",
