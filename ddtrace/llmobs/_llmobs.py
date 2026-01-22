@@ -1014,7 +1014,7 @@ class LLMObs(Service):
             opt = LLMObs._prompt_optimization(
                 name="optimize_qa",
                 task=my_task,
-                optimization_task=optimize_prompt,
+                optimization_task=optimization_task,
                 dataset=dataset,
                 evaluators=[accuracy_evaluator],
                 labelization_function=labelization_function,
