@@ -1,5 +1,6 @@
 #include "ddup_interface.hpp"
 
+#include "defer.hpp"
 #include "libdatadog_helpers.hpp"
 #include "sample.hpp"
 #include "sample_manager.hpp"
@@ -432,6 +433,10 @@ ddup_upload() // cppcheck-suppress unusedFunction
     // building and uploading before allowing the fork to proceed. This prevents memory
     // allocated during build() from being orphaned in the child process.
     Datadog::Uploader::lock();
+    defer
+    {
+        Datadog::Uploader::unlock();
+    };
 
     // Build the Uploader, which takes care of serializing the Profile and capturing ProfilerStats.
     // This takes a reference in a way that locks the areas where the profile might
@@ -439,7 +444,6 @@ ddup_upload() // cppcheck-suppress unusedFunction
     auto uploader_or_err = Datadog::UploaderBuilder::build();
 
     if (std::holds_alternative<std::string>(uploader_or_err)) {
-        Datadog::Uploader::unlock();
         if (!already_warned) {
             already_warned = true;
             std::cerr << "Failed to create uploader: " << std::get<std::string>(uploader_or_err) << std::endl;
@@ -454,7 +458,7 @@ ddup_upload() // cppcheck-suppress unusedFunction
     // This also cancels inflight uploads. There are better ways to do this, but this is what
     // we have for now.
     bool result = uploader.upload_unlocked();
-    Datadog::Uploader::unlock();
+
     return result;
 }
 
