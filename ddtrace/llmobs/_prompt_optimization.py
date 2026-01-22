@@ -83,8 +83,7 @@ class OptimizationIteration:
         1. Loads the optimization prompt template from _prompt_optimization.md
         2. Builds user prompt with examples (TP, TN, FP, FN) from evaluation results
         3. Calls optimization_task (LLM) with system and user prompts
-        4. Parses structured output
-        5. Returns improved prompt
+        4. Returns improved prompt
 
         :return: The improved prompt string.
         """
