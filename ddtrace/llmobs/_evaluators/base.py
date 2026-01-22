@@ -175,7 +175,7 @@ class BaseEvaluator(ABC):
         return evaluator_name
 
     @abstractmethod
-    def evaluate(self, context: EvaluatorContext) -> Union[JSONType, "EvaluatorResult"]:
+    def evaluate(self, context: EvaluatorContext) -> Union[JSONType, EvaluatorResult]:
         """Perform evaluation.
 
         This method must be implemented by all subclasses.
