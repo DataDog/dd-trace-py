@@ -41,7 +41,7 @@ def _reset_prompt_state():
     """Reset LLMObs prompt manager state."""
     if LLMObs.enabled:
         LLMObs.disable()
-    LLMObs.clear_prompt_cache(l1=True, l2=True)
+    LLMObs.clear_prompt_cache(hot=True, warm=True)
     LLMObs._prompt_manager = None
     LLMObs._prompt_manager_initialized = False
 
@@ -141,7 +141,7 @@ class TestGetPrompt:
         assert prod_prompt.label == "prod"
 
         # Clear cache to force new fetch
-        LLMObs.clear_prompt_cache(l1=True, l2=True)
+        LLMObs.clear_prompt_cache(hot=True, warm=True)
 
         # Fetch dev version
         with mock_api(200, DEV_PROMPT_RESPONSE):
@@ -218,7 +218,7 @@ class TestCacheControl:
         assert prompt2.source == "cache"
 
         # Clear and verify re-fetch required
-        LLMObs.clear_prompt_cache(l1=True, l2=True)
+        LLMObs.clear_prompt_cache(hot=True, warm=True)
 
         with mock_api(200, TEXT_PROMPT_RESPONSE):
             prompt3 = LLMObs.get_prompt("greeting")

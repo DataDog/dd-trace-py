@@ -36,9 +36,9 @@ class PromptManager:
     Manages prompt retrieval with Stale-While-Revalidate caching.
 
     Three-layer cache:
-    - L1: HotCache (in-memory, ~100ns)
-    - L2: WarmCache (file-based, ~1ms)
-    - L3: Fallback (user-provided or empty)
+    - Hot cache: HotCache (in-memory, ~100ns)
+    - Warm cache: WarmCache (file-based, ~1ms)
+    - Fallback: (user-provided or empty)
     """
 
     def __init__(
@@ -80,29 +80,29 @@ class PromptManager:
         Retrieve a prompt template from the registry.
 
         Uses Stale-While-Revalidate pattern:
-        - L1 hit + fresh: return immediately
-        - L1 hit + stale: return immediately, trigger background refresh
-        - L2 hit: return, populate L1
+        - Hot cache hit + fresh: return immediately
+        - Hot cache hit + stale: return immediately, trigger background refresh
+        - Warm cache hit: return, populate hot cache
         - All miss: sync fetch with timeout, then fallback
         """
         label = label or DEFAULT_PROMPTS_LABEL
         key = self._cache_key(prompt_id, label)
 
-        # Try L1 cache (hot cache)
+        # Try hot cache (in-memory)
         result = self._hot_cache.get(key)
         if result is not None:
             cached_prompt, is_stale = result
             if is_stale:
                 self._trigger_background_refresh(key, prompt_id, label)
-            telemetry.record_prompt_source("l1_cache", prompt_id)
+            telemetry.record_prompt_source("hot_cache", prompt_id)
             return cached_prompt
 
-        # Try L2 cache (warm cache)
+        # Try warm cache (file-based)
         warm_prompt = self._warm_cache.get(key)
         if warm_prompt is not None:
             self._hot_cache.set(key, warm_prompt)
             self._trigger_background_refresh(key, prompt_id, label)
-            telemetry.record_prompt_source("l2_cache", prompt_id)
+            telemetry.record_prompt_source("warm_cache", prompt_id)
             return warm_prompt
 
         # Try sync fetch from registry
@@ -117,16 +117,16 @@ class PromptManager:
         telemetry.record_prompt_source("fallback", prompt_id)
         return self._create_fallback_prompt(prompt_id, label, fallback)
 
-    def clear_cache(self, l1: bool = True, l2: bool = True) -> None:
+    def clear_cache(self, hot: bool = True, warm: bool = True) -> None:
         """Clear the prompt cache.
 
         Args:
-            l1: If True, clear the hot (in-memory) cache.
-            l2: If True, clear the warm (file-based) cache.
+            hot: If True, clear the hot (in-memory) cache.
+            warm: If True, clear the warm (file-based) cache.
         """
-        if l1:
+        if hot:
             self._hot_cache.clear()
-        if l2:
+        if warm:
             self._warm_cache.clear()
 
     def refresh_prompt(self, prompt_id: str, label: Optional[str] = None) -> Optional[ManagedPrompt]:
