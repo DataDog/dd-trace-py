@@ -20,6 +20,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+
       - name: Check Conflicts
         env:
           BACKPORT_LABEL: ${{ github.event.label.name }}
@@ -29,19 +30,24 @@ jobs:
         run: |
           TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
 
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+
+          MERGE_BASE=$(git merge-base origin/main origin/${PR_BRANCH})
+          git diff ${MERGE_BASE} > ../backport.patch
+          git checkout origin/${TARGET_BRANCH}
+          ERROR=$(git apply ../backport.patch 2>&1)
+
           echo "results<<EOF" >> "$GITHUB_OUTPUT"
           echo "backport label: ${BACKPORT_LABEL}" | tee -a "$GITHUB_OUTPUT"
           echo "branch: ${PR_BRANCH}" | tee -a "$GITHUB_OUTPUT"
           echo "backport target branch: ${TARGET_BRANCH}" | tee -a "$GITHUB_OUTPUT"
+          if [[ ! -z "$ERROR" ]]
+          then
+            echo "Patch apply error: " >> "$GITHUB_OUTPUT"
+            echo "$ERROR" >> "$GITHUB_OUTPUT"
+          fi
           echo "EOF" >> "$GITHUB_OUTPUT"
-
-          git config --global user.name "${GITHUB_ACTOR}"
-          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
-
-          git diff origin/main > ../backport.patch
-          git checkout origin/${TARGET_BRANCH}
-          git apply ../backport.patch
-
 
       - name: Comment PR
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
