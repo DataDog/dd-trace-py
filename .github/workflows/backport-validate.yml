@@ -33,12 +33,13 @@ jobs:
           echo "backport label: ${BACKPORT_LABEL}" >> "$GITHUB_OUTPUT"
           echo "branch: ${PR_BRANCH}" >> "$GITHUB_OUTPUT"
           echo "backport target branch: ${TARGET_BRANCH}" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
 
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
 
-          git merge origin/${TARGET_BRANCH}
+          git merge origin/${TARGET_BRANCH} &>> "$GITHUB_OUTPUT"
+
+          echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Comment PR
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
