@@ -48,7 +48,8 @@ jobs:
           else
             echo "This change is marked for backport to ${TARGET_BRANCH} and it does not conflict with that branch." | tee -a "$GITHUB_OUTPUT"
           fi
-          echo "The merge-base used to generate the patch was ${MERGE_BASE}" | tee -a "$GITHUB_OUTPUT"
+          HEAD_HASH=$(git rev-parse HEAD)
+          echo "The patch used to test backporting was \`git diff ${HEAD_HASH} ${MERGE_BASE}\`" | tee -a "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Comment PR
