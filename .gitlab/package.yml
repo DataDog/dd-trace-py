@@ -39,6 +39,8 @@ variables:
     KUBERNETES_MEMORY_REQUEST: "10Gi"
     KUBERNETES_MEMORY_LIMIT: "10Gi"
     DD_DISABLE_VPA: true
+  before_script:
+    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
   artifacts:
     paths:
       - "pywheels/*.whl"
@@ -51,6 +53,8 @@ variables:
   stage: package
   variables:
     BUCKET: dd-trace-py-builds
+  before_script:
+    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
 
 "build sdist":
   extends: .build_base
@@ -146,6 +150,8 @@ variables:
   needs:
     - job: "build sdist"
       artifacts: true
+  before_script:
+    - !reference [.build_base, before_script]
   script:
     - SDIST_FILE=$(ls ${CI_PROJECT_DIR}/pywheels/*.tar.gz | head -n 1)
     - TMP_DIR=$(mktemp -d) && cd $TMP_DIR
