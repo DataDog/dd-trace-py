@@ -24,16 +24,6 @@ struct PackagePath {
     dist_path: PathBuf,
 }
 
-impl Clone for PackagePath {
-    fn clone(&self) -> Self {
-        Python::with_gil(|py| PackagePath {
-            parts: self.parts.clone_ref(py),
-            path_str: self.path_str.clone(),
-            dist_path: self.dist_path.clone(),
-        })
-    }
-}
-
 #[pymethods]
 impl PackagePath {
     fn __repr__(&self) -> String {
@@ -274,7 +264,7 @@ pub fn distributions(py: Python) -> PyResult<Vec<Py<Distribution>>> {
     // Get sys.path from Python
     let sys = py.import("sys")?;
     let path_attr = sys.getattr("path")?;
-    let path_list = path_attr.downcast::<PyList>()?;
+    let path_list = path_attr.cast::<PyList>()?;
 
     let mut paths = Vec::with_capacity(path_list.len());
     for item in path_list.iter() {
