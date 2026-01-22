@@ -37,7 +37,7 @@ jobs:
           git diff ${MERGE_BASE} > ../backport.patch
           cat ../backport.patch
           git checkout origin/${TARGET_BRANCH}
-          ERROR=$(git apply ../backport.patch 2>&1)
+          ERROR=$(git apply ../backport.patch 2>&1) || true
 
           echo "results<<EOF" >> "$GITHUB_OUTPUT"
           echo "backport label: ${BACKPORT_LABEL}" | tee -a "$GITHUB_OUTPUT"
@@ -45,7 +45,7 @@ jobs:
           echo "backport target branch: ${TARGET_BRANCH}" | tee -a "$GITHUB_OUTPUT"
           echo "merge base: ${MERGE_BASE}" | tee -a "$GITHUB_OUTPUT"
           echo "apply error: ${ERROR}" | tee -a "$GITHUB_OUTPUT"
-          if [[ ! -z "$ERROR" ]]
+          if [[ ! -z ${ERROR} ]]
           then
             echo "Patch apply error: " >> "$GITHUB_OUTPUT"
             echo "$ERROR" >> "$GITHUB_OUTPUT"
