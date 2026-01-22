@@ -46,13 +46,14 @@ TIPS = {
 
 
 class IterationData(TypedDict):
-      """Data for a single optimization iteration."""
-      iteration: int
-      prompt: str
-      results: ExperimentResult
-      score: float
-      experiment_url: str
-      summary_evaluations: Dict[str, Dict[str, JSONType]]
+    """Data for a single optimization iteration."""
+
+    iteration: int
+    prompt: str
+    results: ExperimentResult
+    score: float
+    experiment_url: str
+    summary_evaluations: Dict[str, Dict[str, JSONType]]
 
 
 class OptimizationIteration:
@@ -90,14 +91,14 @@ class OptimizationIteration:
     def run(self) -> str:
         """Run the optimization task to generate an improved prompt.
 
-        Follows the LLM-as-a-judge pattern:
-        1. Loads the optimization prompt template from _prompt_optimization.md
-        2. Builds user prompt with examples from evaluation results
-``
-        3. Calls optimization_task (LLM) with system and user prompts
-        4. Returns improved prompt
+                Follows the LLM-as-a-judge pattern:
+                1. Loads the optimization prompt template from _prompt_optimization.md
+                2. Builds user prompt with examples from evaluation results
+        ``
+                3. Calls optimization_task (LLM) with system and user prompts
+                4. Returns improved prompt
 
-        :return: The improved prompt string.
+                :return: The improved prompt string.
         """
         # Step 1: Load and prepare system prompt template
         system_prompt = self._load_system_prompt()
@@ -115,8 +116,7 @@ class OptimizationIteration:
         except Exception as e:
             log.error(f"""
                 Iteration {self.iteration}: Failed to run optimization_task
-            """
-            )
+            """)
             log.error(f"Exception type: {type(e).__name__}")
             log.error(f"Exception type: {str(e)}")
             improved_prompt = ""
@@ -149,18 +149,19 @@ class OptimizationIteration:
         with open(template_path, "r", encoding="utf-8") as f:
             template = f.read()
 
-
         output_format = self._config.get("evaluation_output_format")
         structure_placeholder = ""
         if output_format:
-            structure_placeholder = "\n".join([
-                "## Prompt Output Format Requirements",
-                "The optimized prompt must guide the LLM to produce JSON output with this structure:",
-                "\n",
-                output_format,
-                "\n",
-                "**If this output format is not clearly specified in the initial prompt, add it as your first improvement step**",
-            ])
+            structure_placeholder = "\n".join(
+                [
+                    "## Prompt Output Format Requirements",
+                    "The optimized prompt must guide the LLM to produce JSON output with this structure:",
+                    "\n",
+                    output_format,
+                    "\n",
+                    "**If this output format is not clearly specified in the initial prompt, add it as your first improvement step**",
+                ]
+            )
 
         system_prompt = template.replace("{{STRUCTURE_PLACEHOLDER}}", structure_placeholder)
 
@@ -631,10 +632,7 @@ class PromptOptimization:
 
         # Update config with current prompt
         # Start with base config, then override prompt with the new one
-        config_updates = {
-            "model_name": self._model_name,
-            "prompt": prompt
-        }
+        config_updates = {"model_name": self._model_name, "prompt": prompt}
         experiment_config = self._config | config_updates
 
         experiment = Experiment(
@@ -646,7 +644,7 @@ class PromptOptimization:
             summary_evaluators=self._summary_evaluators,
             _llmobs_instance=self._llmobs_instance,
             config=experiment_config,
-            runs=self._config.get('runs')
+            runs=self._config.get("runs"),
         )
 
         experiment_results = experiment.run(
