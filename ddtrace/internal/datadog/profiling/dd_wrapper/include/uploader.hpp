@@ -30,6 +30,7 @@ class Uploader
 
   public:
     bool upload();
+    bool upload_unlocked(); // Version that assumes lock is already held
     static void cancel_inflight();
     static void lock();
     static void unlock();
