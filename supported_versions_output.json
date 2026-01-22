@@ -169,6 +169,13 @@
         "auto-instrumented": false
     },
     {
+        "dependency": "claude-agent-sdk",
+        "integration": "claude_agent_sdk",
+        "minimum_tracer_supported": "0.1.21",
+        "max_tracer_supported": "0.1.21",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "python-consul",
         "integration": "consul",
         "minimum_tracer_supported": "1.1.0",
@@ -346,7 +353,7 @@
     {
         "dependency": "httpx",
         "integration": "httpx",
-        "minimum_tracer_supported": "0.17.1",
+        "minimum_tracer_supported": "0.25.2",
         "max_tracer_supported": "0.28.1",
         "auto-instrumented": true
     },
@@ -403,7 +410,7 @@
         "dependency": "litellm",
         "integration": "litellm",
         "minimum_tracer_supported": "1.65.4",
-        "max_tracer_supported": "1.65.4",
+        "max_tracer_supported": "1.80.16",
         "pinned": "true",
         "auto-instrumented": true
     },
@@ -699,7 +706,7 @@
         "minimum_tracer_supported": "0.13.0",
         "max_tracer_supported": "0.13.0",
         "pinned": "true",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "yaaredis",
