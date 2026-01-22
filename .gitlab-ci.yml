@@ -1,4 +1,5 @@
 stages:
+  - fuzz
   - package
   - tests
   - fuzz
