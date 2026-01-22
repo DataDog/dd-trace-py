@@ -509,7 +509,7 @@
         "dependency": "pydantic-ai-slim",
         "integration": "pydantic_ai",
         "minimum_tracer_supported": "0.3.0",
-        "max_tracer_supported": "0.4.4",
+        "max_tracer_supported": "0.8.1",
         "pinned": "true",
         "auto-instrumented": true
     },

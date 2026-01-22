@@ -70,7 +70,7 @@ openai-agents,openai_agents,0.0.8,0.0.16,True
 protobuf,protobuf,6.30.1,6.32.0,False
 psycopg,psycopg,3.0.18,3.2.10,True
 psycopg2-binary,psycopg,2.9.10,2.9.10,True
-pydantic-ai-slim,pydantic_ai *,0.3.0,0.4.4,True
+pydantic-ai-slim,pydantic_ai *,0.3.0,0.8.1,True
 pylibmc,pylibmc,1.6.3,1.6.3,True
 pymemcache,pymemcache,3.4.4,4.0.0,True
 pymongo,pymongo,3.8.0,4.15.0,True
