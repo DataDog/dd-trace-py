@@ -415,7 +415,6 @@ class OptimizationResult:
             score = iteration.get("score")
             url = iteration.get('experiment_url')
             marker = " <- BEST" if iter_num == self.best_iteration else ""
-            score_str = f"{score:.4f}" if score is not None else "N/A"
             lines.append(f"Iteration {iter_num} (score: {score:.4f}): {url}{marker}")
 
         return "\n".join(lines)
