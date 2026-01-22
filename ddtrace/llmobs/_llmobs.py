@@ -913,13 +913,13 @@ class LLMObs(Service):
         optimization_task: Callable[[str, str, str], str],
         dataset: Dataset,
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
+        summary_evaluators: List[Callable[[List, List, List, Dict], Dict]],
         labelization_function: Callable[[Dict[str, Any]], str],
         compute_score: Callable[[Dict[str, Dict[str, Any]]], float],
         config: ConfigType,
         project_name: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
         max_iterations: int = 5,
-        summary_evaluators: Optional[List[Callable[[List, List, List, Dict], Dict]]] = None,
         stopping_condition: Optional[Callable[[Dict[str, Dict[str, Any]]], bool]] = None,
     ) -> PromptOptimization:
         """Initialize a PromptOptimization to iteratively improve prompts using experiments.
@@ -933,7 +933,7 @@ class LLMObs(Service):
                      Should return the task output as a JSON-serializable value.
         :param optimization_task: Function that calls an LLM to generate improved prompts.
                                   Must accept parameters ``system_prompt`` (str), ``user_prompt`` (str),
-                                  and ``model`` (str). Should return the new prompt (str).
+                                  and ``config`` (dict). Should return the new prompt (str).
                                   The system_prompt contains optimization instructions
                                   loaded from template, and user_prompt contains the current prompt with
                                   evaluation examples.
@@ -943,29 +943,28 @@ class LLMObs(Service):
                           Each evaluator must accept parameters ``input_data`` (dict), ``output_data``
                           (task output), and ``expected_output`` (expected result from dataset).
                           Should return a JSON-serializable value with the evaluation results.
+        :param summary_evaluators: List of summary evaluator functions that aggregate results
+                                   across all dataset records (REQUIRED). Each function must accept:
+                                   inputs (list), outputs (list), expected_outputs (list), evaluations (dict)
+                                   and return a dict with aggregated metrics.
         :param labelization_function: Function to generate labels from individual experiment results (REQUIRED).
                                      Takes an individual result dict (containing "evaluations" key) and returns
                                      a string label. Used to categorize examples shown to the optimization LLM.
                                      Example: ``lambda r: "Very good" if r["evaluations"]["score"] >= 0.8 else "Bad"``
+        :param compute_score: Function to compute the score for each iteration (REQUIRED).
+                             Takes summary_evaluations dict from the experiment result and returns a float score.
+                             Used to determine which iteration performed best.
+        :param config: Configuration dictionary for the optimization. Must contain:
+                      - ``prompt`` (mandatory): Initial prompt template
+                      - ``model_name`` (optional): Model to use for task execution
+                      - ``evaluation_output_format`` (optional): the output format wanted
+                      - ``runs`` (optional): The number of times to run the experiment, or, run the task for every dataset record the defined
+                                             number of times.
+                      Additional config values are passed through to the task function.
         :param project_name: The name of the project to organize optimization runs. Defaults to the
                             project name set in ``LLMObs.enable()``.
         :param tags: A dictionary of string key-value tag pairs to associate with the optimization.
-        :param config: Configuration dictionary for the optimization. Must contain:
-                          - ``prompt``: Initial prompt template
-                          - ``model_name`` (optional): Model to use for task execution
-                          - ``optimization_model_name`` (optional): Model to use for optimization execution
-                          - ``evaluation_output_format`` (optional): the output format wanted
-                          - ``runs`` (optional): The number of times to run the experiment, or, run the task for every dataset record the defined
-                                                 number of times.
-                      Additional config values are passed through to the task function.
         :param max_iterations: Maximum number of optimization iterations to run. Default is 5.
-        :param summary_evaluators: Optional list of summary evaluator functions that aggregate results
-                                   across all dataset records. Each function must accept:
-                                   inputs (list), outputs (list), expected_outputs (list), evaluations (dict)
-                                   and return a dict with aggregated metrics.
-        :param compute_score: Function to compute the score for each iteration (REQUIRED).
-                                          Takes summary_evaluations dict from the experiment result and returns a float score.
-                                          Used to determine which iteration performed best.
         :param stopping_condition: Optional function to determine when to stop optimization early.
                                   Takes summary_evaluations dict from the experiment result and returns True if optimization should stop.
         :return: PromptOptimization object. Call ``.run()`` to execute the optimization.
@@ -1023,8 +1022,8 @@ class LLMObs(Service):
                 summary_evaluators=[summary_evaluator],
                 config={
                     "prompt": "Answer the question: {question}",
-                    "optimization_model_name": "gpt-4",
-                    "model_name": "gpt-3.5-turbo"
+                    "model_name": "gpt-3.5-turbo",
+                    "runs": 10
                 }
             )
             results = opt.run()
@@ -1065,12 +1064,12 @@ class LLMObs(Service):
             evaluators=evaluators,
             project_name=project_name or cls._project_name,
             config=config,
-            labelization_function=labelization_function,
+            summary_evaluators=summary_evaluators,
             compute_score=compute_score,
+            labelization_function=labelization_function,
             _llmobs_instance=cls._instance,
             tags=tags,
             max_iterations=max_iterations,
-            summary_evaluators=summary_evaluators,
             stopping_condition=stopping_condition,
         )
 

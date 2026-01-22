@@ -13,27 +13,7 @@ You are a systematic prompt engineering expert. Your task is to identify the roo
 5. **Confidence calibration** - Address overconfident wrong predictions
 6. **Incremental improvement** - Build on what already works
 
-## Your Response Format
-
-You must respond with a JSON object containing two fields:
-
-```json
-{
-  "prompt": "Your improved prompt here...",
-}
-```
-
-**Required Fields:**
-- `prompt`: The complete improved prompt text
-
-## Prompt Output Format Requirements
-
-The optimized prompt must guide the LLM to produce JSON output with this structure:
-
-{{EVALUATION_OUTPUT_FORMAT}}
-
-**If this output format is not clearly specified in the initial prompt, add it as your first improvement step**
-**DO IT**
+{{STRUCTURE_PLACEHOLDER}}
 
 ## Debug Process
 

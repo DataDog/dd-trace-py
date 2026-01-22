@@ -104,7 +104,6 @@ class OptimizationIteration:
         except Exception as e:
             log.error(f"""
                 Iteration {self.iteration}: Failed to run optimization_task
-                with model '{self._config.get("optimization_model_name", "unknown")}'
             """
             )
             log.error(f"Exception type: {type(e).__name__}")
@@ -139,9 +138,20 @@ class OptimizationIteration:
         with open(template_path, "r", encoding="utf-8") as f:
             template = f.read()
 
-        # Replace {{EVALUATION_OUTPUT_FORMAT}} placeholder
-        output_format = self._config.get("evaluation_output_format") or "undefined"
-        system_prompt = template.replace("{{EVALUATION_OUTPUT_FORMAT}}", output_format)
+
+        output_format = self._config.get("evaluation_output_format")
+        structure_placeholder = ""
+        if output_format:
+            structure_placeholder = "\n".join([
+                "## Prompt Output Format Requirements",
+                "The optimized prompt must guide the LLM to produce JSON output with this structure:",
+                "\n",
+                output_format,
+                "\n",
+                "**If this output format is not clearly specified in the initial prompt, add it as your first improvement step**",
+            ])
+
+        system_prompt = template.replace("{{STRUCTURE_PLACEHOLDER}}", structure_placeholder)
 
         # Add evaluation model information at the end
         additional_parts = []
@@ -428,12 +438,12 @@ class PromptOptimization:
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         project_name: str,
         config: ConfigType,
+        summary_evaluators: List[Callable[[List, List, List, Dict], Dict]],
         compute_score: Callable[[Dict[str, Dict[str, Any]]], float],
-        labelization_function: Callable[[Dict[str, Any]], str],
+        labelization_function: Optional[Callable[[Dict[str, Any]], str]],
         _llmobs_instance: Optional["LLMObs"] = None,
         tags: Optional[Dict[str, str]] = None,
         max_iterations: int = 5,
-        summary_evaluators: Optional[List[Callable[[List, List, List, Dict], Dict]]] = None,
         stopping_condition: Optional[Callable[[Dict[str, Dict[str, Any]]], bool]] = None,
     ) -> None:
         """Initialize a prompt optimization.
@@ -445,27 +455,26 @@ class PromptOptimization:
                                   Must return the new prompt.
         :param dataset: Dataset to run experiments on.
         :param evaluators: List of evaluator functions to measure task performance.
-        :param compute_score: Function to compute iteration score (REQUIRED).
-                             Takes summary_evaluations dict from the experiment result and returns float score.
-                             Used to compare and rank different prompt iterations.
-        :param labelization_function: Function to generate labels from individual results (REQUIRED).
-                                     Takes an individual result dict (with "evaluations" key) and returns a string label.
-                                     Used to categorize examples shown to the optimization LLM.
-                                     Example: lambda r: "Very good" if r["evaluations"]["score"] >= 0.8 else "Bad"
         :param project_name: Project name for organizing optimization runs.
         :param config: Configuration dictionary. Must contain:
-                      - ``prompt``: Initial prompt template
+                      - ``prompt`` (mandatory): Initial prompt template
                       - ``model_name`` (optional): Model to use for task execution
-                      - ``optimization_model_name`` (optional): Model to use for optimization execution
                       - ``evaluation_output_format`` (optional): the output format wanted
                       - ``runs`` (optional): The number of times to run the experiment, or, run the task for every dataset record the defined
                                              number of times.
+        :param summary_evaluators: List of summary evaluator functions (REQUIRED).
+                                   Each must accept (inputs: List, outputs: List, expected_outputs: List, evaluations: Dict)
+                                   and return Dict with aggregated metrics.
+        :param compute_score: Function to compute iteration score (REQUIRED).
+                             Takes summary_evaluations dict from the experiment result and returns float score.
+                             Used to compare and rank different prompt iterations.
+        :param labelization_function: Function to generate labels from individual results (Optional but highly valuable).
+                                     Takes an individual result dict (with "evaluations" key) and returns a string label.
+                                     Used to categorize examples shown to the optimization LLM.
+                                     Example: lambda r: "Very good" if r["evaluations"]["score"] >= 0.8 else "Bad"
         :param _llmobs_instance: Internal LLMObs instance.
         :param tags: Optional tags to associate with the optimization.
         :param max_iterations: Maximum number of optimization iterations to run.
-        :param summary_evaluators: Optional list of summary evaluator functions.
-                                   Each must accept (inputs: List, outputs: List, expected_outputs: List, evaluations: Dict)
-                                   and return Dict with aggregated metrics.
         :param stopping_condition: Optional function to determine when to stop optimization.
                                    Takes summary_evaluations dict from the experiment result and returns True if should stop.
         :raises ValueError: If required config parameters or compute_score are missing.
@@ -494,7 +503,6 @@ class PromptOptimization:
             raise ValueError(f"config must contain keys: {missing_keys}")
 
         self._initial_prompt = config["prompt"]
-        self._optimization_model_name = config.get("optimization_model_name")
         self._model_name = config.get("model_name")
         self._config = config
 
