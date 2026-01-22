@@ -30,9 +30,9 @@ jobs:
           TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
 
           echo "results<<EOF" >> "$GITHUB_OUTPUT"
-          echo "backport label: ${BACKPORT_LABEL}" | tee "$GITHUB_OUTPUT"
-          echo "branch: ${PR_BRANCH}" | tee "$GITHUB_OUTPUT"
-          echo "backport target branch: ${TARGET_BRANCH}" | tee "$GITHUB_OUTPUT"
+          echo "backport label: ${BACKPORT_LABEL}" | tee -a "$GITHUB_OUTPUT"
+          echo "branch: ${PR_BRANCH}" | tee -a "$GITHUB_OUTPUT"
+          echo "backport target branch: ${TARGET_BRANCH}" | tee -a "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
           git config --global user.name "${GITHUB_ACTOR}"
