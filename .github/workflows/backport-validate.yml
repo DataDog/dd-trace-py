@@ -34,7 +34,8 @@ jobs:
 
           TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
           MERGE_BASE=$(git merge-base origin/main origin/${PR_BRANCH})
-          git diff ${MERGE_BASE} > ../backport.patch
+          git diff origin/${MERGE_BASE} > ../backport.patch
+          cat ../backport.patch
           git checkout origin/${TARGET_BRANCH}
           ERROR=$(git apply ../backport.patch 2>&1)
 
