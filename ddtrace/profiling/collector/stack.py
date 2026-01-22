@@ -22,11 +22,7 @@ class StackCollector(collector.Collector):
         "tracer",
     )
 
-    def __init__(
-        self,
-        nframes: typing.Optional[int] = None,
-        tracer: typing.Optional[Tracer] = None,
-    ):
+    def __init__(self, nframes: typing.Optional[int] = None, tracer: typing.Optional[Tracer] = None):
         super().__init__()
 
         self.nframes = nframes if nframes is not None else config.max_frames

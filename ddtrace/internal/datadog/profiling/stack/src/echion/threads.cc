@@ -1,6 +1,6 @@
-#include "sampler.hpp"
-#include <echion/echion_sampler.h>
 #include <echion/threads.h>
+
+#include <echion/echion_sampler.h>
 
 #include <algorithm>
 #include <optional>
@@ -21,7 +21,6 @@ ThreadInfo::unwind(PyThreadState* tstate)
         unwind_greenlets(tstate, native_id);
     }
 }
-
 
 // ----------------------------------------------------------------------------
 Result<void>

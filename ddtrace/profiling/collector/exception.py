@@ -1,15 +1,9 @@
-# -*- encoding: utf-8 -*-
-"""Exception profiling collector.
-
-This collector monitors Python exceptions and samples them statistically
-using Poisson distribution to control overhead.
-
-For Python 3.14+, this uses the sys.monitoring API for efficient exception tracking.
-"""
-
+# Exception profiling collector using sys.monitoring (Python 3.12+)
 from __future__ import annotations
 
 import logging
+import math
+import random
 import sys
 import threading
 from types import TracebackType
@@ -17,7 +11,6 @@ from typing import Any
 from typing import Optional
 from typing import Type
 
-import numpy as np
 from typing_extensions import Self
 
 from ddtrace.internal.datadog.profiling import ddup
@@ -26,41 +19,61 @@ from ddtrace.profiling import collector
 
 
 LOG = logging.getLogger(__name__)
-
-# Check if sys.monitoring is available (Python 3.12+)
 HAS_MONITORING = hasattr(sys, "monitoring")
+_current_thread = threading.current_thread
+
+
+def _poisson_sample(lam: float) -> int:
+    # Knuth's algorithm for Poisson sampling (avoids numpy dependency)
+    if lam <= 0:
+        return 1
+    L = math.exp(-lam)
+    k = 0
+    p = 1.0
+    while p > L:
+        k += 1
+        p *= random.random()
+    return max(1, k - 1)
+
+
+class _ThreadLocalSamplerState(threading.local):
+    # Thread-local state to avoid lock contention
+    __slots__ = ("next_sample", "sampling_interval")
+
+    def __init__(self, sampling_interval: int):
+        super().__init__()
+        self.sampling_interval = sampling_interval
+        self.next_sample = 0
 
 
 class ExceptionSampler:
-    """Statistical sampler for exceptions using Poisson distribution."""
+    # Poisson sampler with thread-local state (lock-free)
+    __slots__ = ("sampling_interval", "_local")
 
     def __init__(self, sampling_interval: int = 100):
-        """Initialize the sampler.
-
-        Args:
-            sampling_interval: Average number of exceptions between samples
-        """
         self.sampling_interval = sampling_interval
-        self.rng = np.random.default_rng()
-        self._lock = threading.Lock()
-        self._reset_interval()
-
-    def _reset_interval(self) -> None:
-        # Poisson distribution gives us the time until next event
-        self.next_sample = int(self.rng.poisson(self.sampling_interval))
-        if self.next_sample == 0:
-            self.next_sample = 1  # Always wait at least 1 exception
+        self._local = _ThreadLocalSamplerState(sampling_interval)
 
     def should_sample(self) -> bool:
-        with self._lock:
-            self.next_sample -= 1
-            if self.next_sample <= 0:
-                self._reset_interval()
-                return True
-            return False
+        local = self._local
+        local.next_sample -= 1
+        if local.next_sample <= 0:
+            local.next_sample = _poisson_sample(local.sampling_interval)
+            return True
+        return False
 
 
 class ExceptionCollector(collector.Collector):
+    __slots__ = (
+        "max_nframe",
+        "sampling_interval",
+        "collect_message",
+        "sampler",
+        "_original_excepthook",
+        "_total_exceptions",
+        "_sampled_exceptions",
+    )
+
     def __init__(
         self,
         max_nframe: Optional[int] = None,
@@ -75,14 +88,10 @@ class ExceptionCollector(collector.Collector):
         self.collect_message = (
             collect_message if collect_message is not None else getattr(config.exception, "collect_message", True)
         )
-
         self.sampler = ExceptionSampler(self.sampling_interval)
         self._original_excepthook = None
-        self._stats = {
-            "total_exceptions": 0,
-            "sampled_exceptions": 0,
-        }
-        self._lock = threading.Lock()
+        self._total_exceptions = 0
+        self._sampled_exceptions = 0
 
     def __enter__(self) -> Self:
         self.start()
@@ -100,36 +109,29 @@ class ExceptionCollector(collector.Collector):
         LOG.debug("Starting ExceptionCollector")
 
         if HAS_MONITORING and sys.version_info >= (3, 12):
-            # EXCEPTION_HANDLED fires ONCE when an exception is caught
             try:
+                # EXCEPTION_HANDLED fires once per caught exception
                 sys.monitoring.use_tool_id(sys.monitoring.PROFILER_ID, "dd-trace-exception-profiler")
                 sys.monitoring.set_events(sys.monitoring.PROFILER_ID, sys.monitoring.events.EXCEPTION_HANDLED)
                 sys.monitoring.register_callback(
                     sys.monitoring.PROFILER_ID,
                     sys.monitoring.events.EXCEPTION_HANDLED,
-                    self._monitoring_exception_handled_callback,
+                    self._on_exception_handled,
                 )
-                # Also register excepthook for uncaught exceptions
                 self._original_excepthook = sys.excepthook
                 sys.excepthook = self._excepthook
-                LOG.debug("Using sys.monitoring.EXCEPTION_HANDLED + excepthook for exception profiling")
+                LOG.debug("Using sys.monitoring.EXCEPTION_HANDLED + excepthook")
             except Exception as e:
-                LOG.debug("Failed to set up monitoring, falling back to excepthook only: %s", e)
-                # Fallback to excepthook if monitoring fails
+                LOG.debug("Failed to set up monitoring: %s", e)
                 self._original_excepthook = sys.excepthook
                 sys.excepthook = self._excepthook
         else:
-            # Fallback to sys.excepthook for older Python versions
-            # This only catches uncaught exceptions
+            # Fallback for older Python (only catches uncaught exceptions)
             self._original_excepthook = sys.excepthook
             sys.excepthook = self._excepthook
-            LOG.debug("Using sys.excepthook for exception profiling (only uncaught exceptions)")
+            LOG.debug("Using sys.excepthook only")
 
-        LOG.info(
-            "ExceptionCollector started with sampling_interval=%d, collect_message=%s",
-            self.sampling_interval,
-            self.collect_message,
-        )
+        LOG.info("ExceptionCollector started: interval=%d", self.sampling_interval)
 
     def _stop_service(self) -> None:
         LOG.debug("Stopping ExceptionCollector")
@@ -141,148 +143,65 @@ class ExceptionCollector(collector.Collector):
             except Exception:
                 pass
 
-        # Restore the original excepthook if it was replaced
         if self._original_excepthook:
             sys.excepthook = self._original_excepthook
             self._original_excepthook = None
 
-        LOG.info(
-            "ExceptionCollector stopped. Stats: total=%d, sampled=%d",
-            self._stats["total_exceptions"],
-            self._stats["sampled_exceptions"],
-        )
+        LOG.info("ExceptionCollector stopped: total=%d, sampled=%d", self._total_exceptions, self._sampled_exceptions)
 
-    def _monitoring_exception_handled_callback(
-        self,
-        code: Any,  # unused
-        instruction_offset: int,  # unused righ t now
-        exception: BaseException,
-    ) -> None:
-        """Callback for sys.monitoring EXCEPTION_HANDLED events (Python 3.12+).
-
-        This is called ONCE when an exception is caught by an except clause,
-        """
-        # EXCEPTION_HANDLED fires once per caught exception - no filtering needed!
-        # Update stats
-        with self._lock:
-            self._stats["total_exceptions"] += 1
-
-        # Check if we should sample this exception
+    def _on_exception_handled(self, code: Any, instruction_offset: int, exception: BaseException) -> None:
+        # Called once per caught exception (sys.monitoring callback)
+        self._total_exceptions += 1
         if self.sampler.should_sample():
             try:
-                exc_type = type(exception)
-                exc_traceback = exception.__traceback__
-                self._collect_exception(exc_type, exception, exc_traceback)
-                with self._lock:
-                    self._stats["sampled_exceptions"] += 1
+                self._collect_exception(type(exception), exception, exception.__traceback__)
+                self._sampled_exceptions += 1
             except Exception:
                 LOG.debug("Failed to collect exception sample", exc_info=True)
 
-    def _excepthook(
-        self,
-        exc_type: Type[BaseException],
-        exc_value: BaseException,
-        exc_traceback: TracebackType,
-    ) -> None:
-        # Update stats
-        with self._lock:
-            self._stats["total_exceptions"] += 1
-
-        # Check if we should sample this exception
+    def _excepthook(self, exc_type: Type[BaseException], exc_value: BaseException, exc_traceback: TracebackType) -> None:
+        # Called for uncaught exceptions
+        self._total_exceptions += 1
         if self.sampler.should_sample():
             try:
                 self._collect_exception(exc_type, exc_value, exc_traceback)
-                with self._lock:
-                    self._stats["sampled_exceptions"] += 1
+                self._sampled_exceptions += 1
             except Exception:
                 LOG.debug("Failed to collect exception sample", exc_info=True)
 
-        # Call the original excepthook
         if self._original_excepthook:
             self._original_excepthook(exc_type, exc_value, exc_traceback)
 
-    def _collect_exception(
-        self,
-        exc_type: Type[BaseException],
-        exc_value: BaseException,
-        exc_traceback: TracebackType,
-    ) -> None:
-        """Collect exception data and send it to the profiler."""
-        # Get exception type name
-        exception_type = f"{exc_type.__module__}.{exc_type.__name__}" if exc_type.__module__ else exc_type.__name__
-
-        # Get exception message if enabled
-        exception_message = None
-        if self.collect_message:
-            try:
-                exception_message = str(exc_value)
-            except Exception:
-                exception_message = "<error getting message>"
-
-        frames = []
-        tb = exc_traceback
-        frame_count = 0
-
-        while tb is not None and frame_count < self.max_nframe:
-            frame = tb.tb_frame
-            code = frame.f_code
-
-            frames.append(
-                {
-                    "filename": code.co_filename,
-                    "function": code.co_name,
-                    "lineno": tb.tb_lineno,
-                }
-            )
-
-            tb = tb.tb_next
-            frame_count += 1
-
-        try:
-            self._push_sample(exception_type, exception_message, frames)
-        except Exception:
-            LOG.debug("Failed to push exception sample", exc_info=True)
-
-    def _push_sample(
-        self,
-        exception_type: str,
-        exception_message: Optional[str],
-        frames: list,
-    ) -> None:
-        """Push exception sample to the profiler using ddup."""
+    def _collect_exception(self, exc_type: Type[BaseException], exc_value: BaseException, exc_traceback: TracebackType) -> None:
         if not ddup.is_available:
-            LOG.debug("ddup not available, skipping exception sample")
             return
 
-        # Create sample handle
+        module = exc_type.__module__
+        exception_type = f"{module}.{exc_type.__name__}" if module else exc_type.__name__
         handle = ddup.SampleHandle()
 
         try:
-            # Add exception type and count
             handle.push_exceptioninfo(exception_type, 1)
 
-            import threading
+            thread = _current_thread()
+            handle.push_threadinfo(thread.ident or 0, getattr(thread, "native_id", 0) or 0, thread.name)
 
-            current_thread = threading.current_thread()
-            handle.push_threadinfo(
-                current_thread.ident or 0,
-                current_thread.native_id if hasattr(current_thread, "native_id") else 0,
-                current_thread.name,
-            )
+            # Collect frames as tuples (func, filename, lineno)
+            tb = exc_traceback
+            frames = []
+            max_frames = self.max_nframe
+            while tb is not None and len(frames) < max_frames:
+                code = tb.tb_frame.f_code
+                frames.append((code.co_name, code.co_filename, tb.tb_lineno))
+                tb = tb.tb_next
 
-            # Add stack frames; reversed
-            for frame in reversed(frames):
-                handle.push_frame(
-                    frame["function"],
-                    frame["filename"],
-                    0,  # address
-                    frame["lineno"],
-                )
+            # Push in reverse order (innermost last)
+            for i in range(len(frames) - 1, -1, -1):
+                func, filename, lineno = frames[i]
+                handle.push_frame(func, filename, 0, lineno)
 
             handle.flush_sample()
-
         except Exception:
-            # If we fail, drop the sample to avoid memory leak
             handle.drop_sample()
             raise
 
@@ -290,5 +209,4 @@ class ExceptionCollector(collector.Collector):
         pass
 
     def get_stats(self) -> dict:
-        with self._lock:
-            return self._stats.copy()
+        return {"total_exceptions": self._total_exceptions, "sampled_exceptions": self._sampled_exceptions}
