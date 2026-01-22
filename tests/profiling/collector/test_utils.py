@@ -4,8 +4,12 @@ import asyncio
 import os
 from typing import Any
 from typing import Coroutine
+from typing import TypeVar
 
 from ddtrace.internal.datadog.profiling import ddup
+
+
+T = TypeVar("T")
 
 
 def init_ddup(test_name: str) -> None:
@@ -26,12 +30,12 @@ def init_ddup(test_name: str) -> None:
     ddup.start()
 
 
-def async_run(coro: Coroutine[Any, Any, Any]) -> None:
+def async_run(coro: Coroutine[Any, Any, T]) -> T:
     use_uvloop = os.environ.get("USE_UVLOOP", "0") == "1"
 
     if use_uvloop:
         import uvloop
 
-        uvloop.run(coro)
+        return uvloop.run(coro)
     else:
-        asyncio.run(coro)
+        return asyncio.run(coro)
