@@ -483,7 +483,7 @@ class PromptOptimization:
         self._optimization_task = optimization_task
         self._dataset = dataset
         self._evaluators = evaluators
-        self._summary_evaluators = summary_evaluators or []
+        self._summary_evaluators = summary_evaluators
         self._stopping_condition = stopping_condition
         self._labelization_function = labelization_function
         self._compute_score = compute_score
