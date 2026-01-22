@@ -116,7 +116,7 @@ class OptimizationIteration:
             )
             return self.current_prompt
 
-        # Step 5: Return improved prompt
+        # Step 4: Return improved prompt
         return improved_prompt
 
     def _load_system_prompt(self) -> str:
