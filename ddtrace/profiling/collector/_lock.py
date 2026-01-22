@@ -95,13 +95,9 @@ class _ProfiledLock:
         self.max_nframes: int = max_nframes
         self.capture_sampler: collector.CaptureSampler = capture_sampler
         # Frame depth: 0=__init__, 1=_profiled_allocate_lock, 2=_LockAllocatorWrapper.__call__, 3=caller
-        try:
-            frame: FrameType = sys._getframe(3)
-            code: CodeType = frame.f_code
-            self.init_location: str = f"{os.path.basename(code.co_filename)}:{frame.f_lineno}"
-        except ValueError:
-            # Stack too shallow (e.g., direct instantiation in tests or shallow call context)
-            self.init_location = "unknown:0"
+        frame: FrameType = sys._getframe(3)
+        code: CodeType = frame.f_code
+        self.init_location: str = f"{os.path.basename(code.co_filename)}:{frame.f_lineno}"
         self.acquired_time: Optional[int] = None
         self.name: Optional[str] = None
         # If True, this lock is internal to another sync primitive (e.g., Lock inside Semaphore)

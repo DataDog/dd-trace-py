@@ -63,7 +63,8 @@ CollectorTypeClass = Type[CollectorTypeInst]
 _test_global_lock: LockTypeInst
 
 
-class TestBar: ...
+class TestBar:
+    pass
 
 
 _test_global_bar_instance: TestBar
@@ -282,7 +283,9 @@ def test_lock_gevent_tasks() -> None:
         expected_filename: str = "test_threading.py"
         linenos: LineNo = get_lock_linenos(test_name)
 
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)  # pyright: ignore[reportInvalidTypeForm]
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(  # pyright: ignore[reportInvalidTypeForm]
+            output_filename
+        )
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
@@ -546,37 +549,6 @@ def test_safe_for_instrumentation_decorator_handles_shallow_stack() -> None:
         start = time.monotonic_ns()
         end = time.monotonic_ns()
         profiled_lock._flush_sample(start, end, is_acquire=False)
-
-    ddup.upload()
-
-
-def test_profiled_lock_init_handles_shallow_stack() -> None:
-    """
-    Test that _ProfiledLock constructor doesn't crash when sys._getframe raises ValueError,
-    which occurs when the call stack is too shallow.
-    """
-    from ddtrace.profiling import collector as profiling_collector
-
-    real_lock = threading.Lock()
-    capture_sampler = profiling_collector.CaptureSampler(capture_pct=100)
-
-    # Mock sys._getframe at MODULE level (not globally) to avoid affecting pytest/other code
-    with mock.patch(
-        "ddtrace.profiling.collector._lock.sys._getframe",
-        side_effect=ValueError("call stack is not deep enough"),
-    ):
-        profiled_lock = _ProfiledLock(
-            wrapped=real_lock,
-            tracer=None,
-            max_nframes=64,
-            capture_sampler=capture_sampler,
-        )
-
-    assert profiled_lock.acquire()
-    profiled_lock.release()
-    assert profiled_lock.init_location == "unknown:0"
-
-    ddup.upload()
 
 
 def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
@@ -1621,11 +1593,13 @@ class BaseSemaphoreTest(BaseThreadingLockCollectorTest):
             # Create a regular lock from user code
             regular_lock: LockTypeInst = threading.Lock()
             assert hasattr(regular_lock, "is_internal"), "Lock should be wrapped with is_internal attribute"
-            assert not regular_lock.is_internal, f"Regular lock should NOT be internal, got: {regular_lock.is_internal}"  # pyright: ignore[reportAttributeAccessIssue]
+            # pyright: ignore[reportAttributeAccessIssue]
+            assert not regular_lock.is_internal, f"Regular lock should NOT be internal, got: {regular_lock.is_internal}"
 
             # Create a semaphore-like lock - it should NOT be internal
             sem: LockTypeInst = self.lock_class(1)
-            assert not sem.is_internal, f"{lock_type_name} should NOT be internal, got: {sem.is_internal}"  # pyright: ignore[reportAttributeAccessIssue]
+            # pyright: ignore[reportAttributeAccessIssue]
+            assert not sem.is_internal, f"{lock_type_name} should NOT be internal, got: {sem.is_internal}"
 
             # Access the internal lock (Semaphore-like -> Condition -> Lock)
             # The Condition is at sem._cond, and its lock is at sem._cond._lock
