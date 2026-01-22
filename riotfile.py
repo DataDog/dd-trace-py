@@ -1216,6 +1216,7 @@ venv = Venv(
                 "blinker": latest,
                 "pytest-randomly": latest,
             },
+            env={"DD_GIT_REPOSITORY_URL": "ffffff"},
             venvs=[
                 Venv(
                     pkgs={
