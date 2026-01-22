@@ -2,6 +2,7 @@ import json
 import threading
 from typing import Dict
 from typing import Optional
+from typing import Set
 from urllib.parse import quote
 from urllib.parse import urlencode
 
@@ -17,6 +18,7 @@ from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._prompts.cache import HotCache
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
+from ddtrace.llmobs._prompts.prompt import _extract_template
 from ddtrace.llmobs.types import PromptLike
 
 
@@ -65,7 +67,7 @@ class PromptManager:
         )
         self._warm_cache = warm_cache or WarmCache(enabled=file_cache_enabled, cache_dir=cache_dir)
 
-        self._refresh_in_progress: set = set()
+        self._refresh_in_progress: Set[str] = set()
         self._refresh_lock = threading.Lock()
 
     def get_prompt(
@@ -273,18 +275,12 @@ class PromptManager:
         """Parse the API response into a ManagedPrompt."""
         try:
             data = json.loads(body)
-            template = data.get("template")
-            if template is None:
-                template = data.get("chat_template")
-            if template is None:
-                template = []
-
             return ManagedPrompt(
-                prompt_id=data.get("prompt_id", prompt_id),
+                id=data.get("prompt_id", prompt_id),
                 version=data.get("version", "unknown"),
                 label=data.get("label", label),
                 source="registry",
-                template=template,
+                template=_extract_template(data, default=[]),
                 variables=data.get("variables", []),
             )
         except (json.JSONDecodeError, KeyError, TypeError) as e:
@@ -298,8 +294,6 @@ class PromptManager:
         fallback: PromptLike = None,
     ) -> ManagedPrompt:
         """Create a fallback prompt when fetch fails."""
-        if fallback is None:
-            log.warning("Using empty fallback for prompt %s (label=%s)", prompt_id, label)
-        else:
-            log.warning("Using user-provided fallback for prompt %s (label=%s)", prompt_id, label)
+        fallback_type = "user-provided" if fallback else "empty"
+        log.warning("Using %s fallback for prompt %s (label=%s)", fallback_type, prompt_id, label)
         return ManagedPrompt.from_fallback(prompt_id, label, fallback)
