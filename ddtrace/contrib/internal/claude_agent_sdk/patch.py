@@ -141,7 +141,9 @@ def traced_receive_messages(claude_agent_sdk, _pin, func, instance, args, kwargs
         except Exception:
             if span:
                 span.set_exc_info(*sys.exc_info())
-                integration.llmobs_set_tags(span, args=query_args, kwargs=query_kwargs, response=None, operation="request")
+                integration.llmobs_set_tags(
+                    span, args=query_args, kwargs=query_kwargs, response=None, operation="request"
+                )
                 span.finish()
                 instance._datadog_span = None
             raise
