@@ -57,10 +57,14 @@ include:
 tests-gen:
   stage: tests
   extends: .testrunner
+  variables:
+    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   script:
+    - |
+      echo "UNPIN_DEPENDENCIES: ${UNPIN_DEPENDENCIES:-}"
     - |
       if [ -z ${GH_TOKEN} ]
       then
@@ -76,6 +80,8 @@ tests-gen:
 run-tests-trigger:
  stage: tests
  needs: [ tests-gen ]
+ variables:
+   UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
  # Allow the child job to fail if explicitly asked
  rules:
    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"

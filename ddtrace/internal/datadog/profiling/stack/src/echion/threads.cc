@@ -1,5 +1,7 @@
 #include <echion/threads.h>
 
+#include <echion/echion_sampler.h>
+
 #include <algorithm>
 #include <optional>
 
@@ -190,8 +192,9 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
                 //       actually was on CPU when the Python Thread Stack was captured. One way to work around this
                 //       may be to look at every Task Stack and match it against the Thread Stack. This would be
                 //       somewhat costly though, and so far I have not seen a single instance of this race condition.
-                size_t frames_to_push =
-                  (python_stack.size() > task_stack_size) ? python_stack.size() - task_stack_size : 0;
+                size_t frames_to_push = (python_stack.size() > upper_python_stack_size + task_stack_size)
+                                          ? python_stack.size() - upper_python_stack_size - task_stack_size
+                                          : 0;
                 for (size_t i = 0; i < frames_to_push; i++) {
                     const auto& python_frame = python_stack[frames_to_push - i - 1];
                     stack.push_front(python_frame);
@@ -624,18 +627,29 @@ Result<void>
 ThreadInfo::update_cpu_time()
 {
 #if defined PL_LINUX
-    struct timespec ts;
-    if (clock_gettime(cpu_clock_id, &ts)) {
+    struct timespec ts1;
+    if (clock_gettime(cpu_clock_id, &ts1)) {
         // If the clock is invalid, we skip updating the CPU time.
         // This can happen if we try to compute CPU time for a thread that has exited.
         if (errno == EINVAL) {
+            this->running_ = false;
             return Result<void>::ok();
         }
 
         return ErrorKind::CpuTimeError;
     }
 
-    this->cpu_time = TS_TO_MICROSECOND(ts);
+    this->cpu_time = TS_TO_MICROSECOND(ts1);
+
+    // Determine if running by checking if CPU time advances between two back-to-back
+    // measurements. This is done here to avoid a separate is_running() call with
+    // its own syscalls (reduces 3 syscalls per thread to 2).
+    struct timespec ts2;
+    if (clock_gettime(cpu_clock_id, &ts2) != 0) {
+        this->running_ = false;
+    } else {
+        this->running_ = (ts1.tv_sec != ts2.tv_sec || ts1.tv_nsec != ts2.tv_nsec);
+    }
 #elif defined PL_DARWIN
     thread_basic_info_data_t info;
     mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
@@ -646,6 +660,7 @@ ThreadInfo::update_cpu_time()
         // If the thread is invalid, we skip updating the CPU time.
         // This can happen if we try to compute CPU time for a thread that has exited.
         if (kr == KERN_INVALID_ARGUMENT) {
+            this->running_ = false;
             return Result<void>::ok();
         }
 
@@ -653,10 +668,13 @@ ThreadInfo::update_cpu_time()
     }
 
     if (info.flags & TH_FLAGS_IDLE) {
+        this->running_ = false;
         return Result<void>::ok();
     }
 
     this->cpu_time = TV_TO_MICROSECOND(info.user_time) + TV_TO_MICROSECOND(info.system_time);
+    // On macOS, thread_info already gives us run_state, so no need to check if the clock is advancing
+    this->running_ = (info.run_state == TH_STATE_RUNNING);
 #endif
 
     return Result<void>::ok();
@@ -665,40 +683,15 @@ ThreadInfo::update_cpu_time()
 bool
 ThreadInfo::is_running()
 {
-#if defined PL_LINUX
-    struct timespec ts1, ts2;
-
-    // Get two back-to-back times
-    if (clock_gettime(cpu_clock_id, &ts1) != 0)
-        return false;
-    if (clock_gettime(cpu_clock_id, &ts2) != 0)
-        return false;
-
-    // If the CPU time has advanced, the thread is running
-    return (ts1.tv_sec != ts2.tv_sec || ts1.tv_nsec != ts2.tv_nsec);
-
-#elif defined PL_DARWIN
-    thread_basic_info_data_t info;
-    mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
-    kern_return_t kr = thread_info(
-      static_cast<thread_act_t>(this->mach_port), THREAD_BASIC_INFO, reinterpret_cast<thread_info_t>(&info), &count);
-
-    if (kr != KERN_SUCCESS)
-        return false;
-
-    return info.run_state == TH_STATE_RUNNING;
-
-#endif
+    // Running state is computed in update_cpu_time by taking two back-to-back measurements of the CPU time.
+    return this->running_;
 }
 
 void
-for_each_thread(InterpreterInfo& interp, PyThreadStateCallback callback)
+for_each_thread(EchionSampler& echion, InterpreterInfo& interp, PyThreadStateCallback callback)
 {
     std::unordered_set<PyThreadState*> threads;
     std::unordered_set<PyThreadState*> seen_threads;
-
-    threads.clear();
-    seen_threads.clear();
 
     // Start from the thread list head
     threads.insert(static_cast<PyThreadState*>(interp.tstate_head));
@@ -725,45 +718,19 @@ for_each_thread(InterpreterInfo& interp, PyThreadStateCallback callback)
             threads.insert(tstate.prev);
 
         {
-            const std::lock_guard<std::mutex> guard(thread_info_map_lock);
+            const std::lock_guard<std::mutex> guard(echion.thread_info_map_lock());
 
-            if (thread_info_map.find(tstate.thread_id) == thread_info_map.end()) {
-                // If the threading module was not imported in the target then
-                // we mistakenly take the hypno thread as the main thread. We
-                // assume that any missing thread is the actual main thread,
-                // provided we don't already have a thread with the name
-                // "MainThread". Note that this can also happen on shutdown, so
-                // we need to avoid doing anything in that case.
-#if PY_VERSION_HEX >= 0x030b0000
-                auto native_id = tstate.native_thread_id;
-#else
-                auto native_id = getpid();
-#endif
-                bool main_thread_tracked = false;
-                for (auto& kv : thread_info_map) {
-                    if (kv.second->name == "MainThread") {
-                        main_thread_tracked = true;
-                        break;
-                    }
-                }
-                if (main_thread_tracked)
-                    continue;
-
-                auto maybe_thread_info = ThreadInfo::create(tstate.thread_id, native_id, "MainThread");
-                if (!maybe_thread_info) {
-                    // We failed to create the thread info object so we skip it.
-                    // We'll likely try again later with the valid thread
-                    // information.
-                    continue;
-                }
-
-                thread_info_map.emplace(tstate.thread_id, std::move(*maybe_thread_info));
+            auto it = echion.thread_info_map().find(tstate.thread_id);
+            if (it == echion.thread_info_map().end()) {
+                // We failed to find ThreadInfo for thread_id, maybe there's a
+                // race condition between this call and `register_thread()`.
+                continue;
             }
 
             // Update the tstate_addr for thread info, so we can access
             // asyncio_tasks_head field from `_PyThreadStateImpl` struct
             // later when we unwind tasks.
-            auto thread_info = thread_info_map.find(tstate.thread_id)->second.get();
+            auto thread_info = it->second.get();
             thread_info->tstate_addr = reinterpret_cast<uintptr_t>(tstate_addr);
 
             // Call back with the copied thread state
