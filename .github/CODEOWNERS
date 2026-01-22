@@ -7,14 +7,18 @@
 ddtrace/ext/                        @DataDog/apm-core-python @DataDog/apm-idm-python
 ddtrace/contrib/                    @DataDog/apm-core-python @DataDog/apm-idm-python
 ddtrace/internal/schema/            @DataDog/apm-core-python @DataDog/apm-idm-python
+ddtrace/_monkey.py                  @DataDog/apm-core-python @DataDog/apm-idm-python
 tests/contrib/                      @DataDog/apm-core-python @DataDog/apm-idm-python
 tests/internal/peer_service         @DataDog/apm-core-python @DataDog/apm-idm-python
 tests/internal/service_name         @DataDog/apm-core-python @DataDog/apm-idm-python
+tests/errortracking/                @DataDog/apm-idm-python
 tests/contrib/grpc                  @DataDog/apm-idm-python @DataDog/asm-python
+tests/integration/                  @DataDog/apm-core-python
 
 # Files which can be approved by anyone
 # DEV: This helps not requiring apm-core-python to review new files added
 #      or files which changes often with most PRs
+ddtrace/constants.py                @DataDog/apm-python
 releasenotes/                       @DataDog/apm-python
 tests/snapshots/                    @DataDog/apm-python
 riotfile.py                         @DataDog/apm-python
@@ -25,80 +29,96 @@ ddtrace/internal/telemetry/         @DataDog/apm-python
 tests/telemetry                     @DataDog/apm-python
 
 # Guild
-setup.py                            @DataDog/python-guild
-setup.cfg                           @DataDog/python-guild
-pyproject.toml                      @DataDog/python-guild
-hatch.toml                          @DataDog/python-guild
-.readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
-README.md                           @DataDog/python-guild  @DataDog/apm-core-python
-mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-python
+# Root level config files
+AGENTS.md                           @DataDog/python-guild
+CODE_REVIEW.md                      @DataDog/python-guild
+MESSAGE.md                          @DataDog/python-guild
+PR_DESCRIPTION.md                   @DataDog/python-guild
+SECURITY.md                         @DataDog/python-guild
+conftest.py                         @DataDog/python-guild
+docker-compose.gpu.yml              @DataDog/python-guild
+docker-compose.yml                  @DataDog/python-guild
+repository.datadog.yml              @DataDog/python-guild
+sgconfig.yml                        @DataDog/python-guild
+static-analysis.datadog.yml         @DataDog/python-guild
+.gitlab-ci.yml                      @DataDog/python-guild  @DataDog/apm-core-python
 .circleci/                          @DataDog/python-guild  @DataDog/apm-core-python
 .github/                            @DataDog/python-guild  @DataDog/apm-core-python
 .gitlab/                            @DataDog/python-guild  @DataDog/apm-core-python
-.gitlab-ci.yml                      @DataDog/python-guild  @DataDog/apm-core-python
-scripts/update-system-tests-version.py @DataDog/python-guild  @DataDog/apm-core-python
+.readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
+README.md                           @DataDog/python-guild  @DataDog/apm-core-python
+hatch.toml                          @DataDog/python-guild
+mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-python
+pyproject.toml                      @DataDog/python-guild
+setup.cfg                           @DataDog/python-guild
+setup.py                            @DataDog/python-guild
+# ddtrace files
+ddtrace/_logger.py                  @DataDog/python-guild  @DataDog/apm-core-python
+ddtrace/auto.py                     @DataDog/python-guild  @DataDog/apm-core-python
+ddtrace/bootstrap/                  @DataDog/python-guild  @DataDog/apm-core-python
+ddtrace/commands/                   @DataDog/python-guild  @DataDog/apm-core-python
 ddtrace/internal/_file_queue.py     @DataDog/python-guild
 ddtrace/internal/_unpatched.py      @DataDog/python-guild
 ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
 ddtrace/internal/endpoints.py       @DataDog/python-guild  @DataDog/asm-python
 ddtrace/internal/settings/_config.py          @DataDog/python-guild  @DataDog/apm-sdk-capabilities-python
-docs/                               @DataDog/python-guild
-tests/utils.py                      @DataDog/python-guild
-tests/suitespec.yml                 @DataDog/python-guild  @DataDog/apm-core-python
-tests/contrib/suitespec.yml         @DataDog/python-guild
-tests/contrib/flask/app.py         @DataDog/python-guild
+ddtrace/vendor/                     @DataDog/python-guild  @DataDog/apm-core-python
+ddtrace/version.py                  @DataDog/python-guild  @DataDog/apm-core-python
+# tests files
+tests/commands/                     @DataDog/python-guild  @DataDog/apm-core-python
 tests/contrib/django/django1_app/urls.py @DataDog/python-guild
-tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
-scripts/bump_ddtrace.py             @DataDog/python-guild
+tests/contrib/flask/app.py         @DataDog/python-guild
+tests/contrib/suitespec.yml         @DataDog/python-guild
 tests/smoke_test.py                 @DataDog/python-guild
+tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
+tests/suitespec.yml                 @DataDog/python-guild  @DataDog/apm-core-python
+tests/utils.py                      @DataDog/python-guild
+# docs and scripts
+docs/                               @DataDog/python-guild
+scripts/bump_ddtrace.py             @DataDog/python-guild
+scripts/update-system-tests-version.py @DataDog/python-guild  @DataDog/apm-core-python
 
 # Core / Language Platform
 tests/internal                      @DataDog/apm-core-python
 tests/lib-injection                 @DataDog/apm-core-python
-tests/opentelemetry                 @DataDog/apm-core-python
-tests/opentracer                    @DataDog/apm-core-python
-tests/tracer                        @DataDog/apm-core-python
 
 # Test Visibility and related
+# ddtrace files
 ddtrace/contrib/internal/coverage                     @DataDog/ci-app-libraries
-ddtrace/contrib/internal/pytest                       @DataDog/ci-app-libraries
-ddtrace/contrib/internal/pytest_bdd                   @DataDog/ci-app-libraries
+ddtrace/contrib/internal/freezegun                    @DataDog/ci-app-libraries
+ddtrace/contrib/internal/pytest                        @DataDog/ci-app-libraries
+ddtrace/contrib/internal/pytest_bdd                    @DataDog/ci-app-libraries
 ddtrace/contrib/internal/pytest_benchmark             @DataDog/ci-app-libraries
 ddtrace/contrib/internal/unittest                     @DataDog/ci-app-libraries
-ddtrace/contrib/internal/pytest                       @DataDog/ci-app-libraries
-ddtrace/contrib/internal/pytest_bdd                   @DataDog/ci-app-libraries
-ddtrace/contrib/internal/pytest_benchmark             @DataDog/ci-app-libraries
-ddtrace/contrib/internal/unittest                     @DataDog/ci-app-libraries
+ddtrace/ext/ci.py                                     @DataDog/ci-app-libraries
+ddtrace/ext/git.py                                    @DataDog/ci-app-libraries @DataDog/apm-core-python
+ddtrace/ext/test.py                                   @DataDog/ci-app-libraries
+ddtrace/ext/test_visibility                            @DataDog/ci-app-libraries
+ddtrace/internal/ci_visibility                        @DataDog/ci-app-libraries
+ddtrace/internal/codeowners.py                        @DataDog/apm-core-python @DataDog/ci-app-libraries
+ddtrace/internal/coverage                             @DataDog/apm-core-python @DataDog/ci-app-libraries
+ddtrace/internal/selenium                             @DataDog/ci-app-libraries
+ddtrace/internal/test_visibility                      @DataDog/ci-app-libraries
+ddtrace/sourcecode/                                   @DataDog/ci-app-libraries
+ddtrace/testing/                                      @DataDog/ci-app-libraries
+# tests files
+tests/ci_visibility                                   @DataDog/ci-app-libraries
 tests/contrib/asynctest                               @DataDog/ci-app-libraries
+tests/contrib/freezegun                               @DataDog/ci-app-libraries
 tests/contrib/pytest                                  @DataDog/ci-app-libraries
 tests/contrib/pytest_bdd                              @DataDog/ci-app-libraries
 tests/contrib/pytest_benchmark                        @DataDog/ci-app-libraries
 tests/contrib/pytest_flaky                            @DataDog/ci-app-libraries
-tests/contrib/unittest                                @DataDog/ci-app-libraries
-tests/integration/test_integration_civisibility.py    @DataDog/ci-app-libraries
-ddtrace/ext/ci.py                                     @DataDog/ci-app-libraries
-ddtrace/ext/test_visibility                           @DataDog/ci-app-libraries
-ddtrace/ext/test.py                                   @DataDog/ci-app-libraries
-ddtrace/internal/ci_visibility                        @DataDog/ci-app-libraries
-ddtrace/internal/test_visibility                      @DataDog/ci-app-libraries
-ddtrace/internal/codeowners.py                        @DataDog/apm-core-python @DataDog/ci-app-libraries
-ddtrace/internal/coverage                             @DataDog/apm-core-python @DataDog/ci-app-libraries
-tests/internal/test_codeowners.py                     @DataDog/ci-app-libraries
-tests/ci_visibility                                   @DataDog/ci-app-libraries
-tests/coverage                                        @DataDog/apm-core-python @DataDog/ci-app-libraries
-tests/tracer/test_ci.py                               @DataDog/ci-app-libraries
-ddtrace/ext/git.py                                    @DataDog/ci-app-libraries @DataDog/apm-core-python
-scripts/ci_visibility/*                               @DataDog/ci-app-libraries
-# Test Visibility owns the freezegun integration because it's the team most affected by it
-ddtrace/contrib/internal/freezegun                    @DataDog/ci-app-libraries
-tests/contrib/freezegun                               @DataDog/ci-app-libraries
-# Test Visibility: Selenium integration
-ddtrace/internal/selenium                             @DataDog/ci-app-libraries
 tests/contrib/selenium                                @DataDog/ci-app-libraries
+tests/contrib/unittest                                @DataDog/ci-app-libraries
+tests/coverage                                        @DataDog/apm-core-python @DataDog/ci-app-libraries
+tests/integration/test_integration_civisibility.py    @DataDog/ci-app-libraries
+tests/internal/test_codeowners.py                     @DataDog/ci-app-libraries
 tests/snapshots/test_selenium_*                       @DataDog/ci-app-libraries
-# New Test Optimization plugin
-ddtrace/testing/                                      @DataDog/ci-app-libraries
 tests/testing/                                        @DataDog/ci-app-libraries
+tests/tracer/test_ci.py                               @DataDog/ci-app-libraries
+# scripts
+scripts/ci_visibility/*                               @DataDog/ci-app-libraries
 
 # Debugger
 ddtrace/debugging/                  @DataDog/debugger-python
@@ -115,25 +135,29 @@ tests/internal/symbol_db/           @DataDog/debugger-python
 .gitlab/tests/debugging.yml         @DataDog/debugger-python
 
 # ASM
+# Config and benchmarks
 .cursor/rules/appsec.mdc            @DataDog/asm-python
 .cursor/rules/iast.mdc              @DataDog/asm-python
 .gitlab/tests/appsec.yml            @DataDog/asm-python
 benchmarks/appsec*                  @DataDog/asm-python
-benchmarks/bm/iast_utils*           @DataDog/asm-python
-benchmarks/bm/iast_fixtures*        @DataDog/asm-python
 benchmarks/base/aspects_benchmarks_generate.py @DataDog/asm-python
+benchmarks/bm/iast_fixtures*        @DataDog/asm-python
+benchmarks/bm/iast_utils*           @DataDog/asm-python
+# ddtrace files
 ddtrace/appsec/                     @DataDog/asm-python
-ddtrace/internal/settings/asm.py             @DataDog/asm-python
-ddtrace/contrib/internal/subprocess/         @DataDog/asm-python
 ddtrace/contrib/internal/flask_login/        @DataDog/asm-python
-ddtrace/contrib/internal/webbrowser          @DataDog/asm-python
+ddtrace/contrib/internal/subprocess/         @DataDog/asm-python
 ddtrace/contrib/internal/urllib              @DataDog/asm-python
+ddtrace/contrib/internal/webbrowser          @DataDog/asm-python
 ddtrace/internal/_exceptions.py     @DataDog/asm-python
 ddtrace/internal/appsec/            @DataDog/asm-python
 ddtrace/internal/iast/              @DataDog/asm-python
+ddtrace/internal/settings/asm.py             @DataDog/asm-python
+# tests files
 tests/appsec/                       @DataDog/asm-python
 tests/contrib/subprocess            @DataDog/asm-python
 tests/snapshots/tests*appsec*.json  @DataDog/asm-python
+# scripts
 scripts/iast/*                      @DataDog/asm-python
 
 
