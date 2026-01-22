@@ -565,7 +565,7 @@ def store_waf_results_data(data) -> None:
     env.waf_triggers.extend(data)
 
 
-def start_context(span: Span, rc_products: str):
+def start_context(span: Span, rc_products: str) -> None:
     if asm_config._asm_enabled:
         # it should only be called at start of a core context, when ASM_Env is not set yet
         core.set_item(_ASM_CONTEXT, ASM_Environment(span=span, rc_products=rc_products))
@@ -640,6 +640,20 @@ def _call_waf(integration, *_) -> None:
         return
     info = f"{integration}::srb_on_response"
     logger.debug(info, extra=log_extra)
+    call_waf_callback()
+
+
+def tornado_call_waf_response(integration: str, handler: object):
+    if not asm_config._asm_enabled:
+        return
+    info = f"{integration}::srb_on_response"
+    logger.debug(info, extra=log_extra)
+    status_code = getattr(handler, "_status_code", None)
+    if isinstance(status_code, int):
+        status_code = str(status_code)
+    headers = getattr(handler, "_headers", None)
+    set_waf_address(SPAN_DATA_NAMES.RESPONSE_STATUS, status_code)
+    set_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, headers)
     call_waf_callback()
 
 
@@ -738,3 +752,5 @@ def asm_listen():
     core.on("django.traced_get_response.pre", set_block_request_callable)
 
     core.on("tornado.start_request", _call_waf_first)
+    core.on("tornado.send_response", tornado_call_waf_response)
+    core.on("context.ended.request.tornado", _on_context_ended)

@@ -16,7 +16,7 @@ from .constants import REQUEST_SPAN_KEY
 from .stack_context import TracerStackContext
 
 
-def execute(func, handler, args, kwargs):
+async def execute(func, handler, args, kwargs):
     """
     Wrap the handler execute method so that the entire request is within the same
     ``TracerStackContext``. This simplifies users code when the automatic ``Context``
@@ -53,16 +53,19 @@ def execute(func, handler, args, kwargs):
             query_parameters = (
                 request.arguments if hasattr(request, "arguments") else getattr(request, "query_arguments", {})
             )
-            headers = getattr(request, "headers", {})
+            headers = dict(getattr(request, "headers", {}))
+            cookies = {k: handler.get_cookie(k) for k in handler.cookies.keys()}
+
+            headers.pop("Cookie", None)  # Remove Cookie from headers to avoid duplication
+            headers.pop("cookie", None)  # Remove Cookie from headers to avoid duplication
 
             ctx.set_item("req_span", req_span)
             core.dispatch("web.request.start", (ctx, config.tornado))
 
-            http_route = _find_route(handler.application.default_router.rules, handler.request)
+            http_route, path_params = _find_route(handler.application.default_router.rules, handler.request)
             if http_route is not None and isinstance(http_route, str):
                 req_span._set_tag_str("http.route", http_route)
-            setattr(handler.request, REQUEST_SPAN_KEY, req_span)
-
+            setattr(request, REQUEST_SPAN_KEY, req_span)
             trace_utils.set_http_meta(
                 req_span,
                 config.tornado,
@@ -75,9 +78,12 @@ def execute(func, handler, args, kwargs):
                 peer_ip=request.remote_ip,
                 route=http_route,
                 headers_are_case_sensitive=True,
+                request_cookies=cookies,
+                request_path_params=path_params,
             )
-            core.dispatch("tornado.start_request", ("tornado",))
-            return func(*args, **kwargs)
+            core.dispatch("tornado.start_request", ("tornado", request))
+            res = await func(*args, **kwargs)
+            return res
 
 
 def _find_route(initial_rule_set, request):
@@ -91,13 +97,22 @@ def _find_route(initial_rule_set, request):
 
     while len(rules) > 0:
         rule = rules.popleft()
-        if rule.matcher.match(request) is not None:
+        if (m := rule.matcher.match(request)) is not None:
             if hasattr(rule.matcher, "_path"):
-                return rule.matcher._path
+                return rule.matcher._path, m.get("path_kwargs", {})
             elif hasattr(rule.target, "rules"):
                 rules.extendleft(rule.target.rules)
 
-    return "^$"
+    return "^$", {}
+
+
+def _on_flush(func, handler, args, kwargs):
+    """
+    Wrap the ``RequestHandler.flush`` method.
+    """
+    # safe-guard: expected arguments -> set_status(self, status_code, reason=None)
+    core.dispatch("tornado.send_response", ("tornado", handler))
+    return func(*args, **kwargs)
 
 
 def on_finish(func, handler, args, kwargs):
@@ -114,6 +129,7 @@ def on_finish(func, handler, args, kwargs):
         # space here
         klass = handler.__class__
         request_span.resource = "{}.{}".format(klass.__module__, klass.__name__)
+        core.dispatch("tornado.finish_request", ("tornado", request))
         core.dispatch(
             "web.request.finish",
             (

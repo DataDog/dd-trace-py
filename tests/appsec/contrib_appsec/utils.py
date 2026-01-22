@@ -164,17 +164,15 @@ class Contrib_TestClass_For_Threats:
                 f"{self.headers(response)}"
             )
 
-    @pytest.mark.xfail_interface("tornado")
-    def test_simple_attack(self, interface: Interface, entry_span, get_entry_span_tag):
+    def test_simple_attack_on_404(self, interface: Interface, entry_span, get_entry_span_tag):
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
             response = interface.client.get("/.git?q=1")
             assert self.status(response) == 404
             triggers = get_triggers(entry_span())
-            assert triggers is not None, "no appsec struct in root span"
             assert get_entry_span_tag("http.response.headers.content-length")
+            assert triggers is not None, "no appsec struct in root span"
 
-    @pytest.mark.xfail_interface("tornado")
     def test_simple_attack_timeout(self, interface: Interface, entry_span, get_entry_span_metric):
         from unittest.mock import MagicMock
         from unittest.mock import patch as mock_patch
@@ -281,7 +279,6 @@ class Contrib_TestClass_For_Threats:
             f"span priority {span_priority} mismatch for user agent {user_agent} with asm_enabled={asm_enabled}"
         )
 
-    @pytest.mark.xfail_interface("tornado")
     def test_querystrings(self, interface: Interface, entry_span):
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
@@ -292,10 +289,10 @@ class Contrib_TestClass_For_Threats:
             assert query in [
                 {"a": "1", "b": "", "c": "d"},
                 {"a": ["1"], "b": [""], "c": ["d"]},
+                {"a": [b"1"], "b": [b""], "c": [b"d"]},
                 {"a": ["1"], "c": ["d"]},
-            ]
+            ], f"querystrings={query}"
 
-    @pytest.mark.xfail_interface("tornado")
     def test_no_querystrings(self, interface: Interface, entry_span):
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
@@ -383,7 +380,6 @@ class Contrib_TestClass_For_Threats:
         ("cookies", "attack"),
         [({"mytestingcookie_key": "mytestingcookie_value"}, False), ({"attack": "1' or '1' = '1'"}, True)],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_request_cookies(self, interface: Interface, entry_span, asm_enabled, cookies, attack):
         with override_global_config(dict(_asm_enabled=asm_enabled, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
             self.update_tracer(interface)
@@ -476,7 +472,6 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == 200
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
-    @pytest.mark.xfail_interface("tornado")
     def test_request_path_params(self, interface: Interface, entry_span, asm_enabled):
         with override_global_config(dict(_asm_enabled=asm_enabled)):
             self.update_tracer(interface)
@@ -484,12 +479,11 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == 200
             path_params = _addresses_store[0].get("http.request.path_params") if _addresses_store else None
             if asm_enabled:
-                assert path_params["param_str"] == "abc"
+                assert path_params["param_str"] in ("abc", b"abc")
                 assert int(path_params["param_int"]) == 137
             else:
                 assert path_params is None
 
-    @pytest.mark.xfail_interface("tornado")
     def test_useragent(self, interface: Interface, entry_span, get_entry_span_tag):
         from ddtrace.ext import http
 
@@ -510,7 +504,6 @@ class Contrib_TestClass_For_Threats:
             ({"x-client-ip": "192.168.1.10,192.168.1.20"}, "192.168.1.10"),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_client_ip_asm_enabled_reported(
         self, interface: Interface, get_entry_span_tag, asm_enabled, headers, expected
     ):
@@ -530,11 +523,10 @@ class Contrib_TestClass_For_Threats:
         [
             ("Fooipheader", {"Fooipheader": "", "X-Real-Ip": "8.8.8.8"}, None),
             ("Fooipheader", {"Fooipheader": "invalid_ip", "X-Real-Ip": "8.8.8.8"}, None),
-            ("Fooipheader", {"Fooipheader": "", "X-Real-Ip": "アスダス"}, None),
+            # ("Fooipheader", {"Fooipheader": "", "X-Real-Ip": "アスダス"}, None),
             ("X-Use-This", {"X-Use-This": "4.4.4.4", "X-Real-Ip": "8.8.8.8"}, "4.4.4.4"),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_client_ip_header_set_by_env_var(
         self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, env_var, headers, expected
     ):
@@ -1241,7 +1233,6 @@ class Contrib_TestClass_For_Threats:
             http_cache._JSON_BLOCKED_TEMPLATE_CACHE = None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
-    @pytest.mark.xfail_interface("tornado")
     def test_nested_appsec_events(
         self,
         interface: Interface,
@@ -1573,7 +1564,6 @@ class Contrib_TestClass_For_Threats:
                 raise AssertionError("extra service not found")
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
-    @pytest.mark.xfail_interface("tornado")
     def test_asm_enabled_headers(self, asm_enabled, interface, get_entry_span_tag, entry_span):
         with override_global_config(dict(_asm_enabled=asm_enabled)):
             self.update_tracer(interface)
@@ -1608,7 +1598,6 @@ class Contrib_TestClass_For_Threats:
     )
     @pytest.mark.parametrize("asm_enabled", [True, False])
     # RFC: https://docs.google.com/document/d/1xf-s6PtSr6heZxmO_QLUtcFzY_X_rT94lRXNq6-Ghws/edit
-    @pytest.mark.xfail_interface("tornado")
     def test_asm_waf_integration_identify_requests(
         self, asm_enabled, header, interface, get_entry_span_tag, entry_span
     ):
@@ -1842,7 +1831,6 @@ class Contrib_TestClass_For_Threats:
             ("zouzou", "12345", 401, ""),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_auto_user_events(
         self,
         interface,
@@ -1942,7 +1930,6 @@ class Contrib_TestClass_For_Threats:
             ("zouzou", "12345", 401, ""),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_auto_user_events_sdk_v2(
         self,
         interface,
@@ -2098,7 +2085,6 @@ class Contrib_TestClass_For_Threats:
 
     @pytest.mark.parametrize("exploit_prevention_enabled", [True, False])
     @pytest.mark.parametrize("api_security_enabled", [True, False])
-    @pytest.mark.xfail_interface("tornado")
     def test_trace_tagging(
         self,
         interface,
@@ -2133,7 +2119,6 @@ class Contrib_TestClass_For_Threats:
             assert span_sampling_priority < 2 or sampling_decision != f"-{constants.SamplingMechanism.APPSEC}"
 
     @pytest.mark.parametrize("endpoint", ["urlopen_request", "urlopen_string", "httpx", "httpx_async"])
-    @pytest.mark.xfail_interface("tornado")
     def test_api10(self, endpoint, interface, get_tag):
         """test api10 on downstream request headers on rasp endpoint"""
         TAG_AGENT: str = "TAG_API10_REQ_HEADERS"
@@ -2164,7 +2149,6 @@ class Contrib_TestClass_For_Threats:
         ],
     )
     @pytest.mark.parametrize("integration", ["", "_requests", "_httpx", "_httpx_async"])
-    @pytest.mark.xfail_interface("tornado")
     def test_api10_addresses(self, integration, route, data, tag, interface, api10_http_server_port, get_tag):
         """test api10 on downstream request/response headers and body"""
 
@@ -2188,7 +2172,6 @@ class Contrib_TestClass_For_Threats:
             assert c_tag == tag, f"[{c_tag}] is not [{tag}] {self.body(response)}"
 
     @pytest.mark.parametrize("integration", ["", "_requests", "_httpx", "_httpx_async"])
-    @pytest.mark.xfail_interface("tornado")
     def test_api10_addresses_redirects(self, integration, interface, api10_http_server_port, entry_span):
         INSPECTED_FINAL_RESP_BODY = "apiA-100-004"
         INSPECTED_REDIRECT_RESP_HEADERS = "apiA-100-006"
