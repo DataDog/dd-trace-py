@@ -18,6 +18,8 @@ variables:
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v90830366-2b17cbb-profiling_native"
+  # Repository URL for CI Visibility
+  DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
 
 default:
   interruptible: true
