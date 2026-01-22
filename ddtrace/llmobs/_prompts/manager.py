@@ -238,11 +238,6 @@ class PromptManager:
 
             if response.status == 200:
                 return self._parse_response(body, prompt_id, label)
-            elif response.status == 304:
-                # TODO: Future optimization - implement HTTP 304 Not Modified support.
-                # Send local version hash in If-None-Match header, server returns 304 if unchanged.
-                # This reduces payload size for unchanged prompts.
-                return None
             elif response.status == 404:
                 log.warning("Prompt not found: %s (label=%s)", prompt_id, label)
                 raise PromptNotFoundError(f"Prompt not found: {prompt_id} (label={label})")
