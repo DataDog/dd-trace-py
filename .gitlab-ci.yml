@@ -18,6 +18,8 @@ variables:
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v90830366-2b17cbb-profiling_native"
+  # Repository URL for CI Visibility
+  DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
 
 default:
   interruptible: true
@@ -55,10 +57,14 @@ include:
 tests-gen:
   stage: tests
   extends: .testrunner
+  variables:
+    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   script:
+    - |
+      echo "UNPIN_DEPENDENCIES: ${UNPIN_DEPENDENCIES:-}"
     - |
       if [ -z ${GH_TOKEN} ]
       then
@@ -419,7 +425,6 @@ lib_injection_tests:
   tags: [ "arch:amd64" ]
   image: ${PROFILING_NATIVE_IMAGE}
   timeout: 90m
-  allow_failure: true
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
     CARGO_BUILD_JOBS: "12"

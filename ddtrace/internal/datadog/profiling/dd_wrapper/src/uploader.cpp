@@ -101,29 +101,10 @@ Datadog::Uploader::upload()
         optional_process_tags_ptr = &process_tags_slice;
     }
 
-    auto build_res = ddog_prof_Exporter_Request_build(
-      &ddog_exporter,
-      &encoded_profile,
-      // files_to_compress_and_export
-      {
+    ddog_prof_Exporter_Slice_File files_to_compress = {
         .ptr = reinterpret_cast<const ddog_prof_Exporter_File*>(to_compress_files.data()),
         .len = static_cast<uintptr_t>(to_compress_files.size()),
-      },
-      ddog_prof_Exporter_Slice_File_empty(), // files_to_export_unmodified
-      nullptr,                               // optional_additional_tags
-      optional_process_tags_ptr,
-      &internal_metadata_json_slice,
-      nullptr // optional_info_json
-    );
-
-    if (build_res.tag ==
-        DDOG_PROF_REQUEST_RESULT_ERR_HANDLE_REQUEST) { // NOLINT (cppcoreguidelines-pro-type-union-access)
-        auto err = build_res.err;                      // NOLINT (cppcoreguidelines-pro-type-union-access)
-        errmsg = err_to_msg(&err, "Error building request");
-        std::cerr << errmsg << std::endl;
-        ddog_Error_drop(&err);
-        return false;
-    }
+    };
 
     bool ret = true;
     // The upload operation sets up some global state in libdatadog (the tokio runtime), so
@@ -146,9 +127,16 @@ Datadog::Uploader::upload()
             ddog_CancellationToken_drop(&current_cancel);
         }
 
-        // Build and check the response object
-        ddog_prof_Request* req = &build_res.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
-        ddog_prof_Result_HttpStatus res = ddog_prof_Exporter_send(&ddog_exporter, req, &new_cancel_clone_for_request);
+        // Build and send the request in one call
+        ddog_prof_Result_HttpStatus res = ddog_prof_Exporter_send_blocking(&ddog_exporter,
+                                                                           &encoded_profile,
+                                                                           files_to_compress,
+                                                                           nullptr, // optional_additional_tags
+                                                                           optional_process_tags_ptr,
+                                                                           &internal_metadata_json_slice,
+                                                                           nullptr, // optional_info_json
+                                                                           &new_cancel_clone_for_request);
+
         if (res.tag ==
             DDOG_PROF_RESULT_HTTP_STATUS_ERR_HTTP_STATUS) { // NOLINT (cppcoreguidelines-pro-type-union-access)
             auto err = res.err;                             // NOLINT (cppcoreguidelines-pro-type-union-access)
@@ -157,8 +145,8 @@ Datadog::Uploader::upload()
             ddog_Error_drop(&err);
             ret = false;
         }
-        ddog_prof_Exporter_Request_drop(req);
         ddog_CancellationToken_drop(&new_cancel_clone_for_request);
+        ddog_prof_Exporter_drop(&ddog_exporter);
     }
 
     return ret;
