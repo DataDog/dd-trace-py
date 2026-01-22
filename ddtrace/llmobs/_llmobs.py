@@ -951,9 +951,12 @@ class LLMObs(Service):
                             project name set in ``LLMObs.enable()``.
         :param tags: A dictionary of string key-value tag pairs to associate with the optimization.
         :param config: Configuration dictionary for the optimization. Must contain:
-                      - ``prompt``: Initial prompt template (string)
-                      - ``optimization_model_name``: Model to use for generating improvements (string)
-                      - ``model_name``: Model to use for executing the task (string)
+                          - ``prompt``: Initial prompt template
+                          - ``model_name`` (optional): Model to use for task execution
+                          - ``optimization_model_name`` (optional): Model to use for optimization execution
+                          - ``evaluation_output_format`` (optional): the output format wanted
+                          - ``runs`` (optional): The number of times to run the experiment, or, run the task for every dataset record the defined
+                                                 number of times.
                       Additional config values are passed through to the task function.
         :param max_iterations: Maximum number of optimization iterations to run. Default is 5.
         :param summary_evaluators: Optional list of summary evaluator functions that aggregate results

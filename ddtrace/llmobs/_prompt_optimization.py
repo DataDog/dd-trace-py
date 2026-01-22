@@ -142,7 +142,7 @@ class OptimizationIteration:
             template = f.read()
 
         # Replace {{EVALUATION_OUTPUT_FORMAT}} placeholder
-        output_format = self._config.get("evaluation_output_format")
+        output_format = self._config.get("evaluation_output_format") or "undefined"
         system_prompt = template.replace("{{EVALUATION_OUTPUT_FORMAT}}", output_format)
 
         # Add evaluation model information at the end
@@ -391,15 +391,24 @@ class OptimizationResult:
             f"Total iterations: {self.total_iterations}",
             f"Best iteration: {self.best_iteration}",
             f"Best score: {self.best_score:.4f}" if self.best_score is not None else "Best score: N/A",
-            "\nScore progression:",
         ]
 
+        # Add best iteration's summary evaluations
+        for iteration in self.iterations:
+            if iteration.get("iteration") == self.best_iteration:
+                summary_evals = iteration.get("summary_evaluations")
+                if summary_evals:
+                    lines.append(f"\nBest iteration summary evaluations:\n{summary_evals}")
+                break
+
+        lines.append("\nScore progression:")
         for iteration in self.iterations:
             iter_num = iteration.get("iteration", 0)
             score = iteration.get("score")
+            url = iteration.get('experiment_url')
             marker = " <- BEST" if iter_num == self.best_iteration else ""
             score_str = f"{score:.4f}" if score is not None else "N/A"
-            lines.append(f"  Iteration {iter_num}: {score_str}{marker}")
+            lines.append(f"Iteration {iter_num} (score: {score:.4f}): {url}{marker}")
 
         return "\n".join(lines)
 
@@ -450,7 +459,9 @@ class PromptOptimization:
                       - ``prompt``: Initial prompt template
                       - ``model_name`` (optional): Model to use for task execution
                       - ``optimization_model_name`` (optional): Model to use for optimization execution
-                      - ``evaluation_output_format``: the output format required
+                      - ``evaluation_output_format`` (optional): the output format wanted
+                      - ``runs`` (optional): The number of times to run the experiment, or, run the task for every dataset record the defined
+                                             number of times.
         :param _llmobs_instance: Internal LLMObs instance.
         :param tags: Optional tags to associate with the optimization.
         :param max_iterations: Maximum number of optimization iterations to run.
@@ -599,9 +610,6 @@ class PromptOptimization:
             best_iteration=best_iteration,
         )
 
-        # Print summary for immediate visibility
-        log.info(result.summary())
-
         return result
 
     def _run_experiment(
@@ -636,6 +644,7 @@ class PromptOptimization:
             summary_evaluators=self._summary_evaluators,
             _llmobs_instance=self._llmobs_instance,
             config=experiment_config,
+            runs=self._config.get('runs')
         )
 
         experiment_results = experiment.run(
