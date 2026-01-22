@@ -24,8 +24,8 @@ CHAT_PROMPT_RESPONSE = {
     "version": "v2",
     "label": "prod",
     "template": [
-        {"role": "system", "content": "You are {persona}."},
-        {"role": "user", "content": "{question}"},
+        {"role": "system", "content": "You are {{persona}}."},
+        {"role": "user", "content": "{{question}}"},
     ],
 }
 
