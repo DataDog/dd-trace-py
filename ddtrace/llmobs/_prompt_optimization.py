@@ -432,7 +432,7 @@ class PromptOptimization:
         self,
         name: str,
         task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
-        optimization_task: Callable[[str, str, dict], str],
+        optimization_task: Callable[[str, str, ConfigType], str],
         dataset: Dataset,
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         project_name: str,
