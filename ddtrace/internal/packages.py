@@ -53,13 +53,8 @@ def get_package_distributions() -> t.Mapping[str, t.List[str]]:
     """a mapping of importable package names to their distribution name(s)"""
     global _PACKAGE_DISTRIBUTIONS
     if _PACKAGE_DISTRIBUTIONS is None:
-        import importlib.metadata as importlib_metadata
-
-        # Prefer the official API if available, otherwise fallback to the vendored version
-        if hasattr(importlib_metadata, "packages_distributions"):
-            _PACKAGE_DISTRIBUTIONS = importlib_metadata.packages_distributions()
-        else:
-            _PACKAGE_DISTRIBUTIONS = _packages_distributions()
+        # Use our own implementation which can leverage the optimized Rust distributions()
+        _PACKAGE_DISTRIBUTIONS = _packages_distributions()
     return _PACKAGE_DISTRIBUTIONS
 
 
