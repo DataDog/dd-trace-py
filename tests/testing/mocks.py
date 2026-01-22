@@ -563,6 +563,9 @@ class BackendConnectorMockSetup:
     def get_connector_for_subdomain(self, subdomain: str) -> Mock:
         return mock_backend_connector().build()
 
+    def default_env(self) -> str:
+        return "none"
+
 
 @contextlib.contextmanager
 def setup_standard_mocks() -> t.Generator[None, None, None]:

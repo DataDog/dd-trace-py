@@ -5,6 +5,13 @@ from ddtrace.ext import SpanTypes  # noqa: F401
 # ensure the tracer is loaded and started first for possible iast patching
 print(f"ddtrace version {ddtrace.version.__version__}")
 
+try:
+    from ddtrace.contrib.internal.tornado import patch as tornado_patch  # noqa: E402
+
+    # patch tornado if possible
+    tornado_patch.patch()  # noqa: E402
+except Exception:
+    pass  # nosec
 
 from http.server import BaseHTTPRequestHandler  # noqa: E402
 from http.server import ThreadingHTTPServer  # noqa: E402
