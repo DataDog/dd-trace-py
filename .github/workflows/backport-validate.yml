@@ -38,8 +38,8 @@ jobs:
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
 
-          git diff main > ../backport.patch
-          git checkout ${TARGET_BRANCH} origin/${TARGET_BRANCH}
+          git diff origin/main > ../backport.patch
+          git checkout origin/${TARGET_BRANCH}
           git apply ../backport.patch
 
 
