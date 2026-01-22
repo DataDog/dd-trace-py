@@ -29,6 +29,16 @@ impl SpanEventData {
     ) -> PyResult<()> {
         Ok(())
     }
+
+    /// Return the size of the Rust struct in bytes.
+    /// As data moves from Python __slots__ to Rust fields during migration,
+    /// update this to include heap allocations.
+    fn __sizeof__(&self) -> usize {
+        std::mem::size_of::<Self>()
+        // TODO: Add heap allocation sizes as fields are added:
+        // + self.some_string.capacity()
+        // + self.some_vec.capacity() * std::mem::size_of::<ItemType>()
+    }
 }
 
 #[pyo3::pyclass(name = "SpanLinkData", module = "ddtrace.internal._native", subclass)]
@@ -68,6 +78,16 @@ impl SpanLinkData {
         _dropped_attributes: u32,
     ) -> PyResult<()> {
         Ok(())
+    }
+
+    /// Return the size of the Rust struct in bytes.
+    /// As data moves from Python __slots__ to Rust fields during migration,
+    /// update this to include heap allocations.
+    fn __sizeof__(&self) -> usize {
+        std::mem::size_of::<Self>()
+        // TODO: Add heap allocation sizes as fields are added:
+        // + self.some_string.capacity()
+        // + self.some_vec.capacity() * std::mem::size_of::<ItemType>()
     }
 }
 
@@ -122,6 +142,16 @@ impl SpanData {
         links: Option<Bound<'p, PyList>>,
     ) -> PyResult<()> {
         Ok(())
+    }
+
+    /// Return the size of the Rust struct in bytes.
+    /// As data moves from Python __slots__ to Rust fields during migration,
+    /// update this to include heap allocations.
+    fn __sizeof__(&self) -> usize {
+        std::mem::size_of::<Self>()
+        // TODO: Add heap allocation sizes as fields are added:
+        // + self.some_string.capacity()
+        // + self.some_vec.capacity() * std::mem::size_of::<ItemType>()
     }
 }
 
