@@ -159,6 +159,19 @@ def pytest_configure(config):
     )
 
 
+@pytest.fixture(autouse=True, scope="session")
+def remove_git_repo_url_from_test_env():
+    """
+    Remove DD_GIT_REPOSITORY_URL from the test environment.
+
+    The pytest plugin needs this env var during initialization to collect git metadata,
+    but we don't want individual tests to see it (to avoid interfering with test behavior).
+    """
+    # At this point, pytest plugin has already read the env var during pytest_load_initial_conftests
+    os.environ.pop("DD_GIT_REPOSITORY_URL", None)
+    yield
+
+
 @pytest.fixture
 def use_dummy_writer():
     yield True
