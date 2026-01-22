@@ -1253,7 +1253,6 @@ class LLMObs(Service):
         from ddtrace.llmobs._prompts.manager import PromptManager
 
         api_key = config._dd_api_key
-        site = config._dd_site or "datadoghq.com"
         ml_app = config._llmobs_ml_app
 
         if not api_key:
@@ -1274,7 +1273,6 @@ class LLMObs(Service):
         return PromptManager(
             api_key=api_key,
             app_key=cls._app_key,
-            site=site,
             ml_app=ml_app,
             endpoint_override=endpoint_override,
             cache_ttl=cache_ttl,
