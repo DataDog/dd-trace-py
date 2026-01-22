@@ -6,6 +6,7 @@ import pytest
         DD_PROFILING_CAPTURE_PCT="100",
         DD_PROFILING_OUTPUT_PPROF="/tmp/asyncio_lock_acquire_events",
         DD_PROFILING_FILE_PATH=__file__,
+        DD_PROFILING_API_TIMEOUT_MS="1000",
     ),
     err=None,
 )

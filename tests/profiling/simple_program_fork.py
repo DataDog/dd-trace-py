@@ -2,6 +2,9 @@ import os
 import sys
 import threading
 
+
+os.environ.setdefault("DD_PROFILING_API_TIMEOUT_MS", "1000")
+
 from ddtrace.internal import service
 import ddtrace.profiling.auto  # noqa: F401
 import ddtrace.profiling.bootstrap
