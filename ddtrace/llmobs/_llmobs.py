@@ -980,7 +980,7 @@ class LLMObs(Service):
                 # Use prompt and question to generate answer
                 return {"answer": generate_answer(prompt, question)}
 
-            def optimization_task(system_prompt, user_prompt):
+            def optimization_task(system_prompt, user_prompt, config):
                 # Call LLM to analyze results and generate improved prompt
                 import openai
                 client = openai.OpenAI(api_key="your-api-key")
