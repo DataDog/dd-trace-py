@@ -497,10 +497,8 @@ class PromptOptimization:
         if not config:
             raise ValueError("config parameter is required")
 
-        required_keys = ["prompt"]
-        missing_keys = [key for key in required_keys if key not in config]
-        if missing_keys:
-            raise ValueError(f"config must contain keys: {missing_keys}")
+        if not isinstance(config, dict) or "prompt" not in config:
+            raise ValueError("config must contain a 'prompt' key")
 
         self._initial_prompt = config["prompt"]
         self._model_name = config.get("model_name")
