@@ -958,15 +958,16 @@ class LLMObs(Service):
                       - ``prompt`` (mandatory): Initial prompt template
                       - ``model_name`` (optional): Model to use for task execution
                       - ``evaluation_output_format`` (optional): the output format wanted
-                      - ``runs`` (optional): The number of times to run the experiment, or, run the task for every dataset record the defined
-                                             number of times.
+                      - ``runs`` (optional): The number of times to run the experiment, or, run the task for every
+                                             dataset record the defined number of times.
                       Additional config values are passed through to the task function.
         :param project_name: The name of the project to organize optimization runs. Defaults to the
                             project name set in ``LLMObs.enable()``.
         :param tags: A dictionary of string key-value tag pairs to associate with the optimization.
         :param max_iterations: Maximum number of optimization iterations to run. Default is 5.
         :param stopping_condition: Optional function to determine when to stop optimization early.
-                                  Takes summary_evaluations dict from the experiment result and returns True if optimization should stop.
+                                   Takes summary_evaluations dict from the experiment result and returns True if
+                                   optimization should stop.
         :return: PromptOptimization object. Call ``.run()`` to execute the optimization.
         :raises TypeError: If task, optimization_task, evaluators, or dataset have incorrect types
                           or signatures.

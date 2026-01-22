@@ -114,16 +114,18 @@ class OptimizationIteration:
                 config=self._config,
             )
         except Exception as e:
-            log.error(f"""
-                Iteration {self.iteration}: Failed to run optimization_task
-            """)
-            log.error(f"Exception type: {type(e).__name__}")
-            log.error(f"Exception type: {str(e)}")
+            log.error(
+                "Iteration %s: Failed to run optimization_task",
+                self.iteration,
+            )
+            log.error("Exception type: %s", type(e).__name__)
+            log.error("Exception message: %s", str(e))
             improved_prompt = ""
 
         if not improved_prompt:
             log.warning(
-                f"Iteration {self.iteration}: optimization_task returned empty 'new_prompt', keeping current prompt",
+                "Iteration %s: optimization_task returned empty 'new_prompt', keeping current prompt",
+                self.iteration,
             )
             return self.current_prompt
 
@@ -159,7 +161,8 @@ class OptimizationIteration:
                     "\n",
                     output_format,
                     "\n",
-                    "**If this output format is not clearly specified in the initial prompt, add it as your first improvement step**",
+                    "**If this output format is not clearly specified in the initial prompt**",
+                    "**add it as your first improvement step**",
                 ]
             )
 
@@ -209,14 +212,14 @@ class OptimizationIteration:
                         examples_by_label[label] = []
                     examples_by_label[label].append(result)
             except Exception as e:
-                log.warning(f"Labelization function failed for result: {e}")
+                log.warning("Labelization function failed for result: %s", e)
                 continue
 
         if not examples_by_label:
             return ""
 
         if len(examples_by_label) > 10:
-            log.warning(f"Too many distinct labels: {len(examples_by_label)}")
+            log.warning("Too many distinct labels: %s", len(examples_by_label))
             return ""
 
         # Step 2: Randomly select one example for each label
@@ -461,23 +464,29 @@ class PromptOptimization:
                       - ``prompt`` (mandatory): Initial prompt template
                       - ``model_name`` (optional): Model to use for task execution
                       - ``evaluation_output_format`` (optional): the output format wanted
-                      - ``runs`` (optional): The number of times to run the experiment, or, run the task for every dataset record the defined
-                                             number of times.
+                      - ``runs`` (optional): The number of times to run the experiment, or, run the task for every
+                                             dataset record the defined number of times.
         :param summary_evaluators: List of summary evaluator functions (REQUIRED).
-                                   Each must accept (inputs: List, outputs: List, expected_outputs: List, evaluations: Dict)
+                                   Each must accept (
+                                    inputs: List,
+                                    outputs: List,
+                                    expected_outputs: List,
+                                    evaluations: Dict
+                                   )
                                    and return Dict with aggregated metrics.
         :param compute_score: Function to compute iteration score (REQUIRED).
                              Takes summary_evaluations dict from the experiment result and returns float score.
                              Used to compare and rank different prompt iterations.
-        :param labelization_function: Function to generate labels from individual results (Optional but highly valuable).
-                                     Takes an individual result dict (with "evaluations" key) and returns a string label.
+        :param labelization_function: Function to generate labels from individual results (Optional but highly valuable)
+                                     Takes an individual result dict (with "evaluations" key) and returns a string label
                                      Used to categorize examples shown to the optimization LLM.
                                      Example: lambda r: "Very good" if r["evaluations"]["score"] >= 0.8 else "Bad"
         :param _llmobs_instance: Internal LLMObs instance.
         :param tags: Optional tags to associate with the optimization.
         :param max_iterations: Maximum number of optimization iterations to run.
         :param stopping_condition: Optional function to determine when to stop optimization.
-                                   Takes summary_evaluations dict from the experiment result and returns True if should stop.
+                                   Takes summary_evaluations dict from the experiment result
+                                   and returns True if should stop.
         :raises ValueError: If required config parameters or compute_score are missing.
         """
         self.name = name
@@ -524,7 +533,7 @@ class PromptOptimization:
                 "and create the optimization via `LLMObs.prompt_optimization(...)` before running."
             )
 
-        log.info(f"Starting prompt optimization: {self.name}")
+        log.info("Starting prompt optimization: %s", self.name)
 
         # Track all iteration results
         all_iterations: List[IterationData] = []
@@ -555,7 +564,7 @@ class PromptOptimization:
         best_prompt = current_prompt
         best_results = current_results
 
-        log.info(f"Baseline score: {best_score:.3f}")
+        log.info("Baseline score: %.3f", best_score)
 
         # Run optimization iterations
         for i in range(1, self._max_iterations + 1):
@@ -590,8 +599,8 @@ class PromptOptimization:
             }
             all_iterations.append(iteration_data)
 
-            log.info(f"Iteration {i}")
-            log.info(f"{summary_evals}")
+            log.info("Iteration %s", i)
+            log.info("%s", summary_evals)
 
             # Update best iteration if score improved
             if new_score is not None and (best_score is None or new_score > best_score):
@@ -602,7 +611,7 @@ class PromptOptimization:
 
             # Check stopping condition
             if self._stopping_condition and self._stopping_condition(summary_evals):
-                log.info(f"Stopping condition met after iteration {i}")
+                log.info("Stopping condition met after iteration %s", i)
                 break
 
         # Create result object with full history
