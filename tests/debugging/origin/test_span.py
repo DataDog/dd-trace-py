@@ -78,6 +78,30 @@ class SpanProbeTestCase(TracerTestCase):
         assert _exit.get_tag("_dd.code_origin.frames.0.file") is None
         assert _exit.get_tag("_dd.code_origin.frames.0.line") is None
 
+    def test_span_origin_instrument_once(self):
+        """
+        Test that the view function gets instrumented only once even when
+        registered as an entry point multiple times.
+        """
+
+        def entry_call():
+            pass
+
+        for _ in range(10):
+            core.dispatch("service_entrypoint.patch", (entry_call,))
+
+        with self.tracer.trace("entry"):
+            entry_call()
+            with self.tracer.trace("middle"):
+                with self.tracer.trace("exit", span_type=SpanTypes.HTTP):
+                    pass
+
+        self.assert_span_count(3)
+        entry, *_ = self.get_spans()
+
+        # Check for the expected tags on the entry span
+        assert entry.get_tag("_dd.code_origin.type") == "entry"
+
     def test_span_origin_session(self):
         def entry_call():
             pass
@@ -178,3 +202,44 @@ class SpanProbeTestCase(TracerTestCase):
             entry.get_tag("_dd.code_origin.frames.0.method")
             == "SpanProbeTestCase.test_span_origin_entry_method.<locals>.App.entry_call"
         )
+
+
+def test_instrument_view_benchmark(benchmark):
+    """Benchmark instrument_view performance when wrapping functions."""
+    MockSpanCodeOriginProcessorEntry.enable()
+
+    try:
+
+        def setup():
+            """Create a unique function to wrap for each iteration."""
+
+            # Create a more realistic view function similar to Flask views
+            # with decorators, imports, and more complex code
+            def realistic_view(request_arg, *args, **kwargs):
+                """A realistic view function with actual code."""
+                import json
+                import os  # noqa
+
+                data = {"status": "ok", "items": []}
+                for i in range(10):
+                    item = {
+                        "id": i,
+                        "name": f"item_{i}",
+                        "value": i * 100,
+                    }
+                    data["items"].append(item)
+
+                result = json.dumps(data)
+                return result
+
+            return (realistic_view,), {}
+
+        # Benchmark the wrapping operation
+        benchmark.pedantic(
+            MockSpanCodeOriginProcessorEntry.instrument_view,
+            setup=setup,
+            rounds=100,
+        )
+
+    finally:
+        MockSpanCodeOriginProcessorEntry.disable()

@@ -297,6 +297,12 @@ def scoped_tracer(use_dummy_writer=True):
     finally:
         # Reset global tracer to original state
         ddtrace.tracer.shutdown()
+        # Remove the instance attribute that was set during shutdown, so the class attribute is used again
+        if (
+            hasattr(ddtrace.tracer, "start_span")
+            and ddtrace.tracer.start_span == ddtrace.tracer._start_span_after_shutdown
+        ):
+            delattr(ddtrace.tracer, "start_span")
         # Tracer uses a singleton pattern. We reinitialize the existing object (not create a new one)
         # because ddtrace.tracer, ddtrace.trace.tracer, ddtrace.internal.core.tracer, etc. all reference
         # the same object. Reinitializing updates all references automatically.
