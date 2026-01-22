@@ -1242,30 +1242,6 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
         _init_websocket_message_counters(scope)
 
 
-def _on_aiokafka_send_start(
-    _topic: str,
-    send_value: Optional[bytes],
-    send_key: Optional[bytes],
-    headers: List[Tuple[str, bytes]],
-    ctx: core.ExecutionContext,
-    partition: Optional[int],
-) -> None:
-    span = ctx.span
-
-    span._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
-    span._set_tag_str(TOMBSTONE, str(send_value is None))
-    span.set_tag(MESSAGE_KEY, send_key.decode("utf-8") if send_key else None)
-    span.set_metric(PARTITION, partition or -1)
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
-
-    if config.aiokafka.distributed_tracing_enabled:
-        # inject headers with Datadog tags:
-        tracing_headers: Dict[str, str] = {}
-        HTTPPropagator.inject(span.context, tracing_headers)
-        for key, value in tracing_headers.items():
-            headers.append((key, value.encode("utf-8")))
-
-
 def _on_aiokafka_send_complete(
     ctx: core.ExecutionContext, exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]], _
 ) -> None:
@@ -1342,16 +1318,6 @@ def _on_aiokafka_getmany_message(
                     context = HTTPPropagator.extract(dd_headers)
 
                     span.link_span(context)
-
-
-def _on_httpx_request_start(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
-    span = _start_span(ctx, call_trace, **kwargs)
-    span._metrics[_SPAN_MEASURED_KEY] = 1
-
-    request = ctx.get_item("request")
-
-    if trace_utils.distributed_tracing_enabled(config.httpx):
-        HTTPPropagator.inject(span.context, request.headers)
 
 
 def httpx_url_to_str(url) -> str:
@@ -1456,7 +1422,7 @@ def listen():
     core.on("asgi.websocket.disconnect.message", _on_asgi_websocket_disconnect_message)
     core.on("asgi.websocket.close.message", _on_asgi_websocket_close_message)
     core.on("context.started.asgi.request", _on_asgi_request)
-    core.on("aiokafka.send.start", _on_aiokafka_send_start)
+    # core.on("aiokafka.send.start", _on_aiokafka_send_start)
     core.on("aiokafka.getone.message", _on_aiokafka_getone_message)
     core.on("aiokafka.getmany.message", _on_aiokafka_getmany_message)
     core.on("aiokafka.send.completed", _on_aiokafka_send_complete)
@@ -1540,7 +1506,6 @@ def listen():
         "aiokafka.getmany",
     ):
         core.on(f"context.started.{context_name}", _start_span)
-    core.on("context.started.httpx.request", _on_httpx_request_start)
 
     for name in (
         "asgi.request",
@@ -1578,7 +1543,6 @@ def listen():
 
     # Special/extra handling before calling _finish_span
     core.on("context.ended.django.cache", _on_django_cache)
-    core.on("context.ended.httpx.request", _on_httpx_send_completed)
 
 
 listen()
