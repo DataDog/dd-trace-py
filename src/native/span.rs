@@ -138,9 +138,9 @@ impl SpanData {
         links: Option<Bound<'p, PyList>>,
     ) -> PyResult<()> {
         // Use setters to avoid duplicating validation logic
-        self.set_name(&name.bind(py));
+        self.set_name(name.bind(py));
         match service {
-            Some(obj) => self.set_service(&obj.bind(py)),
+            Some(obj) => self.set_service(obj.bind(py)),
             None => self.data.service = PyBackedString::py_none(py),
         }
         Ok(())
