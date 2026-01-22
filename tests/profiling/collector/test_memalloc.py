@@ -408,9 +408,9 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: 
     for sample in allocation_samples:
         assert sample.value[alloc_space_idx] > 0, f"Invalid allocation sample size: {sample.value[alloc_space_idx]}"
         assert sample.value[alloc_count_idx] > 0, f"Invalid allocation sample count: {sample.value[alloc_count_idx]}"
-        assert (
-            sample.value[heap_space_idx] == 0
-        ), f"Invalid heap-space for freed sample (should be 0): {sample.value[heap_space_idx]}"
+        assert sample.value[heap_space_idx] == 0, (
+            f"Invalid heap-space for freed sample (should be 0): {sample.value[heap_space_idx]}"
+        )
         total_allocation_count += sample.value[alloc_count_idx]
 
     print(f"Total allocation count: {total_allocation_count}")
@@ -526,9 +526,9 @@ def test_memory_collector_allocation_tracking_across_snapshots(tmp_path: Path) -
             has_heap = sample.value[heap_space_idx] > 0
             has_alloc = sample.value[alloc_space_idx] > 0
             assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
-            assert (
-                sample.value[alloc_count_idx] >= 0
-            ), f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
+            assert sample.value[alloc_count_idx] >= 0, (
+                f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
+            )
 
         one_freed_samples = [sample for sample in freed_samples if has_function_in_profile_sample(profile, sample, one)]
 
@@ -536,9 +536,9 @@ def test_memory_collector_allocation_tracking_across_snapshots(tmp_path: Path) -
         one_freed_samples_valid = all(
             sample.value[heap_space_idx] == 0 and sample.value[alloc_space_idx] > 0 for sample in one_freed_samples
         )
-        assert (
-            one_freed_samples_valid
-        ), "Freed samples from function 'one' should have heap-space == 0 and alloc-space > 0"
+        assert one_freed_samples_valid, (
+            "Freed samples from function 'one' should have heap-space == 0 and alloc-space > 0"
+        )
 
         two_live_samples = [sample for sample in live_samples if has_function_in_profile_sample(profile, sample, two)]
 
@@ -592,9 +592,9 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path: Pa
             has_heap = sample.value[heap_space_idx] > 0
             has_alloc = sample.value[alloc_space_idx] > 0
             assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
-            assert (
-                sample.value[alloc_count_idx] >= 0
-            ), f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
+            assert sample.value[alloc_count_idx] >= 0, (
+                f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
+            )
 
         # Get live samples (heap-space > 0)
         live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
@@ -604,18 +604,18 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path: Pa
             sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, one)
         ]
 
-        assert (
-            len(one_samples_in_final) == 0
-        ), f"Should have no live samples with 'one' in traceback in final_samples, got {len(one_samples_in_final)}"
+        assert len(one_samples_in_final) == 0, (
+            f"Should have no live samples with 'one' in traceback in final_samples, got {len(one_samples_in_final)}"
+        )
 
         # Check that we have live samples from function 'two'
         batch_two_live_samples = [
             sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, two)
         ]
 
-        assert (
-            len(batch_two_live_samples) > 0
-        ), f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
+        assert len(batch_two_live_samples) > 0, (
+            f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
+        )
         batch_two_valid = all(
             sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] >= 0 for sample in batch_two_live_samples
         )
@@ -652,9 +652,9 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
         after_first_batch_count = len(after_first_batch_profile.sample)
         final_count = len(final_profile.sample)
 
-        assert (
-            after_first_batch_count > 0
-        ), f"Should have samples from first batch allocations. Got {after_first_batch_count}"
+        assert after_first_batch_count > 0, (
+            f"Should have samples from first batch allocations. Got {after_first_batch_count}"
+        )
         assert final_count > 0, f"Final snapshot should have samples. Got {final_count}"
 
         # Get sample type indices
@@ -682,9 +682,9 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
             has_heap = sample.value[heap_space_idx] > 0
             has_alloc = sample.value[alloc_space_idx] > 0
             assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
-            assert (
-                sample.value[alloc_count_idx] >= 0
-            ), f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
+            assert sample.value[alloc_count_idx] >= 0, (
+                f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
+            )
 
         # Get live samples (heap-space > 0)
         live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
@@ -697,12 +697,12 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
             sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, two)
         ]
 
-        assert (
-            len(batch_one_live_samples) > 0
-        ), f"Should have live samples from batch one, got {len(batch_one_live_samples)}"
-        assert (
-            len(batch_two_live_samples) > 0
-        ), f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
+        assert len(batch_one_live_samples) > 0, (
+            f"Should have live samples from batch one, got {len(batch_one_live_samples)}"
+        )
+        assert len(batch_two_live_samples) > 0, (
+            f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
+        )
 
         # batch_one samples were reported in first snapshot, so alloc-space should be 0 in later snapshots
         # batch_two samples are new allocations, so alloc-space should be > 0
@@ -843,9 +843,9 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path: Path) -> None:
                 if thread_id_label is not None:
                     sampled_thread_ids.add(thread_id_label.num)
 
-        assert (
-            deep_alloc_total_count >= 10
-        ), f"Buffer pool test: Expected many allocations from concurrent threads, got {deep_alloc_total_count}"
+        assert deep_alloc_total_count >= 10, (
+            f"Buffer pool test: Expected many allocations from concurrent threads, got {deep_alloc_total_count}"
+        )
 
         # Verify we got samples from all threads
         assert sampled_thread_ids == thread_ids, (
@@ -908,9 +908,9 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
             if worker_func and has_function_in_profile_sample(profile, sample, worker_func):
                 worker_samples += 1
 
-        assert (
-            worker_samples > 0
-        ), "Thread lifecycle test: Should capture allocations even as threads are created/destroyed"
+        assert worker_samples > 0, (
+            "Thread lifecycle test: Should capture allocations even as threads are created/destroyed"
+        )
 
 
 def test_start_twice() -> None:
