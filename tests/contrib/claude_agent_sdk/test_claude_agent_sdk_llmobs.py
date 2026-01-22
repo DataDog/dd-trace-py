@@ -182,39 +182,83 @@ class TestLLMObsClaudeAgentSdk:
     async def test_llmobs_client_query_captures_prompt(
         self, claude_agent_sdk, ddtrace_global_config, mock_llmobs_writer, test_spans
     ):
-        """Test that ClaudeSDKClient.query() captures the prompt for LLMObs.
+        """Test that ClaudeSDKClient workflow captures the prompt for LLMObs.
 
-        ClaudeSDKClient.query() returns None (it just sends the message),
-        but we should still capture the input prompt.
+        ClaudeSDKClient.query() starts the span, receive_messages() finishes it.
+        The span should capture input prompt and output response.
         """
         from unittest.mock import AsyncMock
         from unittest.mock import MagicMock
         from unittest.mock import patch as mock_patch
 
+        from tests.contrib.claude_agent_sdk.utils import MOCK_MODEL
+
         prompt = "Hello from client!"
         mock_write = AsyncMock(return_value=None)
+
+        # Create a mock query object with receive_messages method
+        # The SDK expects raw JSON data in the format the message parser expects
+        async def mock_receive_messages():
+            yield {
+                "type": "system",
+                "subtype": "init",
+                "cwd": "/test/path",
+                "session_id": "test-session-id",
+                "tools": ["Task", "Bash", "Read"],
+                "model": MOCK_MODEL,
+            }
+            yield {
+                "type": "assistant",
+                "message": {
+                    "content": [{"type": "text", "text": "4"}],
+                    "model": MOCK_MODEL,
+                },
+            }
+            yield {
+                "type": "result",
+                "subtype": "success",
+                "duration_ms": 100,
+                "duration_api_ms": 90,
+                "is_error": False,
+                "num_turns": 1,
+                "session_id": "test-session-id",
+                "usage": {
+                    "input_tokens": 3,
+                    "cache_creation_input_tokens": 12742,
+                    "cache_read_input_tokens": 1854,
+                    "output_tokens": 5,
+                },
+            }
+
+        mock_query = MagicMock()
+        mock_query.receive_messages = mock_receive_messages
 
         with mock_patch.object(claude_agent_sdk.ClaudeSDKClient, "connect", new_callable=AsyncMock):
             with mock_patch.object(claude_agent_sdk.ClaudeSDKClient, "disconnect", new_callable=AsyncMock):
                 client = claude_agent_sdk.ClaudeSDKClient()
-                client._query = True
+                client._query = mock_query
                 client._transport = MagicMock()
                 client._transport.write = mock_write
 
                 await client.query(prompt=prompt)
 
+                # Call receive_messages to finish the span
+                messages = []
+                async for message in client.receive_messages():
+                    messages.append(message)
+
         span = test_spans.pop_traces()[0][0]
 
-        # Client.query() returns None, so output is empty but input should be captured
+        # Verify LLMObs captures prompt and response
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
-                model_name="",  # No response for client.query
+                model_name=MOCK_MODEL,
                 model_provider="claude_agent_sdk",
-                input_messages=[{"content": prompt, "role": "user"}],  # Prompt captured
-                output_messages=[{"content": ""}],  # No response
+                input_messages=[{"content": prompt, "role": "user"}],
+                output_messages=[{"content": "4", "role": "assistant"}],
                 metadata={},
-                token_metrics={},  # No usage
+                token_metrics={"input_tokens": 14599, "output_tokens": 5, "total_tokens": 14604},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.claude_agent_sdk"},
             )
         )
