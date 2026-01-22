@@ -86,15 +86,11 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
     return (names[0], get_version_for_package(names[0]))
 
 
-@cached(maxsize=1024)
 def get_version_for_package(name: str) -> str:
     """returns the version of a package"""
-    import importlib.metadata as importlib_metadata
-
-    try:
-        return importlib_metadata.version(name)
-    except Exception:
-        return ""
+    # Use our already-cached get_distributions() which leverages Rust-optimized distributions()
+    # No need for @cached decorator since get_distributions() is already cached with @callonce
+    return get_distributions().get(name.lower(), "")
 
 
 def _effective_root(rel_path: Path, parent: Path) -> str:
@@ -294,17 +290,11 @@ def _(path: str) -> bool:
     return not (is_stdlib(_path) or is_third_party(_path))
 
 
-@cached(maxsize=256)
 def is_distribution_available(name: str) -> bool:
     """Determine if a distribution is available in the current environment."""
-    import importlib.metadata as importlib_metadata
-
-    try:
-        importlib_metadata.distribution(name)
-    except importlib_metadata.PackageNotFoundError:
-        return False
-
-    return True
+    # Use our already-cached get_distributions() which leverages Rust-optimized distributions()
+    # No need for @cached decorator since get_distributions() is already cached with @callonce
+    return name.lower() in get_distributions()
 
 
 # ----
