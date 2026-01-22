@@ -28,6 +28,7 @@ libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v2
     "cbindgen",
 ] }
 libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v26.0.0" }
+libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "v26.0.0" }
 pyo3 = { version = "0.27", features = ["extension-module", "anyhow"] }
 tracing = { version = "0.1", default-features = false }
 pyo3-ffi = { version = "0.27", optional = true }

@@ -5,7 +5,7 @@ use std::{
 
 use pyo3::{
     exceptions::PyValueError,
-    types::{PyAnyMethods as _, PyBytesMethods as _, PyNone, PyString, PyStringMethods as _},
+    types::{PyBytesMethods as _, PyNone, PyString, PyStringMethods as _},
     Py, PyAny, PyErr, Python,
 };
 
@@ -42,15 +42,17 @@ impl PyBackedString {
     }
 }
 
-impl pyo3::FromPyObject<'_> for PyBackedString {
-    fn extract_bound(obj: &pyo3::Bound<'_, PyAny>) -> pyo3::PyResult<Self> {
-        if let Ok(py_string) = obj.downcast::<pyo3::types::PyString>() {
+impl<'py> pyo3::FromPyObject<'_, 'py> for PyBackedString {
+    type Error = pyo3::PyErr;
+
+    fn extract(obj: pyo3::Borrowed<'_, 'py, PyAny>) -> pyo3::PyResult<Self> {
+        if let Ok(py_string) = obj.cast::<pyo3::types::PyString>() {
             return Self::try_from(py_string.to_owned());
         }
-        if let Ok(py_bytes) = obj.downcast::<pyo3::types::PyBytes>() {
+        if let Ok(py_bytes) = obj.cast::<pyo3::types::PyBytes>() {
             return Self::try_from(py_bytes.to_owned());
         }
-        if let Ok(py_none) = obj.downcast_exact::<pyo3::types::PyNone>() {
+        if let Ok(py_none) = obj.cast_exact::<pyo3::types::PyNone>() {
             return Ok(Self::from(py_none.to_owned()));
         }
         Err(PyErr::new::<PyValueError, _>(

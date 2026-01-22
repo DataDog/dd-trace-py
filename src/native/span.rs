@@ -1,6 +1,6 @@
 use pyo3::{
-    types::{PyInt, PyList, PyModule, PyModuleMethods as _},
-    Bound, FromPyObject, Py, PyAny, PyResult, Python,
+    types::{PyAnyMethods as _, PyInt, PyList, PyModule, PyModuleMethods as _},
+    Bound, Py, PyAny, PyResult, Python,
 };
 
 use crate::py_string::PyBackedString;
@@ -81,13 +81,13 @@ pub struct SpanData {
 
 /// Extract PyBackedString from Python object, falling back to empty string on error
 fn extract_backed_string_or_default(obj: &Bound<'_, PyAny>) -> PyBackedString {
-    PyBackedString::extract_bound(obj).unwrap_or_default()
+    obj.extract::<PyBackedString>().unwrap_or_default()
 }
 
 /// Extract PyBackedString from Python object, falling back to None on error
 fn extract_backed_string_or_none(obj: &Bound<'_, PyAny>) -> PyBackedString {
     let py = obj.py();
-    PyBackedString::extract_bound(obj).unwrap_or_else(|_| PyBackedString::py_none(py))
+    obj.extract::<PyBackedString>().unwrap_or_else(|_| PyBackedString::py_none(py))
 }
 
 #[pyo3::pymethods]
@@ -137,9 +137,9 @@ impl SpanData {
         links: Option<Bound<'p, PyList>>,
     ) -> PyResult<()> {
         // Use setters to avoid duplicating validation logic
-        self.set_name(name);
+        self.set_name(&name.bind(py));
         match service {
-            Some(obj) => self.set_service(obj),
+            Some(obj) => self.set_service(&obj.bind(py)),
             None => self.data.service = PyBackedString::py_none(py),
         }
         Ok(())
