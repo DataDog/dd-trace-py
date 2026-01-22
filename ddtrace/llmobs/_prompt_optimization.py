@@ -94,7 +94,7 @@ class OptimizationIteration:
         # Step 2: Build user prompt with current prompt and examples
         user_prompt = self._build_user_prompt()
 
-        # Step 3 & 4: Call optimization LLM
+        # Step 3
         try:
             improved_prompt = self._optimization_task(
                 system_prompt=system_prompt,
