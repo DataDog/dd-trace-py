@@ -20,18 +20,7 @@ ThreadInfo::unwind(PyThreadState* tstate)
         // should there be a substantial demand for it.
         unwind_greenlets(tstate, native_id);
     }
-
-    if (Datadog::Sampler::get().exception_profiling_enabled()) {
-        std::cerr << "Exception profiling enabled; force aborting" << std::endl;
-        abort();
-    }
 }
-
-// ----------------------------------------------------------------------------
-
-
-
-
 
 
 // ----------------------------------------------------------------------------

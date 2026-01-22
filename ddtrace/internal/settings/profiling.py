@@ -363,6 +363,23 @@ class ProfilingConfigException(DDConfig):
         help="Whether to enable the exception profiler",
     )
 
+    sampling_interval = DDConfig.v(
+        int,
+        "sampling_interval",
+        default=100,
+        help_type="Integer",
+        help="Average number of exceptions between samples (uses Poisson distribution). "
+        "Lower values sample more frequently but add more overhead.",
+    )
+
+    collect_message = DDConfig.v(
+        bool,
+        "collect_message",
+        default=True,
+        help_type="Boolean",
+        help="Whether to collect exception messages. Set to false to avoid capturing sensitive data.",
+    )
+
 
 # Include all the sub-configs
 ProfilingConfig.include(ProfilingConfigStack, namespace="stack")

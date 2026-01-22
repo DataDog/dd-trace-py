@@ -27,6 +27,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.profiling import collector
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
+from ddtrace.profiling.collector import exception
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import pytorch
 from ddtrace.profiling.collector import stack
@@ -194,12 +195,28 @@ class _ProfilerInstance(service.Service):
         if self._stack_collector_enabled:
             LOG.debug("Profiling collector (stack) enabled")
             try:
+                # Note: Pass exception_profiling=False to stack collector to avoid C++ abort
+                # The Python ExceptionCollector handles exception profiling instead
                 self._collectors.append(
-                    stack.StackCollector(tracer=self.tracer, exception_profiling=self._exception_profiling_enabled)
+                    stack.StackCollector(tracer=self.tracer, exception_profiling=False)
                 )
                 LOG.debug("Profiling collector (stack) initialized")
             except Exception:
                 LOG.error("Failed to start stack collector, disabling.", exc_info=True)
+
+        # Initialize the Python exception collector if enabled
+        if self._exception_profiling_enabled:
+            LOG.debug("Profiling collector (exception) enabled")
+            try:
+                exc_collector = exception.ExceptionCollector(
+                    max_nframe=profiling_config.max_frames,
+                    sampling_interval=profiling_config.exception.sampling_interval,
+                    collect_message=profiling_config.exception.collect_message,
+                )
+                self._collectors.append(exc_collector)
+                LOG.debug("Profiling collector (exception) initialized")
+            except Exception:
+                LOG.error("Failed to start exception collector, disabling.", exc_info=True)
 
         if self._lock_collector_enabled:
             # These collectors require the import of modules, so we create them
