@@ -67,7 +67,11 @@ class HotCache:
         """Add or update a prompt in cache."""
         with self._lock:
             if key in self._cache:
-                del self._cache[key]
+                # Update existing entry in place and move to end (most recently used)
+                self._cache[key] = CacheEntry(prompt=prompt, timestamp=time())
+                self._cache.move_to_end(key)
+                return
+            # Evict oldest entries if at capacity
             while len(self._cache) >= self._max_size:
                 self._cache.popitem(last=False)
             self._cache[key] = CacheEntry(prompt=prompt, timestamp=time())
@@ -111,10 +115,8 @@ class WarmCache:
     ) -> None:
         if cache_dir is None:
             self._cache_dir = self._get_default_cache_dir()
-        elif isinstance(cache_dir, str):
-            self._cache_dir = Path(cache_dir).expanduser()
         else:
-            self._cache_dir = cache_dir
+            self._cache_dir = Path(cache_dir).expanduser()
         self._enabled = enabled
         self._lock = RLock()
 

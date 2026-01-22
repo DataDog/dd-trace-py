@@ -104,7 +104,9 @@ class PromptManager:
             return warm_prompt
 
         # Try sync fetch from registry
-        fetched_prompt = self._sync_fetch(prompt_id, label, key)
+        fetched_prompt = self._fetch_and_cache(
+            prompt_id, label, key, evict_on_not_found=False, log_context="Sync fetch"
+        )
         if fetched_prompt is not None:
             telemetry.record_prompt_source("registry", prompt_id)
             return fetched_prompt
@@ -140,20 +142,7 @@ class PromptManager:
         """
         label = label or DEFAULT_PROMPTS_LABEL
         key = self._cache_key(prompt_id, label)
-
-        try:
-            prompt = self._fetch_from_registry(prompt_id, label, timeout=self._timeout)
-            if prompt is not None:
-                self._update_caches(key, prompt)
-                return prompt
-        except PromptNotFoundError:
-            log.debug("Prompt %s was deleted, evicting from cache", prompt_id)
-            self._evict_caches(key)
-            telemetry.record_prompt_fetch_error(prompt_id, "PromptNotFoundError")
-        except Exception as e:
-            log.debug("Failed to refresh prompt %s: %s", prompt_id, e)
-            telemetry.record_prompt_fetch_error(prompt_id, type(e).__name__)
-        return None
+        return self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=True, log_context="Force Refresh")
 
     def _cache_key(self, prompt_id: str, label: str) -> str:
         return f"{self._ml_app}:{prompt_id}:{label}"
@@ -169,17 +158,38 @@ class PromptManager:
         self._hot_cache.delete(key)
         self._warm_cache.delete(key)
 
-    def _sync_fetch(self, prompt_id: str, label: str, key: str) -> Optional[ManagedPrompt]:
-        """Synchronous fetch with timeout for cold starts."""
+    def _fetch_and_cache(
+        self,
+        prompt_id: str,
+        label: str,
+        key: str,
+        evict_on_not_found: bool = False,
+        log_context: str = "Fetch",
+    ) -> Optional[ManagedPrompt]:
+        """Fetch a prompt and update caches, with standardized error handling.
+
+        Args:
+            prompt_id: The prompt identifier.
+            label: The prompt label.
+            key: The cache key.
+            evict_on_not_found: If True, evict from caches when prompt is not found (404).
+            log_context: Context string for log messages (e.g., "Sync fetch", "Refresh").
+
+        Returns:
+            The fetched prompt, or None if fetch failed.
+        """
         try:
             prompt = self._fetch_from_registry(prompt_id, label, timeout=self._timeout)
             if prompt is not None:
                 self._update_caches(key, prompt)
                 return prompt
         except PromptNotFoundError:
+            if evict_on_not_found:
+                log.debug("Prompt %s was deleted, evicting from cache", prompt_id)
+                self._evict_caches(key)
             telemetry.record_prompt_fetch_error(prompt_id, "PromptNotFoundError")
         except Exception as e:
-            log.debug("Sync fetch failed for prompt %s: %s", prompt_id, e)
+            log.debug("%s failed for prompt %s: %s", log_context, prompt_id, e)
             telemetry.record_prompt_fetch_error(prompt_id, type(e).__name__)
         return None
 
@@ -207,16 +217,7 @@ class PromptManager:
     def _background_refresh(self, key: str, prompt_id: str, label: str) -> None:
         """Refresh a prompt in the background."""
         try:
-            prompt = self._fetch_from_registry(prompt_id, label, timeout=self._timeout)
-            if prompt is not None:
-                self._update_caches(key, prompt)
-        except PromptNotFoundError:
-            log.debug("Prompt %s was deleted, evicting from cache", prompt_id)
-            self._evict_caches(key)
-            telemetry.record_prompt_fetch_error(prompt_id, "PromptNotFoundError")
-        except Exception as e:
-            log.debug("Background refresh failed for prompt %s: %s", prompt_id, e)
-            telemetry.record_prompt_fetch_error(prompt_id, type(e).__name__)
+            self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=True, log_context="Background refresh")
         finally:
             with self._refresh_lock:
                 self._refresh_in_progress.discard(key)
