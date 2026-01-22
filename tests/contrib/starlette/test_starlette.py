@@ -7,7 +7,6 @@ import sqlalchemy
 import starlette
 from starlette.testclient import TestClient
 
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.internal.sqlalchemy.patch import patch as sql_patch
 from ddtrace.contrib.internal.sqlalchemy.patch import unpatch as sql_unpatch
@@ -40,7 +39,6 @@ def engine():
 @pytest.fixture
 def tracer(engine):
     with scoped_tracer() as tracer:
-        Pin._override(engine, tracer=tracer)
         starlette_patch()
         yield tracer
         starlette_unpatch()

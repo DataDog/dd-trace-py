@@ -137,7 +137,6 @@ class TaskInfo
     {
     }
 
-    [[nodiscard]] static Result<TaskInfo::Ptr> current(PyObject*);
     size_t unwind(FrameStack&);
 };
 
