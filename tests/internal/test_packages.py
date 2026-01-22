@@ -32,40 +32,32 @@ def packages():
 
 
 def test_get_distributions():
-    """use pkg_resources to validate package names and versions returned by get_distributions()"""
-    import pkg_resources
+    """use stdlib importlib.metadata to validate package names and versions returned by get_distributions()"""
+    import importlib.metadata as stdlib_im
 
-    pkg_resources_ws = {pkg.project_name.lower() for pkg in pkg_resources.working_set}
+    # Get packages from stdlib importlib.metadata (Python fallback implementation)
+    stdlib_pkgs = {}
+    for dist in stdlib_im.distributions():
+        name = dist.metadata['Name']
+        version = dist.metadata['Version']
+        if name and version:
+            stdlib_pkgs[name.lower()] = version
 
-    importlib_pkgs = set()
-    for name, version in get_distributions().items():
-        assert version
-        # The package name in typing_extensions-4.x.x.dist-info/METADATA is set to `typing_extensions`
-        # this is inconsistent with the package name found in pkg_resources. The block below corrects this.
-        # The correct package name is typing-extensions.
-        # The issue exists in pkgutil-resolve-name package.
-        if name == "typing_extensions" and "typing-extensions" in pkg_resources_ws:
-            importlib_pkgs.add("typing-extensions")
-        elif name == "pkgutil_resolve_name" and "pkgutil-resolve-name" in pkg_resources_ws:
-            importlib_pkgs.add("pkgutil-resolve-name")
-        elif name == "importlib_metadata" and "importlib-metadata" in pkg_resources_ws:
-            importlib_pkgs.add("importlib-metadata")
-        elif name == "importlib-metadata" and "importlib_metadata" in pkg_resources_ws:
-            importlib_pkgs.add("importlib_metadata")
-        elif name == "importlib-resources" and "importlib_resources" in pkg_resources_ws:
-            importlib_pkgs.add("importlib_resources")
-        elif name == "importlib_resources" and "importlib-resources" in pkg_resources_ws:
-            importlib_pkgs.add("importlib-resources")
-        else:
-            importlib_pkgs.add(name)
-        # Fix for last zope namespace changes
-        for sub in ["interface", "event"]:
-            if f"zope-{sub}" in pkg_resources_ws and f"zope.{sub}" in importlib_pkgs:
-                pkg_resources_ws.discard(f"zope-{sub}")
-                importlib_pkgs.discard(f"zope.{sub}")
+    # Get packages from our implementation (Rust-optimized or Python fallback)
+    our_pkgs = get_distributions()
 
-    # assert that pkg_resources and importlib.metadata return the same packages
-    assert pkg_resources_ws == importlib_pkgs
+    # Verify all packages match
+    assert set(stdlib_pkgs.keys()) == set(our_pkgs.keys()), (
+        f"Package mismatch:\n"
+        f"  Only in stdlib: {sorted(set(stdlib_pkgs.keys()) - set(our_pkgs.keys()))}\n"
+        f"  Only in ours: {sorted(set(our_pkgs.keys()) - set(stdlib_pkgs.keys()))}"
+    )
+
+    # Verify versions match
+    for name in stdlib_pkgs:
+        assert our_pkgs[name] == stdlib_pkgs[name], (
+            f"Version mismatch for {name}: stdlib={stdlib_pkgs[name]}, ours={our_pkgs[name]}"
+        )
 
 
 def test_filename_to_package(packages):
