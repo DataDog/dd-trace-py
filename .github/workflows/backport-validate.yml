@@ -28,11 +28,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         id: backport_validation
         run: |
-          TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
 
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
 
+          TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
           MERGE_BASE=$(git merge-base origin/main origin/${PR_BRANCH})
           git diff ${MERGE_BASE} > ../backport.patch
           git checkout origin/${TARGET_BRANCH}
@@ -42,6 +42,8 @@ jobs:
           echo "backport label: ${BACKPORT_LABEL}" | tee -a "$GITHUB_OUTPUT"
           echo "branch: ${PR_BRANCH}" | tee -a "$GITHUB_OUTPUT"
           echo "backport target branch: ${TARGET_BRANCH}" | tee -a "$GITHUB_OUTPUT"
+          echo "merge base: ${MERGE_BASE}" | tee -a "$GITHUB_OUTPUT"
+          echo "apply error: ${ERROR}" | tee -a "$GITHUB_OUTPUT"
           if [[ ! -z "$ERROR" ]]
           then
             echo "Patch apply error: " >> "$GITHUB_OUTPUT"
