@@ -67,7 +67,11 @@ def traced_query_async_generator(claude_agent_sdk, pin, func, _instance, args, k
     """Trace the standalone query() async generator function."""
     integration = claude_agent_sdk._datadog_integration
     return _trace_async_generator(
-        integration, pin, func, args, kwargs,
+        integration,
+        pin,
+        func,
+        args,
+        kwargs,
         operation_name="claude_agent_sdk.query",
         span_name="claude_agent_sdk.query",
         operation="query",

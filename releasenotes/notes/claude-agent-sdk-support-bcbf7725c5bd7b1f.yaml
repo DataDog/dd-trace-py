@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    anthropic: Adds APM tracing and LLM Observability support for the Anthropic Claude Agent SDK (claude-agent-sdk). Support includes APM spans for agent queries, LLM Observability spans for agent runs, token usage metrics, tool calls, and input/output message collection.
