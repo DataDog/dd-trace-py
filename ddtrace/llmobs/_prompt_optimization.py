@@ -15,6 +15,7 @@ from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecordInputType
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentResult
+from ddtrace.llmobs._experiment import ExperimentRowResult
 from ddtrace.llmobs._experiment import JSONType
 
 
@@ -190,7 +191,7 @@ class OptimizationIteration:
 
         return system_prompt
 
-    def _add_examples(self, individual_results: List[Dict[str, Any]]) -> str:
+    def _add_examples(self, individual_results: List[ExperimentRowResult]) -> str:
         """Add examples of each label type using the labelization function.
 
         Applies the labelization function to each individual result to generate labels,
@@ -203,7 +204,7 @@ class OptimizationIteration:
             return ""
 
         # Step 1: Apply labelization function to each result and collect by label
-        examples_by_label: Dict[str, List[Dict[str, Any]]] = {}
+        examples_by_label: Dict[str, List[ExperimentRowResult]] = {}
         for result in individual_results:
             try:
                 label = self._labelization_function(result)
@@ -241,7 +242,7 @@ class OptimizationIteration:
 
         return "\n".join(formatted_parts)
 
-    def _format_example(self, example: Dict[str, Any]) -> str:
+    def _format_example(self, example: ExperimentRowResult) -> str:
         """Format an example for display in the user prompt.
 
         :param example: Example result dict.
@@ -250,21 +251,21 @@ class OptimizationIteration:
         parts = []
 
         # Input
-        input_data = example.get("input", {})
+        input_data = example["input"]
         parts.append(f"Input:\n{input_data}")
 
         # Expected output
-        expected = example.get("expected_output")
+        expected = example["expected_output"]
         if expected:
             parts.append(f"Expected Output:\n{expected}")
 
         # Actual output
-        output = example.get("output")
+        output = example["output"]
         if output:
             parts.append(f"Actual Output:\n{output}")
 
         # Evaluation reasoning if available
-        evaluations = example.get("evaluations", {})
+        evaluations = example["evaluations"]
         if evaluations:
             for eval_name, eval_data in evaluations.items():
                 if isinstance(eval_data, dict) and "reasoning" in eval_data:
@@ -292,8 +293,10 @@ class OptimizationIteration:
         if summary_evals:
             prompt_parts.append("Performance Metrics:")
             for _, summary_metric_data in summary_evals.items():
-                for metric_name, metric_data in summary_metric_data.get("value", {}).items():
-                    prompt_parts.append(f"- {metric_name}: {metric_data}")
+                value = summary_metric_data.get("value", {})
+                if isinstance(value, dict):
+                    for metric_name, metric_data in value.items():
+                        prompt_parts.append(f"- {metric_name}: {metric_data}")
             prompt_parts.append("")
 
         # Get individual results to find examples
