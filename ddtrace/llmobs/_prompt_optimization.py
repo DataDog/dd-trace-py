@@ -10,13 +10,13 @@ from typing import Optional
 from typing import TypedDict
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
+from ddtrace.llmobs._experiment import DatasetRecordInputType
 from ddtrace.llmobs._experiment import Experiment
-
 from ddtrace.llmobs._experiment import ExperimentResult
 from ddtrace.llmobs._experiment import JSONType
-from ddtrace.llmobs._experiment import ConfigType
-from ddtrace.llmobs._experiment import DatasetRecordInputType
+
 
 if TYPE_CHECKING:
     from ddtrace.llmobs import LLMObs
