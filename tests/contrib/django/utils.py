@@ -39,7 +39,8 @@ def setup_django_test_spans():
 
 
 @contextlib.contextmanager
-def with_django_db(test_spans=None):
+def with_django_db(test_spans):
+    from django.db import connections
     from django.test.utils import setup_databases
     from django.test.utils import teardown_databases
 
@@ -48,10 +49,12 @@ def with_django_db(test_spans=None):
         interactive=False,
         keepdb=False,
     )
-    if test_spans is not None:
-        # Clear the migration spans
-        test_spans.reset()
+    # Clear the migration spans
+    test_spans.reset()
     try:
         yield
     finally:
+        # Close all database connections before teardown.
+        # PostgreSQL won't drop a database if there are open connections to it.
+        connections.close_all()
         teardown_databases(old_config, verbosity=0)

@@ -6,7 +6,6 @@ import pytest
 import responses
 import snowflake.connector
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.snowflake.patch import patch
 from ddtrace.contrib.internal.snowflake.patch import unpatch
 from tests.utils import override_config
@@ -136,20 +135,6 @@ def test_snowflake_service_env():
                 res = cur.execute("select current_version();")
                 assert res == cur
                 assert cur.fetchone() == ("4.30.2",)
-
-
-@snapshot()
-@req_mock.activate
-def test_snowflake_pin_override(client):
-    add_snowflake_query_response(
-        rowtype=["TEXT"],
-        rows=[("4.30.2",)],
-    )
-    Pin(service="pin-sv", tags={"custom": "tag"}).onto(client)
-    with client.cursor() as cur:
-        res = cur.execute("select current_version();")
-        assert res == cur
-        assert cur.fetchone() == ("4.30.2",)
 
 
 @snapshot()
