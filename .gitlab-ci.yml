@@ -14,7 +14,8 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "e1cd85f960c713cf6a7e9caa61094b5914d0e386"
+  # TODO: revert to main after testing cache-venv branch
+  SYSTEM_TESTS_REF: "r1viollet/cache-venv"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v90830366-2b17cbb-profiling_native"
