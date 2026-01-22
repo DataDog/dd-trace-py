@@ -1039,7 +1039,7 @@ class LLMObs(Service):
             raise TypeError("optimization_task must be a callable function.")
         sig = inspect.signature(optimization_task)
         params = sig.parameters
-        if "system_prompt" not in params or "user_prompt" not in params:
+        if "system_prompt" not in params or "user_prompt" not in params or "config" not in params:
             raise TypeError(
                 "optimization_task function must have 'system_prompt' and 'user_prompt' parameters. "
                 "It should call an LLM with these prompts and return an optimized prompt."
