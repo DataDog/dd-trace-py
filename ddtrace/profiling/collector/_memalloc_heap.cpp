@@ -154,8 +154,8 @@ heap_tracker_t::pool_get_with_alloc_data_invokes_cpython(size_t size, size_t wei
     if (!pool.empty()) {
         auto tb = std::move(pool.back());
         pool.pop_back();
-        /* Reset it with the new allocation data */
-        tb->reset_invokes_cpython(size, weighted_size);
+        /* Initialize it with the new allocation data */
+        tb->init_sample_invokes_cpython(size, weighted_size);
         return tb;
     }
 

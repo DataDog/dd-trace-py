@@ -364,9 +364,3 @@ traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe)
 
     init_sample_invokes_cpython(size, weighted_size);
 }
-
-void
-traceback_t::reset_invokes_cpython(size_t size, size_t weighted_size)
-{
-    init_sample_invokes_cpython(size, weighted_size);
-}
