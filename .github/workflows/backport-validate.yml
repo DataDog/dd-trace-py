@@ -29,16 +29,18 @@ jobs:
         run: |
           TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
 
-          echo "results<<EOF" >> "$GITHUB_OUTPUT"
-          echo "backport label: ${BACKPORT_LABEL}" >> "$GITHUB_OUTPUT"
-          echo "branch: ${PR_BRANCH}" >> "$GITHUB_OUTPUT"
-          echo "backport target branch: ${TARGET_BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "results<<EOF" 2> >>(tee "$GITHUB_OUTPUT) | cat
+          echo "backport label: ${BACKPORT_LABEL}" 2> >>(tee "$GITHUB_OUTPUT) | cat
+          echo "branch: ${PR_BRANCH}" 2> >>(tee "$GITHUB_OUTPUT) | cat
+          echo "backport target branch: ${TARGET_BRANCH}" 2> >>(tee "$GITHUB_OUTPUT) | cat
           echo "EOF" >> "$GITHUB_OUTPUT"
 
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
 
-          git merge origin/${TARGET_BRANCH}
+          git diff main > ../backport.patch
+          git checkout ${TARGET_BRANCH} origin/${TARGET_BRANCH}
+          git apply ../backport.patch
 
 
       - name: Comment PR
