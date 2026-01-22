@@ -44,12 +44,17 @@ jobs:
           then
             echo "This change is marked for backport to ${TARGET_BRANCH}, but it conflicts with that branch." | tee -a "$GITHUB_OUTPUT"
             echo "Attempting to apply this change as a patch to ${TARGET_BRANCH} yielded the following error:" | tee -a "$GITHUB_OUTPUT"
+            echo "```" >> "$GITHUB_OUTPUT"
             echo "$ERROR" | tee -a "$GITHUB_OUTPUT"
+            echo "```" >> "$GITHUB_OUTPUT"
           else
             echo "This change is marked for backport to ${TARGET_BRANCH} and it does not conflict with that branch." | tee -a "$GITHUB_OUTPUT"
           fi
           HEAD_HASH=$(git rev-parse HEAD)
-          echo "The patch used to test backporting was \`git diff ${HEAD_HASH} ${MERGE_BASE}\`" | tee -a "$GITHUB_OUTPUT"
+          echo "The patch used to test backporting was" | tee -a "$GITHUB_OUTPUT"
+          echo "```" >> "$GITHUB_OUTPUT"
+          echo "git diff ${HEAD_HASH} ${MERGE_BASE}" | tee -a "$GITHUB_OUTPUT"
+          echo "```" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Comment PR
@@ -57,6 +62,4 @@ jobs:
         with:
           file-path: comment.txt
           message: |
-            ```
             ${{ steps.backport_validation.outputs.results }}
-            ```
