@@ -13,8 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
-    secrets:
-      token: ${{ secrets.GITHUB_TOKEN }}
     if: >
       github.event.action == 'labeled' && contains(github.event.label.name, 'backport')
     steps:
@@ -27,6 +25,8 @@ jobs:
           BACKPORT_LABEL: ${{ github.event.label.name }}
           PR_BRANCH: ${{ github.head_ref }}
         id: backport_validation
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
 
