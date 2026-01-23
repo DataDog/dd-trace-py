@@ -8,7 +8,7 @@
 void
 ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate)
 {
-    unwind_python_stack(tstate, python_stack);
+    unwind_python_stack(echion, tstate, python_stack);
 
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
@@ -183,7 +183,11 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
         for (auto current_task = leaf_task;;) {
             auto& task = current_task.get();
 
+#if PY_VERSION_HEX >= 0x030b0000
+            auto task_stack_size = task.unwind(echion.stack_chunk().get(), stack);
+#else
             auto task_stack_size = task.unwind(stack);
+#endif
             if (task.is_on_cpu) {
                 // Get the "bottom" part of the Python synchronous Stack, that is to say the
                 // synchronous functions and coroutines called by the Task's outermost coroutine
@@ -532,7 +536,11 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
         auto stack_info = std::make_unique<StackInfo>(greenlet->name, on_cpu);
         auto& stack = stack_info->stack;
 
+#if PY_VERSION_HEX >= 0x030b0000
+        greenlet->unwind(echion.stack_chunk().get(), frame, tstate, stack);
+#else
         greenlet->unwind(frame, tstate, stack);
+#endif
 
         std::unordered_set<GreenletInfo::ID> visited;
 
@@ -562,7 +570,11 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
             if (parent_frame == FRAME_NOT_SET || parent_frame == Py_None)
                 break;
 
+#if PY_VERSION_HEX >= 0x030b0000
+            parent_greenlet->second->unwind(echion.stack_chunk().get(), parent_frame, tstate, stack);
+#else
             parent_greenlet->second->unwind(parent_frame, tstate, stack);
+#endif
 
             // Move up the greenlet chain
             greenlet_id = parent_greenlet_id;

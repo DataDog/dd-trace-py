@@ -129,8 +129,13 @@ TaskInfo::create(TaskObj* task_addr)
       reinterpret_cast<PyObject*>(task_addr), loop, std::move(*maybe_coro), name, std::move(waiter));
 }
 
+#if PY_VERSION_HEX >= 0x030b0000
+size_t
+TaskInfo::unwind(StackChunk* stack_chunk, FrameStack& stack)
+#else
 size_t
 TaskInfo::unwind(FrameStack& stack)
+#endif
 {
     // TODO: Check for running task.
 
@@ -156,7 +161,11 @@ TaskInfo::unwind(FrameStack& stack)
         // For a running Task, unwind_frame would also yield the asyncio runtime frames "on top"
         // of the Task frame, but we would discard those anyway. Limiting to 1 frame avoids walking
         // the Frame chain unnecessarily.
+#if PY_VERSION_HEX >= 0x030b0000
+        auto new_frames = unwind_frame(stack_chunk, frame, stack, 1);
+#else
         auto new_frames = unwind_frame(frame, stack, 1);
+#endif
         assert(new_frames <= 1 && "expected exactly 1 frame to be unwound (or 0 in case of an error)");
 
         // If we failed to unwind the Frame, stop unwinding the coroutine chain; otherwise we could
