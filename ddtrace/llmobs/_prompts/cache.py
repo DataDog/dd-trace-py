@@ -66,12 +66,7 @@ class HotCache:
     def set(self, key: str, prompt: ManagedPrompt) -> None:
         """Add or update a prompt in cache."""
         with self._lock:
-            if key in self._cache:
-                # Update existing entry in place and move to end (most recently used)
-                self._cache[key] = CacheEntry(prompt=prompt, timestamp=time())
-                self._cache.move_to_end(key)
-                return
-            # Evict oldest entries if at capacity
+            self._cache.pop(key, None)
             while len(self._cache) >= self._max_size:
                 self._cache.popitem(last=False)
             self._cache[key] = CacheEntry(prompt=prompt, timestamp=time())
@@ -146,7 +141,7 @@ class WarmCache:
                     return None
                 with open(path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                return ManagedPrompt.from_dict(data)
+            return ManagedPrompt.from_dict(data)
         except (OSError, json.JSONDecodeError, KeyError, TypeError) as e:
             log.debug("Failed to read prompt from cache: %s", e)
             return None
@@ -157,8 +152,8 @@ class WarmCache:
             return
 
         path = self._key_to_path(key)
+        data = prompt.to_dict()
         try:
-            data = prompt.to_dict()
             with self._lock:
                 with open(path, "w", encoding="utf-8") as f:
                     json.dump(data, f)
