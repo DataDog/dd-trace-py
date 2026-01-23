@@ -81,9 +81,11 @@ async def execute(func, handler, args, kwargs):
                 request_cookies=cookies,
                 request_path_params=path_params,
             )
-            core.dispatch("tornado.start_request", ("tornado", request))
-            res = await func(*args, **kwargs)
-            return res
+            dispatch_res = core.dispatch_with_results("tornado.start_request", ("tornado", handler)).tornado_future
+            if dispatch_res and dispatch_res.value is not None:
+                return await dispatch_res.value
+
+            return await func(*args, **kwargs)
 
 
 def _find_route(initial_rule_set, request):
