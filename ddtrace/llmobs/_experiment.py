@@ -115,10 +115,9 @@ class EvaluatorContext:
                        Dictionary with string keys mapping to JSON-serializable values.
     :param output_data: The output data produced by the task (read-only)
     :param expected_output: The expected output for comparison, if available (read-only)
-    :param metadata: Additional metadata about the dataset record (read-only)
+    :param metadata: Additional metadata including dataset record metadata and experiment configuration (read-only)
     :param span_id: The span ID associated with the task execution, if available (read-only)
     :param trace_id: The trace ID associated with the task execution, if available (read-only)
-    :param config: Configuration dictionary for the experiment (read-only)
     """
 
     input_data: Dict[str, Any]
@@ -127,7 +126,6 @@ class EvaluatorContext:
     metadata: Dict[str, Any] = field(default_factory=dict)
     span_id: Optional[str] = None
     trace_id: Optional[str] = None
-    config: Dict[str, Any] = field(default_factory=dict)
 
 
 class BaseEvaluator(ABC):
@@ -795,14 +793,15 @@ class Experiment:
                     if _is_class_evaluator(evaluator):
                         # Class-based evaluator
                         evaluator_name = evaluator.name
+                        # Add experiment config under a specific field in metadata
+                        combined_metadata = {**metadata, "experiment_config": self._config}
                         context = EvaluatorContext(
                             input_data=input_data,
                             output_data=output_data,
                             expected_output=expected_output,
-                            metadata=metadata,
+                            metadata=combined_metadata,
                             span_id=task_result.get("span_id"),
                             trace_id=task_result.get("trace_id"),
-                            config=self._config,
                         )
                         eval_result = evaluator.evaluate(context)
                     elif _is_function_evaluator(evaluator):
