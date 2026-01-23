@@ -39,7 +39,7 @@ jobs:
           git merge origin/${PR_BRANCH}
           MERGE_COMMIT=$(git rev-parse HEAD)
           git checkout origin/${TARGET_BRANCH}
-          ERROR=$(git cherry-pick -m ${MERGE_COMMIT} 2>&1) || true
+          ERROR=$(git cherry-pick -x --mainline 1 ${MERGE_COMMIT} 2>&1) || true
           #git diff ${HEAD_HASH} ${MERGE_BASE} > ../backport.patch
           #cat ../backport.patch
           #git checkout origin/${TARGET_BRANCH}
