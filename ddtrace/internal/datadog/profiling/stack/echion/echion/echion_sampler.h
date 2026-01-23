@@ -17,6 +17,11 @@ class EchionSampler
     std::unordered_map<PyObject*, PyObject*> weak_task_link_map_;
     std::mutex task_link_map_lock_;
 
+    // Greenlet maps
+    std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr> greenlet_info_map_;
+    std::unordered_map<GreenletInfo::ID, GreenletInfo::ID> greenlet_parent_map_;
+    std::unordered_map<uintptr_t, GreenletInfo::ID> greenlet_thread_map_;
+    std::mutex greenlet_info_map_lock_;
 
   public:
     EchionSampler() = default;
@@ -29,10 +34,24 @@ class EchionSampler
     std::unordered_map<PyObject*, PyObject*>& weak_task_link_map() { return weak_task_link_map_; }
     std::mutex& task_link_map_lock() { return task_link_map_lock_; }
 
+    std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr>& greenlet_info_map() { return greenlet_info_map_; }
+    std::unordered_map<GreenletInfo::ID, GreenletInfo::ID>& greenlet_parent_map() { return greenlet_parent_map_; }
+    std::unordered_map<uintptr_t, GreenletInfo::ID>& greenlet_thread_map() { return greenlet_thread_map_; }
+    std::mutex& greenlet_info_map_lock() { return greenlet_info_map_lock_; }
 
     void postfork_child()
     {
+        // Re-init mutexes (placement new to avoid UB)
         new (&thread_info_map_lock_) std::mutex;
         new (&task_link_map_lock_) std::mutex;
+        new (&greenlet_info_map_lock_) std::mutex;
+
+        // Clear stale entries from parent process.
+        // No lock needed: only one thread exists in child immediately after fork.
+        task_link_map_.clear();
+        weak_task_link_map_.clear();
+        greenlet_info_map_.clear();
+        greenlet_parent_map_.clear();
+        greenlet_thread_map_.clear();
     }
 };
