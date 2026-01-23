@@ -67,12 +67,6 @@ class EvaluatorResult:
                 metadata={"confidence": 0.95},
                 tags={"category": "accuracy"}
             )
-
-    :param value: The primary evaluation result (numeric, boolean, string, etc.)
-    :param reasoning: Optional explanation of why this evaluation result was produced
-    :param assessment: Optional categorical assessment (e.g., "pass", "fail", "good", "bad")
-    :param metadata: Optional dictionary of additional metadata about the evaluation
-    :param tags: Optional dictionary of tags to categorize or label the evaluation
     """
 
     def __init__(
@@ -83,6 +77,14 @@ class EvaluatorResult:
         metadata: Optional[Dict[str, JSONType]] = None,
         tags: Optional[Dict[str, JSONType]] = None,
     ) -> None:
+        """Initialize an EvaluatorResult.
+
+        :param value: The primary evaluation result (numeric, boolean, string, etc.)
+        :param reasoning: Optional explanation of why this evaluation result was produced
+        :param assessment: Optional categorical assessment (e.g., "pass", "fail", "good", "bad")
+        :param metadata: Optional dictionary of additional metadata about the evaluation
+        :param tags: Optional dictionary of tags to categorize or label the evaluation
+        """
         self.value = value
         self.reasoning = reasoning
         self.assessment = assessment
