@@ -206,15 +206,12 @@ class OptimizationIteration:
         # Step 1: Apply labelization function to each result and collect by label
         examples_by_label: Dict[str, List[ExperimentRowResult]] = {}
         for result in individual_results:
-            try:
-                label = self._labelization_function(result)
-                if label:  # Only add if label is not None or empty
-                    if label not in examples_by_label:
-                        examples_by_label[label] = []
-                    examples_by_label[label].append(result)
-            except Exception as e:
-                log.warning("Labelization function failed for result: %s", e)
-                continue
+            # Cast ExperimentRowResult to Dict[str, Any] for labelization function
+            label = self._labelization_function(dict(result))
+            if label:  # Only add if label is not None or empty
+                if label not in examples_by_label:
+                    examples_by_label[label] = []
+                examples_by_label[label].append(result)
 
         if not examples_by_label:
             return ""
