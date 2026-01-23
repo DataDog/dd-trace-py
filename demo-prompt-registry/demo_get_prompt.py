@@ -104,7 +104,7 @@ def demo_caching():
     print("=" * 60)
 
     # Clear cache to start fresh
-    LLMObs.clear_prompt_cache(l1=True, l2=True)
+    LLMObs.clear_prompt_cache(hot=True, warm=True)
 
     # First call - should hit registry
     print("First call (cold cache):")

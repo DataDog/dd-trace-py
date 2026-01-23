@@ -18,7 +18,7 @@ from ddtrace.llmobs import LLMObs
 
 
 # Clear cache to show true cold start behavior
-LLMObs.clear_prompt_cache(l1=True, l2=True)
+LLMObs.clear_prompt_cache()
 
 print("First call (cold - network fetch from registry):")
 start = time.time()
