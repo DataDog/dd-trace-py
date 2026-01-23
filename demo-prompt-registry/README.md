@@ -1,64 +1,70 @@
 # Prompt Registry Demo
 
-This folder contains demo scripts for testing the LLMObs Prompt Registry end-to-end.
+Demo scripts for testing the LLMObs Prompt Registry against staging.
 
 ## Prerequisites
 
-1. **RAPID Service** running in dd-source
+1. **dd-auth** configured for staging (`dd.datad0g.com`)
 2. **dd-trace-py** installed in editable mode
-3. **DD_LLMOBS_PROMPTS_ENDPOINT** environment variable set
+3. A `.venv` symlink or venv in this directory
 
-## Quick Start
-
-### Terminal 1: Start RAPID Service
-
-```bash
-cd ~/DataDog/dd-source
-git checkout alex/feat/llmobs-prompt-registry
-rapid run --service llmobs-prompt-registry
-```
-
-Wait for: `INFO (rapid/rapid.go:558) - http api listening ... addr=127.0.0.1:8080`
-
-### Terminal 2: Run Demo
+## Setup
 
 ```bash
 cd ~/DataDog/dd-trace-py
 git checkout alex/feat/get_prompt-demo
 pip install -e .
 
-export DD_LLMOBS_PROMPTS_ENDPOINT=http://localhost:8080
-python demo-prompt-registry/demo_get_prompt.py
+# Create venv symlink for demo scripts
+ln -s ~/DataDog/dd-trace-py/.venv ~/DataDog/dd-trace-py/demo-prompt-registry/.venv
+```
+
+## Running Scripts
+
+All scripts use `dd-auth` to authenticate against staging:
+
+```bash
+cd demo-prompt-registry
+
+# Run any script
+./run.sh scripts/01_basic_fetch.py
+./run.sh scripts/02_chat_template.py
+./run.sh scripts/04_caching_performance.py
+
+# Or run the main demo
+./run.sh demo_get_prompt.py
 ```
 
 ## Demo Scripts
 
-### demo_get_prompt.py
-
-Demonstrates:
-1. **Text Template Prompt**: Fetch "greeting" prompt with `{{name}}` and `{{company}}` variables
-2. **Chat Template Prompt**: Fetch "assistant" prompt with multi-message chat format
-3. **Fallback Handling**: Graceful fallback when prompt not found
-4. **Caching Behavior**: L1/L2 cache and stale-while-revalidate pattern
+| Script | Description |
+|--------|-------------|
+| `demo_get_prompt.py` | Full demo: text/chat templates, fallback, caching, refresh |
+| `scripts/01_basic_fetch.py` | Basic prompt fetch from registry |
+| `scripts/02_chat_template.py` | Chat template with multi-message format |
+| `scripts/03a_warmup_cache.py` | Warm up cache before testing |
+| `scripts/03b_network_failure.py` | Test fallback when network fails |
+| `scripts/04_caching_performance.py` | Benchmark hot/warm cache performance |
 
 ## Environment Variables
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `DD_LLMOBS_PROMPTS_ENDPOINT` | Override prompts API endpoint | `http://localhost:8080` |
-
-## Branches
-
-- **dd-source**: `alex/feat/llmobs-prompt-registry` - RAPID service
-- **dd-trace-py**: `alex/feat/get_prompt-demo` - SDK with local endpoint support
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DD_API_KEY` | (from dd-auth) | Datadog API key |
+| `DD_LLMOBS_ML_APP` | varies by script | ML application name |
+| `DD_LLMOBS_PROMPTS_ENDPOINT` | `https://api.datad0g.com` | Override for local dev |
 
 ## Troubleshooting
 
-### Connection refused
-Make sure RAPID service is running on port 8080.
+### Authentication errors
+Make sure dd-auth is working: `dd-auth --domain dd.datad0g.com env | grep DD_API_KEY`
 
 ### Import errors
 Reinstall dd-trace-py: `pip install -e .`
 
-### Wrong endpoint
-Verify `DD_LLMOBS_PROMPTS_ENDPOINT` is set: `echo $DD_LLMOBS_PROMPTS_ENDPOINT`
+### Prompt not found
+Check that the prompt exists in the staging Prompt Registry for the specified `ml_app`.
+
+```
+ORGSTORE_DISABLE_VERSION_CHECK=1 orgstore toolbox psql --datacenter us1.staging.dog --orgstore-cluster llm-obs -e "SELECT prompt_id, ml_app, version, user_version, labels, template FROM prompt_versions WHERE ml_app = '<ml_app>' AND prompt_id = '<prompt_id>' LIMIT 20;"
+```

@@ -11,8 +11,8 @@ import os
 
 # Configure environment for staging (DD_API_KEY should be set via dd-auth)
 os.environ.setdefault("DD_API_KEY", "test-api-key")
+os.environ.setdefault("DD_LLMOBS_ML_APP", "js-test-app")
 os.environ.setdefault("DD_LLMOBS_PROMPTS_ENDPOINT", "https://api.datad0g.com")
-os.environ.setdefault("DD_LLMOBS_ML_APP", "customer-chatbot")
 
 from ddtrace.llmobs import LLMObs
 
@@ -20,21 +20,23 @@ from ddtrace.llmobs import LLMObs
 def demo_text_template():
     """Demo: Fetch and render a text template prompt."""
     print("=" * 60)
-    print("Demo 1: Text Template Prompt (greeting)")
+    print("Demo 1: Text Template Prompt")
     print("=" * 60)
 
-    prompt = LLMObs.get_prompt("greeting", label="prod")
+    prompt = LLMObs.get_prompt(
+        "langchain_sequential_chain_example.greeting_template",
+        label="prod",
+    )
 
     print(f"Prompt ID: {prompt.id}")
     print(f"Version: {prompt.version}")
     print(f"Label: {prompt.label}")
     print(f"Source: {prompt.source}")
     print(f"Template: {prompt.template}")
-    print(f"Variables: {prompt.variables}")
     print()
 
     # Render with variables
-    rendered = prompt.format(name="Alice", company="Acme Corp")
+    rendered = prompt.format(time_of_day="morning", name="Alice")
     print(f"Rendered: {rendered}")
     print()
 
@@ -44,24 +46,27 @@ def demo_text_template():
 def demo_chat_template():
     """Demo: Fetch and render a chat template prompt."""
     print("=" * 60)
-    print("Demo 2: Chat Template Prompt (assistant)")
+    print("Demo 2: Chat Template Prompt")
     print("=" * 60)
 
-    prompt = LLMObs.get_prompt("assistant", label="prod")
+    prompt = LLMObs.get_prompt(
+        "langchain_sequential_chain_example.expert_advice_template",
+        label="prod",
+    )
 
     print(f"Prompt ID: {prompt.id}")
     print(f"Version: {prompt.version}")
     print(f"Label: {prompt.label}")
     print(f"Source: {prompt.source}")
     print(f"Template (chat): {prompt.template}")
-    print(f"Variables: {prompt.variables}")
     print()
 
     # Render with variables
     rendered = prompt.format(
-        company="TechCorp",
-        assistant_name="Claude",
-        user_message="How do I reset my password?",
+        domain="Python",
+        years="10",
+        question="best practices for async programming",
+        word_limit="100",
     )
     print("Rendered messages:")
     for msg in rendered:
@@ -79,7 +84,7 @@ def demo_not_found():
 
     # With user-provided fallback
     prompt = LLMObs.get_prompt(
-        "unknown-prompt",
+        "unknown-prompt-that-does-not-exist",
         label="prod",
         fallback="Default greeting: Hello {{name}}!",
     )
@@ -108,12 +113,18 @@ def demo_caching():
 
     # First call - should hit registry
     print("First call (cold cache):")
-    prompt1 = LLMObs.get_prompt("greeting", label="prod")
+    prompt1 = LLMObs.get_prompt(
+        "langchain_sequential_chain_example.greeting_template",
+        label="prod",
+    )
     print(f"  Source: {prompt1.source}")
 
-    # Second call - should hit L1 cache
+    # Second call - should hit hot cache
     print("Second call (hot cache):")
-    prompt2 = LLMObs.get_prompt("greeting", label="prod")
+    prompt2 = LLMObs.get_prompt(
+        "langchain_sequential_chain_example.greeting_template",
+        label="prod",
+    )
     print(f"  Source: {prompt2.source}")
 
     # Note: source changes from "registry" to "cache" after first fetch
@@ -130,12 +141,18 @@ def demo_refresh():
 
     # Get cached version
     print("Current cached version:")
-    prompt1 = LLMObs.get_prompt("greeting", label="prod")
+    prompt1 = LLMObs.get_prompt(
+        "langchain_sequential_chain_example.greeting_template",
+        label="prod",
+    )
     print(f"  Version: {prompt1.version}, Source: {prompt1.source}")
 
     # Force refresh from registry
     print("After refresh_prompt():")
-    prompt2 = LLMObs.refresh_prompt("greeting", label="prod")
+    prompt2 = LLMObs.refresh_prompt(
+        "langchain_sequential_chain_example.greeting_template",
+        label="prod",
+    )
     if prompt2:
         print(f"  Version: {prompt2.version}, Source: {prompt2.source}")
     else:

@@ -23,8 +23,6 @@ for msg in prompt.template:
     content_preview = msg['content'][:80].replace('\n', ' ')
     print(f"  [{msg['role']}]: {content_preview}...")
 print()
-print(f"Variables: {prompt.variables}")
-print()
 
 rendered = prompt.format(event_context="view,/home,0\naction,click-button,1000")
 print("Rendered conversation (first message truncated):")
