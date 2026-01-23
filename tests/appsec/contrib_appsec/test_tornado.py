@@ -44,7 +44,11 @@ def wrap_fetch(original_fetch, ttc, interface, **fetch_kwargs):
                 kwargs["headers"]["Cookie"] = cookie_header
             interface.SERVER_PORT = ttc.get_http_port()
             future = original_fetch(
-                (base_url % interface.SERVER_PORT) + request, *args, raise_error=False, **(fetch_kwargs | kwargs)
+                (base_url % interface.SERVER_PORT) + request,
+                *args,
+                max_redirects=0,
+                raise_error=False,
+                **(fetch_kwargs | kwargs),
             )
             loop.run_sync(lambda: future)
             res = future.result()
@@ -83,4 +87,4 @@ class Test_Tornado(utils.Contrib_TestClass_For_Threats):
         return response.body.decode("utf-8")
 
     def location(self, response):
-        return response.location
+        return self.headers(response)["location"]

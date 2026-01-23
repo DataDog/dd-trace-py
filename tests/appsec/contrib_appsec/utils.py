@@ -1148,7 +1148,6 @@ class Contrib_TestClass_For_Threats:
             ({"Accept": "text/html;q=0.9, text/*;q=0.8, application/json;q=0.85, */*;q=0.9"}, True),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_request_suspicious_request_block_custom_actions(
         self,
         interface: Interface,

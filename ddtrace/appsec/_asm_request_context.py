@@ -645,6 +645,8 @@ def tornado_call_waf_first(integration, handler):
         handler.clear()
         handler.set_status(block.status_code)
         handler._transforms = ()
+        if 300 <= block.status_code < 400 and block.location:
+            return handler.redirect(block.location, status=block.status_code)
         if block.content_type == "auto":
             content_type = "text/html" if _use_html(handler.headers) else "application/json"
         else:
