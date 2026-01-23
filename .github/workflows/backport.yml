@@ -30,11 +30,51 @@ jobs:
           scope: DataDog/dd-trace-py
           policy: self.backport.create-pr
 
-      - uses: tibdex/backport@9565281eda0731b1d20c4025c43339fb0a23812e # v2.0.4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          github_token: ${{ steps.octo-sts.outputs.token }}
-          body_template: "Backport <%= mergeCommitSha %> from #<%= number %> to <%= base %>.\n\n<%= body %>"
-          label_pattern: "^backport (?<base>([0-9]+\\.[0-9]+))$"
-          # Include the original labels from the merged PR (minus any matching label_pattern)
-          labels_template: "<% print(JSON.stringify(labels)) %>"
-          title_template: "<%= title %> [backport <%= base %>]"
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Execute Backport
+        id: create-commit
+        env:
+          BACKPORT_LABEL: ${{ github.event.label.name }}
+          PR_NUMBER: ${{ github.event.pull_request.id }}
+          PR_BRANCH: ${{ github.head_ref }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "${GIT_AUTHOR_NAME}"
+          git config --global user.email "${GIT_AUTHOR_EMAIL}"
+
+          TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
+          MERGE_COMMIT=$(git rev-parse HEAD)
+          WORKTREE=".worktrees/backport-${TARGET_BRANCH}"
+          BACKPORT_BRANCH="backport-${PR_NUMBER}-to-${TARGET_BRANCH}"
+
+          git worktree add ${WORKTREE} ${TARGET_BRANCH}
+          cd ${WORKTREE}
+          git switch --create ${BACKPORT_BRANCH}
+          git cherry-pick -x --mainline 1 ${MERGE_COMMIT}
+          git push --set-upstream origin ${BACKPORT_BRANCH}
+
+          echo "branch=${BACKPORT_BRANCH}" >> $GITHUB_OUTPUT
+          echo "branch-from=${TARGET_BRANCH}" >> $GITHUB_OUTPUT
+          echo "commit=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Push Commit
+        uses: DataDog/commit-headless@action/v0.5.2
+        with:
+          branch: ${{ steps.create-commit.outputs.branch }}
+          branch-from: ${{ steps.create-commit.outputs.branch-from }}
+          command: push
+          commits: ${{ steps.create-commit.outputs.commit }}
+
+      - name: Create PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+           gh pr create \
+             --title "title [backport x.y]" \
+             --body "Backport 1234 to x.y" \
+             --base ${{ steps.create-commit.outputs.branch-from }} \
+             --head ${{ steps.create-commit.outputs.branch }}
