@@ -1,3 +1,4 @@
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 import itertools
@@ -37,6 +38,59 @@ if TYPE_CHECKING:
 
 
 logger = get_logger(__name__)
+
+
+def _cleanup_async_tasks():
+    """Run any pending async tasks to completion.
+
+    Simple cleanup that runs pending tasks.
+    """
+    import gc
+
+    try:
+        # Force GC to trigger finalizers
+        gc.collect()
+
+        # Run any async cleanup tasks that were scheduled
+        loop = asyncio.get_event_loop()
+        if loop and not loop.is_closed():
+            pending = [task for task in asyncio.all_tasks(loop) if not task.done()]
+            if pending:
+                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+    except Exception as e:
+        logger.debug("Failed to cleanup async tasks: %s", e)
+
+
+def _init_worker_thread():
+    """Initialize event loop for ThreadPoolExecutor worker threads.
+
+    This allows evaluators that use async libraries (e.g., DeepEval, LangChain)
+    to work properly in worker threads without requiring users to manually
+    manage event loops. Each worker thread gets its own event loop.
+
+    The event loop is kept alive across multiple tasks in the same thread
+    (ThreadPoolExecutor reuses threads).
+
+    If event loop setup fails, the thread proceeds without it - synchronous
+    evaluators will continue to work normally.
+    """
+    try:
+        # Check if event loop already exists (thread reuse)
+        try:
+            loop = asyncio.get_event_loop()
+            if loop and not loop.is_closed():
+                return  # Event loop already set up
+        except RuntimeError:
+            pass  # No event loop, create one
+
+        # Create new event loop for this thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    except Exception as e:
+        # Proceed without event loop if setup fails - synchronous evaluators will still work
+        logger.debug("Failed to initialize event loop in worker thread: %s", e)
+
 
 JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
 NonNoneJSONType = Union[str, int, float, bool, List[JSONType], Dict[str, JSONType]]
@@ -415,7 +469,18 @@ class Experiment:
         jobs: int = 1,
         raise_errors: bool = False,
         sample_size: Optional[int] = None,
+        evaluator_jobs: int = 1,
     ) -> ExperimentResult:
+        """Run the experiment by executing the task on all dataset records and evaluating the results.
+
+        :param jobs: Maximum number of concurrent task executions (default: 1)
+        :param raise_errors: Whether to raise exceptions on task or evaluator errors (default: False)
+        :param sample_size: Optional number of dataset records to sample for testing
+                            (default: None, uses full dataset)
+        :param evaluator_jobs: Maximum number of concurrent evaluator and summary evaluator executions
+                               (default: 1, sequential execution)
+        :return: ExperimentResult containing evaluation results and metadata
+        """
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             raise ValueError(
                 "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
@@ -449,8 +514,8 @@ class Experiment:
             self._tags["run_id"] = str(run._id)
             self._tags["run_iteration"] = str(run._run_iteration)
             task_results = self._run_task(jobs, run, raise_errors, sample_size)
-            evaluations = self._run_evaluators(task_results, raise_errors=raise_errors)
-            summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors)
+            evaluations = self._run_evaluators(task_results, raise_errors=raise_errors, jobs=evaluator_jobs)
+            summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=evaluator_jobs)
             run_result = self._merge_results(run, task_results, evaluations, summary_evals)
             experiment_evals = self._generate_metrics_from_exp_results(run_result)
             self._llmobs_instance._dne_client.experiment_eval_post(
@@ -504,6 +569,7 @@ class Experiment:
                 output_data = self._task(input_data, self._config)
             except Exception:
                 span.set_exc_info(*sys.exc_info())
+
             self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
 
             span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
@@ -553,7 +619,7 @@ class Experiment:
         else:
             subset_dataset = self._dataset
         task_results = []
-        with ThreadPoolExecutor(max_workers=jobs) as executor:
+        with ThreadPoolExecutor(max_workers=jobs, initializer=_init_worker_thread) as executor:
             for result in executor.map(
                 self._process_record,
                 enumerate(subset_dataset),
@@ -574,49 +640,87 @@ class Experiment:
         self._llmobs_instance.flush()  # Ensure spans get submitted in serverless environments
         return task_results
 
-    def _run_evaluators(self, task_results: List[TaskResult], raise_errors: bool = False) -> List[EvaluationResult]:
-        evaluations: List[EvaluationResult] = []
-        for idx, task_result in enumerate(task_results):
-            output_data = task_result["output"]
+    def _run_evaluators(
+        self, task_results: List[TaskResult], raise_errors: bool = False, jobs: int = 10
+    ) -> List[EvaluationResult]:
+        """Run evaluators on task results with concurrent execution using ThreadPoolExecutor.
+
+        :param task_results: List of task results to evaluate
+        :param raise_errors: Whether to raise exceptions on evaluation errors
+        :param jobs: Maximum number of concurrent evaluator executions (default: 10)
+        """
+
+        def _evaluate_single(evaluator: Any, idx: int, task_result: TaskResult) -> Tuple[str, Dict[str, JSONType]]:
+            """Evaluate a single evaluator for one task result."""
             record: DatasetRecord = self._dataset[idx]
             input_data = record["input_data"]
+            output_data = task_result["output"]
             expected_output = record["expected_output"]
-            evals_dict: Dict[str, Dict[str, JSONType]] = {}
-            for evaluator in self._evaluators:
-                eval_result_value: JSONType = None
-                eval_err: JSONType = None
-                extra_return_values: Dict[str, JSONType] = {}
-                try:
-                    eval_result = evaluator(input_data, output_data, expected_output)
 
-                    if isinstance(eval_result, EvaluatorResult):
-                        if eval_result.reasoning:
-                            extra_return_values["reasoning"] = eval_result.reasoning
-                        if eval_result.assessment:
-                            extra_return_values["assessment"] = eval_result.assessment
-                        if eval_result.metadata:
-                            extra_return_values["metadata"] = eval_result.metadata
-                        if eval_result.tags:
-                            extra_return_values["tags"] = eval_result.tags
-                        eval_result_value = eval_result.value
-                    else:
-                        eval_result_value = eval_result
-                except Exception as e:
-                    exc_type, exc_value, exc_tb = sys.exc_info()
-                    exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
-                    exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-                    eval_err = {
-                        "message": str(exc_value),
-                        "type": exc_type_name,
-                        "stack": exc_stack,
-                    }
-                    if raise_errors:
-                        raise RuntimeError(f"Evaluator {evaluator.__name__} failed on row {idx}") from e
-                evals_dict[evaluator.__name__] = {
-                    "value": eval_result_value,
-                    "error": eval_err,
-                    **extra_return_values,
+            eval_result_value: JSONType = None
+            eval_err: JSONType = None
+            evaluator_name = evaluator.__name__
+            extra_return_values: Dict[str, JSONType] = {}
+
+            try:
+                eval_result = evaluator(input_data, output_data, expected_output)
+
+                # Handle EvaluatorResult return type
+                if isinstance(eval_result, EvaluatorResult):
+                    if eval_result.reasoning:
+                        extra_return_values["reasoning"] = eval_result.reasoning
+                    if eval_result.assessment:
+                        extra_return_values["assessment"] = eval_result.assessment
+                    if eval_result.metadata:
+                        extra_return_values["metadata"] = eval_result.metadata
+                    if eval_result.tags:
+                        extra_return_values["tags"] = eval_result.tags
+                    eval_result_value = eval_result.value
+                else:
+                    eval_result_value = eval_result
+
+                # Delete reference to allow GC, then cleanup any async tasks
+                del eval_result
+                _cleanup_async_tasks()
+
+            except Exception as e:
+                exc_type, exc_value, exc_tb = sys.exc_info()
+                exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
+                exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+                eval_err = {
+                    "message": str(exc_value),
+                    "type": exc_type_name,
+                    "stack": exc_stack,
                 }
+                if raise_errors:
+                    raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
+
+            return evaluator_name, {
+                "value": eval_result_value,
+                "error": eval_err,
+                **extra_return_values,
+            }
+
+        evaluations: List[EvaluationResult] = []
+        for idx, task_result in enumerate(task_results):
+            # Run all evaluators for this task result concurrently using ThreadPoolExecutor
+            evals_dict: Dict[str, Dict[str, JSONType]] = {}
+
+            with ThreadPoolExecutor(max_workers=jobs, initializer=_init_worker_thread) as executor:
+                # Submit all evaluator tasks
+                futures = [
+                    executor.submit(_evaluate_single, evaluator, idx, task_result) for evaluator in self._evaluators
+                ]
+
+                # Collect results
+                for future in futures:
+                    try:
+                        evaluator_name, eval_data = future.result()
+                        evals_dict[evaluator_name] = eval_data
+                    except Exception:
+                        if raise_errors:
+                            raise
+
             evaluation: EvaluationResult = {"idx": idx, "evaluations": evals_dict}
             evaluations.append(evaluation)
         return evaluations
@@ -626,12 +730,18 @@ class Experiment:
         task_results: List[TaskResult],
         eval_results: List[EvaluationResult],
         raise_errors: bool = False,
+        jobs: int = 1,
     ) -> List[EvaluationResult]:
-        evaluations: List[EvaluationResult] = []
+        """Run summary evaluators with concurrent execution using ThreadPoolExecutor.
+
+        :param task_results: List of task results
+        :param eval_results: List of evaluation results from regular evaluators
+        :param raise_errors: Whether to raise exceptions on evaluation errors
+        :param jobs: Maximum number of concurrent summary evaluator executions (default: 1)
+        """
         inputs: List[DatasetRecordInputType] = []
         outputs: List[JSONType] = []
         expected_outputs: List[JSONType] = []
-        evals_dict = {}
 
         # name of evaluator (not summary evaluator) -> list of eval results ordered by index of the list of task results
         # this is being computed so that the user can use the evaluation results in its original form
@@ -649,12 +759,20 @@ class Experiment:
 
                 eval_results_by_name[name].append(eval_value.get("value"))
 
-        for idx, summary_evaluator in enumerate(self._summary_evaluators):
-            eval_result: JSONType = None
+        def _evaluate_summary_single(idx: int, summary_evaluator: Any) -> tuple[int, str, Dict[str, JSONType]]:
+            """Evaluate a single summary evaluator."""
+            eval_result_value: JSONType = None
             eval_err: JSONType = None
+            evaluator_name = summary_evaluator.__name__
 
             try:
                 eval_result = summary_evaluator(inputs, outputs, expected_outputs, eval_results_by_name)
+                eval_result_value = eval_result
+
+                # Delete reference to allow GC, then cleanup any async tasks
+                del eval_result
+                _cleanup_async_tasks()
+
             except Exception as e:
                 exc_type, exc_value, exc_tb = sys.exc_info()
                 exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
@@ -665,13 +783,38 @@ class Experiment:
                     "stack": exc_stack,
                 }
                 if raise_errors:
-                    raise RuntimeError(f"Summary evaluator {summary_evaluator.__name__} failed") from e
-            evals_dict[summary_evaluator.__name__] = {
-                "value": eval_result,
-                "error": eval_err,
-            }
-            evaluation: EvaluationResult = {"idx": idx, "evaluations": evals_dict}
-            evaluations.append(evaluation)
+                    raise RuntimeError(f"Summary evaluator {evaluator_name} failed") from e
+
+            return (
+                idx,
+                evaluator_name,
+                {
+                    "value": eval_result_value,
+                    "error": eval_err,
+                },
+            )
+
+        # Run all summary evaluators concurrently using ThreadPoolExecutor
+        evaluations: List[EvaluationResult] = []
+        evals_dict: Dict[str, Dict[str, JSONType]] = {}
+
+        with ThreadPoolExecutor(max_workers=jobs, initializer=_init_worker_thread) as executor:
+            # Submit all summary evaluator tasks
+            futures = [
+                executor.submit(_evaluate_summary_single, idx, summary_evaluator)
+                for idx, summary_evaluator in enumerate(self._summary_evaluators)
+            ]
+
+            # Collect results
+            for future in futures:
+                try:
+                    idx, evaluator_name, eval_data = future.result()
+                    evals_dict[evaluator_name] = eval_data
+                    evaluation: EvaluationResult = {"idx": idx, "evaluations": evals_dict}
+                    evaluations.append(evaluation)
+                except Exception:
+                    if raise_errors:
+                        raise
 
         return evaluations
 
