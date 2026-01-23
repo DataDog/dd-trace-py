@@ -39,6 +39,30 @@ variables:
     KUBERNETES_MEMORY_REQUEST: "10Gi"
     KUBERNETES_MEMORY_LIMIT: "10Gi"
     DD_DISABLE_VPA: true
+    # Extension cache settings
+    EXT_CACHE_MAX_SIZE_MB: "250"
+  cache:
+    # Branch-specific cache with fallback to main branch
+    key: "v1-ext-cache-${CI_COMMIT_REF_SLUG}-${CI_JOB_NAME}"
+    fallback_keys:
+      - "v1-ext-cache-main-${CI_JOB_NAME}"
+    paths:
+      - .ext_cache/
+  after_script:
+    # Purge extension cache if it exceeds size threshold to prevent unbounded growth
+    - |
+      if [ -d .ext_cache ]; then
+        CACHE_SIZE=$(du -sm .ext_cache 2>/dev/null | cut -f1 || echo "0")
+        echo "Extension cache size: ${CACHE_SIZE}MB (max: ${EXT_CACHE_MAX_SIZE_MB}MB)"
+        if [ "$CACHE_SIZE" -gt "${EXT_CACHE_MAX_SIZE_MB}" ]; then
+          echo "WARNING: Cache size (${CACHE_SIZE}MB) exceeds limit (${EXT_CACHE_MAX_SIZE_MB}MB)"
+          echo "Purging cache to prevent unbounded growth..."
+          rm -rf .ext_cache
+          echo "Cache purged. Next build will recompile extensions and rebuild cache."
+        else
+          echo "Cache size OK (${CACHE_SIZE}MB / ${EXT_CACHE_MAX_SIZE_MB}MB)"
+        fi
+      fi
   artifacts:
     paths:
       - "pywheels/*.whl"
@@ -106,6 +130,8 @@ variables:
           - "3.13 3.14"
   variables:
     SYSTEM_VERSION_COMPAT: "0"
+    # macOS builds 2-3 Python versions per job, needs larger cache
+    EXT_CACHE_MAX_SIZE_MB: "1000"
   script: |
     set -euo pipefail
     for python_version in ${PYTHON_VERSIONS}; do
