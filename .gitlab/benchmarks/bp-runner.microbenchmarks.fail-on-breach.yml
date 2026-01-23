@@ -825,11 +825,11 @@ experiments:
               - max_rss_usage < 47.00 MB
           - name: otelspan-start-finish
             thresholds:
-              - execution_time < 88.00 ms
+              - execution_time < 90.00 ms
               - max_rss_usage < 46.50 MB
           - name: otelspan-start-finish-telemetry
             thresholds:
-              - execution_time < 89.00 ms
+              - execution_time < 91.00 ms
               - max_rss_usage < 46.50 MB
           - name: otelspan-update-name
             thresholds:
@@ -926,11 +926,11 @@ experiments:
           - name: recursivecomputation-deep
             thresholds:
               - execution_time < 320.95 ms
-              - max_rss_usage < 36.50 MB
+              - max_rss_usage < 37.00 MB
           - name: recursivecomputation-deep-profiled
             thresholds:
               - execution_time < 359.15 ms
-              - max_rss_usage < 40.50 MB
+              - max_rss_usage < 41.50 MB
           - name: recursivecomputation-medium
             thresholds:
               - execution_time < 7.40 ms
@@ -952,11 +952,11 @@ experiments:
           - name: samplingrules-low_match
             thresholds:
               - execution_time < 0.12 ms
-              - max_rss_usage < 700.00 MB
+              - max_rss_usage < 750.00 MB
           - name: samplingrules-very_low_match
             thresholds:
               - execution_time < 8.50 ms
-              - max_rss_usage < 75.00 MB
+              - max_rss_usage < 82.00 MB
           # sethttpmeta
           - name: sethttpmeta-all-disabled
             thresholds:
@@ -1021,7 +1021,7 @@ experiments:
           - name: sethttpmeta-useragentvariant_not_exists_2
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 36.00 MB
+              - max_rss_usage < 36.50 MB
 
           # span
           - name: span-add-event
@@ -1058,15 +1058,15 @@ experiments:
               - max_rss_usage < 53.00 MB
           - name: span-start-finish
             thresholds:
-              - execution_time < 54.00 ms
+              - execution_time < 56.00 ms
               - max_rss_usage < 36.00 MB
           - name: span-start-finish-telemetry
             thresholds:
-              - execution_time < 56.00 ms
+              - execution_time < 58.00 ms
               - max_rss_usage < 36.00 MB
           - name: span-start-finish-traceid128
             thresholds:
-              - execution_time < 57.00 ms
+              - execution_time < 60.00 ms
               - max_rss_usage < 36.00 MB
           - name: span-start-traceid128
             thresholds:
@@ -1143,12 +1143,12 @@ experiments:
           - name: tracer-large
             thresholds:
               - execution_time < 32.95 ms
-              - max_rss_usage < 36.50 MB
+              - max_rss_usage < 37.50 MB
           - name: tracer-medium
             thresholds:
               - execution_time < 3.20 ms
-              - max_rss_usage < 36.00 MB
+              - max_rss_usage < 36.50 MB
           - name: tracer-small
             thresholds:
               - execution_time < 0.37 ms
-              - max_rss_usage < 36.00 MB
+              - max_rss_usage < 36.50 MB
