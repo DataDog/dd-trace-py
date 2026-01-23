@@ -771,7 +771,7 @@ class Experiment:
                 try:
                     if _is_class_evaluator(evaluator):
                         # Class-based evaluator
-                        evaluator_name = evaluator.name
+                        evaluator_name = evaluator.name  # type: ignore[union-attr]
                         # Add experiment config under a specific field in metadata
                         combined_metadata = {**metadata, "experiment_config": self._config}
                         context = EvaluatorContext(
@@ -782,11 +782,11 @@ class Experiment:
                             span_id=task_result.get("span_id"),
                             trace_id=task_result.get("trace_id"),
                         )
-                        eval_result = evaluator.evaluate(context)
+                        eval_result = evaluator.evaluate(context)  # type: ignore[union-attr]
                     elif _is_function_evaluator(evaluator):
                         # Function-based evaluator (legacy)
-                        evaluator_name = evaluator.__name__
-                        eval_result = evaluator(input_data, output_data, expected_output)
+                        evaluator_name = evaluator.__name__  # type: ignore[union-attr]
+                        eval_result = evaluator(input_data, output_data, expected_output)  # type: ignore[operator]
                     else:
                         # Should not happen, but handle gracefully
                         evaluator_name = str(evaluator)
