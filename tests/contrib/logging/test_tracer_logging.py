@@ -490,7 +490,6 @@ for level_num, level_name in levels_to_test:
         (logging.ERROR, b"error"),
         (logging.CRITICAL, b"critical"),
     ]
-    # For NOTSET, effective level is parent's level, so use that for filtering
     effective_level = logging.DEBUG if level_value == logging.NOTSET else level_value
     for level_num, level_bytes in levels_to_check:
         if level_num == logging.NOTSET:
