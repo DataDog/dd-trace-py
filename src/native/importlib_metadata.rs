@@ -204,6 +204,7 @@ fn scan_all_distributions(paths: &[PathBuf]) -> Vec<DistInfo> {
 pub struct Distribution {
     #[pyo3(get)]
     name: String,
+    #[pyo3(get)]
     path: PathBuf,
     #[pyo3(get)]
     metadata: Py<PyDict>,
@@ -270,7 +271,7 @@ pub fn distributions(py: Python) -> PyResult<Vec<Py<Distribution>>> {
         if let Ok(path_str) = item.extract::<String>() {
             // Empty string in sys.path means current directory
             let path = if path_str.is_empty() {
-                PathBuf::from(".")
+                std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
             } else {
                 PathBuf::from(path_str)
             };
@@ -283,10 +284,37 @@ pub fn distributions(py: Python) -> PyResult<Vec<Py<Distribution>>> {
     // Scan all directories
     let dist_infos = scan_all_distributions(&paths);
 
-    // Convert to Python objects
-    let mut result = Vec::with_capacity(dist_infos.len());
+    // Deduplicate distributions by name, preferring .dist-info over .egg-info
+    // This matches stdlib behavior where .dist-info installations take precedence
+    use std::collections::HashMap;
+    let mut name_to_dist: HashMap<String, DistInfo> = HashMap::new();
 
     for info in dist_infos {
+        let name_lower = info.name.to_lowercase();
+
+        match name_to_dist.get(&name_lower) {
+            Some(existing) => {
+                // Prefer .dist-info over .egg-info
+                let info_is_dist_info = info.path.to_string_lossy().ends_with(".dist-info");
+                let existing_is_dist_info = existing.path.to_string_lossy().ends_with(".dist-info");
+
+                if info_is_dist_info && !existing_is_dist_info {
+                    // Replace .egg-info with .dist-info
+                    name_to_dist.insert(name_lower, info);
+                }
+                // Otherwise keep the existing one
+            }
+            None => {
+                // First occurrence of this name
+                name_to_dist.insert(name_lower, info);
+            }
+        }
+    }
+
+    // Convert to Python objects
+    let mut result = Vec::with_capacity(name_to_dist.len());
+
+    for (_, info) in name_to_dist {
         // Parse metadata
         let metadata_dict = PyDict::new(py);
 
