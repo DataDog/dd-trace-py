@@ -139,7 +139,3 @@ class TaskInfo
 
     size_t unwind(FrameStack&);
 };
-
-// ----------------------------------------------------------------------------
-
-inline std::vector<std::unique_ptr<StackInfo>> current_tasks;
