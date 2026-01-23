@@ -140,10 +140,6 @@ class TaskInfo
     size_t unwind(FrameStack&);
 };
 
-inline std::unordered_map<PyObject*, PyObject*> task_link_map;
-inline std::unordered_map<PyObject*, PyObject*> weak_task_link_map;
-inline std::mutex task_link_map_lock;
-
 // ----------------------------------------------------------------------------
 
 inline std::vector<std::unique_ptr<StackInfo>> current_tasks;

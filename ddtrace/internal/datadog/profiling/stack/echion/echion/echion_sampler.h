@@ -12,9 +12,11 @@ class EchionSampler
     std::unordered_map<uintptr_t, ThreadInfo::Ptr> thread_info_map_;
     std::mutex thread_info_map_lock_;
 
-    // Task Link map (Task -> Task relationships)
-    // std::unordered_map<PyObject*, PyObject*> task_link_map_;
-    // std::mutex task_link_map_lock_;
+    // Task Link maps (Task -> Task relationships)
+    std::unordered_map<PyObject*, PyObject*> task_link_map_;
+    std::unordered_map<PyObject*, PyObject*> weak_task_link_map_;
+    std::mutex task_link_map_lock_;
+
 
   public:
     EchionSampler() = default;
@@ -23,12 +25,14 @@ class EchionSampler
     std::unordered_map<uintptr_t, ThreadInfo::Ptr>& thread_info_map() { return thread_info_map_; }
     std::mutex& thread_info_map_lock() { return thread_info_map_lock_; }
 
-    // std::unordered_map<PyObject*, PyObject*>& task_link_map() { return task_link_map_; }
-    // std::mutex& task_link_map_lock() { return task_link_map_lock_; }
+    std::unordered_map<PyObject*, PyObject*>& task_link_map() { return task_link_map_; }
+    std::unordered_map<PyObject*, PyObject*>& weak_task_link_map() { return weak_task_link_map_; }
+    std::mutex& task_link_map_lock() { return task_link_map_lock_; }
+
 
     void postfork_child()
     {
         new (&thread_info_map_lock_) std::mutex;
-        // new (&task_link_map_lock_) std::mutex;
+        new (&task_link_map_lock_) std::mutex;
     }
 };
