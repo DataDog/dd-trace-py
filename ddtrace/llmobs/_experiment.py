@@ -133,15 +133,13 @@ class BaseEvaluator(ABC):
 
     Subclasses must implement the `evaluate` method.
 
-    **Return Value Guidelines:**
-
-    The return value determines how the evaluation is stored and displayed in the LLMObs backend:
-
-    - **Numeric (int/float)**: Stored as a "score" metric, enables charting and aggregation
-    - **Boolean**: Stored as a "boolean" metric for pass/fail tracking
-    - **None**: Stored as a categorical metric with null value
-    - **Other types (str/dict/list)**: Converted to string and stored as "categorical" metric
-    - **EvaluatorResult**: Returns a value plus optional reasoning, assessment, metadata, and tags
+    **Evaluator Return Values**
+    LLM Observability supports storing and representing the following evaluator return value types:
+    - **Numeric**: int/float values
+    - **Boolean**: pass/fail boolean values
+    - **Null**: None values
+    - **JSON serializable**: string/dict/list values, which will be serialized into strings
+    - **EvaluatorResult**: Any of the above values plus optional associated reasoning, assessment, metadata, and tags
 
     For best backend integration, prefer returning numeric scores (0.0-1.0) or booleans.
     If you need to return additional metadata, use EvaluatorResult.
