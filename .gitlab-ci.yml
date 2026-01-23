@@ -448,11 +448,13 @@ profiling_native:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"
     - changes:
-        - .gitlab-ci.yml
-        - ddtrace/internal/datadog/profiling/**/*
-        - ddtrace/profiling/**/*
-        - src/native/**/*
-        - tests/profiling/**/*
+        compare_to: "refs/heads/main"
+        paths:
+          - .gitlab-ci.yml
+          - ddtrace/internal/datadog/profiling/**/*
+          - ddtrace/profiling/**/*
+          - src/native/**/*
+          - tests/profiling/**/*
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
