@@ -22,8 +22,6 @@ from typing import cast
 from typing import overload
 import uuid
 
-from typing_extensions import TypeGuard
-
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -205,7 +203,7 @@ class BaseEvaluator(ABC):
         raise NotImplementedError("Subclasses must implement the evaluate method")
 
 
-def _is_class_evaluator(evaluator: Any) -> TypeGuard[BaseEvaluator]:
+def _is_class_evaluator(evaluator: Any) -> bool:
     """Check if an evaluator is a class-based evaluator (inherits from BaseEvaluator).
 
     :param evaluator: The evaluator to check
@@ -214,9 +212,7 @@ def _is_class_evaluator(evaluator: Any) -> TypeGuard[BaseEvaluator]:
     return isinstance(evaluator, BaseEvaluator)
 
 
-def _is_function_evaluator(
-    evaluator: Union[Callable[[Any, Any, Any], Any], BaseEvaluator],
-) -> TypeGuard[Callable[[Any, Any, Any], Any]]:
+def _is_function_evaluator(evaluator: Any) -> bool:
     """Check if an evaluator is a function-based evaluator.
 
     :param evaluator: The evaluator to check
