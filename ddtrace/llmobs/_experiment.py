@@ -93,11 +93,16 @@ class EvaluatorResult:
 
 
 def _validate_evaluator_name(name: str) -> None:
-    """Validate that evaluator name contains only alphanumeric characters and underscores.
+    """Validate that evaluator name is valid.
 
     :param name: The evaluator name to validate
-    :raises ValueError: If the name contains invalid characters
+    :raises TypeError: If the name is not a string
+    :raises ValueError: If the name is empty or contains invalid characters
     """
+    if not isinstance(name, str):
+        raise TypeError("Evaluator name must be a string")
+    if not name:
+        raise ValueError("Evaluator name cannot be empty")
     if not re.match(r"^[a-zA-Z0-9_]+$", name):
         raise ValueError(
             f"Evaluator name '{name}' is invalid. Name must contain only alphanumeric characters and underscores."
@@ -182,27 +187,13 @@ class BaseEvaluator(ABC):
                      the class name will be used.
                      Name must contain only alphanumeric characters and underscores.
         """
-        if name is not None and not isinstance(name, str):
-            raise TypeError("Evaluator name must be a string")
-        if name is not None and not name.strip():
-            raise ValueError("Evaluator name cannot be empty")
         if name is not None:
-            _validate_evaluator_name(name.strip())
-        self._custom_name = name.strip() if name is not None else None
+            name = name.strip()
+        else:
+            name = self.__class__.__name__
 
-    @property
-    def name(self) -> str:
-        """Return the name of the evaluator.
-
-        Uses the custom name if provided, otherwise uses the class name directly.
-
-        :return: The evaluator name (alphanumeric characters and underscores only)
-        :raises ValueError: If the generated name contains invalid characters
-        """
-        evaluator_name = self._custom_name if self._custom_name else self.__class__.__name__
-        # Validate the final name (defensive check for auto-generated names)
-        _validate_evaluator_name(evaluator_name)
-        return evaluator_name
+        _validate_evaluator_name(name)
+        self.name = name
 
     @abstractmethod
     def evaluate(self, context: EvaluatorContext) -> Union[JSONType, EvaluatorResult]:
