@@ -37,12 +37,19 @@ class FrameStack : public std::deque<Frame::Ref>
 };
 
 // ----------------------------------------------------------------------------
+#if PY_VERSION_HEX >= 0x030b0000
+size_t
+unwind_frame(StackChunk* stack_chunk, PyObject* frame_addr, FrameStack& stack, size_t max_depth = max_frames);
+#else
 size_t
 unwind_frame(PyObject* frame_addr, FrameStack& stack, size_t max_depth = max_frames);
+#endif
 
 // ----------------------------------------------------------------------------
+class EchionSampler; // forward declaration
+
 void
-unwind_python_stack(PyThreadState* tstate, FrameStack& stack);
+unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& stack);
 
 // ----------------------------------------------------------------------------
 class StackInfo

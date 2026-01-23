@@ -137,5 +137,9 @@ class TaskInfo
     {
     }
 
+#if PY_VERSION_HEX >= 0x030b0000
+    size_t unwind(StackChunk* stack_chunk, FrameStack&);
+#else
     size_t unwind(FrameStack&);
+#endif
 };
