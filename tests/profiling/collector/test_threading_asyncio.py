@@ -38,14 +38,28 @@ def test_lock_acquire_events():
         asyncio.run(_lock())
         lock.release()  # !RELEASE! test_lock_acquire_events_2
 
+    def stop_profiler_with_timeout(timeout_s: float = 5.0) -> None:
+        done: list[bool] = []
+
+        def _stop() -> None:
+            p._profiler.stop(flush=True, join=False)
+            done.append(True)
+
+        stopper = threading.Thread(target=_stop, name="profiler-stop", daemon=True)
+        stopper.start()
+        stopper.join(timeout_s)
+        if not done:
+            # Force a traceback dump so CI doesn't hang silently.
+            faulthandler.dump_traceback(all_threads=True)
+            raise RuntimeError("Profiler stop timed out")
+
     # start a complete profiler so asyncio policy is setup
     p = profiler.Profiler()
     p.start()
     t = threading.Thread(target=asyncio_run, name="foobar")
     t.start()
     t.join()
-    # Avoid hanging on scheduler join in CI; flush is enough for this test.
-    p._profiler.stop(flush=True, join=False)
+    stop_profiler_with_timeout()
 
     expected_filename = "test_threading_asyncio.py"
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())

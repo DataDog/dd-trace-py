@@ -13,6 +13,20 @@ import ddtrace.profiling.bootstrap  # noqa: E402
 import ddtrace.profiling.profiler  # noqa: F401,E402
 
 
+def _stop_profiler_with_timeout(timeout_s: float = 5.0) -> None:
+    done = []
+
+    def _stop() -> None:
+        ddtrace.profiling.bootstrap.profiler._profiler.stop(flush=True, join=False)
+        done.append(True)
+
+    stopper = threading.Thread(target=_stop, name="profiler-stop", daemon=True)
+    stopper.start()
+    stopper.join(timeout_s)
+    if not done:
+        faulthandler.dump_traceback(all_threads=True)
+
+
 lock = threading.Lock()
 lock.acquire()
 
@@ -31,7 +45,7 @@ if child_pid == 0:
     lock.acquire()
     lock.release()
     # Avoid hanging on profiler shutdown in child after fork.
-    ddtrace.profiling.bootstrap.profiler._profiler.stop(flush=True, join=False)
+    _stop_profiler_with_timeout()
     faulthandler.cancel_dump_traceback_later()
     os._exit(0)
 else:
@@ -41,6 +55,6 @@ else:
     print(child_pid)
     pid, status = os.waitpid(child_pid, 0)
     # Avoid hanging on profiler shutdown in parent after wait.
-    ddtrace.profiling.bootstrap.profiler._profiler.stop(flush=True, join=False)
+    _stop_profiler_with_timeout()
     faulthandler.cancel_dump_traceback_later()
     sys.exit(os.WEXITSTATUS(status))
