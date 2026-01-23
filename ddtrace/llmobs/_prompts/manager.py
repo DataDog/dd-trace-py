@@ -103,9 +103,7 @@ class PromptManager:
             return warm_prompt
 
         # Try sync fetch from registry
-        fetched_prompt = self._fetch_and_cache(
-            prompt_id, label, key, evict_on_not_found=False
-        )
+        fetched_prompt = self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=False)
         if fetched_prompt is not None:
             telemetry.record_prompt_source("registry", prompt_id)
             return fetched_prompt
@@ -217,9 +215,7 @@ class PromptManager:
         with self._refresh_lock:
             self._refresh_in_progress.discard(key)
 
-    def _fetch_from_registry(
-        self, prompt_id: str, label: str, timeout: float
-    ) -> Tuple[Optional[ManagedPrompt], bool]:
+    def _fetch_from_registry(self, prompt_id: str, label: str, timeout: float) -> Tuple[Optional[ManagedPrompt], bool]:
         """Fetch a prompt from the Datadog Prompt Registry.
 
         Returns:
@@ -248,7 +244,6 @@ class PromptManager:
         """Build the request path for fetching a prompt."""
         query_params = urlencode({"label": label, "ml_app": self._ml_app})
         return f"{PROMPTS_ENDPOINT}/{prompt_id}?{query_params}"
-
 
     def _parse_response(self, body: str, prompt_id: str, label: str) -> Optional[ManagedPrompt]:
         """Parse the API response into a ManagedPrompt."""

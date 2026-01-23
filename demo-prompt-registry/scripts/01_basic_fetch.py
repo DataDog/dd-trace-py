@@ -15,6 +15,7 @@ os.environ.setdefault("DD_LLMOBS_ML_APP", "session-summary-eval")
 
 from ddtrace.llmobs import LLMObs
 
+
 LLMObs.clear_prompt_cache()
 
 
