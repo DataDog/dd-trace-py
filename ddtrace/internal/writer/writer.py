@@ -16,6 +16,7 @@ from typing import TextIO
 import weakref
 
 from ddtrace import config
+from ddtrace.internal import forksafe
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
@@ -809,6 +810,22 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
         self._exporter = self._create_exporter()
 
+        if self._sync_mode:
+            fork_hook = make_weak_method_hook(self._exporter.stop_worker)
+            self._fork_hook = fork_hook
+            forksafe.register_before_fork(fork_hook)
+        else:
+            try:
+                if self.status != service.ServiceStatus.RUNNING:
+                    self.start()
+
+            except service.ServiceStatusError:
+                log.warning("failed to start writer service")
+
+    def __del__(self):
+        if self._fork_hook:
+            forksafe.unregister_before_fork(self._fork_hook)
+
     def _create_exporter(self) -> native.TraceExporter:
         """
         Create a new TraceExporter with the current configuration.
@@ -984,15 +1001,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _write_with_client(self, client: WriterClientBase, spans: Optional[List["Span"]] = None) -> None:
         if spans is None:
             return
-
-        if self._sync_mode is False:
-            # Start the Writer on first write.
-            try:
-                if self.status != service.ServiceStatus.RUNNING:
-                    self.start()
-
-            except service.ServiceStatusError:
-                log.warning("failed to start writer service")
 
         self._metrics_dist("writer.accepted.traces")
         self._metrics["accepted_traces"] += 1
