@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from dataclasses import field
 from dataclasses import replace
 import re
 from typing import Any
@@ -36,7 +35,6 @@ class ManagedPrompt:
     label: str
     source: Literal["registry", "cache", "fallback"]
     template: TemplateContent
-    variables: List[str] = field(default_factory=list)
 
     def format(self, **variables: str) -> Union[str, List[Dict[str, str]]]:
         """
@@ -106,7 +104,6 @@ class ManagedPrompt:
             "label": self.label,
             "source": self.source,
             "template": self.template,
-            "variables": list(self.variables),
         }
 
     @classmethod
@@ -118,7 +115,6 @@ class ManagedPrompt:
             label=data["label"],
             source=data.get("source", "cache"),
             template=data["template"],
-            variables=data.get("variables", []),
         )
 
     def _with_source(self, source: Literal["registry", "cache", "fallback"]) -> "ManagedPrompt":
@@ -161,7 +157,6 @@ class ManagedPrompt:
             label=label,
             source="fallback",
             template=template,
-            variables=[],
         )
 
 
