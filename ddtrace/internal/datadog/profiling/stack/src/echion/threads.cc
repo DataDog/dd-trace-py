@@ -6,14 +6,14 @@
 #include <optional>
 
 void
-ThreadInfo::unwind(PyThreadState* tstate)
+ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate)
 {
     unwind_python_stack(tstate, python_stack);
 
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
         // We cast it to void to ignore failures.
-        (void)unwind_tasks(tstate);
+        (void)unwind_tasks(echion, tstate);
     } else {
         // We make the assumption that gevent and asyncio are not mixed
         // together to keep the logic here simple. We can always revisit this
@@ -24,7 +24,7 @@ ThreadInfo::unwind(PyThreadState* tstate)
 
 // ----------------------------------------------------------------------------
 Result<void>
-ThreadInfo::unwind_tasks(PyThreadState* tstate)
+ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
 {
     // The size of the "pure Python" stack (before asyncio Frames).
     // Defaults to the full Python stack size (and updated if we find the "_run" Frame)
@@ -86,7 +86,10 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
 
     auto all_tasks = std::move(*maybe_all_tasks);
     {
-        std::lock_guard<std::mutex> lock(task_link_map_lock);
+        std::lock_guard<std::mutex> lock(echion.task_link_map_lock());
+
+        auto& task_link_map = echion.task_link_map();
+        auto& weak_task_link_map = echion.weak_task_link_map();
 
         // Clean up the task_link_map. Remove entries associated to tasks that
         // no longer exist.
@@ -213,7 +216,9 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
 
             {
                 // Check for, e.g., gather links
-                std::lock_guard<std::mutex> lock(task_link_map_lock);
+                std::lock_guard<std::mutex> lock(echion.task_link_map_lock());
+                auto& task_link_map = echion.task_link_map();
+                auto& weak_task_link_map = echion.weak_task_link_map();
 
                 if (auto maybe_parent = task_link_map.find(task_origin); maybe_parent != task_link_map.end()) {
                     if (auto maybe_origin = origin_map.find(maybe_parent->second); maybe_origin != origin_map.end()) {
@@ -221,13 +226,13 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
                         continue;
                     }
                 }
-            }
 
-            // Check for weak links
-            if (weak_task_link_map.find(task_origin) != weak_task_link_map.end() &&
-                origin_map.find(weak_task_link_map[task_origin]) != origin_map.end()) {
-                current_task = origin_map.find(weak_task_link_map[task_origin])->second;
-                continue;
+                // Check for weak links
+                if (weak_task_link_map.find(task_origin) != weak_task_link_map.end() &&
+                    origin_map.find(weak_task_link_map[task_origin]) != origin_map.end()) {
+                    current_task = origin_map.find(weak_task_link_map[task_origin])->second;
+                    continue;
+                }
             }
 
             break;
@@ -561,7 +566,7 @@ ThreadInfo::unwind_greenlets(PyThreadState* tstate, unsigned long cur_native_id)
 
 // ----------------------------------------------------------------------------
 Result<void>
-ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
+ThreadInfo::sample(EchionSampler& echion, int64_t iid, PyThreadState* tstate, microsecond_t delta)
 {
     Renderer::get().render_thread_begin(tstate, name, delta, thread_id, native_id);
 
@@ -573,7 +578,7 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
 
     Renderer::get().render_cpu_time(is_running() ? cpu_time - previous_cpu_time : 0);
 
-    this->unwind(tstate);
+    this->unwind(echion, tstate);
 
     // Render in this order of priority
     // 1. asyncio Tasks stacks (if any)

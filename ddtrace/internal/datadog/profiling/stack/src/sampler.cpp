@@ -72,10 +72,7 @@ void
 Sampler::adapt_sampling_interval()
 {
 #if defined(__linux__)
-    struct timespec ts
-    {
-        0, 0
-    };
+    struct timespec ts{ 0, 0 };
 
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
     auto new_process_count = static_cast<uint64_t>(ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000);
@@ -176,7 +173,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // Perform the sample
         for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
             for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
-                auto success = thread.sample(interp.id, tstate, wall_time_us);
+                auto success = thread.sample(*echion, interp.id, tstate, wall_time_us);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
                 }
@@ -233,7 +230,7 @@ Sampler::postfork_child()
 {
     // Clear stale task/greenlet entries from parent process.
     // No lock needed: only one thread exists in child immediately after fork.
-    task_link_map.clear();
+    echion->task_link_map().clear();
     greenlet_info_map.clear();
 
     auto& thread_info_map = echion->thread_info_map();
@@ -287,12 +284,8 @@ _stack_atfork_child()
     // Clear renderer caches to avoid using stale interned IDs
     Sampler::get().postfork_child();
 
-    // `task_link_map_lock` is a global lock held in echion
-    // NB placement-new to re-init and leak the mutex because doing anything else is UB
-    new (&task_link_map_lock) std::mutex;
-    new (&greenlet_info_map_lock) std::mutex;
-
     // Reset the string_table mutex to avoid deadlock if fork happened while it was held
+    // Note: task_link_map_lock and greenlet_info_map_lock are handled in EchionSampler::postfork_child
     string_table.postfork_child();
 }
 
@@ -418,15 +411,15 @@ Sampler::init_asyncio(PyObject* _asyncio_current_tasks,
 void
 Sampler::link_tasks(PyObject* parent, PyObject* child)
 {
-    std::lock_guard<std::mutex> guard(task_link_map_lock);
-    task_link_map[child] = parent;
+    std::lock_guard<std::mutex> guard(echion->task_link_map_lock());
+    echion->task_link_map()[child] = parent;
 }
 
 void
 Sampler::weak_link_tasks(PyObject* parent, PyObject* child)
 {
-    std::lock_guard<std::mutex> guard(task_link_map_lock);
-    weak_task_link_map[child] = parent;
+    std::lock_guard<std::mutex> guard(echion->task_link_map_lock());
+    echion->weak_task_link_map()[child] = parent;
 }
 
 void

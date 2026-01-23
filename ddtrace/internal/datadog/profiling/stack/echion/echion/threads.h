@@ -62,8 +62,8 @@ class ThreadInfo
     [[nodiscard]] Result<void> update_cpu_time();
     bool is_running();
 
-    [[nodiscard]] Result<void> sample(int64_t, PyThreadState*, microsecond_t);
-    void unwind(PyThreadState*);
+    [[nodiscard]] Result<void> sample(EchionSampler&, int64_t, PyThreadState*, microsecond_t);
+    void unwind(EchionSampler&, PyThreadState*);
 
     // ------------------------------------------------------------------------
 #if defined PL_LINUX
@@ -113,7 +113,7 @@ class ThreadInfo
     };
 
   private:
-    [[nodiscard]] Result<void> unwind_tasks(PyThreadState*);
+    [[nodiscard]] Result<void> unwind_tasks(EchionSampler&, PyThreadState*);
     void unwind_greenlets(PyThreadState*, unsigned long);
     [[nodiscard]] Result<std::vector<TaskInfo::Ptr>> get_all_tasks(PyThreadState* tstate);
 #if PY_VERSION_HEX >= 0x030e0000
