@@ -1,0 +1,42 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"user","content":"Hello! What is 2+2?"}],"model":"gpt-4o-mini","stream":false,"temperature":0.0}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '117'
+      Content-Type:
+      - application/json
+      Host:
+      - api.openai.com
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: '{"id":"chatcmpl-test123","object":"chat.completion","created":1700000000,"model":"gpt-4o-mini","choices":[{"index":0,"message":{"role":"assistant","content":"2+2 equals 4."},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":8,"total_tokens":20}}'
+    headers:
+      CF-RAY:
+      - 9c211ad75cab6399-EWR
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 22 Jan 2026 18:27:20 GMT
+      Server:
+      - cloudflare
+      openai-model:
+      - gpt-4o-mini
+      openai-processing-ms:
+      - '100'
+      x-request-id:
+      - req_4c5c3bc7f93d4f8c901edfe9c11d243e
+    status:
+      code: 200
+      message: OK
+version: 1

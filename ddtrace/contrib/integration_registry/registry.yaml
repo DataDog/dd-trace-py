@@ -519,6 +519,16 @@ integrations:
       min: 1.65.4
       max: 1.80.16
 
+- integration_name: llama_index
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - llama-index-core
+  tested_versions_by_dependency:
+    llama-index-core:
+      min: 0.10.68.post1
+      max: 0.14.13
+
 - integration_name: logbook
   is_external_package: true
   is_tested: true

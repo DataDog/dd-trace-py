@@ -12,6 +12,8 @@ components:
     - ddtrace/contrib/internal/langchain/*
   litellm:
     - ddtrace/contrib/internal/litellm/*
+  llama_index:
+    - ddtrace/contrib/internal/llama_index/*
   llmobs:
     - ddtrace/llmobs/*
   mcp:
@@ -108,6 +110,19 @@ suites:
     runner: riot
     snapshot: true
     venvs_per_job: 1
+  llama_index:
+    parallelism: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@llama_index'
+      - '@llmobs'
+      - tests/contrib/llama_index/*
+      - tests/snapshots/tests.contrib.llama_index.*
+    runner: riot
+    snapshot: true
   llmobs:
     paths:
       - '@bootstrap'
