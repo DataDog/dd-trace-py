@@ -79,7 +79,8 @@ def _configure_ddtrace_debug_logger(logger):
             logger.setLevel(log_level_value)
         except AttributeError:
             log.warning(
-                "DD_TRACE_LOG_LEVEL is invalid (%s). Default log level will be used. Must be NOTSET/DEBUG/INFO/WARNING/ERROR/CRITICAL.",
+                "DD_TRACE_LOG_LEVEL is invalid (%s). Default log level will be used. "
+                "Must be NOTSET/DEBUG/INFO/WARNING/ERROR/CRITICAL.",
                 log_level_upper,
             )
 
