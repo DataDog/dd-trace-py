@@ -780,6 +780,9 @@ class Experiment:
                         evaluator_name = evaluator.__name__  # type: ignore[union-attr]
                         eval_result = evaluator(input_data, output_data, expected_output)  # type: ignore[operator]
                     else:
+                        logger.warning(
+                            "Evaluator %s is neither a BaseEvaluator instance nor a callable function", evaluator
+                        )
                         evaluator_name = str(evaluator)
                         eval_result = None
 
