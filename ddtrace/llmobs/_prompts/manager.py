@@ -4,7 +4,6 @@ from typing import Dict
 from typing import Optional
 from typing import Set
 from typing import Tuple
-from urllib.parse import quote
 from urllib.parse import urlencode
 
 from ddtrace.internal.logger import get_logger
@@ -50,11 +49,14 @@ class PromptManager:
         file_cache_enabled: bool = True,
         cache_dir: Optional[str] = None,
     ) -> None:
-        self._api_key = api_key
-        self._app_key = app_key
         self._ml_app = ml_app
         self._endpoint_override = endpoint_override.rstrip("/") if endpoint_override else None
         self._timeout = timeout
+
+        # Pre-build headers since they don't change
+        self._headers: Dict[str, str] = {"DD-API-KEY": api_key, "Content-Type": "application/json"}
+        if app_key:
+            self._headers["dd-application-key"] = app_key
 
         self._hot_cache = hot_cache or HotCache(
             max_size=cache_max_size,
@@ -145,7 +147,7 @@ class PromptManager:
         return f"{self._ml_app}:{prompt_id}:{label}"
 
     def _update_caches(self, key: str, prompt: ManagedPrompt) -> None:
-        """Store a prompt in both L1 and L2 caches with source='cache'."""
+        """Store a prompt in both hot and warm caches with source='cache'."""
         cached_prompt = prompt._with_source("cache")
         self._hot_cache.set(key, cached_prompt)
         self._warm_cache.set(key, cached_prompt)
@@ -229,7 +231,7 @@ class PromptManager:
         conn = None
         try:
             conn = get_connection(self._endpoint_override or PROMPTS_BASE_URL, timeout=timeout)
-            conn.request("GET", self._build_path(prompt_id, label), headers=self._build_headers())
+            conn.request("GET", self._build_path(prompt_id, label), headers=self._headers)
             response = conn.getresponse()
 
             if response.status == 200:
@@ -244,18 +246,9 @@ class PromptManager:
 
     def _build_path(self, prompt_id: str, label: str) -> str:
         """Build the request path for fetching a prompt."""
-        encoded_prompt_id = quote(prompt_id, safe="")
         query_params = urlencode({"label": label, "ml_app": self._ml_app})
-        return f"{PROMPTS_ENDPOINT}/{encoded_prompt_id}?{query_params}"
+        return f"{PROMPTS_ENDPOINT}/{prompt_id}?{query_params}"
 
-    def _build_headers(self) -> Dict[str, str]:
-        headers = {
-            "DD-API-KEY": self._api_key,
-            "Content-Type": "application/json",
-        }
-        if self._app_key:
-            headers["dd-application-key"] = self._app_key
-        return headers
 
     def _parse_response(self, body: str, prompt_id: str, label: str) -> Optional[ManagedPrompt]:
         """Parse the API response into a ManagedPrompt."""
@@ -267,7 +260,6 @@ class PromptManager:
                 label=data.get("label", label),
                 source="registry",
                 template=_extract_template(data, default=[]),
-                variables=data.get("variables", []),
             )
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             log.warning("Failed to parse prompt response: %s", e)
