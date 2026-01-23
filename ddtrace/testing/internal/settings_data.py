@@ -55,6 +55,7 @@ class Settings:
     known_tests_enabled: bool = False
 
     coverage_enabled: bool = False
+    coverage_report_upload_enabled: bool = False
     skipping_enabled: bool = False
     require_git: bool = False
     itr_enabled: bool = False
@@ -70,6 +71,7 @@ class Settings:
         atr_enabled = bool(attributes.get("flaky_test_retries_enabled"))
         known_tests_enabled = bool(attributes.get("known_tests_enabled"))
         coverage_enabled = bool(attributes.get("code_coverage"))
+        coverage_report_upload_enabled = bool(attributes.get("coverage_report_upload_enabled"))
         skipping_enabled = bool(attributes.get("tests_skipping"))
         require_git = bool(attributes.get("require_git"))
         itr_enabled = bool(attributes.get("itr_enabled"))
@@ -80,6 +82,7 @@ class Settings:
             auto_test_retries=AutoTestRetriesSettings(enabled=atr_enabled),
             known_tests_enabled=known_tests_enabled,
             coverage_enabled=coverage_enabled,
+            coverage_report_upload_enabled=coverage_report_upload_enabled,
             skipping_enabled=skipping_enabled,
             require_git=require_git,
             itr_enabled=itr_enabled,

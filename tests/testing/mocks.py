@@ -59,6 +59,7 @@ class MockDefaults:
         auto_test_retries: bool = False,
         known_tests_enabled: bool = False,
         coverage_enabled: bool = False,
+        coverage_report_upload_enabled: bool = False,
         require_git: bool = False,
         itr_enabled: bool = False,
     ) -> Settings:
@@ -69,6 +70,7 @@ class MockDefaults:
             auto_test_retries=AutoTestRetriesSettings(enabled=auto_test_retries),
             known_tests_enabled=known_tests_enabled,
             coverage_enabled=coverage_enabled,
+            coverage_report_upload_enabled=coverage_report_upload_enabled,
             skipping_enabled=skipping_enabled,
             require_git=require_git,
             itr_enabled=itr_enabled,
@@ -343,6 +345,7 @@ class APIClientMockBuilder:
     def __init__(self) -> None:
         self._skipping_enabled = False
         self._coverage_enabled = False
+        self._coverage_report_upload_enabled = False
         self._auto_retries_enabled = False
         self._efd_enabled = False
         self._test_management_enabled = False
@@ -358,6 +361,11 @@ class APIClientMockBuilder:
     def with_coverage_enabled(self, enabled: bool = True) -> "APIClientMockBuilder":
         """Enable/disable code coverage."""
         self._coverage_enabled = enabled
+        return self
+
+    def with_coverage_report_upload_enabled(self, enabled: bool = True) -> "APIClientMockBuilder":
+        """Enable/disable coverage report upload."""
+        self._coverage_report_upload_enabled = enabled
         return self
 
     def with_early_flake_detection(self, enabled: bool = True) -> "APIClientMockBuilder":
@@ -402,6 +410,7 @@ class APIClientMockBuilder:
             auto_test_retries=AutoTestRetriesSettings(enabled=self._auto_retries_enabled),
             known_tests_enabled=self._known_tests_enabled,
             coverage_enabled=self._coverage_enabled,
+            coverage_report_upload_enabled=self._coverage_report_upload_enabled,
             skipping_enabled=self._skipping_enabled,
             require_git=False,
             itr_enabled=self._skipping_enabled,
@@ -526,6 +535,7 @@ def mock_test_run(test_ref: TestRef) -> TestRun:
 def mock_api_client_settings(
     skipping_enabled: bool = False,
     coverage_enabled: bool = False,
+    coverage_report_upload_enabled: bool = False,
     auto_retries_enabled: bool = False,
     efd_enabled: bool = False,
     test_management_enabled: bool = False,
@@ -540,6 +550,8 @@ def mock_api_client_settings(
         builder = builder.with_skipping_enabled()
     if coverage_enabled:
         builder = builder.with_coverage_enabled()
+    if coverage_report_upload_enabled:
+        builder = builder.with_coverage_report_upload_enabled()
     if auto_retries_enabled:
         builder = builder.with_auto_retries()
     if efd_enabled:

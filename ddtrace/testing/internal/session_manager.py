@@ -8,6 +8,7 @@ import typing as t
 from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.testing.internal.coverage_report_uploader import CoverageReportUploader
 from ddtrace.testing.internal.env_tags import get_env_tags
 from ddtrace.testing.internal.git import Git
 from ddtrace.testing.internal.git import GitTag
@@ -100,6 +101,13 @@ class SessionManager:
 
         self.writer = TestOptWriter(connector_setup=self.connector_setup)
         self.coverage_writer = TestCoverageWriter(connector_setup=self.connector_setup)
+        self.coverage_report_uploader: t.Optional[CoverageReportUploader] = None
+        self.coverage_for_report: t.Optional[t.Any] = None  # Will hold coverage.Coverage instance if enabled
+        if self.settings.coverage_report_upload_enabled:
+            self.coverage_report_uploader = CoverageReportUploader(
+                connector_setup=self.connector_setup,
+                env_tags=self.env_tags,
+            )
         self.session = session
         self.session.set_service(self.service)
 
@@ -317,6 +325,25 @@ class SessionManager:
     def has_codeowners(self) -> bool:
         return self.codeowners is not None
 
+    def start_coverage_for_report_upload(self) -> None:
+        """
+        Start coverage.py collection for session-level coverage report upload.
+
+        This uses standard coverage.py (not ITR bitmaps) to collect line-level coverage
+        that can be transformed to LCOV format at the end of the session.
+        """
+        try:
+            import coverage
+
+            # Start coverage collection
+            cov = coverage.Coverage(auto_data=True)
+            cov.start()
+            self.coverage_for_report = cov
+
+            log.debug("Started coverage.py collection for report upload")
+        except Exception:
+            log.exception("Failed to start coverage.py collection for report upload")
+
     def override_settings_with_env_vars(self) -> None:
         # Kill switches.
         # These variables default to true, and if explicitly given a false value, disable a feature.
@@ -331,6 +358,10 @@ class SessionManager:
         if not asbool(os.environ.get("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "true")):
             log.debug("Auto Test Retries is disabled by environment variable")
             self.settings.auto_test_retries.enabled = False
+
+        if not asbool(os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "true")):
+            log.debug("Code coverage report upload is disabled by environment variable")
+            self.settings.coverage_report_upload_enabled = False
 
         # "Reverse" kill switches.
         # These variables default to false, and if explicitly given a true value, disable a feature.
@@ -357,6 +388,10 @@ class SessionManager:
         )
         log.info("Test Optimization settings: Known Tests enabled: %s", self.settings.known_tests_enabled)
         log.info("Test Optimization settings: Auto Test Retries enabled: %s", self.settings.auto_test_retries.enabled)
+        log.info(
+            "Test Optimization settings: Coverage report upload enabled: %s",
+            self.settings.coverage_report_upload_enabled,
+        )
 
 
 def _get_service_name_from_git_repo(env_tags: t.Dict[str, str]) -> t.Optional[str]:

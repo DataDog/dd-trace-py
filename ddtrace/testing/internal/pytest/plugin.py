@@ -284,6 +284,34 @@ class TestOptPlugin:
             # When running with xdist, only the main process writes the session event.
             self.manager.writer.put_item(self.session)
 
+            # Upload coverage report if enabled
+            if self.manager.coverage_report_uploader is not None:
+                # Determine which coverage source to use
+                is_using_pytest_cov = _is_pytest_cov_enabled(session.config)
+
+                if is_using_pytest_cov:
+                    # Use coverage.py data (from pytest-cov)
+                    log.debug("Using coverage.py data for coverage report upload")
+                    self.manager.coverage_report_uploader.upload_coverage_report(
+                        cov_instance=self.manager.coverage_for_report,
+                        workspace_path=None,
+                        use_module_collector=False,
+                    )
+                else:
+                    # Use ModuleCodeCollector data as fallback
+                    log.debug("Using ModuleCodeCollector data for coverage report upload")
+                    self.manager.coverage_report_uploader.upload_coverage_report(
+                        cov_instance=None,
+                        workspace_path=self.manager.workspace_path,
+                        use_module_collector=True,
+                    )
+
+        # Stop coverage collection if it was started
+        if self.manager.settings.coverage_enabled or self.manager.settings.coverage_report_upload_enabled:
+            from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage
+
+            uninstall_coverage()
+
         self.manager.finish()
 
     def pytest_collection_finish(self, session: pytest.Session) -> None:
@@ -941,7 +969,13 @@ def pytest_load_initial_conftests(
 
     early_config.stash[SESSION_MANAGER_STASH_KEY] = session_manager
 
-    if session_manager.settings.coverage_enabled:
+    # Enable coverage collection for ITR (always uses ModuleCodeCollector)
+    # OR for report upload when --cov is not used (fallback to ModuleCodeCollector)
+    should_use_module_collector = session_manager.settings.coverage_enabled or (
+        session_manager.settings.coverage_report_upload_enabled and not _is_pytest_cov_enabled(early_config)
+    )
+
+    if should_use_module_collector:
         setup_coverage_collection()
 
     yield

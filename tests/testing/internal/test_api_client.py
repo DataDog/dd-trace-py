@@ -134,6 +134,7 @@ class TestAPIClientGetSettings:
         assert settings.early_flake_detection.enabled == efd_enabled
         assert settings.auto_test_retries.enabled == atr_enabled
         assert settings.test_management.enabled == test_management_enabled
+        assert settings.coverage_report_upload_enabled is False
         assert settings.test_management.attempt_to_fix_retries == attempt_to_fix_retries
         assert settings.known_tests_enabled == known_tests_enabled
         assert settings.coverage_enabled == coverage_enabled
@@ -268,6 +269,67 @@ class TestAPIClientGetSettings:
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.BAD_JSON)
         ]
+
+    def test_get_settings_with_coverage_report_upload_enabled(self, mock_telemetry: Mock) -> None:
+        """Test that coverage_report_upload_enabled is correctly parsed from settings."""
+        mock_connector = (
+            mock_backend_connector()
+            .with_post_json_response(
+                endpoint="/api/v2/libraries/tests/services/setting",
+                response_data={
+                    "data": {
+                        "attributes": {
+                            "code_coverage": True,
+                            "coverage_report_upload_enabled": True,
+                            "di_enabled": False,
+                            "early_flake_detection": {
+                                "enabled": False,
+                                "faulty_session_threshold": 30,
+                                "slow_test_retries": {"10s": 5, "30s": 3, "5m": 2, "5s": 10},
+                            },
+                            "flaky_test_retries_enabled": False,
+                            "impacted_tests_enabled": False,
+                            "itr_enabled": True,
+                            "known_tests_enabled": False,
+                            "require_git": False,
+                            "test_management": {
+                                "attempt_to_fix_retries": 20,
+                                "enabled": False,
+                            },
+                            "tests_skipping": False,
+                        },
+                        "id": "00000000-0000-0000-0000-000000000000",
+                        "type": "ci_app_tracers_test_service_settings",
+                    }
+                },
+            )
+            .build()
+        )
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+                GitTag.BRANCH: "some-branch",
+                GitTag.COMMIT_MESSAGE: "I am a commit",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={
+                "os.platform": "Linux",
+            },
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            settings = api_client.get_settings()
+
+        assert settings.coverage_enabled is True
+        assert settings.coverage_report_upload_enabled is True
 
 
 class TestAPIClientGetKnownTests:

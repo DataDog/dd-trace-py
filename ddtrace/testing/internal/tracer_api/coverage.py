@@ -74,6 +74,14 @@ def uninstall_coverage_percentage():
     unpatch_coverage()
 
 
+def uninstall_coverage() -> None:
+    """
+    Uninstall ModuleCodeCollector coverage instrumentation.
+    """
+    ModuleCodeCollector.stop_coverage()
+    ModuleCodeCollector.uninstall()
+
+
 @catch_and_log_exceptions()
 def get_coverage_percentage(pytest_cov_status: bool) -> t.Optional[float]:
     """
