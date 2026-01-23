@@ -48,10 +48,7 @@ STANDARD_INTEGRATION_SPAN_NAMES = (
 )
 
 
-def _validate_prompt(
-    prompt: Union[Dict[str, Any], Prompt],
-    strict_validation: bool,
-) -> ValidatedPromptDict:
+def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: bool) -> ValidatedPromptDict:
     if not isinstance(prompt, dict):
         raise TypeError(f"Prompt must be a dictionary, received {type(prompt).__name__}.")
 
