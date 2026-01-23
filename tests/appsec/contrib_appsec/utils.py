@@ -82,7 +82,11 @@ class Contrib_TestClass_For_Threats:
     def xfail_by_interface(self, request, interface):
         if request.node.get_closest_marker("xfail_interface"):
             if interface.name in request.node.get_closest_marker("xfail_interface").args:
-                request.node.add_marker(pytest.mark.xfail(reason=f"xfail on this platform: {interface.name}"))
+                skip = request.node.get_closest_marker("xfail_interface").kwargs.get("skip", False)
+                if skip:
+                    pytest.skip(f"xfail on this platform: {interface.name}")
+                else:
+                    request.node.add_marker(pytest.mark.xfail(reason=f"xfail on this platform: {interface.name}"))
 
     def status(self, response) -> int:
         raise NotImplementedError
@@ -1706,7 +1710,7 @@ class Contrib_TestClass_For_Threats:
             (rules.RULES_EXPLOIT_PREVENTION_DISABLED, 0, 200),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
+    @pytest.mark.xfail_interface("tornado", skip=True)
     def test_exploit_prevention(
         self,
         interface,
