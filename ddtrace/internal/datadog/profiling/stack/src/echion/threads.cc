@@ -79,7 +79,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
     std::unordered_map<PyObject*, TaskInfo::Ref> origin_map; // Indexed by task origin
     static std::unordered_set<PyObject*> previous_task_objects;
 
-    auto maybe_all_tasks = get_all_tasks(tstate);
+    auto maybe_all_tasks = get_all_tasks(echion, tstate);
     if (!maybe_all_tasks) {
         return ErrorKind::TaskInfoError;
     }
@@ -359,7 +359,7 @@ ThreadInfo::get_tasks_from_linked_list(uintptr_t head_addr, std::vector<TaskInfo
 }
 
 Result<std::vector<TaskInfo::Ptr>>
-ThreadInfo::get_all_tasks(PyThreadState* tstate)
+ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
 {
     std::vector<TaskInfo::Ptr> tasks;
     if (this->asyncio_loop == 0)
@@ -383,6 +383,7 @@ ThreadInfo::get_all_tasks(PyThreadState* tstate)
     // tasks that don't inherit from asyncio.Task. Native asyncio.Task instances are stored
     // in linked-lists (handled above) and are NOT added to _scheduled_tasks.
     // This is typically empty in practice, but we handle it for completeness.
+    auto asyncio_scheduled_tasks = echion.asyncio_scheduled_tasks();
     if (asyncio_scheduled_tasks != nullptr) {
         if (auto maybe_scheduled_tasks_set = MirrorSet::create(asyncio_scheduled_tasks)) {
             auto scheduled_tasks_set = std::move(*maybe_scheduled_tasks_set);
@@ -400,7 +401,8 @@ ThreadInfo::get_all_tasks(PyThreadState* tstate)
         }
     }
 
-    if (asyncio_eager_tasks != NULL) {
+    auto asyncio_eager_tasks = echion.asyncio_eager_tasks();
+    if (asyncio_eager_tasks != nullptr) {
         auto maybe_eager_tasks_set = MirrorSet::create(asyncio_eager_tasks);
         if (!maybe_eager_tasks_set) {
             return ErrorKind::TaskInfoError;
@@ -429,12 +431,13 @@ ThreadInfo::get_all_tasks(PyThreadState* tstate)
 #else
 // Pre-Python 3.14: get_all_tasks uses WeakSet approach
 Result<std::vector<TaskInfo::Ptr>>
-ThreadInfo::get_all_tasks(PyThreadState*)
+ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState*)
 {
     std::vector<TaskInfo::Ptr> tasks;
     if (this->asyncio_loop == 0)
         return tasks;
 
+    auto asyncio_scheduled_tasks = echion.asyncio_scheduled_tasks();
     auto maybe_scheduled_tasks_set = MirrorSet::create(asyncio_scheduled_tasks);
     if (!maybe_scheduled_tasks_set) {
         return ErrorKind::TaskInfoError;
@@ -460,7 +463,8 @@ ThreadInfo::get_all_tasks(PyThreadState*)
         }
     }
 
-    if (asyncio_eager_tasks != NULL) {
+    auto asyncio_eager_tasks = echion.asyncio_eager_tasks();
+    if (asyncio_eager_tasks != nullptr) {
         auto maybe_eager_tasks_set = MirrorSet::create(asyncio_eager_tasks);
         if (!maybe_eager_tasks_set) {
             return ErrorKind::TaskInfoError;
