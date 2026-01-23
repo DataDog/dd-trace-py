@@ -1,8 +1,9 @@
 #pragma once
 
 #include <cstdint>
-
+#include <optional>
 #include <unordered_map>
+#include <unordered_set>
 
 #include <echion/threads.h>
 
@@ -27,6 +28,10 @@ class EchionSampler
     PyObject* asyncio_current_tasks_ = nullptr;
     PyObject* asyncio_scheduled_tasks_ = nullptr;
     PyObject* asyncio_eager_tasks_ = nullptr;
+
+    // Task unwinding state
+    std::optional<Frame::Key> frame_cache_key_;
+    std::unordered_set<PyObject*> previous_task_objects_;
 
   public:
     EchionSampler() = default;
@@ -53,6 +58,9 @@ class EchionSampler
         asyncio_scheduled_tasks_ = scheduled_tasks;
         asyncio_eager_tasks_ = (eager_tasks != Py_None) ? eager_tasks : nullptr;
     }
+
+    std::optional<Frame::Key>& frame_cache_key() { return frame_cache_key_; }
+    std::unordered_set<PyObject*>& previous_task_objects() { return previous_task_objects_; }
 
     void postfork_child()
     {
