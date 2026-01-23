@@ -976,7 +976,7 @@ class TestAPIClientGetSkippableTests:
         )
 
         with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
-            skippable_tests, correlation_id = api_client.get_skippable_tests()
+            skippable_tests, correlation_id, skippable_coverage = api_client.get_skippable_tests()
 
         assert mock_connector.post_json.call_args_list == [
             call(
@@ -1024,7 +1024,7 @@ class TestAPIClientGetSkippableTests:
 
         with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
             with caplog.at_level(level=logging.INFO, logger="ddtrace.testing"):
-                skippable_tests, correlation_id = api_client.get_skippable_tests()
+                skippable_tests, correlation_id, skippable_coverage = api_client.get_skippable_tests()
 
         assert "Git info not available" in caplog.text
         assert mock_connector.post_json.call_args_list == []
@@ -1065,7 +1065,7 @@ class TestAPIClientGetSkippableTests:
 
         with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
             with caplog.at_level(level=logging.INFO, logger="ddtrace.testing"):
-                skippable_tests, correlation_id = api_client.get_skippable_tests()
+                skippable_tests, correlation_id, skippable_coverage = api_client.get_skippable_tests()
 
         assert "Error getting skippable tests from API" in caplog.text
 
@@ -1104,7 +1104,7 @@ class TestAPIClientGetSkippableTests:
 
         with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
             with caplog.at_level(level=logging.INFO, logger="ddtrace.testing"):
-                skippable_tests, correlation_id = api_client.get_skippable_tests()
+                skippable_tests, correlation_id, skippable_coverage = api_client.get_skippable_tests()
 
         assert "Failed to parse skippable tests data" in caplog.text
         assert "KeyError" in caplog.text

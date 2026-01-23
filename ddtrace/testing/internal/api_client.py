@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import logging
 from pathlib import Path
@@ -310,7 +311,18 @@ class APIClient:
 
         return len(content)
 
-    def get_skippable_tests(self) -> t.Tuple[t.Set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
+    def get_skippable_tests(
+        self,
+    ) -> t.Tuple[t.Set[t.Union[SuiteRef, TestRef]], t.Optional[str], t.Dict[str, t.Set[int]]]:
+        """
+        Get skippable tests from the backend API.
+
+        Returns:
+            A tuple containing:
+            - Set of skippable test/suite references
+            - Correlation ID (optional)
+            - Coverage data for skipped tests: Dict[relative_file_path, Set[covered_line_numbers]]
+        """
         telemetry = self.telemetry_api.with_request_metric_names(
             count="itr_skippable_tests.request",
             duration="itr_skippable_tests.request_ms",
@@ -337,7 +349,7 @@ class APIClient:
         except KeyError as e:
             log.error("Git info not available, cannot get skippable items (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
-            return set(), None
+            return set(), None, {}
 
         try:
             result = self.connector.post_json("/api/v2/ci/tests/skippable", request_data, telemetry=telemetry)
@@ -345,7 +357,7 @@ class APIClient:
 
         except Exception as e:
             log.error("Error getting skippable tests from API: %s", e)
-            return set(), None
+            return set(), None, {}
 
         try:
             skippable_items: t.Set[t.Union[SuiteRef, TestRef]] = set()
@@ -360,13 +372,60 @@ class APIClient:
                         test_ref = TestRef(suite_ref, item["attributes"].get("name", EMPTY_NAME))
                         skippable_items.add(test_ref)
 
-            correlation_id = result.parsed_response["meta"]["correlation_id"]
+            meta = result.parsed_response.get("meta", {})
+            correlation_id = meta.get("correlation_id")
+
+            # Parse coverage data from meta.coverage
+            skippable_coverage: t.Dict[str, t.Set[int]] = {}
+            coverage_data = meta.get("coverage", {})
+
+            if coverage_data:
+                log.debug("Parsing coverage data for %d files from skippable tests", len(coverage_data))
+
+            for file_path, encoded_bitset in coverage_data.items():
+                try:
+                    # Decode base64 to bytes
+                    decoded_bytes = base64.b64decode(encoded_bitset)
+                    # Convert bytes to set of line numbers
+                    covered_lines = self._bitset_to_line_numbers(decoded_bytes)
+                    # Normalize path (remove leading slash if present)
+                    normalized_path = file_path.lstrip("/")
+                    skippable_coverage[normalized_path] = covered_lines
+                    log.debug("Parsed coverage for %s: %d lines covered", normalized_path, len(covered_lines))
+                except Exception:
+                    log.exception("Failed to parse coverage data for file: %s", file_path)
+                    continue
 
         except Exception:
             log.exception("Failed to parse skippable tests data from API")
             telemetry.record_error(ErrorType.BAD_JSON)
-            return set(), None
+            return set(), None, {}
 
         self.telemetry_api.record_skippable_count(count=len(skippable_items), level=self.itr_skipping_level)
 
-        return skippable_items, correlation_id
+        return skippable_items, correlation_id, skippable_coverage
+
+    def _bitset_to_line_numbers(self, bitset_bytes: bytes) -> t.Set[int]:
+        """
+        Convert a bitset (as bytes) to a set of line numbers.
+
+        Args:
+            bitset_bytes: The bitset encoded as bytes (from base64 decoding)
+
+        Returns:
+            Set of line numbers where bits are set
+        """
+        covered_lines: t.Set[int] = set()
+
+        for byte_idx, byte_val in enumerate(bitset_bytes):
+            if byte_val == 0:
+                # Optimization: skip bytes with no bits set
+                continue
+
+            for bit_idx in range(8):
+                if byte_val & (1 << bit_idx):
+                    line_number = byte_idx * 8 + bit_idx
+                    if line_number > 0:  # Skip line 0 (not a valid source line)
+                        covered_lines.add(line_number)
+
+        return covered_lines

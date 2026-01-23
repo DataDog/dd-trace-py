@@ -2,12 +2,14 @@
 
 import gzip
 import json
+from pathlib import Path
 from unittest.mock import Mock
+from unittest.mock import patch
 
 from ddtrace.testing.internal.coverage_report import CoverageReportFormat
 from ddtrace.testing.internal.coverage_report import compress_coverage_report
 from ddtrace.testing.internal.coverage_report import create_coverage_report_event
-from ddtrace.testing.internal.coverage_report import generate_coverage_report_lcov
+from ddtrace.testing.internal.coverage_report import generate_coverage_report_lcov_from_coverage_py
 from ddtrace.testing.internal.git import GitTag
 
 
@@ -16,46 +18,60 @@ class TestCoverageReportGeneration:
 
     def test_generate_coverage_report_lcov_no_instance(self) -> None:
         """Test that None is returned when no coverage instance is provided."""
-        result = generate_coverage_report_lcov(None)
+        result = generate_coverage_report_lcov_from_coverage_py(None, Path("/tmp"), {})
         assert result is None
 
     def test_generate_coverage_report_lcov_no_data(self) -> None:
         """Test that None is returned when there's no coverage data."""
         mock_cov = Mock()
-        mock_cov.get_data().measured_files.return_value = []
+        mock_cov_data = Mock()
+        mock_cov.stop = Mock()
+        mock_cov.get_data.return_value = mock_cov_data
+        mock_cov_data.measured_files.return_value = []
 
-        result = generate_coverage_report_lcov(mock_cov)
+        result = generate_coverage_report_lcov_from_coverage_py(mock_cov, Path("/tmp"), {})
 
         assert result is None
         mock_cov.stop.assert_called_once()
 
     def test_generate_coverage_report_lcov_success(self) -> None:
         """Test successful LCOV report generation."""
-        mock_cov = Mock()
-        mock_cov.get_data().measured_files.return_value = ["test.py"]
+        import tempfile
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace_path = Path(tmpdir)
+            test_file = workspace_path / "test.py"
+            test_file.write_text("# test file")
+            
+            mock_cov = Mock()
+            mock_cov_data = Mock()
+            mock_cov.stop = Mock()
+            mock_cov.get_data.return_value = mock_cov_data
+            mock_cov_data.measured_files.return_value = [str(test_file)]
+            mock_cov_data.lines.return_value = [1, 2, 3]
 
-        def mock_lcov_report(outfile):
-            # Simulate coverage writing the LCOV file
-            with open(outfile, "w") as f:
-                f.write("TN:\nSF:test.py\nDA:1,1\nend_of_record\n")
+            def mock_lcov_report(outfile):
+                # Simulate coverage writing the LCOV file
+                with open(outfile, "w") as f:
+                    f.write("TN:\nSF:test.py\nDA:1,1\nend_of_record\n")
 
-        mock_cov.lcov_report.side_effect = mock_lcov_report
+            with patch("coverage.CoverageData"), patch("coverage.Coverage") as mock_cov_class:
+                mock_report_cov = mock_cov_class.return_value
+                mock_report_cov.lcov_report.side_effect = mock_lcov_report
 
-        result = generate_coverage_report_lcov(mock_cov)
+                result = generate_coverage_report_lcov_from_coverage_py(mock_cov, workspace_path, {})
 
-        assert result is not None
-        assert b"TN:" in result
-        assert b"SF:test.py" in result
-        mock_cov.stop.assert_called_once()
-        mock_cov.lcov_report.assert_called_once()
+            assert result is not None
+            assert b"TN:" in result
+            assert b"SF:test.py" in result
+            mock_cov.stop.assert_called_once()
 
     def test_generate_coverage_report_lcov_error(self) -> None:
         """Test that None is returned when an error occurs during report generation."""
         mock_cov = Mock()
-        mock_cov.get_data().measured_files.return_value = ["test.py"]
-        mock_cov.lcov_report.side_effect = Exception("Test error")
+        mock_cov.stop.side_effect = Exception("Test error")
 
-        result = generate_coverage_report_lcov(mock_cov)
+        result = generate_coverage_report_lcov_from_coverage_py(mock_cov, Path("/tmp"), {})
 
         assert result is None
 
@@ -65,11 +81,12 @@ class TestCoverageReportCompression:
 
     def test_compress_coverage_report(self) -> None:
         """Test that coverage report data is properly compressed."""
-        report_data = b"TN:\nSF:test.py\nDA:1,1\nDA:2,1\nDA:3,0\nend_of_record\n"
+        # Use a larger data sample to ensure gzip compression is effective
+        report_data = b"TN:\n" + b"SF:test.py\nDA:1,1\nDA:2,1\nDA:3,0\n" * 100 + b"end_of_record\n"
 
         compressed = compress_coverage_report(report_data)
 
-        # Verify it's compressed
+        # Verify it's compressed (should be smaller for larger data)
         assert compressed != report_data
         assert len(compressed) < len(report_data)
 

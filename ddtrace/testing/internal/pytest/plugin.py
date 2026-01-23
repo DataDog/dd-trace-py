@@ -294,7 +294,6 @@ class TestOptPlugin:
                     log.debug("Using coverage.py data for coverage report upload")
                     self.manager.coverage_report_uploader.upload_coverage_report(
                         cov_instance=self.manager.coverage_for_report,
-                        workspace_path=None,
                         use_module_collector=False,
                     )
                 else:
@@ -302,7 +301,6 @@ class TestOptPlugin:
                     log.debug("Using ModuleCodeCollector data for coverage report upload")
                     self.manager.coverage_report_uploader.upload_coverage_report(
                         cov_instance=None,
-                        workspace_path=self.manager.workspace_path,
                         use_module_collector=True,
                     )
 

@@ -89,7 +89,7 @@ class SessionManager:
         )
 
         self.upload_git_data()
-        self.skippable_items, self.itr_correlation_id = self.api_client.get_skippable_tests()
+        self.skippable_items, self.itr_correlation_id, self.skippable_coverage = self.api_client.get_skippable_tests()
         if self.settings.require_git:
             # Fetch settings again after uploading git data, as it may change ITR settings.
             self.settings = self.api_client.get_settings()
@@ -107,6 +107,8 @@ class SessionManager:
             self.coverage_report_uploader = CoverageReportUploader(
                 connector_setup=self.connector_setup,
                 env_tags=self.env_tags,
+                skippable_coverage=self.skippable_coverage,
+                workspace_path=self.workspace_path,
             )
         self.session = session
         self.session.set_service(self.service)

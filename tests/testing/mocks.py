@@ -193,7 +193,7 @@ class SessionManagerMockBuilder:
             mock_client.get_test_management_properties.return_value = self._test_properties
             mock_client.get_known_commits.return_value = self._known_commits
             mock_client.send_git_pack_file.return_value = None
-            mock_client.get_skippable_tests.return_value = (self._skippable_items, None)
+            mock_client.get_skippable_tests.return_value = (self._skippable_items, None, {})
             mock_api_client.return_value = mock_client
 
             with (
@@ -423,6 +423,7 @@ class APIClientMockBuilder:
         mock_client.get_skippable_tests.return_value = (
             self._skippable_items,
             "correlation-123" if self._skippable_items else None,
+            {},  # skippable_coverage
         )
 
         return mock_client

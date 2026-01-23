@@ -29,13 +29,16 @@ class CoverageReportUploader:
     Uploader for aggregated coverage reports.
 
     This class generates and uploads coverage reports in standard formats (e.g., LCOV)
-    to the Datadog coverage report intake endpoint.
+    to the Datadog coverage report intake endpoint. It merges local coverage with
+    backend coverage data for ITR-skipped tests.
     """
 
     def __init__(
         self,
         connector_setup: BackendConnectorSetup,
         env_tags: t.Dict[str, str],
+        skippable_coverage: t.Dict[str, t.Set[int]],
+        workspace_path: Path,
     ) -> None:
         """
         Initialize the coverage report uploader.
@@ -43,14 +46,17 @@ class CoverageReportUploader:
         Args:
             connector_setup: Backend connector setup for creating connections
             env_tags: Environment tags containing git and CI information
+            skippable_coverage: Coverage data for ITR-skipped tests (file_path -> set of line numbers)
+            workspace_path: Workspace path for resolving relative file paths
         """
         self.connector = connector_setup.get_connector_for_subdomain(Subdomain.CICOVREPRT)
         self.env_tags = env_tags
+        self.skippable_coverage = skippable_coverage
+        self.workspace_path = workspace_path
 
     def upload_coverage_report(
         self,
         cov_instance: t.Optional[t.Any] = None,
-        workspace_path: t.Optional[Path] = None,
         use_module_collector: bool = False,
     ) -> None:
         """
@@ -58,27 +64,31 @@ class CoverageReportUploader:
 
         Args:
             cov_instance: The coverage.Coverage instance (if using coverage.py with --cov)
-            workspace_path: Workspace path for ModuleCodeCollector (if not using coverage.py)
             use_module_collector: If True, use ModuleCodeCollector instead of coverage.py
 
         This method:
         1. Transforms coverage data to LCOV format (from coverage.py or ModuleCodeCollector)
-        2. Compresses the report with gzip
-        3. Creates the event JSON with git and CI tags
-        4. Uploads both as a multipart/form-data request
+        2. Merges with ITR skipped test coverage data
+        3. Compresses the report with gzip
+        4. Creates the event JSON with git and CI tags
+        5. Uploads both as a multipart/form-data request
         """
         log.debug("Generating coverage report for upload")
 
-        # Generate report from appropriate source
+        # Generate report from appropriate source with merging
         if use_module_collector:
-            if workspace_path is None:
-                log.warning("ModuleCodeCollector requested but no workspace_path provided")
-                return
             log.debug("Generating coverage report from ModuleCodeCollector")
-            report_data = generate_coverage_report_lcov_from_module_collector(workspace_path)
+            report_data = generate_coverage_report_lcov_from_module_collector(
+                workspace_path=self.workspace_path,
+                skippable_coverage=self.skippable_coverage,
+            )
         else:
             log.debug("Generating coverage report from coverage.py")
-            report_data = generate_coverage_report_lcov_from_coverage_py(cov_instance)
+            report_data = generate_coverage_report_lcov_from_coverage_py(
+                cov_instance=cov_instance,
+                workspace_path=self.workspace_path,
+                skippable_coverage=self.skippable_coverage,
+            )
 
         if report_data is None:
             log.debug("No coverage data available, skipping report upload")

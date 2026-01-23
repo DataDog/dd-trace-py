@@ -1,5 +1,6 @@
 """Tests for coverage report uploader."""
 
+from pathlib import Path
 from unittest.mock import Mock
 from unittest.mock import patch
 
@@ -11,7 +12,7 @@ from ddtrace.testing.internal.http import ErrorType
 class TestCoverageReportUploader:
     """Tests for CoverageReportUploader."""
 
-    @patch("ddtrace.testing.internal.coverage_report_uploader.generate_coverage_report_lcov")
+    @patch("ddtrace.testing.internal.coverage_report_uploader.generate_coverage_report_lcov_from_coverage_py")
     def test_upload_coverage_report_no_data(self, mock_generate: Mock) -> None:
         """Test that upload is skipped when no coverage data is available."""
         mock_generate.return_value = None
@@ -24,15 +25,17 @@ class TestCoverageReportUploader:
         uploader = CoverageReportUploader(
             connector_setup=mock_connector_setup,
             env_tags={},
+            skippable_coverage={},
+            workspace_path=Path("/tmp"),
         )
 
-        uploader.upload_coverage_report(mock_cov)
+        uploader.upload_coverage_report(cov_instance=mock_cov, use_module_collector=False)
 
-        mock_generate.assert_called_once_with(mock_cov)
+        mock_generate.assert_called_once_with(mock_cov, Path("/tmp"), {})
         mock_connector.post_files.assert_not_called()
 
     @patch("ddtrace.testing.internal.coverage_report_uploader.TelemetryAPI")
-    @patch("ddtrace.testing.internal.coverage_report_uploader.generate_coverage_report_lcov")
+    @patch("ddtrace.testing.internal.coverage_report_uploader.generate_coverage_report_lcov_from_coverage_py")
     @patch("ddtrace.testing.internal.coverage_report_uploader.compress_coverage_report")
     @patch("ddtrace.testing.internal.coverage_report_uploader.create_coverage_report_event")
     def test_upload_coverage_report_success(
@@ -63,12 +66,14 @@ class TestCoverageReportUploader:
         uploader = CoverageReportUploader(
             connector_setup=mock_connector_setup,
             env_tags={"git.repository_url": "https://github.com/test/repo.git"},
+            skippable_coverage={},
+            workspace_path=Path("/tmp"),
         )
 
-        uploader.upload_coverage_report(mock_cov)
+        uploader.upload_coverage_report(cov_instance=mock_cov, use_module_collector=False)
 
         # Verify report generation
-        mock_generate.assert_called_once_with(mock_cov)
+        mock_generate.assert_called_once_with(mock_cov, Path("/tmp"), {})
         mock_compress.assert_called_once_with(b"lcov report data")
         mock_create_event.assert_called_once()
 
@@ -85,15 +90,12 @@ class TestCoverageReportUploader:
         assert files[1].content_type == "application/json"
 
         # Verify telemetry
-        mock_telemetry_instance.add_count_metric.assert_any_call("coverage_report_upload.success", 1)
-        mock_telemetry_instance.add_distribution_metric.assert_called_once_with(
-            "coverage_report_upload.bytes", len(b"compressed data")
-        )
+        mock_telemetry_instance.record_coverage_report_uploaded.assert_called_once()
 
         mock_connector.close.assert_called_once()
 
     @patch("ddtrace.testing.internal.coverage_report_uploader.TelemetryAPI")
-    @patch("ddtrace.testing.internal.coverage_report_uploader.generate_coverage_report_lcov")
+    @patch("ddtrace.testing.internal.coverage_report_uploader.generate_coverage_report_lcov_from_coverage_py")
     @patch("ddtrace.testing.internal.coverage_report_uploader.compress_coverage_report")
     @patch("ddtrace.testing.internal.coverage_report_uploader.create_coverage_report_event")
     def test_upload_coverage_report_error(
@@ -126,16 +128,18 @@ class TestCoverageReportUploader:
         uploader = CoverageReportUploader(
             connector_setup=mock_connector_setup,
             env_tags={},
+            skippable_coverage={},
+            workspace_path=Path("/tmp"),
         )
 
-        uploader.upload_coverage_report(mock_cov)
+        uploader.upload_coverage_report(cov_instance=mock_cov, use_module_collector=False)
 
         # Verify error telemetry
-        mock_telemetry_instance.add_count_metric.assert_called_with("coverage_report_upload.errors", 1)
+        mock_telemetry_instance.record_coverage_report_upload_error.assert_called_once()
         mock_connector.close.assert_called_once()
 
     @patch("ddtrace.testing.internal.coverage_report_uploader.TelemetryAPI")
-    @patch("ddtrace.testing.internal.coverage_report_uploader.generate_coverage_report_lcov")
+    @patch("ddtrace.testing.internal.coverage_report_uploader.generate_coverage_report_lcov_from_coverage_py")
     @patch("ddtrace.testing.internal.coverage_report_uploader.compress_coverage_report")
     @patch("ddtrace.testing.internal.coverage_report_uploader.create_coverage_report_event")
     def test_upload_coverage_report_exception(
@@ -165,8 +169,8 @@ class TestCoverageReportUploader:
         )
 
         # Should not raise, just log
-        uploader.upload_coverage_report(mock_cov)
+        uploader.upload_coverage_report(cov_instance=mock_cov, use_module_collector=False)
 
         # Verify error telemetry
-        mock_telemetry_instance.add_count_metric.assert_called_with("coverage_report_upload.errors", 1)
+        mock_telemetry_instance.record_coverage_report_upload_error.assert_called_once()
         mock_connector.close.assert_called_once()
