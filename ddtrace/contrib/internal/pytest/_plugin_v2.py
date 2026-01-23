@@ -32,6 +32,7 @@ from ddtrace.contrib.internal.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.internal.pytest._utils import _pytest_marked_to_skip
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_attempt_to_fix
+from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_coverage_report_upload
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retries
@@ -455,6 +456,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
             test_management_quarantine="1",
             test_management_disable="1",
             test_management_attempt_to_fix="5" if _pytest_version_supports_attempt_to_fix() else None,
+            coverage_report_upload="1" if _pytest_version_supports_coverage_report_upload() else None,
         )
 
         InternalTestSession.discover(

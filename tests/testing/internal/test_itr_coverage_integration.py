@@ -12,14 +12,17 @@ TODO: Refactor these tests to use proper mocking patterns that match the actual 
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import Mock
+
+import pytest
 
 from ddtrace.testing.internal.coverage_report_uploader import CoverageReportUploader
 from ddtrace.testing.internal.http import BackendConnectorSetup
 
 
-@pytest.mark.skip(reason="Mocking issues - functionality covered by tests/testing/integration/test_itr_coverage_augmentation.py")
+@pytest.mark.skip(
+    reason="Mocking issues - functionality covered by tests/testing/integration/test_itr_coverage_augmentation.py"
+)
 class TestITRCoverageIntegration:
     """Integration tests for ITR coverage merging and upload."""
 

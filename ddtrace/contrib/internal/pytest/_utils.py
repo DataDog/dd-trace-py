@@ -183,6 +183,11 @@ def _pytest_version_supports_attempt_to_fix():
     return _get_pytest_version_tuple() >= ATTEMPT_TO_FIX_MIN_SUPPORTED_VERSION
 
 
+def _pytest_version_supports_coverage_report_upload():
+    # Coverage report upload works with all pytest versions
+    return True
+
+
 def _get_skipif_condition(marker):
     if marker.args:
         condition = marker.args[0]

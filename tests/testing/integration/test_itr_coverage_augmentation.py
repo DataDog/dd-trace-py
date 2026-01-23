@@ -10,8 +10,9 @@ This test simulates the full flow:
 
 from __future__ import annotations
 
-from _pytest.pytester import Pytester
 from unittest.mock import patch
+
+from _pytest.pytester import Pytester
 
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
@@ -81,7 +82,7 @@ def test_itr_coverage_augmentation_with_pytest_cov(pytester: Pytester):
             coverage_report_upload_enabled=True,
             skippable_items=skippable_items,
         )
-        
+
         # Override get_skippable_tests to return coverage data
         mock_client.get_skippable_tests.return_value = (skippable_items, "correlation-123", skippable_coverage)
         mock_api_client.return_value = mock_client
@@ -145,7 +146,7 @@ def test_itr_coverage_augmentation_without_pytest_cov(pytester: Pytester):
             coverage_report_upload_enabled=True,
             skippable_items=skippable_items,
         )
-        
+
         # Override get_skippable_tests to return coverage data
         mock_client.get_skippable_tests.return_value = (skippable_items, "correlation-456", skippable_coverage)
         mock_api_client.return_value = mock_client

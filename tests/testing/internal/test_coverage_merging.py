@@ -110,6 +110,7 @@ class TestCoverageMerging:
         mock_cov.get_data.return_value = Mock(
             measured_files=lambda: ["/workspace/src/file1.py"],
             lines=lambda path: [1, 2, 3, 4] if "file1" in path else [],
+            missing=lambda path: [5, 6] if "file1" in path else [],  # Add missing lines mock
         )
 
         workspace_path = Path("/workspace")
@@ -138,6 +139,7 @@ class TestCoverageMerging:
         mock_cov.get_data.return_value = Mock(
             measured_files=lambda: ["/workspace/src/file1.py"],
             lines=lambda path: [1, 2] if "file1" in path else [],
+            missing=lambda path: [3, 4] if "file1" in path else [],  # Add missing lines mock
         )
 
         workspace_path = Path("/workspace")

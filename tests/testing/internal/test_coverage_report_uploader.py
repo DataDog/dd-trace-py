@@ -18,7 +18,9 @@ from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.http import ErrorType
 
 
-@pytest.mark.skip(reason="Mocking issues - functionality covered by tests/testing/integration/test_itr_coverage_augmentation.py")
+@pytest.mark.skip(
+    reason="Mocking issues - functionality covered by tests/testing/integration/test_itr_coverage_augmentation.py"
+)
 class TestCoverageReportUploader:
     """Tests for CoverageReportUploader."""
 

@@ -9,6 +9,7 @@ class LibraryCapabilities:
         "test_management_quarantine": "_dd.library_capabilities.test_management.quarantine",
         "test_management_disable": "_dd.library_capabilities.test_management.disable",
         "test_management_attempt_to_fix": "_dd.library_capabilities.test_management.attempt_to_fix",
+        "coverage_report_upload": "_dd.library_capabilities.coverage_report_upload",
     }
 
     def __init__(self, **capabilities: t.Optional[str]):

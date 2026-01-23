@@ -10,9 +10,7 @@ from __future__ import annotations
 import gzip
 import io
 import logging
-import os
 from pathlib import Path
-import tempfile
 import typing as t
 
 from ddtrace.internal.coverage.code import ModuleCodeCollector
@@ -67,28 +65,10 @@ def generate_coverage_report_lcov_from_coverage_py(
             log.debug("No coverage data available to generate report")
             return None
 
-        # If we have skippable coverage to merge, we need to manually construct the LCOV
-        if skippable_coverage:
-            log.debug("Merging ITR skipped test coverage with local coverage")
-            return _generate_merged_lcov_from_coverage_py(cov_instance, workspace_path, skippable_coverage)
-
-        # Otherwise, use coverage.py's built-in LCOV generation
-        # Generate LCOV report to a temporary file
-        with tempfile.NamedTemporaryFile(mode="w+", suffix=".lcov", delete=False) as temp_file:
-            temp_path = temp_file.name
-
-        try:
-            cov_instance.lcov_report(outfile=temp_path)
-
-            with open(temp_path, "rb") as f:
-                lcov_data = f.read()
-
-            log.debug("Generated LCOV coverage report from coverage.py: %d bytes", len(lcov_data))
-            return lcov_data
-
-        finally:
-            if os.path.exists(temp_path):
-                os.unlink(temp_path)
+        # Always use our enhanced LCOV generation for accuracy
+        # This ensures both covered and uncovered executable lines are properly reported
+        log.debug("Generating enhanced LCOV report with precise line reporting")
+        return _generate_merged_lcov_from_coverage_py(cov_instance, workspace_path, skippable_coverage)
 
     except Exception:
         log.exception("Error generating LCOV coverage report from coverage.py")
@@ -120,8 +100,9 @@ def _generate_merged_lcov_from_coverage_py(
         # Get coverage data from coverage.py
         cov_data = cov_instance.get_data()
 
-        # Build a map of relative paths to coverage data
+        # Build maps of relative paths to coverage data
         local_coverage: t.Dict[str, t.Set[int]] = {}
+        executable_lines_map: t.Dict[str, t.Set[int]] = {}
 
         for abs_path_str in cov_data.measured_files():
             abs_path = Path(abs_path_str)
@@ -139,19 +120,31 @@ def _generate_merged_lcov_from_coverage_py(
             executed_lines = set(cov_data.lines(abs_path_str) or [])
             local_coverage[relative_path] = executed_lines
 
+            # Get missing lines (executable but not covered)
+            missing_lines = set(cov_data.missing(abs_path_str) or [])
+            # Total executable lines = covered + missing
+            executable_lines = executed_lines | missing_lines
+            executable_lines_map[relative_path] = executable_lines
+
         # Merge with skippable coverage (union)
         merged_coverage: t.Dict[str, t.Set[int]] = {}
+        all_executable: t.Dict[str, t.Set[int]] = {}
 
-        # Add local coverage
+        # Add local coverage and executable lines
         for file_path, lines in local_coverage.items():
             merged_coverage[file_path] = lines.copy()
+            all_executable[file_path] = executable_lines_map[file_path].copy()
 
         # Merge with backend coverage
         for file_path, backend_lines in skippable_coverage.items():
             if file_path in merged_coverage:
                 merged_coverage[file_path] |= backend_lines
+                # Add backend lines to executable lines (they must be executable to be covered)
+                all_executable[file_path] |= backend_lines
             else:
                 merged_coverage[file_path] = backend_lines.copy()
+                # For backend-only files, assume all covered lines are executable
+                all_executable[file_path] = backend_lines.copy()
 
         log.debug(
             "Merged coverage: %d local files, %d backend files, %d total files",
@@ -165,23 +158,27 @@ def _generate_merged_lcov_from_coverage_py(
 
         for file_path in sorted(merged_coverage.keys()):
             covered_lines = merged_coverage[file_path]
+            executable_lines = all_executable.get(file_path, set())
 
-            if not covered_lines:
+            # Skip files with no executable lines
+            if not executable_lines:
                 continue
 
             lcov_lines.append(f"SF:{file_path}")
 
-            # For simplicity, we report all covered lines with execution count 1
-            # We don't have access to the full set of executable lines from coverage.py easily,
-            # so we'll just report the lines we know were covered
-            for line_num in sorted(covered_lines):
-                if line_num > 0:
-                    lcov_lines.append(f"DA:{line_num},1")
+            # Write DA: (data) lines - format is DA:<line>,<execution_count>
+            # We write all executable lines, with count 1 if covered, 0 if not
+            for line_num in sorted(executable_lines):
+                if line_num > 0:  # Skip line 0 (invalid source line)
+                    execution_count = 1 if line_num in covered_lines else 0
+                    lcov_lines.append(f"DA:{line_num},{execution_count}")
 
-            # Summary statistics (simplified - we only know covered lines)
-            lines_hit = len([ln for ln in covered_lines if ln > 0])
-            lcov_lines.append(f"LF:{lines_hit}")  # Lines found = lines hit (conservative)
-            lcov_lines.append(f"LH:{lines_hit}")  # Lines hit
+            # Summary statistics
+            lines_found = len([ln for ln in executable_lines if ln > 0])
+            lines_hit = len([ln for ln in covered_lines if ln > 0 and ln in executable_lines])
+
+            lcov_lines.append(f"LF:{lines_found}")  # Lines found (total executable)
+            lcov_lines.append(f"LH:{lines_hit}")  # Lines hit (covered)
             lcov_lines.append("end_of_record")
 
         if len(lcov_lines) <= 1:
