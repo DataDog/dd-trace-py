@@ -37,7 +37,7 @@ jobs:
           HEAD_HASH=$(git rev-parse origin/${PR_BRANCH})
           git checkout origin/${TARGET_BRANCH}
           git checkout -b backportvalidate-${TARGET_BRANCH}
-          ERROR=$(git merge ${PR_BRANCH} 2>&1) || true
+          ERROR=$(git merge origin/${PR_BRANCH} 2>&1) || true
           #git diff ${HEAD_HASH} ${MERGE_BASE} > ../backport.patch
           #cat ../backport.patch
           #git checkout origin/${TARGET_BRANCH}
