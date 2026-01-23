@@ -34,8 +34,6 @@ class PromptManager:
         ml_app: str,
         app_key: Optional[str] = None,
         endpoint_override: Optional[str] = None,
-        hot_cache: Optional[HotCache] = None,
-        warm_cache: Optional[WarmCache] = None,
         cache_ttl: float = DEFAULT_PROMPTS_CACHE_TTL,
         cache_max_size: int = DEFAULT_PROMPTS_CACHE_MAX_SIZE,
         timeout: float = DEFAULT_PROMPTS_TIMEOUT,
@@ -51,11 +49,8 @@ class PromptManager:
         if app_key:
             self._headers["dd-application-key"] = app_key
 
-        self._hot_cache = hot_cache or HotCache(
-            max_size=cache_max_size,
-            ttl_seconds=cache_ttl,
-        )
-        self._warm_cache = warm_cache or WarmCache(enabled=file_cache_enabled, cache_dir=cache_dir)
+        self._hot_cache = HotCache(max_size=cache_max_size, ttl_seconds=cache_ttl)
+        self._warm_cache = WarmCache(enabled=file_cache_enabled, cache_dir=cache_dir)
 
         self._refresh_in_progress: Set[str] = set()
         self._refresh_lock = threading.Lock()
