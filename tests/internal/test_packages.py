@@ -93,21 +93,57 @@ def test_distributions_files():
 def test_distributions_read_text():
     """Test that dist.read_text() works correctly."""
     import importlib.metadata as stdlib_im
+    import os
+    import sys
 
     from ddtrace.internal.native._native import distributions as _distributions
 
+    # Debug sys.path
+    print(f"\nDEBUG STDLIB: Current working directory: {os.getcwd()}")
+    print("DEBUG STDLIB: sys.path entries:")
+    for i, path in enumerate(sys.path):
+        print(f"  [{i}] {repr(path)}")
+
     # Find a distribution with top_level.txt in stdlib
     stdlib_top_levels = {}
+    print("\nDEBUG STDLIB: Scanning for pytest-cov...")
+    pytest_cov_stdlib_count = 0
     for dist in stdlib_im.distributions():
         name = dist.metadata["Name"]
+        if name == "pytest-cov":
+            pytest_cov_stdlib_count += 1
+            path = getattr(dist, "_path", "no _path attr")
+            print(f"DEBUG STDLIB: Found pytest-cov #{pytest_cov_stdlib_count} v{dist.metadata['Version']} at {path}")
+
+            top_level = dist.read_text("top_level.txt")
+            print(f"DEBUG STDLIB: pytest-cov top_level.txt: {repr(top_level)}")
+
+            # Check file directly
+            if hasattr(dist, "_path") and dist._path:
+                top_level_path = os.path.join(dist._path, "top_level.txt")
+                exists = os.path.exists(top_level_path)
+                print(f"DEBUG STDLIB: File exists at {top_level_path}: {exists}")
+
         if name:
             top_level = dist.read_text("top_level.txt")
             if top_level:
                 stdlib_top_levels[name.lower()] = top_level
 
+    print(f"DEBUG STDLIB: Total pytest-cov found: {pytest_cov_stdlib_count}")
+    print(f"DEBUG STDLIB: pytest-cov in stdlib_top_levels: {'pytest-cov' in stdlib_top_levels}")
+
+    print("\nDEBUG RUST: Scanning for pytest-cov...")
+    pytest_cov_rust_count = 0
+
     # Verify our implementation returns the same content
     for dist in _distributions():
         name = dist.name
+        if name == "pytest-cov":
+            pytest_cov_rust_count += 1
+            print(f"DEBUG RUST: Found pytest-cov #{pytest_cov_rust_count} v{dist.version} at {dist.path}")
+            our_top_level = dist.read_text("top_level.txt")
+            print(f"DEBUG RUST: pytest-cov top_level.txt: {repr(our_top_level)}")
+
         if name and name.lower() in stdlib_top_levels:
             our_top_level = dist.read_text("top_level.txt")
             assert our_top_level == stdlib_top_levels[name.lower()], (
@@ -115,6 +151,8 @@ def test_distributions_read_text():
                 f"  stdlib: {repr(stdlib_top_levels[name.lower()])}\n"
                 f"  ours: {repr(our_top_level)}"
             )
+
+    print(f"DEBUG RUST: Total pytest-cov found: {pytest_cov_rust_count}")
 
     # Test reading non-existent file returns None
     for dist in _distributions():
