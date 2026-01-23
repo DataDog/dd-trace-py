@@ -9,14 +9,11 @@ from typing import Literal
 from typing import Mapping
 from typing import Union
 
-from ddtrace.llmobs.types import Message
-from ddtrace.llmobs.types import PromptLike
+from ddtrace.llmobs.types import PromptFallback
+from ddtrace.llmobs.types import TemplateContent
 
 
-TemplateType = Union[str, List[Dict[str, str]], List[Message]]
-
-
-def _extract_template(data: Mapping[str, Any], default: TemplateType = "") -> TemplateType:
+def _extract_template(data: Mapping[str, Any], default: TemplateContent = "") -> TemplateContent:
     """Extract template from a dict, checking both 'template' and 'chat_template' keys."""
     return data.get("template") or data.get("chat_template") or default
 
@@ -38,7 +35,7 @@ class ManagedPrompt:
     version: str
     label: str
     source: Literal["registry", "cache", "fallback"]
-    template: TemplateType
+    template: TemplateContent
     variables: List[str] = field(default_factory=list)
 
     def format(self, **variables: str) -> Union[str, List[Dict[str, str]]]:
@@ -89,9 +86,7 @@ class ManagedPrompt:
 
         return result
 
-    def _render_chat(
-        self, messages: Union[List[Dict[str, str]], List[Message]], variables: Dict[str, str]
-    ) -> List[Dict[str, str]]:
+    def _render_chat(self, messages: List[Dict[str, str]], variables: Dict[str, str]) -> List[Dict[str, str]]:
         """Render each message's content with safe substitution."""
         rendered: List[Dict[str, str]] = []
         for msg in messages:
@@ -137,7 +132,7 @@ class ManagedPrompt:
         cls,
         prompt_id: str,
         label: str,
-        fallback: PromptLike = None,
+        fallback: PromptFallback = None,
     ) -> "ManagedPrompt":
         """Create a ManagedPrompt from a fallback value.
 
@@ -149,7 +144,7 @@ class ManagedPrompt:
         Returns:
             A ManagedPrompt with source="fallback".
         """
-        template: TemplateType = ""
+        template: TemplateContent = ""
         version = "fallback"
 
         if fallback is not None:

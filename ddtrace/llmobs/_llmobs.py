@@ -133,7 +133,7 @@ from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
-from ddtrace.llmobs.types import PromptLike
+from ddtrace.llmobs.types import PromptFallback
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _MetaIO
@@ -1333,7 +1333,7 @@ class LLMObs(Service):
         cls,
         prompt_id: str,
         label: Optional[str] = None,
-        fallback: PromptLike = None,
+        fallback: PromptFallback = None,
     ) -> ManagedPrompt:
         """
         Retrieve a prompt template from the Datadog Prompt Registry.
