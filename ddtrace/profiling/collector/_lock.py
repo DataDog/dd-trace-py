@@ -103,7 +103,7 @@ class _ProfiledLock:
         # and should not generate profile samples to avoid double-counting
         self.is_internal: bool = is_internal
 
-    ### DUNDER methods ###
+    # DUNDER methods
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, _ProfiledLock):
@@ -132,7 +132,7 @@ class _ProfiledLock:
             (wrapped_type.__module__, wrapped_type.__qualname__),
         )
 
-    ### Regular methods ###
+    # Regular methods
 
     def locked(self) -> bool:
         """Return True if lock is currently held."""
@@ -164,6 +164,8 @@ class _ProfiledLock:
         finally:
             end: int = time.monotonic_ns()
             self.acquired_time = end
+            if self.is_internal:
+                return
             try:
                 self._update_name()
                 self._flush_sample(start, end, is_acquire=True)
@@ -192,6 +194,8 @@ class _ProfiledLock:
             return inner_func(*args, **kwargs)
         finally:
             if start:
+                if self.is_internal:
+                    return
                 self._flush_sample(start, end=time.monotonic_ns(), is_acquire=False)
 
     def _flush_sample(self, start: int, end: int, is_acquire: bool) -> None:
