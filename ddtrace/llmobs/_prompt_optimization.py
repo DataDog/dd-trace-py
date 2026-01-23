@@ -182,7 +182,7 @@ class OptimizationIteration:
             )
 
         # Add random tip at the end
-        tip_key = random.choice(list(TIPS.keys()))
+        tip_key = random.choice(list(TIPS.keys()))  # nosec B311
         tip_text = TIPS[tip_key]
         additional_parts.append(f"\n\n**TIP: {tip_text}**")
 
@@ -224,7 +224,7 @@ class OptimizationIteration:
         examples = {}
         for label, label_examples in examples_by_label.items():
             if label_examples:
-                examples[label] = random.choice(label_examples)
+                examples[label] = random.choice(label_examples)  # nosec B311
 
         if not examples:
             return ""
