@@ -1092,8 +1092,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         super()._start_service(*args, **kwargs)
 
         def _before_fork(worker: periodic.PeriodicThread) -> None:
-            self._exporter.stop_worker()
             super(periodic.PeriodicThread, worker)._before_fork()
+            super(periodic.PeriodicThread, worker).join()
+            self._exporter.stop_worker()
 
         assert self._worker is not None  # nosec
 
