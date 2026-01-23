@@ -11,7 +11,7 @@ def test_get_runtime_id():
     assert runtime_id == runtime.get_runtime_id()
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_get_runtime_id_fork():
     import os
 
@@ -40,7 +40,7 @@ def test_get_runtime_id_fork():
     assert exit_code == 42
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_get_runtime_id_double_fork():
     import os
 
@@ -73,7 +73,7 @@ def test_get_runtime_id_double_fork():
     assert exit_code == 42
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_ancestor_runtime_id():
     """
     Check that the ancestor runtime ID is set after a fork, and that it remains

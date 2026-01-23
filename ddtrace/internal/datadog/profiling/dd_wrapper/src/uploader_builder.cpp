@@ -175,11 +175,12 @@ Datadog::UploaderBuilder::build()
     }
 
     // If we're here, the tags are good, so we can initialize the exporter
-    ddog_prof_ProfileExporter_Result res = ddog_prof_Exporter_new(to_slice("dd-trace-py"),
-                                                                  to_slice(profiler_version),
-                                                                  to_slice(family),
-                                                                  &tags,
-                                                                  ddog_prof_Endpoint_agent(to_slice(url)));
+    ddog_prof_ProfileExporter_Result res =
+      ddog_prof_Exporter_new(to_slice("dd-trace-py"),
+                             to_slice(profiler_version),
+                             to_slice(family),
+                             &tags,
+                             ddog_prof_Endpoint_agent(to_slice(url), max_timeout_ms));
     ddog_Vec_Tag_drop(tags);
 
     if (res.tag == DDOG_PROF_PROFILE_EXPORTER_RESULT_ERR_HANDLE_PROFILE_EXPORTER) {
@@ -190,18 +191,6 @@ Datadog::UploaderBuilder::build()
     }
 
     auto* ddog_exporter = &res.ok;
-
-    auto set_timeout_result = ddog_prof_Exporter_set_timeout(ddog_exporter, max_timeout_ms);
-    if (set_timeout_result.tag == DDOG_VOID_RESULT_ERR) {
-        auto& err = set_timeout_result.err;
-        std::string errmsg = Datadog::err_to_msg(&err, "Error setting timeout on exporter");
-        ddog_Error_drop(&err); // errmsg contains a copy of err.message
-        // If set_timeout had failed, then the ddog_exporter must have been a
-        // null pointer, so it's redundant to drop it here but it should also
-        // be safe to do so.
-        ddog_prof_Exporter_drop(ddog_exporter);
-        return errmsg;
-    }
 
     // Perform profile encoding before creating the Uploader
     // Also take the Profiler Stats and reset the one being written to

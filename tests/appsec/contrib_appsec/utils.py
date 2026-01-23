@@ -1,4 +1,3 @@
-from contextlib import contextmanager
 import itertools
 import json
 import sys
@@ -13,7 +12,6 @@ from urllib.parse import urlencode
 import pytest
 
 import ddtrace
-from ddtrace._trace.pin import Pin
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
 from ddtrace.appsec._utils import get_triggers
@@ -1550,7 +1548,6 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/")
             assert self.status(response) == 200
 
-    @pytest.mark.xfail_interface("tornado")
     def test_multiple_service_name(self, interface):
         import time
 
@@ -2206,12 +2203,3 @@ class Contrib_TestClass_For_Threats:
             ]
 
             self.check_rules_triggered(sorted(expected_rules), entry_span)
-
-
-@contextmanager
-def post_tracer(interface):
-    original_tracer = getattr(Pin.get_from(interface.framework), "tracer", None)
-    Pin._override(interface.framework, tracer=interface.tracer)
-    yield
-    if original_tracer is not None:
-        Pin._override(interface.framework, tracer=original_tracer)
