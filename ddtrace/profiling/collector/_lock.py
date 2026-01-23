@@ -95,9 +95,16 @@ class _ProfiledLock:
         self.max_nframes: int = max_nframes
         self.capture_sampler: collector.CaptureSampler = capture_sampler
         # Frame depth: 0=__init__, 1=_profiled_allocate_lock, 2=_LockAllocatorWrapper.__call__, 3=caller
-        frame: FrameType = sys._getframe(3)
-        code: CodeType = frame.f_code
-        self.init_location: str = f"{os.path.basename(code.co_filename)}:{frame.f_lineno}"
+        try:
+            frame: FrameType = sys._getframe(3)
+        except ValueError:
+            # Shallow call stacks can happen in edge cases (e.g., interpreter bootstrap).
+            if config.enable_asserts:
+                raise
+            self.init_location = "unknown:0"
+        else:
+            code: CodeType = frame.f_code
+            self.init_location = f"{os.path.basename(code.co_filename)}:{frame.f_lineno}"
         self.acquired_time: Optional[int] = None
         self.name: Optional[str] = None
         # If True, this lock is internal to another sync primitive (e.g., Lock inside Semaphore)
@@ -290,7 +297,6 @@ class _ProfiledLock:
                         pass
         return None
 
-    @_safe_for_instrumentation
     def _update_name(self) -> None:
         """Get lock variable name from the caller's frame."""
         if self.name is not None:
@@ -310,23 +316,30 @@ class _ProfiledLock:
 =======
 >>>>>>> 57e8f8fbc9 (fix crashes due to shallow stacks)
 
-        # We expect the call stack to be like this:
-        # 0: this
-        # 1: _acquire/_release
-        # 2: acquire/release (or __enter__/__exit__)
-        # 3: caller frame
-        if config.enable_asserts:
-            frame: FrameType = sys._getframe(1)
-            if frame.f_code.co_name not in ACQUIRE_RELEASE_CO_NAMES:
-                raise AssertionError(f"Unexpected frame in stack: '{frame.f_code.co_name}'")
+        try:
+            # We expect the call stack to be like this:
+            # 0: this
+            # 1: _acquire/_release
+            # 2: acquire/release (or __enter__/__exit__)
+            # 3: caller frame
+            if config.enable_asserts:
+                frame: FrameType = sys._getframe(1)
+                if frame.f_code.co_name not in ACQUIRE_RELEASE_CO_NAMES:
+                    raise AssertionError(f"Unexpected frame in stack: '{frame.f_code.co_name}'")
 
-            frame = sys._getframe(2)
-            if frame.f_code.co_name not in ENTER_EXIT_CO_NAMES:
-                raise AssertionError(f"Unexpected frame in stack: '{frame.f_code.co_name}'")
+                frame = sys._getframe(2)
+                if frame.f_code.co_name not in ENTER_EXIT_CO_NAMES:
+                    raise AssertionError(f"Unexpected frame in stack: '{frame.f_code.co_name}'")
 
-        # First, look at the local variables of the caller frame, and then the global variables
-        frame = sys._getframe(3)
-        self.name = self._find_name(frame.f_locals) or self._find_name(frame.f_globals) or ""
+            # First, look at the local variables of the caller frame, and then the global variables
+            frame = sys._getframe(3)
+            self.name = self._find_name(frame.f_locals) or self._find_name(frame.f_globals) or ""
+        except AssertionError:
+            if config.enable_asserts:
+                raise
+        except Exception:
+            # Instrumentation must never crash user code
+            pass  # nosec
 
 
 class _LockAllocatorWrapper:

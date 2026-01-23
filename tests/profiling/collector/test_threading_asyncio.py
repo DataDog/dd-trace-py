@@ -6,13 +6,11 @@ import pytest
         DD_PROFILING_CAPTURE_PCT="100",
         DD_PROFILING_OUTPUT_PPROF="/tmp/asyncio_lock_acquire_events",
         DD_PROFILING_FILE_PATH=__file__,
-        DD_PROFILING_API_TIMEOUT_MS="1000",
     ),
     err=None,
 )
 def test_lock_acquire_events():
     import asyncio
-    import faulthandler
     import os
     import threading
 
@@ -22,8 +20,6 @@ def test_lock_acquire_events():
     from tests.profiling.collector.lock_utils import init_linenos
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
-    # Dump stack if this subprocess hangs so we can see where it stalls in CI.
-    faulthandler.dump_traceback_later(120, repeat=True)
 
     # Tests that lock acquire/release events from asyncio threads are captured
     # correctly. See test_asyncio.py for asyncio.Lock tests.
@@ -38,28 +34,13 @@ def test_lock_acquire_events():
         asyncio.run(_lock())
         lock.release()  # !RELEASE! test_lock_acquire_events_2
 
-    def stop_profiler_with_timeout(timeout_s: float = 5.0) -> None:
-        done: list[bool] = []
-
-        def _stop() -> None:
-            p._profiler.stop(flush=True, join=False)
-            done.append(True)
-
-        stopper = threading.Thread(target=_stop, name="profiler-stop", daemon=True)
-        stopper.start()
-        stopper.join(timeout_s)
-        if not done:
-            # Force a traceback dump so CI doesn't hang silently.
-            faulthandler.dump_traceback(all_threads=True)
-            raise RuntimeError("Profiler stop timed out")
-
     # start a complete profiler so asyncio policy is setup
     p = profiler.Profiler()
     p.start()
     t = threading.Thread(target=asyncio_run, name="foobar")
     t.start()
     t.join()
-    stop_profiler_with_timeout()
+    p.stop()
 
     expected_filename = "test_threading_asyncio.py"
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
@@ -68,7 +49,6 @@ def test_lock_acquire_events():
     linenos_2 = get_lock_linenos("test_lock_acquire_events_2")
 
     profile = pprof_utils.parse_newest_profile(output_filename)
-    faulthandler.cancel_dump_traceback_later()
 
     task_name_regex = r"Task-\d+$"
 
