@@ -2,8 +2,8 @@
 
 import pytest
 
-from ddtrace.llmobs._evaluators.base import BaseEvaluator
-from ddtrace.llmobs._evaluators.base import EvaluatorContext
+from ddtrace.llmobs._experiment import BaseEvaluator
+from ddtrace.llmobs._experiment import EvaluatorContext
 
 
 class SimpleEvaluator(BaseEvaluator):
