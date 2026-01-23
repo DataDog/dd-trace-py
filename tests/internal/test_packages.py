@@ -64,7 +64,7 @@ def test_distributions_files():
     """Test that dist.files returns correct file list matching stdlib behavior."""
     import importlib.metadata as stdlib_im
 
-    from ddtrace.internal.packages import _distributions
+    from ddtrace.internal.native._native import distributions as _distributions
 
     # Build a mapping of distribution name -> set of file paths from stdlib
     stdlib_files = {}
@@ -94,7 +94,7 @@ def test_distributions_read_text():
     """Test that dist.read_text() works correctly."""
     import importlib.metadata as stdlib_im
 
-    from ddtrace.internal.packages import _distributions
+    from ddtrace.internal.native._native import distributions as _distributions
 
     # Find a distribution with top_level.txt in stdlib
     stdlib_top_levels = {}
@@ -127,7 +127,7 @@ def test_package_path_parts():
     """Test that PackagePath.parts returns correct tuple."""
     import importlib.metadata as stdlib_im
 
-    from ddtrace.internal.packages import _distributions
+    from ddtrace.internal.native._native import distributions as _distributions
 
     # Get a distribution with files from stdlib
     stdlib_parts = {}
@@ -156,7 +156,7 @@ def test_package_path_locate():
     """Test that PackagePath.locate() returns a valid path."""
     from pathlib import Path
 
-    from ddtrace.internal.packages import _distributions
+    from ddtrace.internal.native._native import distributions as _distributions
 
     # Find a distribution with files and verify locate() returns a path
     for dist in _distributions():
@@ -175,7 +175,7 @@ def test_package_path_locate():
 
 def test_distribution_metadata_keys():
     """Test that Distribution.metadata has the expected keys for Rust implementation."""
-    from ddtrace.internal.packages import _distributions
+    from ddtrace.internal.native._native import distributions as _distributions
 
     for dist in _distributions():
         metadata = dist.metadata
