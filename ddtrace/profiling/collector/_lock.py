@@ -296,9 +296,10 @@ class _ProfiledLock:
 
     def _update_name(self) -> None:
         """Get lock variable name from the caller's frame."""
+        if self.name is not None:
+            return
+
         try:
-            if self.name is not None:
-                return
             # We expect the call stack to be like this:
             # 0: this
             # 1: _acquire/_release
