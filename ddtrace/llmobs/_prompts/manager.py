@@ -3,6 +3,7 @@ import threading
 from typing import Dict
 from typing import Optional
 from typing import Set
+from typing import Tuple
 from urllib.parse import quote
 from urllib.parse import urlencode
 
@@ -23,12 +24,6 @@ from ddtrace.llmobs.types import PromptFallback
 
 
 log = get_logger(__name__)
-
-
-class PromptNotFoundError(Exception):
-    """Raised when a prompt is not found in the registry (404)."""
-
-    pass
 
 
 class PromptManager:
@@ -107,7 +102,7 @@ class PromptManager:
 
         # Try sync fetch from registry
         fetched_prompt = self._fetch_and_cache(
-            prompt_id, label, key, evict_on_not_found=False, log_context="Sync fetch"
+            prompt_id, label, key, evict_on_not_found=False
         )
         if fetched_prompt is not None:
             telemetry.record_prompt_source("registry", prompt_id)
@@ -144,7 +139,7 @@ class PromptManager:
         """
         label = label or DEFAULT_PROMPTS_LABEL
         key = self._cache_key(prompt_id, label)
-        return self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=True, log_context="Force Refresh")
+        return self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=True)
 
     def _cache_key(self, prompt_id: str, label: str) -> str:
         return f"{self._ml_app}:{prompt_id}:{label}"
@@ -166,33 +161,31 @@ class PromptManager:
         label: str,
         key: str,
         evict_on_not_found: bool = False,
-        log_context: str = "Fetch",
     ) -> Optional[ManagedPrompt]:
-        """Fetch a prompt and update caches, with standardized error handling.
+        """Fetch a prompt and update caches.
 
         Args:
             prompt_id: The prompt identifier.
             label: The prompt label.
             key: The cache key.
             evict_on_not_found: If True, evict from caches when prompt is not found (404).
-            log_context: Context string for log messages (e.g., "Sync fetch", "Refresh").
 
         Returns:
             The fetched prompt, or None if fetch failed.
         """
-        try:
-            prompt = self._fetch_from_registry(prompt_id, label, timeout=self._timeout)
-            if prompt is not None:
-                self._update_caches(key, prompt)
-                return prompt
-        except PromptNotFoundError:
+        prompt, not_found = self._fetch_from_registry(prompt_id, label, timeout=self._timeout)
+
+        if prompt is not None:
+            self._update_caches(key, prompt)
+            return prompt
+
+        if not_found:
+            telemetry.record_prompt_fetch_error(prompt_id, "NotFound")
             if evict_on_not_found:
-                log.debug("Prompt %s was deleted, evicting from cache", prompt_id)
                 self._evict_caches(key)
-            telemetry.record_prompt_fetch_error(prompt_id, "PromptNotFoundError")
-        except Exception as e:
-            log.debug("%s failed for prompt %s: %s", log_context, prompt_id, e)
-            telemetry.record_prompt_fetch_error(prompt_id, type(e).__name__)
+        else:
+            telemetry.record_prompt_fetch_error(prompt_id, "FetchError")
+
         return None
 
     def _trigger_background_refresh(self, key: str, prompt_id: str, label: str) -> None:
@@ -218,46 +211,39 @@ class PromptManager:
 
     def _background_refresh(self, key: str, prompt_id: str, label: str) -> None:
         """Refresh a prompt in the background."""
-        try:
-            self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=True, log_context="Background refresh")
-        finally:
-            with self._refresh_lock:
-                self._refresh_in_progress.discard(key)
+        self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=True)
+        with self._refresh_lock:
+            self._refresh_in_progress.discard(key)
 
-    def _fetch_from_registry(self, prompt_id: str, label: str, timeout: float) -> Optional[ManagedPrompt]:
-        """Fetch a prompt from the Datadog Prompt Registry."""
+    def _fetch_from_registry(
+        self, prompt_id: str, label: str, timeout: float
+    ) -> Tuple[Optional[ManagedPrompt], bool]:
+        """Fetch a prompt from the Datadog Prompt Registry.
+
+        Returns:
+            Tuple of (prompt, not_found) where:
+            - (ManagedPrompt, False) on success
+            - (None, True) if prompt doesn't exist (404)
+            - (None, False) on other errors
+        """
         conn = None
         try:
-            intake_url = self._endpoint_override or PROMPTS_BASE_URL
-            path = self._build_path(prompt_id, label)
-            headers = self._build_headers()
-
-            conn = get_connection(intake_url, timeout=timeout)
-            conn.request("GET", path, headers=headers)
+            conn = get_connection(self._endpoint_override or PROMPTS_BASE_URL, timeout=timeout)
+            conn.request("GET", self._build_path(prompt_id, label), headers=self._build_headers())
             response = conn.getresponse()
-            body = response.read().decode("utf-8")
 
             if response.status == 200:
-                return self._parse_response(body, prompt_id, label)
-            elif response.status == 404:
-                log.warning("Prompt not found: %s (label=%s)", prompt_id, label)
-                raise PromptNotFoundError(f"Prompt not found: {prompt_id} (label={label})")
-            else:
-                log.warning("Failed to fetch prompt %s: status=%d", prompt_id, response.status)
-                return None
-        except Exception as e:
-            log.debug("Error fetching prompt %s: %s", prompt_id, e)
-            raise
+                body = response.read().decode("utf-8")
+                return self._parse_response(body, prompt_id, label), False
+            return None, response.status == 404
+        except Exception:
+            return None, False
         finally:
             if conn is not None:
                 conn.close()
 
     def _build_path(self, prompt_id: str, label: str) -> str:
-        """Build the request path for fetching a prompt.
-
-        TODO: Update path structure when the Prompt Registry API endpoint is created.
-        Current placeholder follows Datadog API conventions.
-        """
+        """Build the request path for fetching a prompt."""
         encoded_prompt_id = quote(prompt_id, safe="")
         query_params = urlencode({"label": label, "ml_app": self._ml_app})
         return f"{PROMPTS_ENDPOINT}/{encoded_prompt_id}?{query_params}"
@@ -295,5 +281,5 @@ class PromptManager:
     ) -> ManagedPrompt:
         """Create a fallback prompt when fetch fails."""
         fallback_type = "user-provided" if fallback else "empty"
-        log.warning("Using %s fallback for prompt %s (label=%s)", fallback_type, prompt_id, label)
+        log.debug("Using %s fallback for prompt %s (label=%s)", fallback_type, prompt_id, label)
         return ManagedPrompt.from_fallback(prompt_id, label, fallback)
