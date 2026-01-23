@@ -111,13 +111,14 @@ class EvaluatorContext:
     This frozen dataclass wraps all metadata needed to run an evaluation,
     providing better state management and extensibility compared to individual parameters.
 
-    :param input_data: The input data that was provided to the task
-    :param output_data: The output data produced by the task
-    :param expected_output: The expected output for comparison (optional)
-    :param metadata: Additional metadata about the evaluation (optional)
-    :param span_id: The span ID associated with the task execution (optional)
-    :param trace_id: The trace ID associated with the task execution (optional)
-    :param config: Configuration dictionary for the experiment (optional)
+    :param input_data: The input data that was provided to the task (read-only).
+                       Dictionary with string keys mapping to JSON-serializable values.
+    :param output_data: The output data produced by the task (read-only)
+    :param expected_output: The expected output for comparison, if available (read-only)
+    :param metadata: Additional metadata about the dataset record (read-only)
+    :param span_id: The span ID associated with the task execution, if available (read-only)
+    :param trace_id: The trace ID associated with the task execution, if available (read-only)
+    :param config: Configuration dictionary for the experiment (read-only)
     """
 
     input_data: Dict[str, Any]
