@@ -448,7 +448,7 @@ integrations:
   - httpx
   tested_versions_by_dependency:
     httpx:
-      min: 0.25.0
+      min: 0.25.2
       max: 0.28.1
 
 - integration_name: jinja2
@@ -655,7 +655,7 @@ integrations:
   tested_versions_by_dependency:
     pydantic-ai-slim:
       min: 0.3.0
-      max: 0.4.4
+      max: 0.8.1
 
 - integration_name: pylibmc
   is_external_package: true
