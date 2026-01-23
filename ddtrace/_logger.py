@@ -30,15 +30,13 @@ def configure_ddtrace_logger() -> None:
         - Logs are propagated up so that they appear in the application logs if a file path wasn't provided
         - Logs are routed to a file when DD_TRACE_LOG_FILE is specified, using the log level in DD_TRACE_LOG_FILE_LEVEL.
         - Child loggers inherit from the parent ddtrace logger
-        - The log level is set to DEBUG
         - Takes precedence over DD_TRACE_LOG_LEVEL
 
     When DD_TRACE_LOG_LEVEL is set to NOTSET, DEBUG, INFO, WARNING, ERROR, or CRITICAL:
-        - The ddtrace logger level will be set to the specified value
+        - The ddtrace logger level will be set to the specified value based on https://docs.python.org/3/library/logging.html#levels
         - When NOTSET is used, getEffectiveLevel() returns the parent logger's level (inherits from root)
         - Overrides the default root logger behavior
-        - Log levels are derived from https://docs.python.org/3/library/logging.html#levels
-        - If DD_TRACE_DEBUG is also enabled, DD_TRACE_DEBUG takes precedence
+        - DD_TRACE_DEBUG takes precedence
 
     Note(s):
         1) The ddtrace-run logs under commands/ddtrace_run do not follow DD_TRACE_LOG_FILE if DD_TRACE_DEBUG is enabled.
@@ -66,11 +64,14 @@ def _configure_ddtrace_debug_logger(logger):
     Note: DD_TRACE_DEBUG=true implies a log level of DEBUG, but DD_TRACE_LOG_LEVEL=DEBUG
     does not imply DD_TRACE_DEBUG is enabled.
     """
-    if get_config("DD_TRACE_DEBUG", False, asbool):
+    # reading the values of the two possible debug settings so they can be displayed in telemetry/debug logs
+    trace_debug = get_config("DD_TRACE_DEBUG", False, asbool)
+    log_level = get_config("DD_TRACE_LOG_LEVEL")
+
+    if trace_debug:
         logger.setLevel(logging.DEBUG)
         return
 
-    log_level = get_config("DD_TRACE_LOG_LEVEL")
     if log_level is not None:
         log_level_upper = log_level.upper()
         try:
