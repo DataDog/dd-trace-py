@@ -1249,6 +1249,11 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
                 sources=["ddtrace/profiling/collector/_exception.pyx"],
                 language="c",
             ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._fast_poisson",
+                sources=["ddtrace/profiling/collector/_fast_poisson.pyx"],
+                language="c",
+            ),
         ],
         compile_time_env={
             "PY_MAJOR_VERSION": sys.version_info.major,

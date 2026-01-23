@@ -10,9 +10,7 @@ import threading
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
-
-from libc.stdlib cimport rand, RAND_MAX
-from libc.math cimport log
+from ddtrace.profiling.collector import _fast_poisson
 
 
 LOG = logging.getLogger(__name__)
@@ -27,18 +25,6 @@ cdef long long _total_exceptions = 0
 cdef long long _sampled_exceptions = 0
 cdef int _max_nframe = 64
 cdef object _original_excepthook = None
-
-
-cdef inline double _random_double() noexcept nogil:
-    return (<double>rand() + 1.0) / (<double>RAND_MAX + 2.0)
-
-
-cdef inline int _poisson_next(int mean) noexcept nogil:
-    cdef double u, result
-    with nogil:
-        u = _random_double()
-        result = -(<double>mean) * log(u)
-    return <int>result if result >= 1.0 else 1
 
 
 cdef void _collect_exception(object exc_type, object exc_value, object exc_traceback):
@@ -89,7 +75,7 @@ cpdef void _on_exception_handled(object code, int instruction_offset, object exc
     if _sample_counter < _next_sample:
         return
 
-    _next_sample = _poisson_next(_sampling_interval)
+    _next_sample = _fast_poisson.sample(_sampling_interval) or 1
     _sample_counter = 0
 
     try:
@@ -107,7 +93,7 @@ cpdef void _excepthook(object exc_type, object exc_value, object exc_traceback):
     _sample_counter += 1
 
     if _sample_counter >= _next_sample:
-        _next_sample = _poisson_next(_sampling_interval)
+        _next_sample = _fast_poisson.sample(_sampling_interval) or 1
         _sample_counter = 0
         try:
             _collect_exception(exc_type, exc_value, exc_traceback)
