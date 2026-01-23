@@ -5,7 +5,7 @@ use std::{
 
 use pyo3::{
     exceptions::PyValueError,
-    types::{PyBytesMethods as _, PyNone, PyString, PyStringMethods as _},
+    types::{PyAnyMethods as _, PyBytesMethods as _, PyNone, PyString, PyStringMethods as _},
     Py, PyAny, PyErr, Python,
 };
 
@@ -13,10 +13,22 @@ use libdd_trace_utils::span::SpanText;
 
 /// A Python bytes/str backed utf-8 string we can read without needing access to the GIL
 /// that can be put in a libdatadog span.
+///
+/// ## Storage Semantics
+///
+/// The `storage` field has the following semantics:
+/// - `Some(py_obj)` where `py_obj` is a `PyString` or `PyBytes`: Holds the Python string/bytes object
+/// - `Some(py_obj)` where `py_obj` is `PyNone`: Represents Python `None` (empty string for Rust)
+/// - `None`: Static Rust string (from `from_static_str`/`Default`), no Python object to keep alive
+///
+/// When converting back to Python via `IntoPyObject`:
+/// - `Some(py_obj)` returns the stored Python object (zero-copy)
+/// - `None` creates an interned Python string (cached by Python for repeated access)
 pub struct PyBackedString {
     /// memory view over the python object bytes, or static data
     data: ptr::NonNull<str>,
     /// Prevents the underlying Python object from being garbage collected.
+    /// See Storage Semantics above for details.
     storage: Option<Py<PyAny>>,
 }
 
@@ -28,10 +40,31 @@ impl PyBackedString {
         }
     }
 
+    /// Check if this `PyBackedString` represents Python `None` (not just an empty string).
+    ///
+    /// Returns `true` only if the storage contains Python's `None` object.
+    /// Returns `false` for empty strings created from static data or Python empty strings.
+    #[inline]
+    pub fn is_py_none(&self, py: Python<'_>) -> bool {
+        self.storage.as_ref().is_some_and(|obj| obj.is_none(py))
+    }
+
     pub fn py_none<'py>(py: Python<'py>) -> Self {
         Self {
             data: unsafe { ptr::NonNull::new_unchecked("" as *const str as *mut _) },
             storage: Some(py.None()),
+        }
+    }
+
+    /// Get the underlying Python object directly for zero-copy semantics.
+    ///
+    /// Returns the stored Python object if available (PyString, PyBytes, or PyNone),
+    /// or creates an interned Python string for static strings.
+    #[inline]
+    pub fn as_py<'py>(&self, py: Python<'py>) -> pyo3::Bound<'py, PyAny> {
+        match &self.storage {
+            Some(obj) => obj.bind(py).clone(),
+            None => PyString::intern(py, self.deref()).into_any(),
         }
     }
 
@@ -45,15 +78,18 @@ impl PyBackedString {
 impl<'py> pyo3::FromPyObject<'_, 'py> for PyBackedString {
     type Error = pyo3::PyErr;
 
+    #[inline]
     fn extract(obj: pyo3::Borrowed<'_, 'py, PyAny>) -> pyo3::PyResult<Self> {
+        let py = obj.py();
+        if obj.is_none() {
+            return Ok(Self::py_none(py));
+        }
+
         if let Ok(py_string) = obj.cast::<pyo3::types::PyString>() {
             return Self::try_from(py_string.to_owned());
         }
         if let Ok(py_bytes) = obj.cast::<pyo3::types::PyBytes>() {
             return Self::try_from(py_bytes.to_owned());
-        }
-        if let Ok(py_none) = obj.cast_exact::<pyo3::types::PyNone>() {
-            return Ok(Self::from(py_none.to_owned()));
         }
         Err(PyErr::new::<PyValueError, _>(
             "argument needs to be either a 'str', uft8 encoded 'bytes', or 'None'",
@@ -68,10 +104,14 @@ impl<'py> pyo3::IntoPyObject<'py> for &PyBackedString {
 
     type Error = std::convert::Infallible;
 
+    #[inline]
     fn into_pyobject(self, py: pyo3::Python<'py>) -> Result<Self::Output, Self::Error> {
         Ok(match &self.storage {
+            // Return the stored Python object (PyString, PyBytes, or PyNone)
+            // NOTE: .to_owned() creates a new Bound wrapper but refs the same Python object
             Some(python_str) => python_str.bind(py).to_owned(),
-            None => PyString::new(py, self.deref()).into_any(),
+            // Static string case - use intern to get Python's cached singleton for empty strings
+            None => PyString::intern(py, self.deref()).into_any(),
         })
     }
 }
@@ -124,6 +164,7 @@ impl From<pyo3::Bound<'_, PyNone>> for PyBackedString {
 impl std::ops::Deref for PyBackedString {
     type Target = str;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         unsafe { self.data.as_ref() }
     }

@@ -1,6 +1,6 @@
 use pyo3::{
     types::{PyAnyMethods as _, PyInt, PyList, PyModule, PyModuleMethods as _},
-    Bound, Py, PyAny, PyResult, Python,
+    Bound, PyAny, PyResult, Python,
 };
 
 use crate::py_string::PyBackedString;
@@ -25,8 +25,8 @@ impl SpanEventData {
 
     pub fn __init__(
         &mut self,
-        _name: Py<PyAny>,
-        _attributes: Option<Py<PyAny>>,
+        _name: &Bound<'_, PyAny>,
+        _attributes: Option<&Bound<'_, PyAny>>,
         _time_unix_nano: Option<u64>,
     ) -> PyResult<()> {
         Ok(())
@@ -64,9 +64,9 @@ impl SpanLinkData {
         &mut self,
         trace_id: &Bound<'p, PyInt>,
         span_id: &Bound<'p, PyInt>,
-        tracestate: Option<Py<PyAny>>,
+        tracestate: Option<&Bound<'p, PyAny>>,
         flags: Option<&Bound<'p, PyInt>>,
-        attributes: Option<Py<PyAny>>,
+        attributes: Option<&Bound<'p, PyAny>>,
         _dropped_attributes: u32,
     ) -> PyResult<()> {
         Ok(())
@@ -80,11 +80,13 @@ pub struct SpanData {
 }
 
 /// Extract PyBackedString from Python object, falling back to empty string on error
+#[inline]
 fn extract_backed_string_or_default(obj: &Bound<'_, PyAny>) -> PyBackedString {
     obj.extract::<PyBackedString>().unwrap_or_default()
 }
 
 /// Extract PyBackedString from Python object, falling back to None on error
+#[inline]
 fn extract_backed_string_or_none(obj: &Bound<'_, PyAny>) -> PyBackedString {
     let py = obj.py();
     obj.extract::<PyBackedString>()
@@ -94,21 +96,6 @@ fn extract_backed_string_or_none(obj: &Bound<'_, PyAny>) -> PyBackedString {
 #[pyo3::pymethods]
 impl SpanData {
     #[new]
-    #[pyo3(signature =(
-        *_py_args,
-        **_py_kwargs,
-    ))]
-    fn __new__(
-        _py_args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        _py_kwargs: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> Self {
-        Self::default()
-    }
-
-    /// Performs span initialization
-    ///
-    /// This can not be put on new, because otherwise the signature needs to match
-    /// for every inherited class
     #[allow(clippy::too_many_arguments)]
     #[allow(unused_variables)]
     #[pyo3(signature = (
@@ -123,32 +110,32 @@ impl SpanData {
         span_api = None,
         links = None,
     ))]
-    fn __init__<'p>(
-        &mut self,
+    fn __new__<'p>(
         py: Python<'p>,
-        name: Py<PyAny>,
-        service: Option<Py<PyAny>>,
-        resource: Option<Py<PyAny>>,
-        span_type: Option<Py<PyAny>>,
+        name: &Bound<'p, PyAny>,
+        service: Option<&Bound<'p, PyAny>>,
+        resource: Option<&Bound<'p, PyAny>>,
+        span_type: Option<&Bound<'p, PyAny>>,
         trace_id: Option<&Bound<'p, PyInt>>,
         span_id: Option<&Bound<'p, PyInt>>,
         parent_id: Option<&Bound<'p, PyInt>>,
         start: Option<f64>,
-        span_api: Option<Py<PyAny>>,
-        links: Option<Bound<'p, PyList>>,
-    ) -> PyResult<()> {
-        // Use setters to avoid duplicating validation logic
-        self.set_name(name.bind(py));
-        match service {
-            Some(obj) => self.set_service(obj.bind(py)),
-            None => self.data.service = PyBackedString::py_none(py),
-        }
-        Ok(())
+        span_api: Option<&Bound<'p, PyAny>>,
+        links: Option<&Bound<'p, PyList>>,
+    ) -> Self {
+        let mut span = Self::default();
+        // Initialize fields in __new__ since PyO3 doesn't automatically call __init__
+        span.data.name = extract_backed_string_or_default(name);
+        span.data.service = match service {
+            Some(obj) => extract_backed_string_or_none(obj),
+            None => PyBackedString::py_none(py),
+        };
+        span
     }
 
     #[getter]
-    fn get_name(&self) -> &PyBackedString {
-        &self.data.name
+    fn get_name<'py>(&self, py: Python<'py>) -> pyo3::Bound<'py, PyAny> {
+        self.data.name.as_py(py)
     }
 
     #[setter]
@@ -157,8 +144,12 @@ impl SpanData {
     }
 
     #[getter]
-    fn get_service(&self) -> &PyBackedString {
-        &self.data.service
+    fn get_service<'py>(&self, py: Python<'py>) -> Option<pyo3::Bound<'py, PyAny>> {
+        if self.data.service.is_py_none(py) {
+            None
+        } else {
+            Some(self.data.service.as_py(py))
+        }
     }
 
     #[setter]

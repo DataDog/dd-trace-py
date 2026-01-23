@@ -183,8 +183,6 @@ class Span(SpanData):
                 raise TypeError("parent_id must be an integer")
             return
 
-        super().__init__(name, service, resource, span_type, trace_id, span_id, parent_id, start, span_api, links)
-
         self.resource = resource or self.name
         self.span_type = span_type
         self._span_api = span_api
