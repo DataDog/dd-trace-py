@@ -19,7 +19,7 @@ from ddtrace.llmobs._prompts.cache import HotCache
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
 from ddtrace.llmobs._prompts.prompt import _extract_template
-from ddtrace.llmobs.types import PromptLike
+from ddtrace.llmobs.types import PromptFallback
 
 
 log = get_logger(__name__)
@@ -74,7 +74,7 @@ class PromptManager:
         self,
         prompt_id: str,
         label: Optional[str] = None,
-        fallback: PromptLike = None,
+        fallback: PromptFallback = None,
     ) -> ManagedPrompt:
         """
         Retrieve a prompt template from the registry.
@@ -291,7 +291,7 @@ class PromptManager:
         self,
         prompt_id: str,
         label: str,
-        fallback: PromptLike = None,
+        fallback: PromptFallback = None,
     ) -> ManagedPrompt:
         """Create a fallback prompt when fetch fails."""
         fallback_type = "user-provided" if fallback else "empty"
