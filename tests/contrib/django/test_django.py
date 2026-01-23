@@ -1829,7 +1829,9 @@ def test_database_service_prefix_can_be_overridden():
         assert span.service == "my-defaultdb"
 
 
-@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_DATABASES": "true", "DD_DJANGO_DATABASE_SERVICE_NAME": "django-db"})
+@pytest.mark.subprocess(
+    env={"DD_DJANGO_INSTRUMENT_DATABASES": "true", "DD_DJANGO_DATABASE_SERVICE_NAME": "django-db"}, err=None
+)
 def test_database_service_can_be_overridden():
     from tests.contrib.django.utils import setup_django_test_spans
     from tests.contrib.django.utils import with_default_django_db
