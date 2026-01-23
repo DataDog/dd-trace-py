@@ -11,10 +11,9 @@ fuzz_infra:
   timeout: 5m
   allow_failure: true
   rules:
-    # runs on gitlab schedule and on merge to main.
-    # Also allow manual run in branches for ease of debug / testing
-    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "schedule"'
+    # runs during nightly builds
     - if: $NIGHTLY_BUILD == "true"
+    # Also allow manual run in branches for ease of debug / testing
     - when: manual
   before_script:
     # Install build dependencies (same as docker/Dockerfile.fuzz)
