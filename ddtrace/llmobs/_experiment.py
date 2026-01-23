@@ -154,7 +154,6 @@ class BaseEvaluator(ABC):
 
             def evaluate(self, context: EvaluatorContext):
                 score = self.model.compare(context.output_data, context.expected_output)
-                # Return numeric score for proper backend metrics
                 return score
 
     Example (with EvaluatorResult)::
