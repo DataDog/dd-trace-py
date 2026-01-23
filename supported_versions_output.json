@@ -169,13 +169,6 @@
         "auto-instrumented": false
     },
     {
-        "dependency": "claude-agent-sdk",
-        "integration": "claude_agent_sdk",
-        "minimum_tracer_supported": "0.1.21",
-        "max_tracer_supported": "0.1.21",
-        "auto-instrumented": true
-    },
-    {
         "dependency": "python-consul",
         "integration": "consul",
         "minimum_tracer_supported": "1.1.0",
