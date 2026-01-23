@@ -399,12 +399,7 @@ Sampler::init_asyncio(PyObject* _asyncio_current_tasks,
                       PyObject* _asyncio_scheduled_tasks,
                       PyObject* _asyncio_eager_tasks)
 {
-    asyncio_current_tasks = _asyncio_current_tasks;
-    asyncio_scheduled_tasks = _asyncio_scheduled_tasks;
-    asyncio_eager_tasks = _asyncio_eager_tasks;
-    if (asyncio_eager_tasks == Py_None) {
-        asyncio_eager_tasks = NULL;
-    }
+    echion->init_asyncio(_asyncio_current_tasks, _asyncio_scheduled_tasks, _asyncio_eager_tasks);
 }
 
 void
