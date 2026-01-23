@@ -27,7 +27,7 @@ class ManagedPrompt:
         - to_annotation_dict(**vars) -> Dict[str, Any]
 
     INTERNAL (may change):
-        - All fields (id, version, label, source, template, variables)
+        - All fields (id, version, label, source, template)
     """
 
     id: str
