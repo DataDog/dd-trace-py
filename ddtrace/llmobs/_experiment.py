@@ -205,7 +205,7 @@ class BaseEvaluator(ABC):
         raise NotImplementedError("Subclasses must implement the evaluate method")
 
 
-def _is_class_evaluator(evaluator: Any) -> TypeGuard["BaseEvaluator"]:
+def _is_class_evaluator(evaluator: Any) -> TypeGuard[BaseEvaluator]:
     """Check if an evaluator is a class-based evaluator (inherits from BaseEvaluator).
 
     :param evaluator: The evaluator to check
@@ -215,7 +215,7 @@ def _is_class_evaluator(evaluator: Any) -> TypeGuard["BaseEvaluator"]:
 
 
 def _is_function_evaluator(
-    evaluator: Union[Callable[[Any, Any, Any], Any], "BaseEvaluator"],
+    evaluator: Union[Callable[[Any, Any, Any], Any], BaseEvaluator],
 ) -> TypeGuard[Callable[[Any, Any, Any], Any]]:
     """Check if an evaluator is a function-based evaluator.
 
@@ -535,7 +535,7 @@ class Experiment:
         evaluators: List[
             Union[
                 Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
-                "BaseEvaluator",
+                BaseEvaluator,
             ]
         ],
         project_name: str,
