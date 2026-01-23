@@ -18,7 +18,7 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate)
         // We make the assumption that gevent and asyncio are not mixed
         // together to keep the logic here simple. We can always revisit this
         // should there be a substantial demand for it.
-        unwind_greenlets(tstate, native_id);
+        unwind_greenlets(echion, tstate, native_id);
     }
 }
 
@@ -490,9 +490,13 @@ ThreadInfo::get_all_tasks(PyThreadState*)
 
 // ----------------------------------------------------------------------------
 void
-ThreadInfo::unwind_greenlets(PyThreadState* tstate, unsigned long cur_native_id)
+ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsigned long cur_native_id)
 {
-    const std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
+    const std::lock_guard<std::mutex> guard(echion.greenlet_info_map_lock());
+
+    auto& greenlet_info_map = echion.greenlet_info_map();
+    auto& greenlet_parent_map = echion.greenlet_parent_map();
+    auto& greenlet_thread_map = echion.greenlet_thread_map();
 
     if (greenlet_thread_map.find(cur_native_id) == greenlet_thread_map.end())
         return;
