@@ -95,9 +95,9 @@ class ManagedPrompt:
         """Render each message's content with safe substitution."""
         rendered: List[Dict[str, str]] = []
         for msg in messages:
-            rendered_msg: Dict[str, str] = {"role": str(msg.get("role", "")), "content": str(msg.get("content", ""))}
-            rendered_msg["content"] = _safe_substitute(rendered_msg["content"], variables)
-            rendered.append(rendered_msg)
+            role = msg.get("role") or ""
+            content = msg.get("content") or ""
+            rendered.append({"role": role, "content": _safe_substitute(content, variables)})
         return rendered
 
     def __repr__(self) -> str:
