@@ -6,6 +6,7 @@ from ddtrace import config
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import ArgumentError
@@ -84,8 +85,14 @@ async def execute(func, handler, args, kwargs):
             dispatch_res = core.dispatch_with_results("tornado.start_request", ("tornado", handler)).tornado_future
             if dispatch_res and dispatch_res.value is not None:
                 return await dispatch_res.value
-
-            return await func(*args, **kwargs)
+            try:
+                return await func(*args, **kwargs)
+            except BlockingException as b:
+                dispatch_res = core.dispatch_with_results(
+                    "tornado.block_request", ("tornado", handler, b.args[0])
+                ).tornado_future
+                if dispatch_res and dispatch_res.value is not None:
+                    return await dispatch_res.value
 
 
 def _find_route(initial_rule_set, request):

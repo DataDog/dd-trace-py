@@ -635,6 +635,22 @@ def _call_waf_first(integration, *_) -> None:
     call_waf_callback()
 
 
+def tornado_block(_integration, handler, block):
+    handler.clear()
+    handler.set_status(block.status_code)
+    handler._transforms = ()
+    if 300 <= block.status_code < 400 and block.location:
+        return handler.redirect(block.location, status=block.status_code)
+    if block.content_type == "auto":
+        content_type = "text/html" if _use_html(handler.headers) else "application/json"
+    else:
+        content_type = block.content_type
+    handler.set_header("Content-Type", content_type)
+    from ddtrace.internal.utils.http import _get_blocked_template
+
+    return handler.finish(_get_blocked_template(content_type, block.block_id))
+
+
 def tornado_call_waf_first(integration, handler):
     if not asm_config._asm_enabled:
         return
@@ -642,19 +658,7 @@ def tornado_call_waf_first(integration, handler):
     logger.debug(info, extra=log_extra)
     call_waf_callback()
     if block := get_blocked():
-        handler.clear()
-        handler.set_status(block.status_code)
-        handler._transforms = ()
-        if 300 <= block.status_code < 400 and block.location:
-            return handler.redirect(block.location, status=block.status_code)
-        if block.content_type == "auto":
-            content_type = "text/html" if _use_html(handler.headers) else "application/json"
-        else:
-            content_type = block.content_type
-        handler.set_header("Content-Type", content_type)
-        from ddtrace.internal.utils.http import _get_blocked_template
-
-        return handler.finish(_get_blocked_template(content_type, block.block_id))
+        tornado_block(integration, handler, block)
     return None
 
 
@@ -775,5 +779,6 @@ def asm_listen():
     core.on("django.traced_get_response.pre", set_block_request_callable)
 
     core.on("tornado.start_request", tornado_call_waf_first, "tornado_future")
+    core.on("tornado.block_request", tornado_block, "tornado_future")
     core.on("tornado.send_response", tornado_call_waf_response)
     core.on("context.ended.request.tornado", _on_context_ended)

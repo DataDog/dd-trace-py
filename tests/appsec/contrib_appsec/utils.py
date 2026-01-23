@@ -1652,9 +1652,9 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize("ep_enabled", [True, False])
     @pytest.mark.parametrize(
         ["endpoint", "parameters", "rule", "top_functions"],
-        [("lfi", "filename1=/etc/passwd&filename2=/etc/master.passwd", "rasp-930-100", ("rasp",))]
+        [("lfi", {"filename1": "/etc/passwd", "filename2": "/etc/master.passwd"}, "rasp-930-100", ("rasp",))]
         + [
-            ("ssrf", f"url_{p1}_1=169.254.169.254&url_{p2}_2=169.254.169.253", "rasp-934-100", (f1, f2))
+            ("ssrf", {f"url_{p1}_1": "169.254.169.254", f"url_{p2}_2": "169.254.169.253"}, "rasp-934-100", (f1, f2))
             for (p1, f1), (p2, f2) in itertools.product(
                 [
                     ("urlopen_string", "urlopen"),
@@ -1666,11 +1666,11 @@ class Contrib_TestClass_For_Threats:
                 repeat=2,
             )
         ]
-        + [("sql_injection", "user_id_1=1 OR 1=1&user_id_2=1 OR 1=1", "rasp-942-100", ("dispatch",))]
+        + [("sql_injection", {"user_id_1": "1 OR 1=1", "user_id_2": "1 OR 1=1"}, "rasp-942-100", ("dispatch",))]
         + [
             (
                 "shell_injection",
-                "cmdsys_1=$(cat /etc/passwd 1>%262 ; echo .)&cmdrun_2=$(uname -a 1>%262 ; echo .)",
+                {"cmdsys_1": "$(cat /etc/passwd 1>&2 ; echo .)", "cmdrun_2": "$(uname -a 1>&2 ; echo .)"},
                 "rasp-932-100",
                 ("system", "rasp"),
             )
@@ -1678,7 +1678,7 @@ class Contrib_TestClass_For_Threats:
         + [
             (
                 "command_injection",
-                "cmda_1=/sbin/ping&cmds_2=/usr/bin/ls%20-la",
+                {"cmda_1": "/sbin/ping", "cmds_2": "/usr/bin/ls%20-la"},
                 "rasp-932-110",
                 ("Popen", "rasp"),
             )
@@ -1694,7 +1694,6 @@ class Contrib_TestClass_For_Threats:
             (rules.RULES_EXPLOIT_PREVENTION_DISABLED, 0, 200),
         ],
     )
-    @pytest.mark.xfail_interface("tornado", skip=True)
     def test_exploit_prevention(
         self,
         interface,
@@ -1737,11 +1736,13 @@ class Contrib_TestClass_For_Threats:
             ),
             mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as mocked,
         ):
+            import urllib.parse
+
             self.update_tracer(interface)
             assert asm_config._asm_enabled == asm_enabled
-            response = interface.client.get(f"/rasp/{endpoint}/?{parameters}")
+            response = interface.client.get(f"/rasp/{endpoint}/?{urllib.parse.urlencode(parameters)}")
             code = status_expected if asm_enabled and ep_enabled else 200
-            assert self.status(response) == code, (self.status(response), code)
+            assert self.status(response) == code, (self.status(response), code, self.body(response))
             assert get_entry_span_tag(http.STATUS_CODE) == str(code), (get_entry_span_tag(http.STATUS_CODE), code)
             if code == 200:
                 assert self.body(response).startswith(f"{endpoint} endpoint")
