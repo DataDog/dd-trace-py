@@ -23,10 +23,6 @@ CACHE_DIR="$PROJECT_ROOT/.cache"
 # Create cache directories if they don't exist
 mkdir -p "$CACHE_DIR/pip" "$CACHE_DIR/cython" "$CACHE_DIR/sccache" 2>/dev/null || true
 
-# Create extension cache directory in project root (not in .cache)
-EXT_CACHE_DIR="$PROJECT_ROOT/.ext_cache"
-mkdir -p "$EXT_CACHE_DIR" 2>/dev/null || true
-
 # Fix permissions if the cache directory is owned by root
 if [ -d "$CACHE_DIR" ] && [ "$(stat -c '%U' "$CACHE_DIR" 2>/dev/null || stat -f '%Su' "$CACHE_DIR" 2>/dev/null)" = "root" ]; then
     echo "Warning: $CACHE_DIR is owned by root. Attempting to fix permissions..."
@@ -40,17 +36,6 @@ fi
 
 # Ensure the directories are writable
 chmod -R u+w "$CACHE_DIR" 2>/dev/null || true
-
-# Fix permissions for extension cache if needed
-if [ -d "$EXT_CACHE_DIR" ] && [ "$(stat -c '%U' "$EXT_CACHE_DIR" 2>/dev/null || stat -f '%Su' "$EXT_CACHE_DIR" 2>/dev/null)" = "root" ]; then
-    echo "Warning: $EXT_CACHE_DIR is owned by root. Attempting to fix permissions..."
-    sudo chown -R "$USER:$(id -gn)" "$EXT_CACHE_DIR" 2>/dev/null || {
-        echo "Error: Failed to fix extension cache directory permissions."
-        echo "Please run: sudo chown -R \$USER:\$(id -gn) $EXT_CACHE_DIR"
-        exit 1
-    }
-fi
-chmod -R u+w "$EXT_CACHE_DIR" 2>/dev/null || true
 
 COMPOSE_FILES=("-f" "$PROJECT_ROOT/docker-compose.yml")
 if command -v nvidia-smi >/dev/null 2>&1; then
