@@ -799,7 +799,6 @@ class Experiment:
                         eval_result_value = eval_result.value
                     else:
                         eval_result_value = eval_result
-
                 except Exception as e:
                     exc_type, exc_value, exc_tb = sys.exc_info()
                     exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
