@@ -32,6 +32,10 @@ from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs.types import DatasetRecordInputType
+from ddtrace.llmobs.types import ExperimentConfigType
+from ddtrace.llmobs.types import JSONType
+from ddtrace.llmobs.types import NonNoneJSONType
 from ddtrace.version import __version__
 
 
@@ -42,10 +46,6 @@ if TYPE_CHECKING:
 
 
 logger = get_logger(__name__)
-
-
-# JSONType matches the type used for evaluator return values
-JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
 
 
 class EvaluatorResult:
@@ -219,11 +219,6 @@ def _is_function_evaluator(evaluator: Any) -> bool:
     :return: True if it's a function evaluator, False otherwise
     """
     return not isinstance(evaluator, BaseEvaluator)
-
-
-NonNoneJSONType = Union[str, int, float, bool, List[JSONType], Dict[str, JSONType]]
-ExperimentConfigType = Dict[str, JSONType]
-DatasetRecordInputType = Dict[str, NonNoneJSONType]
 
 
 class Project(TypedDict):
@@ -770,9 +765,7 @@ class Experiment:
 
                 try:
                     if _is_class_evaluator(evaluator):
-                        # Class-based evaluator
                         evaluator_name = evaluator.name  # type: ignore[union-attr]
-                        # Add experiment config under a specific field in metadata
                         combined_metadata = {**metadata, "experiment_config": self._config}
                         context = EvaluatorContext(
                             input_data=input_data,
@@ -784,11 +777,9 @@ class Experiment:
                         )
                         eval_result = evaluator.evaluate(context)  # type: ignore[union-attr]
                     elif _is_function_evaluator(evaluator):
-                        # Function-based evaluator (legacy)
                         evaluator_name = evaluator.__name__  # type: ignore[union-attr]
                         eval_result = evaluator(input_data, output_data, expected_output)  # type: ignore[operator]
                     else:
-                        # Should not happen, but handle gracefully
                         evaluator_name = str(evaluator)
                         eval_result = None
 
