@@ -636,6 +636,7 @@ def _call_waf_first(integration, *_) -> None:
 
 
 def tornado_block(_integration, handler, block):
+    setattr(handler, "__dd_appsec_blocked", True)
     handler.clear()
     handler.set_status(block.status_code)
     handler._transforms = ()
@@ -648,6 +649,8 @@ def tornado_block(_integration, handler, block):
     handler.set_header("Content-Type", content_type)
     from ddtrace.internal.utils.http import _get_blocked_template
 
+    set_waf_address(SPAN_DATA_NAMES.RESPONSE_STATUS, str(block.status_code))
+    set_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, getattr(handler, "_headers", None))
     return handler.finish(_get_blocked_template(content_type, block.block_id))
 
 
@@ -673,6 +676,8 @@ def _call_waf(integration, *_) -> None:
 def tornado_call_waf_response(integration: str, handler: object):
     if not asm_config._asm_enabled:
         return
+    if getattr(handler, "__dd_appsec_blocked", False):
+        return
     info = f"{integration}::srb_on_response"
     logger.debug(info, extra=log_extra)
     status_code = getattr(handler, "_status_code", None)
@@ -682,6 +687,8 @@ def tornado_call_waf_response(integration: str, handler: object):
     set_waf_address(SPAN_DATA_NAMES.RESPONSE_STATUS, status_code)
     set_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, headers)
     call_waf_callback()
+    if block := get_blocked():
+        raise BlockingException(block)
 
 
 def _on_block_decided(callback):

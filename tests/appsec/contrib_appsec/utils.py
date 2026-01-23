@@ -964,7 +964,6 @@ class Contrib_TestClass_For_Threats:
             ("/", 200, None),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_request_suspicious_request_block_match_response_status(
         self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, metastruct, uri, status, blocked
     ):
@@ -1009,7 +1008,6 @@ class Contrib_TestClass_For_Threats:
         ],
     )
     @pytest.mark.parametrize("rename_service", [True, False])
-    @pytest.mark.xfail_interface("tornado")
     def test_request_suspicious_request_block_match_response_headers(
         self,
         interface: Interface,
