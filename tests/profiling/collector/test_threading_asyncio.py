@@ -12,6 +12,7 @@ import pytest
 )
 def test_lock_acquire_events():
     import asyncio
+    import faulthandler
     import os
     import threading
 
@@ -21,6 +22,8 @@ def test_lock_acquire_events():
     from tests.profiling.collector.lock_utils import init_linenos
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+    # Dump stack if this subprocess hangs so we can see where it stalls in CI.
+    faulthandler.dump_traceback_later(120, repeat=True)
 
     # Tests that lock acquire/release events from asyncio threads are captured
     # correctly. See test_asyncio.py for asyncio.Lock tests.
@@ -51,6 +54,7 @@ def test_lock_acquire_events():
     linenos_2 = get_lock_linenos("test_lock_acquire_events_2")
 
     profile = pprof_utils.parse_newest_profile(output_filename)
+    faulthandler.cancel_dump_traceback_later()
 
     task_name_regex = r"Task-\d+$"
 
