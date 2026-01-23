@@ -749,7 +749,7 @@ def test_tracer_shutdown():
 
 
 @pytest.mark.skip(reason="Fails to Pickle RateLimiter in the Tracer")
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_tracer_fork():
     import contextlib
     import multiprocessing
@@ -1022,7 +1022,7 @@ def _test_tracer_runtime_tags_fork_task(tracer, q):
 
 
 @pytest.mark.skip(reason="Fails to Pickle RateLimiter in the Tracer")
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_tracer_runtime_tags_fork():
     import multiprocessing
 
@@ -1120,7 +1120,7 @@ def test_runtime_id_parent_only(tracer):
     assert isinstance(rtid, str)
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_runtime_id_fork():
     import os
 
@@ -1705,7 +1705,7 @@ def test_closing_other_context_spans_multi_spans(tracer, test_spans):
     assert len(spans) == 2
 
 
-@pytest.mark.subprocess(err=None)
+@pytest.mark.subprocess(err=None, env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_fork_manual_span_same_context():
     import ddtrace.auto  # noqa
 
@@ -1735,7 +1735,7 @@ def test_fork_manual_span_same_context():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess(err=None)
+@pytest.mark.subprocess(err=None, env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_fork_manual_span_different_contexts():
     import ddtrace.auto  # noqa
 
@@ -1760,7 +1760,7 @@ def test_fork_manual_span_different_contexts():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess(err=None)
+@pytest.mark.subprocess(err=None, env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_fork_pid():
     import ddtrace.auto  # noqa
 
