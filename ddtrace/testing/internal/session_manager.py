@@ -7,7 +7,6 @@ import typing as t
 
 from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.ci import CITag
-from ddtrace.testing.internal.constants import DEFAULT_ENV_NAME
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.testing.internal.env_tags import get_env_tags
 from ddtrace.testing.internal.git import Git
@@ -66,7 +65,9 @@ class SessionManager:
 
         self.is_auto_injected = bool(os.getenv("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
 
-        self.env = os.environ.get("_CI_DD_ENV") or os.environ.get("DD_ENV") or DEFAULT_ENV_NAME
+        self.env = os.getenv("_CI_DD_ENV", os.getenv("DD_ENV", None))
+        if self.env is None:
+            self.env = self.connector_setup.default_env()
 
         self.api_client = APIClient(
             service=self.service,
@@ -210,7 +211,9 @@ class SessionManager:
         if created:
             try:
                 self.collected_tests.add(test_ref)
-                is_new = len(self.known_tests) > 0 and test_ref not in self.known_tests
+
+                is_new = not test.has_parameters() and len(self.known_tests) > 0 and test_ref not in self.known_tests
+
                 test_properties = self.test_properties.get(test_ref) or TestProperties()
                 test.set_attributes(
                     is_new=is_new,

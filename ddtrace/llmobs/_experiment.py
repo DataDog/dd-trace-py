@@ -32,10 +32,6 @@ from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs.types import DatasetRecordInputType
-from ddtrace.llmobs.types import ExperimentConfigType
-from ddtrace.llmobs.types import JSONType
-from ddtrace.llmobs.types import NonNoneJSONType
 from ddtrace.version import __version__
 
 
@@ -46,6 +42,11 @@ if TYPE_CHECKING:
 
 
 logger = get_logger(__name__)
+
+JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
+NonNoneJSONType = Union[str, int, float, bool, List[JSONType], Dict[str, JSONType]]
+ConfigType = Dict[str, JSONType]
+DatasetRecordInputType = Dict[str, NonNoneJSONType]
 
 
 class EvaluatorResult:
@@ -521,7 +522,7 @@ class Experiment:
     def __init__(
         self,
         name: str,
-        task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
+        task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
         dataset: Dataset,
         evaluators: List[
             Union[
@@ -532,7 +533,7 @@ class Experiment:
         project_name: str,
         description: str = "",
         tags: Optional[Dict[str, str]] = None,
-        config: Optional[ExperimentConfigType] = None,
+        config: Optional[ConfigType] = None,
         _llmobs_instance: Optional["LLMObs"] = None,
         summary_evaluators: Optional[
             List[
