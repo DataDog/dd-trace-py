@@ -146,9 +146,6 @@ class BaseEvaluator(ABC):
     - **JSON serializable**: string/dict/list values, which will be serialized into strings
     - **EvaluatorResult**: Any of the above values plus optional associated reasoning, assessment, metadata, and tags
 
-    For best backend integration, prefer returning numeric scores (0.0-1.0) or booleans.
-    If you need to return additional metadata, use EvaluatorResult.
-
     Example (simple return)::
 
         class SemanticSimilarity(BaseEvaluator):
