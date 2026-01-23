@@ -15,7 +15,7 @@ DD_PROFILING_ENABLED=true DD_PROFILING_EXCEPTION_ENABLED=false python benchmark_
 echo ""
 
 # Test different sampling intervals
-SAMPLING_INTERVALS=(10 100 1000 10000)
+SAMPLING_INTERVALS=(100000 10000 1000 100 10)
 
 for interval in "${SAMPLING_INTERVALS[@]}"; do
     echo "Exception Profiling - Sampling Interval: $interval"
