@@ -33,7 +33,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
     // Check if the Python stack contains "_run".
     // To avoid having to do string comparisons every time we unwind Tasks, we keep track
     // of the cache key of the "_run" Frame.
-    static std::optional<Frame::Key> frame_cache_key;
+    auto& frame_cache_key = echion.frame_cache_key();
     if (!frame_cache_key) {
         for (size_t i = 0; i < python_stack.size(); i++) {
             const auto& frame = python_stack[i].get();
@@ -77,7 +77,6 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
     std::unordered_set<PyObject*> parent_tasks;
     std::unordered_map<PyObject*, TaskInfo::Ref> waitee_map; // Indexed by task origin
     std::unordered_map<PyObject*, TaskInfo::Ref> origin_map; // Indexed by task origin
-    static std::unordered_set<PyObject*> previous_task_objects;
 
     auto maybe_all_tasks = get_all_tasks(echion, tstate);
     if (!maybe_all_tasks) {
@@ -86,6 +85,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
 
     auto all_tasks = std::move(*maybe_all_tasks);
     {
+        auto& previous_task_objects = echion.previous_task_objects();
         std::lock_guard<std::mutex> lock(echion.task_link_map_lock());
 
         auto& task_link_map = echion.task_link_map();
