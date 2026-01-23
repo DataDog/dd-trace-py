@@ -14,9 +14,10 @@ jobs:
       id-token: write
     # Only react to merged PRs for security reasons.
     # See https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#pull_request_target.
+    # the first || is only for testing
     if: >
       github.event.pull_request.merged
-      && (
+      || (
         github.event.action == 'closed'
         || (
           github.event.action == 'labeled'
@@ -73,8 +74,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          echo " \
            gh pr create \
              --title "title [backport x.y]" \
              --body "Backport 1234 to x.y" \
              --base ${{ steps.create-commit.outputs.branch-from }} \
-             --head ${{ steps.create-commit.outputs.branch }}
+             --head ${{ steps.create-commit.outputs.branch }} \
+          "
