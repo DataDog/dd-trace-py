@@ -52,6 +52,7 @@ jobs:
           echo "\`\`\`" >> "$GITHUB_OUTPUT"
           echo "git cherry-pick -x --mainline 1 ${MERGE_COMMIT}" | tee -a "$GITHUB_OUTPUT"
           echo "\`\`\`" >> "$GITHUB_OUTPUT"
+          echo "(This commit hash is the HEAD of the temporary branch used by Github Actions, which is a merge commit.)" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Comment PR
