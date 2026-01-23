@@ -137,7 +137,7 @@ from ddtrace.version import __version__
 
 
 if TYPE_CHECKING:
-    from ddtrace.llmobs._evaluators.base import BaseEvaluator
+    from ddtrace.llmobs._experiment import BaseEvaluator
 
 
 log = get_logger(__name__)
@@ -960,7 +960,7 @@ class LLMObs(Service):
         :param runs: The number of times to run the experiment, or, run the task for every dataset record the defined
                      number of times.
         """
-        from ddtrace.llmobs._evaluators.base import BaseEvaluator
+        from ddtrace.llmobs._experiment import BaseEvaluator
 
         if not callable(task):
             raise TypeError("task must be a callable function.")
