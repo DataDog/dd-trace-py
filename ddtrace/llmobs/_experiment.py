@@ -129,9 +129,7 @@ class EvaluatorContext:
 
 
 class BaseEvaluator(ABC):
-    """Abstract base class for evaluators in the LLMObs SDK.
-
-    This class provides a unified interface for evaluators.
+    """This class provides a unified interface for evaluators.
 
     Subclasses must implement the `evaluate` method.
 
