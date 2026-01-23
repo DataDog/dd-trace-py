@@ -35,10 +35,6 @@ StaticSamplePool::take_sample()
 std::optional<Sample*>
 StaticSamplePool::return_sample(Sample* sample)
 {
-    // Clear any data pushed to this sample before returning it to the pool.
-    // This prevents stale data (like span_id) from leaking to the next user.
-    sample->clear_buffers();
-
     for (std::size_t i = 0; i < CAPACITY; ++i) {
         Sample* expected = nullptr;
         if (pool[i].compare_exchange_strong(expected, sample, std::memory_order_acq_rel, std::memory_order_relaxed)) {
