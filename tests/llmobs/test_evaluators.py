@@ -53,22 +53,20 @@ class TestEvaluatorContext:
         assert ctx.metadata == {}
         assert ctx.span_id is None
         assert ctx.trace_id is None
-        assert ctx.config == {}
 
     def test_context_with_optional_fields(self):
         ctx = EvaluatorContext(
             input_data={"query": "test"},
             output_data="response",
             expected_output="expected",
-            metadata={"key": "value"},
+            metadata={"key": "value", "experiment_config": {"temperature": 0.7}},
             span_id="span_123",
             trace_id="trace_456",
-            config={"temperature": 0.7},
         )
-        assert ctx.metadata == {"key": "value"}
+        assert ctx.metadata == {"key": "value", "experiment_config": {"temperature": 0.7}}
         assert ctx.span_id == "span_123"
         assert ctx.trace_id == "trace_456"
-        assert ctx.config == {"temperature": 0.7}
+        assert ctx.metadata.get("experiment_config") == {"temperature": 0.7}
 
     def test_context_is_frozen(self):
         ctx = EvaluatorContext(
