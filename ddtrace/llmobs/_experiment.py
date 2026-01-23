@@ -743,7 +743,7 @@ class Experiment:
     def _run_evaluators(self, task_results: List[TaskResult], raise_errors: bool = False) -> List[EvaluationResult]:
         """Run evaluators on task results.
 
-        Supports both class-based (BaseEvaluator) and function-based evaluators.
+        Supports both class-based (BaseEvaluator) and literal function evaluators.
 
         :param task_results: List of task results to evaluate
         :param raise_errors: Whether to raise exceptions on evaluation errors
