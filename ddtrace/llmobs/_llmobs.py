@@ -968,23 +968,16 @@ class LLMObs(Service):
             callable(evaluator) or isinstance(evaluator, BaseEvaluator) for evaluator in evaluators
         ):
             raise TypeError("Evaluators must be a list of callable functions or BaseEvaluator instances.")
-
-        # Validate evaluators
         for evaluator in evaluators:
             if isinstance(evaluator, BaseEvaluator):
-                # Class-based evaluator - validation is handled by the class itself
                 continue
-
-            # Function-based evaluator - validate signature
             if not callable(evaluator):
                 raise TypeError(f"Evaluator {evaluator} must be callable or an instance of BaseEvaluator.")
-
             sig = inspect.signature(evaluator)
             params = sig.parameters
             evaluator_required_params = ("input_data", "output_data", "expected_output")
             if not all(param in params for param in evaluator_required_params):
                 raise TypeError("Evaluator function must have parameters {}.".format(evaluator_required_params))
-
         if summary_evaluators and not all(callable(summary_evaluator) for summary_evaluator in summary_evaluators):
             raise TypeError("Summary evaluators must be a list of callable functions.")
         if summary_evaluators:
