@@ -35,10 +35,13 @@ jobs:
           TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
           MERGE_BASE=$(git merge-base origin/main origin/${PR_BRANCH})
           HEAD_HASH=$(git rev-parse origin/${PR_BRANCH})
-          git diff ${HEAD_HASH} ${MERGE_BASE} > ../backport.patch
-          cat ../backport.patch
           git checkout origin/${TARGET_BRANCH}
-          ERROR=$(git apply ../backport.patch 2>&1) || true
+          git checkout -b backportvalidate-${TARGET_BRANCH}
+          ERROR=$(git merge ${PR_BRANCH} 2>&1) || true
+          #git diff ${HEAD_HASH} ${MERGE_BASE} > ../backport.patch
+          #cat ../backport.patch
+          #git checkout origin/${TARGET_BRANCH}
+          #ERROR=$(git apply ../backport.patch 2>&1) || true
 
           echo "results<<EOF" >> "$GITHUB_OUTPUT"
           if [[ ! -z ${ERROR} ]]
