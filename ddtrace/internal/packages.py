@@ -17,6 +17,19 @@ from ddtrace.internal.utils.cache import callonce
 LOG = logging.getLogger(__name__)
 
 # Try to use fast Rust implementation if available
+#
+# AIDEV-NOTE: The Rust implementation provides a subset of the stdlib importlib.metadata API:
+#   - Distribution.name, .version: fully supported
+#   - Distribution.metadata: returns a plain dict with only these exact keys:
+#     "name", "Name", "version", "Version" (case-sensitive, unlike stdlib's case-insensitive access).
+#     Accessing other keys (e.g., "Author", "License") or different casing (e.g., "NAME") will raise KeyError.
+#     (stdlib returns an email.Message-like object with all metadata fields and case-insensitive access)
+#   - Distribution.files: returns list of PackagePath objects (lazy-loaded)
+#   - Distribution.read_text(filename): reads files from dist-info directory
+#   - PackagePath: only supports .parts, .read_text(), .locate(), __str__, __fspath__
+#     (stdlib PackagePath inherits from PurePosixPath with many more methods)
+#
+# Only use the supported API surface when working with _distributions() results.
 _distributions: t.Callable[[], t.Iterable[t.Any]]
 try:
     from ddtrace.internal.native._native import distributions as _distributions

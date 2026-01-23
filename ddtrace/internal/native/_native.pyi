@@ -1,4 +1,5 @@
 from enum import Enum
+from pathlib import Path
 from typing import Any
 from typing import Dict
 from typing import List
@@ -560,7 +561,7 @@ class PackagePath:
         :raises IOError: If the file cannot be read.
         """
         ...
-    def locate(self) -> str:
+    def locate(self) -> Path:
         """
         Locate the file and return its absolute path.
         """

@@ -1,6 +1,5 @@
 /// Fast Rust implementation of importlib_metadata.distributions()
 /// Optimized for performance with caching and efficient directory scanning
-/// Version 2: Adds support for dist.files and dist.read_text()
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyTuple};
 use std::collections::HashMap;
