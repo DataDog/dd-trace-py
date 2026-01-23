@@ -47,7 +47,7 @@ def with_django_db(test_spans):
     old_config = setup_databases(
         verbosity=0,
         interactive=False,
-        keepdb=False,
+        keepdb=True,  # Reuse existing test databases to handle interrupted runs
     )
     # Clear the migration spans
     test_spans.reset()
