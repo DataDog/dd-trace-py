@@ -200,6 +200,9 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 # Setup download cache
 .download_cache/
 
+# Extension build cache
+.ext_cache/
+
 # .env file
 .env
 .envrc
