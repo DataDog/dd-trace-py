@@ -6,7 +6,6 @@ import json
 import os
 import sys
 import time
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -97,6 +96,7 @@ from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
+from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordInputType
@@ -134,10 +134,6 @@ from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.version import __version__
-
-
-if TYPE_CHECKING:
-    from ddtrace.llmobs._experiment import BaseEvaluator
 
 
 log = get_logger(__name__)
@@ -918,7 +914,7 @@ class LLMObs(Service):
         evaluators: List[
             Union[
                 Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
-                "BaseEvaluator",
+                BaseEvaluator,
             ]
         ],
         description: str = "",
@@ -960,8 +956,6 @@ class LLMObs(Service):
         :param runs: The number of times to run the experiment, or, run the task for every dataset record the defined
                      number of times.
         """
-        from ddtrace.llmobs._experiment import BaseEvaluator
-
         if not callable(task):
             raise TypeError("task must be a callable function.")
         sig = inspect.signature(task)
