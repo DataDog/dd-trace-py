@@ -35,8 +35,6 @@ jobs:
           TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
           MERGE_BASE=$(git merge-base origin/main origin/${PR_BRANCH})
           HEAD_HASH=$(git rev-parse origin/${PR_BRANCH})
-          git checkout origin/main
-          git merge origin/${PR_BRANCH}
           MERGE_COMMIT=$(git rev-parse HEAD)
           git checkout origin/${TARGET_BRANCH}
           ERROR=$(git cherry-pick -x --mainline 1 ${MERGE_COMMIT} 2>&1) || true
