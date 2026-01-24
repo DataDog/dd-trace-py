@@ -148,13 +148,29 @@ def test_distributions_read_text():
             our_top_level = dist.read_text("top_level.txt")
             print(f"DEBUG RUST: pytest-cov top_level.txt: {repr(our_top_level)}")
 
-        if name and name.lower() in stdlib_top_levels:
+        # Only compare distributions if we can find a matching path in stdlib
+        if name:
             our_top_level = dist.read_text("top_level.txt")
-            assert our_top_level == stdlib_top_levels[name.lower()], (
-                f"top_level.txt mismatch for {name}:\n"
-                f"  stdlib: {repr(stdlib_top_levels[name.lower()])}\n"
-                f"  ours: {repr(our_top_level)}"
-            )
+            # Find the corresponding stdlib distribution at the same path
+            matching_stdlib_content = None
+            for stdlib_dist in stdlib_im.distributions():
+                if stdlib_dist.metadata["Name"] == name and str(getattr(stdlib_dist, "_path", "")) == str(dist.path):
+                    matching_stdlib_content = stdlib_dist.read_text("top_level.txt")
+                    break
+
+            # Only assert if we found a matching stdlib distribution
+            if matching_stdlib_content is not None or our_top_level is not None:
+                if matching_stdlib_content != our_top_level:
+                    print(f"MISMATCH: {name} at {dist.path}")
+                    print(f"  stdlib: {repr(matching_stdlib_content)}")
+                    print(f"  ours: {repr(our_top_level)}")
+                    # Only fail if both should have content or both should be None
+                    if not (matching_stdlib_content is None and our_top_level is None):
+                        assert our_top_level == matching_stdlib_content, (
+                            f"top_level.txt mismatch for {name} at {dist.path}:\n"
+                            f"  stdlib: {repr(matching_stdlib_content)}\n"
+                            f"  ours: {repr(our_top_level)}"
+                        )
 
     print(f"DEBUG RUST: Total pytest-cov found: {pytest_cov_rust_count}")
 
