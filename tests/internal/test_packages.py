@@ -96,7 +96,11 @@ def test_distributions_read_text():
     import os
     import sys
 
-    from ddtrace.internal.native._native import distributions as _distributions
+    from ddtrace.internal.native._native import distributions as _distributions_func
+
+    # Enable debug for this specific test
+    def _distributions():
+        return _distributions_func(debug=True)
 
     # Debug sys.path
     print(f"\nDEBUG STDLIB: Current working directory: {os.getcwd()}")
