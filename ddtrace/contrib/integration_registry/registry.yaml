@@ -81,7 +81,7 @@ integrations:
   tested_versions_by_dependency:
     anthropic:
       min: 0.28.1
-      max: 0.74.1
+      max: 0.76.0
 
 - integration_name: aredis
   is_external_package: true
