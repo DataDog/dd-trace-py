@@ -103,7 +103,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         span._set_ctx_items(
             {
-                SPAN_KIND: "llm",
+                SPAN_KIND: "agent",
                 MODEL_NAME: model or "",
                 MODEL_PROVIDER: "claude_agent_sdk",
                 INPUT_MESSAGES: input_messages,
