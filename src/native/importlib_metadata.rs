@@ -269,24 +269,30 @@ impl Distribution {
             }
         };
 
-        // Filter out missing files (matches stdlib skip_missing_files behavior)
-        // Based on testing, the stdlib appears to be less strict about .pyc file existence
-        // We'll implement a more permissive check that matches the observed behavior
+        // Match stdlib behavior: include all files except those that clearly don't exist
+        // The stdlib's skip_missing_files appears to have different behavior than documented
         let mut existing_files = Vec::new();
         for file_py in all_files {
             let should_include = {
                 let file = file_py.borrow(py);
-                let file_str = &file.path_str;
 
-                // For .pyc files, be more permissive as they may be generated on-demand
-                if file_str.ends_with(".pyc") || file_str.contains("__pycache__") {
-                    // Include .pyc files if they're in RECORD - assume they can be created
-                    true
-                } else {
-                    // For non-.pyc files, check existence as normal
-                    match file.locate() {
-                        Ok(located_path) => located_path.exists(),
-                        Err(_) => false,
+                // Check actual file existence
+                match file.locate() {
+                    Ok(located_path) => {
+                        let exists = located_path.exists();
+                        if exists {
+                            // File definitely exists
+                            true
+                        } else {
+                            // File doesn't exist - for .pyc files, be more permissive to match stdlib
+                            let file_str = &file.path_str;
+                            file_str.ends_with(".pyc") || file_str.contains("__pycache__")
+                        }
+                    }
+                    Err(_) => {
+                        // Can't locate file - be permissive for .pyc files
+                        let file_str = &file.path_str;
+                        file_str.ends_with(".pyc") || file_str.contains("__pycache__")
                     }
                 }
             };
