@@ -157,8 +157,8 @@
     {
         "dependency": "celery",
         "integration": "celery",
-        "minimum_tracer_supported": "5.5.3",
-        "max_tracer_supported": "5.5.3",
+        "minimum_tracer_supported": "5.6.2",
+        "max_tracer_supported": "5.6.2",
         "auto-instrumented": true
     },
     {
@@ -403,7 +403,7 @@
         "dependency": "litellm",
         "integration": "litellm",
         "minimum_tracer_supported": "1.65.4",
-        "max_tracer_supported": "1.65.4",
+        "max_tracer_supported": "1.80.16",
         "pinned": "true",
         "auto-instrumented": true
     },
