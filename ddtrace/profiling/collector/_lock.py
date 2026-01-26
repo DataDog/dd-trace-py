@@ -8,6 +8,7 @@ import time
 from types import CodeType
 from types import FrameType
 from types import ModuleType
+from types import TracebackType
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -94,9 +95,13 @@ class _ProfiledLock:
         self.max_nframes: int = max_nframes
         self.capture_sampler: collector.CaptureSampler = capture_sampler
         # Frame depth: 0=__init__, 1=_profiled_allocate_lock, 2=_LockAllocatorWrapper.__call__, 3=caller
-        frame: FrameType = sys._getframe(3)
-        code: CodeType = frame.f_code
-        self.init_location: str = f"{os.path.basename(code.co_filename)}:{frame.f_lineno}"
+        try:
+            frame: FrameType = sys._getframe(3)
+            code: CodeType = frame.f_code
+            self.init_location: str = f"{os.path.basename(code.co_filename)}:{frame.f_lineno}"
+        except ValueError:
+            # Stack too shallow (e.g., direct instantiation in tests or shallow call context)
+            self.init_location = "unknown:0"
         self.acquired_time: Optional[int] = None
         self.name: Optional[str] = None
         # If True, this lock is internal to another sync primitive (e.g., Lock inside Semaphore)
@@ -159,38 +164,30 @@ class _ProfiledLock:
             return inner_func(*args, **kwargs)
 
         start: int = time.monotonic_ns()
+        result: Any = None
+        error_info: Optional[Tuple[BaseException, Optional[TracebackType]]] = None
         try:
             result = inner_func(*args, **kwargs)
-        except BaseException:
-            end: int = time.monotonic_ns()
-            self.acquired_time = end
-            if not self.is_internal:
-                try:
-                    self._update_name()
-                    self._flush_sample(start, end, is_acquire=True)
-                except AssertionError:
-                    if config.enable_asserts:
-                        # AssertionError exceptions need to propagate
-                        raise
-                except Exception:
-                    # Instrumentation must never crash user code
-                    pass  # nosec
-            raise
-        else:
-            end = time.monotonic_ns()
-            self.acquired_time = end
-            if not self.is_internal:
-                try:
-                    self._update_name()
-                    self._flush_sample(start, end, is_acquire=True)
-                except AssertionError:
-                    if config.enable_asserts:
-                        # AssertionError exceptions need to propagate
-                        raise
-                except Exception:
-                    # Instrumentation must never crash user code
-                    pass  # nosec
-            return result
+        except BaseException as exc:
+            error_info = (exc, exc.__traceback__)
+
+        end: int = time.monotonic_ns()
+        self.acquired_time = end
+        if not self.is_internal:
+            try:
+                self._update_name()
+                self._flush_sample(start, end, is_acquire=True)
+            except AssertionError:
+                if config.enable_asserts:
+                    raise
+            except Exception:
+                # Instrumentation must never crash user code
+                pass  # nosec
+        if error_info is not None:
+            err, tb = error_info
+            raise err.with_traceback(tb)
+
+        return result
 
     def release(self, *args: Any, **kwargs: Any) -> Any:
         return self._release(self.__wrapped__.release, *args, **kwargs)
@@ -205,31 +202,36 @@ class _ProfiledLock:
         start: Optional[int] = getattr(self, "acquired_time", None)
         self.acquired_time = None
 
+        result: Any = None
+        error_info: Optional[Tuple[BaseException, Optional[TracebackType]]] = None
         try:
             result = inner_func(*args, **kwargs)
-        except BaseException:
-            if start and not self.is_internal:
+        except BaseException as exc:
+            error_info = (exc, exc.__traceback__)
+
+        if start and not self.is_internal:
+            try:
                 self._flush_sample(start, end=time.monotonic_ns(), is_acquire=False)
-            raise
-        else:
-            if start and not self.is_internal:
-                self._flush_sample(start, end=time.monotonic_ns(), is_acquire=False)
-            return result
+            except AssertionError:
+                if config.enable_asserts:
+                    raise
+            except Exception:
+                # Instrumentation must never crash user code
+                pass  # nosec
+        if error_info is not None:
+            err, tb = error_info
+            raise err.with_traceback(tb)
+
+        return result
 
     def _flush_sample(self, start: int, end: int, is_acquire: bool) -> None:
-        """Helper method to push lock profiling data to ddup.
+        """Push lock profiling data to ddup."""
+        # Skip profiling for internal locks (e.g., Lock inside Semaphore/Condition)
+        # to avoid double-counting when multiple collectors are active
+        if self.is_internal:
+            return
 
-        Args:
-            start: Start timestamp in nanoseconds
-            end: End timestamp in nanoseconds
-            is_acquire: True for acquire operations, False for release operations
-        """
         try:
-            # Skip profiling for internal locks (e.g., Lock inside Semaphore/Condition)
-            # to avoid double-counting when multiple collectors are active
-            if self.is_internal:
-                return
-
             handle: ddup.SampleHandle = ddup.SampleHandle()
 
             handle.push_monotonic_ns(end)
@@ -293,6 +295,7 @@ class _ProfiledLock:
         return None
 
     def _update_name(self) -> None:
+        """Get lock variable name from the caller's frame."""
         try:
             if self.name is not None:
                 return
