@@ -3,9 +3,6 @@ on:
   pull_request_target:
     types:
       - labeled
-  pull_request:
-    types:
-      - labeled
 
 jobs:
   validate-backport:
