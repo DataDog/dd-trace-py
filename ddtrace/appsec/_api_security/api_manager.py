@@ -46,7 +46,7 @@ class APIManager(Service):
     ]
     COLLECTED = BLOCK_COLLECTED + [
         ("RESPONSE_HEADERS_NO_COOKIES", API_SECURITY.RESPONSE_HEADERS_NO_COOKIES, dict),
-        ("RESPONSE_BODY", API_SECURITY.RESPONSE_BODY, lambda f: f()),
+        ("RESPONSE_BODY", API_SECURITY.RESPONSE_BODY, lambda f: f() if callable(f) else f),
     ]
 
     _instance: Optional["APIManager"] = None

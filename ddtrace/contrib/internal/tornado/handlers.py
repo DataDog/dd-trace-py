@@ -138,7 +138,6 @@ def on_finish(func, handler, args, kwargs):
         # space here
         klass = handler.__class__
         request_span.resource = "{}.{}".format(klass.__module__, klass.__name__)
-        core.dispatch("tornado.finish_request", ("tornado", request))
         core.dispatch(
             "web.request.finish",
             (

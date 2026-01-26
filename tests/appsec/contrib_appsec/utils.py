@@ -302,7 +302,6 @@ class Contrib_TestClass_For_Threats:
             assert _addresses_store, "no waf addresses stored"
             assert not _addresses_store[0].get("http.request.query")
 
-    @pytest.mark.xfail_interface("tornado")
     def test_truncation_tags(self, interface: Interface, get_entry_span_metric):
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
@@ -318,11 +317,11 @@ class Contrib_TestClass_For_Threats:
                 f"no {asm_constants.APPSEC.TRUNCATION_STRING_LENGTH} metric {met}"
             )
             # 12030 is due to response encoding
-            assert int(get_entry_span_metric(asm_constants.APPSEC.TRUNCATION_STRING_LENGTH)) == 12029
+            value = int(get_entry_span_metric(asm_constants.APPSEC.TRUNCATION_STRING_LENGTH))
+            assert value == 12029, value
             assert get_entry_span_metric(asm_constants.APPSEC.TRUNCATION_CONTAINER_SIZE)
             assert int(get_entry_span_metric(asm_constants.APPSEC.TRUNCATION_CONTAINER_SIZE)) == 518
 
-    @pytest.mark.xfail_interface("tornado")
     def test_truncation_telemetry(self, interface: Interface, get_entry_span_metric):
         from unittest.mock import ANY
         from unittest.mock import MagicMock
@@ -417,7 +416,6 @@ class Contrib_TestClass_For_Threats:
         ("payload_struct", "attack"),
         [({"mytestingbody_key": "mytestingbody_value"}, False), ({"attack": "1' or '1' = '1'"}, True)],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_request_body(
         self,
         interface: Interface,
@@ -435,10 +433,12 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == 200  # Have to add end points in each framework application.
             body = _addresses_store[0].get("http.request.body") if _addresses_store else None
             if asm_enabled and content_type != "text/plain":
-                assert body in [
+                alternatives = [
                     payload_struct,
                     {k: [v] for k, v in payload_struct.items()},
+                    {k: v.encode() for k, v in payload_struct.items()},
                 ]
+                assert body in alternatives, f"body {body} not found in {alternatives}"
             else:
                 assert not body  # DEV: Flask send {} for text/plain with asm
 
@@ -1090,7 +1090,6 @@ class Contrib_TestClass_For_Threats:
         ],
         ids=["json", "text_json", "json_large", "xml", "form", "form_multipart", "text", "no_attack"],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_request_suspicious_request_block_match_request_body(
         self, interface: Interface, get_entry_span_tag, asm_enabled, metastruct, entry_span, body, content_type, blocked
     ):
@@ -1312,7 +1311,6 @@ class Contrib_TestClass_For_Threats:
             ({"User-Agent": "AllOK"}, False, False),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_api_security_schemas(
         self,
         interface: Interface,
@@ -1364,19 +1362,22 @@ class Contrib_TestClass_For_Threats:
                 assert get_triggers(entry_span()) is None, "expected no triggers but some found"
             value = get_entry_span_tag(name)
             if apisec_enabled and not (name.startswith("_dd.appsec.s.res") and blocked):
+                if name == "_dd.appsec.s.req.body" and blocked:
+                    # we may not collect the body if the request is blocked early
+                    return
                 assert value, name
                 api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
                 assert api, name
+                # all tornado path params are always strings
+                if interface.name == "tornado" and name == "_dd.appsec.s.req.params":
+                    expected_value = ([{"param_int": [8], "param_str": [8]}],)
                 if expected_value is not None:
                     if name == "_dd.appsec.s.res.body" and blocked:
                         assert api == [{"errors": [[[{"detail": [8], "title": [8]}]], {"len": 1}]}]
                     else:
                         assert any(
                             all(api[0].get(k) == v for k, v in expected[0].items()) for expected in expected_value
-                        ), (
-                            api,
-                            name,
-                        )
+                        ), (api, name, expected_value)
                 telemetry_calls = {
                     (c.value, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.add_metric.call_args_list
                 }
@@ -1409,7 +1410,6 @@ class Contrib_TestClass_For_Threats:
             ({"SSN": "123-45-6789"}, [{"SSN": [8, {"category": "pii", "type": "us_ssn"}]}]),
         ],
     )
-    @pytest.mark.xfail_interface("tornado")
     def test_api_security_scanners(
         self, interface: Interface, get_entry_span_tag, apisec_enabled, payload, expected_value
     ):
@@ -1478,7 +1478,6 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize("apisec_enabled", [True, False])
     @pytest.mark.parametrize("priority", ["keep", "drop"])
     @pytest.mark.parametrize("delay", [0.0, 120.0])
-    @pytest.mark.xfail_interface("tornado")
     def test_api_security_sampling(self, interface: Interface, get_entry_span_tag, apisec_enabled, priority, delay):
         from ddtrace.appsec._api_security.api_manager import APIManager
         from ddtrace.ext import http

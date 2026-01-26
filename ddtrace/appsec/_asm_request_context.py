@@ -662,6 +662,29 @@ def tornado_call_waf_first(integration, handler):
     call_waf_callback()
     if block := get_blocked():
         tornado_block(integration, handler, block)
+        return
+    # adding body request support
+    handler.request._parse_body()
+    parsed_body = handler.request.body_arguments
+    if parsed_body:
+        parsed_body = {k: v[0] if len(v) == 1 else list[v] for k, v in parsed_body.items()}
+    else:
+        _body: bytes = handler.request.body
+        try:
+            parsed_body = json.loads(_body)
+        except BaseException:
+            try:
+                import ddtrace.vendor.xmltodict as xmltodict
+
+                parsed_body = xmltodict.parse(_body)
+            except BaseException:
+                pass  # nosec
+    if parsed_body:
+        set_waf_address(SPAN_DATA_NAMES.REQUEST_BODY, parsed_body)
+        call_waf_callback()
+        if block := get_blocked():
+            tornado_block(integration, handler, block)
+
     return None
 
 
@@ -671,6 +694,18 @@ def _call_waf(integration, *_) -> None:
     info = f"{integration}::srb_on_response"
     logger.debug(info, extra=log_extra)
     call_waf_callback()
+
+
+def _tornado_parse_body(handler):
+    response_body = b"".join(handler._write_buffer)
+
+    def lambda_function():
+        try:
+            return json.loads(response_body)
+        except BaseException:
+            return None
+
+    return lambda_function
 
 
 def tornado_call_waf_response(integration: str, handler: object):
@@ -689,6 +724,10 @@ def tornado_call_waf_response(integration: str, handler: object):
     call_waf_callback()
     if block := get_blocked():
         raise BlockingException(block)
+    set_waf_address(SPAN_DATA_NAMES.RESPONSE_BODY, _tornado_parse_body(handler))
+    call_waf_callback()
+    if block := get_blocked():
+        tornado_block(integration, handler, block)
 
 
 def _on_block_decided(callback):
