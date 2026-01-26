@@ -3,7 +3,9 @@
 import pytest
 
 from ddtrace.llmobs._experiment import BaseEvaluator
+from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import EvaluatorContext
+from ddtrace.llmobs._experiment import _ExperimentRunInfo
 
 
 class SimpleEvaluator(BaseEvaluator):
@@ -149,8 +151,6 @@ class TestEvaluatorIntegration:
 
     def test_class_evaluator_with_experiment(self, llmobs):
         """Test that class-based evaluators work with experiments."""
-        from ddtrace.llmobs._experiment import Dataset
-        from ddtrace.llmobs._experiment import _ExperimentRunInfo
 
         def dummy_task(input_data, config):
             return input_data.get("value", "")
@@ -188,8 +188,6 @@ class TestEvaluatorIntegration:
 
     def test_mixed_evaluators_with_experiment(self, llmobs):
         """Test mixing function and class-based evaluators."""
-        from ddtrace.llmobs._experiment import Dataset
-        from ddtrace.llmobs._experiment import _ExperimentRunInfo
 
         def dummy_task(input_data, config):
             return input_data.get("value", "")
