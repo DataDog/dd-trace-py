@@ -680,7 +680,7 @@ def test_crashtracker_process_tags():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::"})
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::"}, err=None)
 def test_crashtracker_echild_hang():
     """
     It's possible for user code and services to harvest child processes by doing a `waitpid()` until errno is ECHILD.
@@ -752,7 +752,7 @@ def test_crashtracker_echild_hang():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=None)
 def test_crashtracker_no_zombies():
     """
     If a process has been designated as the reaper for another process (either because it is the parent, it is marked
