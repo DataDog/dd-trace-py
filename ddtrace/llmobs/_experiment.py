@@ -40,7 +40,7 @@ logger = get_logger(__name__)
 
 JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
 NonNoneJSONType = Union[str, int, float, bool, List[JSONType], Dict[str, JSONType]]
-ExperimentConfigType = Dict[str, JSONType]
+ConfigType = Dict[str, JSONType]
 DatasetRecordInputType = Dict[str, NonNoneJSONType]
 
 
@@ -360,13 +360,13 @@ class Experiment:
     def __init__(
         self,
         name: str,
-        task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
+        task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
         dataset: Dataset,
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]]],
         project_name: str,
         description: str = "",
         tags: Optional[Dict[str, str]] = None,
-        config: Optional[ExperimentConfigType] = None,
+        config: Optional[ConfigType] = None,
         _llmobs_instance: Optional["LLMObs"] = None,
         summary_evaluators: Optional[
             List[

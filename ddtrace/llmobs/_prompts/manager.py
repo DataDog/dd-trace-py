@@ -26,14 +26,7 @@ log = get_logger(__name__)
 
 
 class PromptManager:
-    """
-    Manages prompt retrieval with Stale-While-Revalidate caching.
-
-    Three-layer cache:
-    - Hot cache: HotCache (in-memory, ~100ns)
-    - Warm cache: WarmCache (file-based, ~1ms)
-    - Fallback: (user-provided or empty)
-    """
+    """Manages prompt retrieval and caching."""
 
     def __init__(
         self,
@@ -41,8 +34,6 @@ class PromptManager:
         ml_app: str,
         app_key: Optional[str] = None,
         endpoint_override: Optional[str] = None,
-        hot_cache: Optional[HotCache] = None,
-        warm_cache: Optional[WarmCache] = None,
         cache_ttl: float = DEFAULT_PROMPTS_CACHE_TTL,
         cache_max_size: int = DEFAULT_PROMPTS_CACHE_MAX_SIZE,
         timeout: float = DEFAULT_PROMPTS_TIMEOUT,
@@ -58,11 +49,8 @@ class PromptManager:
         if app_key:
             self._headers["dd-application-key"] = app_key
 
-        self._hot_cache = hot_cache or HotCache(
-            max_size=cache_max_size,
-            ttl_seconds=cache_ttl,
-        )
-        self._warm_cache = warm_cache or WarmCache(enabled=file_cache_enabled, cache_dir=cache_dir)
+        self._hot_cache = HotCache(max_size=cache_max_size, ttl_seconds=cache_ttl)
+        self._warm_cache = WarmCache(enabled=file_cache_enabled, cache_dir=cache_dir)
 
         self._refresh_in_progress: Set[str] = set()
         self._refresh_lock = threading.Lock()
@@ -73,15 +61,7 @@ class PromptManager:
         label: Optional[str] = None,
         fallback: PromptFallback = None,
     ) -> ManagedPrompt:
-        """
-        Retrieve a prompt template from the registry.
-
-        Uses Stale-While-Revalidate pattern:
-        - Hot cache hit + fresh: return immediately
-        - Hot cache hit + stale: return immediately, trigger background refresh
-        - Warm cache hit: return, populate hot cache
-        - All miss: sync fetch with timeout, then fallback
-        """
+        """Retrieve a prompt template from the registry."""
         label = label or DEFAULT_PROMPTS_LABEL
         key = self._cache_key(prompt_id, label)
 
@@ -113,30 +93,14 @@ class PromptManager:
         return self._create_fallback_prompt(prompt_id, label, fallback)
 
     def clear_cache(self, hot: bool = True, warm: bool = True) -> None:
-        """Clear the prompt cache.
-
-        Args:
-            hot: If True, clear the hot (in-memory) cache.
-            warm: If True, clear the warm (file-based) cache.
-        """
+        """Clear the prompt cache."""
         if hot:
             self._hot_cache.clear()
         if warm:
             self._warm_cache.clear()
 
     def refresh_prompt(self, prompt_id: str, label: Optional[str] = None) -> Optional[ManagedPrompt]:
-        """Force refresh a specific prompt from the registry.
-
-        Fetches the prompt synchronously and updates both caches.
-        If the prompt no longer exists (404), evicts it from cache.
-
-        Args:
-            prompt_id: The prompt identifier.
-            label: The prompt label. Defaults to DEFAULT_PROMPTS_LABEL.
-
-        Returns:
-            The refreshed prompt, or None if fetch failed or prompt not found.
-        """
+        """Force refresh a prompt from the registry, or None if not found."""
         label = label or DEFAULT_PROMPTS_LABEL
         key = self._cache_key(prompt_id, label)
         return self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=True)
@@ -151,7 +115,7 @@ class PromptManager:
         self._warm_cache.set(key, cached_prompt)
 
     def _evict_caches(self, key: str) -> None:
-        """Remove a prompt from both L1 and L2 caches."""
+        """Remove a prompt from both caches."""
         self._hot_cache.delete(key)
         self._warm_cache.delete(key)
 
@@ -162,17 +126,7 @@ class PromptManager:
         key: str,
         evict_on_not_found: bool = False,
     ) -> Optional[ManagedPrompt]:
-        """Fetch a prompt and update caches.
-
-        Args:
-            prompt_id: The prompt identifier.
-            label: The prompt label.
-            key: The cache key.
-            evict_on_not_found: If True, evict from caches when prompt is not found (404).
-
-        Returns:
-            The fetched prompt, or None if fetch failed.
-        """
+        """Fetch a prompt and update caches."""
         prompt, not_found = self._fetch_from_registry(prompt_id, label, timeout=self._timeout)
 
         if prompt is not None:
@@ -216,14 +170,7 @@ class PromptManager:
             self._refresh_in_progress.discard(key)
 
     def _fetch_from_registry(self, prompt_id: str, label: str, timeout: float) -> Tuple[Optional[ManagedPrompt], bool]:
-        """Fetch a prompt from the Datadog Prompt Registry.
-
-        Returns:
-            Tuple of (prompt, not_found) where:
-            - (ManagedPrompt, False) on success
-            - (None, True) if prompt doesn't exist (404)
-            - (None, False) on other errors
-        """
+        """Fetch from registry. Returns (prompt, not_found)."""
         conn = None
         try:
             conn = get_connection(self._endpoint_override or PROMPTS_BASE_URL, timeout=timeout)
