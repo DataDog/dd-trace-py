@@ -113,7 +113,7 @@ static PyMethodDef Frame_methods[] = {
 
 // ----------------------------------------------------------------------------
 static PyTypeObject FrameType = {
-    .ob_base = PyVarObject_HEAD_INIT(NULL, 0).tp_name = "ddtrace.internal._inspection.Frame",
+    .ob_base = PyObject_HEAD_INIT(NULL).tp_name = "ddtrace.internal._inspection.Frame",
     .tp_basicsize = sizeof(Frame),
     .tp_itemsize = 0,
     .tp_dealloc = (destructor)Frame_dealloc,
@@ -200,9 +200,9 @@ should_skip_frame(PyObject* frame_like)
 // ----------------------------------------------------------------------------
 #if PY_VERSION_HEX >= 0x030b0000
 static inline int
-_read_varint(unsigned char* table, ssize_t size, ssize_t* i)
+_read_varint(unsigned char* table, Py_ssize_t size, Py_ssize_t* i)
 {
-    ssize_t guard = size - 1;
+    Py_ssize_t guard = size - 1;
     if (*i >= guard)
         return 0;
 
@@ -217,7 +217,7 @@ _read_varint(unsigned char* table, ssize_t size, ssize_t* i)
 
 // ----------------------------------------------------------------------------
 static inline int
-_read_signed_varint(unsigned char* table, ssize_t size, ssize_t* i)
+_read_signed_varint(unsigned char* table, Py_ssize_t size, Py_ssize_t* i)
 {
     int val = _read_varint(table, size, i);
     return (val & 1) ? -(val >> 1) : (val >> 1);
@@ -385,13 +385,13 @@ Frame_new(PyCodeObject* code, int lasti)
         PyErr_SetString(PyExc_RuntimeError, "Failed to build arguments for Frame");
         return NULL;
     }
-    PyObject* frame = FrameType.tp_new(&FrameType, args, NULL); // WARNING: We are allocating Python objects
+    PyObject* frame = FrameType.tp_new(&FrameType, args, NULL);
     if (frame == NULL) {
         Py_DECREF(args);
         PyErr_SetString(PyExc_RuntimeError, "Failed to create Frame object");
         return NULL;
     }
-    if (FrameType.tp_init(frame, args, NULL) < 0) {
+    if (Py_TYPE(frame)->tp_init(frame, args, NULL) < 0) {
         Py_DECREF(args);
         Py_DECREF(frame);
         PyErr_SetString(PyExc_RuntimeError, "Failed to initialize Frame object");
@@ -421,18 +421,10 @@ unwind_current_thread(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(arg))
 
     PyThreadState* thread_state = PyThreadState_Get();
 
-    PyObject* py_frame = get_frame_from_thread_state(thread_state);
-    if (py_frame == NULL) {
-        Py_DECREF(frames_list);
-        PyErr_SetString(PyExc_RuntimeError, "No frame found for current thread");
-        return NULL;
-    }
-
-    while (py_frame != NULL) {
-        if (should_skip_frame(py_frame)) {
-            py_frame = get_previous_frame(py_frame);
+    for (PyObject* py_frame = get_frame_from_thread_state(thread_state); py_frame != NULL;
+         py_frame = get_previous_frame(py_frame)) {
+        if (should_skip_frame(py_frame))
             continue;
-        }
 
         PyCodeObject* code_obj = get_code_from_frame(py_frame);
         if (code_obj == NULL) {
@@ -472,10 +464,7 @@ unwind_current_thread(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(arg))
             PyErr_SetString(PyExc_RuntimeError, "Failed to append Frame to list");
             return NULL;
         }
-
-        // Move to the previous frame, if any
-        py_frame = get_previous_frame(py_frame);
-    } // while (py_frame != NULL)
+    }
 
     return frames_list;
 }
