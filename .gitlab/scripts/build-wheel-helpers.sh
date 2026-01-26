@@ -63,13 +63,13 @@ build_wheel() {
   section_start "build_wheel_function" "Building wheel function"
 
   # Determine Python version for log filename
-  if [[ "${UV_PYTHON}" =~ ([0-9]+\.[0-9]+) ]]; then
-    PYTHON_VER="${BASH_REMATCH[1]}"
-  else
-    PYTHON_VER="unknown"
-  fi
+  PYTHON_VER=$(uv run --no-project python -c "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')")
 
-  export BUILD_LOG="${DEBUG_WHEEL_DIR}/build_${PYTHON_VER}.log"
+  # Get a rough Python tag for logging purposes
+  #   e.g. "cp313-x86_64_pc_linux_gnu", "cp39-x86_64_pc_linux_musl", etc
+  PYTHON_TAG=$(uv run --no-project python -c "import sysconfig; import sys; build_type = sysconfig.get_config_var('BUILD_GNU_TYPE'); py_ver = sysconfig.get_config_var('py_version_nodot'); print('cp' + py_ver + '-' + build_type.replace('-', '_'))")
+
+  export BUILD_LOG="${DEBUG_WHEEL_DIR}/build_${PYTHON_TAG}.log"
   echo "Building wheel for Python ${PYTHON_VER} (log: ${BUILD_LOG})"
 
   # Redirect build output to log file
