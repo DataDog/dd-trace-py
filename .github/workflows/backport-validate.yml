@@ -30,10 +30,13 @@ jobs:
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
 
           TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
+          echo "PR branch HEAD:"
+          git show HEAD
           MERGE_COMMIT=$(git rev-parse HEAD)
           git fetch
           git checkout origin/${TARGET_BRANCH}
           git pull origin ${TARGET_BRANCH}
+          echo "Target branch HEAD:"
           git show HEAD
           ERROR=$(git cherry-pick -x --mainline 1 ${MERGE_COMMIT} 2>&1 | grep -v '^hint') || true
 
