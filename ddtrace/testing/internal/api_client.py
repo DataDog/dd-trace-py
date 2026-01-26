@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import json
 import logging
 from pathlib import Path
@@ -8,6 +7,7 @@ import typing as t
 import uuid
 
 from ddtrace.testing.internal.constants import EMPTY_NAME
+from ddtrace.testing.internal.coverage_data import CoverageDataProcessor
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
@@ -43,6 +43,7 @@ class APIClient:
         self.configurations = configurations
         self.connector = connector_setup.get_connector_for_subdomain(Subdomain.API)
         self.telemetry_api = telemetry_api
+        self.coverage_processor = CoverageDataProcessor()
 
     def close(self) -> None:
         self.connector.close()
@@ -375,26 +376,8 @@ class APIClient:
             meta = result.parsed_response.get("meta", {})
             correlation_id = meta.get("correlation_id")
 
-            # Parse coverage data from meta.coverage
-            skippable_coverage: t.Dict[str, t.Set[int]] = {}
-            coverage_data = meta.get("coverage", {})
-
-            if coverage_data:
-                log.debug("Parsing coverage data for %d files from skippable tests", len(coverage_data))
-
-            for file_path, encoded_bitset in coverage_data.items():
-                try:
-                    # Decode base64 to bytes
-                    decoded_bytes = base64.b64decode(encoded_bitset)
-                    # Convert bytes to set of line numbers
-                    covered_lines = self._bitset_to_line_numbers(decoded_bytes)
-                    # Normalize path (remove leading slash if present)
-                    normalized_path = file_path.lstrip("/")
-                    skippable_coverage[normalized_path] = covered_lines
-                    log.debug("Parsed coverage for %s: %d lines covered", normalized_path, len(covered_lines))
-                except Exception:
-                    log.exception("Failed to parse coverage data for file: %s", file_path)
-                    continue
+            # Parse coverage data using the coverage processor
+            skippable_coverage = self.coverage_processor.parse_backend_coverage(meta)
 
         except Exception:
             log.exception("Failed to parse skippable tests data from API")
@@ -404,28 +387,3 @@ class APIClient:
         self.telemetry_api.record_skippable_count(count=len(skippable_items), level=self.itr_skipping_level)
 
         return skippable_items, correlation_id, skippable_coverage
-
-    def _bitset_to_line_numbers(self, bitset_bytes: bytes) -> t.Set[int]:
-        """
-        Convert a bitset (as bytes) to a set of line numbers.
-
-        Args:
-            bitset_bytes: The bitset encoded as bytes (from base64 decoding)
-
-        Returns:
-            Set of line numbers where bits are set
-        """
-        covered_lines: t.Set[int] = set()
-
-        for byte_idx, byte_val in enumerate(bitset_bytes):
-            if byte_val == 0:
-                # Optimization: skip bytes with no bits set
-                continue
-
-            for bit_idx in range(8):
-                if byte_val & (1 << bit_idx):
-                    line_number = byte_idx * 8 + bit_idx
-                    if line_number > 0:  # Skip line 0 (not a valid source line)
-                        covered_lines.add(line_number)
-
-        return covered_lines
