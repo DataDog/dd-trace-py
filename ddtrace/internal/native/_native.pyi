@@ -517,6 +517,9 @@ class ffe:
 class SpanData:
     name: str
     service: Optional[str]
+    span_id: int
+    trace_id: int
+    parent_id: Optional[int]
 
     def __init__(
         self,
@@ -530,6 +533,8 @@ class SpanData:
         start: Optional[int] = None,
         span_api: str = SPAN_API_DATADOG,
         links: Optional[List[Any]] = None,
+        _raise=False,
+        _128_bit_trace_id_enabled=True,
     ): ...
 
 class SpanEventData:
@@ -545,3 +550,7 @@ class SpanLinkData:
         attributes: Optional[Dict[str, str]] = None,
         _dropped_attributes: int = 0,
     ): ...
+
+def seed(): ...
+def rand64bits(): ...
+def rand128bits(): ...
