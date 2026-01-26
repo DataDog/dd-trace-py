@@ -811,7 +811,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._exporter = self._create_exporter()
 
         if self._sync_mode:
-            fork_hook = make_weak_method_hook(self._exporter.stop_worker)
+            fork_hook = make_weak_method_hook(self.before_fork_sync)
             self._fork_hook = fork_hook
             forksafe.register_before_fork(fork_hook)
         else:
@@ -821,6 +821,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
             except service.ServiceStatusError:
                 log.warning("failed to start writer service")
+
+    def before_fork_sync(self):
+        """Before fork hook used in sync mode."""
+        self._exporter.stop_worker()
 
     def __del__(self):
         if self._fork_hook:
