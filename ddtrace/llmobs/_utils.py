@@ -127,6 +127,8 @@ def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: b
     validated_prompt: ValidatedPromptDict = {}
     if final_prompt_id:
         validated_prompt["id"] = final_prompt_id
+    if ml_app:
+        validated_prompt["ml_app"] = ml_app
     if version:
         validated_prompt["version"] = version
     if variables:
