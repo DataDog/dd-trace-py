@@ -308,6 +308,10 @@ def test_crashtracker_raise_sigsegv():
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::"})
 def test_crashtracker_raise_sigbus():
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
     import os
     import signal
 
