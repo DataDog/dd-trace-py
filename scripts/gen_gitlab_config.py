@@ -362,6 +362,11 @@ def gen_pre_checks() -> None:
         paths={"pyproject.toml"},
     )
     check(
+        name="Check dependency CI coverage",
+        command="scripts/check-dependency-ci-coverage",
+        paths={"pyproject.toml", "riotfile.py", ".gitlab-ci.yml", ".gitlab/**/*.yml", ".github/workflows/*.yml"},
+    )
+    check(
         name="Check package version",
         command="scripts/verify-package-version",
         paths={"pyproject.toml"},
