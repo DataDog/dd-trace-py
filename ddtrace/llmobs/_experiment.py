@@ -137,6 +137,25 @@ class EvaluatorContext:
     trace_id: Optional[str] = None
 
 
+@dataclass(frozen=True)
+class SummaryEvaluatorContext:
+    """Context object containing all data needed for summary evaluation.
+
+    :param inputs: List of all input data from the dataset records (read-only).
+    :param outputs: List of all outputs produced by the task (read-only).
+    :param expected_outputs: List of all expected outputs (read-only).
+    :param evaluation_results: Dictionary mapping evaluator names to their results (read-only).
+    :param metadata: List of metadata for each dataset record, each combined with experiment configuration (read-only).
+                     Each element contains the record's metadata merged with {"experiment_config": ...}.
+    """
+
+    inputs: List[DatasetRecordInputType]
+    outputs: List[JSONType]
+    expected_outputs: List[JSONType]
+    evaluation_results: Dict[str, List[JSONType]]
+    metadata: List[Dict[str, Any]] = field(default_factory=list)
+
+
 class BaseEvaluator(ABC):
     """This class provides a unified interface for evaluators.
 
@@ -209,6 +228,56 @@ class BaseEvaluator(ABC):
         raise NotImplementedError("Subclasses must implement the evaluate method")
 
 
+class BaseSummaryEvaluator(ABC):
+    """Base class for summary evaluators that operate on aggregated experiment results.
+
+    Summary evaluators receive all inputs, outputs, expected outputs, and per-row
+    evaluation results at once, allowing them to compute aggregate metrics.
+
+    Subclasses must implement the `evaluate` method.
+
+    Example::
+
+        class AverageScoreEvaluator(BaseSummaryEvaluator):
+            def __init__(self, target_evaluator: str):
+                super().__init__(name="average_score")
+                self.target_evaluator = target_evaluator
+
+            def evaluate(self, context: SummaryEvaluatorContext):
+                scores = context.evaluation_results.get(self.target_evaluator, [])
+                if not scores:
+                    return None
+                return sum(scores) / len(scores)
+    """
+
+    def __init__(self, name: Optional[str] = None):
+        """Initialize the summary evaluator.
+
+        :param name: Optional custom name for the evaluator. If not provided,
+                     the class name will be used.
+                     Name must contain only alphanumeric characters and underscores.
+        """
+        if name is not None:
+            name = name.strip()
+        else:
+            name = self.__class__.__name__
+
+        _validate_evaluator_name(name)
+        self.name = name
+
+    @abstractmethod
+    def evaluate(self, context: SummaryEvaluatorContext) -> JSONType:
+        """Perform summary evaluation on aggregated experiment results.
+
+        This method must be implemented by all subclasses.
+
+        :param context: The summary evaluation context containing all inputs, outputs,
+                        expected outputs, and per-row evaluation results
+        :return: Evaluation result as a JSON-serializable value (dict, primitive, list, None)
+        """
+        raise NotImplementedError("Subclasses must implement the evaluate method")
+
+
 def _is_class_evaluator(evaluator: Any) -> bool:
     """Check if an evaluator is a class-based evaluator (inherits from BaseEvaluator).
 
@@ -218,13 +287,22 @@ def _is_class_evaluator(evaluator: Any) -> bool:
     return isinstance(evaluator, BaseEvaluator)
 
 
+def _is_class_summary_evaluator(evaluator: Any) -> bool:
+    """Check if an evaluator is a class-based summary evaluator (inherits from BaseSummaryEvaluator).
+
+    :param evaluator: The evaluator to check
+    :return: True if it's a class-based summary evaluator, False otherwise
+    """
+    return isinstance(evaluator, BaseSummaryEvaluator)
+
+
 def _is_function_evaluator(evaluator: Any) -> bool:
     """Check if an evaluator is a function-based evaluator.
 
     :param evaluator: The evaluator to check
     :return: True if it's a function evaluator, False otherwise
     """
-    return not isinstance(evaluator, BaseEvaluator)
+    return not isinstance(evaluator, BaseEvaluator) and not isinstance(evaluator, BaseSummaryEvaluator)
 
 
 class Project(TypedDict):
@@ -542,14 +620,17 @@ class Experiment:
         _llmobs_instance: Optional["LLMObs"] = None,
         summary_evaluators: Optional[
             List[
-                Callable[
-                    [
-                        List[DatasetRecordInputType],
-                        List[JSONType],
-                        List[JSONType],
-                        Dict[str, List[JSONType]],
+                Union[
+                    Callable[
+                        [
+                            List[DatasetRecordInputType],
+                            List[JSONType],
+                            List[JSONType],
+                            Dict[str, List[JSONType]],
+                        ],
+                        JSONType,
                     ],
-                    JSONType,
+                    BaseSummaryEvaluator,
                 ]
             ]
         ] = None,
@@ -835,6 +916,7 @@ class Experiment:
         inputs: List[DatasetRecordInputType] = []
         outputs: List[JSONType] = []
         expected_outputs: List[JSONType] = []
+        metadata_list: List[Dict[str, Any]] = []
         evals_dict = {}
 
         # name of evaluator (not summary evaluator) -> list of eval results ordered by index of the list of task results
@@ -845,6 +927,8 @@ class Experiment:
             record: DatasetRecord = self._dataset[idx]
             inputs.append(record["input_data"])
             expected_outputs.append(record["expected_output"])
+            record_metadata = record.get("metadata", {})
+            metadata_list.append({**record_metadata, "experiment_config": self._config})
 
             eval_result_at_idx_by_name = eval_results[idx]["evaluations"]
             for name, eval_value in eval_result_at_idx_by_name.items():
@@ -856,9 +940,24 @@ class Experiment:
         for idx, summary_evaluator in enumerate(self._summary_evaluators):
             eval_result: JSONType = None
             eval_err: JSONType = None
+            evaluator_name = ""
 
             try:
-                eval_result = summary_evaluator(inputs, outputs, expected_outputs, eval_results_by_name)
+                if _is_class_summary_evaluator(summary_evaluator):
+                    evaluator_name = summary_evaluator.name  # type: ignore[union-attr]
+                    context = SummaryEvaluatorContext(
+                        inputs=inputs,
+                        outputs=outputs,
+                        expected_outputs=expected_outputs,
+                        evaluation_results=eval_results_by_name,
+                        metadata=metadata_list,
+                    )
+                    eval_result = summary_evaluator.evaluate(context)  # type: ignore[union-attr]
+                else:
+                    evaluator_name = summary_evaluator.__name__  # type: ignore[union-attr]
+                    eval_result = summary_evaluator(  # type: ignore[operator]
+                        inputs, outputs, expected_outputs, eval_results_by_name
+                    )
             except Exception as e:
                 exc_type, exc_value, exc_tb = sys.exc_info()
                 exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
@@ -869,8 +968,8 @@ class Experiment:
                     "stack": exc_stack,
                 }
                 if raise_errors:
-                    raise RuntimeError(f"Summary evaluator {summary_evaluator.__name__} failed") from e
-            evals_dict[summary_evaluator.__name__] = {
+                    raise RuntimeError(f"Summary evaluator {evaluator_name} failed") from e
+            evals_dict[evaluator_name] = {
                 "value": eval_result,
                 "error": eval_err,
             }

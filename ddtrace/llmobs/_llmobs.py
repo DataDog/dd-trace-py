@@ -97,6 +97,7 @@ from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import BaseEvaluator
+from ddtrace.llmobs._experiment import BaseSummaryEvaluator
 from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
@@ -1093,14 +1094,17 @@ class LLMObs(Service):
         config: Optional[ConfigType] = None,
         summary_evaluators: Optional[
             List[
-                Callable[
-                    [
-                        List[DatasetRecordInputType],
-                        List[JSONType],
-                        List[JSONType],
-                        Dict[str, List[JSONType]],
+                Union[
+                    Callable[
+                        [
+                            List[DatasetRecordInputType],
+                            List[JSONType],
+                            List[JSONType],
+                            Dict[str, List[JSONType]],
+                        ],
+                        JSONType,
                     ],
-                    JSONType,
+                    BaseSummaryEvaluator,
                 ]
             ]
         ] = None,
@@ -1119,10 +1123,12 @@ class LLMObs(Service):
         :param description: A description of the experiment.
         :param tags: A dictionary of string key-value tag pairs to associate with the experiment.
         :param config: A configuration dictionary describing the experiment.
-        :param summary_evaluators: A list of summary evaluator functions to evaluate the task results and evaluations
-                                   to produce a single value.
-                                   Must accept parameters ``inputs``, ``outputs``, ``expected_outputs``,
-                                   ``evaluators_results``.
+        :param summary_evaluators: A list of summary evaluator functions or BaseSummaryEvaluator instances to evaluate
+                                   the task results and evaluations to produce a single value.
+                                   Function-based summary evaluators must accept parameters ``inputs``, ``outputs``,
+                                   ``expected_outputs``, ``evaluators_results``.
+                                   Class-based summary evaluators must inherit from BaseSummaryEvaluator and implement
+                                   the evaluate method which receives a SummaryEvaluatorContext.
         :param runs: The number of times to run the experiment, or, run the task for every dataset record the defined
                      number of times.
         """
@@ -1148,10 +1154,22 @@ class LLMObs(Service):
             evaluator_required_params = ("input_data", "output_data", "expected_output")
             if not all(param in params for param in evaluator_required_params):
                 raise TypeError("Evaluator function must have parameters {}.".format(evaluator_required_params))
-        if summary_evaluators and not all(callable(summary_evaluator) for summary_evaluator in summary_evaluators):
-            raise TypeError("Summary evaluators must be a list of callable functions.")
+        if summary_evaluators and not all(
+            callable(summary_evaluator) or isinstance(summary_evaluator, BaseSummaryEvaluator)
+            for summary_evaluator in summary_evaluators
+        ):
+            raise TypeError(
+                "Summary evaluators must be a list of callable functions or BaseSummaryEvaluator instances."
+            )
         if summary_evaluators:
             for summary_evaluator in summary_evaluators:
+                if isinstance(summary_evaluator, BaseSummaryEvaluator):
+                    continue
+                if not callable(summary_evaluator):
+                    raise TypeError(
+                        f"Summary evaluator {summary_evaluator} must be callable "
+                        "or an instance of BaseSummaryEvaluator."
+                    )
                 sig = inspect.signature(summary_evaluator)
                 params = sig.parameters
                 summary_evaluator_required_params = (

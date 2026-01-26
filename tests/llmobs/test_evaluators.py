@@ -3,8 +3,10 @@
 import pytest
 
 from ddtrace.llmobs._experiment import BaseEvaluator
+from ddtrace.llmobs._experiment import BaseSummaryEvaluator
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import EvaluatorContext
+from ddtrace.llmobs._experiment import SummaryEvaluatorContext
 from ddtrace.llmobs._experiment import _ExperimentRunInfo
 
 
@@ -231,3 +233,54 @@ class TestEvaluatorIntegration:
         assert "SimpleEvaluator" in evaluations
         assert evaluations["function_evaluator"]["value"]["type"] == "function"
         assert evaluations["SimpleEvaluator"]["value"]["passed"] is True
+
+
+class SimpleSummaryEvaluator(BaseSummaryEvaluator):
+    """A simple test summary evaluator."""
+
+    def evaluate(self, context: SummaryEvaluatorContext):
+        return len(context.inputs) + len(context.outputs)
+
+
+class TestSummaryEvaluatorContext:
+    def test_context_creation(self):
+        ctx = SummaryEvaluatorContext(
+            inputs=[{"query": "test"}],
+            outputs=["response"],
+            expected_outputs=["expected"],
+            evaluation_results={"eval1": [1.0]},
+        )
+        assert ctx.inputs == [{"query": "test"}]
+        assert ctx.outputs == ["response"]
+        assert ctx.evaluation_results == {"eval1": [1.0]}
+
+
+class TestSummaryEvaluatorIntegration:
+    def test_class_summary_evaluator(self, llmobs):
+        def dummy_task(input_data, config):
+            return input_data.get("value", "")
+
+        dataset = Dataset(
+            name="test_dataset",
+            project={"name": "test_project", "_id": "proj_123"},
+            dataset_id="ds_123",
+            records=[
+                {"record_id": "rec_1", "input_data": {"value": "test"}, "expected_output": "test", "metadata": {}}
+            ],
+            description="",
+            latest_version=1,
+            version=1,
+            _dne_client=None,
+        )
+
+        exp = llmobs.experiment(
+            "test_experiment", dummy_task, dataset, [SimpleEvaluator()], summary_evaluators=[SimpleSummaryEvaluator()]
+        )
+
+        run_info = _ExperimentRunInfo(0)
+        task_results = exp._run_task(1, run=run_info, raise_errors=False)
+        eval_results = exp._run_evaluators(task_results, raise_errors=False)
+        summary_results = exp._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+
+        assert "SimpleSummaryEvaluator" in summary_results[0]["evaluations"]
+        assert summary_results[0]["evaluations"]["SimpleSummaryEvaluator"]["value"] == 2
