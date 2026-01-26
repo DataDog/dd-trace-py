@@ -4,8 +4,8 @@ subject: repo:DataDog/dd-trace-py:pull_request
 
 claim_pattern:
   event_name: (pull_request_target|pull_request)
-  ref: refs/heads/.+
-  job_workflow_ref: DataDog/dd-trace-py/\.github/workflows/backport\.yml
+  ref: ".+"
+  job_workflow_ref: "DataDog/dd-trace-py/\.github/workflows/backport\.yml@.+"
 
 permissions:
   contents: write
