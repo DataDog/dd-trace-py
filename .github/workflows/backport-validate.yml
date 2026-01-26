@@ -33,7 +33,7 @@ jobs:
           MERGE_COMMIT=$(git rev-parse HEAD)
           git fetch
           git checkout origin/${TARGET_BRANCH}
-          git pull
+          git pull origin ${TARGET_BRANCH}
           git show HEAD
           ERROR=$(git cherry-pick -x --mainline 1 ${MERGE_COMMIT} 2>&1 | grep -v '^hint') || true
 
