@@ -1,0 +1,29 @@
+[[
+  {
+    "name": "claude_agent_sdk.query",
+    "service": "tests.contrib.claude_agent_sdk",
+    "resource": "claude_agent_sdk.query",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6973992900000000",
+      "claude_agent_sdk.request.model": "",
+      "language": "python",
+      "out.host": "api.anthropic.com",
+      "runtime-id": "76a09d5c01d34f979dd83412b7bcb3b5",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
+    },
+    "duration": 467542,
+    "start": 1769183529202687553
+  }]]

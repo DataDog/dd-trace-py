@@ -9,15 +9,9 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.ext import SpanKind
 from ddtrace.ext import net
-from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations import ClaudeAgentSdkIntegration
 
-
-log = get_logger(__name__)
-
-
 config._add("claude_agent_sdk", {})
-
 
 def get_version() -> str:
     return getattr(claude_agent_sdk, "__version__", "")

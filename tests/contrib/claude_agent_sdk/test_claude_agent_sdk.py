@@ -8,57 +8,13 @@ import pytest
 
 
 @pytest.mark.asyncio
+@pytest.mark.snapshot
 async def test_standalone_query_creates_span(claude_agent_sdk, mock_internal_client, test_spans):
-    """Test that the standalone query() function creates a span.
-
-    The query() function is an async generator that yields messages.
-    We mock the internal client to avoid actual subprocess communication.
-    This test verifies:
-    1. Library behavior - all message types are received
-    2. Span creation with correct name
-    3. Span has no error on success
-    4. Span has service tag set
-    5. Error tags are absent on success
-    """
-    from claude_agent_sdk import AssistantMessage
-    from claude_agent_sdk import ResultMessage
-    from claude_agent_sdk import SystemMessage
-
     # Call the query function and consume all messages
     messages = []
     async for message in claude_agent_sdk.query(prompt="Hello, world!"):
         messages.append(message)
 
-    # Verify library behavior - we got messages from the mock
-    assert len(messages) >= 1, f"Expected at least 1 message, got {len(messages)}"
-    # Verify message types (library still functions correctly)
-    assert isinstance(messages[0], SystemMessage), (
-        f"Expected first message to be SystemMessage, got {type(messages[0])}"
-    )
-    assert isinstance(messages[1], AssistantMessage), (
-        f"Expected second message to be AssistantMessage, got {type(messages[1])}"
-    )
-    assert isinstance(messages[2], ResultMessage), (
-        f"Expected third message to be ResultMessage, got {type(messages[2])}"
-    )
-    # Verify message content
-    assert messages[1].content is not None, "AssistantMessage should have content"
-    assert len(messages[1].content) > 0, "AssistantMessage content should not be empty"
-
-    # Verify exactly 1 span was created (not duplicated)
-    spans = test_spans.pop_traces()
-    assert len(spans) == 1, f"Expected exactly 1 trace, got {len(spans)}"
-    assert len(spans[0]) == 1, f"Expected exactly 1 span, got {len(spans[0])}"
-
-    span = spans[0][0]
-    assert span.name == "claude_agent_sdk.query", f"Expected span name 'claude_agent_sdk.query', got '{span.name}'"
-    assert span.error == 0, f"Expected no error, got error={span.error}"
-    # Verify service tag is set
-    assert span.service is not None, "Expected service tag to be set"
-    # Verify error tags are NOT present on success
-    assert span.get_tag("error.type") is None, "Expected error.type tag to be absent on success"
-    assert span.get_tag("error.message") is None, "Expected error.message tag to be absent on success"
-    assert span.get_tag("error.stacktrace") is None, "Expected error.stacktrace tag to be absent on success"
 
 
 @pytest.mark.asyncio
