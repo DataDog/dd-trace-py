@@ -395,11 +395,9 @@ Sampler::track_asyncio_loop(uintptr_t thread_id, PyObject* loop)
 }
 
 void
-Sampler::init_asyncio(PyObject* _asyncio_current_tasks,
-                      PyObject* _asyncio_scheduled_tasks,
-                      PyObject* _asyncio_eager_tasks)
+Sampler::init_asyncio(PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eager_tasks)
 {
-    echion->init_asyncio(_asyncio_current_tasks, _asyncio_scheduled_tasks, _asyncio_eager_tasks);
+    echion->init_asyncio(_asyncio_scheduled_tasks, _asyncio_eager_tasks);
 }
 
 void

@@ -25,7 +25,6 @@ class EchionSampler
     std::mutex greenlet_info_map_lock_;
 
     // Asyncio state
-    PyObject* asyncio_current_tasks_ = nullptr;
     PyObject* asyncio_scheduled_tasks_ = nullptr;
     PyObject* asyncio_eager_tasks_ = nullptr;
 
@@ -57,9 +56,8 @@ class EchionSampler
     PyObject* asyncio_scheduled_tasks() const { return asyncio_scheduled_tasks_; }
     PyObject* asyncio_eager_tasks() const { return asyncio_eager_tasks_; }
 
-    void init_asyncio(PyObject* current_tasks, PyObject* scheduled_tasks, PyObject* eager_tasks)
+    void init_asyncio(PyObject* scheduled_tasks, PyObject* eager_tasks)
     {
-        asyncio_current_tasks_ = current_tasks;
         asyncio_scheduled_tasks_ = scheduled_tasks;
         asyncio_eager_tasks_ = (eager_tasks != Py_None) ? eager_tasks : nullptr;
     }
