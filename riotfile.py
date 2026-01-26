@@ -3210,6 +3210,15 @@ venv = Venv(
             },
         ),
         Venv(
+            name="azure_durable_functions",
+            command="pytest {cmdargs} tests/contrib/azure_durable_functions",
+            pys=select_pys(min_version="3.8", max_version="3.11"),
+            pkgs={
+                "azure.functions": ["~=1.10.1", latest],
+                "azure-functions-durable": latest,
+            },
+        ),
+        Venv(
             name="azure_functions:eventhubs",
             command="pytest {cmdargs} tests/contrib/azure_functions_eventhubs",
             pys=select_pys(min_version="3.9", max_version="3.11"),
