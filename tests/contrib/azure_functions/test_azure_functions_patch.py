@@ -16,11 +16,34 @@ class TestAzureFunctionsPatch(PatchTestCase.Base):
     __unpatch_func__ = unpatch
     __get_version__ = get_version
 
+    @staticmethod
+    def _get_target_get_functions(azure_functions):
+        if hasattr(azure_functions, "FunctionRegister"):
+            return azure_functions.FunctionRegister.get_functions
+        return azure_functions.FunctionApp.get_functions
+
+    @staticmethod
+    def _get_dfapp():
+        try:
+            from azure.durable_functions.decorators import durable_app
+        except Exception:
+            return None
+        return getattr(durable_app, "DFApp", None)
+
     def assert_module_patched(self, azure_functions):
-        self.assert_wrapped(azure_functions.FunctionApp.get_functions)
+        self.assert_wrapped(self._get_target_get_functions(azure_functions))
+        dfapp = self._get_dfapp()
+        if dfapp is not None:
+            self.assert_wrapped(dfapp.get_functions)
 
     def assert_not_module_patched(self, azure_functions):
-        self.assert_not_wrapped(azure_functions.FunctionApp.get_functions)
+        self.assert_not_wrapped(self._get_target_get_functions(azure_functions))
+        dfapp = self._get_dfapp()
+        if dfapp is not None:
+            self.assert_not_wrapped(dfapp.get_functions)
 
     def assert_not_module_double_patched(self, azure_functions):
-        self.assert_not_double_wrapped(azure_functions.FunctionApp.get_functions)
+        self.assert_not_double_wrapped(self._get_target_get_functions(azure_functions))
+        dfapp = self._get_dfapp()
+        if dfapp is not None:
+            self.assert_not_double_wrapped(dfapp.get_functions)
