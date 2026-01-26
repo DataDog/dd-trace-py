@@ -1240,7 +1240,7 @@ def test_early_exit(tracer, test_spans):
     ]
     mock_logger.assert_has_calls(calls)
     assert s1.parent_id is None
-    assert s2.parent_id is s1.span_id
+    assert s2.parent_id == s1.span_id
 
     traces = test_spans.pop_traces()
     assert len(traces) == 1

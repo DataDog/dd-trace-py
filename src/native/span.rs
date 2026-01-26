@@ -1,9 +1,13 @@
 use pyo3::{
+    exceptions::PyTypeError,
     types::{PyAnyMethods as _, PyInt, PyList, PyModule, PyModuleMethods as _},
-    Bound, Py, PyAny, PyResult, Python,
+    Bound, FromPyObject, Py, PyAny, PyResult, Python,
 };
 
-use crate::py_string::PyBackedString;
+use crate::{
+    py_string::PyBackedString,
+    rand::{rand128bits, rand64bits},
+};
 
 #[pyo3::pyclass(name = "SpanEventData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
@@ -80,8 +84,10 @@ pub struct SpanData {
 }
 
 /// Extract PyBackedString from Python object, falling back to empty string on error
-fn extract_backed_string_or_default(obj: &Bound<'_, PyAny>) -> PyBackedString {
-    obj.extract::<PyBackedString>().unwrap_or_default()
+fn extract_or_default<'a, 'py, T: Default + FromPyObject<'a, 'py>>(
+    obj: &'a Bound<'py, PyAny>,
+) -> T {
+    obj.extract::<T>().unwrap_or_default()
 }
 
 /// Extract PyBackedString from Python object, falling back to None on error
@@ -89,6 +95,57 @@ fn extract_backed_string_or_none(obj: &Bound<'_, PyAny>) -> PyBackedString {
     let py = obj.py();
     obj.extract::<PyBackedString>()
         .unwrap_or_else(|_| PyBackedString::py_none(py))
+}
+
+fn number_from_optional<'a, 'py, T: FromPyObject<'a, 'py>>(
+    v: Option<&'a Bound<'py, PyAny>>,
+    err: &'static str,
+) -> PyResult<Option<T>> {
+    v.map(|s| s.extract().map_err(|_| PyTypeError::new_err(err)))
+        .transpose()
+}
+
+impl SpanData {
+    #[allow(unused_variables)]
+    #[allow(clippy::too_many_arguments)]
+    fn init_inner<'p>(
+        &mut self,
+        py: Python<'p>,
+        name: Py<PyAny>,
+        service: Option<Py<PyAny>>,
+        resource: Option<Py<PyAny>>,
+        span_type: Option<Py<PyAny>>,
+        trace_id: Option<&Bound<'p, PyAny>>,
+        span_id: Option<&Bound<'p, PyAny>>,
+        parent_id: Option<&Bound<'p, PyAny>>,
+        start: Option<f64>,
+        span_api: Option<Py<PyAny>>,
+        links: Option<Bound<'p, PyList>>,
+        _128_bit_trace_id_enabled: bool,
+    ) -> PyResult<()> {
+        let span_id: u64 =
+            number_from_optional(span_id, "span_id must be an integer")?.unwrap_or_else(rand64bits);
+        let trace_id: u128 = number_from_optional(trace_id, "trace_id must be an integer")?
+            .unwrap_or_else(|| {
+                if _128_bit_trace_id_enabled {
+                    rand128bits()
+                } else {
+                    rand64bits() as u128
+                }
+            });
+        let parent_id: u64 =
+            number_from_optional(parent_id, "trace_id must be an integer")?.unwrap_or(0);
+
+        self.set_name(name.bind(py));
+        match service {
+            Some(obj) => self.set_service(obj.bind(py)),
+            None => self.data.service = PyBackedString::py_none(py),
+        }
+        self.data.span_id = span_id;
+        self.data.trace_id = trace_id;
+        self.data.parent_id = parent_id;
+        Ok(())
+    }
 }
 
 #[pyo3::pymethods]
@@ -122,6 +179,8 @@ impl SpanData {
         start = None,
         span_api = None,
         links = None,
+        _raise = false,
+        _128_bit_trace_id_enabled = true,
     ))]
     fn __init__<'p>(
         &mut self,
@@ -130,20 +189,34 @@ impl SpanData {
         service: Option<Py<PyAny>>,
         resource: Option<Py<PyAny>>,
         span_type: Option<Py<PyAny>>,
-        trace_id: Option<&Bound<'p, PyInt>>,
-        span_id: Option<&Bound<'p, PyInt>>,
-        parent_id: Option<&Bound<'p, PyInt>>,
+        trace_id: Option<&Bound<'p, PyAny>>,
+        span_id: Option<&Bound<'p, PyAny>>,
+        parent_id: Option<&Bound<'p, PyAny>>,
         start: Option<f64>,
         span_api: Option<Py<PyAny>>,
         links: Option<Bound<'p, PyList>>,
+        _raise: bool,
+        _128_bit_trace_id_enabled: bool,
     ) -> PyResult<()> {
-        // Use setters to avoid duplicating validation logic
-        self.set_name(name.bind(py));
-        match service {
-            Some(obj) => self.set_service(obj.bind(py)),
-            None => self.data.service = PyBackedString::py_none(py),
+        let res = self.init_inner(
+            py,
+            name,
+            service,
+            resource,
+            span_type,
+            trace_id,
+            span_id,
+            parent_id,
+            start,
+            span_api,
+            links,
+            _128_bit_trace_id_enabled,
+        );
+        if _raise {
+            res
+        } else {
+            Ok(())
         }
-        Ok(())
     }
 
     #[getter]
@@ -153,7 +226,7 @@ impl SpanData {
 
     #[setter]
     fn set_name(&mut self, name: &Bound<'_, PyAny>) {
-        self.data.name = extract_backed_string_or_default(name);
+        self.data.name = extract_or_default(name);
     }
 
     #[getter]
@@ -164,6 +237,44 @@ impl SpanData {
     #[setter]
     fn set_service(&mut self, service: &Bound<'_, PyAny>) {
         self.data.service = extract_backed_string_or_none(service);
+    }
+
+    #[getter]
+    fn get_span_id(&self) -> u64 {
+        self.data.span_id
+    }
+
+    #[setter]
+    fn set_span_id(&mut self, span_id: &Bound<'_, PyAny>) {
+        if let Some(span_id) = extract_or_default(span_id) {
+            self.data.span_id = span_id
+        }
+    }
+
+    #[getter]
+    fn get_trace_id(&self) -> u128 {
+        self.data.trace_id
+    }
+
+    #[setter]
+    fn set_trace_id(&mut self, trace_id: &Bound<'_, PyAny>) {
+        if let Some(trace_id) = extract_or_default(trace_id) {
+            self.data.trace_id = trace_id
+        }
+    }
+
+    #[getter]
+    fn get_parent_id(&self) -> Option<u64> {
+        if self.data.parent_id == 0 {
+            None
+        } else {
+            Some(self.data.parent_id)
+        }
+    }
+
+    #[setter]
+    fn set_parent_id(&mut self, parent_id: &Bound<'_, PyAny>) {
+        self.data.parent_id = extract_or_default(parent_id);
     }
 }
 
