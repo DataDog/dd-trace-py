@@ -1,4 +1,3 @@
-import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 import itertools
@@ -38,59 +37,6 @@ if TYPE_CHECKING:
 
 
 logger = get_logger(__name__)
-
-
-def _cleanup_async_tasks():
-    """Run any pending async tasks to completion.
-
-    Simple cleanup that runs pending tasks.
-    """
-    import gc
-
-    try:
-        # Force GC to trigger finalizers
-        gc.collect()
-
-        # Run any async cleanup tasks that were scheduled
-        loop = asyncio.get_event_loop()
-        if loop and not loop.is_closed():
-            pending = [task for task in asyncio.all_tasks(loop) if not task.done()]
-            if pending:
-                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-    except Exception as e:
-        logger.debug("Failed to cleanup async tasks: %s", e)
-
-
-def _init_worker_thread():
-    """Initialize event loop for ThreadPoolExecutor worker threads.
-
-    This allows evaluators that use async libraries (e.g., DeepEval, LangChain)
-    to work properly in worker threads without requiring users to manually
-    manage event loops. Each worker thread gets its own event loop.
-
-    The event loop is kept alive across multiple tasks in the same thread
-    (ThreadPoolExecutor reuses threads).
-
-    If event loop setup fails, the thread proceeds without it - synchronous
-    evaluators will continue to work normally.
-    """
-    try:
-        # Check if event loop already exists (thread reuse)
-        try:
-            loop = asyncio.get_event_loop()
-            if loop and not loop.is_closed():
-                return  # Event loop already set up
-        except RuntimeError:
-            pass  # No event loop, create one
-
-        # Create new event loop for this thread
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-    except Exception as e:
-        # Proceed without event loop if setup fails - synchronous evaluators will still work
-        logger.debug("Failed to initialize event loop in worker thread: %s", e)
-
 
 JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
 NonNoneJSONType = Union[str, int, float, bool, List[JSONType], Dict[str, JSONType]]
@@ -569,7 +515,6 @@ class Experiment:
                 output_data = self._task(input_data, self._config)
             except Exception:
                 span.set_exc_info(*sys.exc_info())
-
             self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
 
             span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
@@ -619,7 +564,7 @@ class Experiment:
         else:
             subset_dataset = self._dataset
         task_results = []
-        with ThreadPoolExecutor(max_workers=jobs, initializer=_init_worker_thread) as executor:
+        with ThreadPoolExecutor(max_workers=jobs) as executor:
             for result in executor.map(
                 self._process_record,
                 enumerate(subset_dataset),
@@ -679,10 +624,6 @@ class Experiment:
                 else:
                     eval_result_value = eval_result
 
-                # Delete reference to allow GC, then cleanup any async tasks
-                del eval_result
-                _cleanup_async_tasks()
-
             except Exception as e:
                 exc_type, exc_value, exc_tb = sys.exc_info()
                 exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
@@ -706,7 +647,7 @@ class Experiment:
             # Run all evaluators for this task result concurrently using ThreadPoolExecutor
             evals_dict: Dict[str, Dict[str, JSONType]] = {}
 
-            with ThreadPoolExecutor(max_workers=jobs, initializer=_init_worker_thread) as executor:
+            with ThreadPoolExecutor(max_workers=jobs) as executor:
                 # Submit all evaluator tasks
                 futures = [
                     executor.submit(_evaluate_single, evaluator, idx, task_result) for evaluator in self._evaluators
@@ -732,13 +673,6 @@ class Experiment:
         raise_errors: bool = False,
         jobs: int = 1,
     ) -> List[EvaluationResult]:
-        """Run summary evaluators with concurrent execution using ThreadPoolExecutor.
-
-        :param task_results: List of task results
-        :param eval_results: List of evaluation results from regular evaluators
-        :param raise_errors: Whether to raise exceptions on evaluation errors
-        :param jobs: Maximum number of concurrent summary evaluator executions (default: 1)
-        """
         inputs: List[DatasetRecordInputType] = []
         outputs: List[JSONType] = []
         expected_outputs: List[JSONType] = []
@@ -768,11 +702,6 @@ class Experiment:
             try:
                 eval_result = summary_evaluator(inputs, outputs, expected_outputs, eval_results_by_name)
                 eval_result_value = eval_result
-
-                # Delete reference to allow GC, then cleanup any async tasks
-                del eval_result
-                _cleanup_async_tasks()
-
             except Exception as e:
                 exc_type, exc_value, exc_tb = sys.exc_info()
                 exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
@@ -794,18 +723,15 @@ class Experiment:
                 },
             )
 
-        # Run all summary evaluators concurrently using ThreadPoolExecutor
         evaluations: List[EvaluationResult] = []
         evals_dict: Dict[str, Dict[str, JSONType]] = {}
 
-        with ThreadPoolExecutor(max_workers=jobs, initializer=_init_worker_thread) as executor:
-            # Submit all summary evaluator tasks
+        with ThreadPoolExecutor(max_workers=jobs) as executor:
             futures = [
                 executor.submit(_evaluate_summary_single, idx, summary_evaluator)
                 for idx, summary_evaluator in enumerate(self._summary_evaluators)
             ]
 
-            # Collect results
             for future in futures:
                 try:
                     idx, evaluator_name, eval_data = future.result()
