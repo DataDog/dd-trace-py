@@ -1138,6 +1138,15 @@ if not IS_PYSTON:
                 else ["/std:c++20", "/MT"]
             ),
         ),
+        Extension(
+            "ddtrace.internal.utils._inspection",
+            sources=["ddtrace/internal/utils/_inspection.cpp"],
+            extra_compile_args=(
+                ["-std=c++20", "-Wall", "-Wextra"] + fast_build_args
+                if CURRENT_OS != "Windows"
+                else ["/std:c++20", "/MT"]
+            ),
+        ),
     ]
 
     if platform.system() not in ("Windows", ""):

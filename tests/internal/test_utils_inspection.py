@@ -1,6 +1,7 @@
 from functools import wraps
 from pathlib import Path
 
+import ddtrace.internal.utils.inspection as inspection
 from ddtrace.internal.utils.inspection import undecorated
 
 
@@ -54,3 +55,10 @@ def test_wrapped_decoration():
     code = undecorated(f, name="f", path=Path(__file__).resolve()).__code__
     assert code.co_name == "f"
     assert Path(code.co_filename).resolve() == Path(__file__).resolve()
+
+
+def test_unwind_current_thread():
+    frames = inspection.unwind_current_thread()
+    assert isinstance(frames, list)
+    assert all(isinstance(frame, inspection.Frame) for frame in frames)
+    assert frames[0].name == "test_unwind_current_thread"
