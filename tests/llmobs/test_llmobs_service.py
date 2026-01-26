@@ -780,6 +780,7 @@ def test_annotate_prompt_dict(llmobs):
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
             "id": "test_prompt",
+            "ml_app": "unnamed-ml-app",
             "_dd_context_variable_keys": ["context"],
             "_dd_query_variable_keys": ["question"],
         }
@@ -804,6 +805,7 @@ def test_annotate_prompt_dict_with_context_var_keys(llmobs):
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
             "id": "test_prompt",
+            "ml_app": "unnamed-ml-app",
             "_dd_context_variable_keys": ["var1", "var2"],
             "_dd_query_variable_keys": ["user_input"],
         }
@@ -828,6 +830,7 @@ def test_annotate_prompt_typed_dict(llmobs):
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
             "id": "test_prompt",
+            "ml_app": "unnamed-ml-app",
             "_dd_context_variable_keys": ["var1", "var2"],
             "_dd_query_variable_keys": ["user_input"],
         }
@@ -1337,11 +1340,19 @@ def test_annotation_context_modifies_prompt(llmobs):
         with llmobs.llm(name="test_agent", model_name="test") as span:
             assert span._get_ctx_item(INPUT_PROMPT) == {
                 "id": "unnamed-ml-app_unnamed-prompt",
+                "ml_app": "unnamed-ml-app",
                 "template": "test_template",
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
             }
             assert span._get_ctx_item(TAGS) == {PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"}
+
+
+def test_annotation_context_prompt_includes_ml_app(llmobs):
+    prompt = {"template": "test_template"}
+    with llmobs.annotation_context(prompt=prompt):
+        with llmobs.llm(name="test_agent", model_name="test") as span:
+            assert span._get_ctx_item(INPUT_PROMPT).get("ml_app") == "unnamed-ml-app"
 
 
 def test_annotation_context_modifies_name(llmobs):
@@ -1574,6 +1585,7 @@ async def test_annotation_context_async_modifies_prompt(llmobs):
         with llmobs.llm(name="test_agent", model_name="test") as span:
             assert span._get_ctx_item(INPUT_PROMPT) == {
                 "id": "unnamed-ml-app_unnamed-prompt",
+                "ml_app": "unnamed-ml-app",
                 "template": "test_template",
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
