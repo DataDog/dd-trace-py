@@ -20,6 +20,8 @@
 
 #include <stddef.h>
 
+#include <unordered_map>
+
 // ----------------------------------------------------------------------------
 typedef struct
 {
@@ -32,6 +34,9 @@ typedef struct
     long column;
     long column_end;
 } Frame;
+
+// TODO: Use a (non-global?) bounded-size cache with eviction policy instead.
+std::unordered_map<uintptr_t, PyObject*> frame_cache;
 
 // ----------------------------------------------------------------------------
 static PyMemberDef Frame_members[] = {
@@ -364,6 +369,48 @@ get_code_name(PyCodeObject* code_obj)
 
 // ----------------------------------------------------------------------------
 static PyObject*
+Frame_new(PyCodeObject* code, int lasti)
+{
+    int line = 0, line_end = 0, column = 0, column_end = 0;
+
+    if (!get_location_from_code(code, lasti, &line, &line_end, &column, &column_end)) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to get location from code object");
+        return NULL;
+    }
+
+    // Build the frame data object
+    PyObject* args =
+      Py_BuildValue("OOllll", code->co_filename, get_code_name(code), line, line_end, column, column_end);
+    if (args == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to build arguments for Frame");
+        return NULL;
+    }
+    PyObject* frame = FrameType.tp_new(&FrameType, args, NULL); // WARNING: We are allocating Python objects
+    if (frame == NULL) {
+        Py_DECREF(args);
+        PyErr_SetString(PyExc_RuntimeError, "Failed to create Frame object");
+        return NULL;
+    }
+    if (FrameType.tp_init(frame, args, NULL) < 0) {
+        Py_DECREF(args);
+        Py_DECREF(frame);
+        PyErr_SetString(PyExc_RuntimeError, "Failed to initialize Frame object");
+        return NULL;
+    }
+    Py_DECREF(args);
+
+    return frame;
+}
+
+// ----------------------------------------------------------------------------
+static inline uintptr_t
+Frame_key(PyCodeObject* code, int lasti)
+{
+    return (((uintptr_t)code) << 4) | lasti;
+}
+
+// ----------------------------------------------------------------------------
+static PyObject*
 unwind_current_thread(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(arg))
 {
     PyObject* frames_list = PyList_New(0);
@@ -394,46 +441,37 @@ unwind_current_thread(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(arg))
             return NULL;
         }
 
-        // TODO: retrieve location information
-        int line = 0;
-        int line_end = 0;
-        int column = 0;
-        int column_end = 0;
-        if (!get_location_from_code(code_obj, get_lasti_from_frame(py_frame), &line, &line_end, &column, &column_end)) {
-            Py_DECREF(frames_list);
-            PyErr_SetString(PyExc_RuntimeError, "Failed to get location from code object");
-            return NULL;
-        }
+        int lasti = get_lasti_from_frame(py_frame);
 
-        // Build the frame data object
-        PyObject* args =
-          Py_BuildValue("OOllll", code_obj->co_filename, get_code_name(code_obj), line, line_end, column, column_end);
-        if (args == NULL) {
-            Py_DECREF(frames_list);
-            PyErr_SetString(PyExc_RuntimeError, "Failed to build arguments for Frame");
-            return NULL;
+        uintptr_t frame_key = Frame_key(code_obj, lasti);
+
+        // DEV: As long as we use the cache we don't need to touch the reference
+        // count on frame objects. Their reference count starts at one and only
+        // needs to be decreased when removed from the cache.
+        PyObject* frame = NULL;
+        auto frame_cache_entry = frame_cache.find(frame_key);
+        if (frame_cache_entry == frame_cache.end()) {
+            frame = Frame_new(code_obj, lasti);
+            if (frame == NULL) {
+                Py_DECREF(frames_list);
+                return NULL;
+            }
+            frame_cache[frame_key] = frame;
+        } else {
+            frame = frame_cache_entry->second;
+            if (frame == NULL) {
+                Py_DECREF(frames_list);
+                PyErr_SetString(PyExc_RuntimeError, "Failed to retrieve a valid frame from the cache");
+                return NULL;
+            }
         }
-        PyObject* frame = FrameType.tp_new(&FrameType, args, NULL); // WARNING: We are allocating Python objects
-        if (frame == NULL) {
-            Py_DECREF(args);
-            Py_DECREF(frames_list);
-            PyErr_SetString(PyExc_RuntimeError, "Failed to create Frame object");
-            return NULL;
-        }
-        if (FrameType.tp_init(frame, args, NULL) < 0) {
-            Py_DECREF(frames_list);
-            return NULL;
-        }
-        Py_DECREF(args);
 
         // Append the frame to the list
         if (PyList_Append(frames_list, frame) != 0) {
-            Py_DECREF(frame);
             Py_DECREF(frames_list);
             PyErr_SetString(PyExc_RuntimeError, "Failed to append Frame to list");
             return NULL;
         }
-        Py_DECREF(frame);
 
         // Move to the previous frame, if any
         py_frame = get_previous_frame(py_frame);
