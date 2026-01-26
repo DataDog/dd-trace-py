@@ -421,6 +421,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             latest_version=curr_version,
             version=curr_version,
             _dne_client=self,
+            filter_tags=None,
         )
 
     @staticmethod
@@ -480,7 +481,11 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         return new_version, new_record_ids
 
     def dataset_get_with_records(
-        self, dataset_name: str, project_name: Optional[str] = None, version: Optional[int] = None, tags: Optional[list[str]] = None
+        self,
+        dataset_name: str,
+        project_name: Optional[str] = None,
+        version: Optional[int] = None,
+        tags: Optional[list[str]] = None,
     ) -> Dataset:
         project = self.project_create_or_get(project_name)
         project_id = project.get("_id")
@@ -504,7 +509,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         dataset_description = data[0]["attributes"].get("description", "")
         dataset_id = data[0]["id"]
 
-        list_base_path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
+        list_base_path = f"/api/v2/llm-obs/v1/{project_id}/datasets/{dataset_id}/records"
 
         has_next_page = True
         class_records: List[DatasetRecord] = []
@@ -535,6 +540,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                         "input_data": attrs["input"],
                         "expected_output": attrs.get("expected_output"),
                         "metadata": attrs.get("metadata", {}),
+                        "tags": attrs.get("tags", []),
                     }
                 )
             next_cursor = records_data.get("meta", {}).get("after")
@@ -554,7 +560,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             latest_version=curr_version,
             version=version or curr_version,
             _dne_client=self,
-            tags=tags,
+            filter_tags=tags,
         )
 
     def dataset_bulk_upload(self, dataset_id: str, records: List[DatasetRecord]):

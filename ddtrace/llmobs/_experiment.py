@@ -53,6 +53,7 @@ class DatasetRecordRaw(TypedDict):
     input_data: DatasetRecordInputType
     expected_output: JSONType
     metadata: Dict[str, Any]
+    tags: List[str]
 
 
 class _UpdatableDatasetRecordOptional(TypedDict, total=False):
@@ -128,7 +129,7 @@ class ExperimentResult(TypedDict):
 class Dataset:
     name: str
     description: str
-    tags: Optional[List[str]]
+    filter_tags: Optional[List[str]]
     _id: str
     _records: List[DatasetRecord]
     _version: int
@@ -149,13 +150,13 @@ class Dataset:
         description: str,
         latest_version: int,
         version: int,
-        tags: Optional[List[str]],
         _dne_client: "LLMObsExperimentsClient",
+        filter_tags: Optional[List[str]] = None,
     ) -> None:
         self.name = name
         self.project = project
         self.description = description
-        self.tags = tags or []
+        self.filter_tags = filter_tags or []
         self._id = dataset_id
         self._latest_version = latest_version
         self._version = version
@@ -383,8 +384,8 @@ class Experiment:
         self._tags["experiment_name"] = name
         self._config: Dict[str, JSONType] = config or {}
         # Write dataset tags to experiment config
-        if dataset.tags:
-            self._config["dataset_tags"] = dataset.tags
+        if dataset.filter_tags:
+            self._config["filtered_record_tags"] = dataset.filter_tags
         self._runs: int = runs or 1
         self._llmobs_instance = _llmobs_instance
 
@@ -489,6 +490,15 @@ class Experiment:
                 "dataset_record_id": str(record_id),
                 "experiment_id": str(self._id),
             }
+
+            # apply tags from the records on to the span
+            # NOTE: these are not propagated to children spans of the experiment span
+            record_tags = record.get("tags", [])
+            for tag in record_tags:
+                kv = tag.split(":")
+                if len(kv) == 2:
+                    tags[kv[0]] = kv[1]
+
             output_data = None
             try:
                 output_data = self._task(input_data, self._config)

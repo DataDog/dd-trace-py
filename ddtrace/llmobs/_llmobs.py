@@ -809,6 +809,11 @@ class LLMObs(Service):
         version: Optional[int] = None,
         tags: Optional[list[str]] = None,
     ) -> Dataset:
+        if tags is not None and not isinstance(tags, list):
+            raise ValueError(
+                "tags must be a list of strings in the format of tag key value pairs. "
+                'Example: tags=["key1:value1", "key2:value2"]'
+            )
         ds = cls._instance._dne_client.dataset_get_with_records(
             dataset_name, (project_name or cls._project_name), version, tags
         )
