@@ -695,7 +695,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             project_name=project_name,
             tags=tags_dict,
             description=experiment["description"],
-            config=config,
+            config=experiment["config"],
             _llmobs_instance=None,
             runs=experiment["run_count"],
             is_distributed=True,
