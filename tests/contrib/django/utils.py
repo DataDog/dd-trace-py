@@ -39,22 +39,17 @@ def setup_django_test_spans():
 
 
 @contextlib.contextmanager
-def with_django_db(test_spans):
+def with_default_django_db(test_spans):
+    from django.core.management import call_command
     from django.db import connections
-    from django.test.utils import setup_databases
-    from django.test.utils import teardown_databases
 
-    old_config = setup_databases(
-        verbosity=0,
-        interactive=False,
-        keepdb=False,
-    )
+    # Run migrations on the default database (SQLite :memory:)
+    # No need for setup_databases/teardown_databases since we're using :memory:
+    call_command("migrate", verbosity=0, interactive=False)
     # Clear the migration spans
     test_spans.reset()
     try:
         yield
     finally:
-        # Close all database connections before teardown.
-        # PostgreSQL won't drop a database if there are open connections to it.
+        # Close all database connections
         connections.close_all()
-        teardown_databases(old_config, verbosity=0)
