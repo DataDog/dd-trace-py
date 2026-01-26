@@ -117,11 +117,16 @@ class EvaluatorContext:
 
     :param input_data: The input data that was provided to the task (read-only).
                        Dictionary with string keys mapping to JSON-serializable values.
-    :param output_data: The output data produced by the task (read-only)
-    :param expected_output: The expected output for comparison, if available (read-only)
-    :param metadata: Additional metadata including dataset record metadata and experiment configuration (read-only)
-    :param span_id: The span ID associated with the task execution, if available (read-only)
-    :param trace_id: The trace ID associated with the task execution, if available (read-only)
+    :param output_data: The output data produced by the task (read-only).
+                        Any JSON-serializable type.
+    :param expected_output: The expected output for comparison, if available (read-only).
+                            Optional JSON-serializable type.
+    :param metadata: Additional metadata including dataset record metadata and experiment configuration (read-only).
+                     Dictionary with string keys mapping to JSON-serializable values.
+    :param span_id: The span ID associated with the task execution, if available (read-only).
+                    Optional string.
+    :param trace_id: The trace ID associated with the task execution, if available (read-only).
+                     Optional string.
     """
 
     input_data: Dict[str, Any]
