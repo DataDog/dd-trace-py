@@ -3,7 +3,7 @@ from typing import Callable
 from typing import List
 
 from ddtrace.internal.flare.flare import Flare
-from ddtrace.internal.flare.flare import FlareSendRequest
+# from ddtrace.internal.flare.flare import FlareSendRequest
 from ddtrace.internal.logger import get_logger
 
 
@@ -44,74 +44,24 @@ def _handle_tracer_flare(flare: Flare, data: dict, cleanup: bool = False):
 
     product_type = data.get("metadata", [{}])[0].get("product_name")
     configs = data.get("config", [{}])
-    if product_type == "AGENT_CONFIG":
-        _prepare_tracer_flare(flare, configs)
-    elif product_type == "AGENT_TASK":
-        _generate_tracer_flare(flare, configs)
-    else:
-        log.warning("Received unexpected tracer flare product type: %s", product_type)
 
-
-def _prepare_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
-    """
-    Update configurations to start sending tracer logs to a file
-    to be sent in a flare later.
-    """
     for c in configs:
-        # AGENT_CONFIG is currently being used for multiple purposes
-        # We only want to prepare for a tracer flare if the config content
-        # has a log_level.
         if not isinstance(c, dict):
             log.debug("Config item is not type dict, received type %s instead. Skipping...", str(type(c)))
             continue
+        config_data = c.get("config", {})
+        return_action = flare._native_manager.handle_remote_config_data(config_data, product_type)
 
-        config_content = c.get("config", {})
-        log_level = config_content.get("log_level", "")
-        if log_level == "":
-            log.debug(
-                "Config item does not contain log_level, received %s instead. Skipping...",
-                config_content.get("log_level"),
-            )
-            continue
+        if return_action.is_send():
+            # case_id, hostname, email, uuid = return_action.task_info()
+            # flare_request = FlareSendRequest(case_id, hostname, email, uuid)
+            flare.revert_configs()
+            flare.send(return_action)
 
-        # Convert to uppercase to match Python logging expectations
-        flare_log_level = log_level.upper()
+        elif return_action.is_set():
+            log_level = return_action.level
+            flare.prepare(log_level)
 
-        flare.prepare(flare_log_level)
-        return True
-    return False
+        elif return_action.is_unset():
+            _handle_tracer_flare(flare, config_data, True) # Cleanup the tracer flare configurations
 
-
-def _generate_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
-    """
-    Revert tracer flare configurations back to original state
-    before sending the flare.
-    """
-    for c in configs:
-        # AGENT_TASK is currently being used for multiple purposes
-        # We only want to generate the tracer flare if the task_type is
-        # 'tracer_flare'
-        if not isinstance(c, dict):
-            log.debug("Config item is not type dict, received type %s instead. Skipping...", str(type(c)))
-            continue
-        if c.get("task_type") != "tracer_flare":
-            log.debug(
-                "Config item does not have the expected task_type. Expected [tracer_flare], received [%s]. Skipping...",
-                c.get("task_type"),
-            )
-            continue
-        args = c.get("args", {})
-        uuid = c.get("uuid")
-        if not uuid:
-            log.warning("AGENT_TASK config missing UUID, skipping tracer flare")
-            continue
-
-        flare_request = FlareSendRequest(
-            case_id=args.get("case_id"), hostname=args.get("hostname"), email=args.get("user_handle"), uuid=uuid
-        )
-
-        flare.revert_configs()
-
-        flare.send(flare_request)
-        return True
-    return False

@@ -1,8 +1,9 @@
-use datadog_remote_config::config::agent_task::AgentTaskFile;
+use datadog_remote_config::{parse::RemoteConfigData, config::{agent_task::AgentTaskFile, agent_config::AgentConfigFile}};
+use datadog_remote_config::config::{agent_task::AgentTask, agent_config::AgentConfig};
 use datadog_tracer_flare::{error::FlareError, LogLevel, ReturnAction, TracerFlareManager};
 
 /// ERROR
-use pyo3::{create_exception, exceptions::PyException, prelude::*, PyErr};
+use pyo3::{create_exception, exceptions::PyException, prelude::*, PyErr, Bound, types::PyDict, PyAny};
 
 create_exception!(
     tracer_flare_exceptions,
@@ -85,74 +86,75 @@ impl LogLevelPy {
 
 /// Python wrapper for AgentTaskFile
 #[pyclass(name = "AgentTaskFile")]
-#[derive(Clone)]
 pub struct AgentTaskFilePy {
-    #[pyo3(get)]
-    pub case_id: u64,
-    #[pyo3(get)]
-    pub hostname: String,
-    #[pyo3(get)]
-    pub user_handle: String,
-    #[pyo3(get)]
-    pub task_type: String,
-    #[pyo3(get)]
-    pub uuid: String,
+    inner: AgentTaskFile,
 }
 
-impl From<AgentTaskFile> for AgentTaskFilePy {
-    fn from(value: AgentTaskFile) -> Self {
-        AgentTaskFilePy {
-            case_id: value.args.case_id.get(),
-            hostname: value.args.hostname,
-            user_handle: value.args.user_handle,
-            task_type: value.task_type,
-            uuid: value.uuid,
-        }
-    }
+/// Python wrapper for AgentConfigFile
+#[pyclass(name = "AgentConfigFile")]
+pub struct AgentConfigFilePy {
+    inner: AgentConfigFile,
 }
 
-impl From<AgentTaskFilePy> for AgentTaskFile {
-    fn from(value: AgentTaskFilePy) -> Self {
-        AgentTaskFile {
-            args: datadog_remote_config::config::agent_task::AgentTask {
-                case_id: std::num::NonZeroU64::new(value.case_id).expect("case_id cannot be zero"),
-                hostname: value.hostname,
-                user_handle: value.user_handle,
+impl<'py> FromPyObject<'py> for AgentTaskFilePy {
+    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
+        let dict = ob.downcast::<PyDict>()?;
+
+        let args_ob = dict.get_item("args")?.ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyKeyError, _>("args".to_string())
+        })?;
+        let args_dict = args_ob.downcast::<PyDict>()?;
+
+        let case_id: String = args_dict.get_item("case_id")?.ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyKeyError, _>("case_id".to_string())
+        })?.extract()?;
+        let hostname: String = args_dict.get_item("hostname")?.ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyKeyError, _>("hostname".to_string())
+        })?.extract()?;
+        let user_handle: String = args_dict.get_item("user_handle")?.ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyKeyError, _>("user_handle".to_string())
+        })?.extract()?;
+
+        let task_type: String = dict.get_item("task_type")?.ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyKeyError, _>("task_type".to_string())
+        })?.extract()?;
+        let uuid: String = dict.get_item("uuid")?.ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyKeyError, _>("uuid".to_string())
+        })?.extract()?;
+
+        Ok(Self { inner: AgentTaskFile {
+            args: AgentTask {
+                case_id,
+                hostname,
+                user_handle,
             },
-            task_type: value.task_type,
-            uuid: value.uuid,
-        }
-    }
-}
-
-#[pymethods]
-impl AgentTaskFilePy {
-    /// Creates a new AgentTaskFile from Python.
-    ///
-    /// Args:
-    ///     case_id: Case ID (must be non-zero)
-    ///     hostname: Hostname
-    ///     user_handle: User email/handle
-    ///     task_type: Task type (usually "tracer_flare")
-    ///     uuid: UUID for the task
-    ///
-    /// Returns:
-    ///     AgentTaskFile instance
-    #[new]
-    fn new(
-        case_id: u64,
-        hostname: String,
-        user_handle: String,
-        task_type: String,
-        uuid: String,
-    ) -> Self {
-        AgentTaskFilePy {
-            case_id,
-            hostname,
-            user_handle,
             task_type,
             uuid,
-        }
+        } })
+    }
+}
+
+impl<'py> FromPyObject<'py> for AgentConfigFilePy {
+    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
+        let dict = ob.downcast::<PyDict>()?;
+
+        let name : String = dict.get_item("name")?.ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyKeyError, _>("name".to_string())
+        })?.extract()?;
+        let config_ob = dict.get_item("config")?.ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyKeyError, _>("config".to_string())
+        })?;
+        let config_dict = config_ob.downcast::<PyDict>()?;
+        let log_level: Option<String> = config_dict.get_item("log_level")?.ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyKeyError, _>("log_level".to_string())
+        })?.extract()?;
+
+        Ok(Self { inner: AgentConfigFile {
+            name,
+            config: AgentConfig {
+                log_level,
+            },
+        } })
     }
 }
 
@@ -165,56 +167,6 @@ pub struct ReturnActionPy {
 
 #[pymethods]
 impl ReturnActionPy {
-    /// Creates a Send action from an AgentTaskFile.
-    ///
-    /// Args:
-    ///     task: AgentTaskFile to send
-    ///
-    /// Returns:
-    ///     ReturnAction.Send
-    #[staticmethod]
-    fn send(task: AgentTaskFilePy) -> Self {
-        ReturnActionPy {
-            inner: ReturnAction::Send(task.into()),
-        }
-    }
-
-    /// Creates a Set action with a log level.
-    ///
-    /// Args:
-    ///     level: LogLevel to set
-    ///
-    /// Returns:
-    ///     ReturnAction.Set
-    #[staticmethod]
-    fn set(level: LogLevelPy) -> Self {
-        ReturnActionPy {
-            inner: ReturnAction::Set(level.0),
-        }
-    }
-
-    /// Creates an Unset action.
-    ///
-    /// Returns:
-    ///     ReturnAction.Unset
-    #[staticmethod]
-    fn unset() -> Self {
-        ReturnActionPy {
-            inner: ReturnAction::Unset,
-        }
-    }
-
-    /// Creates a None action.
-    ///
-    /// Returns:
-    ///     ReturnAction.None
-    #[staticmethod]
-    fn none() -> Self {
-        ReturnActionPy {
-            inner: ReturnAction::None,
-        }
-    }
-
     fn __repr__(&self) -> String {
         match &self.inner {
             ReturnAction::Send(task) => {
@@ -246,17 +198,17 @@ impl ReturnActionPy {
     }
 
     #[getter]
-    fn task(&self) -> PyResult<Option<AgentTaskFilePy>> {
+    fn level(&self) -> PyResult<Option<String>> {
         match &self.inner {
-            ReturnAction::Send(task) => Ok(Some(task.clone().into())),
+            ReturnAction::Set(level) => Ok(Some(level.to_string())),
             _ => Ok(None),
         }
     }
 
     #[getter]
-    fn level(&self) -> PyResult<Option<LogLevelPy>> {
+    fn case_id(&self) -> PyResult<Option<String>> {
         match &self.inner {
-            ReturnAction::Set(level) => Ok(Some(LogLevelPy(*level))),
+            ReturnAction::Send(task) => Ok(Some(task.args.case_id.clone())),
             _ => Ok(None),
         }
     }
@@ -298,6 +250,44 @@ impl TracerFlareManagerPy {
         }
     }
 
+    // Example of a agent task data given to handle_remote_config_data
+    // {
+    //     "args": {
+    //         "case_id": "12345",
+    //         "hostname": "test-host",
+    //         "user_handle": "user@example.com"
+    //     },
+    //     "task_type": "tracer_flare",
+    //     "uuid": "unique-identifier"
+    // }
+    fn handle_remote_config_data(&self, data: &Bound<PyAny>, product: &str) -> PyResult<ReturnActionPy> {
+        let manager_guard = self.manager.lock().map_err(|e| {
+            PyException::new_err(format!("Failed to acquire manager lock: {e}"))
+        })?;
+        let manager = manager_guard.as_ref().ok_or_else(|| {
+            PyException::new_err("TracerFlareManager not initialized")
+        })?;
+
+        if product == "AGENT_CONFIG" {
+            let agent_config : AgentConfigFilePy = data.extract() // Need to extract the config in data only
+                .map_err(|e| ParsingError::new_err(format!("Failed to extract AgentConfigFile: {}, data: {}", e, data)))?;
+
+            return Ok(manager.handle_remote_config_data(&RemoteConfigData::TracerFlareConfig(agent_config.inner))
+                .map_err(|e| ParsingError::new_err(format!("Parsing error for AGENT_CONFIG: {}", e)))?.into());
+        } else if product == "AGENT_TASK" {
+            let agent_task : AgentTaskFilePy = data.extract() // Need to extract the config in data only
+                .map_err(|e| ParsingError::new_err(format!("Failed to extract AgentTaskFile: {}, data: {}", e, data)))?;
+
+            return Ok(manager.handle_remote_config_data(&RemoteConfigData::TracerFlareTask(agent_task.inner))
+                .map_err(|e| ParsingError::new_err(format!("Parsing error for AGENT_TASK: {}", e)))?.into());
+        } else {
+            return Err(ParsingError::new_err(format!(
+                "Received unexpected tracer flare product type: {}",
+                product
+            )));
+        }
+    }
+
     /// Zips files from a directory and sends them to the agent.
     ///
     /// Args:
@@ -310,51 +300,9 @@ impl TracerFlareManagerPy {
     /// Raises:
     ///     ZipError: If zipping fails or directory doesn't exist
     ///     SendError: If sending fails
-    fn zip_and_send(&self, directory: &str, send_action: Py<PyAny>) -> PyResult<()> {
-        use std::fs;
-        use std::path::Path;
-
-        // Collect all files from the directory
-        let dir_path = Path::new(directory);
-        if !dir_path.exists() {
-            return Err(ZipError::new_err(format!(
-                "Directory does not exist: {}",
-                directory
-            )));
-        }
-        if !dir_path.is_dir() {
-            return Err(ZipError::new_err(format!(
-                "Path is not a directory: {}",
-                directory
-            )));
-        }
-
-        let files: Vec<String> = fs::read_dir(dir_path)
-            .map_err(|e| {
-                ZipError::new_err(format!("Failed to read directory {}: {}", directory, e))
-            })?
-            .filter_map(|entry| {
-                entry.ok().and_then(|e| {
-                    let path = e.path();
-                    if path.is_file() {
-                        path.to_str().map(|s| s.to_string())
-                    } else {
-                        None
-                    }
-                })
-            })
-            .collect();
-
-        if files.is_empty() {
-            return Err(ZipError::new_err(format!(
-                "No files found in directory: {}",
-                directory
-            )));
-        }
-
-        Python::with_gil(|py| {
-            let send_action_obj = send_action.extract::<ReturnActionPy>(py)?;
-            let rust_action: ReturnAction = send_action_obj.into();
+    fn zip_and_send(&self, directory: &str, send_action: ReturnActionPy) -> PyResult<()> {
+        Python::with_gil(|_| {
+            let rust_action: ReturnAction = send_action.inner;
 
             let manager_arc = self.manager.clone();
 
@@ -379,34 +327,13 @@ impl TracerFlareManagerPy {
                     .ok_or_else(|| PyException::new_err("Manager not initialized"))?;
 
                 manager
-                    .zip_and_send(files, rust_action)
+                    .zip_and_send(vec![directory.to_string()], rust_action)
                     .await
                     .map_err(|e| FlareErrorPy::from(e).into())
             })
         })
     }
 
-    /// Cleans up a directory and all its contents.
-    ///
-    /// Args:
-    ///     directory: Path to the directory to remove
-    ///
-    /// Returns:
-    ///     None
-    ///
-    /// Raises:
-    ///     ZipError: If cleanup fails
-    fn cleanup_directory(&self, directory: &str) -> PyResult<()> {
-        use std::fs;
-        use std::path::Path;
-
-        let path = Path::new(directory);
-        if path.exists() {
-            fs::remove_dir_all(path)
-                .map_err(|e| ZipError::new_err(format!("Failed to clean up directory: {e}")))?;
-        }
-        Ok(())
-    }
 
     fn __repr__(&self) -> String {
         "TracerFlareManager".to_string()
@@ -421,6 +348,7 @@ pub fn register_tracer_flare(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ReturnActionPy>()?;
     m.add_class::<LogLevelPy>()?;
     m.add_class::<AgentTaskFilePy>()?;
+    m.add_class::<AgentConfigFilePy>()?;
     register_exceptions(m)?;
 
     Ok(())
