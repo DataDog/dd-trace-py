@@ -187,13 +187,37 @@ should_skip_frame(PyObject* frame_like)
 #elif PY_VERSION_HEX >= 0x030c0000
     _PyInterpreterFrame* py_frame = reinterpret_cast<_PyInterpreterFrame*>(frame_like);
     return py_frame->owner & FRAME_OWNED_BY_CSTACK;
-#elif PY_VERSION_HEX >= 0x030b0000
-    _PyInterpreterFrame* py_frame = reinterpret_cast<_PyInterpreterFrame*>(frame_like);
-    return py_frame->is_entry;
 #else
     return false;
 #endif
 }
+
+// ----------------------------------------------------------------------------
+#if PY_VERSION_HEX >= 0x030b0000
+static inline int
+_read_varint(unsigned char* table, ssize_t size, ssize_t* i)
+{
+    ssize_t guard = size - 1;
+    if (*i >= guard)
+        return 0;
+
+    int val = table[++*i] & 63;
+    int shift = 0;
+    while (table[*i] & 64 && *i < guard) {
+        shift += 6;
+        val |= (table[++*i] & 63) << shift;
+    }
+    return val;
+}
+
+// ----------------------------------------------------------------------------
+static inline int
+_read_signed_varint(unsigned char* table, ssize_t size, ssize_t* i)
+{
+    int val = _read_varint(table, size, i);
+    return (val & 1) ? -(val >> 1) : (val >> 1);
+}
+#endif
 
 // ----------------------------------------------------------------------------
 static inline int
@@ -204,28 +228,130 @@ get_location_from_code(PyCodeObject* code_obj,
                        int* out_column,
                        int* out_column_end)
 {
+    unsigned int lineno = code_obj->co_firstlineno;
+    Py_ssize_t len = 0;
+    unsigned char* table = nullptr;
+
 #if PY_VERSION_HEX >= 0x030b0000
-    return PyCode_Addr2Location(code_obj, lasti, out_line, out_column, out_line_end, out_column_end);
-#else
-    *out_line = PyCode_Addr2Line(code_obj, lasti);
+    if (PyBytes_AsStringAndSize(code_obj->co_linetable, (char**)&table, &len) == -1) {
+        return 0;
+    }
+
+    for (Py_ssize_t i = 0, bc = 0; i < len; i++) {
+        bc += (table[i] & 7) + 1;
+        int code = (table[i] >> 3) & 15;
+        unsigned char next_byte = 0;
+        switch (code) {
+            case 15:
+                break;
+
+            case 14: // Long form
+                lineno += _read_signed_varint(table, len, &i);
+
+                *out_line = lineno;
+                *out_line_end = lineno + _read_varint(table, len, &i);
+                *out_column = _read_varint(table, len, &i);
+                *out_column_end = _read_varint(table, len, &i);
+
+                break;
+
+            case 13: // No column data
+                lineno += _read_signed_varint(table, len, &i);
+
+                *out_line = lineno;
+                *out_line_end = lineno;
+                *out_column = *out_column_end = 0;
+
+                break;
+
+            case 12: // New lineno
+            case 11:
+            case 10:
+                lineno += code - 10;
+
+                *out_line = lineno;
+                *out_line_end = lineno;
+                *out_column = 1 + table[++i];
+                *out_column_end = 1 + table[++i];
+
+                break;
+
+            default:
+                next_byte = table[++i];
+
+                *out_line = lineno;
+                *out_line_end = lineno;
+                *out_column = 1 + (code << 3) + ((next_byte >> 4) & 7);
+                *out_column_end = *out_column + (next_byte & 15);
+        }
+
+        if (bc > lasti)
+            break;
+    }
+
+#elif PY_VERSION_HEX >= 0x030a0000
+    if (PyBytes_AsStringAndSize(code_obj->co_linetable, (char**)&table, &len) == -1) {
+        return 0;
+    }
+
+    lasti <<= 1;
+    for (int i = 0, bc = 0; i < len; i++) {
+        int sdelta = table[i++];
+        if (sdelta == 0xff)
+            break;
+
+        bc += sdelta;
+
+        int ldelta = table[i];
+        if (ldelta == 0x80)
+            ldelta = 0;
+        else if (ldelta > 0x80)
+            lineno -= 0x100;
+
+        lineno += ldelta;
+        if (bc > lasti)
+            break;
+    }
+
+    *out_line = lineno;
     *out_line_end = *out_column = *out_column_end = 0;
-    return *out_line >= 0;
+
+#else
+    if (PyBytes_AsStringAndSize(code_obj->co_lnotab, (char**)&table, &len) == -1) {
+        return 0;
+    }
+
+    for (int i = 0, bc = 0; i < len; i++) {
+        bc += table[i++];
+        if (bc > lasti)
+            break;
+
+        if (table[i] >= 0x80)
+            lineno -= 0x100;
+
+        lineno += table[i];
+    }
+
+    *out_line = lineno;
+    *out_line_end = *out_column = *out_column_end = 0;
+
 #endif
+
+    return 1;
 }
 
 // ----------------------------------------------------------------------------
 static inline int
-get_offset_from_frame(PyObject* frame_like)
+get_lasti_from_frame(PyObject* frame_like)
 {
 #if PY_VERSION_HEX >= 0x030b0000
-    _PyInterpreterFrame* py_frame = reinterpret_cast<_PyInterpreterFrame*>(frame_like);
-    return _PyInterpreterFrame_LASTI(py_frame) * sizeof(_Py_CODEUNIT);
+    return _PyInterpreterFrame_LASTI(reinterpret_cast<_PyInterpreterFrame*>(frame_like));
 #else
-    PyFrameObject* py_frame = reinterpret_cast<PyFrameObject*>(frame_like);
-    return py_frame->f_lasti;
+    return reinterpret_cast<PyFrameObject*>(frame_like)->f_lasti;
 #endif
 }
 
+// ----------------------------------------------------------------------------
 static inline PyObject*
 get_code_name(PyCodeObject* code_obj)
 {
@@ -273,17 +399,15 @@ unwind_current_thread(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(arg))
         int line_end = 0;
         int column = 0;
         int column_end = 0;
-        int offset = get_offset_from_frame(py_frame);
-
-        if (!get_location_from_code(code_obj, offset, &line, &line_end, &column, &column_end)) {
+        if (!get_location_from_code(code_obj, get_lasti_from_frame(py_frame), &line, &line_end, &column, &column_end)) {
             Py_DECREF(frames_list);
             PyErr_SetString(PyExc_RuntimeError, "Failed to get location from code object");
             return NULL;
         }
 
         // Build the frame data object
-        PyObject* name = get_code_name(code_obj);
-        PyObject* args = Py_BuildValue("OOllll", code_obj->co_filename, name, line, line_end, column, column_end);
+        PyObject* args =
+          Py_BuildValue("OOllll", code_obj->co_filename, get_code_name(code_obj), line, line_end, column, column_end);
         if (args == NULL) {
             Py_DECREF(frames_list);
             PyErr_SetString(PyExc_RuntimeError, "Failed to build arguments for Frame");
