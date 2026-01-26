@@ -42,6 +42,12 @@ def test_ci_providers(monkeypatch, name, environment, tags):
     """Make sure all provided environment variables from each CI provider are tagged correctly."""
     _updateenv(monkeypatch, environment)
     extracted_tags = ci.tags(environment)
+    
+    # Verify ci.job.id is in the expected tags for providers that support it
+    provider = name.split(":")[0]
+    if provider in ("gitlab", "azurepipelines", "buildkite") or environment.get("JOB_ID"):
+        assert ci.JOB_ID in tags, f"ci.job.id must be in expected tags for {name} (fixture is missing it)"
+    
     for key, value in tags.items():
         if key == ci.NODE_LABELS:
             assert Counter(json.loads(extracted_tags[key])) == Counter(json.loads(value))

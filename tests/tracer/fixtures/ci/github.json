@@ -728,35 +728,5 @@
       "git.repository_url": "git@github.com:DataDog/userrepo.git",
       "git.tag": "0.0.2"
     }
-  ],
-  [
-    {
-      "GITHUB_ACTION": "run",
-      "GITHUB_JOB": "github-job-name",
-      "GITHUB_REF": "master",
-      "GITHUB_REPOSITORY": "ghactions-repo",
-      "GITHUB_RUN_ID": "ghactions-pipeline-id",
-      "GITHUB_RUN_NUMBER": "ghactions-pipeline-number",
-      "GITHUB_SERVER_URL": "https://github.com",
-      "GITHUB_SHA": "ghactions-commit",
-      "GITHUB_WORKFLOW": "ghactions-pipeline-name",
-      "GITHUB_WORKSPACE": "/foo/bar",
-      "JOB_ID": "custom-job-id-12345"
-    },
-    {
-      "_dd.ci.env_vars": "{\"GITHUB_SERVER_URL\":\"https://github.com\",\"GITHUB_REPOSITORY\":\"ghactions-repo\",\"GITHUB_RUN_ID\":\"ghactions-pipeline-id\"}",
-      "ci.job.id": "custom-job-id-12345",
-      "ci.job.name": "github-job-name",
-      "ci.job.url": "https://github.com/ghactions-repo/commit/ghactions-commit/checks",
-      "ci.pipeline.id": "ghactions-pipeline-id",
-      "ci.pipeline.name": "ghactions-pipeline-name",
-      "ci.pipeline.number": "ghactions-pipeline-number",
-      "ci.pipeline.url": "https://github.com/ghactions-repo/actions/runs/ghactions-pipeline-id",
-      "ci.provider.name": "github",
-      "ci.workspace_path": "/foo/bar",
-      "git.branch": "master",
-      "git.commit.sha": "ghactions-commit",
-      "git.repository_url": "https://github.com/ghactions-repo.git"
-    }
   ]
 ]

@@ -30,8 +30,7 @@
       "git.commit.author.name": "azure-pipelines-commit-author",
       "git.commit.message": "azure-pipelines-commit-message",
       "git.commit.sha": "commit",
-      "git.repository_url": "https://azure-pipelines-server-uri.com/build",
-      "ci.job.id": "azure-pipelines-job-id"
+      "git.repository_url": "https://azure-pipelines-server-uri.com/build"
     }
   ],
   [
@@ -66,8 +65,7 @@
       "git.commit.author.name": "azure-pipelines-commit-author",
       "git.commit.message": "azure-pipelines-commit-message",
       "git.commit.sha": "commit",
-      "git.repository_url": "https://azure-pipelines-server-uri.com/pull",
-      "ci.job.id": "azure-pipelines-job-id"
+      "git.repository_url": "https://azure-pipelines-server-uri.com/pull"
     }
   ],
   [
@@ -101,8 +99,7 @@
       "git.commit.author.name": "azure-pipelines-commit-author",
       "git.commit.message": "azure-pipelines-commit-message",
       "git.commit.sha": "commit",
-      "git.repository_url": "https://azure-pipelines-server-uri.com/build",
-      "ci.job.id": "azure-pipelines-job-id"
+      "git.repository_url": "https://azure-pipelines-server-uri.com/build"
     }
   ],
   [
@@ -138,8 +135,7 @@
       "git.commit.author.name": "azure-pipelines-commit-author",
       "git.commit.message": "azure-pipelines-commit-message",
       "git.commit.sha": "commit",
-      "git.repository_url": "https://azure-pipelines-server-uri.com/build",
-      "ci.job.id": "azure-pipelines-job-id"
+      "git.repository_url": "https://azure-pipelines-server-uri.com/build"
     }
   ],
   [
@@ -175,8 +171,7 @@
       "git.commit.author.name": "azure-pipelines-commit-author",
       "git.commit.message": "azure-pipelines-commit-message",
       "git.commit.sha": "commit",
-      "git.repository_url": "https://azure-pipelines-server-uri.com/build",
-      "ci.job.id": "azure-pipelines-job-id"
+      "git.repository_url": "https://azure-pipelines-server-uri.com/build"
     }
   ],
   [
@@ -212,8 +207,7 @@
       "git.commit.author.name": "azure-pipelines-commit-author",
       "git.commit.message": "azure-pipelines-commit-message",
       "git.commit.sha": "commit",
-      "git.repository_url": "https://azure-pipelines-server-uri.com/build",
-      "ci.job.id": "azure-pipelines-job-id"
+      "git.repository_url": "https://azure-pipelines-server-uri.com/build"
     }
   ],
   [
@@ -249,8 +243,7 @@
       "git.commit.author.name": "azure-pipelines-commit-author",
       "git.commit.message": "azure-pipelines-commit-message",
       "git.commit.sha": "commit",
-      "git.repository_url": "https://azure-pipelines-server-uri.com/build",
-      "ci.job.id": "azure-pipelines-job-id"
+      "git.repository_url": "https://azure-pipelines-server-uri.com/build"
     }
   ],
   [
@@ -286,8 +279,7 @@
       "git.commit.author.name": "azure-pipelines-commit-author",
       "git.commit.message": "azure-pipelines-commit-message",
       "git.commit.sha": "commit",
-      "git.repository_url": "https://azure-pipelines-server-uri.com/build",
-      "ci.job.id": "azure-pipelines-job-id"
+      "git.repository_url": "https://azure-pipelines-server-uri.com/build"
     }
   ],
   [
@@ -321,8 +313,7 @@
       "git.commit.author.name": "azure-pipelines-commit-author",
       "git.commit.message": "azure-pipelines-commit-message",
       "git.commit.sha": "commit",
-      "git.repository_url": "https://azure-pipelines-server-uri.com/build",
-      "ci.job.id": "azure-pipelines-job-id"
+      "git.repository_url": "https://azure-pipelines-server-uri.com/build"
     }
   ],
   [
@@ -356,8 +347,7 @@
       "git.commit.author.name": "azure-pipelines-commit-author",
       "git.commit.message": "azure-pipelines-commit-message",
       "git.commit.sha": "commit",
-      "git.repository_url": "https://azure-pipelines-server-uri.com/build",
-      "ci.job.id": "azure-pipelines-job-id"
+      "git.repository_url": "https://azure-pipelines-server-uri.com/build"
     }
   ],
   [
@@ -391,8 +381,7 @@
       "git.commit.author.name": "azure-pipelines-commit-author",
       "git.commit.message": "azure-pipelines-commit-message",
       "git.commit.sha": "commit",
-      "git.repository_url": "https://azure-pipelines-server-uri.com/build",
-      "ci.job.id": "azure-pipelines-job-id"
+      "git.repository_url": "https://azure-pipelines-server-uri.com/build"
     }
   ],
   [
@@ -426,8 +415,7 @@
       "git.commit.message": "azure-pipelines-commit-message",
       "git.commit.sha": "commit",
       "git.repository_url": "https://azure-pipelines-server-uri.com/build",
-      "git.tag": "0.1.0",
-      "ci.job.id": "azure-pipelines-job-id"
+      "git.tag": "0.1.0"
     }
   ],
   [
@@ -461,8 +449,7 @@
       "git.commit.message": "azure-pipelines-commit-message",
       "git.commit.sha": "commit",
       "git.repository_url": "https://azure-pipelines-server-uri.com/build",
-      "git.tag": "0.1.0",
-      "ci.job.id": "azure-pipelines-job-id"
+      "git.tag": "0.1.0"
     }
   ],
   [
@@ -498,8 +485,7 @@
       "git.commit.author.name": "azure-pipelines-commit-author",
       "git.commit.message": "azure-pipelines-commit-message",
       "git.commit.sha": "commitPR",
-      "git.repository_url": "https://azure-pipelines-server-uri.com/build",
-      "ci.job.id": "azure-pipelines-job-id"
+      "git.repository_url": "https://azure-pipelines-server-uri.com/build"
     }
   ],
   [
@@ -537,8 +523,7 @@
       "git.commit.author.name": "azure-pipelines-commit-author",
       "git.commit.message": "azure-pipelines-commit-message",
       "git.commit.sha": "commitPR",
-      "git.repository_url": "https://azure-pipelines-server-uri.com/build",
-      "ci.job.id": "azure-pipelines-job-id"
+      "git.repository_url": "https://azure-pipelines-server-uri.com/build"
     }
   ],
   [
@@ -576,8 +561,7 @@
       "git.commit.author.name": "azure-pipelines-commit-author",
       "git.commit.message": "azure-pipelines-commit-message",
       "git.commit.sha": "commitPR",
-      "git.repository_url": "https://azure-pipelines-server-uri.com/build",
-      "ci.job.id": "azure-pipelines-job-id"
+      "git.repository_url": "https://azure-pipelines-server-uri.com/build"
     }
   ],
   [
@@ -620,8 +604,7 @@
       "git.commit.committer.name": "usersupplied-comittername",
       "git.commit.message": "usersupplied-message",
       "git.commit.sha": "b9f0fb3fdbb94c9d24b2c75b49663122a529e123",
-      "git.repository_url": "git@github.com:DataDog/userrepo.git",
-      "ci.job.id": "azure-pipelines-job-id"
+      "git.repository_url": "git@github.com:DataDog/userrepo.git"
     }
   ],
   [
@@ -664,8 +647,7 @@
       "git.commit.message": "usersupplied-message",
       "git.commit.sha": "b9f0fb3fdbb94c9d24b2c75b49663122a529e123",
       "git.repository_url": "git@github.com:DataDog/userrepo.git",
-      "git.tag": "0.0.2",
-      "ci.job.id": "azure-pipelines-job-id"
+      "git.tag": "0.0.2"
     }
   ],
   [
@@ -693,8 +675,7 @@
       "git.commit.author.email": "azure-pipelines-commit-author-email@datadoghq.com",
       "git.commit.author.name": "azure-pipelines-commit-author",
       "git.commit.message": "azure-pipelines-commit-message",
-      "git.repository_url": "https://dev.azure.com/fabrikamfiber/",
-      "ci.job.id": "azure-pipelines-job-id"
+      "git.repository_url": "https://dev.azure.com/fabrikamfiber/"
     }
   ]
 ]
