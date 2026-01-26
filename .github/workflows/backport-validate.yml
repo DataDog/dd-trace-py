@@ -1,6 +1,6 @@
 name: Validate Backport
 on:
-  pull_request:
+  pull_request_target:
     types:
       - labeled
 
@@ -38,7 +38,7 @@ jobs:
           git pull origin ${TARGET_BRANCH}
           echo "Target branch HEAD:"
           git show HEAD
-          ERROR=$(git cherry-pick -x --mainline 1 ${MERGE_COMMIT} 2>&1 > /dev/null | grep -v '^hint') || true
+          ERROR=$(git cherry-pick -x --mainline 1 ${MERGE_COMMIT} 2>&1 | grep -v '^hint') || true
 
           echo "results<<EOF" >> "$GITHUB_OUTPUT"
           if [[ ! -z ${ERROR} ]]
