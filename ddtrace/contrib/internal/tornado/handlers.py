@@ -108,7 +108,7 @@ def _find_route(initial_rule_set, request):
         rule = rules.popleft()
         if (m := rule.matcher.match(request)) is not None:
             if hasattr(rule.matcher, "_path"):
-                return rule.matcher._path, m.get("path_kwargs", {})
+                return rule.matcher._path, m.get("path_args", []) or m.get("path_kwargs", {})
             elif hasattr(rule.target, "rules"):
                 rules.extendleft(rule.target.rules)
 

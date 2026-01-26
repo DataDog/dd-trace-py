@@ -558,7 +558,7 @@ def get_app() -> tornado.web.Application:
     app = tornado.web.Application(
         [
             (r"/", HomeHandler),
-            (r"/asm/(?P<param_int>\d+)/(?P<param_str>[^/]+)/?", AsmHandler),
+            (r"/asm/(\d+)/([^/]+)/?", AsmHandler),
             (r"/asm/?", AsmNoParamHandler),
             (r"/new_service/(?P<service_name>[^/]+)/?", NewServiceHandler, {"app": None}),
             (r"/stream/?", StreamHandler),
