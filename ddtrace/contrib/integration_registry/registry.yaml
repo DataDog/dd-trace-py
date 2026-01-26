@@ -135,6 +135,15 @@ integrations:
       min: 6.105.0
       max: 6.105.0
 
+- integration_name: azure_durable_functions
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - azure-functions-durable
+  tested_versions_by_dependency:
+    azure-functions-durable:
+      min: 1.0.0
+      max: 1.4.0
 - integration_name: azure_eventhubs
   is_external_package: true
   is_tested: true

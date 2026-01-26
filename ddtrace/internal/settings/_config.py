@@ -119,6 +119,7 @@ INTEGRATION_CONFIGS = frozenset(
         "snowflake",
         "pymemcache",
         "azure_eventhubs",
+        "azure_durable_functions",
         "azure_functions",
         "azure_servicebus",
         "protobuf",
