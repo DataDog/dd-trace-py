@@ -15,6 +15,7 @@ from typing import TypedDict
 from typing import Union
 from typing import cast
 from typing import overload
+from typing import Sequence
 import uuid
 
 from ddtrace import config
@@ -362,7 +363,7 @@ class Experiment:
         name: str,
         task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
         dataset: Dataset,
-        evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]]],
+        evaluators: Sequence[Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]]],
         project_name: str,
         description: str = "",
         tags: Optional[Dict[str, str]] = None,
