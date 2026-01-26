@@ -90,13 +90,12 @@ def dispatch(event_id: str, args: Tuple[Any, ...] = ()) -> None:
                 raise
 
 
-def dispatch_event(event, *extra_args) -> None:
+def dispatch_event(event, *args) -> None:
     event_name = getattr(event, "event_name", None)
     if event_name is None:
         raise ValueError("Event must have an 'event_name' attribute")
 
-    args = (event,) + extra_args
-    dispatch(event_name, args)
+    dispatch(event_name, (event,) + args)
 
 
 def dispatch_with_results(event_id: str, args: Tuple[Any, ...] = ()) -> EventResultDict:

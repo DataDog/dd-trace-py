@@ -15,6 +15,7 @@ from ddtrace.contrib.internal.kafka.patch import TracedProducer
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace.contrib.internal.kafka.patch import unpatch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from tests.subprocesstest import run_in_subprocess
 from tests.utils import override_config
 
 from .conftest import BOOTSTRAP_SERVERS
@@ -383,28 +384,8 @@ def test_tracing_context_is_not_propagated_by_default(kafka_tracer, test_spans, 
 
 
 # Propagation should work when enabled
-def test_tracing_context_is_propagated_when_enabled(ddtrace_run_python_code_in_subprocess):
-    code = """
-import pytest
-import random
-import sys
-
-from ddtrace._trace.pin import Pin
-from ddtrace.contrib.internal.kafka.patch import patch
-from tests.conftest import use_dummy_writer
-from tests.conftest import test_spans
-from tests.contrib.kafka.conftest import consumer
-from tests.contrib.kafka.conftest import patch_kafka
-from tests.contrib.kafka.conftest import kafka_topic
-from tests.contrib.kafka.conftest import producer
-from tests.conftest import tracer
-from tests.contrib.kafka.conftest import kafka_tracer
-from tests.contrib.kafka.conftest import should_filter_empty_polls
-
-def test(kafka_tracer, consumer, producer, kafka_topic, test_spans):
-    Pin._override(producer, tracer=kafka_tracer)
-    Pin._override(consumer, tracer=kafka_tracer)
-
+@run_in_subprocess(env_overrides={"DD_KAFKA_PROPAGATION_ENABLED": "true"})
+def test_tracing_context_is_propagated_when_enabled(consumer, producer, kafka_topic, test_spans):
     # use a random int in this string to prevent reading a message produced by a previous test run
     test_string = "context propagation enabled test " + str(random.randint(0, 1000))
     test_key = "context propagation key " + str(random.randint(0, 1000))
@@ -417,40 +398,40 @@ def test(kafka_tracer, consumer, producer, kafka_topic, test_spans):
     while message is None or str(message.value()) != str(PAYLOAD):
         message = consumer.poll()
 
+    test_string = "context test no propagation"
+    test_key = "context test key no propagation"
+    PAYLOAD = bytes(test_string, encoding="utf-8")
+
+    producer.produce(kafka_topic, PAYLOAD, key=test_key)
+    producer.flush()
+
+    message = None
+    while message is None or str(message.value()) != str(PAYLOAD):
+        message = consumer.poll()
+
+    # message comes back with expected test string
+    assert message.value() == b"context test no propagation"
+
     consume_span = None
     traces = test_spans.pop_traces()
     produce_span = traces[0][0]
     for trace in traces:
         for span in trace:
-            if span.get_tag('kafka.received_message') == 'True':
-                if span.get_tag('kafka.message_key') == test_key:
+            if span.get_tag("kafka.received_message") == "True":
+                if span.get_tag("kafka.message_key") == test_key:
                     consume_span = span
-                    break
-
-    assert str(message.value()) == str(PAYLOAD)
 
     # kafka.produce span is created without a parent
     assert produce_span.name == "kafka.produce"
     assert produce_span.parent_id is None
+    assert produce_span.get_tag("pathway.hash") is not None
 
-    # kafka.consume span has a parent
+    # None of the kafka.consume spans have parents
     assert consume_span.name == "kafka.consume"
-    assert consume_span.parent_id == produce_span.span_id
+    assert consume_span.parent_id is None
 
-    # Two of these spans are part of the same trace
-    assert produce_span.trace_id == consume_span.trace_id
-
-    Pin._override(consumer, tracer=None)
-    Pin._override(producer, tracer=None)
-
-if __name__ == "__main__":
-    sys.exit(pytest.main(["-x", __file__]))
-    """
-
-    env = os.environ.copy()
-    env["DD_KAFKA_PROPAGATION_ENABLED"] = "true"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
-    assert status == 0, out.decode() + err.decode()
+    # None of these spans are part of the same trace
+    assert produce_span.trace_id != consume_span.trace_id
 
 
 def test_context_header_injection_works_no_client_added_headers(kafka_topic, producer, consumer):

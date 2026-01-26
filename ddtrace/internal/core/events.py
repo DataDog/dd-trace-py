@@ -10,11 +10,14 @@ from ddtrace.internal import core
 class BaseEvent:
     event_name: str
 
-    def __init__(self):
-        if self.on_event.__func__ is not BaseEvent.on_event:
-            core.on(self.event_name, self.on_event)
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
 
-    def on_event(self, *args, **kwargs) -> None:
+        if "on_event" in cls.__dict__:
+            core.on(cls.event_name, cls.on_event)
+
+    @classmethod
+    def on_event(cls, *args, **kwargs) -> None:
         pass
 
 
