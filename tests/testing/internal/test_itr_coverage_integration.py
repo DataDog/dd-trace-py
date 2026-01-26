@@ -70,7 +70,7 @@ class TestITRCoverageIntegration:
         )
 
         # Upload coverage report
-        uploader.upload_coverage_report(cov_instance=mock_cov, use_module_collector=False)
+        uploader.upload_coverage_report(cov_instance=mock_cov)
 
         # Verify the report was uploaded
         assert mock_connector.post_files.called
@@ -144,7 +144,7 @@ class TestITRCoverageIntegration:
         )
 
         # Upload coverage report
-        uploader.upload_coverage_report(cov_instance=mock_cov, use_module_collector=False)
+        uploader.upload_coverage_report(cov_instance=mock_cov)
 
         # Verify the report was uploaded
         assert mock_connector.post_files.called
@@ -203,7 +203,7 @@ class TestITRCoverageIntegration:
         )
 
         # Upload coverage report
-        uploader.upload_coverage_report(cov_instance=mock_cov, use_module_collector=False)
+        uploader.upload_coverage_report(cov_instance=mock_cov)
 
         # Verify the report was uploaded
         assert mock_connector.post_files.called
@@ -276,7 +276,7 @@ class TestITRCoverageIntegration:
         )
 
         # Upload coverage report
-        uploader.upload_coverage_report(cov_instance=mock_cov, use_module_collector=False)
+        uploader.upload_coverage_report(cov_instance=mock_cov)
 
         # Verify the report was uploaded
         assert mock_connector.post_files.called

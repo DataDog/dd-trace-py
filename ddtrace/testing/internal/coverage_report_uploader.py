@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 import typing as t
 
-from ddtrace.testing.internal.coverage_report import CoverageReportFormat
+from ddtrace.testing.internal.coverage_report import COVERAGE_REPORT_FORMAT_LCOV
 from ddtrace.testing.internal.coverage_report import compress_coverage_report
 from ddtrace.testing.internal.coverage_report import create_coverage_report_event
 from ddtrace.testing.internal.coverage_report import generate_coverage_report_lcov_from_coverage_py
@@ -54,38 +54,34 @@ class CoverageReportUploader:
         self.skippable_coverage = skippable_coverage
         self.workspace_path = workspace_path
 
-    def upload_coverage_report(
-        self,
-        cov_instance: t.Optional[t.Any] = None,
-        use_module_collector: bool = False,
-    ) -> None:
+    def upload_coverage_report(self, cov_instance: t.Optional[t.Any] = None) -> None:
         """
         Generate and upload the coverage report to the intake endpoint.
 
         Args:
             cov_instance: The coverage.Coverage instance (if using coverage.py with --cov)
-            use_module_collector: If True, use ModuleCodeCollector instead of coverage.py
 
         This method:
-        1. Transforms coverage data to LCOV format (from coverage.py or ModuleCodeCollector)
-        2. Merges with ITR skipped test coverage data
-        3. Compresses the report with gzip
-        4. Creates the event JSON with git and CI tags
-        5. Uploads both as a multipart/form-data request
+        1. Auto-detects coverage source (coverage.py or ModuleCodeCollector)
+        2. Transforms coverage data to LCOV format
+        3. Merges with ITR skipped test coverage data
+        4. Compresses the report with gzip
+        5. Creates the event JSON with git and CI tags
+        6. Uploads both as a multipart/form-data request
         """
         log.debug("Generating coverage report for upload")
 
-        # Generate report from appropriate source with merging
-        if use_module_collector:
-            log.debug("Generating coverage report from ModuleCodeCollector")
-            report_data = generate_coverage_report_lcov_from_module_collector(
+        # Auto-detect coverage source and generate report
+        if cov_instance is not None:
+            log.debug("Using coverage.py data for coverage report")
+            report_data = generate_coverage_report_lcov_from_coverage_py(
+                cov_instance=cov_instance,
                 workspace_path=self.workspace_path,
                 skippable_coverage=self.skippable_coverage,
             )
         else:
-            log.debug("Generating coverage report from coverage.py")
-            report_data = generate_coverage_report_lcov_from_coverage_py(
-                cov_instance=cov_instance,
+            log.debug("Using ModuleCodeCollector data for coverage report")
+            report_data = generate_coverage_report_lcov_from_module_collector(
                 workspace_path=self.workspace_path,
                 skippable_coverage=self.skippable_coverage,
             )
@@ -103,7 +99,7 @@ class CoverageReportUploader:
         )
 
         # Create event JSON
-        event_data = create_coverage_report_event(self.env_tags, CoverageReportFormat.LCOV)
+        event_data = create_coverage_report_event(self.env_tags, COVERAGE_REPORT_FORMAT_LCOV)
 
         # Prepare multipart attachments
         files = [

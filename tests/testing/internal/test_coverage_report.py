@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from ddtrace.testing.internal.coverage_report import CoverageReportFormat
+from ddtrace.testing.internal.coverage_report import COVERAGE_REPORT_FORMAT_LCOV
 from ddtrace.testing.internal.coverage_report import compress_coverage_report
 from ddtrace.testing.internal.coverage_report import create_coverage_report_event
 from ddtrace.testing.internal.coverage_report import generate_coverage_report_lcov_from_coverage_py
@@ -80,44 +80,39 @@ class TestCoverageReportGeneration:
 
         assert result is None
 
+    def _create_mock_coverage(self, workspace_path, file_name, covered_lines, missing_lines):
+        """Helper to create mock coverage instance."""
+        mock_cov = Mock()
+        mock_cov_data = Mock()
+        mock_cov.stop = Mock()
+        mock_cov.get_data.return_value = mock_cov_data
+
+        test_file_abs = str(workspace_path / file_name)
+        mock_cov_data.measured_files.return_value = [test_file_abs]
+        mock_cov_data.lines.return_value = covered_lines
+        mock_cov_data.missing.return_value = missing_lines
+        return mock_cov
+
     def test_generate_coverage_report_lcov_with_missing_lines(self) -> None:
         """Test that LCOV format correctly reports both covered and uncovered executable lines."""
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmpdir:
             workspace_path = Path(tmpdir)
-
-            mock_cov = Mock()
-            mock_cov_data = Mock()
-            mock_cov.stop = Mock()
-            mock_cov.get_data.return_value = mock_cov_data
-
-            # File has lines 1, 2, 3, 4, 5 as executable
-            # Lines 1, 3, 5 are covered
-            # Lines 2, 4 are missing (uncovered but executable)
-            test_file_abs = str(workspace_path / "test.py")
-            mock_cov_data.measured_files.return_value = [test_file_abs]
-            mock_cov_data.lines.return_value = [1, 3, 5]  # covered lines
-            mock_cov_data.missing.return_value = [2, 4]  # missing lines
+            mock_cov = self._create_mock_coverage(workspace_path, "test.py", [1, 3, 5], [2, 4])
 
             result = generate_coverage_report_lcov_from_coverage_py(mock_cov, workspace_path, {})
 
             assert result is not None
             lcov_content = result.decode("utf-8")
 
-            # Should contain test file
             assert "SF:test.py" in lcov_content
-
-            # Should report all executable lines with correct execution counts
-            assert "DA:1,1" in lcov_content  # covered
-            assert "DA:2,0" in lcov_content  # uncovered but executable
-            assert "DA:3,1" in lcov_content  # covered
-            assert "DA:4,0" in lcov_content  # uncovered but executable
-            assert "DA:5,1" in lcov_content  # covered
-
-            # Should have correct summary statistics
-            assert "LF:5" in lcov_content  # 5 lines found (executable)
-            assert "LH:3" in lcov_content  # 3 lines hit (covered)
+            # Check all executable lines with correct execution counts
+            assert "DA:1,1" in lcov_content and "DA:2,0" in lcov_content
+            assert "DA:3,1" in lcov_content and "DA:4,0" in lcov_content
+            assert "DA:5,1" in lcov_content
+            # Check summary statistics
+            assert "LF:5" in lcov_content and "LH:3" in lcov_content
 
     def test_generate_coverage_report_lcov_with_backend_coverage_merge(self) -> None:
         """Test that LCOV format correctly merges local and backend coverage."""
@@ -125,17 +120,8 @@ class TestCoverageReportGeneration:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             workspace_path = Path(tmpdir)
-
-            mock_cov = Mock()
-            mock_cov_data = Mock()
-            mock_cov.stop = Mock()
-            mock_cov.get_data.return_value = mock_cov_data
-
             # Local coverage: lines 1, 3 covered, line 2 missing
-            test_file_abs = str(workspace_path / "test.py")
-            mock_cov_data.measured_files.return_value = [test_file_abs]
-            mock_cov_data.lines.return_value = [1, 3]  # local covered lines
-            mock_cov_data.missing.return_value = [2]  # local missing lines
+            mock_cov = self._create_mock_coverage(workspace_path, "test.py", [1, 3], [2])
 
             # Backend coverage adds line 2 (was missing locally) and line 4 (new)
             backend_coverage = {"test.py": {2, 4}}
@@ -164,12 +150,10 @@ class TestCoverageReportGeneration:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             workspace_path = Path(tmpdir)
-
-            mock_cov = Mock()
-            mock_cov_data = Mock()
-            mock_cov.stop = Mock()
-            mock_cov.get_data.return_value = mock_cov_data
-            mock_cov_data.measured_files.return_value = []  # No local files
+            # No local coverage
+            mock_cov = self._create_mock_coverage(workspace_path, "backend_file.py", [], [])
+            # Override to have no measured files (simulates no local coverage)
+            mock_cov.get_data.return_value.measured_files.return_value = []
 
             # Backend-only coverage
             backend_coverage = {"backend_file.py": {1, 3, 5}}
@@ -222,7 +206,7 @@ class TestCoverageReportEvent:
             GitTag.BRANCH: "main",
         }
 
-        event_data = create_coverage_report_event(env_tags, CoverageReportFormat.LCOV)
+        event_data = create_coverage_report_event(env_tags, COVERAGE_REPORT_FORMAT_LCOV)
 
         event = json.loads(event_data)
         assert event["type"] == "coverage_report"
@@ -244,7 +228,7 @@ class TestCoverageReportEvent:
             CITag.JOB_NAME: "test-job",
         }
 
-        event_data = create_coverage_report_event(env_tags, CoverageReportFormat.LCOV)
+        event_data = create_coverage_report_event(env_tags, COVERAGE_REPORT_FORMAT_LCOV)
 
         event = json.loads(event_data)
         assert event["type"] == "coverage_report"
@@ -262,7 +246,7 @@ class TestCoverageReportEvent:
             "git.pull_request.number": "42",
         }
 
-        event_data = create_coverage_report_event(env_tags, CoverageReportFormat.LCOV)
+        event_data = create_coverage_report_event(env_tags, COVERAGE_REPORT_FORMAT_LCOV)
 
         event = json.loads(event_data)
         assert event["pr.number"] == "42"
@@ -273,7 +257,7 @@ class TestCoverageReportEvent:
             GitTag.REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git",
         }
 
-        event_data = create_coverage_report_event(env_tags, CoverageReportFormat.LCOV)
+        event_data = create_coverage_report_event(env_tags, COVERAGE_REPORT_FORMAT_LCOV)
 
         event = json.loads(event_data)
         assert event["type"] == "coverage_report"

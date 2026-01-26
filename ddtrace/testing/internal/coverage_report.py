@@ -22,15 +22,8 @@ from ddtrace.testing.internal.git import GitTag
 log = logging.getLogger(__name__)
 
 
-class CoverageReportFormat:
-    """Supported coverage report formats."""
-
-    LCOV = "lcov"
-    COBERTURA = "cobertura"
-    JACOCO = "jacoco"
-    CLOVER = "clover"
-    OPENCOVER = "opencover"
-    SIMPLECOV = "simplecov"
+# Coverage report format constant
+COVERAGE_REPORT_FORMAT_LCOV = "lcov"
 
 
 def generate_coverage_report_lcov_from_coverage_py(
@@ -65,9 +58,8 @@ def generate_coverage_report_lcov_from_coverage_py(
             log.debug("No coverage data available to generate report")
             return None
 
-        # Always use our enhanced LCOV generation for accuracy
-        # This ensures both covered and uncovered executable lines are properly reported
-        log.debug("Generating enhanced LCOV report with precise line reporting")
+        # Generate LCOV report with coverage merging
+        log.debug("Generating LCOV report with ITR coverage merging")
         return _generate_merged_lcov_from_coverage_py(cov_instance, workspace_path, skippable_coverage)
 
     except Exception:
@@ -146,12 +138,7 @@ def _generate_merged_lcov_from_coverage_py(
                 # For backend-only files, assume all covered lines are executable
                 all_executable[file_path] = backend_lines.copy()
 
-        log.debug(
-            "Merged coverage: %d local files, %d backend files, %d total files",
-            len(local_coverage),
-            len(skippable_coverage),
-            len(merged_coverage),
-        )
+        log.debug("Merged %d local + %d backend files", len(local_coverage), len(skippable_coverage))
 
         # Generate LCOV format
         lcov_lines = ["TN:"]  # Test name (empty for aggregated report)
@@ -285,10 +272,7 @@ def generate_coverage_report_lcov_from_module_collector(
 
         if skippable_coverage:
             log.debug(
-                "Merged ModuleCodeCollector coverage: %d local files, %d backend files, %d total files",
-                len(local_coverage_by_relative_path),
-                len(skippable_coverage),
-                len(merged_coverage),
+                "Merged %d local + %d backend files", len(local_coverage_by_relative_path), len(skippable_coverage)
             )
 
         # Generate LCOV format

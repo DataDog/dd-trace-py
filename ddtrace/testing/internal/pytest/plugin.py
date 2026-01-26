@@ -286,23 +286,9 @@ class TestOptPlugin:
 
             # Upload coverage report if enabled
             if self.manager.coverage_report_uploader is not None:
-                # Determine which coverage source to use
-                is_using_pytest_cov = _is_pytest_cov_enabled(session.config)
-
-                if is_using_pytest_cov:
-                    # Use coverage.py data (from pytest-cov)
-                    log.debug("Using coverage.py data for coverage report upload")
-                    self.manager.coverage_report_uploader.upload_coverage_report(
-                        cov_instance=self.manager.coverage_for_report,
-                        use_module_collector=False,
-                    )
-                else:
-                    # Use ModuleCodeCollector data as fallback
-                    log.debug("Using ModuleCodeCollector data for coverage report upload")
-                    self.manager.coverage_report_uploader.upload_coverage_report(
-                        cov_instance=None,
-                        use_module_collector=True,
-                    )
+                # Pass coverage.py instance if available, otherwise uploader will use ModuleCodeCollector
+                cov_instance = self.manager.coverage_for_report if _is_pytest_cov_enabled(session.config) else None
+                self.manager.coverage_report_uploader.upload_coverage_report(cov_instance=cov_instance)
 
         # Stop coverage collection if it was started
         if self.manager.settings.coverage_enabled or self.manager.settings.coverage_report_upload_enabled:

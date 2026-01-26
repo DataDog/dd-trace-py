@@ -41,7 +41,7 @@ class TestCoverageReportUploader:
             workspace_path=Path("/tmp"),
         )
 
-        uploader.upload_coverage_report(cov_instance=mock_cov, use_module_collector=False)
+        uploader.upload_coverage_report(cov_instance=mock_cov)
 
         mock_generate.assert_called_once_with(mock_cov, Path("/tmp"), {})
         mock_connector.post_files.assert_not_called()
@@ -82,7 +82,7 @@ class TestCoverageReportUploader:
             workspace_path=Path("/tmp"),
         )
 
-        uploader.upload_coverage_report(cov_instance=mock_cov, use_module_collector=False)
+        uploader.upload_coverage_report(cov_instance=mock_cov)
 
         # Verify report generation
         mock_generate.assert_called_once_with(mock_cov, Path("/tmp"), {})
@@ -144,7 +144,7 @@ class TestCoverageReportUploader:
             workspace_path=Path("/tmp"),
         )
 
-        uploader.upload_coverage_report(cov_instance=mock_cov, use_module_collector=False)
+        uploader.upload_coverage_report(cov_instance=mock_cov)
 
         # Verify error telemetry
         mock_telemetry_instance.record_coverage_report_upload_error.assert_called_once()
@@ -181,7 +181,7 @@ class TestCoverageReportUploader:
         )
 
         # Should not raise, just log
-        uploader.upload_coverage_report(cov_instance=mock_cov, use_module_collector=False)
+        uploader.upload_coverage_report(cov_instance=mock_cov)
 
         # Verify error telemetry
         mock_telemetry_instance.record_coverage_report_upload_error.assert_called_once()
