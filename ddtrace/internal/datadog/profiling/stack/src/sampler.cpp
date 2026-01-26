@@ -72,7 +72,10 @@ void
 Sampler::adapt_sampling_interval()
 {
 #if defined(__linux__)
-    struct timespec ts{ 0, 0 };
+    struct timespec ts
+    {
+        0, 0
+    };
 
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
     auto new_process_count = static_cast<uint64_t>(ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000);
@@ -395,11 +398,9 @@ Sampler::track_asyncio_loop(uintptr_t thread_id, PyObject* loop)
 }
 
 void
-Sampler::init_asyncio(PyObject* _asyncio_current_tasks,
-                      PyObject* _asyncio_scheduled_tasks,
-                      PyObject* _asyncio_eager_tasks)
+Sampler::init_asyncio(PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eager_tasks)
 {
-    echion->init_asyncio(_asyncio_current_tasks, _asyncio_scheduled_tasks, _asyncio_eager_tasks);
+    echion->init_asyncio(_asyncio_scheduled_tasks, _asyncio_eager_tasks);
 }
 
 void
