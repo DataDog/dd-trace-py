@@ -140,6 +140,10 @@ def test_crashtracker_simple():
     # 6. Verifies that the crashtracker sends a crash report to the server
     import ctypes
     import os
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     import tests.internal.crashtracker.utils as utils
 
@@ -174,6 +178,10 @@ def test_crashtracker_simple_fork():
     # in the parent
     import ctypes
     import os
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     import tests.internal.crashtracker.utils as utils
 
@@ -210,6 +218,10 @@ def test_crashtracker_simple_sigbus():
     from ctypes.util import find_library
     import os
     import tempfile
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     import tests.internal.crashtracker.utils as utils
 
@@ -264,6 +276,10 @@ def test_crashtracker_simple_sigbus():
 def test_crashtracker_raise_sigsegv():
     import os
     import signal
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     import tests.internal.crashtracker.utils as utils
 
@@ -294,6 +310,10 @@ def test_crashtracker_raise_sigsegv():
 def test_crashtracker_raise_sigbus():
     import os
     import signal
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     import tests.internal.crashtracker.utils as utils
 
@@ -444,6 +464,10 @@ def test_crashtracker_tags_required():
     # Tests tag ingestion in the core API
     import ctypes
     import os
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     import tests.internal.crashtracker.utils as utils
 
@@ -566,6 +590,10 @@ def test_crashtracker_user_tags_profiling():
     # Tests tag ingestion in the backend API (which is currently out of profiling)
     import ctypes
     import os
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     import tests.internal.crashtracker.utils as utils
 
@@ -608,6 +636,10 @@ def test_crashtracker_user_tags_core():
     # Tests tag ingestion in the core API
     import ctypes
     import os
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     import tests.internal.crashtracker.utils as utils
 
@@ -652,6 +684,10 @@ def test_crashtracker_process_tags():
     import ctypes
     import os
     import sys
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     import tests.internal.crashtracker.utils as utils
 
@@ -692,6 +728,10 @@ def test_crashtracker_echild_hang():
     import random
     import sys
     import time
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     import tests.internal.crashtracker.utils as utils
 
@@ -766,6 +806,10 @@ def test_crashtracker_no_zombies():
     import random
     import sys
     import time
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     import tests.internal.crashtracker.utils as utils
 
@@ -829,6 +873,10 @@ def test_crashtracker_receiver_env_inheritance():
     """
     import ctypes
     import os
+    import warnings
+
+    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     import tests.internal.crashtracker.utils as utils
 
