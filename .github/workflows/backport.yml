@@ -44,8 +44,8 @@ jobs:
           PR_BRANCH: ${{ github.head_ref }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config --global user.name "${GIT_AUTHOR_NAME}"
-          git config --global user.email "${GIT_AUTHOR_EMAIL}"
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
 
           TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
           MERGE_COMMIT=$(git rev-parse HEAD)
