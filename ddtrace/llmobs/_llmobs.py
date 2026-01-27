@@ -12,11 +12,11 @@ from typing import Dict
 from typing import List
 from typing import Literal
 from typing import Optional
+from typing import Sequence
 from typing import Set
 from typing import Tuple
 from typing import Union
 from typing import cast
-from typing import Sequence
 
 import ddtrace
 from ddtrace import config
