@@ -38,8 +38,8 @@ jobs:
           git pull origin ${TARGET_BRANCH}
           echo "Target branch HEAD:"
           git show HEAD
-          $(git cherry-pick -x --mainline 1 ${MERGE_COMMIT} 2>cherrypickerror.txt | grep -v '^hint') || true
-          ERROR=$(< cherrypickerror.txt)
+          git cherry-pick -x --mainline 1 ${MERGE_COMMIT} 2>cherrypickerror.txt || true
+          ERROR=$(grep -v '^hint' cherrypickerror.txt)
 
           echo "results<<EOF" >> "$GITHUB_OUTPUT"
           if [[ ! -z ${ERROR} ]]
@@ -54,7 +54,7 @@ jobs:
           fi
           echo "The command used to test backporting was" | tee -a "$GITHUB_OUTPUT"
           echo "\`\`\`" >> "$GITHUB_OUTPUT"
-          echo "git cherry-pick -x --mainline 1 ${MERGE_COMMIT}" | tee -a "$GITHUB_OUTPUT"
+          echo "git checkout ${TARGET_BRANCH} && git cherry-pick -x --mainline 1 ${MERGE_COMMIT}" | tee -a "$GITHUB_OUTPUT"
           echo "\`\`\`" >> "$GITHUB_OUTPUT"
           echo "(This commit hash is the HEAD of the temporary branch used by Github Actions, which is a merge commit.)" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
