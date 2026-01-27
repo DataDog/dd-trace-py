@@ -156,7 +156,6 @@ MANAGED_PROMPT_SOURCE = "_dd.llmobs.prompt.source"
 DEFAULT_PROMPTS_CACHE_TTL = 60  # seconds before stale
 DEFAULT_PROMPTS_CACHE_MAX_SIZE = 500  # max prompts in memory
 DEFAULT_PROMPTS_TIMEOUT = 5.0  # seconds for all prompt fetch operations
-DEFAULT_PROMPTS_LABEL = "prod"  # default label when not specified
 
 # Prompt Registry API
 PROMPTS_ENDPOINT = "/api/unstable/llm-obs/v1/prompts"
