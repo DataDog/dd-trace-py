@@ -104,7 +104,10 @@ class OpenAIIntegration(BaseLLMIntegration):
             if operation in OPENAI_LLM_OPERATIONS
             else operation
         )
-        model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
+        # Filtering out None/"None"/empty strings to properly fallback to request model
+        response_model = span.get_tag("openai.response.model")
+        request_model = span.get_tag("openai.request.model")
+        model_name = response_model if response_model and response_model != "None" else request_model
 
         model_provider = "openai"
         if self._is_provider(span, "azure"):

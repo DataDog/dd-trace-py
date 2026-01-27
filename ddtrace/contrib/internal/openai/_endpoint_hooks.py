@@ -67,7 +67,8 @@ class _EndpointHook:
                 for k, v in kwargs[kw_attr].items():
                     span._set_tag_str("openai.request.%s.%s" % (kw_attr, k), str(v))
             elif kw_attr == "engine" or kw_attr == "model":  # Azure OpenAI requires using "engine" instead of "model"
-                span._set_tag_str("openai.request.model", str(kwargs[kw_attr]))
+                if kwargs[kw_attr] is not None:
+                    span._set_tag_str("openai.request.model", str(kwargs[kw_attr]))
 
     def handle_request(self, pin, integration, instance, span, args, kwargs):
         self._record_request(pin, integration, instance, span, args, kwargs)
