@@ -90,13 +90,13 @@ _appsec_threats_iast_variants = [
             "DD_IAST_ENABLED": "false",
         },
     ),
-    # Venv(
-    #     env={
-    #         "DD_IAST_ENABLED": "true",
-    #         "DD_IAST_REQUEST_SAMPLING": "100",
-    #         "DD_IAST_DEDUPLICATION_ENABLED": "false",
-    #     },
-    # ),
+    Venv(
+        env={
+            "DD_IAST_ENABLED": "true",
+            "DD_IAST_REQUEST_SAMPLING": "100",
+            "DD_IAST_DEDUPLICATION_ENABLED": "false",
+        },
+    ),
 ]
 
 venv = Venv(
