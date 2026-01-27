@@ -76,6 +76,21 @@ class LLMObsSpanEvent(_LLMObsSpanEventOptional):
     _dd: Dict[str, str]
 
 
+class LLMObsSpanData(TypedDict, total=False):
+    span_id: str
+    trace_id: str
+    parent_id: str
+    tags: Dict[str, str]
+    name: str
+    meta: _Meta
+    metrics: Dict[str, Any]
+    session_id: str
+    ml_app: str
+    span_links: List[_SpanLink]
+    span_kind: str
+    integration: str
+
+
 class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     join_on: Dict[str, Dict[str, str]]
     metric_type: str

@@ -22,12 +22,12 @@ from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
 from ddtrace.llmobs._constants import IS_EVALUATION_SPAN
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import SESSION_ID
-from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
@@ -302,8 +302,8 @@ def format_tool_call_arguments(tool_args: str) -> str:
     return formatted_tool_args
 
 
-def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
-    current_span_links: List[_SpanLink] = span._get_ctx_item(SPAN_LINKS) or []
+def add_span_link(llmobs_span_data, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
+    current_span_links: List[_SpanLink] = llmobs_span_data.get(LLMOBS_STRUCT.SPAN_LINKS) or []
     current_span_links.append(
         _SpanLink(
             span_id=span_id,
@@ -311,7 +311,7 @@ def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: 
             attributes={"from": from_io, "to": to_io},
         )
     )
-    span._set_ctx_item(SPAN_LINKS, current_span_links)
+    llmobs_span_data[LLMOBS_STRUCT.SPAN_LINKS] = current_span_links
 
 
 def enforce_message_role(messages: List[Dict[str, str]]) -> List[Dict[str, str]]:

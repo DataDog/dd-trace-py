@@ -1102,6 +1102,7 @@ def update_proxy_workflow_input_output_value(span: Span, span_kind: str = ""):
     """Helper to update the input and output value for workflow spans."""
     if span_kind != "workflow":
         return
+    # TODO: NEED TO USE META_STRUCT
     input_messages = span._get_ctx_item(INPUT_MESSAGES)
     output_messages = span._get_ctx_item(OUTPUT_MESSAGES)
     if input_messages:

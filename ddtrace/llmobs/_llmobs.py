@@ -72,6 +72,7 @@ from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import INTEGRATION
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
 from ddtrace.llmobs._constants import MCP_TOOL_CALL_INTENT
 from ddtrace.llmobs._constants import METADATA
@@ -119,6 +120,7 @@ from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
+from ddtrace.llmobs._writer import LLMObsSpanData
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
@@ -272,34 +274,67 @@ class LLMObs(Service):
         self._annotation_context_lock = forksafe.RLock()
 
     def _on_span_start(self, span: Span) -> None:
-        if self.enabled and span.span_type == SpanTypes.LLM:
-            self._activate_llmobs_span(span)
-            telemetry.record_span_started()
-            self._do_annotations(span)
+        if not self.enabled or span.span_type != SpanTypes.LLM:
+            return
+        llmobs_span_data = None
+        self._activate_llmobs_span(span)
+        telemetry.record_span_started()
+        self._do_annotations(span)
+        try:
+            llmobs_span_data = self._initialized_llmobs_struct(span)
+        except (KeyError, ValueError, TypeError):
+            pass
+        if llmobs_span_data is not None:
+            span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_span_data)
 
     def _on_span_finish(self, span: Span) -> None:
-        if self.enabled and span.span_type == SpanTypes.LLM:
-            self._submit_llmobs_span(span)
-            telemetry.record_span_created(span)
+        if not self.enabled or span.span_type != SpanTypes.LLM:
+            return
+        span_kind = span._get_ctx_item(SPAN_KIND)
+        if span_kind and span_kind == "llm":
+            core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
 
-    def _submit_llmobs_span(self, span: Span) -> None:
-        """Generate and submit an LLMObs span event to be sent to LLMObs."""
-        span_event = None
-        try:
-            span_event = self._llmobs_span_event(span)
-            if span_event is None:
-                return
-            self._llmobs_span_writer.enqueue(span_event)
-        except (KeyError, TypeError, ValueError):
-            log.error(
-                "Error generating LLMObs span event for span %s, likely due to malformed span",
-                span,
-                exc_info=True,
+    def _initialized_llmobs_struct(self, span: Span) -> LLMObsSpanData:
+        """Starts LLMObsSpanEvent"""
+        llmobs_trace_id = span._get_ctx_item(LLMOBS_TRACE_ID)
+        if llmobs_trace_id is None:
+            raise ValueError("Failed to extract LLMObs trace ID from span context.")
+
+        parent_id = span._get_ctx_item(PARENT_ID_KEY)
+        if parent_id is None:
+            parent_id = ROOT_PARENT_ID
+
+        ml_app = _get_ml_app(span)
+        if ml_app is None:
+            raise ValueError(
+                "ML app is required for sending LLM Observability data. "
+                "Ensure this configuration is set before running your application."
             )
-        finally:
-            if span_event and span._get_ctx_item(SPAN_KIND) == "llm" and not _is_evaluation_span(span):
-                if self._evaluator_runner:
-                    self._evaluator_runner.enqueue(span_event, span)
+        else:
+            span._set_ctx_item(ML_APP, ml_app) # TODO: Why do we need this?
+
+        session_id = _get_session_id(span)
+        if session_id is not None:
+            span._set_ctx_item(SESSION_ID, session_id)
+        tags = self._llmobs_tags(span, ml_app, session_id)
+
+        llmobs_span_data: LLMObsSpanData = {
+            "trace_id": format_trace_id(llmobs_trace_id),
+            "span_id": str(span.span_id),
+            "parent_id": parent_id,
+            "name": _get_span_name(span),
+            "meta": {"input": {}, "output": {}},
+            "metrics": {},
+            "tags": tags,
+            "ml_app": ml_app,
+            "span_links": [],
+        }
+        if session_id:
+            llmobs_span_data["session_id"] = session_id
+        # TODO: Add span links, input, output, span_kind, model_name, model_provider, metadata, scope (experiments), tool_definitions, intent
+        #  LLMObsSpanData doesn't need start_ns, duration, status, error msg/stack/type since we get it for free from APM span
+        return llmobs_span_data
+
 
     def _llmobs_span_event(self, span: Span) -> Optional[LLMObsSpanEvent]:
         """Span event object structure."""
@@ -484,7 +519,7 @@ class LLMObs(Service):
         return llmobs_span_event
 
     @staticmethod
-    def _llmobs_tags(span: Span, ml_app: str, session_id: Optional[str] = None) -> List[str]:
+    def _llmobs_tags(span: Span, ml_app: str, session_id: Optional[str] = None) -> Dict[str, str]:
         dd_tags = config.tags
         tags = {
             **dd_tags,
@@ -502,8 +537,7 @@ class LLMObs(Service):
             tags["error_type"] = err_type
         if session_id:
             tags["session_id"] = session_id
-        if span._get_ctx_item(INTEGRATION):
-            tags["integration"] = span._get_ctx_item(INTEGRATION)
+        # TODO: Integration tag is added after span is created at integration base trace() step
         if _is_evaluation_span(span):
             tags[constants.RUNNER_IS_INTEGRATION_SPAN_TAG] = "ragas"
         existing_tags = span._get_ctx_item(TAGS)
@@ -539,7 +573,7 @@ class LLMObs(Service):
         if experiment_name and "experiment_name" not in tags:
             tags["experiment_name"] = experiment_name
 
-        return ["{}:{}".format(k, v) for k, v in tags.items()]
+        return tags
 
     def _do_annotations(self, span: Span) -> None:
         # get the current span context
@@ -1199,20 +1233,6 @@ class LLMObs(Service):
 
         log.debug("%s disabled", cls.__name__)
 
-    def _tag_span_links(self, span, span_links):
-        if not span_links:
-            return
-        span_links = [
-            span_link
-            for span_link in span_links
-            if span_link["span_id"] != LLMObs.export_span(span)["span_id"]
-            and span_link["trace_id"] == LLMObs.export_span(span)["trace_id"]
-        ]
-        current_span_links = span._get_ctx_item(SPAN_LINKS)
-        if current_span_links:
-            span_links = current_span_links + span_links
-        span._set_ctx_item(SPAN_LINKS, span_links)
-
     @classmethod
     def annotation_context(
         cls,
@@ -1432,14 +1452,15 @@ class LLMObs(Service):
         if not self.enabled:
             return span
 
-        span._set_ctx_item(SPAN_KIND, operation_kind)
+        llmobs_span_data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
+        llmobs_span_data["meta"]["span_kind"] = operation_kind
         if model_name is not None:
-            span._set_ctx_item(MODEL_NAME, model_name)
+            llmobs_span_data["meta"]["model_name"] = model_name
         if model_provider is not None:
-            span._set_ctx_item(MODEL_PROVIDER, model_provider)
+            llmobs_span_data["meta"]["model_provider"] = model_provider
         session_id = session_id if session_id is not None else _get_session_id(span)
         if session_id is not None:
-            span._set_ctx_item(SESSION_ID, session_id)
+            llmobs_span_data["session_id"] = session_id
 
         ml_app = ml_app if ml_app is not None else _get_ml_app(span)
         if ml_app is None:
@@ -1449,6 +1470,7 @@ class LLMObs(Service):
                 "before running your application."
             )
         span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})
+        # TODO: MOVE THESE TO META_STRUCT?
         log.debug(
             "Starting LLMObs span: %s, span_kind: %s, ml_app: %s",
             name,
@@ -1744,7 +1766,7 @@ class LLMObs(Service):
     ) -> None:
         """
         Sets metadata, inputs, outputs, tags, and metrics as provided for a given LLMObs span.
-        Note that with the exception of tags, this method will override any existing values for the provided fields.
+        Note except for tags and metrics, this method will override any existing values for the provided fields.
 
         :param Span span: Span to annotate. If no span is provided, the current active span will be used.
                           Must be an LLMObs-type span, i.e. generated by the LLMObs SDK.
@@ -1795,6 +1817,7 @@ class LLMObs(Service):
                         such as `{prompt,completion,total}_tokens`.
         """
         error = None
+        llmobs_span_data = None
         try:
             if span is None:
                 span = cls._instance._current_span()
@@ -1807,18 +1830,22 @@ class LLMObs(Service):
             if span.finished:
                 error = "invalid_finished_span"
                 raise LLMObsAnnotateSpanError("Cannot annotate a finished span.")
+            llmobs_span_data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
+            if llmobs_span_data is None:
+                error = "invalid_llmobs_span_data"
+                raise LLMObsAnnotateSpanError("Error annotating LLMObs span.")
             if metadata is not None:
                 if not isinstance(metadata, dict):
                     error = "invalid_metadata"
                     raise LLMObsAnnotateSpanError("metadata must be a dictionary")
                 else:
-                    cls._set_dict_attribute(span, METADATA, metadata)
+                    cls._set_dict_attribute(llmobs_span_data, LLMOBS_STRUCT.METADATA, metadata)
             if metrics is not None:
                 if not isinstance(metrics, dict) or not all(isinstance(v, (int, float)) for v in metrics.values()):
                     error = "invalid_metrics"
                     raise LLMObsAnnotateSpanError("metrics must be a dictionary of string key - numeric value pairs.")
                 else:
-                    cls._set_dict_attribute(span, METRICS, metrics)
+                    cls._set_dict_attribute(llmobs_span_data, LLMOBS_STRUCT.METRICS, metrics)
             if tags is not None:
                 if not isinstance(tags, dict):
                     error = "invalid_tags"
@@ -1828,21 +1855,21 @@ class LLMObs(Service):
                 else:
                     session_id = tags.get("session_id")
                     if session_id:
-                        span._set_ctx_item(SESSION_ID, str(session_id))
-                    cls._set_dict_attribute(span, TAGS, tags)
+                        llmobs_span_data["session_id"] = str(session_id)
+                    cls._set_dict_attribute(llmobs_span_data, LLMOBS_STRUCT.TAGS, tags)
             if tool_definitions is not None:
                 validated_tool_definitions = extract_tool_definitions(tool_definitions)
                 if validated_tool_definitions:
-                    span._set_ctx_item(TOOL_DEFINITIONS, validated_tool_definitions)
-            span_kind = span._get_ctx_item(SPAN_KIND)
+                    llmobs_span_data["meta"]["tool_definitions"] = validated_tool_definitions
+            span_kind = span._get_ctx_item(SPAN_KIND) # TODO: How to move this to meta_struct?
             if _name is not None:
                 span.name = _name
             if prompt is not None:
                 try:
                     validated_prompt = _validate_prompt(prompt, strict_validation=False)
-                    cls._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
+                    cls._set_dict_attribute(llmobs_span_data["meta"]["input"], LLMOBS_STRUCT.PROMPT, validated_prompt)
                     cls._set_dict_attribute(
-                        span, TAGS, {PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_ANNOTATED}
+                        llmobs_span_data, LLMOBS_STRUCT.TAGS, {PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_ANNOTATED}
                     )
                 except (ValueError, TypeError) as e:
                     error = "invalid_prompt"
@@ -1856,42 +1883,42 @@ class LLMObs(Service):
             if input_data is not None or output_data is not None:
                 if span_kind == "llm":
                     annotation_error_message, error = cls._tag_llm_io(
-                        span, input_messages=input_data, output_messages=output_data
+                        llmobs_span_data, input_messages=input_data, output_messages=output_data
                     )
                 elif span_kind == "embedding":
                     annotation_error_message, error = cls._tag_embedding_io(
-                        span, input_documents=input_data, output_text=output_data
+                        llmobs_span_data, input_documents=input_data, output_text=output_data
                     )
                 elif span_kind == "retrieval":
                     annotation_error_message, error = cls._tag_retrieval_io(
-                        span, input_text=input_data, output_documents=output_data
+                        llmobs_span_data, input_text=input_data, output_documents=output_data
                     )
                 elif span_kind == "experiment":
-                    cls._tag_freeform_io(span, input_value=input_data, output_value=output_data)
+                    cls._tag_freeform_io(llmobs_span_data, input_value=input_data, output_value=output_data)
                 else:
-                    cls._tag_text_io(span, input_value=input_data, output_value=output_data)
+                    cls._tag_text_io(llmobs_span_data, input_value=input_data, output_value=output_data)
             if _linked_spans and isinstance(_linked_spans, list):
                 for linked_span in _linked_spans:
                     # for now, assume all span links are output to input as we do not currently use this for anything
                     add_span_link(
-                        span, linked_span.get("span_id", ""), linked_span.get("trace_id", ""), "output", "input"
+                        llmobs_span_data, linked_span.get("span_id", ""), linked_span.get("trace_id", ""), "output", "input"
                     )
             if annotation_error_message:
                 raise LLMObsAnnotateSpanError(annotation_error_message)
         finally:
             telemetry.record_llmobs_annotate(span, error)
+            if llmobs_span_data is not None:
+                span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_span_data)
 
     @classmethod
-    def _tag_llm_io(cls, span, input_messages=None, output_messages=None) -> Tuple[Optional[str], Optional[str]]:
-        """Tags input/output messages for LLM-kind spans.
-        Will be mapped to span's `meta.{input,output}.messages` fields.
-        """
+    def _tag_llm_io(cls, llmobs_span_data: LLMObsSpanData, input_messages=None, output_messages=None) -> Tuple[Optional[str], Optional[str]]:
+        """Tags input/output messages for LLM-kind spans."""
         if input_messages is not None:
             try:
                 if not isinstance(input_messages, Messages):
                     input_messages = Messages(input_messages)
                 if input_messages.messages:
-                    span._set_ctx_item(INPUT_MESSAGES, input_messages.messages)
+                    llmobs_span_data["meta"]["input"]["messages"] = input_messages.messages
             except TypeError:
                 return "Failed to parse input messages.", "invalid_io_messages"
         if output_messages is None:
@@ -1901,36 +1928,32 @@ class LLMObs(Service):
                 output_messages = Messages(output_messages)
             if not output_messages.messages:
                 return None, None
-            span._set_ctx_item(OUTPUT_MESSAGES, output_messages.messages)
+            llmobs_span_data["meta"]["output"]["messages"] = output_messages.messages
         except TypeError:
             return "Failed to parse output messages.", "invalid_io_messages"
         return None, None
 
     @classmethod
-    def _tag_embedding_io(cls, span, input_documents=None, output_text=None) -> Tuple[Optional[str], Optional[str]]:
-        """Tags input documents and output text for embedding-kind spans.
-        Will be mapped to span's `meta.{input,output}.text` fields.
-        """
+    def _tag_embedding_io(cls, llmobs_span_data: LLMObsSpanData, input_documents=None, output_text=None) -> Tuple[Optional[str], Optional[str]]:
+        """Tags input documents and output text for embedding-kind spans."""
         if input_documents is not None:
             try:
                 if not isinstance(input_documents, Documents):
                     input_documents = Documents(input_documents)
                 if input_documents.documents:
-                    span._set_ctx_item(INPUT_DOCUMENTS, input_documents.documents)
+                    llmobs_span_data["meta"]["input"]["documents"] = input_documents.documents
             except TypeError:
                 return "Failed to parse input documents.", "invalid_embedding_io"
         if output_text is None:
             return None, None
-        span._set_ctx_item(OUTPUT_VALUE, str(output_text))
+        llmobs_span_data["meta"]["output"]["value"] = str(output_text)
         return None, None
 
     @classmethod
-    def _tag_retrieval_io(cls, span, input_text=None, output_documents=None) -> Tuple[Optional[str], Optional[str]]:
-        """Tags input text and output documents for retrieval-kind spans.
-        Will be mapped to span's `meta.{input,output}.text` fields.
-        """
+    def _tag_retrieval_io(cls, llmobs_span_data: LLMObsSpanData, input_text=None, output_documents=None) -> Tuple[Optional[str], Optional[str]]:
+        """Tags input text and output documents for retrieval-kind spans."""
         if input_text is not None:
-            span._set_ctx_item(INPUT_VALUE, safe_json(input_text))
+            llmobs_span_data["meta"]["input"]["value"] = safe_json(input_text)
         if output_documents is None:
             return None, None
         try:
@@ -1938,42 +1961,39 @@ class LLMObs(Service):
                 output_documents = Documents(output_documents)
             if not output_documents.documents:
                 return None, None
-            span._set_ctx_item(OUTPUT_DOCUMENTS, output_documents.documents)
+            llmobs_span_data["meta"]["output"]["documents"] = output_documents.documents
         except TypeError:
             return "Failed to parse output documents.", "invalid_retrieval_io"
         return None, None
 
     @classmethod
-    def _tag_text_io(cls, span, input_value=None, output_value=None):
-        """Tags input/output values for non-LLM kind spans.
-        Will be mapped to span's `meta.{input,output}.values` fields.
-        """
+    def _tag_text_io(cls, llmobs_span_data: LLMObsSpanData, input_value=None, output_value=None):
+        """Tags input/output values for non-LLM kind spans."""
         if input_value is not None:
-            span._set_ctx_item(INPUT_VALUE, safe_json(input_value))
+            llmobs_span_data["meta"]["input"]["value"] = safe_json(input_value)
         if output_value is not None:
-            span._set_ctx_item(OUTPUT_VALUE, safe_json(output_value))
+            llmobs_span_data["meta"]["output"]["value"] = safe_json(output_value)
 
     @classmethod
-    def _tag_freeform_io(cls, span, input_value=None, output_value=None):
+    def _tag_freeform_io(cls, llmobs_span_data: LLMObsSpanData, input_value=None, output_value=None):
         """Tags input/output values for experient spans.
-        Will be mapped to span's `meta.{input,output}` fields.
-        this is meant to be non restrictive on user's data, experiments allow
-        arbitrary structured or non structured IO values in its spans
+        This is meant to be non-restrictive on user's data, experiments allow
+        arbitrary structured or non-structured IO values in its spans
         """
         if input_value is not None:
-            span._set_ctx_item(EXPERIMENTS_INPUT, input_value)
+            llmobs_span_data["meta"]["input"] = safe_json(input_value)
         if output_value is not None:
-            span._set_ctx_item(EXPERIMENTS_OUTPUT, output_value)
+            llmobs_span_data["meta"]["output"] = safe_json(output_value)
 
     @staticmethod
-    def _set_dict_attribute(span: Span, key, value: Dict[str, Any]) -> None:
+    def _set_dict_attribute(llmobs_span_data: LLMObsSpanData, key: str, value: Dict[str, Any]) -> None:
         """Sets a given LLM Obs span attribute with a dictionary key/values.
         If the attribute is already set on the span, the new dict with be merged with the existing
         dict.
         """
-        existing_value = span._get_ctx_item(key) or {}
+        existing_value = llmobs_span_data.setdefault(key, {})
         existing_value.update(value)
-        span._set_ctx_item(key, existing_value)
+        llmobs_span_data[key] = existing_value
 
     @classmethod
     def submit_evaluation(
