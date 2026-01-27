@@ -176,7 +176,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // Perform the sample
         for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
             for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
-                auto success = thread.sample(interp.id, tstate, wall_time_us);
+                auto success = thread.sample(*echion, interp.id, tstate, wall_time_us);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
                 }
@@ -233,8 +233,11 @@ Sampler::postfork_child()
 {
     // Clear stale task/greenlet entries from parent process.
     // No lock needed: only one thread exists in child immediately after fork.
-    task_link_map.clear();
-    greenlet_info_map.clear();
+
+    // Clear stale echion state (mutexes, maps) from parent process
+    if (echion) {
+        echion->postfork_child();
+    }
 
     auto& thread_info_map = echion->thread_info_map();
 
@@ -270,10 +273,6 @@ Sampler::postfork_child()
     if (renderer_ptr) {
         renderer_ptr->postfork_child();
     }
-
-    if (echion) {
-        echion->postfork_child();
-    }
 }
 
 void
@@ -287,12 +286,8 @@ _stack_atfork_child()
     // Clear renderer caches to avoid using stale interned IDs
     Sampler::get().postfork_child();
 
-    // `task_link_map_lock` is a global lock held in echion
-    // NB placement-new to re-init and leak the mutex because doing anything else is UB
-    new (&task_link_map_lock) std::mutex;
-    new (&greenlet_info_map_lock) std::mutex;
-
     // Reset the string_table mutex to avoid deadlock if fork happened while it was held
+    // Note: task_link_map_lock and greenlet_info_map_lock are handled in EchionSampler::postfork_child
     string_table.postfork_child();
 }
 
@@ -403,37 +398,31 @@ Sampler::track_asyncio_loop(uintptr_t thread_id, PyObject* loop)
 }
 
 void
-Sampler::init_asyncio(PyObject* _asyncio_current_tasks,
-                      PyObject* _asyncio_scheduled_tasks,
-                      PyObject* _asyncio_eager_tasks)
+Sampler::init_asyncio(PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eager_tasks)
 {
-    asyncio_current_tasks = _asyncio_current_tasks;
-    asyncio_scheduled_tasks = _asyncio_scheduled_tasks;
-    asyncio_eager_tasks = _asyncio_eager_tasks;
-    if (asyncio_eager_tasks == Py_None) {
-        asyncio_eager_tasks = NULL;
-    }
+    echion->init_asyncio(_asyncio_scheduled_tasks, _asyncio_eager_tasks);
 }
 
 void
 Sampler::link_tasks(PyObject* parent, PyObject* child)
 {
-    std::lock_guard<std::mutex> guard(task_link_map_lock);
-    task_link_map[child] = parent;
+    std::lock_guard<std::mutex> guard(echion->task_link_map_lock());
+    echion->task_link_map()[child] = parent;
 }
 
 void
 Sampler::weak_link_tasks(PyObject* parent, PyObject* child)
 {
-    std::lock_guard<std::mutex> guard(task_link_map_lock);
-    weak_task_link_map[child] = parent;
+    std::lock_guard<std::mutex> guard(echion->task_link_map_lock());
+    echion->weak_task_link_map()[child] = parent;
 }
 
 void
 Sampler::track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* frame)
 {
-    const std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
+    const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
 
+    auto& greenlet_info_map = echion->greenlet_info_map();
     auto entry = greenlet_info_map.find(greenlet_id);
     if (entry != greenlet_info_map.end()) {
         // Greenlet is already tracked so we update its info
@@ -444,32 +433,33 @@ Sampler::track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* 
 
     // Update the thread map
     auto native_id = PyThread_get_thread_native_id();
-    greenlet_thread_map[native_id] = greenlet_id;
+    echion->greenlet_thread_map()[native_id] = greenlet_id;
 }
 
 void
 Sampler::untrack_greenlet(uintptr_t greenlet_id)
 {
-    const std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
+    const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
 
-    greenlet_info_map.erase(greenlet_id);
-    greenlet_parent_map.erase(greenlet_id);
-    greenlet_thread_map.erase(greenlet_id);
+    echion->greenlet_info_map().erase(greenlet_id);
+    echion->greenlet_parent_map().erase(greenlet_id);
+    echion->greenlet_thread_map().erase(greenlet_id);
 }
 
 void
 Sampler::link_greenlets(uintptr_t parent, uintptr_t child)
 {
-    std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
+    std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
 
-    greenlet_parent_map[child] = parent;
+    echion->greenlet_parent_map()[child] = parent;
 }
 
 void
 Sampler::update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame)
 {
-    std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
+    std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
 
+    auto& greenlet_info_map = echion->greenlet_info_map();
     auto entry = greenlet_info_map.find(greenlet_id);
     if (entry != greenlet_info_map.end()) {
         // Update the frame of the greenlet
