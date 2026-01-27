@@ -21,8 +21,13 @@ def test_basic_creation():
     assert span.service is None
 
 
-def test_creation_with_all_params():
-    """SpanData can be created with all constructor parameters."""
+def test_creation_accepts_extra_kwargs():
+    """SpanData accepts extra kwargs without error (for subclass compatibility).
+
+    Since SpanData.__new__ accepts *args/**kwargs, subclasses (like Span) can pass
+    additional parameters without needing to override __new__. SpanData only uses
+    'name' and 'service'; other parameters are ignored but don't raise errors.
+    """
     span = SpanData(
         name="test.span",
         service="test-service",
