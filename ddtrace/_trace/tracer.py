@@ -128,6 +128,9 @@ class Tracer(object):
         # globally set tags
         self._tags = config.tags.copy()
 
+        # Stores custom wrappers executed by tracer.wrap()
+        self._wrap_executor = None
+
         # Runtime id used for associating data collected during runtime to
         # traces
         self._pid = getpid()
@@ -710,7 +713,7 @@ class Tracer(object):
 
         @functools.wraps(f)
         def func_wrapper(*args, **kwargs):
-            if getattr(self, "_wrap_executor", None):
+            if self._wrap_executor is not None:
                 return self._wrap_executor(
                     self,
                     f,
@@ -837,7 +840,7 @@ class Tracer(object):
                 def func_wrapper(*args, **kwargs):
                     # if a wrap executor has been configured, it is used instead
                     # of the default tracing function
-                    if getattr(self, "_wrap_executor", None):
+                    if self._wrap_executor is not None:
                         return self._wrap_executor(
                             self,
                             f,
@@ -878,6 +881,8 @@ class Tracer(object):
                 if processor:
                     processor.shutdown(timeout)
             self.enabled = False
+            self._wrap_executor = None
+            self.context_provider.activate(None)
             if self.start_span != self._start_span_after_shutdown:
                 # Ensure that tracer exit hooks are registered and unregistered once per instance
                 forksafe.unregister_before_fork(self._sample_before_fork)

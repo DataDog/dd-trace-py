@@ -271,7 +271,7 @@ push_pyframe_to_sample(Datadog::Sample& sample, PyFrameObject* frame)
         filename_sv = unicode_to_string_view(code->co_filename);
     }
 
-    // Push frame to Sample (root to leaf order)
+    // Push frame to Sample (leaf to root order)
     // push_frame copies the strings immediately into its StringArena
     sample.push_frame(name_sv, filename_sv, 0, lineno_val);
 
@@ -343,26 +343,18 @@ traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
     // Push allocation info to sample
     // Note: profile_state is initialized in memalloc_start() before any traceback_t objects are created
     sample.push_alloc(weighted_size, count);
-    // Push heap info - use actual size (not weighted) for heap tracking
-    // TODO(dsn): figure out if this actually makes sense, or if we should use the weighted size
-    sample.push_heap(size);
 
     // Get thread native_id and name from Python's threading module and push to sample
     push_threadinfo_to_sample(sample);
 
     // Collect frames from the Python frame chain and push to Sample
-    // We push frames as we collect them (root to leaf order).
-    // Note: Sample.push_frame() comment says it "Assumes frames are pushed in leaf-order",
-    // but we push root-to-leaf. Set reverse_locations so the sample will be reversed when exported.
     // Note: Sample.push_frame() automatically enforces the max_nframe limit and tracks dropped frames.
-    sample.set_reverse_locations(true);
     push_stacktrace_to_sample_invokes_cpython(sample);
 }
 
 // AIDEV-NOTE: Constructor invokes CPython APIs via init_sample_invokes_cpython()
 traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe)
-  : reported(false)
-  , sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
+  : sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
 {
     // Validate Sample object is in a valid state before use
     if (max_nframe == 0) {
@@ -370,13 +362,5 @@ traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe)
         return;
     }
 
-    init_sample_invokes_cpython(size, weighted_size);
-}
-
-void
-traceback_t::reset_invokes_cpython(size_t size, size_t weighted_size)
-{
-    sample.clear_buffers();
-    reported = false;
     init_sample_invokes_cpython(size, weighted_size);
 }

@@ -191,6 +191,15 @@ class TestRun(TestItem["Test", t.NoReturn]):
     def get_browser_driver(self) -> t.Optional[str]:
         return self.tags.get(TestTag.BROWSER_DRIVER)
 
+    def set_final_status(self, final_status: TestStatus) -> None:
+        """Set the final status tag on the test run.
+
+        This tag indicates the ultimate outcome of the test, especially useful
+        when retries are involved. For single test runs, it matches test.status.
+        For retry scenarios, only the last retry gets this tag.
+        """
+        self.tags[TestTag.FINAL_STATUS] = final_status.value
+
 
 class Test(TestItem["TestSuite", "TestRun"]):
     __test__ = False
@@ -231,7 +240,8 @@ class Test(TestItem["TestSuite", "TestRun"]):
 
     def set_location(self, path: t.Union[os.PathLike[t.Any], str], start_line: int) -> None:
         self.tags[TestTag.SOURCE_FILE] = str(path)
-        self.metrics[TestTag.SOURCE_START] = start_line
+        if start_line:
+            self.tags[TestTag.SOURCE_START] = str(start_line)
 
     def get_source_file(self) -> t.Optional[str]:
         return self.tags.get(TestTag.SOURCE_FILE)
@@ -390,6 +400,7 @@ class TestTag:
     IS_RETRY = "test.is_retry"
     RETRY_REASON = "test.retry_reason"
     HAS_FAILED_ALL_RETRIES = "test.has_failed_all_retries"
+    FINAL_STATUS = "test.final_status"
 
     XFAIL_REASON = "pytest.xfail.reason"
     TEST_RESULT = "test.result"  # used for xfail/xpass
@@ -408,6 +419,7 @@ class TestTag:
 
     SOURCE_FILE = "test.source.file"
     SOURCE_START = "test.source.start"
+    SOURCE_END = "test.source.end"
 
     CODEOWNERS = "test.codeowners"
 
