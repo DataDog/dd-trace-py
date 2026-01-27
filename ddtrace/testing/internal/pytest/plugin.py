@@ -268,7 +268,7 @@ class TestOptPlugin:
         # Use simplified coverage integration
         from ddtrace.contrib.internal.coverage_integration import CoverageIntegration
 
-        coverage_integration = CoverageIntegration(session_manager=self.session)
+        coverage_integration = CoverageIntegration(session_manager=self.session, env_tags=self.manager.env_tags)
         coverage_integration.initialize()
         coverage_integration.handle_session_finish(session.config)
 

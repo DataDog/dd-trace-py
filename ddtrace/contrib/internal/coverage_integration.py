@@ -23,6 +23,13 @@ from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_cove
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.testing.internal.coverage_telemetry_constants import (
+    CODE_COVERAGE_FILES,
+    COVERAGE_UPLOAD_REQUEST,
+    COVERAGE_UPLOAD_REQUEST_BYTES,
+    COVERAGE_UPLOAD_REQUEST_ERRORS,
+    COVERAGE_UPLOAD_REQUEST_MS,
+)
 
 
 log = get_logger(__name__)
@@ -49,7 +56,18 @@ def is_coverage_upload_enabled() -> bool:
 def capture_coverage_instance_from_pytest_cov(session) -> t.Optional[t.Any]:
     """Capture coverage.py instance from pytest-cov plugin."""
     try:
-        pytest_cov_plugin = session.config.pluginmanager.get_plugin("pytest_cov")
+        # Handle both V2 (config object) and V3 (session object) plugin interfaces
+        if hasattr(session, 'config') and hasattr(session.config, 'pluginmanager'):
+            # V3 plugin: session.config.pluginmanager
+            pluginmanager = session.config.pluginmanager
+        elif hasattr(session, 'pluginmanager'):
+            # V2 plugin: session.pluginmanager (session is actually config)
+            pluginmanager = session.pluginmanager
+        else:
+            log.debug("Could not find pluginmanager in session object")
+            return None
+            
+        pytest_cov_plugin = pluginmanager.get_plugin("pytest_cov")
         if not pytest_cov_plugin:
             return None
 
@@ -72,9 +90,10 @@ def capture_coverage_instance_from_pytest_cov(session) -> t.Optional[t.Any]:
 class CoverageIntegration:
     """Simplified coverage integration for pytest plugins."""
 
-    def __init__(self, telemetry_writer=None, session_manager=None):
+    def __init__(self, telemetry_writer=None, session_manager=None, env_tags=None):
         self.telemetry_writer = telemetry_writer
         self.session_manager = session_manager
+        self.env_tags = env_tags or {}
         self._coverage_instance = None
         self._initialized = False
 
@@ -196,7 +215,10 @@ class CoverageIntegration:
                 return None
 
             content = "\n".join(lcov_lines) + "\n"
-            log.debug("Generated LCOV report: %d bytes", len(content))
+            # Count files that had valid coverage data
+            files_with_coverage = len([line for line in lcov_lines if line.startswith("SF:")])
+            self._record_telemetry(CODE_COVERAGE_FILES, files_with_coverage)
+            log.debug("Generated LCOV report: %d bytes for %d files", len(content), files_with_coverage)
             return content.encode("utf-8")
 
         except Exception:
@@ -206,6 +228,7 @@ class CoverageIntegration:
     def _upload_report(self, report_data: bytes, report_format: str):
         """Upload coverage report to intake."""
         try:
+            start_time = time.time()
             # Get connector
             connector = self._get_connector()
             if not connector:
@@ -215,12 +238,8 @@ class CoverageIntegration:
             # Compress report
             compressed = self._compress_data(report_data)
 
-            # Create event JSON
-            event = {
-                "type": "coverage_report",
-                "format": report_format,
-                "timestamp": int(time.time() * 1000),
-            }
+            # Create event JSON with git and CI tags
+            event = self._create_coverage_report_event(report_format)
             event_json = json.dumps(event, separators=(",", ":")).encode("utf-8")
 
             # Upload files
@@ -231,8 +250,8 @@ class CoverageIntegration:
                 self._create_file_attachment("event", "event.json", "application/json", event_json),
             ]
 
-            self._record_telemetry("coverage.upload.attempt", 1, {"format": report_format})
-            self._record_telemetry("coverage.upload.request_size", len(compressed) + len(event_json))
+            self._record_telemetry(COVERAGE_UPLOAD_REQUEST, 1, {"format": report_format})
+            self._record_telemetry(COVERAGE_UPLOAD_REQUEST_BYTES, len(compressed) + len(event_json))
 
             log.debug("Uploading %d bytes to %s", len(compressed) + len(event_json), COVERAGE_INTAKE_ENDPOINT)
 
@@ -240,14 +259,15 @@ class CoverageIntegration:
 
             if hasattr(result, "error_type") and result.error_type:
                 log.error("Coverage upload failed: %s", result.error_type)
-                self._record_telemetry("coverage.upload.error", 1, {"error": result.error_type})
+                self._record_telemetry(COVERAGE_UPLOAD_REQUEST_ERRORS, 1, {"error": result.error_type})
             else:
                 log.debug("Coverage upload successful")
-                self._record_telemetry("coverage.upload.success", 1, {"format": report_format})
+                duration_ms = (time.time() - start_time) * 1000
+                self._record_telemetry(COVERAGE_UPLOAD_REQUEST_MS, duration_ms)
 
         except Exception:
             log.exception("Exception during coverage upload")
-            self._record_telemetry("coverage.upload.error", 1, {"error": "exception"})
+            self._record_telemetry(COVERAGE_UPLOAD_REQUEST_ERRORS, 1, {"error": "exception"})
 
     def _compress_data(self, data: bytes) -> bytes:
         """Compress data using gzip."""
@@ -302,3 +322,63 @@ class CoverageIntegration:
 
         except Exception:
             log.debug("Failed to record telemetry", exc_info=True)
+
+    def _create_coverage_report_event(self, report_format: str) -> dict:
+        """Create the event JSON for the coverage report upload with git and CI tags."""
+        event = {
+            "type": "coverage_report",
+            "format": report_format,
+            "timestamp": int(time.time() * 1000),
+        }
+
+        # Import git and CI tag constants
+        try:
+            from ddtrace.testing.internal.git import GitTag
+            from ddtrace.testing.internal.ci import CITag
+        except ImportError:
+            log.debug("Could not import GitTag/CITag constants")
+            return event
+
+        # Add git tags
+        git_tags = [
+            GitTag.REPOSITORY_URL,
+            GitTag.COMMIT_SHA,  
+            GitTag.BRANCH,
+            GitTag.TAG,
+            GitTag.COMMIT_MESSAGE,
+            GitTag.COMMIT_AUTHOR_NAME,
+            GitTag.COMMIT_AUTHOR_EMAIL, 
+            GitTag.COMMIT_AUTHOR_DATE,
+            GitTag.COMMIT_COMMITTER_NAME,
+            GitTag.COMMIT_COMMITTER_EMAIL,
+            GitTag.COMMIT_COMMITTER_DATE,
+        ]
+        
+        for git_tag in git_tags:
+            if git_tag in self.env_tags:
+                event[git_tag] = self.env_tags[git_tag]
+
+        # Add CI tags
+        ci_tags = [
+            CITag.PROVIDER_NAME,
+            CITag.PIPELINE_ID,
+            CITag.PIPELINE_NAME, 
+            CITag.PIPELINE_NUMBER,
+            CITag.PIPELINE_URL,
+            CITag.JOB_NAME,
+            CITag.JOB_URL,
+            CITag.STAGE_NAME,
+            CITag.WORKSPACE_PATH,
+            CITag.NODE_NAME,
+            CITag.NODE_LABELS,
+        ]
+        
+        for ci_tag in ci_tags:
+            if ci_tag in self.env_tags:
+                event[ci_tag] = self.env_tags[ci_tag]
+
+        # Add PR number if available
+        if "git.pull_request.number" in self.env_tags:
+            event["pr.number"] = self.env_tags["git.pull_request.number"]
+
+        return event

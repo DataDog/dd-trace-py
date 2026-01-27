@@ -954,8 +954,10 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     # Use simplified coverage integration
     from ddtrace.contrib.internal.coverage_integration import CoverageIntegration
     from ddtrace.internal.telemetry import telemetry_writer
+    from ddtrace.testing.internal.env_tags import get_env_tags
 
-    coverage_integration = CoverageIntegration(telemetry_writer=telemetry_writer)
+    env_tags = get_env_tags()
+    coverage_integration = CoverageIntegration(telemetry_writer=telemetry_writer, env_tags=env_tags)
     coverage_integration.initialize()
     coverage_integration.handle_session_finish(session.config, InternalTestSession.get_span())
 
