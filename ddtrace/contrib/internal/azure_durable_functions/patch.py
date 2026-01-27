@@ -1,10 +1,12 @@
 from typing import Dict
 
+from wrapt import wrap_function_wrapper as _w
+
+
 try:
     import azure.durable_functions as durable_functions
 except Exception:
     durable_functions = None
-from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
