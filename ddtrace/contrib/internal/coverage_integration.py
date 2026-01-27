@@ -232,40 +232,23 @@ class CoverageInstanceProvider:
         return None
 
     def _get_coverage_include_patterns(self, config) -> t.List[str]:
-        """Get coverage include patterns based on test configuration."""
+        """Get coverage include patterns from existing coverage config, fallback to **/*.py."""
         try:
             cwd = Path.cwd()
-            patterns = []
 
-            try:
-                # Look for common source directories, avoid any operations that might trigger git commands
-                common_dirs = ["src", "lib", "app", "ddtrace"]  # Use common names instead of cwd.name
-                for dir_name in common_dirs:
-                    dir_path = cwd / dir_name
-                    if dir_path.exists() and dir_path.is_dir():
-                        patterns.append(str(dir_path / "*.py"))
-                        patterns.append(str(dir_path / "*" / "*.py"))
+            # Check if there's existing coverage config
+            patterns = self._get_patterns_from_existing_coverage_config(cwd)
+            if patterns:
+                log.debug("Using patterns from existing coverage config: %s", patterns)
+                return patterns
 
-                # If no common directories found, use current directory
-                if not patterns:
-                    patterns = [
-                        str(cwd / "*.py"),
-                        str(cwd / "*" / "*.py"),
-                    ]
-
-            except Exception:
-                # Fallback to current directory
-                patterns = [
-                    str(cwd / "*.py"),
-                    str(cwd / "*" / "*.py"),
-                ]
-
-            return patterns
+            # Fallback to broad coverage
+            log.debug("No existing coverage config found, using fallback: **/*.py")
+            return ["**/*.py"]
 
         except Exception:
-            # Ultimate fallback - minimal pattern to avoid any issues
-            log.debug("Failed to determine coverage patterns, using minimal fallback", exc_info=True)
-            return ["*.py", "*/*.py"]
+            log.debug("Failed to determine coverage patterns", exc_info=True)
+            return ["**/*.py"]
 
     def _is_pytest_cov_enabled_for_config(self, config) -> bool:
         """Check if pytest-cov is enabled for the given config."""
@@ -288,6 +271,100 @@ class CoverageInstanceProvider:
         except Exception:
             log.debug("Could not determine pytest-cov status", exc_info=True)
             return False
+
+    def _get_patterns_from_existing_coverage_config(self, cwd: Path) -> t.List[str]:
+        """Get patterns from existing coverage configuration files."""
+        patterns = []
+
+        try:
+            # Check .coveragerc
+            coveragerc = cwd / ".coveragerc"
+            if coveragerc.exists():
+                patterns.extend(self._parse_coveragerc_patterns(coveragerc))
+
+            # Check pyproject.toml
+            if not patterns:
+                pyproject = cwd / "pyproject.toml"
+                if pyproject.exists():
+                    patterns.extend(self._parse_pyproject_coverage_patterns(pyproject))
+
+            # Check setup.cfg
+            if not patterns:
+                setup_cfg = cwd / "setup.cfg"
+                if setup_cfg.exists():
+                    patterns.extend(self._parse_setup_cfg_coverage_patterns(setup_cfg))
+
+        except Exception:
+            log.debug("Failed to read existing coverage config", exc_info=True)
+
+        return patterns
+
+    def _parse_coveragerc_patterns(self, coveragerc_path: Path) -> t.List[str]:
+        """Parse source patterns from .coveragerc file."""
+        try:
+            import configparser
+
+            config = configparser.ConfigParser()
+            config.read(coveragerc_path)
+
+            if config.has_option("run", "source"):
+                sources = [s.strip() for s in config.get("run", "source").split(",") if s.strip()]
+                return [f"{source}/**/*.py" for source in sources]
+
+        except Exception:
+            log.debug("Failed to parse .coveragerc", exc_info=True)
+
+        return []
+
+    def _parse_pyproject_coverage_patterns(self, pyproject_path: Path) -> t.List[str]:
+        """Parse source patterns from pyproject.toml coverage config."""
+        try:
+            try:
+                import tomllib  # Python 3.11+
+            except ImportError:
+                try:
+                    import tomli as tomllib  # fallback
+                except ImportError:
+                    return []
+
+            with open(pyproject_path, "rb") as f:
+                data = tomllib.load(f)
+
+            patterns = []
+
+            # Check tool.coverage.run.source
+            coverage_config = data.get("tool", {}).get("coverage", {}).get("run", {})
+            sources = coverage_config.get("source", [])
+
+            if isinstance(sources, str):
+                sources = [sources]
+
+            for source in sources:
+                patterns.append(f"{source}/**/*.py")
+
+            return patterns
+
+        except Exception:
+            log.debug("Failed to parse pyproject.toml coverage config", exc_info=True)
+
+        return []
+
+    def _parse_setup_cfg_coverage_patterns(self, setup_cfg_path: Path) -> t.List[str]:
+        """Parse source patterns from setup.cfg coverage config."""
+        try:
+            import configparser
+
+            config = configparser.ConfigParser()
+            config.read(setup_cfg_path)
+
+            if config.has_section("coverage:run") and config.has_option("coverage:run", "source"):
+                sources = [s.strip() for s in config.get("coverage:run", "source").split(",") if s.strip()]
+                return [f"{source}/**/*.py" for source in sources]
+
+        except Exception:
+            log.debug("Failed to parse setup.cfg coverage config", exc_info=True)
+
+        return []
 
 
 class CoveragePercentageHandler:
