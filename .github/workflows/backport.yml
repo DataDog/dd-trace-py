@@ -71,6 +71,7 @@ jobs:
           branch-from: ${{ steps.create-commit.outputs.branch-from }}
           command: push
           commits: ${{ steps.create-commit.outputs.commit }}
+          force: true
 
       - name: Create PR
         env:
@@ -78,6 +79,6 @@ jobs:
         run: |
           gh pr create \
             --title "${{ github.event.pull_request.title }} [backport ${{ steps.create-commit.outputs.target-branch }}]" \
-            --body "Backport ${{ github.event.pull_request.number }} to ${{ steps.create-commit.outputs.target-branch }}" \
+            --body "Backport #${{ github.event.pull_request.number }} to ${{ steps.create-commit.outputs.target-branch }}" \
             --base ${{ steps.create-commit.outputs.target-branch }} \
             --head ${{ steps.create-commit.outputs.branch }} \
