@@ -1,3 +1,3 @@
 fixes:
   - |
-    LLM Observability: This fix addresses an issue where the types accepted for the evaluators argument of LLMObs.experiment was overly constrained due to the use of an invariant type, List. The argument now uses the Sequence type, which is covariant, allowing the user to pass in a list of evaluator functions with narrower return type, for example. 
+    LLM Observability: This fix addresses an issue where the evaluators argument type for ``LLMObs.experiment`` was overly constrained due to the use of an invariant List type. The argument now uses the covariant Sequence type, allowing users to pass in a list of evaluator functions with narrower return type. 
