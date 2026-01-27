@@ -78,8 +78,8 @@ jobs:
         run: |
           COMMAND=" \
            gh pr create \
-             --title "${{ github.event.pull_request.title }} [backport ${{ steps.create-commit.outputs.target-branch }}]" \
-             --body "Backport ${{ github.event.pull_request.number }} to ${{ steps.create-commit.outputs.target-branch }}" \
+             --title \\"${{ github.event.pull_request.title }} [backport ${{ steps.create-commit.outputs.target-branch }}]\\" \
+             --body \\"Backport #${{ github.event.pull_request.number }} to ${{ steps.create-commit.outputs.target-branch }}\\" \
              --base ${{ steps.create-commit.outputs.target-branch }} \
              --head ${{ steps.create-commit.outputs.branch }} \
           "
