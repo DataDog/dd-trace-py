@@ -178,7 +178,7 @@ class SpanCodeOriginProcessorEntry:
         if isinstance(f, MethodType):
             f = t.cast(FunctionType, f.__func__)
         if not _isinstance(f, FunctionType):
-            log.warning("Cannot instrument view %r: not a function", f)
+            log.debug("Cannot instrument view %r: not a function", f)
             return
 
         with cls._lock:
