@@ -983,8 +983,15 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     from ddtrace.contrib.internal.coverage_integration import CoverageIntegration
     from ddtrace.internal.telemetry import telemetry_writer
     from ddtrace.testing.internal.env_tags import get_env_tags
+    from ddtrace.testing.internal.telemetry import TelemetryAPI
+    from ddtrace.testing.internal.http import BackendConnectorSetup
 
     global _early_coverage_integration
+
+    # Initialize telemetry API before calling get_env_tags() to avoid RuntimeError
+    if not TelemetryAPI._instance:
+        connector_setup = BackendConnectorSetup.detect_setup()
+        TelemetryAPI(connector_setup=connector_setup)
 
     # Get env_tags once and reuse across both paths to avoid duplicate git command execution
     env_tags = get_env_tags()
