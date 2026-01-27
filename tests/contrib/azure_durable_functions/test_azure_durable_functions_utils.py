@@ -15,7 +15,8 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cloud_faas_operation
-from tests.utils import DummyTracer
+from tests.utils import TracerSpanContainer
+from tests.utils import scoped_tracer
 
 
 class _StubTrigger:
@@ -49,79 +50,79 @@ def _make_pin(tracer):
 
 
 def test_activity_trigger_wrapper_sync():
-    tracer = DummyTracer()
-    pin = _make_pin(tracer)
+    with scoped_tracer() as tracer:
+        pin = _make_pin(tracer)
 
-    def activity(name):
-        return f"activity:{name}"
+        def activity(name):
+            return f"activity:{name}"
 
-    trigger_name, context_name = _DURABLE_TRIGGER_DEFS[_DURABLE_ACTIVITY_TRIGGER]
-    wrapped = _wrap_durable_trigger(pin, activity, "sample_activity", trigger_name, context_name)
+        trigger_name, context_name = _DURABLE_TRIGGER_DEFS[_DURABLE_ACTIVITY_TRIGGER]
+        wrapped = _wrap_durable_trigger(pin, activity, "sample_activity", trigger_name, context_name)
 
-    assert wrapped("test") == "activity:test"
+        assert wrapped("test") == "activity:test"
 
-    spans = tracer.pop()
-    assert len(spans) == 1
-    span = spans[0]
+        spans = TracerSpanContainer(tracer).pop()
+        assert len(spans) == 1
+        span = spans[0]
 
-    expected_name = schematize_cloud_faas_operation(
-        "azure.durable_functions.invoke", cloud_provider="azure", cloud_service="functions"
-    )
-    assert span.name == expected_name
-    assert span.service == int_service(pin, config.azure_durable_functions)
-    assert span.resource == "Activity sample_activity"
-    assert span.span_type == SpanTypes.SERVERLESS
-    assert span.get_tag(COMPONENT) == "azure_durable_functions"
-    assert span.get_tag("aas.function.name") == "sample_activity"
-    assert span.get_tag("aas.function.trigger") == "Activity"
-    assert span.get_tag(SPAN_KIND) == SpanKind.INTERNAL
+        expected_name = schematize_cloud_faas_operation(
+            "azure.durable_functions.invoke", cloud_provider="azure", cloud_service="functions"
+        )
+        assert span.name == expected_name
+        assert span.service == int_service(pin, config.azure_durable_functions)
+        assert span.resource == "Activity sample_activity"
+        assert span.span_type == SpanTypes.SERVERLESS
+        assert span.get_tag(COMPONENT) == "azure_durable_functions"
+        assert span.get_tag("aas.function.name") == "sample_activity"
+        assert span.get_tag("aas.function.trigger") == "Activity"
+        assert span.get_tag(SPAN_KIND) == SpanKind.INTERNAL
 
 
 def test_entity_trigger_wrapper_async():
-    tracer = DummyTracer()
-    pin = _make_pin(tracer)
+    with scoped_tracer() as tracer:
+        pin = _make_pin(tracer)
 
-    async def entity():
-        return "ok"
+        async def entity():
+            return "ok"
 
-    trigger_name, context_name = _DURABLE_TRIGGER_DEFS[_DURABLE_ENTITY_TRIGGER]
-    wrapped = _wrap_durable_trigger(pin, entity, "sample_entity", trigger_name, context_name)
+        trigger_name, context_name = _DURABLE_TRIGGER_DEFS[_DURABLE_ENTITY_TRIGGER]
+        wrapped = _wrap_durable_trigger(pin, entity, "sample_entity", trigger_name, context_name)
 
-    assert asyncio.run(wrapped()) == "ok"
+        assert asyncio.run(wrapped()) == "ok"
 
-    spans = tracer.pop()
-    assert len(spans) == 1
-    span = spans[0]
+        spans = TracerSpanContainer(tracer).pop()
+        assert len(spans) == 1
+        span = spans[0]
 
-    assert span.resource == "Entity sample_entity"
-    assert span.get_tag("aas.function.trigger") == "Entity"
-    assert span.get_tag(SPAN_KIND) == SpanKind.INTERNAL
+        assert span.resource == "Entity sample_entity"
+        assert span.get_tag("aas.function.trigger") == "Entity"
+        assert span.get_tag(SPAN_KIND) == SpanKind.INTERNAL
 
 
 def test_patched_get_functions_wraps_activity_and_entity_only():
-    tracer = DummyTracer()
-    pin = _make_pin(tracer)
+    with scoped_tracer() as tracer:
+        pin = _make_pin(tracer)
 
-    class _StubInstance:
-        pass
+        class _StubInstance:
+            pass
 
-    instance = _StubInstance()
-    pin.onto(instance)
+        instance = _StubInstance()
+        pin.onto(instance)
 
-    def user_func():
-        return "ok"
+        def user_func():
+            return "ok"
 
-    activity_fn = _StubFunction("activity", _StubTrigger(_DURABLE_ACTIVITY_TRIGGER), user_func)
-    entity_fn = _StubFunction("entity", _StubTrigger(_DURABLE_ENTITY_TRIGGER), user_func)
-    orchestration_fn = _StubFunction("orchestrator", _StubTrigger(_DURABLE_ORCHESTRATION_TRIGGER), user_func)
-    no_trigger_fn = _StubFunction("no_trigger", None, user_func)
+        activity_fn = _StubFunction("activity", _StubTrigger(_DURABLE_ACTIVITY_TRIGGER), user_func)
+        entity_fn = _StubFunction("entity", _StubTrigger(_DURABLE_ENTITY_TRIGGER), user_func)
+        orchestration_fn = _StubFunction("orchestrator", _StubTrigger(_DURABLE_ORCHESTRATION_TRIGGER), user_func)
+        no_trigger_fn = _StubFunction("no_trigger", None, user_func)
 
-    def wrapped():
-        return [activity_fn, entity_fn, orchestration_fn, no_trigger_fn]
+        def wrapped():
+            return [activity_fn, entity_fn, orchestration_fn, no_trigger_fn]
 
-    functions = _patched_get_functions(wrapped, instance, (), {})
+        functions = _patched_get_functions(wrapped, instance, (), {})
 
-    assert functions[0]._func is not user_func
-    assert functions[1]._func is not user_func
-    assert functions[2]._func is user_func
-    assert functions[3]._func is user_func
+        assert functions[0]._func is not user_func
+        assert functions[1]._func is not user_func
+        assert functions[2]._func is user_func
+        assert functions[3]._func is user_func
