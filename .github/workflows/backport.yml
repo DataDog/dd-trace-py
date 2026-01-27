@@ -60,7 +60,7 @@ jobs:
           git cherry-pick -x --mainline 1 ${MERGE_COMMIT}
 
           echo "branch=${BACKPORT_BRANCH}" | tee -a "$GITHUB_OUTPUT"
-          echo "branch-from=${TARGET_BRANCH}" | tee -a "$GITHUB_OUTPUT"
+          echo "branch-from=$(git rev-parse ${TARGET_BRANCH})" | tee -a "$GITHUB_OUTPUT"
           echo "commit=$(git rev-parse HEAD)" | tee -a "$GITHUB_OUTPUT"
 
       - name: Push Commit
