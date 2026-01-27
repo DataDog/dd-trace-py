@@ -40,7 +40,7 @@ jobs:
         id: create-commit
         env:
           BACKPORT_LABEL: ${{ github.event.label.name }}
-          PR_NUMBER: ${{ github.event.pull_request.id }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_BRANCH: ${{ github.head_ref }}
           GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
         run: |
@@ -58,8 +58,6 @@ jobs:
           git switch --create ${BACKPORT_BRANCH}
           echo "cherrypicking"
           git cherry-pick -x --mainline 1 ${MERGE_COMMIT}
-          echo "pushing"
-          git push --set-upstream origin ${BACKPORT_BRANCH}
 
           echo "branch=${BACKPORT_BRANCH}" | tee -a "$GITHUB_OUTPUT"
           echo "branch-from=${TARGET_BRANCH}" | tee -a "$GITHUB_OUTPUT"
