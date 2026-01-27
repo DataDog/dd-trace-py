@@ -9,11 +9,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
-version = "4.1.0.dev0"
+version = "4.3.0rc1"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
-requires-python = ">=3.9"
+# ddtrace has many sub-components which can break when CPython internals
+# change over versions, .e.g. profiling. So we explicitly mark incompatibility
+# with versions we don't support yet.
+requires-python = ">=3.9,<3.15"
 authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
 ]
@@ -65,6 +68,7 @@ ddtrace = "ddtrace.testing.internal.pytest.entry_point"
 "exception-replay" = "ddtrace.debugging._products.exception_replay"
 "live-debugger" = "ddtrace.debugging._products.live_debugger"
 "error-tracking" = "ddtrace.errortracking.product"
+"openfeature" = "ddtrace.internal.openfeature.product"
 "remote-configuration" = "ddtrace.internal.remoteconfig.products.client"
 "symbol-database" = "ddtrace.internal.symbol_db.product"
 "appsec" = "ddtrace.internal.appsec.product"
@@ -142,6 +146,7 @@ exclude = [
     "tests/contrib/grpc/hello_pb2.py",
     "tests/contrib/django_celery/app/*",
     "tests/contrib/protobuf/schemas/**/*.py",
+    "tests/coverage/included_path/py39_line_numbers.py",
     "tests/appsec/iast/fixtures/ast/str/non_utf8_content.py",
     "tests/appsec/iast/fixtures/aspects/str/non_utf8_content.py",
     "tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py"

@@ -9,6 +9,7 @@ import uuid
 
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogLineProbe
+from ddtrace.debugging._safety import safe_getattr
 from ddtrace.debugging._session import Session
 from ddtrace.debugging._signal.snapshot import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._signal.snapshot import Snapshot
@@ -119,18 +120,22 @@ def unwind_exception_chain(
     exception is put first.
     """
     chain: ExceptionChain = deque()
+    seen: t.Set[int] = set()  # Track visited exceptions by id to detect cycles
 
-    while exc is not None:
+    while exc is not None and id(exc) not in seen:
+        seen.add(id(exc))
         chain.appendleft((exc, tb))
 
-        if exc.__cause__ is not None:
-            exc = exc.__cause__
-        elif exc.__context__ is not None and not exc.__suppress_context__:
-            exc = exc.__context__
+        if (cause := safe_getattr(exc, "__cause__")) is not None:
+            exc, tb = cause, safe_getattr(cause, "__traceback__")
         else:
-            exc = None
-
-        tb = getattr(exc, "__traceback__", None)
+            if (context := safe_getattr(exc, "__context__")) is not None:
+                if not safe_getattr(exc, "__suppress_context__", False):
+                    exc, tb = context, safe_getattr(context, "__traceback__")
+                else:
+                    exc = None
+            else:
+                exc = None
 
     exc_id = None
     if chain:
@@ -154,7 +159,9 @@ def get_tb_frames_from_exception_chain(chain: ExceptionChain) -> t.Generator[t.T
     frame_count = 0
 
     for _, tb in chain:
-        local_frames = []
+        # Retain only the last N frames from the traceback, where N is the
+        # configured max size for span tracebacks.
+        local_frames: t.Deque[TracebackType] = deque(maxlen=global_config._span_traceback_max_size)
         if tb is None or tb.tb_frame is None:
             continue
 
@@ -162,11 +169,6 @@ def get_tb_frames_from_exception_chain(chain: ExceptionChain) -> t.Generator[t.T
         while _tb is not None:
             local_frames.append(_tb)
             _tb = _tb.tb_next
-
-        # Get only the last N frames from the traceback, where N is the
-        # configured max size for span tracebacks.
-        # local_frames = local_frames[-global_config._span_traceback_max_size :]
-        local_frames[: -global_config._span_traceback_max_size] = []
 
         # Update the frame count to allow computing the sequence number
         frame_count += len(local_frames)

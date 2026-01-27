@@ -1,6 +1,10 @@
 name: All Green
 on:
+  push:
+    branches:
+      - mq-working-branch-*
   pull_request:
+  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,7 +18,7 @@ jobs:
       checks: read
       contents: read
     steps:
-      - uses: DataDog/ensure-ci-success@727e7fe39ae2e1ce7ea336ec85a7369ab0731754 # v2.1.1
+      - uses: DataDog/ensure-ci-success@b0d931ac77c810490e61964c321103040eef888e # v2.3.0
         with:
           initial-delay-seconds: 10  # wait for this delay before starting
           polling-interval-seconds: 1 # after a failure, how long do it wait before checking again

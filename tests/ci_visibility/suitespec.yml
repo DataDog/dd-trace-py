@@ -54,6 +54,7 @@ suites:
       - '@ci_visibility'
       - '@coverage'
       - '@codeowners'
+      - '@testing'
       - tests/contrib/pytest/*
       - tests/contrib/pytest_benchmark/*
       - tests/contrib/pytest_bdd/*
@@ -72,6 +73,7 @@ suites:
       - '@ci_visibility'
       - '@coverage'
       - '@codeowners'
+      - '@testing'
       - tests/testing/*
     runner: riot
     snapshot: true
@@ -86,6 +88,7 @@ suites:
       - '@pytest'
       - '@unittest'
       - '@selenium'
+      - '@testing'
       - tests/contrib/selenium/*
       - tests/snapshots/test_selenium*
     runner: riot
@@ -97,6 +100,7 @@ suites:
       - '@unittest'
       - '@ci_visibility'
       - '@coverage'
+      - '@testing'
       - tests/contrib/unittest/*
       - tests/snapshots/tests.contrib.unittest.*
     runner: riot

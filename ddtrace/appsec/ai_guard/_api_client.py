@@ -1,11 +1,13 @@
 """AI Guard client for security evaluation of agentic AI workflows."""
 
+from copy import deepcopy
 import json
 from typing import Any
 from typing import List
 from typing import Literal
 from typing import Optional  # noqa:F401
 from typing import TypedDict
+from typing import Union
 
 from ddtrace import config
 from ddtrace import tracer as ddtracer
@@ -39,9 +41,19 @@ class ToolCall(TypedDict):
     function: Function
 
 
+class ImageURL(TypedDict, total=False):
+    url: str
+
+
+class ContentPart(TypedDict, total=False):
+    type: str
+    text: Optional[str]
+    image_url: Optional[ImageURL]
+
+
 class Message(TypedDict, total=False):
     role: str
-    content: str
+    content: Union[str, List[ContentPart]]
     tool_call_id: str
     tool_calls: List[ToolCall]
 
@@ -49,6 +61,7 @@ class Message(TypedDict, total=False):
 class Evaluation(TypedDict):
     action: Literal["ALLOW", "DENY", "ABORT"]
     reason: str
+    tags: List[str]
 
 
 class Options(TypedDict, total=False):
@@ -125,13 +138,22 @@ class AIGuardClient:
 
         def truncate_message(message: Message) -> Message:
             nonlocal content_truncated
-            content = message.get("content", "")
-            if len(content) > max_content_size:
-                truncated = message.copy()
-                truncated["content"] = content[:max_content_size]
-                content_truncated = True
-                return truncated
-            return message
+            # ensure the message cannot be modified before serialization
+            new_message = deepcopy(message)
+            content = new_message.get("content", "")
+            if isinstance(content, str):
+                if len(content) > max_content_size:
+                    new_message["content"] = content[:max_content_size]
+                    content_truncated = True
+            elif isinstance(content, list):
+                # Handle List[ContentPart] - truncate text in content parts
+                for part in content:
+                    if isinstance(part, dict) and "text" in part:
+                        text = part.get("text", "")
+                        if isinstance(text, str) and len(text) > max_content_size:
+                            part["text"] = text[:max_content_size]
+                            content_truncated = True
+            return new_message
 
         result = [truncate_message(message) for message in messages]
         if content_truncated:
@@ -268,7 +290,7 @@ class AIGuardClient:
                     span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
                     raise AIGuardAbortError(action=action, reason=reason, tags=tags)
 
-                return Evaluation(action=action, reason=reason)
+                return Evaluation(action=action, reason=reason, tags=tags)
 
             except AIGuardAbortError:
                 raise
@@ -298,6 +320,8 @@ def new_ai_guard_client(
     if not api_key or not app_key:
         raise ValueError("Authentication credentials required: provide DD_API_KEY and DD_APP_KEY")
 
+    if not endpoint:
+        endpoint = ai_guard_config._ai_guard_endpoint
     if not endpoint:
         site = f"app.{config._dd_site}" if config._dd_site.count(".") == 1 else config._dd_site
         endpoint = f"https://{site}/api/v2/ai-guard"

@@ -136,6 +136,24 @@ MOCK_COMPLETION_TOOL_RESULT = {
     "usage_metadata": {"prompt_token_count": 50, "candidates_token_count": 20, "total_token_count": 70},
 }
 
+MOCK_COMPLETION_REASONING = {
+    "candidates": [
+        {
+            "content": {
+                "parts": [{"text": "The sum of the first 50 prime numbers is 5117.\n"}],
+                "role": "model",
+            },
+            "finish_reason": "STOP",
+        }
+    ],
+    "usage_metadata": {
+        "prompt_token_count": 20,
+        "candidates_token_count": 15,
+        "thoughts_token_count": 128,
+        "total_token_count": 163,
+    },
+}
+
 
 async def _async_streamed_response(mock_chunks):
     """Return async streamed response chunks to be processed by the mock async client."""

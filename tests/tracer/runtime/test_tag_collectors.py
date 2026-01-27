@@ -104,3 +104,49 @@ def test_tracer_tags_service_from_code():
     assert values == [
         ("service", "my-service"),
     ], values
+
+
+def test_process_tags_disabled_by_default():
+    ptc = tag_collectors.ProcessTagCollector()
+    tags = list(ptc.collect())
+    assert len(tags) == 0, "Process tags should be empty when not enabled"
+
+
+@pytest.mark.subprocess(env={"DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": "true"})
+def test_process_tags_enabled():
+    from unittest.mock import patch
+
+    from ddtrace.internal.process_tags import ENTRYPOINT_BASEDIR_TAG
+    from ddtrace.internal.process_tags import ENTRYPOINT_NAME_TAG
+    from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_TAG
+    from ddtrace.internal.process_tags import ENTRYPOINT_WORKDIR_TAG
+    from ddtrace.internal.runtime import tag_collectors
+    from tests.utils import process_tag_reload
+
+    with patch("sys.argv", ["/path/to/test_script.py"]), patch("os.getcwd", return_value="/path/to/workdir"):
+        process_tag_reload()
+
+        ptc = tag_collectors.ProcessTagCollector()
+        tags: list[str] = ptc.collect()
+        assert len(tags) == 4, f"Expected 4 process tags, got {len(tags)}: {tags}"
+
+        tags_dict = {k: v for k, v in (s.split(":") for s in tags)}
+        assert ENTRYPOINT_NAME_TAG in tags_dict
+        assert ENTRYPOINT_WORKDIR_TAG in tags_dict
+        assert ENTRYPOINT_BASEDIR_TAG in tags_dict
+        assert ENTRYPOINT_TYPE_TAG in tags_dict
+
+        assert tags_dict[ENTRYPOINT_NAME_TAG] == "test_script"
+        assert tags_dict[ENTRYPOINT_WORKDIR_TAG] == "workdir"
+        assert tags_dict[ENTRYPOINT_BASEDIR_TAG] == "to"
+        assert tags_dict[ENTRYPOINT_TYPE_TAG] == "script"
+
+
+@pytest.mark.subprocess(env={"DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": "true"})
+def test_process_tag_class():
+    from typing import List
+
+    from ddtrace.internal.runtime.runtime_metrics import ProcessTags
+
+    process_tags: List[str] = list(ProcessTags())
+    assert len(process_tags) >= 4

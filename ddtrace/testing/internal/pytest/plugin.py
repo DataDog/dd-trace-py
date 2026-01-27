@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections import defaultdict
 from io import StringIO
 import json
@@ -12,15 +14,22 @@ from _pytest.runner import runtestprotocol
 import pluggy
 import pytest
 
-from ddtrace.testing.internal.constants import EMPTY_NAME
+from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
+from ddtrace.internal.utils.inspection import undecorated
+from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
+from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
+from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
+from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
+from ddtrace.testing.internal.pytest.hookspecs import TestOptHooks
+from ddtrace.testing.internal.pytest.report_links import print_test_report_links
+from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
-from ddtrace.testing.internal.test_data import ModuleRef
-from ddtrace.testing.internal.test_data import SuiteRef
+from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import Test
 from ddtrace.testing.internal.test_data import TestModule
 from ddtrace.testing.internal.test_data import TestRef
@@ -29,20 +38,35 @@ from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestSuite
 from ddtrace.testing.internal.test_data import TestTag
+from ddtrace.testing.internal.tracer_api.context import enable_all_ddtrace_integrations
 from ddtrace.testing.internal.tracer_api.context import install_global_trace_filter
 from ddtrace.testing.internal.tracer_api.context import trace_context
 from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
+from ddtrace.testing.internal.tracer_api.coverage import get_coverage_percentage
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage
+from ddtrace.testing.internal.tracer_api.coverage import install_coverage_percentage
+from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_percentage
+import ddtrace.testing.internal.tracer_api.pytest_hooks
 from ddtrace.testing.internal.utils import TestContext
+from ddtrace.testing.internal.utils import asbool
 
 
-_NODEID_REGEX = re.compile("^(((?P<module>.*)/)?(?P<suite>[^/]*?))::(?P<name>.*?)$")
+if t.TYPE_CHECKING:
+    from _pytest.terminal import TerminalReporter
+
+
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
 SKIPPED_BY_ITR_REASON = "Skipped by Datadog Intelligent Test Runner"
 ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 
-SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
+try:
+    SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
+except AttributeError:
+    # Fallback for pytest < 7.0 - use a simple key
+    # (older pytest versions don't have StashKey)
+    SESSION_MANAGER_STASH_KEY = "session_manager_key"
 
+TEST_FRAMEWORK = "pytest"
 
 log = logging.getLogger(__name__)
 
@@ -88,23 +112,6 @@ _Location = t.Tuple[
 ]
 
 
-def nodeid_to_test_ref(nodeid: str) -> TestRef:
-    matches = _NODEID_REGEX.match(nodeid)
-
-    if matches:
-        module_ref = ModuleRef(matches.group("module") or EMPTY_NAME)
-        suite_ref = SuiteRef(module_ref, matches.group("suite") or EMPTY_NAME)
-        test_ref = TestRef(suite_ref, matches.group("name"))
-        return test_ref
-
-    else:
-        # Fallback to considering the whole nodeid as the test name.
-        module_ref = ModuleRef(EMPTY_NAME)
-        suite_ref = SuiteRef(module_ref, EMPTY_NAME)
-        test_ref = TestRef(suite_ref, nodeid)
-        return test_ref
-
-
 def _get_module_path_from_item(item: pytest.Item) -> Path:
     try:
         item_path = getattr(item, "path", None)
@@ -113,6 +120,74 @@ def _get_module_path_from_item(item: pytest.Item) -> Path:
         return Path(item.module.__file__).absolute().parent
     except Exception:  # noqa: E722
         return Path.cwd()
+
+
+def _get_relative_module_path_from_item(item: pytest.Item, workspace_path: Path) -> Path:
+    """Get module path from pytest item, converted to relative path."""
+    abs_path = _get_module_path_from_item(item)
+
+    try:
+        return abs_path.relative_to(workspace_path)
+    except ValueError:
+        # If not within workspace, return as-is (fallback)
+        return abs_path
+
+
+def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> t.Tuple[t.Optional[str], int, int]:
+    """
+    Extract test location information (file path, start line, end line) from a pytest item.
+
+    Returns:
+        Tuple of (relative_path, start_line, end_line)
+        - relative_path: path relative to workspace, or None on failure
+        - start_line: starting line number, or 0 if unavailable
+        - end_line: ending line number, or 0 if unavailable
+    """
+    try:
+        # Get absolute path from item
+        item_path = Path(item.path if hasattr(item, "path") else getattr(item, "fspath", "unknown")).absolute()
+        relative_path = str(item_path.relative_to(workspace_path))
+
+        # Try to get precise source line information
+        start_line, end_line = _get_source_lines(item, item_path)
+
+        return relative_path, start_line, end_line
+
+    except (ValueError, OSError, Exception):
+        # Fallback to pytest's reportinfo
+        try:
+            path, start_line, _test_name = item.reportinfo()
+            return path, start_line or 0, 0
+        except Exception:
+            return None, 0, 0
+
+
+def _get_source_lines(item: pytest.Item, item_path: Path) -> t.Tuple[int, int]:
+    """
+    Get start and end line numbers for a test item.
+
+    Returns:
+        Tuple of (start_line, end_line), with 0 indicating unavailable information
+    """
+    if not hasattr(item, "_obj"):
+        # No test object available, fallback to reportinfo
+        try:
+            return item.reportinfo()[1] or 0, 0
+        except Exception:
+            return 0, 0
+
+    try:
+        # Get undecorated test object and extract source lines
+        test_method_object = undecorated(item._obj, item.name, item_path)
+        source_lines = get_source_lines_for_test_method(test_method_object)
+        # Convert None to 0 (our plugin uses 0 as sentinel, but shared util uses None)
+        return source_lines[0] or 0, source_lines[1] or 0
+    except Exception:
+        # Fallback to reportinfo
+        try:
+            return item.reportinfo()[1] or 0, 0
+        except Exception:
+            return 0, 0
 
 
 class TestPhase:
@@ -133,14 +208,27 @@ class TestOptPlugin:
     __test__ = False
 
     def __init__(self, session_manager: SessionManager) -> None:
-        self.enable_ddtrace = False
+        # DEV: If one day we become a separate package usable independently from ddtrace, installing the trace filter
+        # can be made optional. For now, it has to always be enabled to ensure any non-test traces generated by ddtrace
+        # during tests are captured by us (and not sent to the APM agent, for instance).
+        self.enable_ddtrace_trace_filter = True
+
+        # EXCEPTION: When testing ddtrace itself, we don't want to interfere with the normal operation of the tracer,
+        # and want ddtrace spans to be entirely independent from the test spans.
+        if asbool(os.environ.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
+            self.enable_ddtrace_trace_filter = False
+
+        self.enable_all_ddtrace_integrations = False
         self.reports_by_nodeid: t.Dict[str, _ReportGroup] = defaultdict(lambda: {})
         self.excinfo_by_report: t.Dict[pytest.TestReport, t.Optional[pytest.ExceptionInfo[t.Any]]] = {}
+        self.benchmark_data_by_nodeid: t.Dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: t.Dict[str, Test] = {}
         self.is_xdist_worker = False
 
         self.manager = session_manager
         self.session = self.manager.session
+
+        self.extra_failed_reports: t.List[pytest.TestReport] = []
 
     def pytest_sessionstart(self, session: pytest.Session) -> None:
         if xdist_worker_input := getattr(session.config, "workerinput", None):
@@ -149,13 +237,22 @@ class TestOptPlugin:
                 self.is_xdist_worker = True
 
         if session.config.getoption("ddtrace-patch-all"):
-            self.enable_ddtrace = True
+            self.enable_all_ddtrace_integrations = True
 
         self.session.start()
         self.manager.start()
 
-        if self.enable_ddtrace:
+        TelemetryAPI.get().record_session_created(
+            test_framework=TEST_FRAMEWORK,
+            has_codeowners=self.manager.has_codeowners(),
+            is_unsupported_ci=(self.manager.env_tags.get(CITag.PROVIDER_NAME) is None),
+        )
+
+        if self.enable_ddtrace_trace_filter:
             install_global_trace_filter(self.manager.writer)
+
+        if self.enable_all_ddtrace_integrations:
+            enable_all_ddtrace_integrations()
 
     def pytest_sessionfinish(self, session: pytest.Session) -> None:
         # With xdist, the main process does not execute tests, so we cannot rely on the normal `session.get_status()`
@@ -169,7 +266,19 @@ class TestOptPlugin:
             # Propagate number of skipped tests to the main process.
             session.config.workeroutput["tests_skipped_by_itr"] = self.session.tests_skipped_by_itr
 
+        coverage_percentage = get_coverage_percentage(_is_pytest_cov_enabled(session.config))
+        if coverage_percentage is not None:
+            self.session.metrics[TestTag.CODE_COVERAGE_LINES_PCT] = coverage_percentage
+            uninstall_coverage_percentage()
+
         self.session.finish()
+
+        TelemetryAPI.get().record_session_finished(
+            test_framework=TEST_FRAMEWORK,
+            has_codeowners=self.manager.has_codeowners(),
+            is_unsupported_ci=(self.manager.env_tags.get(CITag.PROVIDER_NAME) is None),
+            efd_abort_reason=self.session.get_early_flake_detection_abort_reason(),
+        )
 
         if not self.is_xdist_worker:
             # When running with xdist, only the main process writes the session event.
@@ -185,7 +294,7 @@ class TestOptPlugin:
         tests that pytest has selection for run (eg: with the use of -k as an argument).
         """
         for item in session.items:
-            test_ref = nodeid_to_test_ref(item.nodeid)
+            test_ref = item_to_test_ref(item)
             test_module, test_suite, test = self._discover_test(item, test_ref)
 
         self.manager.finish_collection()
@@ -196,20 +305,34 @@ class TestOptPlugin:
         """
 
         def _on_new_module(module: TestModule) -> None:
-            module.set_location(module_path=_get_module_path_from_item(item))
+            module.set_location(module_path=_get_relative_module_path_from_item(item, self.manager.workspace_path))
 
         def _on_new_suite(suite: TestSuite) -> None:
             pass
 
         def _on_new_test(test: Test) -> None:
-            path, start_line, _test_name = item.reportinfo()
-            test.set_location(path=path, start_line=start_line or 0)
+            """Initialize test with location, parameters, and custom attributes."""
+            # Get test location information (path and line numbers)
+            relative_path, start_line, end_line = _get_test_location_info(item, self.manager.workspace_path)
 
+            # Set test location (use "unknown" path if none found, 0 is default for missing line info)
+            test.set_location(path=relative_path or "unknown", start_line=start_line)
+
+            # Add end line as a tag if available
+            if end_line:
+                test.tags[TestTag.SOURCE_END] = str(end_line)
+
+            # Set test parameters if available
             if parameters := _get_test_parameters_json(item):
                 test.set_parameters(parameters)
 
+            # Mark test as unskippable if needed
             if _is_test_unskippable(item):
                 test.mark_unskippable()
+
+            # Add custom tags if available
+            if custom_tags := _get_test_custom_tags(item):
+                test.set_tags(custom_tags)
 
         return self.manager.discover_test(
             test_ref,
@@ -222,12 +345,20 @@ class TestOptPlugin:
     def pytest_runtest_protocol_wrapper(
         self, item: pytest.Item, nextitem: t.Optional[pytest.Item]
     ) -> t.Generator[None, None, None]:
-        test_ref = nodeid_to_test_ref(item.nodeid)
-        next_test_ref = nodeid_to_test_ref(nextitem.nodeid) if nextitem else None
+        test_ref = item_to_test_ref(item)
+        next_test_ref = item_to_test_ref(nextitem) if nextitem else None
 
-        test_module, test_suite, test = test_items = self._discover_test(item, test_ref)
-        for test_item in test_items:
-            test_item.ensure_started()
+        test_module, test_suite, test = self._discover_test(item, test_ref)
+
+        if not test_module.is_started():
+            test_module.start()
+            TelemetryAPI.get().record_module_created(test_framework=TEST_FRAMEWORK)
+
+        if not test_suite.is_started():
+            test_suite.start()
+            TelemetryAPI.get().record_suite_created(test_framework=TEST_FRAMEWORK)
+
+        test.start()
 
         self.tests_by_nodeid[item.nodeid] = test
 
@@ -240,9 +371,11 @@ class TestOptPlugin:
             # is effectively quarantined). We may want to present it in a different way in the output though.
             item.user_properties += [("dd_quarantined", True)]
 
-        with trace_context(self.enable_ddtrace) as context:
+        with trace_context(self.enable_ddtrace_trace_filter) as context:
+            TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
             with coverage_collection() as coverage_data:
                 yield
+            TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
 
         if not test.test_runs:
             # No test runs: our pytest_runtest_protocol did not run. This can happen if some other plugin (such as
@@ -256,12 +389,11 @@ class TestOptPlugin:
             )
             test_run = test.make_test_run()
             test_run.start(start_ns=test.start_ns)
-            status, tags = self._get_test_outcome(item.nodeid)
-            test_run.set_status(status)
-            test_run.set_tags(tags)
-            test_run.set_context(context)
+            self._set_test_run_data(test_run, item, context)
             test_run.finish()
-            test.set_status(test_run.get_status())  # TODO: this should be automatic?
+            final_status = test_run.get_status()
+            test_run.set_final_status(final_status)
+            test.set_status(final_status)
             self.manager.writer.put_item(test_run)
 
         test.finish()
@@ -273,10 +405,12 @@ class TestOptPlugin:
         if not next_test_ref or test_ref.suite != next_test_ref.suite:
             test_suite.finish()
             self.manager.writer.put_item(test_suite)
+            TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
 
         if not next_test_ref or test_ref.suite.module != next_test_ref.suite.module:
             test_module.finish()
             self.manager.writer.put_item(test_module)
+            TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
     @catch_and_log_exceptions()
     def pytest_runtest_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> bool:
@@ -291,11 +425,18 @@ class TestOptPlugin:
         test = self.tests_by_nodeid[item.nodeid]
         test_run = test.make_test_run()
         test_run.start()
+
+        TelemetryAPI.get().record_test_created(test_framework=TEST_FRAMEWORK, test_run=test_run)
+
         reports = _make_reports_dict(runtestprotocol(item, nextitem=nextitem, log=False))
-        status, tags = self._get_test_outcome(item.nodeid)
-        test_run.set_status(status)
-        test_run.set_tags(tags)
-        test_run.set_context(context)
+        self._set_test_run_data(test_run, item, context)
+
+        TelemetryAPI.get().record_test_finished(
+            test_framework=TEST_FRAMEWORK,
+            test_run=test_run,
+            ci_provider_name=self.manager.env_tags.get(CITag.PROVIDER_NAME),
+            is_auto_injected=self.manager.is_auto_injected,
+        )
 
         return test_run, reports
 
@@ -303,18 +444,35 @@ class TestOptPlugin:
         test = self.tests_by_nodeid[item.nodeid]
         retry_handler = self._check_applicable_retry_handlers(test)
 
-        with trace_context(self.enable_ddtrace) as context:
+        with trace_context(self.enable_ddtrace_trace_filter) as context:
             test_run, reports = self._do_one_test_run(item, nextitem, context)
 
-        if retry_handler and retry_handler.should_retry(test):
+        if not test.is_skipped_by_itr() and retry_handler and retry_handler.should_retry(test):
             self._do_retries(item, nextitem, test, retry_handler, reports)
         else:
             if test.is_quarantined() or test.is_disabled():
                 self._mark_quarantined_test_report_group_as_skipped(item, reports)
             self._log_test_reports(item, reports)
             test_run.finish()
-            test.set_status(test_run.get_status())  # TODO: this should be automatic?
+            test.set_status(test_run.get_status())
+
+        # Set final status on the last test run (single location for both retry and non-retry paths)
+        if test.test_runs:
+            test.test_runs[-1].set_final_status(test.get_status())
+
+        for test_run in test.test_runs:
             self.manager.writer.put_item(test_run)
+
+    def _set_test_run_data(self, test_run: TestRun, item: pytest.Item, context: TestContext) -> None:
+        status, tags = self._get_test_outcome(item.nodeid)
+        test_run.set_status(status)
+        test_run.set_tags(tags)
+        test_run.set_context(context)
+
+        if benchmark_data := self.benchmark_data_by_nodeid.pop(item.nodeid, None):
+            test_run.set_tags(benchmark_data.tags)
+            test_run.set_metrics(benchmark_data.metrics)
+            test_run.mark_benchmark()
 
     def _do_retries(
         self,
@@ -324,47 +482,49 @@ class TestOptPlugin:
         retry_handler: RetryHandler,
         reports: _ReportGroup,
     ) -> None:
-        # Save failure/skip representation to put into the final report.
-        # TODO: for flaky tests, we currently don't show the longrepr (because the final report has `passed` status).
-        longrepr = self._extract_longrepr(reports)
+        retry_reports = RetryReports()
 
         # Log initial attempt.
         self._mark_test_reports_as_retry(reports, retry_handler)
-        self._log_test_report(item, reports, TestPhase.SETUP)
+        retry_reports.log_test_report(item, reports, TestPhase.SETUP)
         # The call report may not exist if setup failed or skipped.
-        self._log_test_report(item, reports, TestPhase.CALL)
+        retry_reports.log_test_report(item, reports, TestPhase.CALL)
 
         test_run = test.last_test_run
-        test_run.set_tags(retry_handler.get_tags_for_test_run(test_run))
+        retry_handler.set_tags_for_test_run(test_run)
         test_run.finish()
-        self.manager.writer.put_item(test_run)
 
         should_retry = True
 
         while should_retry:
-            with trace_context(self.enable_ddtrace) as context:
+            with trace_context(self.enable_ddtrace_trace_filter) as context:
                 test_run, reports = self._do_one_test_run(item, nextitem, context)
 
             should_retry = retry_handler.should_retry(test)
-            test_run.set_tags(retry_handler.get_tags_for_test_run(test_run))
+            retry_handler.set_tags_for_test_run(test_run)
             self._mark_test_reports_as_retry(reports, retry_handler)
 
-            if not self._log_test_report(item, reports, TestPhase.CALL):
-                self._log_test_report(item, reports, TestPhase.SETUP)
+            # Even though we run setup, call, teardown for each retry, we only log _one_ report per retry, as various
+            # pytest plugins generally expect only one teardown to be logged for a test (as they run test finish actions
+            # on teardown). If the call report is available, we log that, otherwise we log the setup report. (Logging
+            # multiple setups for a test does not seem to cause an issue with junitxml, at least.)
+            if not retry_reports.log_test_report(item, reports, TestPhase.CALL):
+                retry_reports.log_test_report(item, reports, TestPhase.SETUP)
 
             test_run.finish()
 
-        final_status, final_tags = retry_handler.get_final_status(test)
+        final_status = retry_handler.get_final_status(test)
         test.set_status(final_status)
-        test_run.set_tags(final_tags)
-
-        for test_run in test.test_runs:
-            self.manager.writer.put_item(test_run)
 
         # Log final status.
-        final_report = self._make_final_report(item, final_status, longrepr)
+        final_report = retry_reports.make_final_report(test, item, final_status)
+
+        if extra_failed_report := retry_reports.get_extra_failed_report(test, final_status):
+            self.extra_failed_reports.append(extra_failed_report)
+
         if test.is_quarantined() or test.is_disabled():
             self._mark_quarantined_test_report_as_skipped(item, final_report)
+
         item.ihook.pytest_runtest_logreport(report=final_report)
 
         # Log teardown. There should be just one teardown logged for all of the retries, because the junitxml plugin
@@ -381,14 +541,20 @@ class TestOptPlugin:
 
         return None
 
-    def _extract_longrepr(self, reports: _ReportGroup) -> t.Any:
-        # The call longrepr is more interesting for us, if available.
+    def _extract_longrepr(self, reports: _ReportGroup) -> t.Tuple[t.Any, t.Any]:
+        """
+        Extract the most relevant report `longrepr` for a report group.
+
+        Errors that happened during the call phase have more useful information, so we try to use that if available.
+
+        Also return the corresponding `wasxfail` attribute if present, for correct indication of xfail/xpass tests.
+        """
         for when in (TestPhase.CALL, TestPhase.SETUP, TestPhase.TEARDOWN):
             if report := reports.get(when):
                 if report.longrepr:
-                    return report.longrepr
+                    return report.longrepr, getattr(report, "wasxfail", None)
 
-        return None
+        return None, None
 
     def _mark_test_reports_as_retry(self, reports: _ReportGroup, retry_handler: RetryHandler) -> None:
         if not self._mark_test_report_as_retry(reports, retry_handler, TestPhase.CALL):
@@ -439,42 +605,10 @@ class TestOptPlugin:
 
         return False
 
-    def _log_test_report(self, item: pytest.Item, reports: _ReportGroup, when: str) -> bool:
-        """
-        Log the test report for a given test phase, if it exists.
-
-        Returns True if the report exists, and False if not.
-        Tests that fail or skip during setup do not have the call phase report.
-        """
-        if report := reports.get(when):
-            item.ihook.pytest_runtest_logreport(report=report)
-            return True
-
-        return False
-
     def _log_test_reports(self, item: pytest.Item, reports: _ReportGroup) -> None:
         for when in (TestPhase.SETUP, TestPhase.CALL, TestPhase.TEARDOWN):
             if report := reports.get(when):
                 item.ihook.pytest_runtest_logreport(report=report)
-
-    def _make_final_report(self, item: pytest.Item, final_status: TestStatus, longrepr: t.Any) -> pytest.TestReport:
-        outcomes = {
-            TestStatus.PASS: "passed",
-            TestStatus.FAIL: "failed",
-            TestStatus.SKIP: "skipped",
-        }
-
-        final_report = pytest.TestReport(
-            nodeid=item.nodeid,
-            location=item.location,
-            keywords={k: 1 for k in item.keywords},
-            when=TestPhase.CALL,
-            longrepr=longrepr,
-            outcome=outcomes.get(final_status, str(final_status)),
-            user_properties=item.user_properties,
-        )
-
-        return final_report
 
     @pytest.hookimpl(hookwrapper=True)
     def pytest_runtest_makereport(
@@ -488,6 +622,11 @@ class TestOptPlugin:
         self.reports_by_nodeid[item.nodeid][call.when] = report
         self.excinfo_by_report[report] = call.excinfo
 
+        if call.when == TestPhase.TEARDOWN:
+            # We need to extract pytest-benchmark data _before_ the fixture teardown.
+            if benchmark_data := get_benchmark_tags_and_metrics(item):
+                self.benchmark_data_by_nodeid[item.nodeid] = benchmark_data
+
     def pytest_report_teststatus(self, report: pytest.TestReport) -> t.Optional[_ReportTestStatus]:
         if retry_outcome := _get_user_property(report, "dd_retry_outcome"):
             retry_reason = _get_user_property(report, "dd_retry_reason")
@@ -499,6 +638,9 @@ class TestOptPlugin:
             else:
                 return ("", "", "")
 
+        if _get_user_property(report, "dd_flaky"):
+            return ("flaky", "K", ("FLAKY", {"yellow": True}))
+
         return None
 
     def _get_test_outcome(self, nodeid: str) -> t.Tuple[TestStatus, t.Dict[str, str]]:
@@ -508,7 +650,9 @@ class TestOptPlugin:
         This methods consumes the test reports and exception information for the specified test, and removes them from
         the dictionaries.
         """
-        # TODO: handle xfail/xpass.
+        status = TestStatus.PASS
+        tags = {}
+
         reports_dict = self.reports_by_nodeid.pop(nodeid, {})
 
         for phase in (TestPhase.SETUP, TestPhase.CALL, TestPhase.TEARDOWN):
@@ -516,18 +660,24 @@ class TestOptPlugin:
             if not report:
                 continue
 
+            if wasxfail := getattr(report, "wasxfail", None):
+                tags[TestTag.XFAIL_REASON] = str(wasxfail)
+                tags[TestTag.TEST_RESULT] = "xpass" if report.passed else "xfail"
+
             excinfo = self.excinfo_by_report.pop(report, None)
+
             if report.failed:
-                return TestStatus.FAIL, _get_exception_tags(excinfo)
+                status = TestStatus.FAIL
+                tags.update(_get_exception_tags(excinfo))
+                break
+
             if report.skipped:
-                if excinfo is None:
-                    reason = "Unknown skip reason"
-                else:
-                    reason = str(excinfo.value)
+                status = TestStatus.SKIP
+                reason = str(excinfo.value) if excinfo else "Unknown skip reason"
+                tags[TestTag.SKIP_REASON] = reason
+                break
 
-                return TestStatus.SKIP, {TestTag.SKIP_REASON: reason}
-
-        return TestStatus.PASS, {}
+        return status, tags
 
     def _handle_itr(self, item: pytest.Item, test_ref: TestRef, test: Test) -> None:
         if not self.manager.is_skippable_test(test_ref):
@@ -544,14 +694,157 @@ class TestOptPlugin:
         item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))
         test.mark_skipped_by_itr()
 
+    @pytest.hookimpl(tryfirst=True, hookwrapper=True)
+    def pytest_terminal_summary(
+        self, terminalreporter: TerminalReporter, exitstatus: int, config: pytest.Config
+    ) -> t.Generator[None, None, None]:
+        """
+        Modify terminal summary before letting pytest emit it.
 
-class XdistTestOptPlugin(TestOptPlugin):
+        During the test session, all retry attempt reports are logged with a 'dd_retry' category. We remove this
+        category here so it doesn't show up in the final stat counts.
+
+        To make the extra failed reports collected during retries (see `get_extra_failed_report` for details) show up
+        with the rest of the failure exception reports, we modify them to look like normal failures, and append them to
+        the failed reports. After they have been shown by pytest, we undo the change so that the final count of failed
+        tests is not affected.
+        """
+        # Do not show dd_retry in final stats.
+        terminalreporter.stats.pop("dd_retry", None)
+
+        original_failed_reports = terminalreporter.stats.get("failed", [])
+
+        # Make extra failed reports look like normal failed reports.
+        for report in self.extra_failed_reports:
+            report.outcome = "failed"
+            report.user_properties = [(k, v) for (k, v) in report.user_properties if k != "dd_retry_outcome"]
+
+        terminalreporter.stats["failed"] = original_failed_reports + self.extra_failed_reports
+
+        yield
+
+        terminalreporter.stats["failed"] = original_failed_reports
+        if not terminalreporter.stats["failed"]:
+            del terminalreporter.stats["failed"]
+
+        print_test_report_links(terminalreporter, self.manager)
+
+
+class RetryReports:
+    """
+    Collect and manage reports for the retries of a single test.
+    """
+
+    def __init__(self):
+        self.reports_by_outcome = defaultdict(lambda: [])
+
+    def log_test_report(self, item: pytest.Item, reports: _ReportGroup, when: str) -> bool:
+        """
+        Collect and log the test report for a given test phase, if it exists.
+
+        Returns True if the report exists, and False if not.
+        Tests that fail or skip during setup do not have the call phase report.
+        """
+        if report := reports.get(when):
+            item.ihook.pytest_runtest_logreport(report=report)
+            outcome = _get_user_property(report, "dd_retry_outcome") or report.outcome
+            self.reports_by_outcome[outcome].append(report)
+            return True
+
+        return False
+
+    def make_final_report(self, test: Test, item: pytest.Item, final_status: TestStatus) -> pytest.TestReport:
+        """
+        Make the final report for the retries of a single test.
+
+        The final status is provided by the retry handler. We assume that for a test to have a given outcome, at least
+        one attempt must have had that outcome (e.g., for a test to have a 'failed' outcome, at least one retry must
+        have failed).
+
+        The attributes of the final report will be copied from the first retry report that had the same outcome. For
+        instance, if the final report outcome is 'failed', it will have the same `longrepr` and `wasxfail` features as
+        the first failed report.
+
+        Additionally, if a test is marked as flaky (e.g., it both passed and failed during EFD), the final report will
+        contain the `dd_flaky` user property. This allows us to identify the test as 'flaky' during logging, even though
+        the final outcome is still one of 'passed', 'failed', or 'skipped'.
+        """
+
+        outcomes = {
+            TestStatus.PASS: "passed",
+            TestStatus.FAIL: "failed",
+            TestStatus.SKIP: "skipped",
+        }
+
+        outcome = outcomes.get(final_status, str(final_status))
+
+        try:
+            source_report = self.reports_by_outcome[outcome][0]
+            longrepr = source_report.longrepr
+            wasxfail = getattr(source_report, "wasxfail", None)
+        except IndexError:
+            log.warning("Test %s has final outcome %r, but no retry had this outcome; this should never happen", test)
+            longrepr = None
+            wasxfail = None
+
+        extra_user_properties = []
+        if test.is_flaky_run():
+            extra_user_properties += [("dd_flaky", True)]
+
+        final_report = pytest.TestReport(
+            nodeid=item.nodeid,
+            location=item.location,
+            keywords={k: 1 for k in item.keywords},
+            when=TestPhase.CALL,
+            longrepr=longrepr,
+            outcome=outcome,
+            user_properties=item.user_properties + extra_user_properties,
+        )
+        if wasxfail is not None:
+            setattr(final_report, "wasxfail", wasxfail)
+
+        return final_report
+
+    def get_extra_failed_report(self, test: Test, final_status: TestStatus) -> t.Optional[pytest.TestReport]:
+        """
+        Get an extra failed report to log at the end of the test session.
+
+        If a test is retried and all retries failed, the final report will have a 'failed' status and contain the
+        `longrepr` of one of the failures, and so the failure exception will be automatically logged at the end of the
+        test session by pytest. In this case, this function returns None.
+
+        But if some retries pass and others fail, the test will have a 'passed' final status, and no failure exception
+        will be logged for the test. In this case, this function returns one of the failed reports, which is saved for
+        logging at the end of the test session. This ensures we provide some failure log to the user.
+
+        If the test is quarantined or disabled, and not attempt-to-fix, the failed report is not returned. If the test
+        is attempt-to-fix, the failed report is returned, even if the test is quarantined or disabled: if the user is
+        attempting to fix the test, and the attempt fails, we need to provide some feedback on the failure.
+
+        Note that we only report _one_ failure per test (either the one embedded in the 'failed' final report, or the
+        one returned by this function), even if the test failed multiple times. This is to avoid spamming the test
+        output with multiple copies of the same error.
+        """
+        suppress_errors = (test.is_quarantined() or test.is_disabled()) and not test.is_attempt_to_fix()
+        if suppress_errors:
+            return None
+
+        if self.reports_by_outcome["failed"] and final_status != TestStatus.FAIL:
+            return self.reports_by_outcome["failed"][0]
+
+        return None
+
+
+class XdistTestOptPlugin:
+    def __init__(self, main_plugin: TestOptPlugin) -> None:
+        self.main_plugin = main_plugin
+
     @pytest.hookimpl
     def pytest_configure_node(self, node: t.Any) -> None:
         """
         Pass test session id from the main process to xdist workers.
         """
-        node.workerinput["dd_session_id"] = self.session.item_id
+        node.workerinput["dd_session_id"] = self.main_plugin.session.item_id
 
     @pytest.hookimpl
     def pytest_testnodedown(self, node: t.Any, error: t.Any) -> None:
@@ -562,7 +855,7 @@ class XdistTestOptPlugin(TestOptPlugin):
             return
 
         if tests_skipped_by_itr := node.workeroutput.get("tests_skipped_by_itr"):
-            self.session.tests_skipped_by_itr += tests_skipped_by_itr
+            self.main_plugin.session.tests_skipped_by_itr += tests_skipped_by_itr
 
 
 def _make_reports_dict(reports: t.List[pytest.TestReport]) -> _ReportGroup:
@@ -601,8 +894,17 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addini("no-ddtrace", "Disable Datadog Test Optimization (overrides 'ddtrace')", type="bool")
     parser.addini("ddtrace-patch-all", "Enable all integrations with ddtrace", type="bool")
 
+    ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_addoption(parser)
+
+
+def _is_test_optimization_disabled_by_kill_switch() -> bool:
+    return not asbool(os.environ.get("DD_CIVISIBILITY_ENABLED", "true"))
+
 
 def _is_enabled_early(early_config: pytest.Config, args: t.List[str]) -> bool:
+    if _is_test_optimization_disabled_by_kill_switch():
+        return False
+
     if _is_option_true("no-ddtrace", early_config, args):
         return False
 
@@ -623,10 +925,10 @@ def pytest_load_initial_conftests(
 
     setup_logging()
 
-    session = TestSession(name="pytest")
+    session = TestSession(name=TEST_FRAMEWORK)
     session.set_attributes(
         test_command=_get_test_command(early_config),
-        test_framework="pytest",
+        test_framework=TEST_FRAMEWORK,
         test_framework_version=pytest.__version__,
     )
 
@@ -651,20 +953,39 @@ def setup_coverage_collection() -> None:
 
 
 def pytest_configure(config: pytest.Config) -> None:
+    # We register the marker even if the kill switch is on, to avoid "Unknown pytest.mark.dd_tags" warnings in tests
+    # when the plugin is disabled. This is similar to command line arguments, which are also registered in
+    # `pytest_addoption` regardless of the kill switch, to avoid breaking pytest invocations using --ddtrace and other
+    # options.
+    config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
+
+    if _is_test_optimization_disabled_by_kill_switch():
+        return
+
     session_manager = config.stash.get(SESSION_MANAGER_STASH_KEY, None)
     if not session_manager:
         log.debug("Session manager not initialized (plugin was not enabled)")
         return
 
-    plugin_class = XdistTestOptPlugin if config.pluginmanager.hasplugin("xdist") else TestOptPlugin
-
     try:
-        plugin = plugin_class(session_manager=session_manager)
+        plugin = TestOptPlugin(session_manager=session_manager)
     except Exception:
         log.exception("Error setting up Test Optimization plugin")
         return
 
     config.pluginmanager.register(plugin)
+    config.pluginmanager.add_hookspecs(TestOptHooks)
+
+    if config.pluginmanager.hasplugin("xdist"):
+        config.pluginmanager.register(XdistTestOptPlugin(plugin))
+
+    if config.pluginmanager.hasplugin("pytest-bdd"):
+        config.pluginmanager.register(BddTestOptPlugin(plugin))
+
+    ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_configure(config)
+
+    if _is_pytest_cov_enabled(config):
+        install_coverage_percentage()
 
 
 def _get_test_command(config: pytest.Config) -> str:
@@ -748,3 +1069,42 @@ def _is_test_unskippable(item: pytest.Item) -> bool:
         (_get_skipif_condition(marker) is False and marker.kwargs.get("reason") == ITR_UNSKIPPABLE_REASON)
         for marker in item.iter_markers(name="skipif")
     )
+
+
+def _get_test_custom_tags(item: pytest.Item) -> t.Dict[str, str]:
+    tags: t.Dict[str, str] = {}
+
+    for marker in item.iter_markers(name="dd_tags"):
+        for key, value in marker.kwargs.items():
+            tags[key] = str(value)
+
+    return tags
+
+
+def _is_pytest_cov_enabled(config) -> bool:
+    if not config.pluginmanager.get_plugin("pytest_cov"):
+        return False
+    cov_option = config.getoption("--cov", default=False)
+    nocov_option = config.getoption("--no-cov", default=False)
+    if nocov_option is True:
+        return False
+    if isinstance(cov_option, list) and cov_option == [True] and not nocov_option:
+        return True
+    return cov_option
+
+
+@pytest.fixture(scope="session")
+def ddtracer():
+    """Return the current tracer instance."""
+    import ddtrace
+
+    return ddtrace.tracer
+
+
+@pytest.fixture(scope="function")
+def ddspan(ddtracer):
+    """Return the current root span."""
+    if ddtracer is None:
+        return None
+
+    return ddtracer.current_root_span()

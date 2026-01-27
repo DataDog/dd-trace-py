@@ -17,7 +17,7 @@ integrations:
   tested_versions_by_dependency:
     aiohttp:
       min: 3.7.4.post0
-      max: 3.12.15
+      max: 3.13.2
 
 - integration_name: aiohttp_jinja2
   is_external_package: true
@@ -347,7 +347,7 @@ integrations:
   tested_versions_by_dependency:
     fastapi:
       min: 0.64.0
-      max: 0.118.0
+      max: 0.124.4
 
 - integration_name: flask
   is_external_package: true
@@ -385,7 +385,7 @@ integrations:
   tested_versions_by_dependency:
     gevent:
       min: 21.1.2
-      max: 25.5.1
+      max: 25.9.1
 
 - integration_name: google_adk
   is_external_package: true
@@ -448,7 +448,7 @@ integrations:
   - httpx
   tested_versions_by_dependency:
     httpx:
-      min: 0.17.1
+      min: 0.25.2
       max: 0.28.1
 
 - integration_name: jinja2
@@ -501,13 +501,13 @@ integrations:
   tested_versions_by_dependency:
     langgraph:
       min: 0.2.23
-      max: 0.6.10
+      max: 1.0.5
     langgraph-checkpoint:
       min: 1.0.12
-      max: 2.1.2
+      max: 3.0.1
     langgraph-prebuilt:
       min: 0.1.8
-      max: 0.6.4
+      max: 1.0.5
 
 - integration_name: litellm
   is_external_package: true
@@ -517,7 +517,7 @@ integrations:
   tested_versions_by_dependency:
     litellm:
       min: 1.65.4
-      max: 1.65.4
+      max: 1.80.16
 
 - integration_name: logbook
   is_external_package: true
@@ -655,7 +655,7 @@ integrations:
   tested_versions_by_dependency:
     pydantic-ai-slim:
       min: 0.3.0
-      max: 0.4.4
+      max: 0.8.1
 
 - integration_name: pylibmc
   is_external_package: true
@@ -715,7 +715,7 @@ integrations:
   tested_versions_by_dependency:
     pyodbc:
       min: 4.0.39
-      max: 5.2.0
+      max: 5.3.0
 
 - integration_name: pyramid
   is_external_package: true
@@ -735,7 +735,7 @@ integrations:
   tested_versions_by_dependency:
     pytest:
       min: 6.2.5
-      max: 8.4.2
+      max: 9.0.2
 
 - integration_name: pytest_bdd
   is_external_package: true
@@ -928,6 +928,16 @@ integrations:
     vertica-python:
       min: 0.6.14
       max: 0.7.4
+
+- integration_name: vllm
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - vllm
+  tested_versions_by_dependency:
+    vllm:
+      min: 0.13.0
+      max: 0.13.0
 
 - integration_name: webbrowser
   is_external_package: false

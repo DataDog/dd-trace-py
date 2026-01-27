@@ -291,7 +291,7 @@ def test_otel_logs_exporter_auto_configured_grpc():
         logger_provider = get_logger_provider()
         logger_provider.force_flush()
     finally:
-        server.stop(0)
+        server.stop(2)
 
     assert mock_service.received_requests, "No gRPC Export requests were received by the mock server"
 
@@ -347,7 +347,7 @@ def test_ddtrace_log_injection_otlp_enabled():
         logger_provider = get_logger_provider()
         logger_provider.force_flush()
     finally:
-        server.stop(0)
+        server.stop(2)
 
     log_record = None
     for request in mock_service.received_requests:
@@ -410,7 +410,7 @@ def test_ddtrace_log_correlation():
         logger_provider = get_logger_provider()
         logger_provider.force_flush()
     finally:
-        server.stop(0)
+        server.stop(2)
 
     attributes = {}
     for request in mock_service.received_requests:
@@ -477,7 +477,7 @@ def test_otel_trace_log_correlation():
         logger_provider = get_logger_provider()
         logger_provider.force_flush()
     finally:
-        server.stop(0)
+        server.stop(2)
 
     attributes = {}
     for request in mock_service.received_requests:
@@ -530,7 +530,7 @@ def test_otel_logs_does_not_generate_client_grpc_spans():
         logger.error("test_otel_logs_grpc")
         get_logger_provider().force_flush()
     finally:
-        server.stop(0)
+        server.stop(2)
 
     assert mock_service.received_requests, "Expected gRPC log export requests but received none"
 

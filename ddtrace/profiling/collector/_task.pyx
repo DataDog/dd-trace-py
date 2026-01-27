@@ -9,7 +9,7 @@ from .. import _threading
 from ddtrace.internal.settings.profiling import config
 
 
-if (is_stack_v2 := config.stack.enabled):
+if (is_stack := config.stack.enabled):
 
     @when_imported("gevent")
     def _(gevent):
@@ -96,7 +96,7 @@ cpdef get_task(thread_id):
             task_name = _asyncio._task_get_name(task)
             frame = _asyncio_task_get_frame(task)
 
-    if not is_stack_v2:
+    if not is_stack:
         # legacy gevent greenlet support:
         # - we only support tracing tasks in the greenlets run in the MainThread.
         # - if both gevent and asyncio are in use (!) we only return asyncio

@@ -64,14 +64,14 @@ TEST_F(AspectModuloCheck, check_api_modulo_aspect_float_parameter_with_tainted_t
     // Create a context and taint the template prefix to simulate tainted template without percent in the tainted range
     this->context_id = taint_engine_context->start_request_context();
     ASSERT_TRUE(this->context_id.has_value());
-    auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(this->context_id.value());
+    auto tx_map = safe_get_tainted_object_map_by_ctx_id(this->context_id.value());
 
     PyObject* candidate_text = this->StringToPyObjectStr("template %0.2f");
     PyObject* param = PyFloat_FromDouble(3.14159);
 
     // Taint the word "template" (positions 0..8)
     auto source = Source("input1", "template", OriginType::PARAMETER);
-    auto range = initializer->allocate_taint_range(0, 8, source, {});
+    auto range = safe_allocate_taint_range(0, 8, source, {});
     TaintRangeRefs ranges{ range };
     ASSERT_TRUE(set_ranges(candidate_text, ranges, tx_map));
 

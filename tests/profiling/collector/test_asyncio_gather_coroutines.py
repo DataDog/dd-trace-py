@@ -12,11 +12,11 @@ def test_asyncio_gather_wall_time() -> None:
     import asyncio
     import os
 
-    from ddtrace.internal.datadog.profiling import stack_v2
+    from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
 
-    assert stack_v2.is_available, stack_v2.failure_msg
+    assert stack.is_available, stack.failure_msg
 
     async def inner_1() -> None:
         await asyncio.sleep(1)

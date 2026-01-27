@@ -14,6 +14,7 @@ import wrapt
 
 import ddtrace
 from ddtrace import config
+from ddtrace._trace._inferred_proxy import SUPPORTED_PROXY_SPAN_NAMES
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
@@ -47,6 +48,8 @@ from ddtrace.ext.kafka import RECEIVED_MESSAGE
 from ddtrace.ext.kafka import TOMBSTONE
 from ddtrace.ext.kafka import TOPIC
 from ddtrace.internal import core
+from ddtrace.internal.compat import ensure_binary
+from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
@@ -244,7 +247,7 @@ def _on_web_framework_finish_request(
 
 
 def _set_inferred_proxy_tags(span, status_code):
-    if span._parent and span._parent.name == "aws.apigateway":
+    if span._parent and span._parent.name in SUPPORTED_PROXY_SPAN_NAMES:
         inferred_span = span._parent
         status_code = status_code if status_code else span.get_tag("http.status_code")
         if status_code:
@@ -1341,6 +1344,57 @@ def _on_aiokafka_getmany_message(
                     span.link_span(context)
 
 
+def _on_httpx_request_start(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
+    span = _start_span(ctx, call_trace, **kwargs)
+    span._metrics[_SPAN_MEASURED_KEY] = 1
+
+    request = ctx.get_item("request")
+
+    if trace_utils.distributed_tracing_enabled(config.httpx):
+        HTTPPropagator.inject(span.context, request.headers)
+
+
+def httpx_url_to_str(url) -> str:
+    """
+    Helper to convert the httpx.URL parts from bytes to a str
+    """
+    scheme = url.raw_scheme
+    host = url.raw_host
+    port = url.port
+    raw_path = url.raw_path
+    url = scheme + b"://" + host
+    if port is not None:
+        url += b":" + ensure_binary(str(port))
+    url += raw_path
+
+    return ensure_text(url)
+
+
+def _on_httpx_send_completed(
+    ctx: core.ExecutionContext,
+    exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+) -> None:
+    span = ctx.span
+
+    request = ctx.get_item("request")
+    response = ctx.get_item("response")
+
+    try:
+        trace_utils.set_http_meta(
+            span,
+            config.httpx,
+            method=request.method,
+            url=httpx_url_to_str(request.url),
+            target_host=request.url.host,
+            status_code=response.status_code if response else None,
+            query=request.url.query,
+            request_headers=request.headers,
+            response_headers=response.headers if response else None,
+        )
+    finally:
+        _finish_span(ctx, exc_info)
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -1486,6 +1540,7 @@ def listen():
         "aiokafka.getmany",
     ):
         core.on(f"context.started.{context_name}", _start_span)
+    core.on("context.started.httpx.request", _on_httpx_request_start)
 
     for name in (
         "asgi.request",
@@ -1523,6 +1578,7 @@ def listen():
 
     # Special/extra handling before calling _finish_span
     core.on("context.ended.django.cache", _on_django_cache)
+    core.on("context.ended.httpx.request", _on_httpx_send_completed)
 
 
 listen()

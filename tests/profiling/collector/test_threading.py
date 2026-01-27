@@ -1,8 +1,9 @@
-from __future__ import absolute_import
+from __future__ import annotations
 
 import _thread
 import glob
 import os
+import pickle
 import sys
 import threading
 import time
@@ -11,6 +12,7 @@ from typing import List
 from typing import Optional
 from typing import Type
 from typing import Union
+from typing import cast
 import uuid
 
 import mock
@@ -20,7 +22,10 @@ from ddtrace import ext
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
+from ddtrace.profiling.collector._lock import _ProfiledLock
 from ddtrace.profiling.collector.threading import ThreadingBoundedSemaphoreCollector
+from ddtrace.profiling.collector.threading import ThreadingConditionCollector
 from ddtrace.profiling.collector.threading import ThreadingLockCollector
 from ddtrace.profiling.collector.threading import ThreadingRLockCollector
 from ddtrace.profiling.collector.threading import ThreadingSemaphoreCollector
@@ -34,26 +39,24 @@ from tests.profiling.collector.pprof_utils import pprof_pb2
 
 PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
 
-
-# Type aliases for supported classes
-LockTypeClass = Union[
-    Type[threading.Lock], Type[threading.RLock], Type[threading.Semaphore], Type[threading.BoundedSemaphore]
-]
 # threading.Lock and threading.RLock are factory functions that return _thread types.
 # We reference the underlying _thread types directly to avoid creating instances at import time.
-# threading.Semaphore and threading.BoundedSemaphore are Python classes, not factory functions.
-LockTypeInst = Union[_thread.LockType, _thread.RLock, threading.Semaphore, threading.BoundedSemaphore]
-
-CollectorTypeClass = Union[
-    Type[ThreadingLockCollector],
-    Type[ThreadingRLockCollector],
-    Type[ThreadingSemaphoreCollector],
-    Type[ThreadingBoundedSemaphoreCollector],
+# threading.Semaphore, threading.BoundedSemaphore, and threading.Condition are Python classes, not factory functions.
+LockTypeInst = Union[
+    _thread.LockType, _thread.RLock, threading.Semaphore, threading.BoundedSemaphore, threading.Condition
 ]
+LockTypeClass = Type[LockTypeInst]
+
 # Type alias for collector instances
 CollectorTypeInst = Union[
-    ThreadingLockCollector, ThreadingRLockCollector, ThreadingSemaphoreCollector, ThreadingBoundedSemaphoreCollector
+    ThreadingLockCollector,
+    ThreadingRLockCollector,
+    ThreadingSemaphoreCollector,
+    ThreadingBoundedSemaphoreCollector,
+    ThreadingConditionCollector,
 ]
+CollectorTypeClass = Type[CollectorTypeInst]
+
 
 # Module-level globals for testing global lock profiling
 _test_global_lock: LockTypeInst
@@ -103,6 +106,10 @@ class Bar:
         (
             ThreadingBoundedSemaphoreCollector,
             "ThreadingBoundedSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+        ),
+        (
+            ThreadingConditionCollector,
+            "ThreadingConditionCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
         ),
     ],
 )
@@ -170,8 +177,6 @@ def test_lock_repr(
 
 
 def test_patch():
-    from ddtrace.profiling.collector._lock import _LockAllocatorWrapper
-
     lock = threading.Lock
     collector = ThreadingLockCollector()
     collector.start()
@@ -179,7 +184,7 @@ def test_patch():
     # After patching, threading.Lock is replaced with our wrapper
     # The old reference (lock) points to the original builtin Lock class
     assert lock != threading.Lock  # They're different after patching
-    assert isinstance(threading.Lock, _LockAllocatorWrapper)  # threading.Lock is now wrapped
+    assert isinstance(threading.Lock, LockAllocatorWrapper)  # threading.Lock is now wrapped
     assert callable(threading.Lock)  # and it's callable
     collector.stop()
     # After stopping, everything is restored
@@ -285,7 +290,7 @@ def test_lock_gevent_tasks() -> None:
                     filename=expected_filename,
                     linenos=linenos,
                     lock_name="lock",
-                    # TODO: With stack_v2, the way we trace gevent greenlets has
+                    # TODO: With stack, the way we trace gevent greenlets has
                     # changed, and we'd need to expose an API to get the task_id,
                     # task_name, and task_frame.
                     # task_id=t.ident,
@@ -298,7 +303,7 @@ def test_lock_gevent_tasks() -> None:
                     filename=expected_filename,
                     linenos=linenos,
                     lock_name="lock",
-                    # TODO: With stack_v2, the way we trace gevent greenlets has
+                    # TODO: With stack, the way we trace gevent greenlets has
                     # changed, and we'd need to expose an API to get the task_id,
                     # task_name, and task_frame.
                     # task_id=t.ident,
@@ -378,7 +383,7 @@ def test_rlock_gevent_tasks() -> None:
                     filename=expected_filename,
                     linenos=linenos,
                     lock_name="lock",
-                    # TODO: With stack_v2, the way we trace gevent greenlets has
+                    # TODO: With stack, the way we trace gevent greenlets has
                     # changed, and we'd need to expose an API to get the task_id,
                     # task_name, and task_frame.
                     # task_id=t.ident,
@@ -391,7 +396,7 @@ def test_rlock_gevent_tasks() -> None:
                     filename=expected_filename,
                     linenos=linenos,
                     lock_name="lock",
-                    # TODO: With stack_v2, the way we trace gevent greenlets has
+                    # TODO: With stack, the way we trace gevent greenlets has
                     # changed, and we'd need to expose an API to get the task_id,
                     # task_name, and task_frame.
                     # task_id=t.ident,
@@ -422,18 +427,10 @@ def test_assertion_error_raised_with_enable_asserts():
     import mock
     import pytest
 
-    from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
 
-    # Initialize ddup (required before using collectors)
-    assert ddup.is_available, "ddup is not available"
-    ddup.config(
-        env="test",
-        service="test_asserts",
-        version="1.0",
-        output_filename="/tmp/test_asserts",
-    )
-    ddup.start()
+    init_ddup("test_asserts")
 
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
@@ -456,18 +453,10 @@ def test_all_exceptions_suppressed_by_default() -> None:
 
     import mock
 
-    from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
 
-    # Initialize ddup (required before using collectors)
-    assert ddup.is_available, "ddup is not available"
-    ddup.config(
-        env="test",
-        service="test_exceptions",
-        version="1.0",
-        output_filename="/tmp/test_exceptions",
-    )
-    ddup.start()
+    init_ddup("test_exceptions")
 
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
@@ -486,6 +475,41 @@ def test_all_exceptions_suppressed_by_default() -> None:
         lock._update_name = mock.Mock(side_effect=Exception("Wut happened?!?!"))
         lock.acquire()
         lock.release()
+
+
+def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
+    """Test that Semaphore and BoundedSemaphore collectors can run simultaneously.
+
+    Tests proper patching where inheritance is involved if both parent and child classes are patched,
+    e.g. when BoundedSemaphore's c-tor calls Semaphore c-tor.
+    We expect that the call to Semaphore c-tor goes to the unpatched version, and NOT our patched version.
+    """
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_semaphore_and_bounded_semaphore_collectors_coexist")
+
+    # Both collectors active at the same time - this triggers the inheritance case
+    with ThreadingSemaphoreCollector(capture_pct=100), ThreadingBoundedSemaphoreCollector(capture_pct=100):
+        sem = threading.Semaphore(2)
+        sem.acquire()
+        sem.release()
+
+        bsem = threading.BoundedSemaphore(3)
+        bsem.acquire()
+        bsem.release()
+
+        # If inheritance delegation failed, these attributes will be missing.
+        wrapped_bsem = bsem.__wrapped__
+        assert hasattr(wrapped_bsem, "_cond"), "BoundedSemaphore._cond not initialized (inheritance bug)"
+        assert hasattr(wrapped_bsem, "_value"), "BoundedSemaphore._value not initialized (inheritance bug)"
+        assert hasattr(wrapped_bsem, "_initial_value"), "BoundedSemaphore._initial_value not initialized"
+
+        # Verify BoundedSemaphore behavior is preserved (i.e. it raises on over-release)
+        bsem2 = threading.BoundedSemaphore(1)
+        bsem2.acquire()
+        bsem2.release()
+        with pytest.raises(ValueError, match="Semaphore released too many times"):
+            bsem2.release()
 
 
 class BaseThreadingLockCollectorTest:
@@ -518,7 +542,15 @@ class BaseThreadingLockCollectorTest:
         )  # pyright: ignore[reportCallIssue]
         ddup.start()
 
-    def teardown_method(self, method: Callable[..., None]) -> None:
+        # Clear any accumulated samples that have been created by other unrelated tests
+        # and that may interfere with our tests.
+        ddup.upload()
+
+    def teardown_method(self) -> None:
+        # Clear any accumulated samples that have not been uploaded and may interfere
+        # with subsequent tests.
+        ddup.upload()
+
         # might be unnecessary but this will ensure that the file is removed
         # after each successful test, and when a test fails it's easier to
         # pinpoint and debug.
@@ -543,6 +575,23 @@ class BaseThreadingLockCollectorTest:
 
             # Try this way too
             Foobar(self.lock_class)
+
+    def _assert_pickle_roundtrip(self, obj: object, wrapped_type: type) -> Union[LockTypeClass, LockTypeInst]:
+        """Helper to verify an object can be pickled and unwraps correctly."""
+        assert isinstance(obj, wrapped_type)
+        unpickled = pickle.loads(pickle.dumps(obj))
+        assert not isinstance(unpickled, wrapped_type)
+        return unpickled
+
+    def test_lock_class_pickle(self) -> None:
+        """Test that the wrapped lock class can be pickled (Python 3.14+ forkserver compat)."""
+        with self.collector_class(capture_pct=100):
+            self._assert_pickle_roundtrip(self.lock_class, LockAllocatorWrapper)
+
+    def test_lock_instance_pickle(self) -> None:
+        """Test that profiled lock instances can be pickled (Python 3.14+ forkserver compat)."""
+        with self.collector_class(capture_pct=100):
+            self._assert_pickle_roundtrip(self.lock_class(), _ProfiledLock)
 
     def test_lock_events(self) -> None:
         # The first argument is the recorder.Recorder which is used for the
@@ -1261,7 +1310,7 @@ class BaseThreadingLockCollectorTest:
         assert overhead_multiplier < 50, (
             f"Overhead too high: {overhead_multiplier}x (regular: {regular_time:.6f}s, "
             f"profiled: {profiled_time_zero:.6f}s)"
-        )  # noqa: E501
+        )
 
     def test_release_not_sampled_when_acquire_not_sampled(self) -> None:
         """Test that lock release events are NOT sampled if their corresponding acquire was not sampled."""
@@ -1271,6 +1320,7 @@ class BaseThreadingLockCollectorTest:
             # Do multiple acquire/release cycles
             for _ in range(10):
                 lock.acquire()
+                assert cast(_ProfiledLock, lock).acquired_time is None
                 time.sleep(0.001)
                 lock.release()
 
@@ -1357,6 +1407,26 @@ class BaseSemaphoreTest(BaseThreadingLockCollectorTest):
     Contains tests that apply to both regular Semaphore and BoundedSemaphore,
     particularly those related to internal lock detection and Condition-based implementation.
     """
+
+    def test_subclassing_wrapped_lock(self) -> None:
+        """Test that subclassing of a wrapped lock type works when profiling is active.
+
+        This test is only valid for Semaphore-like types (pure Python classes).
+        threading.Lock and threading.RLock are C types that don't support subclassing
+        through __mro_entries__.
+        """
+        with self.collector_class():
+            assert isinstance(self.lock_class, LockAllocatorWrapper)
+
+            # This should NOT raise TypeError
+            class CustomLock(self.lock_class):  # type: ignore[misc]
+                def __init__(self) -> None:
+                    super().__init__()
+
+            # Verify subclassing and functionality
+            custom_lock: CustomLock = CustomLock()
+            assert custom_lock.acquire()
+            custom_lock.release()
 
     def _verify_no_double_counting(self, marker_name: str, lock_var_name: str) -> None:
         """Helper method to verify no double-counting in profile output.
@@ -1597,32 +1667,13 @@ class TestThreadingBoundedSemaphoreCollector(BaseSemaphoreTest):
                 sem.release()
 
 
-def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
-    """Test that Semaphore and BoundedSemaphore collectors can run simultaneously.
+class TestThreadingConditionCollector(BaseThreadingLockCollectorTest):
+    """Test threading.Condition profiling."""
 
-    Tests proper patching where inheritance is involved if both parent and child classes are patched,
-    e.g. when BoundedSemaphore's c-tor calls Semaphore c-tor.
-    We expect that the call to Semaphore c-tor goes to the unpatched version, and NOT our patched version.
-    """
-    # Both collectors active at the same time - this triggers the inheritance case
-    with ThreadingSemaphoreCollector(capture_pct=100), ThreadingBoundedSemaphoreCollector(capture_pct=100):
-        sem = threading.Semaphore(2)
-        sem.acquire()
-        sem.release()
+    @property
+    def collector_class(self) -> Type[ThreadingConditionCollector]:
+        return ThreadingConditionCollector
 
-        bsem = threading.BoundedSemaphore(3)
-        bsem.acquire()
-        bsem.release()
-
-        # If inheritance delegation failed, these attributes will be missing.
-        wrapped_bsem = bsem.__wrapped__
-        assert hasattr(wrapped_bsem, "_cond"), "BoundedSemaphore._cond not initialized (inheritance bug)"
-        assert hasattr(wrapped_bsem, "_value"), "BoundedSemaphore._value not initialized (inheritance bug)"
-        assert hasattr(wrapped_bsem, "_initial_value"), "BoundedSemaphore._initial_value not initialized"
-
-        # Verify BoundedSemaphore behavior is preserved (i.e. it raises on over-release)
-        bsem2 = threading.BoundedSemaphore(1)
-        bsem2.acquire()
-        bsem2.release()
-        with pytest.raises(ValueError, match="Semaphore released too many times"):
-            bsem2.release()
+    @property
+    def lock_class(self) -> Type[threading.Condition]:
+        return threading.Condition

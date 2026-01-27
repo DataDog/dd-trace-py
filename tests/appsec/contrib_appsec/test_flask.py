@@ -1,10 +1,10 @@
 from flask.testing import FlaskClient
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.internal.packages import get_version_for_package
 from tests.appsec.contrib_appsec import utils
 from tests.utils import TracerTestCase
+from tests.utils import scoped_tracer
 
 
 FLASK_VERSION = tuple(int(v) for v in get_version_for_package("flask").split("."))
@@ -37,7 +37,6 @@ class BaseFlaskTestCase(TracerTestCase):
         self.app = app
         self.app.test_client_class = DDFlaskTestClient
         self.client = self.app.test_client()
-        Pin._override(self.app, tracer=self.tracer)
 
     def tearDown(self):
         super(BaseFlaskTestCase, self).tearDown()
@@ -81,11 +80,11 @@ class Test_Flask(utils.Contrib_TestClass_For_Threats):
 
         bftc.client.post = patch_post
 
-        with utils.test_tracer() as tracer:
+        with scoped_tracer() as tracer:
             interface.tracer = tracer
             interface.printer = printer
-            with utils.post_tracer(interface):
-                yield interface
+            interface.SERVER_PORT = self.SERVER_PORT
+            yield interface
 
         bftc.tearDown()
 

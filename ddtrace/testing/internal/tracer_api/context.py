@@ -28,7 +28,8 @@ def install_global_trace_filter(writer: TestOptWriter) -> None:
 
     ddtrace.tracer.configure(trace_processors=[span_processor])
 
-    # TODO: this should be somewhere else.
+
+def enable_all_ddtrace_integrations():
     try:
         from ddtrace._monkey import _patch_all
 
@@ -80,6 +81,8 @@ def _ddtrace_context() -> t.Generator[DDTraceTestContext, None, None]:
     ddtrace.tracer.context_provider.activate(None)
 
     with ddtrace.tracer.trace(DDTESTOPT_ROOT_SPAN_RESOURCE) as root_span:
+        root_span.set_tag("type", "test")  # Selenium integration checks the span type.
+        root_span.set_tag("span.kind", "test")
         yield DDTraceTestContext(root_span)
 
 

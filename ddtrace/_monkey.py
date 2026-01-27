@@ -28,6 +28,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 log = get_logger(__name__)
 
+
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
     "aiokafka": True,
@@ -109,6 +110,7 @@ PATCH_MODULES = {
     "anthropic": True,
     "crewai": True,
     "pydantic_ai": True,
+    "vllm": True,
     "subprocess": True,
     "unittest": True,
     "coverage": False,

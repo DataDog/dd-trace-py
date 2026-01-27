@@ -185,11 +185,6 @@ def patched_client_init(openai, pin, func, instance, args, kwargs):
     func(*args, **kwargs)
     integration = openai._datadog_integration
     integration._client = instance
-    api_key = kwargs.get("api_key")
-    if api_key is None:
-        api_key = instance.api_key
-    if api_key is not None:
-        integration.user_api_key = api_key
     return
 
 

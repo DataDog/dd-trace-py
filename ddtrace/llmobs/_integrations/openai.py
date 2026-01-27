@@ -19,6 +19,7 @@ from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PROXY_REQUEST
+from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
@@ -49,20 +50,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         # object that is strongly linked with configuration.
         super().__init__(integration_config)
         self._openai = openai
-        self._user_api_key = None
         self._client = None
-        if self._openai.api_key is not None:
-            self.user_api_key = self._openai.api_key
-
-    @property
-    def user_api_key(self) -> Optional[str]:
-        """Get a representation of the user API key for tagging."""
-        return self._user_api_key
-
-    @user_api_key.setter
-    def user_api_key(self, value: str) -> None:
-        # Match the API key representation that OpenAI uses in their UI.
-        self._user_api_key = "sk-...%s" % value[-4:]
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
         traced_operations = (
@@ -221,6 +209,13 @@ class OpenAIIntegration(BaseLLMIntegration):
             cached_tokens = _get_attr(prompt_tokens_details, "cached_tokens", None)
             if cached_tokens is not None:
                 metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
+            # Chat completion returns `completion_tokens_details` while responses api returns `output_tokens_details`
+            reasoning_output_tokens_details = _get_attr(token_usage, "completion_tokens_details", {}) or _get_attr(
+                token_usage, "output_tokens_details", {}
+            )
+            reasoning_output_tokens = _get_attr(reasoning_output_tokens_details, "reasoning_tokens", None)
+            if reasoning_output_tokens is not None:
+                metrics[REASONING_OUTPUT_TOKENS_METRIC_KEY] = reasoning_output_tokens
             return metrics
         elif kwargs.get("stream") and resp is not None:
             prompt_tokens = _compute_prompt_tokens(kwargs.get("prompt", None), kwargs.get("messages", None))

@@ -8,7 +8,6 @@ from requests.exceptions import InvalidURL
 from requests.exceptions import MissingSchema
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -21,7 +20,6 @@ from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
-from tests.utils import override_global_tracer
 
 
 HOST_AND_PORT = "localhost:8001"
@@ -41,7 +39,6 @@ class BaseRequestTestCase(object):
 
         patch()
         self.session = Session()
-        self.session.datadog_tracer = self.tracer
 
     def tearDown(self):
         unpatch()
@@ -108,7 +105,6 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         # ensure that double patch doesn't duplicate instrumentation
         patch()
         session = Session()
-        session.datadog_tracer = self.tracer
 
         out = session.get(URL_200)
         assert out.status_code == 200
@@ -190,23 +186,22 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
     def test_requests_module_200(self):
         # ensure the requests API is instrumented even without
         # using a `Session` directly
-        with override_global_tracer(self.tracer):
-            out = requests.get(URL_200)
-            assert out.status_code == 200
-            # validation
-            spans = self.pop_spans()
-            assert len(spans) == 1
-            s = spans[0]
+        out = requests.get(URL_200)
+        assert out.status_code == 200
+        # validation
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
 
-            assert_is_measured(s)
-            assert s.get_tag(http.METHOD) == "GET"
-            assert s.get_tag("component") == "requests"
-            assert s.get_tag("span.kind") == "client"
-            assert s.get_tag("out.host") == SOCKET
-            assert_span_http_status_code(s, 200)
-            assert s.error == 0
-            assert s.span_type == "http"
-            assert s.resource == "GET /status/200"
+        assert_is_measured(s)
+        assert s.get_tag(http.METHOD) == "GET"
+        assert s.get_tag("component") == "requests"
+        assert s.get_tag("span.kind") == "client"
+        assert s.get_tag("out.host") == SOCKET
+        assert_span_http_status_code(s, 200)
+        assert s.error == 0
+        assert s.span_type == "http"
+        assert s.resource == "GET /status/200"
 
     def test_post_500(self):
         out = self.session.post(URL_500)
@@ -279,35 +274,15 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert s.service == "requests"
         assert s.resource == "GET /status/200"
 
-    def test_user_set_service_name(self):
-        # ensure a service name set by the user has precedence
-        cfg = {}
-        pin = Pin.get_from(self.session)
-        if pin:
-            cfg = pin._config
-
-        cfg["service_name"] = "clients"
-        out = self.session.get(URL_200)
-        assert out.status_code == 200
-        spans = self.pop_spans()
-        assert len(spans) == 1
-        s = spans[0]
-        assert s.service == "clients"
-
     def test_user_set_service(self):
         # ensure a service name set by the user has precedence
-        cfg = {}
-        pin = Pin.get_from(self.session)
-        if pin:
-            cfg = pin._config
-
-        cfg["service"] = "clients"
-        out = self.session.get(URL_200)
-        assert out.status_code == 200
-        spans = self.pop_spans()
-        assert len(spans) == 1
-        s = spans[0]
-        assert s.service == "clients"
+        with self.override_config("requests", dict(service="clients")):
+            out = self.session.get(URL_200)
+            assert out.status_code == 200
+            spans = self.pop_spans()
+            assert len(spans) == 1
+            s = spans[0]
+            assert s.service == "clients"
 
     def test_parent_service_name_precedence(self):
         # span should not inherit the parent's service name
@@ -341,173 +316,113 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
     def test_user_service_name_precedence(self):
         # ensure the user service name takes precedence over
         # the parent Span
-        cfg = {}
-        pin = Pin.get_from(self.session)
-        if pin:
-            cfg = pin._config
+        with self.override_config("requests", dict(service="clients")):
+            with self.tracer.trace("parent.span", service="web"):
+                out = self.session.get(URL_200)
+                assert out.status_code == 200
 
-        cfg["service_name"] = "clients"
-        with self.tracer.trace("parent.span", service="web"):
-            out = self.session.get(URL_200)
-            assert out.status_code == 200
+            spans = self.pop_spans()
+            assert len(spans) == 2
+            s = spans[1]
 
-        spans = self.pop_spans()
-        assert len(spans) == 2
-        s = spans[1]
-
-        assert s.name == "requests.request"
-        assert s.service == "clients"
+            assert s.name == "requests.request"
+            assert s.service == "clients"
 
     def test_split_by_domain_with_ampersat(self):
         # Regression test for: https://github.com/DataDog/dd-trace-py/issues/4062
         # ensure a service name is generated by the domain name
-        cfg = {}
-        pin = Pin.get_from(self.session)
-        if pin:
-            cfg = pin._config
+        with self.override_config("requests", dict(split_by_domain=True, service="monkey_service")):
+            # domain name should take precedence over monkey_service
+            url = URL_200 + "?email=monkey_monkey@zoo_mail.ca"
 
-        cfg["split_by_domain"] = True
-        # domain name should take precedence over monkey_service
-        cfg["service_name"] = "monkey_service"
-        url = URL_200 + "?email=monkey_monkey@zoo_mail.ca"
+            out = self.session.get(url)
+            assert out.status_code == 200
 
-        out = self.session.get(url)
-        assert out.status_code == 200
+            spans = self.pop_spans()
+            assert len(spans) == 1
+            s = spans[0]
 
-        spans = self.pop_spans()
-        assert len(spans) == 1
-        s = spans[0]
-
-        assert s.get_tag("out.host") == SOCKET
-        assert s.service == HOST_AND_PORT
+            assert s.get_tag("out.host") == SOCKET
+            assert s.service == HOST_AND_PORT
 
     def test_split_by_domain(self):
         # ensure a service name is generated by the domain name
         # of the ongoing call
-        cfg = {}
-        pin = Pin.get_from(self.session)
-        if pin:
-            cfg = pin._config
+        with self.override_config("requests", dict(split_by_domain=True)):
+            out = self.session.get(URL_200)
+            assert out.status_code == 200
 
-        cfg["split_by_domain"] = True
-        out = self.session.get(URL_200)
-        assert out.status_code == 200
+            spans = self.pop_spans()
+            assert len(spans) == 1
+            s = spans[0]
 
-        spans = self.pop_spans()
-        assert len(spans) == 1
-        s = spans[0]
-
-        assert s.get_tag("out.host") == SOCKET
-        assert s.service == HOST_AND_PORT
-        assert s.resource == "GET /status/200"
+            assert s.get_tag("out.host") == SOCKET
+            assert s.service == HOST_AND_PORT
+            assert s.resource == "GET /status/200"
 
     def test_split_by_domain_precedence(self):
         # ensure the split by domain has precedence all the time
-        cfg = {}
-        pin = Pin.get_from(self.session)
-        if pin:
-            cfg = pin._config
+        with self.override_config("requests", dict(split_by_domain=True, service="intake")):
+            out = self.session.get(URL_200)
+            assert out.status_code == 200
 
-        cfg["split_by_domain"] = True
-        cfg["service_name"] = "intake"
-        out = self.session.get(URL_200)
-        assert out.status_code == 200
+            spans = self.pop_spans()
+            assert len(spans) == 1
+            s = spans[0]
 
-        spans = self.pop_spans()
-        assert len(spans) == 1
-        s = spans[0]
-
-        assert s.get_tag("out.host") == SOCKET
-        assert s.service == HOST_AND_PORT
-        assert s.resource == "GET /status/200"
+            assert s.get_tag("out.host") == SOCKET
+            assert s.service == HOST_AND_PORT
+            assert s.resource == "GET /status/200"
 
     def test_split_by_domain_wrong(self):
         # ensure the split by domain doesn't crash in case of a wrong URL;
         # in that case, no spans are created
-        cfg = {}
-        pin = Pin.get_from(self.session)
-        if pin:
-            cfg = pin._config
+        with self.override_config("requests", dict(split_by_domain=True)):
+            with pytest.raises((MissingSchema, InvalidURL)):
+                self.session.get("http:/some>thing")
 
-        cfg["split_by_domain"] = True
-        with pytest.raises((MissingSchema, InvalidURL)):
-            self.session.get("http:/some>thing")
-
-        # We are wrapping `requests.Session.send` and this error gets thrown before that function
-        spans = self.pop_spans()
-        assert len(spans) == 0
+            # We are wrapping `requests.Session.send` and this error gets thrown before that function
+            spans = self.pop_spans()
+            assert len(spans) == 0
 
     def test_split_by_domain_remove_auth_in_url(self):
         # ensure that auth details are stripped from URL
-        cfg = {}
-        pin = Pin.get_from(self.session)
-        if pin:
-            cfg = pin._config
+        with self.override_config("requests", dict(split_by_domain=True)):
+            out = self.session.get(f"http://user:pass@{HOST_AND_PORT}")
+            assert out.status_code == 200
 
-        cfg["split_by_domain"] = True
-        out = self.session.get(f"http://user:pass@{HOST_AND_PORT}")
-        assert out.status_code == 200
+            spans = self.pop_spans()
+            assert len(spans) == 1
+            s = spans[0]
 
-        spans = self.pop_spans()
-        assert len(spans) == 1
-        s = spans[0]
-
-        assert s.get_tag("out.host") == SOCKET
-        assert s.service == HOST_AND_PORT
+            assert s.get_tag("out.host") == SOCKET
+            assert s.service == HOST_AND_PORT
 
     def test_split_by_domain_includes_port(self):
         # ensure that port is included if present in URL
-        cfg = {}
-        pin = Pin.get_from(self.session)
-        if pin:
-            cfg = pin._config
+        with self.override_config("requests", dict(split_by_domain=True)):
+            out = self.session.get(f"http://{HOST_AND_PORT}")
+            assert out.status_code == 200
 
-        cfg["split_by_domain"] = True
-        out = self.session.get(f"http://{HOST_AND_PORT}")
-        assert out.status_code == 200
+            spans = self.pop_spans()
+            assert len(spans) == 1
+            s = spans[0]
 
-        spans = self.pop_spans()
-        assert len(spans) == 1
-        s = spans[0]
-
-        assert s.get_tag("out.host") == SOCKET
-        assert s.service == HOST_AND_PORT
+            assert s.get_tag("out.host") == SOCKET
+            assert s.service == HOST_AND_PORT
 
     def test_split_by_domain_includes_port_path(self):
         # ensure that port is included if present in URL but not path
-        cfg = {}
-        pin = Pin.get_from(self.session)
-        if pin:
-            cfg = pin._config
+        with self.override_config("requests", dict(split_by_domain=True)):
+            out = self.session.get(f"http://{HOST_AND_PORT}/anything/v1/foo")
+            assert out.status_code == 200
 
-        cfg["split_by_domain"] = True
-        out = self.session.get(f"http://{HOST_AND_PORT}/anything/v1/foo")
-        assert out.status_code == 200
+            spans = self.pop_spans()
+            assert len(spans) == 1
+            s = spans[0]
 
-        spans = self.pop_spans()
-        assert len(spans) == 1
-        s = spans[0]
-
-        assert s.get_tag("out.host") == SOCKET
-        assert s.service == HOST_AND_PORT
-
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REQUESTS_SERVICE="override"))
-    def test_global_config_service_env_precedence(self):
-        out = self.session.get(URL_200)
-        assert out.status_code == 200
-        spans = self.pop_spans()
-        assert spans[0].service == "override"
-
-        cfg = {}
-        pin = Pin.get_from(self.session)
-        if pin:
-            cfg = pin._config
-
-        cfg["service"] = "override2"
-        out = self.session.get(URL_200)
-        assert out.status_code == 200
-        spans = self.pop_spans()
-        assert spans[0].service == "override2"
+            assert s.get_tag("out.host") == SOCKET
+            assert s.service == HOST_AND_PORT
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REQUESTS_SERVICE="override"))
     def test_global_config_service_env(self):

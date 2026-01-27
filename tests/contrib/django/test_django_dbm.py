@@ -23,19 +23,15 @@ def test_django_postgres_dbm_propagation_enabled():
     import django
 
     from ddtrace.contrib.internal.django.database import instrument_dbs
-    from ddtrace.internal.settings._config import config
     from tests.contrib import shared_tests
     from tests.contrib.django.test_django_dbm import get_cursor
-    from tests.utils import DummyTracer
+    from tests.utils import scoped_tracer
 
     instrument_dbs(django)
 
-    tracer = DummyTracer()
-    config.django._tracer = tracer
-
-    cursor = get_cursor()
-
-    shared_tests._test_dbm_propagation_enabled(tracer, cursor, "postgres")
+    with scoped_tracer() as tracer:
+        cursor = get_cursor()
+        shared_tests._test_dbm_propagation_enabled(tracer, cursor, "postgres")
 
 
 @pytest.mark.subprocess(
@@ -56,26 +52,22 @@ def test_django_postgres_dbm_propagation_comment_with_global_service_name_config
     import mock
 
     from ddtrace.contrib.internal.django.database import instrument_dbs
-    from ddtrace.internal.settings._config import config
     from tests.contrib import shared_tests
     from tests.contrib.config import POSTGRES_CONFIG
     from tests.contrib.django.test_django_dbm import get_cursor
-    from tests.utils import DummyTracer
+    from tests.utils import scoped_tracer
 
     instrument_dbs(django)
 
-    tracer = DummyTracer()
-    config.django._tracer = tracer
-
-    cursor = get_cursor()
-    cursor.__wrapped__ = mock.Mock()
-
-    shared_tests._test_dbm_propagation_comment_with_global_service_name_configured(
-        config=POSTGRES_CONFIG,
-        db_system="postgresdb",
-        cursor=cursor,
-        wrapped_instance=cursor.__wrapped__,
-    )
+    with scoped_tracer():
+        cursor = get_cursor()
+        cursor.__wrapped__ = mock.Mock()
+        shared_tests._test_dbm_propagation_comment_with_global_service_name_configured(
+            config=POSTGRES_CONFIG,
+            db_system="postgresdb",
+            cursor=cursor,
+            wrapped_instance=cursor.__wrapped__,
+        )
 
 
 @pytest.mark.subprocess(
@@ -97,23 +89,19 @@ def test_django_postgres_dbm_propagation_comment_integration_service_name_overri
     import mock
 
     from ddtrace.contrib.internal.django.database import instrument_dbs
-    from ddtrace.internal.settings._config import config
     from tests.contrib import shared_tests
     from tests.contrib.config import POSTGRES_CONFIG
     from tests.contrib.django.test_django_dbm import get_cursor
-    from tests.utils import DummyTracer
+    from tests.utils import scoped_tracer
 
     instrument_dbs(django)
 
-    tracer = DummyTracer()
-    config.django._tracer = tracer
-
-    cursor = get_cursor()
-    cursor.__wrapped__ = mock.Mock()
-
-    shared_tests._test_dbm_propagation_comment_integration_service_name_override(
-        config=POSTGRES_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
-    )
+    with scoped_tracer():
+        cursor = get_cursor()
+        cursor.__wrapped__ = mock.Mock()
+        shared_tests._test_dbm_propagation_comment_integration_service_name_override(
+            config=POSTGRES_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
+        )
 
 
 @pytest.mark.subprocess(
@@ -128,37 +116,6 @@ def test_django_postgres_dbm_propagation_comment_integration_service_name_overri
         "DD_VERSION": "v7343437-d7ac743",
     },
 )
-def test_django_postgres_dbm_propagation_comment_pin_service_name_override():
-    """tests if dbm comment is set in postgres"""
-
-    import django
-    from django.db import connections
-    import mock
-
-    from ddtrace.contrib.internal.django.database import instrument_dbs
-    from ddtrace.internal.settings._config import config
-    from tests.contrib import shared_tests
-    from tests.contrib.config import POSTGRES_CONFIG
-    from tests.contrib.django.test_django_dbm import get_cursor
-    from tests.utils import DummyTracer
-
-    instrument_dbs(django)
-
-    tracer = DummyTracer()
-    config.django._tracer = tracer
-
-    cursor = get_cursor()
-    cursor.__wrapped__ = mock.Mock()
-
-    shared_tests._test_dbm_propagation_comment_pin_service_name_override(
-        config=POSTGRES_CONFIG,
-        cursor=cursor,
-        tracer=tracer,
-        wrapped_instance=cursor.__wrapped__,
-        conn=connections["postgres"],
-    )
-
-
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env={
@@ -179,20 +136,16 @@ def test_django_postgres_dbm_propagation_comment_peer_service_enabled():
     import mock
 
     from ddtrace.contrib.internal.django.database import instrument_dbs
-    from ddtrace.internal.settings._config import config
     from tests.contrib import shared_tests
     from tests.contrib.config import POSTGRES_CONFIG
     from tests.contrib.django.test_django_dbm import get_cursor
-    from tests.utils import DummyTracer
+    from tests.utils import scoped_tracer
 
     instrument_dbs(django)
 
-    tracer = DummyTracer()
-    config.django._tracer = tracer
-
-    cursor = get_cursor()
-    cursor.__wrapped__ = mock.Mock()
-
-    shared_tests._test_dbm_propagation_comment_peer_service_enabled(
-        config=POSTGRES_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
-    )
+    with scoped_tracer():
+        cursor = get_cursor()
+        cursor.__wrapped__ = mock.Mock()
+        shared_tests._test_dbm_propagation_comment_peer_service_enabled(
+            config=POSTGRES_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
+        )

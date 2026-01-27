@@ -93,6 +93,7 @@ def _expected_langchain_llmobs_llm_span(
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
         span_links=span_links,
         prompt=prompt,
+        prompt_tracking_instrumentation_method="auto" if prompt else None,
     )
 
 
@@ -109,11 +110,11 @@ def _expected_langchain_llmobs_chain_span(span, input_value=None, output_value=N
     )
 
 
-def test_llmobs_openai_llm(langchain_openai, llmobs_events, tracer, openai_url):
+def test_llmobs_openai_llm(langchain_openai, llmobs_events, tracer, test_spans, openai_url):
     llm = langchain_openai.OpenAI(base_url=openai_url, max_tokens=256)
     llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
-    span = tracer.pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_langchain_llmobs_llm_span(
         span, mock_token_metrics=True, metadata={"max_tokens": 256, "temperature": 0.7}
@@ -121,12 +122,12 @@ def test_llmobs_openai_llm(langchain_openai, llmobs_events, tracer, openai_url):
 
 
 @mock.patch("langchain_core.language_models.llms.BaseLLM._generate_helper")
-def test_llmobs_openai_llm_proxy(mock_generate, langchain_openai, llmobs_events, tracer):
+def test_llmobs_openai_llm_proxy(mock_generate, langchain_openai, llmobs_events, tracer, test_spans):
     mock_generate.return_value = mock_langchain_llm_generate_response
     llm = langchain_openai.OpenAI(base_url="http://localhost:4000", model="gpt-3.5-turbo")
     llm.invoke("What is the capital of France?")
 
-    span = tracer.pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
         span,
@@ -136,16 +137,16 @@ def test_llmobs_openai_llm_proxy(mock_generate, langchain_openai, llmobs_events,
     # span created from request with non-proxy URL should result in an LLM span
     llm = langchain_openai.OpenAI(base_url="http://localhost:8000", model="gpt-3.5-turbo")
     llm.invoke("What is the capital of France?")
-    span = tracer.pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
     assert len(llmobs_events) == 2
     assert llmobs_events[1]["meta"]["span"]["kind"] == "llm"
 
 
-def test_llmobs_openai_chat_model(langchain_core, langchain_openai, llmobs_events, tracer, openai_url):
+def test_llmobs_openai_chat_model(langchain_core, langchain_openai, llmobs_events, tracer, test_spans, openai_url):
     chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=openai_url)
     chat_model.invoke([langchain_core.messages.HumanMessage(content="When do you use 'who' instead of 'whom'?")])
 
-    span = tracer.pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_langchain_llmobs_llm_span(
         span,
@@ -173,12 +174,14 @@ def test_llmobs_openai_chat_model_no_usage(langchain_core, langchain_openai, llm
 
 
 @mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
-def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_core, langchain_openai, llmobs_events, tracer):
+def test_llmobs_openai_chat_model_proxy(
+    mock_generate, langchain_core, langchain_openai, llmobs_events, tracer, test_spans
+):
     mock_generate.return_value = mock_langchain_chat_generate_response
     chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url="http://localhost:4000")
     chat_model.invoke([langchain_core.messages.HumanMessage(content="What is the capital of France?")])
 
-    span = tracer.pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
         span,
@@ -189,12 +192,14 @@ def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_core, langchain
     # span created from request with non-proxy URL should result in an LLM span
     chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url="http://localhost:8000")
     chat_model.invoke([langchain_core.messages.HumanMessage(content="What is the capital of France?")])
-    span = tracer.pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
     assert len(llmobs_events) == 2
     assert llmobs_events[1]["meta"]["span"]["kind"] == "llm"
 
 
-def test_llmobs_string_prompt_template_invoke(langchain_core, langchain_openai, openai_url, llmobs_events, tracer):
+def test_llmobs_string_prompt_template_invoke(
+    langchain_core, langchain_openai, openai_url, llmobs_events, tracer, test_spans
+):
     template_string = "You are a helpful assistant. Please answer this question: {question}"
     variable_dict = {"question": "What is machine learning?"}
     prompt_template = langchain_core.prompts.PromptTemplate(
@@ -212,9 +217,9 @@ def test_llmobs_string_prompt_template_invoke(langchain_core, langchain_openai, 
     assert actual_prompt["id"] == "test_langchain_llmobs.prompt_template"
     assert actual_prompt["template"] == template_string
     assert actual_prompt["variables"] == variable_dict
-    # Check that metadata from the prompt template is preserved
     assert "tags" in actual_prompt
     assert actual_prompt["tags"] == {"test_type": "basic_invoke", "author": "test_suite"}
+    assert "prompt_tracking_instrumentation_method:auto" in llmobs_events[1]["tags"]
 
 
 def test_llmobs_string_prompt_template_direct_invoke(
@@ -237,14 +242,13 @@ def test_llmobs_string_prompt_template_direct_invoke(
     llmobs_events.sort(key=lambda span: span["start_ns"])
     assert len(llmobs_events) == 1  # Only LLM span, prompt template invoke doesn't create LLMObs event by itself
 
-    # The prompt should be attached to the LLM span
     actual_prompt = llmobs_events[0]["meta"]["input"]["prompt"]
     assert actual_prompt["id"] == "test_langchain_llmobs.greeting_template"
     assert actual_prompt["template"] == template_string
     assert actual_prompt["variables"] == variable_dict
-    # Check that metadata from the prompt template is preserved
     assert "tags" in actual_prompt
     assert actual_prompt["tags"] == {"test_type": "direct_invoke", "interaction": "greeting"}
+    assert "prompt_tracking_instrumentation_method:auto" in llmobs_events[0]["tags"]
 
 
 def test_llmobs_string_prompt_template_invoke_chat_model(
@@ -387,7 +391,7 @@ async def test_llmobs_multi_message_prompt_template_async_direct_invoke(
     assert actual_prompt["chat_template"] == PROMPT_TEMPLATE_EXPECTED_CHAT_TEMPLATE
 
 
-def test_llmobs_chain(langchain_core, langchain_openai, openai_url, llmobs_events, tracer):
+def test_llmobs_chain(langchain_core, langchain_openai, openai_url, llmobs_events, tracer, test_spans):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are world class technical documentation writer."), ("user", "{input}")]
     )
@@ -395,7 +399,7 @@ def test_llmobs_chain(langchain_core, langchain_openai, openai_url, llmobs_event
     chain.invoke({"input": "Can you explain what an LLM chain is?"})
 
     llmobs_events.sort(key=lambda span: span["start_ns"])
-    trace = tracer.pop_traces()[0]
+    trace = test_spans.pop_traces()[0]
     assert len(llmobs_events) == 2
     assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
         trace[0],
@@ -409,6 +413,7 @@ def test_llmobs_chain(langchain_core, langchain_openai, openai_url, llmobs_event
         metadata={"max_tokens": 256, "temperature": 0.7},
         prompt={
             "id": "test_langchain_llmobs.prompt",
+            "ml_app": "langchain_test",
             "chat_template": [
                 {"content": "You are world class technical documentation writer.", "role": "system"},
                 {"content": "{input}", "role": "user"},
@@ -420,7 +425,7 @@ def test_llmobs_chain(langchain_core, langchain_openai, openai_url, llmobs_event
     )
 
 
-def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmobs_events, tracer):
+def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmobs_events, tracer, test_spans):
     prompt1 = langchain_core.prompts.ChatPromptTemplate.from_template("what is the city {person} is from?")
     prompt2 = langchain_core.prompts.ChatPromptTemplate.from_template(
         "what country is the city {city} in? respond in {language}"
@@ -433,7 +438,7 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
     complete_chain.invoke({"person": "Spongebob Squarepants", "language": "Spanish"})
 
     llmobs_events.sort(key=lambda span: span["start_ns"])
-    trace = tracer.pop_traces()[0]
+    trace = test_spans.pop_traces()[0]
     assert len(llmobs_events) == 5
     assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
         trace[0],
@@ -461,6 +466,7 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
         span_links=True,
         prompt={
             "id": "langchain.unknown_prompt_template",
+            "ml_app": "langchain_test",
             "chat_template": [{"content": "what is the city {person} is from?", "role": "user"}],
             "variables": {"person": "Spongebob Squarepants", "language": "Spanish"},
             "_dd_context_variable_keys": ["context"],
@@ -473,6 +479,7 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
         span_links=True,
         prompt={
             "id": "test_langchain_llmobs.prompt2",
+            "ml_app": "langchain_test",
             "chat_template": [{"content": "what country is the city {city} in? respond in {language}", "role": "user"}],
             "variables": {"city": mock.ANY, "language": "Spanish"},
             "_dd_context_variable_keys": ["context"],
@@ -482,7 +489,7 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Python <3.11 required")
-def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tracer, openai_url):
+def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tracer, test_spans, openai_url):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_template("Tell me a short joke about {topic}")
     output_parser = langchain_core.output_parsers.StrOutputParser()
     model = langchain_openai.ChatOpenAI(base_url=openai_url)
@@ -491,7 +498,7 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
     chain.batch(inputs=["chickens", "pigs"])
 
     llmobs_events.sort(key=lambda span: span["start_ns"])
-    trace = tracer.pop_traces()[0]
+    trace = test_spans.pop_traces()[0]
     assert len(llmobs_events) == 3
     assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
         trace[0],
@@ -508,6 +515,7 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
             span_links=True,
             prompt={
                 "id": "langchain.unknown_prompt_template",
+                "ml_app": "langchain_test",
                 "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
                 "variables": {"topic": "chickens"},
                 "_dd_context_variable_keys": ["context"],
@@ -521,6 +529,7 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
             span_links=True,
             prompt={
                 "id": "langchain.unknown_prompt_template",
+                "ml_app": "langchain_test",
                 "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
                 "variables": {"topic": "pigs"},
                 "_dd_context_variable_keys": ["context"],
@@ -535,6 +544,7 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
             span_links=True,
             prompt={
                 "id": "langchain.unknown_prompt_template",
+                "ml_app": "langchain_test",
                 "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
                 "variables": {"topic": "chickens"},
                 "_dd_context_variable_keys": ["context"],
@@ -548,6 +558,7 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
             span_links=True,
             prompt={
                 "id": "langchain.unknown_prompt_template",
+                "ml_app": "langchain_test",
                 "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
                 "variables": {"topic": "pigs"},
                 "_dd_context_variable_keys": ["context"],
@@ -556,7 +567,7 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
         )
 
 
-def test_llmobs_chain_schema_io(langchain_core, langchain_openai, openai_url, llmobs_events, tracer):
+def test_llmobs_chain_schema_io(langchain_core, langchain_openai, openai_url, llmobs_events, tracer, test_spans):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [
             ("system", "You're an assistant who's good at {ability}. Respond in 20 words or fewer"),
@@ -578,7 +589,7 @@ def test_llmobs_chain_schema_io(langchain_core, langchain_openai, openai_url, ll
     )
 
     llmobs_events.sort(key=lambda span: span["start_ns"])
-    trace = tracer.pop_traces()[0]
+    trace = test_spans.pop_traces()[0]
     assert len(llmobs_events) == 2
     assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
         trace[0],
@@ -602,7 +613,7 @@ def test_llmobs_chain_schema_io(langchain_core, langchain_openai, openai_url, ll
     )
 
 
-def test_llmobs_anthropic_chat_model(langchain_anthropic, llmobs_events, tracer, anthropic_url):
+def test_llmobs_anthropic_chat_model(langchain_anthropic, llmobs_events, tracer, test_spans, anthropic_url):
     kwargs = dict(
         temperature=0,
         max_tokens=15,
@@ -617,7 +628,7 @@ def test_llmobs_anthropic_chat_model(langchain_anthropic, llmobs_events, tracer,
     chat = langchain_anthropic.ChatAnthropic(**kwargs)
     chat.invoke("When do you use 'whom' instead of 'who'?")
 
-    span = tracer.pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_langchain_llmobs_llm_span(
         span,
@@ -627,11 +638,11 @@ def test_llmobs_anthropic_chat_model(langchain_anthropic, llmobs_events, tracer,
     )
 
 
-def test_llmobs_embedding_documents(langchain_openai, llmobs_events, tracer, openai_url):
+def test_llmobs_embedding_documents(langchain_openai, llmobs_events, tracer, test_spans, openai_url):
     embedding_model = langchain_openai.embeddings.OpenAIEmbeddings(base_url=openai_url)
     embedding_model.embed_documents(["hello world", "goodbye world"])
 
-    trace = tracer.pop_traces()[0]
+    trace = test_spans.pop_traces()[0]
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         trace[0],
@@ -644,11 +655,11 @@ def test_llmobs_embedding_documents(langchain_openai, llmobs_events, tracer, ope
     )
 
 
-def test_llmobs_embedding_query(langchain_openai, llmobs_events, tracer, openai_url):
+def test_llmobs_embedding_query(langchain_openai, llmobs_events, tracer, test_spans, openai_url):
     embedding_model = langchain_openai.embeddings.OpenAIEmbeddings(base_url=openai_url)
     embedding_model.embed_query("hello world")
 
-    trace = tracer.pop_traces()[0]
+    trace = test_spans.pop_traces()[0]
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         trace[0],
@@ -661,11 +672,11 @@ def test_llmobs_embedding_query(langchain_openai, llmobs_events, tracer, openai_
     )
 
 
-def test_llmobs_vectorstore_similarity_search(langchain_in_memory_vectorstore, llmobs_events, tracer):
+def test_llmobs_vectorstore_similarity_search(langchain_in_memory_vectorstore, llmobs_events, tracer, test_spans):
     vectorstore = langchain_in_memory_vectorstore
     vectorstore.similarity_search("France", k=1)
 
-    trace = tracer.pop_traces()[0]
+    trace = test_spans.pop_traces()[0]
     assert len(llmobs_events) == 2
     llmobs_events.sort(key=lambda span: span["start_ns"])
     expected_span = _expected_llmobs_non_llm_span_event(
@@ -680,7 +691,7 @@ def test_llmobs_vectorstore_similarity_search(langchain_in_memory_vectorstore, l
     assert llmobs_events[0] == expected_span
 
 
-def test_llmobs_chat_model_tool_calls(langchain_core, langchain_openai, llmobs_events, tracer, openai_url):
+def test_llmobs_chat_model_tool_calls(langchain_core, langchain_openai, llmobs_events, tracer, test_spans, openai_url):
     @langchain_core.tools.tool
     def add(a: int, b: int) -> int:
         """Adds a and b.
@@ -694,7 +705,7 @@ def test_llmobs_chat_model_tool_calls(langchain_core, langchain_openai, llmobs_e
     llm_with_tools = llm.bind_tools([add])
     llm_with_tools.invoke([langchain_core.messages.HumanMessage(content="What is the sum of 1 and 2?")])
 
-    span = tracer.pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span,
@@ -720,7 +731,7 @@ def test_llmobs_chat_model_tool_calls(langchain_core, langchain_openai, llmobs_e
     )
 
 
-def test_llmobs_base_tool_invoke(langchain_core, llmobs_events, tracer):
+def test_llmobs_base_tool_invoke(langchain_core, llmobs_events, tracer, test_spans):
     from math import pi
 
     def circumference_tool(radius: float) -> float:
@@ -736,7 +747,7 @@ def test_llmobs_base_tool_invoke(langchain_core, llmobs_events, tracer):
 
     calculator.invoke("2", config={"test": "this is to test config"})
 
-    span = tracer.pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         span,
@@ -755,7 +766,9 @@ def test_llmobs_base_tool_invoke(langchain_core, llmobs_events, tracer):
 
 
 @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, tracer, openai_url, consume_stream):
+def test_llmobs_streamed_chain(
+    langchain_core, langchain_openai, llmobs_events, tracer, test_spans, openai_url, consume_stream
+):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are a world class technical documentation writer."), ("user", "{input}")]
     )
@@ -766,7 +779,7 @@ def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, 
 
     consume_stream(chain.stream({"input": "how can langsmith help with testing?"}))
 
-    trace = tracer.pop_traces()[0]
+    trace = test_spans.pop_traces()[0]
     assert len(llmobs_events) == 2
     llmobs_events.sort(key=lambda span: span["start_ns"])
     assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
@@ -792,11 +805,11 @@ def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, 
 
 
 @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-def test_llmobs_streamed_llm(langchain_openai, llmobs_events, tracer, openai_url, consume_stream):
+def test_llmobs_streamed_llm(langchain_openai, llmobs_events, tracer, test_spans, openai_url, consume_stream):
     llm = langchain_openai.OpenAI(base_url=openai_url, n=1, seed=1, logprobs=None, logit_bias=None)
 
     consume_stream(llm.stream("What is 2+2?\n\n"))
-    span = tracer.pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span,
@@ -832,7 +845,7 @@ def test_llmobs_set_tags_with_none_response(langchain_core):
     )
 
 
-def test_llmobs_runnable_lambda_invoke(langchain_core, llmobs_events, tracer):
+def test_llmobs_runnable_lambda_invoke(langchain_core, llmobs_events, tracer, test_spans):
     def add(inputs: dict) -> int:
         return inputs["a"] + inputs["b"]
 
@@ -840,7 +853,7 @@ def test_llmobs_runnable_lambda_invoke(langchain_core, llmobs_events, tracer):
     result = runnable_lambda.invoke(dict(a=1, b=2))
     assert result == 3
 
-    span = tracer.pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         span,
@@ -851,7 +864,7 @@ def test_llmobs_runnable_lambda_invoke(langchain_core, llmobs_events, tracer):
     )
 
 
-async def test_llmobs_runnable_lambda_ainvoke(langchain_core, llmobs_events, tracer):
+async def test_llmobs_runnable_lambda_ainvoke(langchain_core, llmobs_events, tracer, test_spans):
     async def add(inputs: dict) -> int:
         return inputs["a"] + inputs["b"]
 
@@ -859,7 +872,7 @@ async def test_llmobs_runnable_lambda_ainvoke(langchain_core, llmobs_events, tra
     result = await runnable_lambda.ainvoke(dict(a=1, b=2))
     assert result == 3
 
-    span = tracer.pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         span,

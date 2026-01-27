@@ -114,7 +114,6 @@ components:
   telemetry:
     - ddtrace/internal/telemetry/*
   tracing:
-    - ddtrace/_hooks.py
     - ddtrace/_logger.py
     - ddtrace/_monkey.py
     - ddtrace/_trace/*
@@ -172,6 +171,7 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@contrib'
+      - '@vendor'
       - tests/integration/*
       - tests/snapshots/tests.integration.*
     pattern: integration-latest*
@@ -183,6 +183,7 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@contrib'
+      - '@vendor'
       - tests/integration/*
       - tests/snapshots/tests.integration.*
     pattern: integration-snapshot*
@@ -195,12 +196,13 @@ suites:
       - ddtrace/contrib/integration_registry/*
     runner: riot
   internal:
-    parallelism: 2
+    venvs_per_job: 3
     paths:
       - '@core'
       - '@remoteconfig'
       - '@symbol_db'
       - '@tracing'
+      - '@vendor'
       - ddtrace/internal/*
       - tests/internal/*
       - tests/submod/*
@@ -223,6 +225,7 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@runtime'
+      - '@vendor'
       - tests/runtime/*
     runner: riot
     skip: true
@@ -244,6 +247,7 @@ suites:
       - '@tracing'
       - '@settings'
       - '@profiling'
+      - '@vendor'
       - tests/telemetry/*
       - tests/snapshots/tests.telemetry.*
     runner: riot
@@ -263,6 +267,7 @@ suites:
       - '@remoteconfig'
       - '@futures'
       - '@ci_visibility'
+      - '@vendor'
       - tests/tracer/*
       - tests/snapshots/test_*
     retry: 2

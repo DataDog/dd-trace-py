@@ -1,227 +1,655 @@
-__all__ = ["get_extensions"]
+#!/usr/bin/env python3
 
+# Copyright (c) 2009 Giampaolo Rodola'. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+"""Cross-platform lib for process and system monitoring in Python.
+
+NOTE: the syntax of this script MUST be kept compatible with Python 2.7.
+"""
+
+from __future__ import print_function
+
+import ast
 import contextlib
+import glob
 import io
 import os
-import platform
-from setuptools import Extension
 import shutil
+import struct
+import subprocess
 import sys
+import sysconfig
 import tempfile
+import textwrap
+import warnings
 
-POSIX = os.name == "posix"
-WINDOWS = os.name == "nt"
-LINUX = sys.platform.startswith("linux")
-MACOS = sys.platform.startswith("darwin")
-OSX = MACOS  # deprecated alias
-FREEBSD = sys.platform.startswith("freebsd")
-OPENBSD = sys.platform.startswith("openbsd")
-NETBSD = sys.platform.startswith("netbsd")
-BSD = FREEBSD or OPENBSD or NETBSD
-SUNOS = sys.platform.startswith(("sunos", "solaris"))
-AIX = sys.platform.startswith("aix")
+
+if sys.version_info[0] == 2:
+    sys.exit(
+        textwrap.dedent("""\
+        As of version 7.0.0 psutil no longer supports Python 2.7, see:
+        https://github.com/giampaolo/psutil/issues/2480
+        Latest version supporting Python 2.7 is psutil 6.1.X.
+        Install it with:
+
+            python2 -m pip install psutil==6.1.*\
+        """)
+    )
+
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    try:
+        import setuptools
+        from setuptools import Extension
+        from setuptools import setup
+    except ImportError:
+        if "CIBUILDWHEEL" in os.environ:
+            raise
+        setuptools = None
+        from distutils.core import Extension
+        from distutils.core import setup
+
+
+HERE = os.path.abspath(os.path.dirname(__file__))
+
+# ...so we can import _common.py
+sys.path.insert(0, os.path.join(HERE, "..", "psutil"))
+
+from _common import AIX  # noqa: E402
+from _common import BSD  # noqa: E402
+from _common import FREEBSD  # noqa: E402
+from _common import LINUX  # noqa: E402
+from _common import MACOS  # noqa: E402
+from _common import NETBSD  # noqa: E402
+from _common import OPENBSD  # noqa: E402
+from _common import POSIX  # noqa: E402
+from _common import SUNOS  # noqa: E402
+from _common import WINDOWS  # noqa: E402
+from _common import hilite  # noqa: E402
+
+
+PYPY = "__pypy__" in sys.builtin_module_names
+PY36_PLUS = sys.version_info[:2] >= (3, 6)
+PY37_PLUS = sys.version_info[:2] >= (3, 7)
+CP36_PLUS = PY36_PLUS and sys.implementation.name == "cpython"
+CP37_PLUS = PY37_PLUS and sys.implementation.name == "cpython"
+Py_GIL_DISABLED = sysconfig.get_config_var("Py_GIL_DISABLED")
+
+# Test deps, installable via `pip install .[test]` or
+# `make install-pydeps-test`.
+TEST_DEPS = [
+    "pytest",
+    "pytest-instafail",
+    "pytest-subtests",
+    "pytest-xdist",
+    "setuptools",
+    "pywin32 ; os_name == 'nt' and platform_python_implementation != 'PyPy'",
+    "wheel ; os_name == 'nt' and platform_python_implementation != 'PyPy'",
+    "wmi ; os_name == 'nt' and platform_python_implementation != 'PyPy'",
+]
+
+# Development deps, installable via `pip install .[dev]` or
+# `make install-pydeps-dev`.
+DEV_DEPS = TEST_DEPS + [
+    "abi3audit",
+    "black",
+    "check-manifest",
+    "colorama ; os_name == 'nt'",
+    "coverage",
+    "packaging",
+    "pylint",
+    "pyperf",
+    "pypinfo",
+    "pyreadline ; os_name == 'nt'",
+    "pytest-cov",
+    "requests",
+    "rstcheck",
+    "ruff",
+    "sphinx",
+    "sphinx_rtd_theme",
+    "toml-sort",
+    "twine",
+    "validate-pyproject[all]",
+    "virtualenv",
+    "vulture",
+    "wheel",
+]
+
+# The pre-processor macros that are passed to the C compiler when
+# building the extension.
+macros = []
+
+if POSIX:
+    macros.append(("PSUTIL_POSIX", 1))
+if BSD:
+    macros.append(("PSUTIL_BSD", 1))
+
+# Needed to determine _Py_PARSE_PID in case it's missing (PyPy).
+# Taken from Lib/test/test_fcntl.py.
+# XXX: not bullet proof as the (long long) case is missing.
+if struct.calcsize("l") <= 8:
+    macros.append(("PSUTIL_SIZEOF_PID_T", "4"))  # int
+else:
+    macros.append(("PSUTIL_SIZEOF_PID_T", "8"))  # long
+
+
+sources = glob.glob(os.path.join(HERE, "arch/all/*.c"))
+if POSIX:
+    sources.extend(glob.glob(os.path.join(HERE, "arch/posix/*.c")))
+
+
+def get_version():
+    # In vendored version, __init__.py is in same directory as setup.py
+    INIT = os.path.join(HERE, "__init__.py")
+    with open(INIT) as f:
+        for line in f:
+            if line.startswith("__version__"):
+                ret = ast.literal_eval(line.strip().split(" = ")[1])
+                assert ret.count(".") == 2, ret
+                for num in ret.split("."):
+                    assert num.isdigit(), ret
+                return ret
+        msg = "couldn't find version string"
+        raise ValueError(msg)
+
+
+VERSION = get_version()
+macros.append(("PSUTIL_VERSION", int(VERSION.replace(".", ""))))
+
+# Py_LIMITED_API lets us create a single wheel which works with multiple
+# python versions, including unreleased ones.
+if setuptools and CP36_PLUS and (MACOS or LINUX) and not Py_GIL_DISABLED:
+    py_limited_api = {"py_limited_api": True}
+    options = {"bdist_wheel": {"py_limited_api": "cp36"}}
+    macros.append(("Py_LIMITED_API", "0x03060000"))
+elif setuptools and CP37_PLUS and WINDOWS and not Py_GIL_DISABLED:
+    # PyErr_SetFromWindowsErr / PyErr_SetFromWindowsErrWithFilename are
+    # part of the stable API/ABI starting with CPython 3.7
+    py_limited_api = {"py_limited_api": True}
+    options = {"bdist_wheel": {"py_limited_api": "cp37"}}
+    macros.append(("Py_LIMITED_API", "0x03070000"))
+else:
+    py_limited_api = {}
+    options = {}
+
+
+def get_long_description():
+    script = os.path.join(HERE, "scripts", "internal", "convert_readme.py")
+    readme = os.path.join(HERE, "README.rst")
+    p = subprocess.Popen(
+        [sys.executable, script, readme],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+    )
+    stdout, stderr = p.communicate()
+    if p.returncode != 0:
+        raise RuntimeError(stderr)
+    return stdout
 
 
 @contextlib.contextmanager
-def silenced_output(stream_name):
-    class DummyFile(io.BytesIO):
-        # see: https://github.com/giampaolo/psutil/issues/678
-        errors = "ignore"
+def silenced_output():
+    with contextlib.redirect_stdout(io.StringIO()):
+        with contextlib.redirect_stderr(io.StringIO()):
+            yield
 
-        def write(self, s):
-            pass
 
-    orig = getattr(sys, stream_name)
+def has_python_h():
+    include_dir = sysconfig.get_path("include")
+    return os.path.exists(os.path.join(include_dir, "Python.h"))
+
+
+def get_sysdeps():
+    if LINUX:
+        pyimpl = "pypy" if PYPY else "python"
+        if shutil.which("dpkg"):
+            return "sudo apt-get install gcc {}3-dev".format(pyimpl)
+        elif shutil.which("rpm"):
+            return "sudo yum install gcc {}3-devel".format(pyimpl)
+        elif shutil.which("pacman"):
+            return "sudo pacman -S gcc python"
+        elif shutil.which("apk"):
+            return "sudo apk add gcc {}3-dev musl-dev linux-headers".format(pyimpl)
+    elif MACOS:
+        return "xcode-select --install"
+    elif FREEBSD:
+        if shutil.which("pkg"):
+            return "pkg install gcc python3"
+        elif shutil.which("mport"):  # MidnightBSD
+            return "mport install gcc python3"
+    elif OPENBSD:
+        return "pkg_add -v gcc python3"
+    elif NETBSD:
+        return "pkgin install gcc python3"
+    elif SUNOS:
+        return "pkg install gcc"
+
+
+def print_install_instructions():
+    reasons = []
+    if not shutil.which("gcc"):
+        reasons.append("gcc is not installed.")
+    if not has_python_h():
+        reasons.append("Python header files are not installed.")
+    if reasons:
+        sysdeps = get_sysdeps()
+        if sysdeps:
+            s = "psutil could not be compiled from sources. "
+            s += " ".join(reasons)
+            s += " Try running:\n"
+            s += "  {}".format(sysdeps)
+            print(hilite(s, color="red", bold=True), file=sys.stderr)
+
+
+def unix_can_compile(c_code):
+    from distutils.errors import CompileError
+    from distutils.unixccompiler import UnixCCompiler
+
+    with tempfile.NamedTemporaryFile(suffix=".c", delete=False, mode="wt") as f:
+        f.write(c_code)
+
+    tempdir = tempfile.mkdtemp()
     try:
-        setattr(sys, stream_name, DummyFile())
-        yield
+        compiler = UnixCCompiler()
+        # https://github.com/giampaolo/psutil/pull/1568
+        if os.getenv("CC"):
+            compiler.set_executable("compiler_so", os.getenv("CC"))
+        with silenced_output():
+            compiler.compile([f.name], output_dir=tempdir)
+        compiler.compile([f.name], output_dir=tempdir)
+    except CompileError:
+        return False
+    else:
+        return True
     finally:
-        setattr(sys, stream_name, orig)
+        os.remove(f.name)
+        shutil.rmtree(tempdir)
+
+
+if WINDOWS:
+
+    def get_winver():
+        maj, min = sys.getwindowsversion()[0:2]
+        return "0x0{}".format((maj * 100) + min)
+
+    if sys.getwindowsversion()[0] < 6:
+        msg = "this Windows version is too old (< Windows Vista); "
+        msg += "psutil 3.4.2 is the latest version which supports Windows "
+        msg += "2000, XP and 2003 server"
+        raise RuntimeError(msg)
+
+    macros.append(("PSUTIL_WINDOWS", 1))
+    macros.extend(
+        [
+            # be nice to mingw, see:
+            # http://www.mingw.org/wiki/Use_more_recent_defined_functions
+            ("_WIN32_WINNT", get_winver()),
+            ("_AVAIL_WINVER_", get_winver()),
+            ("_CRT_SECURE_NO_WARNINGS", None),
+            # see: https://github.com/giampaolo/psutil/issues/348
+            ("PSAPI_VERSION", 1),
+        ]
+    )
+
+    if Py_GIL_DISABLED:
+        macros.append(("Py_GIL_DISABLED", 1))
+
+    ext = Extension(
+        "psutil._psutil_windows",
+        sources=(
+            sources + [os.path.join(HERE, "_psutil_windows.c")] + glob.glob(os.path.join(HERE, "arch/windows/*.c"))
+        ),
+        define_macros=macros,
+        libraries=[
+            "advapi32",
+            "kernel32",
+            "netapi32",
+            "pdh",
+            "PowrProf",
+            "psapi",
+            "shell32",
+            "ws2_32",
+        ],
+        # extra_compile_args=["/W 4"],
+        # extra_link_args=["/DEBUG"],
+        # fmt: off
+        # python 2.7 compatibility requires no comma
+        **py_limited_api,
+        # fmt: on
+    )
+
+elif MACOS:
+    macros.extend([("PSUTIL_OSX", 1), ("PSUTIL_MACOS", 1)])
+    ext = Extension(
+        "psutil._psutil_osx",
+        sources=(sources + [os.path.join(HERE, "_psutil_osx.c")] + glob.glob(os.path.join(HERE, "arch/osx/*.c"))),
+        define_macros=macros,
+        extra_link_args=[
+            "-framework",
+            "CoreFoundation",
+            "-framework",
+            "IOKit",
+        ],
+        # fmt: off
+        # python 2.7 compatibility requires no comma
+        **py_limited_api,
+        # fmt: on
+    )
+
+elif FREEBSD:
+    macros.append(("PSUTIL_FREEBSD", 1))
+
+    ext = Extension(
+        "psutil._psutil_bsd",
+        sources=(
+            sources
+            + [os.path.join(HERE, "_psutil_bsd.c")]
+            + glob.glob(os.path.join(HERE, "arch/bsd/*.c"))
+            + glob.glob(os.path.join(HERE, "arch/freebsd/*.c"))
+        ),
+        define_macros=macros,
+        libraries=["devstat"],
+        # fmt: off
+        # python 2.7 compatibility requires no comma
+        **py_limited_api,
+        # fmt: on
+    )
+
+elif OPENBSD:
+    macros.append(("PSUTIL_OPENBSD", 1))
+
+    ext = Extension(
+        "psutil._psutil_bsd",
+        sources=(
+            sources
+            + [os.path.join(HERE, "_psutil_bsd.c")]
+            + glob.glob(os.path.join(HERE, "arch/bsd/*.c"))
+            + glob.glob(os.path.join(HERE, "arch/openbsd/*.c"))
+        ),
+        define_macros=macros,
+        libraries=["kvm"],
+        # fmt: off
+        # python 2.7 compatibility requires no comma
+        **py_limited_api,
+        # fmt: on
+    )
+
+elif NETBSD:
+    macros.append(("PSUTIL_NETBSD", 1))
+
+    ext = Extension(
+        "psutil._psutil_bsd",
+        sources=(
+            sources
+            + [os.path.join(HERE, "_psutil_bsd.c")]
+            + glob.glob(os.path.join(HERE, "arch/bsd/*.c"))
+            + glob.glob(os.path.join(HERE, "arch/netbsd/*.c"))
+        ),
+        define_macros=macros,
+        libraries=["kvm"],
+        # fmt: off
+        # python 2.7 compatibility requires no comma
+        **py_limited_api,
+        # fmt: on
+    )
+
+elif LINUX:
+    # see: https://github.com/giampaolo/psutil/issues/659
+    if not unix_can_compile("#include <linux/ethtool.h>"):
+        macros.append(("PSUTIL_ETHTOOL_MISSING_TYPES", 1))
+
+    macros.append(("PSUTIL_LINUX", 1))
+    ext = Extension(
+        "psutil._psutil_linux",
+        sources=(sources + [os.path.join(HERE, "_psutil_linux.c")] + glob.glob(os.path.join(HERE, "arch/linux/*.c"))),
+        define_macros=macros,
+        # fmt: off
+        # python 2.7 compatibility requires no comma
+        **py_limited_api,
+        # fmt: on
+    )
+
+elif SUNOS:
+    macros.append(("PSUTIL_SUNOS", 1))
+
+    ext = Extension(
+        "psutil._psutil_sunos",
+        sources=(sources + [os.path.join(HERE, "_psutil_sunos.c")] + glob.glob(os.path.join(HERE, "arch/sunos/*.c"))),
+        define_macros=macros,
+        libraries=["kstat", "nsl", "socket"],
+        # fmt: off
+        # python 2.7 compatibility requires no comma
+        **py_limited_api,
+        # fmt: on
+    )
+
+elif AIX:
+    macros.append(("PSUTIL_AIX", 1))
+
+    ext = Extension(
+        "psutil._psutil_aix",
+        sources=(sources + [os.path.join(HERE, "_psutil_aix.c")] + glob.glob(os.path.join(HERE, "arch/aix/*.c"))),
+        libraries=["perfstat"],
+        define_macros=macros,
+        # fmt: off
+        # python 2.7 compatibility requires no comma
+        **py_limited_api,
+        # fmt: on
+    )
+
+else:
+    sys.exit("platform {} is not supported".format(sys.platform))
+
+
+def main():
+    kwargs = dict(
+        name="psutil",
+        version=VERSION,
+        description="Cross-platform lib for process and system monitoring.",
+        long_description=get_long_description(),
+        long_description_content_type="text/x-rst",
+        # fmt: off
+        keywords=[
+            "ps",
+            "top",
+            "kill",
+            "free",
+            "lsof",
+            "netstat",
+            "nice",
+            "tty",
+            "ionice",
+            "uptime",
+            "taskmgr",
+            "process",
+            "df",
+            "iotop",
+            "iostat",
+            "ifconfig",
+            "taskset",
+            "who",
+            "pidof",
+            "pmap",
+            "smem",
+            "pstree",
+            "monitoring",
+            "ulimit",
+            "prlimit",
+            "smem",
+            "performance",
+            "metrics",
+            "agent",
+            "observability",
+        ],
+        # fmt: on
+        author="Giampaolo Rodola",
+        author_email="g.rodola@gmail.com",
+        url="https://github.com/giampaolo/psutil",
+        platforms="Platform Independent",
+        license="BSD-3-Clause",
+        packages=["psutil", "psutil.tests"],
+        ext_modules=[ext],
+        options=options,
+        classifiers=[
+            "Development Status :: 5 - Production/Stable",
+            "Environment :: Console",
+            "Intended Audience :: Developers",
+            "Intended Audience :: Information Technology",
+            "Intended Audience :: System Administrators",
+            "Operating System :: MacOS :: MacOS X",
+            "Operating System :: Microsoft :: Windows :: Windows 10",
+            "Operating System :: Microsoft :: Windows :: Windows 11",
+            "Operating System :: Microsoft :: Windows :: Windows 7",
+            "Operating System :: Microsoft :: Windows :: Windows 8",
+            "Operating System :: Microsoft :: Windows :: Windows 8.1",
+            "Operating System :: Microsoft :: Windows :: Windows Server 2003",
+            "Operating System :: Microsoft :: Windows :: Windows Server 2008",
+            "Operating System :: Microsoft :: Windows :: Windows Vista",
+            "Operating System :: Microsoft :: Windows",
+            "Operating System :: Microsoft",
+            "Operating System :: OS Independent",
+            "Operating System :: POSIX :: AIX",
+            "Operating System :: POSIX :: BSD :: FreeBSD",
+            "Operating System :: POSIX :: BSD :: NetBSD",
+            "Operating System :: POSIX :: BSD :: OpenBSD",
+            "Operating System :: POSIX :: BSD",
+            "Operating System :: POSIX :: Linux",
+            "Operating System :: POSIX :: SunOS/Solaris",
+            "Operating System :: POSIX",
+            "Programming Language :: C",
+            "Programming Language :: Python :: 3",
+            "Programming Language :: Python :: Implementation :: CPython",
+            "Programming Language :: Python :: Implementation :: PyPy",
+            "Programming Language :: Python",
+            "Topic :: Software Development :: Libraries :: Python Modules",
+            "Topic :: Software Development :: Libraries",
+            "Topic :: System :: Benchmark",
+            "Topic :: System :: Hardware",
+            "Topic :: System :: Monitoring",
+            "Topic :: System :: Networking :: Monitoring :: Hardware Watchdog",
+            "Topic :: System :: Networking :: Monitoring",
+            "Topic :: System :: Networking",
+            "Topic :: System :: Operating System",
+            "Topic :: System :: Systems Administration",
+            "Topic :: Utilities",
+        ],
+    )
+    if setuptools is not None:
+        extras_require = {
+            "dev": DEV_DEPS,
+            "test": TEST_DEPS,
+        }
+        kwargs.update(
+            python_requires=">=3.6",
+            extras_require=extras_require,
+            zip_safe=False,
+        )
+    success = False
+    try:
+        setup(**kwargs)
+        success = True
+    finally:
+        cmd = sys.argv[1] if len(sys.argv) >= 2 else ""
+        if not success and POSIX and cmd.startswith(("build", "install", "sdist", "bdist", "develop")):
+            print_install_instructions()
 
 
 def get_extensions():
-    macros = [("PSUTIL_VERSION", 567)]
-    if POSIX:
-        macros.append(("PSUTIL_POSIX", 1))
-    if BSD:
-        macros.append(("PSUTIL_BSD", 1))
+    """Return list of Extension objects for dd-trace-py build system.
 
-    sources = ["ddtrace/vendor/psutil/_psutil_common.c"]
-    if POSIX:
-        sources.append("ddtrace/vendor/psutil/_psutil_posix.c")
+    This function adapts the extensions defined above to work with the
+    dd-trace-py build system by:
+    1. Renaming modules to use ddtrace.vendor.psutil namespace
+    2. Updating source paths to use ddtrace/vendor/psutil paths
+    """
 
-    if WINDOWS:
-
-        def get_winver():
-            win_maj, win_min = sys.getwindowsversion()[0:2]
-            return "0x0%s" % ((win_maj * 100) + win_min)
-
-        if sys.getwindowsversion()[0] < 6:
-            msg = "this Windows version is too old (< Windows Vista); "
-            msg += "psutil 3.4.2 is the latest version which supports Windows "
-            msg += "2000, XP and 2003 server"
-            raise RuntimeError(msg)
-
-        macros.append(("PSUTIL_WINDOWS", 1))
-        macros.extend(
-            [
-                # be nice to mingw, see:
-                # http://www.mingw.org/wiki/Use_more_recent_defined_functions
-                ("_WIN32_WINNT", get_winver()),
-                ("_AVAIL_WINVER_", get_winver()),
-                ("_CRT_SECURE_NO_WARNINGS", None),
-                # see: https://github.com/giampaolo/psutil/issues/348
-                ("PSAPI_VERSION", 1),
-            ]
-        )
-
-        sources += [
-            "ddtrace/vendor/psutil/_psutil_windows.c",
-            "ddtrace/vendor/psutil/arch/windows/process_info.c",
-            "ddtrace/vendor/psutil/arch/windows/process_handles.c",
-            "ddtrace/vendor/psutil/arch/windows/security.c",
-            "ddtrace/vendor/psutil/arch/windows/inet_ntop.c",
-            "ddtrace/vendor/psutil/arch/windows/services.c",
-            "ddtrace/vendor/psutil/arch/windows/global.c",
-            "ddtrace/vendor/psutil/arch/windows/wmi.c",
-        ]
-        ext = Extension(
-            "ddtrace.vendor.psutil._psutil_windows",
-            sources=sources,
-            define_macros=macros,
-            libraries=[
-                "psapi",
-                "kernel32",
-                "advapi32",
-                "shell32",
-                "netapi32",
-                "wtsapi32",
-                "ws2_32",
-                "PowrProf",
-                "pdh",
-            ],
-            # extra_compile_args=["/Z7"],
-            # extra_link_args=["/DEBUG"]
-        )
-
-    elif MACOS:
-        macros.append(("PSUTIL_OSX", 1))
-        sources += [
-            "ddtrace/vendor/psutil/_psutil_osx.c",
-            "ddtrace/vendor/psutil/arch/osx/process_info.c",
-        ]
-        ext = Extension(
-            "ddtrace.vendor.psutil._psutil_osx",
-            sources=sources,
-            define_macros=macros,
-            extra_link_args=["-framework", "CoreFoundation", "-framework", "IOKit"],
-        )
-
-    elif FREEBSD:
-        macros.append(("PSUTIL_FREEBSD", 1))
-        sources += [
-            "ddtrace/vendor/psutil/_psutil_bsd.c",
-            "ddtrace/vendor/psutil/arch/freebsd/specific.c",
-            "ddtrace/vendor/psutil/arch/freebsd/sys_socks.c",
-            "ddtrace/vendor/psutil/arch/freebsd/proc_socks.c",
-        ]
-        ext = Extension(
-            "ddtrace.vendor.psutil._psutil_bsd", sources=sources, define_macros=macros, libraries=["devstat"],
-        )
-
-    elif OPENBSD:
-        macros.append(("PSUTIL_OPENBSD", 1))
-        ext = Extension(
-            "ddtrace.vendor.psutil._psutil_bsd",
-            sources=sources + ["ddtrace/vendor/psutil/_psutil_bsd.c", "ddtrace/vendor/psutil/arch/openbsd/specific.c"],
-            define_macros=macros,
-            libraries=["kvm"],
-        )
-
-    elif NETBSD:
-        macros.append(("PSUTIL_NETBSD", 1))
-        sources += [
-            "ddtrace/vendor/psutil/_psutil_bsd.c",
-            "ddtrace/vendor/psutil/arch/netbsd/specific.c",
-            "ddtrace/vendor/psutil/arch/netbsd/socks.c",
-        ]
-        ext = Extension("ddtrace.vendor.psutil._psutil_bsd", sources=sources, define_macros=macros, libraries=["kvm"],)
-
-    elif LINUX:
-
-        def get_ethtool_macro():
-            # see: https://github.com/giampaolo/ddtrace/vendor/psutil/issues/659
-            from distutils.unixccompiler import UnixCCompiler
-            from distutils.errors import CompileError
-
-            with tempfile.NamedTemporaryFile(suffix=".c", delete=False, mode="wt") as f:
-                f.write("#include <linux/ethtool.h>")
-
-            output_dir = tempfile.mkdtemp()
-            try:
-                compiler = UnixCCompiler()
-                # https://github.com/giampaolo/ddtrace/vendor/psutil/pull/1568
-                if os.getenv("CC"):
-                    compiler.set_executable("compiler_so", os.getenv("CC"))
-                with silenced_output("stderr"):
-                    with silenced_output("stdout"):
-                        compiler.compile([f.name], output_dir=output_dir)
-            except CompileError:
-                return ("PSUTIL_ETHTOOL_MISSING_TYPES", 1)
+    # Create a copy of the extension with updated name and sources
+    def adapt_extension(original_ext, new_name):
+        """Adapt an extension for vendored use."""
+        # Update source paths to use ddtrace/vendor/psutil/* prefix
+        # The sources from ext are absolute paths (using os.path.join(HERE, ...))
+        # We need to convert them to relative paths from project root
+        new_sources = []
+        for src in original_ext.sources:
+            if os.path.isabs(src):
+                # Convert absolute path to relative path
+                # Get the relative path from HERE
+                rel_from_here = os.path.relpath(src, HERE)
+                # Combine with ddtrace/vendor/psutil prefix
+                new_path = os.path.join("ddtrace", "vendor", "psutil", rel_from_here)
+                # Normalize to forward slashes for setuptools (works on all platforms)
+                new_sources.append(new_path.replace(os.sep, "/"))
             else:
-                return None
-            finally:
-                os.remove(f.name)
-                shutil.rmtree(output_dir)
+                # Already relative, just add prefix and normalize
+                new_path = os.path.join("ddtrace", "vendor", "psutil", src)
+                new_sources.append(new_path.replace(os.sep, "/"))
 
-        macros.append(("PSUTIL_LINUX", 1))
-        ETHTOOL_MACRO = get_ethtool_macro()
-        if ETHTOOL_MACRO is not None:
-            macros.append(ETHTOOL_MACRO)
-        ext = Extension(
-            "ddtrace.vendor.psutil._psutil_linux",
-            sources=sources + ["ddtrace/vendor/psutil/_psutil_linux.c"],
-            define_macros=macros,
+        # Create new extension with updated name and sources
+        adapted = Extension(
+            new_name,
+            sources=new_sources,
+            define_macros=original_ext.define_macros,
+            libraries=getattr(original_ext, "libraries", []),
+            extra_link_args=getattr(original_ext, "extra_link_args", []),
         )
 
+        return adapted
+
+    # Get the platform-specific extension name
+    if WINDOWS:
+        ext_name = "ddtrace.vendor.psutil._psutil_windows"
+    elif MACOS:
+        ext_name = "ddtrace.vendor.psutil._psutil_osx"
+    elif BSD:
+        ext_name = "ddtrace.vendor.psutil._psutil_bsd"
+    elif LINUX:
+        ext_name = "ddtrace.vendor.psutil._psutil_linux"
     elif SUNOS:
-        macros.append(("PSUTIL_SUNOS", 1))
-        sources += [
-            "ddtrace/vendor/psutil/_psutil_sunos.c",
-            "ddtrace/vendor/psutil/arch/solaris/v10/ifaddrs.c",
-            "ddtrace/vendor/psutil/arch/solaris/environ.c",
-        ]
-        ext = Extension(
-            "ddtrace.vendor.psutil._psutil_sunos",
-            sources=sources,
-            define_macros=macros,
-            libraries=["kstat", "nsl", "socket"],
-        )
-
+        ext_name = "ddtrace.vendor.psutil._psutil_sunos"
     elif AIX:
-        macros.append(("PSUTIL_AIX", 1))
-        sources += [
-            "ddtrace/vendor/psutil/_psutil_aix.c",
-            "ddtrace/vendor/psutil/arch/aix/net_connections.c",
-            "ddtrace/vendor/psutil/arch/aix/common.c",
-            "ddtrace/vendor/psutil/arch/aix/ifaddrs.c",
-        ]
-        ext = Extension(
-            "ddtrace.vendor.psutil._psutil_aix", sources=sources, libraries=["perfstat"], define_macros=macros,
-        )
+        ext_name = "ddtrace.vendor.psutil._psutil_aix"
     else:
-        raise RuntimeError("platform %s is not supported" % sys.platform)
+        msg = "platform {} is not supported".format(sys.platform)
+        raise RuntimeError(msg)
 
+    # Adapt the main extension
+    adapted_ext = adapt_extension(ext, ext_name)
+
+    # For POSIX systems, also create the _psutil_posix extension
     if POSIX:
-        posix_extension = Extension("ddtrace.vendor.psutil._psutil_posix", define_macros=macros, sources=sources)
-        if SUNOS:
-            posix_extension.libraries.append("socket")
-            if platform.release() == "5.10":
-                posix_extension.sources.append("ddtrace/vendor/psutil/arch/solaris/v10/ifaddrs.c")
-                posix_extension.define_macros.append(("PSUTIL_SUNOS10", 1))
-        elif AIX:
-            posix_extension.sources.append("ddtrace/vendor/psutil/arch/aix/ifaddrs.c")
+        # Create sources list for posix extension
+        # Convert absolute paths to relative from project root
+        posix_sources = []
+        for src in sources:
+            if os.path.isabs(src):
+                # Convert absolute path to relative path
+                rel_from_here = os.path.relpath(src, HERE)
+                new_path = os.path.join("ddtrace", "vendor", "psutil", rel_from_here)
+                # Normalize to forward slashes for setuptools
+                posix_sources.append(new_path.replace(os.sep, "/"))
+            else:
+                new_path = os.path.join("ddtrace", "vendor", "psutil", src)
+                posix_sources.append(new_path.replace(os.sep, "/"))
 
-        return [ext, posix_extension]
+        posix_ext = Extension(
+            "ddtrace.vendor.psutil._psutil_posix",
+            sources=posix_sources,
+            define_macros=macros,
+            libraries=[],
+        )
+
+        # Add platform-specific libraries for posix extension
+        if SUNOS:
+            posix_ext.libraries.append("socket")
+
+        return [adapted_ext, posix_ext]
     else:
-        return [ext]
+        return [adapted_ext]
+
+
+if __name__ == "__main__":
+    main()

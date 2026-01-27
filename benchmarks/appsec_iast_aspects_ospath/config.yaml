@@ -1,10 +1,13 @@
-ospathbasename_aspect: &ospathbasename_aspect
-  warmups: 1
+ospathbasename_aspect: &default_aspect
+  warmups: 10
+  internal_loop: 100
   function_name: "iast_ospathbasename_aspect"
+  iast_enabled: true
 
 ospathbasename_noaspect:
-  <<: *ospathbasename_aspect
+  <<: *default_aspect
   function_name: "ospathbasename_noaspect"
+  iast_enabled: false
 
 # TODO: Big regression flakiness (APPSEC-57818)
 #ospathdirname_aspect: &ospathdirname_aspect
@@ -15,42 +18,47 @@ ospathbasename_noaspect:
 #  <<: *ospathdirname_aspect
 #  function_name: "ospathdirname_noaspect"
 
-ospathjoin_aspect: &ospathjoin_aspect
-  warmups: 1
+ospathjoin_aspect:
+  <<: *default_aspect
   function_name: "iast_ospathjoin_aspect"
 
 ospathjoin_noaspect:
-  <<: *ospathjoin_aspect
+  <<: *default_aspect
   function_name: "ospathjoin_noaspect"
+  iast_enabled: false
 
-ospathnormcase_aspect: &ospathnormcase_aspect
-  warmups: 1
+ospathnormcase_aspect:
+  <<: *default_aspect
   function_name: "iast_ospathnormcase_aspect"
 
 ospathnormcase_noaspect:
-  <<: *ospathnormcase_aspect
+  <<: *default_aspect
   function_name: "ospathnormcase_noaspect"
+  iast_enabled: false
 
-ospathsplit_aspect: &ospathsplit_aspect
-  warmups: 1
+ospathsplit_aspect:
+  <<: *default_aspect
   function_name: "iast_ospathsplit_aspect"
 
 ospathsplit_noaspect:
-  <<: *ospathsplit_aspect
+  <<: *default_aspect
   function_name: "ospathsplit_noaspect"
+  iast_enabled: false
 
-ospathsplitdrive_aspect: &ospathsplitdrive_aspect
-  warmups: 1
+ospathsplitdrive_aspect:
+  <<: *default_aspect
   function_name: "iast_ospathsplitdrive_aspect"
 
 ospathsplitdrive_noaspect:
-  <<: *ospathsplitdrive_aspect
+  <<: *default_aspect
   function_name: "ospathsplitdrive_noaspect"
+  iast_enabled: false
 
-ospathsplitext_aspect: &ospathsplitext_aspect
-  warmups: 1
+ospathsplitext_aspect:
+  <<: *default_aspect
   function_name: "iast_ospathsplitext_aspect"
 
 ospathsplitext_noaspect:
-  <<: *ospathsplitext_aspect
+  <<: *default_aspect
   function_name: "ospathsplitext_noaspect"
+  iast_enabled: false

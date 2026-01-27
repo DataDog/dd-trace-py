@@ -1,6 +1,7 @@
 import typing as t
 
 class PeriodicThread:
+    _is_after_fork: bool
     name: str
     ident: int
     interval: float

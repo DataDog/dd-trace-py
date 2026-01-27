@@ -1,0 +1,52 @@
+# Multi-OS Test Suite
+# Tests the application across Ubuntu, macOS, and Windows with multiple Python versions
+
+.multi_os_test_base:
+  stage: tests
+  variables:
+    DD_IAST_ENABLED: "false"
+    DD_REMOTE_CONFIGURATION_ENABLED: "false"
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
+
+os tests ubuntu:
+  extends: .multi_os_test_base
+  image: registry.ddbuild.io/images/mirror/ubuntu:25.04
+  tags: ["arch:amd64"]
+  needs:
+    - job: "build linux"
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp310-cp310"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp312-cp312"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp314-cp314"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+  variables:
+    WHEEL_PATTERN: "manylinux2014*x86_64.whl"
+    PLATFORM: "Ubuntu"
+  script:
+    - apt-get update && apt-get install -y curl
+    - bash .gitlab/scripts/multi-os-tests.sh
+
+os tests macos:
+  extends: .multi_os_test_base
+  tags: ["macos:sonoma-amd64", "specific:true"]
+  needs: [ "build macos" ]
+  variables:
+    WHEEL_PATTERN: "macosx*x86_64.whl"
+    PLATFORM: "macOS"
+  script:
+    - bash .gitlab/scripts/multi-os-tests.sh
+
+os tests windows:
+  extends: .multi_os_test_base
+  tags: ["windows-v2:2022"]
+  needs: ["download windows wheels"]
+  script:
+    - powershell -File .gitlab/scripts/multi-os-tests.ps1

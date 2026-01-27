@@ -55,7 +55,7 @@ if(NOT TARGET Python3::Python)
 endif()
 
 # Source files for the extension
-set(SOURCE_FILES _memalloc.cpp _memalloc_tb.cpp _memalloc_heap.cpp _memalloc_reentrant.cpp _memalloc_heap_map.cpp)
+set(SOURCE_FILES _memalloc.cpp _memalloc_tb.cpp _memalloc_heap.cpp _memalloc_reentrant.cpp)
 
 # Get the extension name from setup.py or use default Note: EXTENSION_NAME from setup.py already includes the full
 # suffix
@@ -78,8 +78,10 @@ endif()
 
 # Include directories
 target_include_directories(
-    ${FULL_EXTENSION_NAME} PRIVATE ${Python3_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}
-                                   ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling/dd_wrapper/include)
+    ${FULL_EXTENSION_NAME}
+    PRIVATE ${Python3_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling/dd_wrapper/include
+            ${RUST_GENERATED_HEADERS_DIR})
 
 # Link libraries Python3::Python target might not exist in all build environments (e.g., manylinux) Python modules
 # should use -undefined dynamic_lookup on macOS and not link to libpython on Linux
@@ -104,19 +106,19 @@ if(APPLE)
                    LINK_FLAGS "-undefined dynamic_lookup")
 elseif(UNIX)
     # Linux specific
-    target_link_libraries(${FULL_EXTENSION_NAME} PRIVATE atomic)
     set_target_properties(${FULL_EXTENSION_NAME} PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE
                                                             INSTALL_RPATH "$ORIGIN/../../internal/datadog/profiling")
 endif()
 
 # Link with libdd_wrapper if NATIVE_EXTENSION_LOCATION is defined
 if(DEFINED NATIVE_EXTENSION_LOCATION)
-    # Find the libdd_wrapper shared library
+    # Find the libdd_wrapper shared library NATIVE_EXTENSION_LOCATION is ddtrace/internal/native, so
+    # ../datadog/profiling gets us to ddtrace/internal/datadog/profiling where libdd_wrapper is located
     find_library(
         DD_WRAPPER_LIB
         NAMES libdd_wrapper${EXTENSION_SUFFIX}
         PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling
-              ${NATIVE_EXTENSION_LOCATION}/../../datadog/profiling
+              ${NATIVE_EXTENSION_LOCATION}/../datadog/profiling
         NO_DEFAULT_PATH)
 
     if(DD_WRAPPER_LIB)
@@ -138,10 +140,3 @@ endif()
 
 # Install the extension
 install(TARGETS ${FULL_EXTENSION_NAME} LIBRARY DESTINATION ${LIB_INSTALL_DIR})
-
-# Optional: Build tests if BUILD_TESTING is ON
-option(BUILD_TESTING "Build tests" OFF)
-if(BUILD_TESTING)
-    enable_testing()
-    add_subdirectory(test)
-endif()

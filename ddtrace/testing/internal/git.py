@@ -8,6 +8,10 @@ import subprocess  # nosec: B404
 import tempfile
 import typing as t
 
+from ddtrace.testing.internal.telemetry import GitTelemetry
+from ddtrace.testing.internal.telemetry import TelemetryAPI
+from ddtrace.testing.internal.tracer_api import StopWatch
+
 
 log = logging.getLogger(__name__)
 
@@ -76,6 +80,7 @@ class _GitSubprocessDetails:
     stdout: str
     stderr: str
     return_code: int
+    elapsed_seconds: float
 
 
 @dataclass
@@ -103,21 +108,31 @@ class Git:
         git_cmd = [self.git_command, *args]
         log.debug("Running git command: %r", git_cmd)
 
-        process = subprocess.Popen(  # nosec: B603
-            git_cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            stdin=subprocess.PIPE,
-            cwd=self.cwd,
-            encoding="utf-8",
-            errors="surrogateescape",
+        with StopWatch() as sw:
+            process = subprocess.Popen(  # nosec: B603
+                git_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                stdin=subprocess.PIPE,
+                cwd=self.cwd,
+                encoding="utf-8",
+                errors="surrogateescape",
+            )
+            stdout, stderr = process.communicate(input=input_string)
+
+        return _GitSubprocessDetails(
+            stdout=stdout.strip(),
+            stderr=stderr.strip(),
+            return_code=process.returncode,
+            elapsed_seconds=sw.elapsed(),
         )
-        stdout, stderr = process.communicate(input=input_string)
 
-        return _GitSubprocessDetails(stdout=stdout.strip(), stderr=stderr.strip(), return_code=process.returncode)
-
-    def _git_output(self, args: t.List[str]) -> str:
+    def _git_output(self, args: t.List[str], telemetry_type: t.Optional[GitTelemetry] = None) -> str:
         result = self._call_git(args)
+
+        if telemetry_type:
+            TelemetryAPI.get().record_git_command(telemetry_type, result.elapsed_seconds, result.return_code)
+
         if result.return_code != 0:
             log.warning("Error calling git %s: %s", " ".join(args), result.stderr)
             return ""
@@ -134,16 +149,16 @@ class Git:
             return (0, 0, 0)
 
     def get_repository_url(self) -> str:
-        return self._git_output(["ls-remote", "--get-url"])
+        return self._git_output(["ls-remote", "--get-url"], GitTelemetry.GET_REPOSITORY)
 
     def get_commit_sha(self) -> str:
         return self._git_output(["rev-parse", "HEAD"])
 
-    def get_upstream_sha(self) -> str:
-        return self._git_output(["rev-parse", "@{upstream}"])
+    def get_upstream_sha(self) -> _GitSubprocessDetails:
+        return self._call_git(["rev-parse", "@{upstream}"])
 
     def get_branch(self) -> str:
-        return self._git_output(["rev-parse", "--abbrev-ref", "HEAD"])
+        return self._git_output(["rev-parse", "--abbrev-ref", "HEAD"], GitTelemetry.GET_BRANCH)
 
     def get_commit_message(self, commit_sha: t.Optional[str] = None) -> str:
         command = ["show", "-s", "--format=%s"]
@@ -178,7 +193,9 @@ class Git:
         return self._git_output(["config", "--default", "origin", "--get", "clone.defaultRemoteName"])
 
     def get_latest_commits(self) -> t.List[str]:
-        output = self._git_output(["log", "--format=%H", "-n", "1000", '--since="1 month ago"'])
+        output = self._git_output(
+            ["log", "--format=%H", "-n", "1000", '--since="1 month ago"'], GitTelemetry.GET_LOCAL_COMMITS
+        )
         return output.split("\n") if output else []
 
     def get_filtered_revisions(self, excluded_commits: t.List[str], included_commits: t.List[str]) -> t.List[str]:
@@ -193,15 +210,16 @@ class Git:
                 "HEAD",
                 *exclusions,
                 *included_commits,
-            ]
+            ],
+            GitTelemetry.GET_OBJECTS,
         )
         return output.split("\n")
 
     def is_shallow_repository(self) -> bool:
-        output = self._git_output(["rev-parse", "--is-shallow-repository"])
+        output = self._git_output(["rev-parse", "--is-shallow-repository"], GitTelemetry.CHECK_SHALLOW)
         return output == "true"
 
-    def unshallow_repository(self, refspec: t.Optional[str] = None, parent_only: bool = False) -> bool:
+    def unshallow_repository(self, refspec: t.Optional[str] = None, parent_only: bool = False) -> _GitSubprocessDetails:
         remote_name = self.get_remote_name()
         command = [
             "fetch",
@@ -218,34 +236,48 @@ class Git:
         result = self._call_git(command)
         if result.return_code != 0:
             log.warning("Error unshallowing repo for refspec %s: %s", refspec, result.stderr)
-        return result.return_code == 0
+        return result
 
-    def unshallow_repository_to_local_head(self) -> bool:
+    def unshallow_repository_to_local_head(self) -> _GitSubprocessDetails:
         return self.unshallow_repository(self.get_commit_sha())
 
-    def unshallow_repository_to_upstream(self) -> bool:
-        upstream_sha = self.get_upstream_sha()
-        if not upstream_sha:
+    def unshallow_repository_to_upstream(self) -> _GitSubprocessDetails:
+        upstream_sha_result = self.get_upstream_sha()
+        upstream_sha = upstream_sha_result.stdout
+        if upstream_sha_result.return_code != 0 or not upstream_sha:
             log.warning("Error unshallowing repo to upstream: no upstream sha")
-            return False
+            return upstream_sha_result
 
-        return self.unshallow_repository(self.get_upstream_sha())
+        return self.unshallow_repository(upstream_sha)
 
-    def unshallow_repository_to_default(self) -> bool:
+    def unshallow_repository_to_default(self) -> _GitSubprocessDetails:
         return self.unshallow_repository(None)
 
     def try_all_unshallow_repository_methods(self) -> bool:
-        if self.unshallow_repository_to_local_head():
-            return True
+        return_code = 0
+        sw = StopWatch()
+        sw.start()
 
-        if self.unshallow_repository_to_upstream():
-            return True
+        try:
+            result = self.unshallow_repository_to_local_head()
+            if result.return_code == 0:
+                return True
 
-        if self.unshallow_repository_to_default():
-            return True
+            result = self.unshallow_repository_to_upstream()
+            if result.return_code == 0:
+                return True
 
-        log.debug("Unshallow failed")
-        return False
+            result = self.unshallow_repository_to_default()
+            if result.return_code == 0:
+                return True
+
+            log.debug("Unshallow failed")
+            return_code = result.return_code
+            return False
+
+        finally:
+            sw.stop()
+            TelemetryAPI.get().record_git_command(GitTelemetry.UNSHALLOW, sw.elapsed(), return_code)
 
     def pack_objects(self, revisions: t.List[str]) -> t.Iterable[Path]:
         base_name = str(random.randint(1, 1000000))  # nosec: B311
@@ -261,6 +293,9 @@ class Git:
         with tempfile.TemporaryDirectory(dir=temp_dir_base) as output_dir:
             prefix = f"{output_dir}/{base_name}"
             result = self._call_git(["pack-objects", "--compression=9", "--max-pack-size=3m", prefix], revisions_text)
+
+            TelemetryAPI.get().record_git_command(GitTelemetry.PACK_OBJECTS, result.elapsed_seconds, result.return_code)
+
             if result.return_code != 0:
                 log.warning("Error calling git pack-objects: %s", result.stderr)
                 return None
@@ -358,7 +393,7 @@ def get_git_tags_from_dd_variables(env: t.MutableMapping[str, str]) -> t.Dict[st
         branch = None
 
     tags: t.Dict[str, t.Optional[str]] = {
-        GitTag.REPOSITORY_URL: env.get("DD_GIT_REPOSITORY_URL"),
+        GitTag.REPOSITORY_URL: env.get("_CI_DD_GIT_REPOSITORY_URL") or env.get("DD_GIT_REPOSITORY_URL"),
         GitTag.COMMIT_SHA: env.get("DD_GIT_COMMIT_SHA"),
         GitTag.BRANCH: branch,
         GitTag.TAG: tag,

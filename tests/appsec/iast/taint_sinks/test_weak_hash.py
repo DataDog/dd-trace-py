@@ -84,7 +84,6 @@ def test_weak_hash_hashlib(iast_context_defaults, hash_func, method):
     assert list(span_report.vulnerabilities)[0].hash == hash_value
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9), reason="usedforsecurity was introduced in 3.9")
 @pytest.mark.parametrize(
     "hash_func,method",
     [

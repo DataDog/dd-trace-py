@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Passing in all environment variables to the crashtracker receiver process caused
+    conflicts with export location derivation. This change only passes in the
+    DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED environment variable.

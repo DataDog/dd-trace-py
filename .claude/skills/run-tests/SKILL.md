@@ -84,7 +84,7 @@ When you modify files like:
 #### For Test-Only Changes
 When you modify `tests/` files (but not test infrastructure):
 - Run only the specific test files/functions modified
-- Use pytest args: `-- -k test_name` or direct test file paths
+- Use pytest args: `-- -- -k test_name` or direct test file paths
 
 #### For Test Infrastructure Changes
 When you modify:
@@ -121,7 +121,7 @@ This will:
 
 For re-running specific tests:
 ```bash
-scripts/run-tests --venv <hash> -- -vv -k test_name
+scripts/run-tests --venv <hash> -- -- -vv -k test_name
 ```
 
 ## When Tests Fail
@@ -243,7 +243,7 @@ scripts/run-tests --list tests/contrib/flask/test_views.py
 # Output shows: contrib::flask suite
 
 # Run just the specific test:
-scripts/run-tests --venv flask_py311 -- -vv tests/contrib/flask/test_views.py
+scripts/run-tests --venv flask_py311 -- -- -vv tests/contrib/flask/test_views.py
 ```
 
 ### Example 4: Iterating on a Failing Test
@@ -251,7 +251,7 @@ scripts/run-tests --venv flask_py311 -- -vv tests/contrib/flask/test_views.py
 First run shows one test failing:
 
 ```bash
-scripts/run-tests --venv flask_py311 -- -vv -k test_view_called_twice
+scripts/run-tests --venv flask_py311 -- -- -vv -k test_view_called_twice
 # Focused on the specific failing test with verbose output
 ```
 
@@ -330,7 +330,7 @@ The `scripts/run-tests` system:
 - Uses `riot` to manage multiple Python/package combinations as venvs
 - Each venv is a self-contained environment
 - Docker services are managed per suite lifecycle
-- Tests can pass optional pytest arguments with `--`
+- Tests can pass optional pytest arguments with `-- --`
 
 ### Supported Suite Types
 
@@ -347,3 +347,76 @@ Some suites require environment setup:
 - `DD_TRACE_AGENT_URL`: For snapshot-based tests
 - Service-specific variables for Docker containers
 - These are handled automatically by the script
+
+#### Resource Limiting (for testing under constrained environments)
+
+You can limit CPU and memory resources to simulate resource-constrained CI environments where multiple jobs run in parallel. This helps reproduce flaky tests that fail due to timing issues, race conditions, or resource exhaustion.
+
+**Environment Variables:**
+- `DD_TEST_CPUS`: CPU limit (e.g., `0.25`, `0.5`, `1.0`, `2.0`)
+- `DD_TEST_MEMORY`: Memory limit with unit (e.g., `512m`, `1g`, `2g`)
+
+**Usage:**
+```bash
+# Run tests with resource constraints
+DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g scripts/run-tests --venv <hash>
+
+# Run specific test file with heavy constraints
+DD_TEST_CPUS=0.25 DD_TEST_MEMORY=1g scripts/run-tests tests/path/to/test.py
+
+# Multiple runs to catch intermittent failures
+for i in {1..10}; do
+  DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g scripts/run-tests --venv <hash> -- -- --randomly-seed=$RANDOM
+done
+```
+
+**Recommended Resource Limits:**
+
+- **Moderate Load (Typical Shared CI):**
+  ```bash
+  DD_TEST_CPUS=2.0 DD_TEST_MEMORY=4g
+  ```
+  Simulates a CI runner with some other jobs running. Good for initial testing.
+
+- **Heavy Load (Busy CI Server):**
+  ```bash
+  DD_TEST_CPUS=1.0 DD_TEST_MEMORY=2g
+  ```
+  Simulates a heavily loaded CI server with many concurrent jobs. **Recommended starting point** for reproducing flaky tests.
+
+- **Extreme Load (Stress Testing):**
+  ```bash
+  DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g
+  ```
+  Simulates extreme resource contention. Good for surfacing timing issues and race conditions.
+
+- **Critical Failure Conditions:**
+  ```bash
+  DD_TEST_CPUS=0.25 DD_TEST_MEMORY=512m
+  ```
+  Forces maximum resource pressure. Use this to find the breaking point or reproduce worst-case scenarios.
+
+**When to Use Resource Limits:**
+
+1. **Investigating flaky tests** - Tests that pass locally but fail in CI
+2. **Timing-sensitive tests** - Tests involving async operations, network calls, or multiprocessing
+3. **Resource exhaustion issues** - Tests that fail under memory pressure or CPU throttling
+4. **Race condition detection** - Slower execution can expose timing bugs
+5. **Reproducing CI failures** - When you have a seed that failed in CI
+
+**Verifying Limits Are Applied:**
+```bash
+# Check configuration before running
+DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g docker compose config | grep -A 5 testrunner
+
+# Monitor actual resource usage during test run (in another terminal)
+docker stats
+```
+
+**Example: Testing a Flaky Test**
+```bash
+# Run a known flaky test 20 times with resource constraints
+DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g scripts/run-tests \
+  tests/appsec/integrations/flask_tests/test_iast_flask_testagent.py::test_iast_unvalidated_redirect \
+  -- -- --count=20
+```

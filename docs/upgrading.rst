@@ -111,4 +111,5 @@ Use the following patterns to identify the deprecated environment variables in a
     -e "DD_PROFILING_STACK_V2_ENABLED" \
     -e "DEFAULT_RUNTIME_METRICS_INTERVAL"
 
-Reference the [4.0 release note](https://github.com/DataDog/dd-trace-py/releases/tag/v4.0.0) to identify and update deprecated interfaces in ddtrace products.
+Reference the [4.0 release note](https://github.com/DataDog/dd-trace-py/releases/tag/v4.0.0) to identify and update deprecated interfaces in ddtrace products. The major changes to the tracing
+interface include the removal of `Pin` and `Span.set_tag_str`. Python 3.8 support has also been dropped.

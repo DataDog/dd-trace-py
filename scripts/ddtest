@@ -9,6 +9,11 @@ then
     CMD=bash
 fi
 
+BUILD_FLAG=""
+if [ "${1:-}" = "--build" ]; then
+    BUILD_FLAG="--build"
+    shift
+fi
 # Ensure cache directories exist and are writable by the current user
 # These are mounted into the Docker container at /home/bits/.cache
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,7 +37,12 @@ fi
 # Ensure the directories are writable
 chmod -R u+w "$CACHE_DIR" 2>/dev/null || true
 
-docker compose run \
+COMPOSE_FILES=("-f" "$PROJECT_ROOT/docker-compose.yml")
+if command -v nvidia-smi >/dev/null 2>&1; then
+    COMPOSE_FILES+=("-f" "$PROJECT_ROOT/docker-compose.gpu.yml")
+fi
+
+docker compose ${COMPOSE_FILES[@]} run $BUILD_FLAG \
        -e DD_TRACE_AGENT_URL \
        --rm \
        -i \

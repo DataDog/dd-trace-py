@@ -1,3 +1,5 @@
+import pytest
+
 from ddtrace.contrib.internal.vertexai.patch import get_version
 from ddtrace.contrib.internal.vertexai.patch import patch
 from ddtrace.contrib.internal.vertexai.patch import unpatch
@@ -10,6 +12,14 @@ class TestVertexAIPatch(PatchTestCase.Base):
     __patch_func__ = patch
     __unpatch_func__ = unpatch
     __get_version__ = get_version
+
+    @pytest.mark.skip(reason="vertexai imports print warnings to stdout, corrupting test output on CI")
+    def test_ddtrace_run_patch_on_import(self):
+        pass
+
+    @pytest.mark.skip(reason="vertexai imports print warnings to stdout, corrupting test output on CI")
+    def test_supported_versions_function_allows_valid_imports(self):
+        pass
 
     def assert_module_patched(self, vertexai):
         self.assert_wrapped(vertexai.generative_models.GenerativeModel.generate_content)

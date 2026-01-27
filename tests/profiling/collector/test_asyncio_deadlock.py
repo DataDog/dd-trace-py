@@ -12,10 +12,10 @@ def test_asyncio_deadlock() -> None:
     import asyncio
     from typing import Optional
 
-    from ddtrace.internal.datadog.profiling import stack_v2
+    from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
 
-    assert stack_v2.is_available, stack_v2.failure_msg
+    assert stack.is_available, stack.failure_msg
 
     # We'll assign these after creation so each coroutine can await the other.
     t1: Optional[asyncio.Task] = None

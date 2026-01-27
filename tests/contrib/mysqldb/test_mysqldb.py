@@ -2,7 +2,6 @@ import mock
 import MySQLdb
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.mysqldb.patch import patch
 from ddtrace.contrib.internal.mysqldb.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -52,7 +51,7 @@ class MySQLCore(object):
         assert rowcount == 1
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         span = spans[0]
@@ -82,7 +81,7 @@ class MySQLCore(object):
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
             assert len(rows) == 1
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 2
 
             span = spans[0]
@@ -113,7 +112,7 @@ class MySQLCore(object):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         span = spans[0]
@@ -143,7 +142,7 @@ class MySQLCore(object):
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
             assert len(rows) == 1
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 2
 
             span = spans[0]
@@ -175,7 +174,7 @@ class MySQLCore(object):
         cursor.execute(query)
         rows = cursor.fetchall()
         assert len(rows) == 3
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.get_tag("sql.query") is None
@@ -189,7 +188,7 @@ class MySQLCore(object):
             cursor.execute(query)
             rows = cursor.fetchall()
             assert len(rows) == 3
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 2
             span = spans[0]
             assert span.get_tag("sql.query") is None
@@ -226,7 +225,7 @@ class MySQLCore(object):
         assert rows[1][0] == "foo"
         assert rows[1][1] == "this is foo"
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         span = spans[1]
         assert span.get_tag("sql.query") is None
@@ -263,7 +262,7 @@ class MySQLCore(object):
             assert rows[1][0] == "foo"
             assert rows[1][1] == "this is foo"
 
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 3
             span = spans[1]
             assert span.get_tag("sql.query") is None
@@ -296,7 +295,7 @@ class MySQLCore(object):
         cursor.execute("SELECT @_sp_sum_2;")
         assert cursor.fetchone()[0] == 42
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert spans, spans
 
         # number of spans depends on MySQL implementation details,
@@ -326,7 +325,7 @@ class MySQLCore(object):
         conn, tracer = self._get_conn_tracer()
 
         conn.commit()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "mysql"
@@ -336,7 +335,7 @@ class MySQLCore(object):
         conn, tracer = self._get_conn_tracer()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "mysql"
@@ -359,7 +358,7 @@ class MySQLCore(object):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service != "mysvc"
 
@@ -380,7 +379,7 @@ class MySQLCore(object):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service == "mysvc"
 
@@ -397,7 +396,7 @@ class MySQLCore(object):
             assert rowcount == 1
             rows = cursor.fetchall()
             assert len(rows) == 1
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 1
 
             span = spans[0]
@@ -425,13 +424,9 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
 
     def setUp(self):
         super(TestMysqlPatch, self).setUp()
-        self._old_mysqldb_pin = Pin.get_from(MySQLdb)
-        assert self._old_mysqldb_pin
-        self._add_dummy_tracer_to_pinned(MySQLdb)
 
     def tearDown(self):
         super(TestMysqlPatch, self).tearDown()
-        self._old_mysqldb_pin.onto(MySQLdb)
 
     def _connect_with_kwargs(self):
         return MySQLdb.Connect(
@@ -444,19 +439,10 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             }
         )
 
-    def _add_dummy_tracer_to_pinned(self, obj):
-        # Ensure that the default pin is there, with its default value
-        pin = Pin.get_from(obj)
-        assert pin
-        # Customize the service
-        # we have to apply it on the existing one since new one won't inherit `app`
-        pin._clone(tracer=self.tracer).onto(obj)
-
     def _get_conn_tracer(self):
         if not self.conn:
             self.conn = self._connect_with_kwargs()
             self.conn.ping()
-            self._add_dummy_tracer_to_pinned(self.conn)
 
             return self.conn, self.tracer
 
@@ -470,12 +456,6 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
                 MYSQL_CONFIG["port"],
             )
             self.conn.ping()
-            # Ensure that the default pin is there, with its default value
-            pin = Pin.get_from(self.conn)
-            assert pin
-            # Customize the service
-            # we have to apply it on the existing one since new one won't inherit `app`
-            pin._clone(tracer=self.tracer).onto(self.conn)
 
             return self.conn, self.tracer
 
@@ -483,15 +463,11 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         unpatch()
         # assert we start unpatched
         conn = self._connect_with_kwargs()
-        assert not Pin.get_from(conn)
         conn.close()
 
         patch()
         try:
             conn = self._connect_with_kwargs()
-            pin = Pin.get_from(conn)
-            assert pin
-            pin._clone(tracer=self.tracer).onto(conn)
             conn.ping()
 
             cursor = conn.cursor()
@@ -525,24 +501,9 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
 
             # assert we finish unpatched
             conn = self._connect_with_kwargs()
-            assert not Pin.get_from(conn)
             conn.close()
 
         patch()
-
-    def test_user_pin_override(self):
-        conn, tracer = self._get_conn_tracer()
-        pin = Pin.get_from(conn)
-        pin._clone(service="pin-svc", tracer=self.tracer).onto(conn)
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1")
-        rows = cursor.fetchall()
-        assert len(rows) == 1
-        spans = tracer.pop()
-        assert len(spans) == 1
-
-        span = spans[0]
-        assert span.service == "pin-svc"
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_MYSQLDB_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
@@ -554,7 +515,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service == "mysvc"
 
@@ -568,7 +529,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service == "mysvc"
 
@@ -580,20 +541,20 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         assert spans[0].service == DEFAULT_SPAN_SERVICE_NAME
 
     def test_trace_connect(self):
         # No span when trace_connect is False (the default)
         self._connect_with_kwargs().close()
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
         assert not spans
 
         with self.override_config("mysqldb", dict(trace_connect=True)):
             self._connect_with_kwargs().close()
 
-            spans = self.tracer.pop()
+            spans = self.pop_spans()
 
             self.assertEqual(len(spans), 1)
             span = spans[0]
@@ -607,7 +568,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
     def test_trace_connect_env_var_config(self):
         self._connect_with_kwargs().close()
 
-        spans = self.tracer.pop()
+        spans = self.pop_spans()
 
         self.assertEqual(len(spans), 1)
         span = spans[0]
@@ -623,7 +584,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
 
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         span = spans[0]
         assert span.name == "mysql.query"
@@ -634,7 +595,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
 
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
-        spans = tracer.pop()
+        spans = self.pop_spans()
 
         span = spans[0]
         assert span.name == "mysql.query"
@@ -681,25 +642,6 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
 
         shared_tests._test_dbm_propagation_comment_integration_service_name_override(
             config=MYSQL_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
-        )
-
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
-            DD_AIOMYSQL_SERVICE="service-name-override",
-        )
-    )
-    def test_mysql_dbm_propagation_comment_pin_service_name_override(self):
-        """tests if dbm comment is set in mysql"""
-        conn, tracer = self._get_conn_tracer()
-        cursor = conn.cursor()
-        cursor.__wrapped__ = mock.Mock()
-
-        shared_tests._test_dbm_propagation_comment_pin_service_name_override(
-            config=MYSQL_CONFIG, cursor=cursor, conn=conn, tracer=tracer, wrapped_instance=cursor.__wrapped__
         )
 
     @TracerTestCase.run_in_subprocess(

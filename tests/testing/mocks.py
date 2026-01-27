@@ -17,15 +17,17 @@ import typing as t
 from unittest.mock import Mock
 from unittest.mock import patch
 
-from ddtrace.testing.internal.api_client import AutoTestRetriesSettings
-from ddtrace.testing.internal.api_client import EarlyFlakeDetectionSettings
-from ddtrace.testing.internal.api_client import Settings
-from ddtrace.testing.internal.api_client import TestManagementSettings
-from ddtrace.testing.internal.api_client import TestProperties
+from _pytest.reports import TestReport
+
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.http import ErrorType
 from ddtrace.testing.internal.session_manager import SessionManager
+from ddtrace.testing.internal.settings_data import AutoTestRetriesSettings
+from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
+from ddtrace.testing.internal.settings_data import Settings
+from ddtrace.testing.internal.settings_data import TestManagementSettings
+from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
@@ -162,10 +164,12 @@ class SessionManagerMockBuilder:
         mock_manager.test_properties = self._test_properties
         mock_manager.workspace_path = self._workspace_path
         mock_manager.retry_handlers = self._retry_handlers
+        mock_manager.env_tags = self._env_tags
 
         mock_manager.session = Mock()
         mock_manager.writer = Mock()
         mock_manager.coverage_writer = Mock()
+        mock_manager.telemetry_api = Mock()
 
         return mock_manager
 
@@ -393,11 +397,6 @@ class APIClientMockBuilder:
         mock_client.get_settings.return_value = Settings(
             early_flake_detection=EarlyFlakeDetectionSettings(
                 enabled=self._efd_enabled,
-                slow_test_retries_5s=3,
-                slow_test_retries_10s=2,
-                slow_test_retries_30s=1,
-                slow_test_retries_5m=1,
-                faulty_session_threshold=30,
             ),
             test_management=TestManagementSettings(enabled=self._test_management_enabled),
             auto_test_retries=AutoTestRetriesSettings(enabled=self._auto_retries_enabled),
@@ -454,7 +453,7 @@ class BackendConnectorMockBuilder:
         mock_connector = Mock()
 
         # Mock methods to prevent real HTTP calls
-        def mock_post_json(endpoint: str, data: t.Any) -> t.Tuple[Mock, t.Any]:
+        def mock_post_json(endpoint: str, data: t.Any, telemetry: t.Any = None) -> t.Tuple[Mock, t.Any]:
             if endpoint in self._post_json_responses:
                 return BackendResult(response=Mock(status=200), parsed_response=self._post_json_responses[endpoint])
             return self._make_404_response()
@@ -564,6 +563,9 @@ class BackendConnectorMockSetup:
     def get_connector_for_subdomain(self, subdomain: str) -> Mock:
         return mock_backend_connector().build()
 
+    def default_env(self) -> str:
+        return "none"
+
 
 @contextlib.contextmanager
 def setup_standard_mocks() -> t.Generator[None, None, None]:
@@ -659,9 +661,30 @@ class EventCapture:
             if event["type"] == event_type:
                 yield event
 
-    def event_by_test_name(self, test_name: str) -> Event:
+    def events_by_test_name(self, test_name: str) -> t.Iterable[Event]:
         for event in self.events():
             if event["type"] == "test" and event["content"]["meta"]["test.name"] == test_name:
-                return event
+                yield event
 
-        raise AssertionError(f"Expected event with test name {test_name!r}, found none")
+    def event_by_test_name(self, test_name: str) -> Event:
+        try:
+            return next(self.events_by_test_name(test_name))
+        except StopIteration:
+            raise AssertionError(f"Expected event with test name {test_name!r}, found none")
+
+
+def test_report(
+    nodeid: str = "foo.py::test_foo",
+    location: t.Tuple[str, int, str] = ("foo.py", 42, "foo"),
+    outcome: str = "passed",
+    longrepr: t.Any = None,
+    when: str = "call",
+    keywords: t.Optional[t.Dict[str, str]] = None,
+    wasxfail: t.Any = None,
+):
+    report = TestReport(
+        nodeid=nodeid, location=location, outcome=outcome, longrepr=longrepr, when=when, keywords=keywords or {}
+    )
+    if wasxfail:
+        setattr(report, "wasxfail", wasxfail)
+    return report

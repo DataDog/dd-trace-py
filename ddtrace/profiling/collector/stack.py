@@ -1,10 +1,10 @@
-"""Simple wrapper around stack_v2 native extension module."""
+"""Simple wrapper around stack native extension module."""
 
 import logging
 import typing
 
 from ddtrace.internal import core
-from ddtrace.internal.datadog.profiling import stack_v2
+from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import threading
@@ -40,14 +40,18 @@ class StackCollector(collector.Collector):
 
     def _init(self) -> None:
         if self.tracer is not None:
-            core.on("ddtrace.context_provider.activate", stack_v2.link_span)
+            core.on("ddtrace.context_provider.activate", stack.link_span)
 
-        # stack v2 requires us to patch the Threading module.  It's possible to do this from the stack v2 code
-        # itself, but it's a little bit fiddly and it's easier to make it correct here.
+        # Start the native stack sampler first. This ensures one_time_setup() runs
+        # (which handles any fork that happened since library load) before we
+        # register threads and asyncio loops - otherwise those registrations would
+        # be wiped out by _stack_atfork_child() in one_time_setup().
+        stack.set_adaptive_sampling(config.stack.adaptive_sampling)
+        stack.start()
+
+        # Now patch the Threading module and register existing threads/asyncio loops.
         # TODO take the `threading` import out of here and just handle it in v2 startup
-        threading.init_stack_v2()
-        stack_v2.set_adaptive_sampling(config.stack.v2_adaptive_sampling)
-        stack_v2.start()
+        threading.init_stack()
 
     def _start_service(self) -> None:
         # This is split in its own function to ease testing
@@ -58,8 +62,8 @@ class StackCollector(collector.Collector):
     def _stop_service(self) -> None:
         LOG.debug("Profiling StackCollector stopping")
         if self.tracer is not None:
-            core.reset_listeners("ddtrace.context_provider.activate", stack_v2.link_span)
+            core.reset_listeners("ddtrace.context_provider.activate", stack.link_span)
         LOG.debug("Profiling StackCollector stopped")
 
         # Tell the native thread running the v2 sampler to stop
-        stack_v2.stop()
+        stack.stop()

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from dataclasses import dataclass
+from enum import Enum
 import gzip
 import http.client
 import io
@@ -20,6 +21,7 @@ import uuid
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_HOSTNAME
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_PORT
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_SOCKET_FILE
+from ddtrace.testing.internal.constants import DEFAULT_ENV_NAME
 from ddtrace.testing.internal.constants import DEFAULT_SITE
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.telemetry import ErrorType
@@ -55,6 +57,12 @@ class BackendResult:
             raise BackendError(self.error_description)
 
 
+class Subdomain(str, Enum):
+    API = "api"
+    CITESTCYCLE = "citestcycle-intake"
+    CITESTCOV = "citestcov-intake"
+
+
 RETRIABLE_ERRORS = {ErrorType.TIMEOUT, ErrorType.NETWORK, ErrorType.CODE_5XX, ErrorType.BAD_JSON}
 
 
@@ -64,13 +72,16 @@ class BackendConnectorSetup:
     """
 
     @abstractmethod
-    def get_connector_for_subdomain(self, subdomain: str) -> BackendConnector:
+    def get_connector_for_subdomain(self, subdomain: Subdomain) -> BackendConnector:
         """
         Return a backend connector for the given subdomain (e.g., api, citestcov-intake, citestcycle-intake).
 
         This method must be implemented for each backend connection mode subclass.
         """
         pass
+
+    def default_env(self) -> str:
+        return DEFAULT_ENV_NAME
 
     @classmethod
     def detect_setup(cls) -> BackendConnectorSetup:
@@ -91,7 +102,7 @@ class BackendConnectorSetup:
         Detect settings for agentless backend connection mode.
         """
         site = os.environ.get("DD_SITE") or DEFAULT_SITE
-        api_key = os.environ.get("DD_API_KEY")
+        api_key = os.environ.get("_CI_DD_API_KEY") or os.environ.get("DD_API_KEY")
 
         if not api_key:
             raise SetupError("DD_API_KEY environment variable is not set")
@@ -103,7 +114,7 @@ class BackendConnectorSetup:
         """
         Detect settings for EVP proxy mode backend connection mode.
         """
-        agent_url = os.environ.get("DD_TRACE_AGENT_URL")
+        agent_url = os.environ.get("_CI_DD_AGENT_URL") or os.environ.get("DD_TRACE_AGENT_URL")
         if not agent_url:
             user_provided_host = os.environ.get("DD_TRACE_AGENT_HOSTNAME") or os.environ.get("DD_AGENT_HOST")
             user_provided_port = os.environ.get("DD_TRACE_AGENT_PORT") or os.environ.get("DD_AGENT_PORT")
@@ -146,9 +157,14 @@ class BackendConnectorAgentlessSetup(BackendConnectorSetup):
         self.site = site
         self.api_key = api_key
 
-    def get_connector_for_subdomain(self, subdomain: str) -> BackendConnector:
+    def get_connector_for_subdomain(self, subdomain: Subdomain) -> BackendConnector:
+        if subdomain == Subdomain.CITESTCYCLE and (agentless_url := os.environ.get("DD_CIVISIBILITY_AGENTLESS_URL")):
+            url = agentless_url
+        else:
+            url = f"https://{subdomain.value}.{self.site}"
+
         return BackendConnector(
-            url=f"https://{subdomain}.{self.site}",
+            url=url,
             default_headers={"dd-api-key": self.api_key},
             use_gzip=True,
         )
@@ -160,11 +176,28 @@ class BackendConnectorEVPProxySetup(BackendConnectorSetup):
         self.base_path = base_path
         self.use_gzip = use_gzip
 
-    def get_connector_for_subdomain(self, subdomain: str) -> BackendConnector:
+    def default_env(self) -> str:
+        try:
+            connector = BackendConnector(self.url)
+            result = connector.get_json("/info", max_attempts=2)
+            connector.close()
+        except Exception as e:
+            raise SetupError(f"Error connecting to Datadog agent at {self.url}: {e}")
+
+        if result.error_type:
+            raise SetupError(f"Error connecting to Datadog agent at {self.url}: {result.error_description}")
+
+        if result:
+            default_env = result.parsed_response.get("config", {}).get("default_env", DEFAULT_ENV_NAME)
+            return default_env
+
+        return DEFAULT_ENV_NAME
+
+    def get_connector_for_subdomain(self, subdomain: Subdomain) -> BackendConnector:
         return BackendConnector(
             url=self.url,
             base_path=self.base_path,
-            default_headers={"X-Datadog-EVP-Subdomain": subdomain},
+            default_headers={"X-Datadog-EVP-Subdomain": subdomain.value},
             use_gzip=self.use_gzip,
         )
 
@@ -259,7 +292,7 @@ class BackendConnector(threading.local):
         except (TimeoutError, socket.timeout) as e:
             result.error_type = ErrorType.TIMEOUT
             result.error_description = str(e)
-        except (ConnectionRefusedError, http.client.HTTPException) as e:
+        except (ConnectionError, http.client.HTTPException) as e:
             result.error_type = ErrorType.NETWORK
             result.error_description = str(e)
         except Exception as e:
@@ -276,7 +309,7 @@ class BackendConnector(threading.local):
                 result.error_type = ErrorType.BAD_JSON
                 result.error_description = str(e)
             except Exception as e:
-                log.exception("Error parsing respose for %s %s", method, path)
+                log.exception("Error parsing response for %s %s", method, path)
                 result.error_type = ErrorType.UNKNOWN
                 result.error_description = str(e)
 

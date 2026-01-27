@@ -42,10 +42,13 @@ class JobSpec:
     allow_failure: bool = False
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
+    gpu: bool = False
 
     def __str__(self) -> str:
         lines = []
         base = f".test_base_{self.runner}"
+        if self.gpu:
+            base += "_gpu"
         if self.snapshot:
             base += "_snapshot"
 
@@ -419,7 +422,7 @@ def gen_build_base_venvs() -> None:
     on the cached testrunner job, which is also generated dynamically.
     """
     with TESTS_GEN.open("a") as f:
-        f.write(template("build-base-venvs"))
+        f.write(template("build-base-venvs", unpin_dependencies=os.getenv("UNPIN_DEPENDENCIES", "false") or "false"))
 
 
 def gen_debugger_exploration() -> None:

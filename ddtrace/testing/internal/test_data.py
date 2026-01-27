@@ -6,11 +6,11 @@ from enum import Enum
 import json
 import os
 from pathlib import Path
-import time
 import typing as t
 
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.testing.internal.constants import TAG_TRUE
+from ddtrace.testing.internal.tracer_api import Time
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import _gen_item_id
 
@@ -45,6 +45,11 @@ class ITRSkippingLevel(Enum):
     TEST = "test"
 
 
+class TestType:
+    TEST = "test"
+    BENCHMARK = "benchmark"
+
+
 TParentClass = t.TypeVar("TParentClass", bound="TestItem[t.Any, t.Any]")
 TChildClass = t.TypeVar("TChildClass", bound="TestItem[t.Any, t.Any]")
 
@@ -68,10 +73,11 @@ class TestItem(t.Generic[TParentClass, TChildClass]):
     def seconds_so_far(self) -> float:
         if self.start_ns is None:
             raise ValueError("seconds_so_far() called before start")
-        return (time.time_ns() - self.start_ns) / 1e9
+        duration_ns = self.duration_ns if self.duration_ns is not None else (Time.time_ns() - self.start_ns)
+        return duration_ns / 1e9
 
     def start(self, start_ns: t.Optional[int] = None) -> None:
-        self.start_ns = start_ns if start_ns is not None else time.time_ns()
+        self.start_ns = start_ns if start_ns is not None else Time.time_ns()
 
     def ensure_started(self) -> None:
         if self.start_ns is None:
@@ -82,7 +88,10 @@ class TestItem(t.Generic[TParentClass, TChildClass]):
             raise ValueError("finish() called before start")
 
         self.set_final_tags()
-        self.duration_ns = time.time_ns() - self.start_ns
+        self.duration_ns = Time.time_ns() - self.start_ns
+
+    def is_started(self) -> bool:
+        return self.start_ns is not None
 
     def is_finished(self) -> bool:
         return self.duration_ns is not None
@@ -151,11 +160,45 @@ class TestRun(TestItem["Test", t.NoReturn]):
         self.module = self.suite.parent
         self.session = self.module.parent
 
+        self.tags[TestTag.TEST_TYPE] = TestType.TEST
+
+    def __str__(self) -> str:
+        return f"{self.test} #{self.attempt_number}"
+
     def set_context(self, context: TestContext) -> None:
         self.span_id = context.span_id
         self.trace_id = context.trace_id
         self.set_tags(context.get_tags())
         self.set_metrics(context.get_metrics())
+
+    def is_retry(self) -> bool:
+        return self.attempt_number > 0
+
+    def has_failed_all_retries(self) -> bool:
+        return self.tags.get(TestTag.HAS_FAILED_ALL_RETRIES) == TAG_TRUE
+
+    def mark_benchmark(self) -> None:
+        self.tags[TestTag.TEST_TYPE] = TestType.BENCHMARK
+
+    def is_benchmark(self) -> bool:
+        return self.tags.get(TestTag.TEST_TYPE) == TestType.BENCHMARK
+
+    # Selenium / RUM functionality. These tags are only available after the test has finished and ddtrace span tags have
+    # been copied over to the test run object.
+    def is_rum(self) -> bool:
+        return self.tags.get(TestTag.IS_RUM_ACTIVE) == TAG_TRUE
+
+    def get_browser_driver(self) -> t.Optional[str]:
+        return self.tags.get(TestTag.BROWSER_DRIVER)
+
+    def set_final_status(self, final_status: TestStatus) -> None:
+        """Set the final status tag on the test run.
+
+        This tag indicates the ultimate outcome of the test, especially useful
+        when retries are involved. For single test runs, it matches test.status.
+        For retry scenarios, only the last retry gets this tag.
+        """
+        self.tags[TestTag.FINAL_STATUS] = final_status.value
 
 
 class Test(TestItem["TestSuite", "TestRun"]):
@@ -170,6 +213,8 @@ class Test(TestItem["TestSuite", "TestRun"]):
         self.suite = parent
         self.module = self.suite.parent
         self.session = self.module.parent
+
+        self._is_flaky_run = False
 
     def __str__(self) -> str:
         return f"{self.parent.parent.name}/{self.parent.name}::{self.name}"
@@ -195,7 +240,8 @@ class Test(TestItem["TestSuite", "TestRun"]):
 
     def set_location(self, path: t.Union[os.PathLike[t.Any], str], start_line: int) -> None:
         self.tags[TestTag.SOURCE_FILE] = str(path)
-        self.metrics[TestTag.SOURCE_START] = start_line
+        if start_line:
+            self.tags[TestTag.SOURCE_START] = str(start_line)
 
     def get_source_file(self) -> t.Optional[str]:
         return self.tags.get(TestTag.SOURCE_FILE)
@@ -253,6 +299,20 @@ class Test(TestItem["TestSuite", "TestRun"]):
     def is_skipped_by_itr(self) -> bool:
         return self.tags.get(TestTag.SKIPPED_BY_ITR) == TAG_TRUE
 
+    # Early Flake Detection.
+
+    def set_early_flake_detection_abort_reason(self, reason: str) -> None:
+        self.tags[TestTag.EFD_ABORT_REASON] = reason
+
+    def get_early_flake_detection_abort_reason(self) -> t.Optional[str]:
+        return self.tags.get(TestTag.EFD_ABORT_REASON)
+
+    def mark_flaky_run(self) -> None:
+        self._is_flaky_run = True
+
+    def is_flaky_run(self) -> bool:
+        return self._is_flaky_run
+
 
 class TestSuite(TestItem["TestModule", "Test"]):
     ChildClass = Test
@@ -298,6 +358,12 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
         self.test_framework = test_framework
         self.test_framework_version = test_framework_version
 
+    def set_early_flake_detection_abort_reason(self, reason: str) -> None:
+        self.tags[TestTag.EFD_ABORT_REASON] = reason
+
+    def get_early_flake_detection_abort_reason(self) -> t.Optional[str]:
+        return self.tags.get(TestTag.EFD_ABORT_REASON)
+
     def set_final_tags(self) -> None:
         super().set_final_tags()
 
@@ -313,6 +379,8 @@ class TestTag:
     TEST_FRAMEWORK = "test.framework"
     TEST_FRAMEWORK_VERSION = "test.framework_version"
     TEST_SESSION_NAME = "test_session.name"
+    TEST_NAME = "test.name"
+    TEST_SUITE = "test.suite"
 
     ENV = "env"
 
@@ -322,15 +390,20 @@ class TestTag:
 
     SKIP_REASON = "test.skip_reason"
 
+    TEST_TYPE = "test.type"
     IS_NEW = "test.is_new"
     IS_QUARANTINED = "test.test_management.is_quarantined"
     IS_DISABLED = "test.test_management.is_test_disabled"
     IS_ATTEMPT_TO_FIX = "test.test_management.is_attempt_to_fix"
     ATTEMPT_TO_FIX_PASSED = "test.test_management.attempt_to_fix_passed"
-
+    EFD_ABORT_REASON = "test.early_flake.abort_reason"
     IS_RETRY = "test.is_retry"
     RETRY_REASON = "test.retry_reason"
     HAS_FAILED_ALL_RETRIES = "test.has_failed_all_retries"
+    FINAL_STATUS = "test.final_status"
+
+    XFAIL_REASON = "pytest.xfail.reason"
+    TEST_RESULT = "test.result"  # used for xfail/xpass
 
     PARAMETERS = "test.parameters"
 
@@ -341,9 +414,18 @@ class TestTag:
     ITR_TESTS_SKIPPING_TYPE = "test.itr.tests_skipping.type"
     ITR_TESTS_SKIPPING_COUNT = "test.itr.tests_skipping.count"
 
+    # Test File; used when test implementation file is different from test suite name (pytest-bdd).
+    TEST_FILE = "test.file"
+
     SOURCE_FILE = "test.source.file"
     SOURCE_START = "test.source.start"
+    SOURCE_END = "test.source.end"
 
     CODEOWNERS = "test.codeowners"
+
+    IS_RUM_ACTIVE = "test.is_rum_active"
+    BROWSER_DRIVER = "test.browser.driver"
+
+    CODE_COVERAGE_LINES_PCT = "test.code_coverage.lines_pct"
 
     __test__ = False

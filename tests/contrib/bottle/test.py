@@ -23,16 +23,11 @@ class TraceBottleTest(TracerTestCase):
 
     def setUp(self):
         super(TraceBottleTest, self).setUp()
-
-        # provide a dummy tracer
-        self._original_tracer = ddtrace.tracer
-        ddtrace.tracer = self.tracer
         # provide a Bottle app
         self.app = bottle.Bottle()
 
     def tearDown(self):
-        # restore the tracer
-        ddtrace.tracer = self._original_tracer
+        super(TraceBottleTest, self).tearDown()
 
     def _trace_app(self, tracer=None, extra_environ={}):
         self.app.install(TracePlugin(service=SERVICE, tracer=tracer))
@@ -558,7 +553,7 @@ class TraceBottleTest(TracerTestCase):
                         api_gateway_resource="GET /",
                         method="GET",
                         status_code=str(test_endpoint["status"]),
-                        url="local/",
+                        url="https://local/",
                         start=1736973768,
                         is_distributed=False,
                         distributed_trace_id=1,

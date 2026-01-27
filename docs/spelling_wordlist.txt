@@ -228,6 +228,7 @@ posix
 postgres
 pre
 preconfigured
+Prefill
 preload
 prepend
 prepended
@@ -336,6 +337,7 @@ vendored
 versioned
 vertexai
 vertica
+vLLM
 w3c
 Webbrowser
 websocket
@@ -349,3 +351,5 @@ xfail
 yaaredis
 openai-agents
 validators
+jitter
+durations

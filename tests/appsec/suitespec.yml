@@ -126,6 +126,15 @@ suites:
     services:
       - postgres
       - mysql
+  appsec_integrations_stripe:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - tests/appsec/integrations/stripe_tests/*
+    retry: 2
+    runner: riot
   appsec_integrations_langchain:
     venvs_per_job: 1
     paths:
@@ -217,7 +226,23 @@ suites:
     retry: 2
     runner: riot
   appsec_threats_flask:
-    parallelism: 4
+    parallelism: 6
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@asgi'
+      - '@wsgi'
+      - '@flask'
+      - '@remoteconfig'
+      - tests/appsec/*
+      - tests/appsec/contrib_appsec/*
+    retry: 2
+    runner: riot
+  appsec_threats_tornado:
+    parallelism: 6
     paths:
       - '@bootstrap'
       - '@core'

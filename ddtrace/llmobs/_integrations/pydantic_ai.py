@@ -168,9 +168,6 @@ class PydanticAIIntegration(BaseLLMIntegration):
             manifest["instructions"] = agent._instructions
         if hasattr(agent, "_system_prompts"):
             manifest["system_prompts"] = agent._system_prompts
-        if kwargs.get("deps", None):
-            agent_dependencies = kwargs.get("deps", None)
-            manifest["dependencies"] = getattr(agent_dependencies, "__dict__", agent_dependencies)
         manifest["tools"] = self._get_agent_tools(agent)
 
         span._set_ctx_item(AGENT_MANIFEST, manifest)

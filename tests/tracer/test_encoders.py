@@ -34,7 +34,6 @@ from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.trace import Context
 from ddtrace.trace import Span
-from tests.utils import DummyTracer
 
 
 _ORIGIN_KEY = ORIGIN_KEY.encode()
@@ -231,9 +230,29 @@ class TestEncoders(TestCase):
 
 def test_encode_meta_struct():
     # test encoding for MsgPack format
-    encoder = MSGPACK_ENCODERS["v0.4"](2 << 10, 2 << 10)
+    # Add error case with recovery
+    encoder = MSGPACK_ENCODERS["v0.4"](1 << 11, 1 << 11)
     super_span = Span(name="client.testing", trace_id=1)
-    payload = {"tttt": {"iuopç": [{"abcd": 1, "bcde": True}, {}]}, "zzzz": b"\x93\x01\x02\x03", "ZZZZ": [1, 2, 3]}
+
+    class T:
+        pass
+
+    payload = {
+        "tttt": {"iuopç": [{"abcd": 1, "bcde": True}, {}]},
+        "zzzz": b"\x93\x01\x02\x03",
+        "ZZZZ": [1, 2, 3],
+        "error_object": object(),
+        "error_integer": 1 << 129,
+        "list": [{}, {"x": "a"}, {"error_custom": T()}],
+    }
+    payload_expected = {
+        "tttt": {"iuopç": [{"abcd": 1, "bcde": True}, {}]},
+        "zzzz": b"\x93\x01\x02\x03",
+        "ZZZZ": [1, 2, 3],
+        "error_object": "Can not serialize [object] object",
+        "error_integer": "Integer value out of range",
+        "list": [{}, {"x": "a"}, {"error_custom": "Can not serialize [T] object"}],
+    }
 
     super_span._set_struct_tag("payload", payload)
     super_span.set_tag("payload", "meta_payload")
@@ -254,7 +273,7 @@ def test_encode_meta_struct():
     assert items[0][0][b"trace_id"] == items[0][1][b"trace_id"]
     for j in range(2):
         assert b"client.testing" == items[0][j][b"name"]
-    assert msgpack.unpackb(items[0][0][b"meta_struct"][b"payload"]) == payload
+    assert msgpack.unpackb(items[0][0][b"meta_struct"][b"payload"]) == payload_expected
 
 
 def decode(obj, reconstruct=True):
@@ -762,8 +781,7 @@ def test_span_link_v05_encoding():
         (MsgpackEncoderV05, 9),
     ],
 )
-def test_encoder_propagates_dd_origin(Encoder, item):
-    tracer = DummyTracer()
+def test_encoder_propagates_dd_origin(tracer, Encoder, item):
     encoder = Encoder(1 << 20, 1 << 20)
     with tracer.trace("Root") as root:
         root.context.dd_origin = CI_APP_TEST_ORIGIN

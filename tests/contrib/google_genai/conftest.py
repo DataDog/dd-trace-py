@@ -6,20 +6,18 @@ from unittest.mock import patch as mock_patch
 
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.google_genai.patch import patch
 from ddtrace.contrib.internal.google_genai.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from tests.contrib.google_genai.utils import MOCK_EMBED_CONTENT_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE_STREAM
+from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE_WITH_REASONING
 from tests.contrib.google_genai.utils import MOCK_TOOL_CALL_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_TOOL_CALL_RESPONSE_STREAM
 from tests.contrib.google_genai.utils import MOCK_TOOL_FINAL_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_TOOL_FINAL_RESPONSE_STREAM
 from tests.llmobs._utils import TestLLMObsSpanWriter
-from tests.utils import DummyTracer
-from tests.utils import DummyWriter
 from tests.utils import override_global_config
 
 
@@ -49,18 +47,7 @@ def genai_client_vcr(genai):
 
 
 @pytest.fixture
-def mock_tracer(ddtrace_global_config, genai):
-    try:
-        pin = Pin.get_from(genai)
-        mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-        pin._override(genai, tracer=mock_tracer)
-        yield mock_tracer
-    except Exception:
-        yield
-
-
-@pytest.fixture
-def genai_llmobs(mock_tracer, llmobs_span_writer):
+def genai_llmobs(tracer, llmobs_span_writer):
     LLMObs.disable()
     with override_global_config(
         {
@@ -69,7 +56,7 @@ def genai_llmobs(mock_tracer, llmobs_span_writer):
             "service": "tests.contrib.google_genai",
         }
     ):
-        LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)
+        LLMObs.enable(_tracer=tracer, integrations_enabled=False)
         LLMObs._instance._llmobs_span_writer = llmobs_span_writer
         yield LLMObs
     LLMObs.disable()
@@ -104,6 +91,15 @@ def genai(ddtrace_global_config):
 def mock_generate_content(genai):
     def _fake_generate_content(self, *, model: str, contents, config=None):
         return MOCK_GENERATE_CONTENT_RESPONSE
+
+    with mock_patch.object(genai.models.Models, "_generate_content", _fake_generate_content):
+        yield
+
+
+@pytest.fixture
+def mock_generate_content_with_reasoning(genai):
+    def _fake_generate_content(self, *, model: str, contents, config=None):
+        return MOCK_GENERATE_CONTENT_RESPONSE_WITH_REASONING
 
     with mock_patch.object(genai.models.Models, "_generate_content", _fake_generate_content):
         yield
