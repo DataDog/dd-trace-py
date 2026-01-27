@@ -443,6 +443,40 @@ def test_assertion_error_raised_with_enable_asserts():
             lock.acquire()
 
 
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"), timeout=30)
+def test_internal_lock_skips_asserts() -> None:
+    """Ensure internal locks don't trigger assert failures when asserts are enabled."""
+    import threading
+
+    from ddtrace.profiling.collector.threading import ThreadingConditionCollector
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_internal_lock_skips_asserts")
+
+    with ThreadingLockCollector(capture_pct=100), ThreadingConditionCollector(capture_pct=100):
+        cond = threading.Condition()
+        # Acquire/release uses the internal lock created inside threading.py.
+        error: list[BaseException] = []
+
+        def _run() -> None:
+            try:
+                cond.acquire()
+                cond.release()
+            except BaseException as exc:
+                error.append(exc)
+
+        t = threading.Thread(target=_run, name="internal-lock-check")
+        t.start()
+        t.join(5.0)
+        if t.is_alive():
+            raise AssertionError(
+                "internal lock acquisition hung; likely assert in _update_name with DD_PROFILING_ENABLE_ASSERTS"
+            )
+        if error:
+            raise error[0]
+
+
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="false"))
 def test_all_exceptions_suppressed_by_default() -> None:
     """
