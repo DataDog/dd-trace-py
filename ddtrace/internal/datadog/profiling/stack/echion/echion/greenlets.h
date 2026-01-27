@@ -36,21 +36,3 @@ class GreenletInfo
 
     int unwind(PyObject*, PyThreadState*, FrameStack&);
 };
-
-// ----------------------------------------------------------------------------
-
-// We make this a reference to a heap-allocated object so that we can avoid
-// the destruction on exit. We are in charge of cleaning up the object. Note
-// that the object will leak, but this is not a problem.
-inline std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr>& greenlet_info_map =
-  *(new std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr>());
-
-// maps greenlets to their parent
-inline std::unordered_map<GreenletInfo::ID, GreenletInfo::ID>& greenlet_parent_map =
-  *(new std::unordered_map<GreenletInfo::ID, GreenletInfo::ID>());
-
-// maps threads to any currently active greenlets
-inline std::unordered_map<uintptr_t, GreenletInfo::ID>& greenlet_thread_map =
-  *(new std::unordered_map<uintptr_t, GreenletInfo::ID>());
-
-inline std::mutex greenlet_info_map_lock;
