@@ -53,7 +53,6 @@ def traced_completion(litellm, pin, func, instance, args, kwargs):
     model = get_argument_value(args, kwargs, 0, "model", None)
     host = extract_host_tag(kwargs)
     span = integration.trace(
-        pin,
         operation,
         model=model,
         host=host,
@@ -84,7 +83,6 @@ async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
     model = get_argument_value(args, kwargs, 0, "model", None)
     host = extract_host_tag(kwargs)
     span = integration.trace(
-        pin,
         operation,
         model=model,
         host=host,
@@ -115,7 +113,6 @@ def traced_router_completion(litellm, pin, func, instance, args, kwargs):
     model = get_argument_value(args, kwargs, 0, "model", None)
     host = extract_host_tag(kwargs)
     span = integration.trace(
-        pin,
         operation,
         model=model,
         host=host,
@@ -146,7 +143,6 @@ async def traced_router_acompletion(litellm, pin, func, instance, args, kwargs):
     model = get_argument_value(args, kwargs, 0, "model", None)
     host = extract_host_tag(kwargs)
     span = integration.trace(
-        pin,
         operation,
         model=model,
         host=host,

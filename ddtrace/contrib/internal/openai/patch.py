@@ -212,7 +212,7 @@ def patched_completions_with_raw_response_init(openai, pin, func, instance, args
 
 
 def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
-    span = integration.trace(pin, endpoint_hook.OPERATION_ID, instance=instance)
+    span = integration.trace(endpoint_hook.OPERATION_ID, instance=instance)
     resp, err = None, None
     try:
         # Start the hook

@@ -6,7 +6,6 @@ from ddtrace import config
 from ddtrace.contrib.internal.google_genai._utils import GoogleGenAIAsyncStreamHandler
 from ddtrace.contrib.internal.google_genai._utils import GoogleGenAIStreamHandler
 from ddtrace.contrib.internal.trace_utils import unwrap
-from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.llmobs._integrations import GoogleGenAIIntegration
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
@@ -41,7 +40,6 @@ def traced_generate(func, instance, args, kwargs):
             integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation="llm")
 
 
-@with_traced_module
 async def traced_async_generate(func, instance, args, kwargs):
     integration = genai._datadog_integration
     provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)

@@ -12,12 +12,10 @@ if TYPE_CHECKING:
     from mcp.types import Request
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.internal.trace_utils import activate_distributed_headers
 from ddtrace.contrib.trace_utils import unwrap
-from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
@@ -51,7 +49,7 @@ def _supported_versions() -> Dict[str, str]:
     return {"mcp": ">=1.10.0"}
 
 
-def _set_distributed_headers_into_mcp_request(pin: Pin, request: "ClientRequest") -> "ClientRequest":
+def _set_distributed_headers_into_mcp_request(request: "ClientRequest") -> "ClientRequest":
     """Inject distributed tracing headers into MCP request metadata."""
     span = tracer.current_span()
     if span is None:
@@ -100,21 +98,19 @@ def _extract_distributed_headers_from_mcp_request(request_root: "Request") -> Op
     return headers if headers else None
 
 
-@with_traced_module
-def traced_send_request(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
+def traced_send_request(func, instance, args: tuple, kwargs: dict):
     """Injects distributed tracing headers into MCP request metadata"""
     if not args or not config.mcp.distributed_tracing:
         return func(*args, **kwargs)
     request = args[0]
-    modified_request = _set_distributed_headers_into_mcp_request(pin, request)
+    modified_request = _set_distributed_headers_into_mcp_request(request)
     return func(*((modified_request,) + args[1:]), **kwargs)
 
 
-@with_traced_module
-async def traced_call_tool(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
+async def traced_call_tool(func, instance, args: tuple, kwargs: dict):
     integration: MCPIntegration = mcp._datadog_integration
 
-    span: Span = integration.trace(pin, CLIENT_TOOL_CALL_OPERATION_NAME, submit_to_llmobs=True)
+    span: Span = integration.trace(CLIENT_TOOL_CALL_OPERATION_NAME, submit_to_llmobs=True)
 
     try:
         result = await func(*args, **kwargs)
@@ -142,11 +138,10 @@ async def traced_call_tool(mcp, pin: Pin, func, instance, args: tuple, kwargs: d
         span.finish()
 
 
-@with_traced_module
-async def traced_client_session_initialize(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
+async def traced_client_session_initialize(func, instance, args: tuple, kwargs: dict):
     integration: MCPIntegration = mcp._datadog_integration
 
-    with integration.trace(pin, "%s.%s" % (instance.__class__.__name__, func.__name__), submit_to_llmobs=True) as span:
+    with integration.trace("%s.%s" % (instance.__class__.__name__, func.__name__), submit_to_llmobs=True) as span:
         response = None
         try:
             response = await func(*args, **kwargs)
@@ -155,11 +150,10 @@ async def traced_client_session_initialize(mcp, pin: Pin, func, instance, args: 
             integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="initialize")
 
 
-@with_traced_module
-async def traced_client_session_list_tools(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
+async def traced_client_session_list_tools(func, instance, args: tuple, kwargs: dict):
     integration: MCPIntegration = mcp._datadog_integration
 
-    with integration.trace(pin, "%s.%s" % (instance.__class__.__name__, func.__name__), submit_to_llmobs=True) as span:
+    with integration.trace("%s.%s" % (instance.__class__.__name__, func.__name__), submit_to_llmobs=True) as span:
         response = None
         try:
             response = await func(*args, **kwargs)
@@ -168,10 +162,9 @@ async def traced_client_session_list_tools(mcp, pin: Pin, func, instance, args: 
             integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="list_tools")
 
 
-@with_traced_module
-async def traced_client_session_aenter(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
+async def traced_client_session_aenter(func, instance, args: tuple, kwargs: dict):
     integration: MCPIntegration = mcp._datadog_integration
-    span = integration.trace(pin, instance.__class__.__name__, submit_to_llmobs=True, type="client_session")
+    span = integration.trace(instance.__class__.__name__, submit_to_llmobs=True, type="client_session")
 
     setattr(instance, "_dd_span", span)
     try:
@@ -182,8 +175,7 @@ async def traced_client_session_aenter(mcp, pin: Pin, func, instance, args: tupl
         raise
 
 
-@with_traced_module
-async def traced_client_session_aexit(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
+async def traced_client_session_aexit(func, instance, args: tuple, kwargs: dict):
     integration: MCPIntegration = mcp._datadog_integration
     span: Optional[Span] = getattr(instance, "_dd_span", None)
 
@@ -208,8 +200,7 @@ async def traced_client_session_aexit(mcp, pin: Pin, func, instance, args: tuple
             span.finish()
 
 
-@with_traced_module
-def traced_request_responder_enter(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
+def traced_request_responder_enter(func, instance, args: tuple, kwargs: dict):
     from mcp.types import CallToolRequest
     from mcp.types import InitializeRequest
 
@@ -236,7 +227,6 @@ def traced_request_responder_enter(mcp, pin: Pin, func, instance, args: tuple, k
     )
 
     span = integration.trace(
-        pin,
         operation_name,
         submit_to_llmobs=True,
         span_name="mcp.{}".format(_get_attr(request_root, "method", "unknown")),
@@ -249,8 +239,7 @@ def traced_request_responder_enter(mcp, pin: Pin, func, instance, args: tuple, k
     return func(*args, **kwargs)
 
 
-@with_traced_module
-def traced_request_responder_exit(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
+def traced_request_responder_exit(func, instance, args: tuple, kwargs: dict):
     span: Optional[Span] = getattr(instance, "_dd_span", None)
     if span:
         # Check if an exception occurred (__exit__ receives (exc_type, exc_val, exc_tb))
@@ -265,8 +254,7 @@ def traced_request_responder_exit(mcp, pin: Pin, func, instance, args: tuple, kw
     return func(*args, **kwargs)
 
 
-@with_traced_module
-async def traced_request_responder_respond(mcp, pin: Pin, func, instance, args: tuple, kwargs: dict):
+async def traced_request_responder_respond(func, instance, args: tuple, kwargs: dict):
     from mcp.types import ListToolsResult
 
     response_arg = args[0] if len(args) > 0 else None
@@ -294,22 +282,21 @@ def patch():
         return
 
     mcp.__datadog_patch = True
-    Pin().onto(mcp)
     mcp._datadog_integration = MCPIntegration(integration_config=config.mcp)
 
     from mcp.client.session import ClientSession
     from mcp.shared.session import BaseSession
     from mcp.shared.session import RequestResponder
 
-    wrap(ClientSession, "__aenter__", traced_client_session_aenter(mcp))
-    wrap(ClientSession, "__aexit__", traced_client_session_aexit(mcp))
-    wrap(BaseSession, "send_request", traced_send_request(mcp))
-    wrap(ClientSession, "call_tool", traced_call_tool(mcp))
-    wrap(ClientSession, "list_tools", traced_client_session_list_tools(mcp))
-    wrap(ClientSession, "initialize", traced_client_session_initialize(mcp))
-    wrap(RequestResponder, "__enter__", traced_request_responder_enter(mcp))
-    wrap(RequestResponder, "__exit__", traced_request_responder_exit(mcp))
-    wrap(RequestResponder, "respond", traced_request_responder_respond(mcp))
+    wrap(ClientSession, "__aenter__", traced_client_session_aenter)
+    wrap(ClientSession, "__aexit__", traced_client_session_aexit)
+    wrap(BaseSession, "send_request", traced_send_request)
+    wrap(ClientSession, "call_tool", traced_call_tool)
+    wrap(ClientSession, "list_tools", traced_client_session_list_tools)
+    wrap(ClientSession, "initialize", traced_client_session_initialize)
+    wrap(RequestResponder, "__enter__", traced_request_responder_enter)
+    wrap(RequestResponder, "__exit__", traced_request_responder_exit)
+    wrap(RequestResponder, "respond", traced_request_responder_respond)
 
 
 def unpatch():
