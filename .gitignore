@@ -158,6 +158,7 @@ CLAUDE.local.md
 # Riot
 .riot/venv*
 .riot/requirements/*.in
+.riot/logs/
 
 # Benchmarks
 artifacts/
