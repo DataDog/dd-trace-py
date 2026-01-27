@@ -85,6 +85,32 @@ def capture_coverage_instance_from_pytest_cov(session) -> t.Optional[t.Any]:
         return None
 
 
+def create_coverage_instance_for_upload(include_patterns=None) -> t.Optional[t.Any]:
+    """Create a new coverage instance specifically for coverage upload."""
+    try:
+        import coverage
+
+        # Create coverage instance with default configuration
+        cov = coverage.Coverage(
+            data_suffix=None,
+            config_file=True,  # Look for .coveragerc
+            include=include_patterns,
+            branch=False,  # Line coverage for now
+            auto_data=True,
+            timid=False,
+        )
+
+        log.debug("Created coverage instance for upload")
+        return cov
+
+    except ImportError:
+        log.debug("Coverage.py not available, cannot create coverage instance")
+        return None
+    except Exception:
+        log.exception("Failed to create coverage instance")
+        return None
+
+
 class CoverageIntegration:
     """Simplified coverage integration for pytest plugins."""
 
@@ -96,10 +122,17 @@ class CoverageIntegration:
         self._initialized = False
         self._coverage_report_uploader = None
 
-    def initialize(self):
+    def initialize(self, config=None):
         """Initialize the coverage integration."""
         if self._initialized:
             return
+
+        # If coverage upload is enabled but no pytest-cov is detected, start our own coverage
+        if is_coverage_upload_enabled() and config:
+            pytest_cov_enabled = self._is_pytest_cov_enabled_for_config(config) if config else False
+            if not pytest_cov_enabled:
+                log.debug("Coverage upload enabled but no --cov detected, starting coverage collection")
+                self._coverage_instance = self._create_and_start_coverage_instance(config)
 
         self._record_telemetry("coverage.started", 1, {"library": "coveragepy", "framework": "pytest"})
         self._initialized = True
@@ -141,11 +174,120 @@ class CoverageIntegration:
 
         # Handle coverage report upload if enabled
         if is_coverage_upload_enabled():
+            # Try to get existing coverage instance first
             self._coverage_instance = capture_coverage_instance_from_pytest_cov(config)
+
+            # If no coverage instance exists but upload is enabled, create one
+            if not self._coverage_instance:
+                self._coverage_instance = self._create_coverage_instance_if_needed(config)
+
             if self._coverage_instance:
                 self._setup_and_upload_coverage_report()
 
         self._record_telemetry("coverage.finished", 1, {"library": "coveragepy", "framework": "pytest"})
+
+    def _create_coverage_instance_if_needed(self, config) -> t.Optional[t.Any]:
+        """Create coverage instance if needed for upload when no pytest-cov coverage exists."""
+        log.debug("No existing coverage instance found, creating one for upload")
+
+        # Determine include patterns from current working directory
+        cwd = Path.cwd()
+        # Include Python files in current directory and subdirectories
+        include_patterns = [
+            str(cwd / "*.py"),
+            str(cwd / "*" / "*.py"),
+            str(cwd / "*" / "*" / "*.py"),  # Basic depth coverage
+        ]
+
+        coverage_instance = create_coverage_instance_for_upload(include_patterns)
+        if coverage_instance:
+            # Start coverage collection retroactively if possible
+            try:
+                coverage_instance.start()
+                log.debug("Started coverage collection for upload")
+
+                # Try to collect any existing coverage data if available
+                if hasattr(coverage_instance, "collect"):
+                    coverage_instance.collect()
+
+            except Exception:
+                log.debug("Could not start retroactive coverage collection", exc_info=True)
+
+        return coverage_instance
+
+    def _create_and_start_coverage_instance(self, config) -> t.Optional[t.Any]:
+        """Create and start a coverage instance for upload when no pytest-cov exists."""
+        log.debug("Creating and starting coverage collection for upload")
+
+        # Determine include patterns based on test paths or current directory
+        include_patterns = self._get_coverage_include_patterns(config)
+
+        coverage_instance = create_coverage_instance_for_upload(include_patterns)
+        if coverage_instance:
+            try:
+                coverage_instance.start()
+                log.debug("Started coverage collection for upload with patterns: %s", include_patterns)
+                return coverage_instance
+            except Exception:
+                log.exception("Failed to start coverage collection")
+                return None
+
+        return None
+
+    def _get_coverage_include_patterns(self, config) -> t.List[str]:
+        """Get coverage include patterns based on test configuration."""
+        from pathlib import Path
+
+        cwd = Path.cwd()
+        patterns = []
+
+        # Try to get patterns from pytest configuration
+        try:
+            # Look for common source directories
+            common_dirs = ["src", "lib", "app", cwd.name]  # Include current directory name
+            for dir_name in common_dirs:
+                dir_path = cwd / dir_name
+                if dir_path.exists() and dir_path.is_dir():
+                    patterns.append(str(dir_path / "*.py"))
+                    patterns.append(str(dir_path / "*" / "*.py"))
+
+            # If no common directories found, use current directory
+            if not patterns:
+                patterns = [
+                    str(cwd / "*.py"),
+                    str(cwd / "*" / "*.py"),
+                ]
+
+        except Exception:
+            # Fallback to current directory
+            patterns = [
+                str(cwd / "*.py"),
+                str(cwd / "*" / "*.py"),
+            ]
+
+        return patterns
+
+    def _is_pytest_cov_enabled_for_config(self, config) -> bool:
+        """Check if pytest-cov is enabled for the given config."""
+        try:
+            if not hasattr(config, "pluginmanager"):
+                return False
+
+            pytest_cov_plugin = config.pluginmanager.get_plugin("pytest_cov")
+            if not pytest_cov_plugin:
+                return False
+
+            # Check if --cov option was provided
+            cov_option = config.getoption("--cov", default=None)
+            nocov_option = config.getoption("--no-cov", default=False)
+
+            if nocov_option:
+                return False
+
+            return bool(cov_option)
+        except Exception:
+            log.debug("Could not determine pytest-cov status", exc_info=True)
+            return False
 
     def _setup_and_upload_coverage_report(self):
         """Upload coverage report using existing plugin infrastructure."""

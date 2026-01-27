@@ -371,6 +371,31 @@ def _is_pytest_cov_enabled(config) -> bool:
     return cov_option
 
 
+# Global coverage integration instance for early initialization
+_early_coverage_integration = None
+
+
+def _early_initialize_coverage_for_upload(config):
+    """Initialize coverage collection early if upload is enabled but --cov wasn't specified."""
+    global _early_coverage_integration
+
+    try:
+        from ddtrace.contrib.internal.coverage_integration import CoverageIntegration
+        from ddtrace.contrib.internal.coverage_integration import is_coverage_upload_enabled
+        from ddtrace.testing.internal.env_tags import get_env_tags
+
+        # Only proceed if coverage upload is enabled but --cov wasn't used
+        if is_coverage_upload_enabled() and not _is_pytest_cov_enabled(config):
+            log.debug("Coverage upload enabled without --cov, initializing early coverage collection")
+
+            env_tags = get_env_tags()
+            _early_coverage_integration = CoverageIntegration(telemetry_writer=None, env_tags=env_tags)
+            _early_coverage_integration.initialize(config)
+
+    except Exception:
+        log.debug("Failed to initialize early coverage for upload", exc_info=True)
+
+
 def pytest_configure(config: pytest_Config) -> None:
     global skip_pytest_runtest_protocol
 
@@ -391,6 +416,9 @@ def pytest_configure(config: pytest_Config) -> None:
             enable_test_visibility(config=dd_config.pytest)
             if _is_pytest_cov_enabled(config):
                 patch_coverage()
+
+            # Initialize early coverage collection for upload if enabled
+            _early_initialize_coverage_for_upload(config)
 
             skip_pytest_runtest_protocol = False
 
@@ -956,9 +984,19 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     from ddtrace.internal.telemetry import telemetry_writer
     from ddtrace.testing.internal.env_tags import get_env_tags
 
-    env_tags = get_env_tags()
-    coverage_integration = CoverageIntegration(telemetry_writer=telemetry_writer, env_tags=env_tags)
-    coverage_integration.initialize()
+    global _early_coverage_integration
+
+    # Use early initialized coverage integration if available, otherwise create new one
+    if _early_coverage_integration:
+        log.debug("Using early initialized coverage integration")
+        coverage_integration = _early_coverage_integration
+        # Update with telemetry writer for session finish
+        coverage_integration.telemetry_writer = telemetry_writer
+    else:
+        env_tags = get_env_tags()
+        coverage_integration = CoverageIntegration(telemetry_writer=telemetry_writer, env_tags=env_tags)
+        coverage_integration.initialize(session.config)
+
     coverage_integration.handle_session_finish(session.config, InternalTestSession.get_span())
 
     if ModuleCodeCollector.is_installed():

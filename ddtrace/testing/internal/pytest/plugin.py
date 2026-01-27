@@ -268,8 +268,8 @@ class TestOptPlugin:
         # Use simplified coverage integration
         from ddtrace.contrib.internal.coverage_integration import CoverageIntegration
 
-        coverage_integration = CoverageIntegration(session_manager=self.session, env_tags=self.manager.env_tags)
-        coverage_integration.initialize()
+        coverage_integration = CoverageIntegration(session_manager=self.manager, env_tags=self.manager.env_tags)
+        coverage_integration.initialize(session.config)
         coverage_integration.handle_session_finish(session.config)
 
         uninstall_coverage_percentage()
@@ -944,7 +944,12 @@ def pytest_load_initial_conftests(
 
     early_config.stash[SESSION_MANAGER_STASH_KEY] = session_manager
 
-    if session_manager.settings.coverage_enabled:
+    # Set up coverage collection if enabled by API or if upload is enabled
+    from ddtrace.contrib.internal.coverage_integration import is_coverage_upload_enabled
+
+    if session_manager.settings.coverage_enabled or is_coverage_upload_enabled():
+        if is_coverage_upload_enabled() and not session_manager.settings.coverage_enabled:
+            log.debug("Coverage upload enabled via environment variable, enabling coverage collection")
         setup_coverage_collection()
 
     yield
