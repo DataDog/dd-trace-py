@@ -76,12 +76,8 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
         run: |
-          COMMAND=" \
-           gh pr create \
-             --title \\"${{ github.event.pull_request.title }} [backport ${{ steps.create-commit.outputs.target-branch }}]\\" \
-             --body \\"Backport #${{ github.event.pull_request.number }} to ${{ steps.create-commit.outputs.target-branch }}\\" \
-             --base ${{ steps.create-commit.outputs.target-branch }} \
-             --head ${{ steps.create-commit.outputs.branch }} \
-          "
-          echo $COMMAND
-          `${COMMAND}`
+          gh pr create \
+            --title "${{ github.event.pull_request.title }} [backport ${{ steps.create-commit.outputs.target-branch }}]" \
+            --body "Backport ${{ github.event.pull_request.number }} to ${{ steps.create-commit.outputs.target-branch }}" \
+            --base ${{ steps.create-commit.outputs.target-branch }} \
+            --head ${{ steps.create-commit.outputs.branch }} \
