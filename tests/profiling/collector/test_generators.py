@@ -9,6 +9,7 @@ import pytest
 )
 # For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
 def test_generators_stacks() -> None:
+    import math
     import os
     import time
     from typing import Generator
@@ -24,6 +25,11 @@ def test_generators_stacks() -> None:
         yield 42
 
     def generator() -> Generator[int, None, None]:
+        start = time.time()
+        result = 0
+        while time.time() - start < 0.1:
+            result *= math.factorial(result)
+
         yield from generator2()
 
     def my_function() -> int:
@@ -72,6 +78,12 @@ def test_generators_stacks() -> None:
                     filename="test_generators.py",
                     line_no=my_function.__code__.co_firstlineno + 2,
                 ),
+                pprof_utils.StackLocation(
+                    function_name="slqsd,qs:;qs,d;eep",
+                    filename="test_generators.py",
+                    line_no=-1,
+                ),
             ],
         ),
+        print_samples_on_failure=True,
     )
