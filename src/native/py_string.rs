@@ -44,7 +44,7 @@ impl PyBackedString {
     ///
     /// Returns `true` only if the storage contains Python's `None` object.
     /// Returns `false` for empty strings created from static data or Python empty strings.
-    #[inline]
+    #[inline(always)]
     pub fn is_py_none(&self, py: Python<'_>) -> bool {
         self.storage.as_ref().is_some_and(|obj| obj.is_none(py))
     }
@@ -60,30 +60,40 @@ impl PyBackedString {
     ///
     /// Returns the stored Python object if available (PyString, PyBytes, or PyNone),
     /// or creates an interned Python string for static strings.
-    #[inline]
+    #[inline(always)]
     pub fn as_py<'py>(&self, py: Python<'py>) -> pyo3::Bound<'py, PyAny> {
         match &self.storage {
             Some(obj) => obj.bind(py).clone(),
             None => PyString::intern(py, self.deref()).into_any(),
         }
     }
+
+    /// Get a borrowed reference to the stored Python object.
+    /// Returns None if storage is empty (static string case).
+    /// This avoids refcount overhead when the caller just needs to read the value.
+    #[inline(always)]
+    pub fn storage_borrowed<'a, 'py>(&'a self, py: Python<'py>) -> Option<pyo3::Borrowed<'a, 'py, PyAny>> {
+        self.storage.as_ref().map(|obj| obj.bind_borrowed(py))
+    }
 }
 
 impl<'py> pyo3::FromPyObject<'_, 'py> for PyBackedString {
     type Error = pyo3::PyErr;
 
-    #[inline]
+    #[inline(always)]
     fn extract(obj: pyo3::Borrowed<'_, 'py, PyAny>) -> pyo3::PyResult<Self> {
         let py = obj.py();
-        if obj.is_none() {
-            return Ok(Self::py_none(py));
-        }
-
+        // Fast path: check for string first since it's the most common case
         if let Ok(py_string) = obj.cast::<pyo3::types::PyString>() {
             return Self::try_from(py_string.to_owned());
         }
+        // Fallback: check for bytes
         if let Ok(py_bytes) = obj.cast::<pyo3::types::PyBytes>() {
             return Self::try_from(py_bytes.to_owned());
+        }
+        // Check for None last (least common in hot path)
+        if obj.is_none() {
+            return Ok(Self::py_none(py));
         }
         Err(PyErr::new::<PyValueError, _>(
             "argument needs to be either a 'str', utf8 encoded 'bytes', or 'None'",

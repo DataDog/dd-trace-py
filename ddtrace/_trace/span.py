@@ -148,20 +148,8 @@ class Span(SpanData):
         span_api: str = SPAN_API_DATADOG,
         links: Optional[List[SpanLink]] = None,
     ) -> "Span":
-        # Initialize the native SpanData base class
-        return super().__new__(
-            cls,
-            name=name,
-            service=service,
-            resource=resource,
-            span_type=span_type,
-            trace_id=trace_id,
-            span_id=span_id,
-            parent_id=parent_id,
-            start=start,
-            span_api=span_api,
-            links=links,
-        )
+        # Initialize the native SpanData base class with only the fields it manages
+        return super().__new__(cls, name, service)
 
     def __init__(
         self,

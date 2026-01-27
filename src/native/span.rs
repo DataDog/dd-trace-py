@@ -1,5 +1,5 @@
 use pyo3::{
-    types::{PyAnyMethods as _, PyDict, PyInt, PyList, PyModule, PyModuleMethods as _, PyTuple},
+    types::{PyAnyMethods as _, PyDict, PyInt, PyModule, PyModuleMethods as _, PyTuple},
     Bound, PyAny, PyResult, Python,
 };
 
@@ -74,13 +74,13 @@ pub struct SpanData {
 }
 
 /// Extract PyBackedString from Python object, falling back to empty string on error
-#[inline]
+#[inline(always)]
 fn extract_backed_string_or_default(obj: &Bound<'_, PyAny>) -> PyBackedString {
     obj.extract::<PyBackedString>().unwrap_or_default()
 }
 
 /// Extract PyBackedString from Python object, falling back to None on error
-#[inline]
+#[inline(always)]
 fn extract_backed_string_or_none(obj: &Bound<'_, PyAny>) -> PyBackedString {
     let py = obj.py();
     obj.extract::<PyBackedString>()
@@ -90,58 +90,45 @@ fn extract_backed_string_or_none(obj: &Bound<'_, PyAny>) -> PyBackedString {
 #[pyo3::pymethods]
 impl SpanData {
     #[new]
-    #[allow(clippy::too_many_arguments)]
-    #[allow(unused_variables)]
-    #[pyo3(signature = (
-        name,
-        service = None,
-        resource = None,
-        span_type = None,
-        trace_id = None,
-        span_id = None,
-        parent_id = None,
-        start = None,
-        span_api = None,
-        links = None,
-    ))]
+    #[pyo3(signature = (name, service=None))]
     pub fn __new__<'p>(
         py: Python<'p>,
         name: &Bound<'p, PyAny>,
         service: Option<&Bound<'p, PyAny>>,
-        resource: Option<&Bound<'p, PyAny>>,
-        span_type: Option<&Bound<'p, PyAny>>,
-        trace_id: Option<&Bound<'p, PyInt>>,
-        span_id: Option<&Bound<'p, PyInt>>,
-        parent_id: Option<&Bound<'p, PyInt>>,
-        start: Option<f64>,
-        span_api: Option<&Bound<'p, PyAny>>,
-        links: Option<&Bound<'p, PyList>>,
     ) -> Self {
         let mut span = Self::default();
         span.set_name(name);
         match service {
             Some(obj) => span.set_service(obj),
-            None => span.set_service(py.None().bind(py)),
+            // Directly set py_none to avoid creating a bound None and going through extraction
+            None => span.data.service = PyBackedString::py_none(py),
         }
         span
     }
 
     #[getter]
-    fn get_name<'py>(&self, py: Python<'py>) -> pyo3::Bound<'py, PyAny> {
-        self.data.name.as_py(py)
+    #[inline(always)]
+    fn get_name<'py>(&self, py: Python<'py>) -> pyo3::Borrowed<'_, 'py, PyAny> {
+        // Use storage_borrowed to avoid refcount overhead - name always has storage
+        self.data
+            .name
+            .storage_borrowed(py)
+            .expect("name should always have storage")
     }
 
     #[setter]
+    #[inline(always)]
     fn set_name(&mut self, name: &Bound<'_, PyAny>) {
         self.data.name = extract_backed_string_or_default(name);
     }
 
     #[getter]
-    fn get_service<'py>(&self, py: Python<'py>) -> Option<pyo3::Bound<'py, PyAny>> {
-        if self.data.service.is_py_none(py) {
-            None
-        } else {
-            Some(self.data.service.as_py(py))
+    #[inline(always)]
+    fn get_service<'py>(&self, py: Python<'py>) -> Option<pyo3::Borrowed<'_, 'py, PyAny>> {
+        // Use storage_borrowed to avoid refcount overhead
+        match self.data.service.storage_borrowed(py) {
+            Some(borrowed) if !borrowed.is_none() => Some(borrowed),
+            _ => None,
         }
     }
 
