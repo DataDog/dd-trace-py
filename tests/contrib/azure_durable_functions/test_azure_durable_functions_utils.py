@@ -1,13 +1,13 @@
 import asyncio
 
-import ddtrace.contrib  # noqa: F401
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
+import ddtrace.contrib  # noqa: F401
 from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ACTIVITY_TRIGGER
-from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_TRIGGER_DEFS
 from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ENTITY_TRIGGER
 from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ORCHESTRATION_TRIGGER
+from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_TRIGGER_DEFS
 from ddtrace.contrib.internal.azure_durable_functions.patch import _patched_get_functions
 from ddtrace.contrib.internal.azure_durable_functions.patch import _wrap_durable_trigger
 from ddtrace.contrib.internal.trace_utils import int_service
