@@ -30,28 +30,26 @@ jobs:
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
 
           TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
-          MERGE_BASE=$(git merge-base origin/main origin/${PR_BRANCH})
-          HEAD_HASH=$(git rev-parse origin/${PR_BRANCH})
-          git diff ${HEAD_HASH} ${MERGE_BASE} > ../backport.patch
-          cat ../backport.patch
+          MERGE_COMMIT=$(git rev-parse HEAD)
           git checkout origin/${TARGET_BRANCH}
-          ERROR=$(git apply ../backport.patch 2>&1) || true
+          ERROR=$(git cherry-pick -x --mainline 1 ${MERGE_COMMIT} 2>&1 | grep -v '^hint') || true
 
           echo "results<<EOF" >> "$GITHUB_OUTPUT"
           if [[ ! -z ${ERROR} ]]
           then
             echo "This change is marked for backport to ${TARGET_BRANCH}, but it conflicts with that branch." | tee -a "$GITHUB_OUTPUT"
-            echo "Attempting to apply this change as a patch to ${TARGET_BRANCH} yielded the following error:" | tee -a "$GITHUB_OUTPUT"
+            echo "Attempting to cherrypick this change to ${TARGET_BRANCH} yielded the following error:" | tee -a "$GITHUB_OUTPUT"
             echo "\`\`\`" >> "$GITHUB_OUTPUT"
             echo "$ERROR" | tee -a "$GITHUB_OUTPUT"
             echo "\`\`\`" >> "$GITHUB_OUTPUT"
           else
             echo "This change is marked for backport to ${TARGET_BRANCH} and it does not conflict with that branch." | tee -a "$GITHUB_OUTPUT"
           fi
-          echo "The patch used to test backporting was" | tee -a "$GITHUB_OUTPUT"
+          echo "The command used to test backporting was" | tee -a "$GITHUB_OUTPUT"
           echo "\`\`\`" >> "$GITHUB_OUTPUT"
-          echo "git diff ${HEAD_HASH} ${MERGE_BASE}" | tee -a "$GITHUB_OUTPUT"
+          echo "git cherry-pick -x --mainline 1 ${MERGE_COMMIT}" | tee -a "$GITHUB_OUTPUT"
           echo "\`\`\`" >> "$GITHUB_OUTPUT"
+          echo "(This commit hash is the HEAD of the temporary branch used by Github Actions, which is a merge commit.)" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Comment PR
