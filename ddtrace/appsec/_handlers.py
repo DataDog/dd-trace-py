@@ -460,7 +460,6 @@ def _on_checkout_session_create(session):
             "amount_total": session.amount_total,
             "client_reference_id": session.client_reference_id,
             "currency": session.currency,
-            "customer_email": session.customer_email,
             "discounts.coupon": discounts_coupon,
             "discounts.promotion_code": discounts_promotion_code,
             "livemode": session.livemode,
@@ -486,7 +485,6 @@ def _on_payment_intent_create(payment_intent):
             "currency": payment_intent.currency,
             "livemode": payment_intent.livemode,
             "payment_method": payment_method,
-            "receipt_email": payment_intent.receipt_email,
         }
 
         call_waf_callback({"PAYMENT_CREATION": payment_creation_data})
@@ -510,9 +508,6 @@ def _on_payment_intent_event(event):
                 "last_payment_error.code": event.data.object.last_payment_error.code,
                 "last_payment_error.decline_code": event.data.object.last_payment_error.decline_code,
                 "last_payment_error.payment_method.id": event.data.object.last_payment_error.payment_method.id,
-                "last_payment_error.payment_method.billing_details.email": (
-                    event.data.object.last_payment_error.payment_method.billing_details.email
-                ),
                 "last_payment_error.payment_method.type": event.data.object.last_payment_error.payment_method.type,
             }
         elif event.type == "payment_intent.canceled":
@@ -520,7 +515,6 @@ def _on_payment_intent_event(event):
 
             payment_intent_webhook_data = {
                 "cancellation_reason": event.data.object.cancellation_reason,
-                "receipt_email": event.data.object.receipt_email,
             }
         else:
             return
@@ -550,7 +544,6 @@ def _on_httpx_request_started(ctx: ExecutionContext) -> None:
         return
 
     analyze_body = should_analyze_body_response(asm_context)
-    asm_context.downstream_requests += 1
     ctx.set_item(APPSEC_SSRF_ANALYZE_BODY_KEY, analyze_body)
 
 
@@ -584,6 +577,7 @@ def _on_httpx_client_send_single_request_started(ctx: ExecutionContext) -> None:
         addresses,
         rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
     )
+    asm_context.downstream_requests += 1
     if blocking_config := get_blocked():
         raise BlockingException(blocking_config, EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, raw_url)
 

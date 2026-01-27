@@ -3,7 +3,6 @@ from functools import wraps
 import celery
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.celery.patch import patch
 from ddtrace.contrib.internal.celery.patch import unpatch
 from tests.utils import TracerTestCase
@@ -87,12 +86,6 @@ class CeleryBaseTestCase(TracerTestCase):
 
     def setUp(self):
         super(CeleryBaseTestCase, self).setUp()
-
-        self.pin = Pin(service="celery-unittest")
-        self.pin._tracer = self.tracer
-        # override pins to use our Dummy Tracer
-        Pin._override(self.app, tracer=self.tracer)
-        Pin._override(celery.beat.Scheduler, tracer=self.tracer)
 
     def tearDown(self):
         self.app = None
