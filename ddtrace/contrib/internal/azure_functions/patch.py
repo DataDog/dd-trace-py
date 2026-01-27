@@ -26,13 +26,15 @@ config._add(
     ),
 )
 
+_AZURE_FUNCTIONS_PACKAGE = "azure.functions"
+
 
 def get_version() -> str:
     return getattr(azure_functions, "__version__", "")
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"azure.functions": ">=1.10.1"}
+    return {_AZURE_FUNCTIONS_PACKAGE: ">=1.10.1"}
 
 
 def patch():
