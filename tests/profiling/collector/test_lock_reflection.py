@@ -25,13 +25,14 @@ from __future__ import annotations
 import asyncio
 import pickle
 import threading
-from typing import Any
+from typing import Callable
 from typing import List
 from typing import Optional
 from typing import Protocol
 from typing import Set
 from typing import Tuple
 from typing import Type
+from typing import Union
 from typing import runtime_checkable
 
 import pytest
@@ -55,28 +56,38 @@ from tests.profiling.collector.test_utils import init_ddup
 # =============================================================================
 
 
+# Type alias for lock config tuples
+LockConfig = Tuple[Type[object], Type[object], str]
+
+
 @runtime_checkable
 class LockProtocol(Protocol):
     """Minimal protocol that all lock types must satisfy."""
 
-    def acquire(self, *args: Any, **kwargs: Any) -> Any: ...
-    def release(self, *args: Any, **kwargs: Any) -> Any: ...
+    def acquire(self, blocking: bool = True, timeout: float = -1) -> bool: ...
+    def release(self) -> None: ...
 
 
 @runtime_checkable
 class ContextManagerProtocol(Protocol):
     """Context manager protocol for synchronous locks."""
 
-    def __enter__(self) -> Any: ...
-    def __exit__(self, *args: Any) -> Any: ...
+    def __enter__(self) -> bool: ...
+
+    def __exit__(
+        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: object
+    ) -> Optional[bool]: ...
 
 
 @runtime_checkable
 class AsyncContextManagerProtocol(Protocol):
     """Async context manager protocol for asyncio locks."""
 
-    async def __aenter__(self) -> Any: ...
-    async def __aexit__(self, *args: Any) -> Any: ...
+    async def __aenter__(self) -> None: ...
+
+    async def __aexit__(
+        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: object
+    ) -> None: ...
 
 
 # =============================================================================
@@ -85,7 +96,7 @@ class AsyncContextManagerProtocol(Protocol):
 
 
 # Threading lock types with their collectors
-THREADING_LOCK_CONFIGS: List[Tuple[Type[Any], Type[Any], str]] = [
+THREADING_LOCK_CONFIGS: List[LockConfig] = [
     (threading.Lock, ThreadingLockCollector, "Lock"),
     (threading.RLock, ThreadingRLockCollector, "RLock"),
     (threading.Semaphore, ThreadingSemaphoreCollector, "Semaphore"),
@@ -94,7 +105,7 @@ THREADING_LOCK_CONFIGS: List[Tuple[Type[Any], Type[Any], str]] = [
 ]
 
 # Asyncio lock types with their collectors
-ASYNCIO_LOCK_CONFIGS: List[Tuple[Type[Any], Type[Any], str]] = [
+ASYNCIO_LOCK_CONFIGS: List[LockConfig] = [
     (asyncio.Lock, AsyncioLockCollector, "Lock"),
     (asyncio.Semaphore, AsyncioSemaphoreCollector, "Semaphore"),
     (asyncio.BoundedSemaphore, AsyncioBoundedSemaphoreCollector, "BoundedSemaphore"),
@@ -107,32 +118,38 @@ ASYNCIO_LOCK_CONFIGS: List[Tuple[Type[Any], Type[Any], str]] = [
 # =============================================================================
 
 
-def get_public_methods(obj: Any) -> Set[str]:
+def get_public_methods(obj: object) -> Set[str]:
     """Get all public method names of an object.
 
     Note: This only finds methods visible in dir(). Methods delegated via
     __getattr__ won't appear here but are still accessible.
     """
-    return {name for name in dir(obj) if not name.startswith("_") and callable(getattr(obj, name, None))}
+    methods: Set[str] = set()
+    for name in dir(obj):
+        if not name.startswith("_"):
+            attr: object = getattr(obj, name, None)
+            if callable(attr):
+                methods.add(name)
+    return methods
 
 
-def check_method_accessible(obj: Any, method_name: str) -> bool:
+def check_method_accessible(obj: object, method_name: str) -> bool:
     """Check if a method is accessible on an object (even if via __getattr__)."""
     try:
-        method = getattr(obj, method_name)
+        method: object = getattr(obj, method_name)
         return callable(method)
     except AttributeError:
         return False
 
 
-def get_dunder_methods(cls: Type[Any]) -> Set[str]:
+def get_dunder_methods(cls: Type[object]) -> Set[str]:
     """Get dunder method names that a class explicitly defines or overrides.
 
     This helps detect when a wrapper is missing a dunder that the original has.
     """
     # These are dunders that exist on all objects - we only care about ones
     # that the class explicitly overrides or adds
-    base_object_dunders = {
+    base_object_dunders: Set[str] = {
         "__class__",
         "__delattr__",
         "__dir__",
@@ -148,20 +165,22 @@ def get_dunder_methods(cls: Type[Any]) -> Set[str]:
         "__subclasshook__",
     }
 
-    cls_dunders = {name for name in dir(cls) if name.startswith("__") and name.endswith("__")}
+    cls_dunders: Set[str] = {name for name in dir(cls) if name.startswith("__") and name.endswith("__")}
 
     # Return dunders that are meaningful for lock behavior
-    meaningful_dunders = cls_dunders - base_object_dunders
+    meaningful_dunders: Set[str] = cls_dunders - base_object_dunders
     return meaningful_dunders
 
 
-def get_callable_dunders(obj: Any) -> Set[str]:
+def get_callable_dunders(obj: object) -> Set[str]:
     """Get dunders that are callable (methods, not just attributes)."""
-    return {
-        name
-        for name in dir(obj)
-        if name.startswith("__") and name.endswith("__") and callable(getattr(obj, name, None))
-    }
+    dunders: Set[str] = set()
+    for name in dir(obj):
+        if name.startswith("__") and name.endswith("__"):
+            attr: object = getattr(obj, name, None)
+            if callable(attr):
+                dunders.add(name)
+    return dunders
 
 
 # =============================================================================
@@ -178,7 +197,7 @@ class TestLockAllocatorWrapperInterface:
 
     @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
     def test_wrapper_exposes_original_class_dunders(
-        self, lock_class: Type[Any], collector_class: Type[Any], name: str
+        self, lock_class: Type[object], collector_class: Type[object], name: str
     ) -> None:
         """Verify wrapper delegates attribute access to original class.
 
@@ -186,8 +205,8 @@ class TestLockAllocatorWrapperInterface:
         """
         init_ddup(f"test_wrapper_dunders_{name}")
 
-        with collector_class(capture_pct=100):
-            wrapped = getattr(threading, name)
+        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+            wrapped: _LockAllocatorWrapper = getattr(threading, name)
             assert isinstance(wrapped, _LockAllocatorWrapper)
 
             # Check critical dunders are accessible
@@ -198,21 +217,21 @@ class TestLockAllocatorWrapperInterface:
             assert hasattr(wrapped, "__reduce__"), f"{name} wrapper missing __reduce__ (pickling)"
 
     @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
-    def test_wrapper_is_callable(self, lock_class: Type[Any], collector_class: Type[Any], name: str) -> None:
+    def test_wrapper_is_callable(self, lock_class: Type[object], collector_class: Type[object], name: str) -> None:
         """Verify the wrapper can be called to create lock instances."""
         init_ddup(f"test_wrapper_callable_{name}")
 
-        with collector_class(capture_pct=100):
-            wrapped = getattr(threading, name)
+        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+            wrapped: object = getattr(threading, name)
             assert callable(wrapped), f"{name} wrapper should be callable"
 
             # Actually create an instance
-            instance = wrapped()
+            instance: object = wrapped()
             assert instance is not None
 
     @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
     def test_wrapper_get_descriptor_prevents_binding(
-        self, lock_class: Type[Any], collector_class: Type[Any], name: str
+        self, lock_class: Type[object], collector_class: Type[object], name: str
     ) -> None:
         """Verify __get__ prevents method binding when used as class attribute.
 
@@ -221,15 +240,16 @@ class TestLockAllocatorWrapperInterface:
         """
         init_ddup(f"test_wrapper_get_{name}")
 
-        with collector_class(capture_pct=100):
-            wrapped = getattr(threading, name)
+        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+            wrapped: object = getattr(threading, name)
 
             class Foo:
-                lock_class = wrapped
+                lock_class: object = wrapped
 
             # Should return the wrapper, not a bound method
             assert Foo.lock_class is wrapped
-            assert Foo().lock_class is wrapped
+            foo_instance: Foo = Foo()
+            assert foo_instance.lock_class is wrapped
 
     @pytest.mark.parametrize(
         "lock_class,collector_class,name",
@@ -241,7 +261,7 @@ class TestLockAllocatorWrapperInterface:
         ],
     )
     def test_wrapper_supports_subclassing_pep560(
-        self, lock_class: Type[Any], collector_class: Type[Any], name: str
+        self, lock_class: Type[object], collector_class: Type[object], name: str
     ) -> None:
         """Verify wrapper supports subclassing via PEP 560 __mro_entries__.
 
@@ -251,20 +271,20 @@ class TestLockAllocatorWrapperInterface:
         """
         init_ddup(f"test_subclassing_{name}")
 
-        with collector_class(capture_pct=100):
-            wrapped = getattr(threading, name)
+        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+            wrapped: _LockAllocatorWrapper = getattr(threading, name)
             assert isinstance(wrapped, _LockAllocatorWrapper)
 
             # This should NOT raise TypeError
             # Before PR #15604 fix, this would raise:
             # TypeError: _LockAllocatorWrapper.__init__() takes 2 positional arguments but 4 were given
             class CustomLock(wrapped):  # type: ignore[misc]
-                def __init__(self, *args: Any, **kwargs: Any) -> None:
+                def __init__(self, *args: object, **kwargs: object) -> None:
                     super().__init__(*args, **kwargs)
-                    self.custom_attr = True
+                    self.custom_attr: bool = True
 
             # Verify subclass works correctly
-            instance = CustomLock()
+            instance: CustomLock = CustomLock()
             assert hasattr(instance, "custom_attr")
             assert instance.custom_attr is True
 
@@ -282,7 +302,7 @@ class TestProfiledLockInterface:
 
     @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
     def test_profiled_lock_has_all_public_methods(
-        self, lock_class: Type[Any], collector_class: Type[Any], name: str
+        self, lock_class: Type[object], collector_class: Type[object], name: str
     ) -> None:
         """Verify wrapped lock exposes all public methods of the original.
 
@@ -292,16 +312,16 @@ class TestProfiledLockInterface:
         init_ddup(f"test_public_methods_{name}")
 
         # Get methods from unwrapped instance
-        original_instance = lock_class()
-        original_methods = get_public_methods(original_instance)
+        original_instance: object = lock_class()  # type: ignore[operator]
+        original_methods: Set[str] = get_public_methods(original_instance)
 
-        with collector_class(capture_pct=100):
-            wrapped_class = getattr(threading, name)
-            wrapped_instance = wrapped_class()
+        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+            wrapped_class: object = getattr(threading, name)
+            wrapped_instance: object = wrapped_class()  # type: ignore[operator]
 
             # All original methods should be ACCESSIBLE on wrapped instance
             # (even if delegated via __getattr__ and not in dir())
-            inaccessible_methods = {
+            inaccessible_methods: Set[str] = {
                 method for method in original_methods if not check_method_accessible(wrapped_instance, method)
             }
             assert not inaccessible_methods, (
@@ -311,14 +331,14 @@ class TestProfiledLockInterface:
 
     @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
     def test_profiled_lock_context_manager_protocol(
-        self, lock_class: Type[Any], collector_class: Type[Any], name: str
+        self, lock_class: Type[object], collector_class: Type[object], name: str
     ) -> None:
         """Verify wrapped lock supports context manager protocol."""
         init_ddup(f"test_context_manager_{name}")
 
-        with collector_class(capture_pct=100):
-            wrapped_class = getattr(threading, name)
-            lock = wrapped_class()
+        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+            wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
+            lock: _ProfiledLock = wrapped_class()
 
             # Must have __enter__ and __exit__
             assert hasattr(lock, "__enter__"), f"{name} missing __enter__"
@@ -330,15 +350,15 @@ class TestProfiledLockInterface:
 
     @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
     def test_profiled_lock_comparison_protocol(
-        self, lock_class: Type[Any], collector_class: Type[Any], name: str
+        self, lock_class: Type[object], collector_class: Type[object], name: str
     ) -> None:
         """Verify wrapped lock supports comparison and hashing protocols."""
         init_ddup(f"test_comparison_{name}")
 
-        with collector_class(capture_pct=100):
-            wrapped_class = getattr(threading, name)
-            lock1 = wrapped_class()
-            lock2 = wrapped_class()
+        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+            wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
+            lock1: _ProfiledLock = wrapped_class()
+            lock2: _ProfiledLock = wrapped_class()
 
             # __eq__ should work
             assert lock1 == lock1
@@ -346,19 +366,19 @@ class TestProfiledLockInterface:
 
             # __hash__ should work (for use in sets/dicts)
             assert hash(lock1) == hash(lock1)
-            lock_set = {lock1, lock2}
+            lock_set: Set[_ProfiledLock] = {lock1, lock2}
             assert len(lock_set) == 2
 
     @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
-    def test_profiled_lock_repr(self, lock_class: Type[Any], collector_class: Type[Any], name: str) -> None:
+    def test_profiled_lock_repr(self, lock_class: Type[object], collector_class: Type[object], name: str) -> None:
         """Verify wrapped lock has informative __repr__."""
         init_ddup(f"test_repr_{name}")
 
-        with collector_class(capture_pct=100):
-            wrapped_class = getattr(threading, name)
-            lock = wrapped_class()
+        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+            wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
+            lock: _ProfiledLock = wrapped_class()
 
-            repr_str = repr(lock)
+            repr_str: str = repr(lock)
             assert repr_str is not None
             assert len(repr_str) > 0
             # Should mention it's a profiled lock and location
@@ -378,20 +398,20 @@ class TestSerializationCompatibility:
     """
 
     @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
-    def test_wrapper_class_picklable(self, lock_class: Type[Any], collector_class: Type[Any], name: str) -> None:
+    def test_wrapper_class_picklable(self, lock_class: Type[object], collector_class: Type[object], name: str) -> None:
         """Verify the wrapper class itself can be pickled.
 
         This is needed for Python 3.14+ multiprocessing with forkserver.
         """
         init_ddup(f"test_wrapper_pickle_{name}")
 
-        with collector_class(capture_pct=100):
-            wrapped = getattr(threading, name)
+        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+            wrapped: _LockAllocatorWrapper = getattr(threading, name)
             assert isinstance(wrapped, _LockAllocatorWrapper)
 
             # Pickle and unpickle the wrapper class
-            pickled = pickle.dumps(wrapped)
-            unpickled = pickle.loads(pickled)
+            pickled: bytes = pickle.dumps(wrapped)
+            unpickled: object = pickle.loads(pickled)
 
             # Unpickled should be the original class (unwrapped)
             # This is the expected behavior per the __reduce__ implementation
@@ -399,7 +419,7 @@ class TestSerializationCompatibility:
 
     @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
     def test_profiled_lock_instance_picklable(
-        self, lock_class: Type[Any], collector_class: Type[Any], name: str
+        self, lock_class: Type[object], collector_class: Type[object], name: str
     ) -> None:
         """Verify wrapped lock instances can be pickled.
 
@@ -408,14 +428,14 @@ class TestSerializationCompatibility:
         """
         init_ddup(f"test_instance_pickle_{name}")
 
-        with collector_class(capture_pct=100):
-            wrapped_class = getattr(threading, name)
-            lock = wrapped_class()
+        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+            wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
+            lock: _ProfiledLock = wrapped_class()
             assert isinstance(lock, _ProfiledLock)
 
             # Pickle and unpickle
-            pickled = pickle.dumps(lock)
-            unpickled = pickle.loads(pickled)
+            pickled: bytes = pickle.dumps(lock)
+            unpickled: object = pickle.loads(pickled)
 
             # Unpickled should work as a lock
             assert unpickled is not None
@@ -424,17 +444,17 @@ class TestSerializationCompatibility:
 
     @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
     def test_reduce_returns_correct_structure(
-        self, lock_class: Type[Any], collector_class: Type[Any], name: str
+        self, lock_class: Type[object], collector_class: Type[object], name: str
     ) -> None:
         """Verify __reduce__ returns proper tuple for pickle protocol."""
         init_ddup(f"test_reduce_{name}")
 
-        with collector_class(capture_pct=100):
-            wrapped_class = getattr(threading, name)
-            lock = wrapped_class()
+        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+            wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
+            lock: _ProfiledLock = wrapped_class()
             assert isinstance(lock, _ProfiledLock)
 
-            reduce_result = lock.__reduce__()
+            reduce_result: Union[str, Tuple[Callable[..., object], Tuple[object, ...]]] = lock.__reduce__()
 
             # __reduce__ should return (callable, args) or (callable, args, state)
             assert isinstance(reduce_result, tuple)
@@ -459,16 +479,16 @@ class TestBehavioralEquivalence:
     """
 
     @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
-    def test_acquire_release_cycle(self, lock_class: Type[Any], collector_class: Type[Any], name: str) -> None:
+    def test_acquire_release_cycle(self, lock_class: Type[object], collector_class: Type[object], name: str) -> None:
         """Verify basic acquire/release works identically."""
         init_ddup(f"test_acquire_release_{name}")
 
-        with collector_class(capture_pct=100):
-            wrapped_class = getattr(threading, name)
-            lock = wrapped_class()
+        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+            wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
+            lock: _ProfiledLock = wrapped_class()
 
             # Test blocking acquire
-            result = lock.acquire()
+            result: Optional[bool] = lock.acquire()
             # acquire() returns True for Lock/RLock, None for others
             assert result in (True, None)
 
@@ -483,21 +503,21 @@ class TestBehavioralEquivalence:
             (threading.BoundedSemaphore, ThreadingBoundedSemaphoreCollector, "BoundedSemaphore"),
         ],
     )
-    def test_non_blocking_acquire(self, lock_class: Type[Any], collector_class: Type[Any], name: str) -> None:
+    def test_non_blocking_acquire(self, lock_class: Type[object], collector_class: Type[object], name: str) -> None:
         """Verify non-blocking acquire returns correct values."""
         init_ddup(f"test_non_blocking_{name}")
 
-        with collector_class(capture_pct=100):
-            wrapped_class = getattr(threading, name)
-            lock = wrapped_class()
+        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+            wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
+            lock: _ProfiledLock = wrapped_class()
 
             # First non-blocking acquire should succeed
-            result1 = lock.acquire(blocking=False)
+            result1: bool = lock.acquire(blocking=False)
             assert result1 is True
 
             # For Lock/Semaphore, second non-blocking acquire should fail
             if name in ("Lock", "Semaphore", "BoundedSemaphore"):
-                result2 = lock.acquire(blocking=False)
+                result2: bool = lock.acquire(blocking=False)
                 assert result2 is False
 
             lock.release()
@@ -511,13 +531,13 @@ class TestBehavioralEquivalence:
         init_ddup("test_locked_Lock")
 
         with ThreadingLockCollector(capture_pct=100):
-            lock = threading.Lock()
+            lock: _ProfiledLock = threading.Lock()  # type: ignore[assignment]
 
-            assert not lock.locked()
+            assert not lock.locked()  # type: ignore[attr-defined]
             lock.acquire()
-            assert lock.locked()
+            assert lock.locked()  # type: ignore[attr-defined]
             lock.release()
-            assert not lock.locked()
+            assert not lock.locked()  # type: ignore[attr-defined]
 
     def test_bounded_semaphore_raises_on_over_release(self) -> None:
         """Verify BoundedSemaphore raises ValueError on over-release.
@@ -527,7 +547,7 @@ class TestBehavioralEquivalence:
         init_ddup("test_bounded_over_release")
 
         with ThreadingBoundedSemaphoreCollector(capture_pct=100):
-            lock = threading.BoundedSemaphore(1)
+            lock: _ProfiledLock = threading.BoundedSemaphore(1)  # type: ignore[assignment]
             lock.acquire()
             lock.release()
 
@@ -546,14 +566,14 @@ class TestAsyncioLockReflection:
 
     @pytest.mark.parametrize("lock_class,collector_class,name", ASYNCIO_LOCK_CONFIGS)
     async def test_async_context_manager_protocol(
-        self, lock_class: Type[Any], collector_class: Type[Any], name: str
+        self, lock_class: Type[object], collector_class: Type[object], name: str
     ) -> None:
         """Verify wrapped asyncio locks support async context manager protocol."""
         init_ddup(f"test_async_context_{name}")
 
-        with collector_class(capture_pct=100):
-            wrapped_class = getattr(asyncio, name)
-            lock = wrapped_class()
+        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+            wrapped_class: Callable[[], _ProfiledLock] = getattr(asyncio, name)
+            lock: _ProfiledLock = wrapped_class()
 
             # Must have __aenter__ and __aexit__
             assert hasattr(lock, "__aenter__"), f"asyncio.{name} missing __aenter__"
@@ -564,7 +584,9 @@ class TestAsyncioLockReflection:
                 pass  # Should not raise
 
     @pytest.mark.parametrize("lock_class,collector_class,name", ASYNCIO_LOCK_CONFIGS)
-    async def test_async_subclassing_works(self, lock_class: Type[Any], collector_class: Type[Any], name: str) -> None:
+    async def test_async_subclassing_works(
+        self, lock_class: Type[object], collector_class: Type[object], name: str
+    ) -> None:
         """Verify asyncio lock wrappers support subclassing (PEP 560).
 
         This is the exact bug from PR #15604 - neo4j's AsyncRLock inherits
@@ -572,18 +594,18 @@ class TestAsyncioLockReflection:
         """
         init_ddup(f"test_async_subclass_{name}")
 
-        with collector_class(capture_pct=100):
-            wrapped_class = getattr(asyncio, name)
+        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+            wrapped_class: _LockAllocatorWrapper = getattr(asyncio, name)
             assert isinstance(wrapped_class, _LockAllocatorWrapper)
 
             # This should NOT raise TypeError
             class CustomAsyncLock(wrapped_class):  # type: ignore[misc]
-                def __init__(self, *args: Any, **kwargs: Any) -> None:
+                def __init__(self, *args: object, **kwargs: object) -> None:
                     super().__init__(*args, **kwargs)
-                    self.custom_attr = "test"
+                    self.custom_attr: str = "test"
 
             # Verify subclass works
-            instance = CustomAsyncLock()
+            instance: CustomAsyncLock = CustomAsyncLock()
             assert instance.custom_attr == "test"
             await instance.acquire()
             instance.release()
@@ -605,7 +627,7 @@ class TestDunderMethodCoverage:
     """
 
     # Dunders that wrappers MUST implement (hardcoded baseline)
-    REQUIRED_WRAPPER_DUNDERS = {
+    REQUIRED_WRAPPER_DUNDERS: Set[str] = {
         "__call__",  # To create instances
         "__get__",  # Prevent method binding
         "__mro_entries__",  # PEP 560 subclassing
@@ -615,7 +637,7 @@ class TestDunderMethodCoverage:
     }
 
     # Dunders that profiled locks MUST implement (hardcoded baseline)
-    REQUIRED_PROFILED_LOCK_DUNDERS = {
+    REQUIRED_PROFILED_LOCK_DUNDERS: Set[str] = {
         "__enter__",  # Context manager
         "__exit__",  # Context manager
         "__eq__",  # Comparison
@@ -627,13 +649,13 @@ class TestDunderMethodCoverage:
     }
 
     # Dunders that profiled asyncio locks MUST additionally implement
-    REQUIRED_ASYNC_DUNDERS = {
+    REQUIRED_ASYNC_DUNDERS: Set[str] = {
         "__aenter__",  # Async context manager
         "__aexit__",  # Async context manager
     }
 
     # Dunders we intentionally don't implement (they're not relevant for locks)
-    INTENTIONALLY_MISSING = {
+    INTENTIONALLY_MISSING: Set[str] = {
         "__class_getitem__",  # Generic type hints - not needed for locks
         "__init_subclass__",  # Subclass hooks - handled by __mro_entries__
         "__weakref__",  # Weak references - optional
@@ -644,25 +666,27 @@ class TestDunderMethodCoverage:
 
     def test_lock_allocator_wrapper_has_required_dunders(self) -> None:
         """Verify _LockAllocatorWrapper has all required dunder methods."""
-        wrapper_dunders = {name for name in dir(_LockAllocatorWrapper) if name.startswith("__") and name.endswith("__")}
+        wrapper_dunders: Set[str] = {
+            name for name in dir(_LockAllocatorWrapper) if name.startswith("__") and name.endswith("__")
+        }
 
-        missing = self.REQUIRED_WRAPPER_DUNDERS - wrapper_dunders
+        missing: Set[str] = self.REQUIRED_WRAPPER_DUNDERS - wrapper_dunders
         assert not missing, f"_LockAllocatorWrapper missing required dunders: {missing}"
 
     def test_profiled_lock_has_required_dunders(self) -> None:
         """Verify _ProfiledLock has all required dunder methods."""
-        lock_dunders = {name for name in dir(_ProfiledLock) if name.startswith("__") and name.endswith("__")}
+        lock_dunders: Set[str] = {name for name in dir(_ProfiledLock) if name.startswith("__") and name.endswith("__")}
 
-        missing = self.REQUIRED_PROFILED_LOCK_DUNDERS - lock_dunders
+        missing: Set[str] = self.REQUIRED_PROFILED_LOCK_DUNDERS - lock_dunders
         assert not missing, f"_ProfiledLock missing required dunders: {missing}"
 
         # Also check async dunders
-        missing_async = self.REQUIRED_ASYNC_DUNDERS - lock_dunders
+        missing_async: Set[str] = self.REQUIRED_ASYNC_DUNDERS - lock_dunders
         assert not missing_async, f"_ProfiledLock missing required async dunders: {missing_async}"
 
     @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
     def test_wrapped_lock_has_original_dunders(
-        self, lock_class: Type[Any], collector_class: Type[Any], name: str
+        self, lock_class: Type[object], collector_class: Type[object], name: str
     ) -> None:
         """Automatically detect missing dunders by comparing with original.
 
@@ -673,16 +697,16 @@ class TestDunderMethodCoverage:
         init_ddup(f"test_dunders_{name}")
 
         # Get dunders from original
-        original_instance = lock_class()
-        original_dunders = get_callable_dunders(original_instance)
+        original_instance: object = lock_class()  # type: ignore[operator]
+        original_dunders: Set[str] = get_callable_dunders(original_instance)
 
-        with collector_class(capture_pct=100):
-            wrapped_class = getattr(threading, name)
-            wrapped_instance = wrapped_class()
-            wrapped_dunders = get_callable_dunders(wrapped_instance)
+        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+            wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
+            wrapped_instance: _ProfiledLock = wrapped_class()
+            wrapped_dunders: Set[str] = get_callable_dunders(wrapped_instance)
 
             # Find dunders that are on original but missing from wrapped
-            missing = original_dunders - wrapped_dunders - self.INTENTIONALLY_MISSING
+            missing: Set[str] = original_dunders - wrapped_dunders - self.INTENTIONALLY_MISSING
 
             assert not missing, (
                 f"Wrapped {name} missing dunders from original: {missing}. "
@@ -699,7 +723,7 @@ class TestDunderMethodCoverage:
         ],
     )
     def test_wrapper_class_dunders_match_original(
-        self, lock_class: Type[Any], collector_class: Type[Any], name: str
+        self, lock_class: Type[object], collector_class: Type[object], name: str
     ) -> None:
         """Verify wrapper class exposes same dunders as original class.
 
@@ -708,13 +732,14 @@ class TestDunderMethodCoverage:
         """
         init_ddup(f"test_class_dunders_{name}")
 
-        original_dunders = get_dunder_methods(lock_class)
+        original_dunders: Set[str] = get_dunder_methods(lock_class)
 
-        with collector_class(capture_pct=100):
-            wrapped_class = getattr(threading, name)
+        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+            wrapped_class: _LockAllocatorWrapper = getattr(threading, name)
 
             # The wrapper should expose dunders from the original class
             # via __getattr__ delegation, OR have them directly
+            dunder: str
             for dunder in original_dunders:
                 if dunder in self.INTENTIONALLY_MISSING:
                     continue
@@ -753,7 +778,7 @@ class TestPR15604Regression:
                     self._count: int = 0
 
             # Should not raise
-            lock = AsyncRLock()
+            lock: AsyncRLock = AsyncRLock()
             assert lock is not None
 
     def test_custom_semaphore_subclass(self) -> None:
@@ -769,11 +794,11 @@ class TestPR15604Regression:
                     super().__init__(value)
                     self.acquire_count: int = 0
 
-                def acquire(self, *args: Any, **kwargs: Any) -> Any:
+                def acquire(self, *args: object, **kwargs: object) -> bool:
                     self.acquire_count += 1
-                    return super().acquire(*args, **kwargs)
+                    return super().acquire(*args, **kwargs)  # type: ignore[misc]
 
-            sem = LimitedSemaphore(2)
+            sem: LimitedSemaphore = LimitedSemaphore(2)
             sem.acquire()
             assert sem.acquire_count == 1
             sem.release()
@@ -790,33 +815,33 @@ class TestPR15899Regression:
         init_ddup("test_pickle_roundtrip")
 
         with ThreadingLockCollector(capture_pct=100):
-            lock = threading.Lock()
+            lock: _ProfiledLock = threading.Lock()  # type: ignore[assignment]
             assert isinstance(lock, _ProfiledLock)
 
             # This should not raise
-            pickled = pickle.dumps(lock)
-            unpickled = pickle.loads(pickled)
+            pickled: bytes = pickle.dumps(lock)
+            unpickled: object = pickle.loads(pickled)
 
             # Unpickled lock should be functional
-            unpickled.acquire()
-            unpickled.release()
+            unpickled.acquire()  # type: ignore[attr-defined]
+            unpickled.release()  # type: ignore[attr-defined]
 
     def test_lock_class_survives_pickle_roundtrip(self) -> None:
         """Test that the lock class (wrapper) can be pickled."""
         init_ddup("test_class_pickle")
 
         with ThreadingLockCollector(capture_pct=100):
-            lock_class = threading.Lock
+            lock_class: _LockAllocatorWrapper = threading.Lock  # type: ignore[assignment]
             assert isinstance(lock_class, _LockAllocatorWrapper)
 
             # This should not raise
-            pickled = pickle.dumps(lock_class)
-            unpickled = pickle.loads(pickled)
+            pickled: bytes = pickle.dumps(lock_class)
+            unpickled: object = pickle.loads(pickled)
 
             # Unpickled class should be able to create locks
-            lock = unpickled()
-            lock.acquire()
-            lock.release()
+            lock: object = unpickled()  # type: ignore[operator]
+            lock.acquire()  # type: ignore[attr-defined]
+            lock.release()  # type: ignore[attr-defined]
 
     def test_multiprocessing_scenario(self) -> None:
         """Test that locks work correctly in a multiprocessing-like scenario.
@@ -827,16 +852,17 @@ class TestPR15899Regression:
 
         with ThreadingLockCollector(capture_pct=100):
             # Simulate the manager/worker pattern
-            lock = threading.Lock()
+            lock: _ProfiledLock = threading.Lock()  # type: ignore[assignment]
             lock.acquire()
 
             # Pickle state of held lock (simulating passing to subprocess)
-            pickled = pickle.dumps(lock)
+            pickled: bytes = pickle.dumps(lock)
 
             # Release in "parent"
             lock.release()
 
             # Unpickle in "child" - should get fresh unlocked lock
-            child_lock = pickle.loads(pickled)
-            assert child_lock.acquire(blocking=False) is True
-            child_lock.release()
+            child_lock: object = pickle.loads(pickled)
+            acquire_result: bool = child_lock.acquire(blocking=False)  # type: ignore[attr-defined]
+            assert acquire_result is True
+            child_lock.release()  # type: ignore[attr-defined]
