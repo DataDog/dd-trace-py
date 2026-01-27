@@ -547,7 +547,7 @@ class _ResponseHook(_BaseCompletionHook):
 
     def _create_mcp_tool_span(self, item, integration, pin):
         """Creates and submits a tool span to LLMObs to represent a server-side MCP tool call."""
-        with integration.trace(pin, "client_tool_call", submit_to_llmobs=True, kind="tool") as span:
+        with integration.trace("client_tool_call", submit_to_llmobs=True, kind="tool") as span:
             tool_id = str(_get_attr(item, "id", ""))
             tool_name = str(_get_attr(item, "name", ""))
             raw_arguments = _get_attr(item, "arguments", OAI_HANDOFF_TOOL_ARG)
