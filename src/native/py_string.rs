@@ -51,6 +51,7 @@ impl PyBackedString {
 
     pub fn py_none<'py>(py: Python<'py>) -> Self {
         Self {
+            // SAFETY: "" is a non-null 'static str literal
             data: unsafe { ptr::NonNull::new_unchecked("" as *const str as *mut _) },
             storage: Some(py.None()),
         }
@@ -66,14 +67,6 @@ impl PyBackedString {
             Some(obj) => obj.bind(py).clone(),
             None => PyString::intern(py, self.deref()).into_any(),
         }
-    }
-
-    /// Get a borrowed reference to the stored Python object.
-    /// Returns None if storage is empty (static string case).
-    /// This avoids refcount overhead when the caller just needs to read the value.
-    #[inline(always)]
-    pub fn storage_borrowed<'a, 'py>(&'a self, py: Python<'py>) -> Option<pyo3::Borrowed<'a, 'py, PyAny>> {
-        self.storage.as_ref().map(|obj| obj.bind_borrowed(py))
     }
 }
 
@@ -153,6 +146,7 @@ impl TryFrom<pyo3::Bound<'_, pyo3::types::PyBytes>> for PyBackedString {
 impl From<pyo3::Bound<'_, PyNone>> for PyBackedString {
     fn from(value: pyo3::Bound<'_, PyNone>) -> Self {
         Self {
+            // SAFETY: "" is a non-null 'static str literal
             data: unsafe { NonNull::new_unchecked("" as *const str as *mut _) },
             storage: Some(value.to_owned().unbind().into_any()),
         }
@@ -212,6 +206,7 @@ impl std::fmt::Debug for PyBackedString {
 impl SpanText for PyBackedString {
     fn from_static_str(value: &'static str) -> Self {
         Self {
+            // SAFETY: value is a 'static str reference, guaranteed to be non-null
             data: unsafe { ptr::NonNull::new_unchecked(value as *const str as *mut _) },
             storage: None,
         }

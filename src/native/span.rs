@@ -73,13 +73,19 @@ pub struct SpanData {
     data: libdd_trace_utils::span::Span<PyBackedString>,
 }
 
-/// Extract PyBackedString from Python object, falling back to empty string on error
+/// Extract PyBackedString from Python object, falling back to empty string on error.
+///
+/// Used for required properties (like `name`) which must always have a value.
+/// Invalid types (int, float, list, etc.) are silently converted to "" rather than raising an error.
 #[inline(always)]
 fn extract_backed_string_or_default(obj: &Bound<'_, PyAny>) -> PyBackedString {
     obj.extract::<PyBackedString>().unwrap_or_default()
 }
 
-/// Extract PyBackedString from Python object, falling back to None on error
+/// Extract PyBackedString from Python object, falling back to None on error.
+///
+/// Used for optional properties (like `service`) which can be None.
+/// Invalid types (int, float, list, etc.) are silently converted to None rather than raising an error.
 #[inline(always)]
 fn extract_backed_string_or_none(obj: &Bound<'_, PyAny>) -> PyBackedString {
     let py = obj.py();
@@ -112,12 +118,9 @@ impl SpanData {
 
     #[getter]
     #[inline(always)]
-    fn get_name<'py>(&self, py: Python<'py>) -> pyo3::Borrowed<'_, 'py, PyAny> {
-        // Use storage_borrowed to avoid refcount overhead - name always has storage
-        self.data
-            .name
-            .storage_borrowed(py)
-            .expect("name should always have storage")
+    fn get_name<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
+        // Use as_py to handle both stored (zero-copy) and static (interned) strings
+        self.data.name.as_py(py)
     }
 
     #[setter]
@@ -128,15 +131,17 @@ impl SpanData {
 
     #[getter]
     #[inline(always)]
-    fn get_service<'py>(&self, py: Python<'py>) -> Option<pyo3::Borrowed<'_, 'py, PyAny>> {
-        // Use storage_borrowed to avoid refcount overhead
-        match self.data.service.storage_borrowed(py) {
-            Some(borrowed) if !borrowed.is_none() => Some(borrowed),
-            _ => None,
+    fn get_service<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+        // Return None for Python None, otherwise return the string (stored or interned)
+        if self.data.service.is_py_none(py) {
+            None
+        } else {
+            Some(self.data.service.as_py(py))
         }
     }
 
     #[setter]
+    #[inline(always)]
     fn set_service(&mut self, service: &Bound<'_, PyAny>) {
         self.data.service = extract_backed_string_or_none(service);
     }

@@ -7,8 +7,6 @@ from typing import Optional
 from typing import Type
 from typing import TypeVar
 
-from ddtrace.internal.constants import SPAN_API_DATADOG
-
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
 
 class DDSketch:
