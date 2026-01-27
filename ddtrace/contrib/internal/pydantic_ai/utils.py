@@ -55,11 +55,11 @@ class TracedPydanticRunStream(wrapt.ObjectProxy):
         await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
         if exc_type:
             self._dd_span.set_exc_info(exc_type, exc_val, exc_tb)
-            # in case of an error, we need to process the finished stream to set llmobs tags
-            if self._streamed_run_result and self._streamed_run_result._generator:
-                self._streamed_run_result._generator._process_finished_stream()
-            else:
-                self._dd_span.finish()
+        # ensure span is finished even if not all chunks were consumed or if there was an error
+        if self._streamed_run_result and self._streamed_run_result._generator:
+            self._streamed_run_result._generator._process_finished_stream()
+        else:
+            self._dd_span.finish()
 
 
 class TracedPydanticStreamedRunResult(wrapt.ObjectProxy):
@@ -101,6 +101,16 @@ class TracedPydanticStreamedRunResult(wrapt.ObjectProxy):
         )
         return self._generator
 
+    def stream_responses(self, *args, **kwargs):
+        self._generator = TracedPydanticGenerator(
+            self.__wrapped__.stream_responses(*args, **kwargs),
+            self._dd_span,
+            self._dd_integration,
+            self._args,
+            self._kwargs,
+        )
+        return self._generator
+
     async def get_output(self):
         result = await self.__wrapped__.get_output()
         self._dd_integration.llmobs_set_tags(self._dd_span, args=self._args, kwargs=self._kwargs, response=result)
@@ -117,8 +127,12 @@ class TracedPydanticGenerator(wrapt.ObjectProxy):
         self._self_kwargs = kwargs
         self._self_last_chunk = None
         self._self_delta = delta
+        self._self_span_finished = False
 
     def _process_finished_stream(self):
+        if self._self_span_finished:
+            return
+        self._self_span_finished = True
         self._self_dd_integration.llmobs_set_tags(
             self._self_dd_span, args=self._self_args, kwargs=self._self_kwargs, response=self._self_last_chunk
         )
