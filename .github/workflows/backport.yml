@@ -70,6 +70,8 @@ jobs:
           branch-from: ${{ steps.create-commit.outputs.branch-from }}
           command: push
           commits: ${{ steps.create-commit.outputs.commit }}
+          create-branch: true
+          force: true
 
       - name: Create PR
         env:
