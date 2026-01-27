@@ -23,13 +23,11 @@ from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_cove
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.testing.internal.coverage_telemetry_constants import (
-    CODE_COVERAGE_FILES,
-    COVERAGE_UPLOAD_REQUEST,
-    COVERAGE_UPLOAD_REQUEST_BYTES,
-    COVERAGE_UPLOAD_REQUEST_ERRORS,
-    COVERAGE_UPLOAD_REQUEST_MS,
-)
+from ddtrace.testing.internal.coverage_telemetry_constants import CODE_COVERAGE_FILES
+from ddtrace.testing.internal.coverage_telemetry_constants import COVERAGE_UPLOAD_REQUEST
+from ddtrace.testing.internal.coverage_telemetry_constants import COVERAGE_UPLOAD_REQUEST_BYTES
+from ddtrace.testing.internal.coverage_telemetry_constants import COVERAGE_UPLOAD_REQUEST_ERRORS
+from ddtrace.testing.internal.coverage_telemetry_constants import COVERAGE_UPLOAD_REQUEST_MS
 
 
 log = get_logger(__name__)
@@ -57,16 +55,16 @@ def capture_coverage_instance_from_pytest_cov(session) -> t.Optional[t.Any]:
     """Capture coverage.py instance from pytest-cov plugin."""
     try:
         # Handle both V2 (config object) and V3 (session object) plugin interfaces
-        if hasattr(session, 'config') and hasattr(session.config, 'pluginmanager'):
+        if hasattr(session, "config") and hasattr(session.config, "pluginmanager"):
             # V3 plugin: session.config.pluginmanager
             pluginmanager = session.config.pluginmanager
-        elif hasattr(session, 'pluginmanager'):
+        elif hasattr(session, "pluginmanager"):
             # V2 plugin: session.pluginmanager (session is actually config)
             pluginmanager = session.pluginmanager
         else:
             log.debug("Could not find pluginmanager in session object")
             return None
-            
+
         pytest_cov_plugin = pluginmanager.get_plugin("pytest_cov")
         if not pytest_cov_plugin:
             return None
@@ -96,6 +94,7 @@ class CoverageIntegration:
         self.env_tags = env_tags or {}
         self._coverage_instance = None
         self._initialized = False
+        self._coverage_report_uploader = None
 
     def initialize(self):
         """Initialize the coverage integration."""
@@ -144,9 +143,206 @@ class CoverageIntegration:
         if is_coverage_upload_enabled():
             self._coverage_instance = capture_coverage_instance_from_pytest_cov(config)
             if self._coverage_instance:
-                self._upload_coverage_reports()
+                self._setup_and_upload_coverage_report()
 
         self._record_telemetry("coverage.finished", 1, {"library": "coveragepy", "framework": "pytest"})
+
+    def _setup_and_upload_coverage_report(self):
+        """Upload coverage report using existing plugin infrastructure."""
+        try:
+            if self.session_manager:
+                # V3 plugin: Use existing coverage_writer infrastructure
+                self._upload_via_v3_infrastructure()
+            else:
+                # V2 plugin: Use existing telemetry infrastructure
+                self._upload_via_v2_infrastructure()
+
+        except Exception:
+            log.exception("Failed to upload coverage report")
+
+    def _upload_via_v3_infrastructure(self):
+        """Upload coverage report using V3 plugin's existing infrastructure."""
+        try:
+            # Use the existing coverage_writer from session manager
+            if not hasattr(self.session_manager, "coverage_writer"):
+                log.debug("V3 plugin: No coverage_writer available")
+                return
+
+            coverage_writer = self.session_manager.coverage_writer
+            connector = coverage_writer.connector
+
+            # Generate LCOV report
+            lcov_data = self._generate_lcov_report_v3()
+            if not lcov_data:
+                log.debug("V3 plugin: No LCOV data to upload")
+                return
+
+            # Upload using existing connector infrastructure
+            self._upload_coverage_report_via_connector(connector, lcov_data, "lcov")
+            log.debug("V3 plugin: Coverage report uploaded successfully")
+
+        except Exception:
+            log.exception("V3 plugin: Failed to upload coverage report")
+
+    def _upload_via_v2_infrastructure(self):
+        """Upload coverage report using V2 plugin's existing infrastructure."""
+        try:
+            # For V2 plugin, we need to use the CI Visibility service
+            from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
+
+            ci_service = require_ci_visibility_service()
+            if not hasattr(ci_service, "_agent_connector"):
+                log.debug("V2 plugin: No agent connector available")
+                return
+
+            connector = ci_service._agent_connector
+
+            # Generate LCOV report
+            lcov_data = self._generate_lcov_report_v2()
+            if not lcov_data:
+                log.debug("V2 plugin: No LCOV data to upload")
+                return
+
+            # Upload using existing connector infrastructure
+            self._upload_coverage_report_via_connector(connector, lcov_data, "lcov")
+            log.debug("V2 plugin: Coverage report uploaded successfully")
+
+        except Exception:
+            log.exception("V2 plugin: Failed to upload coverage report")
+
+    def _upload_coverage_report_via_connector(self, connector, lcov_data: bytes, report_format: str):
+        """Upload coverage report using the provided connector."""
+        try:
+            import gzip
+            import io
+            import json
+
+            from ddtrace.testing.internal.http import FileAttachment
+
+            # Compress the LCOV data
+            buf = io.BytesIO()
+            with gzip.GzipFile(fileobj=buf, mode="wb") as gz:
+                gz.write(lcov_data)
+            compressed_data = buf.getvalue()
+
+            # Create event JSON with git and CI tags
+            event = self._create_coverage_report_event(report_format)
+            event_json = json.dumps(event, separators=(",", ":")).encode("utf-8")
+
+            # Create file attachments
+            files = [
+                FileAttachment(
+                    name="coverage",
+                    filename=f"coverage.{report_format}.gz",
+                    content_type="application/gzip",
+                    data=compressed_data,
+                ),
+                FileAttachment(
+                    name="event",
+                    filename="event.json",
+                    content_type="application/json",
+                    data=event_json,
+                ),
+            ]
+
+            # Record telemetry
+            total_size = len(compressed_data) + len(event_json)
+            self._record_telemetry(COVERAGE_UPLOAD_REQUEST, 1, {"format": report_format})
+            self._record_telemetry(COVERAGE_UPLOAD_REQUEST_BYTES, total_size)
+
+            # Upload to coverage report intake endpoint
+            log.debug("Uploading %d bytes coverage report to /api/v2/cicovreprt", total_size)
+            start_time = time.time()
+
+            result = connector.post_files(
+                "/api/v2/cicovreprt",
+                files=files,
+                send_gzip=False,  # Already compressed
+            )
+
+            duration_ms = (time.time() - start_time) * 1000
+
+            if hasattr(result, "error_type") and result.error_type:
+                log.error("Coverage upload failed: %s", result.error_type)
+                self._record_telemetry(COVERAGE_UPLOAD_REQUEST_ERRORS, 1, {"error": result.error_type})
+            else:
+                log.debug("Coverage upload successful in %.2fms", duration_ms)
+                self._record_telemetry(COVERAGE_UPLOAD_REQUEST_MS, duration_ms)
+
+        except Exception:
+            log.exception("Exception during coverage report upload")
+            self._record_telemetry(COVERAGE_UPLOAD_REQUEST_ERRORS, 1, {"error": "exception"})
+
+    def _generate_lcov_report_v3(self) -> t.Optional[bytes]:
+        """Generate LCOV report for V3 plugin."""
+        return self._generate_lcov_report_common()
+
+    def _generate_lcov_report_v2(self) -> t.Optional[bytes]:
+        """Generate LCOV report for V2 plugin."""
+        return self._generate_lcov_report_common()
+
+    def _generate_lcov_report_common(self) -> t.Optional[bytes]:
+        """Generate LCOV coverage report from coverage instance."""
+        try:
+            if not self._coverage_instance:
+                return None
+
+            # Stop coverage collection
+            self._coverage_instance.stop()
+            cov_data = self._coverage_instance.get_data()
+            measured_files = cov_data.measured_files()
+
+            if not measured_files:
+                log.debug("No measured files found in coverage data")
+                return None
+
+            lcov_lines = ["TN:"]  # Test name (empty)
+
+            for abs_path_str in sorted(measured_files):
+                executed_lines = set(cov_data.lines(abs_path_str) or [])
+                if not executed_lines:
+                    continue
+
+                # Use relative path if possible
+                try:
+                    from pathlib import Path
+
+                    abs_path = Path(abs_path_str)
+                    workspace = Path.cwd()
+                    if abs_path.is_relative_to(workspace):
+                        file_path = str(abs_path.relative_to(workspace))
+                    else:
+                        file_path = abs_path_str
+                except (ValueError, AttributeError):
+                    file_path = abs_path_str
+
+                lcov_lines.append(f"SF:{file_path}")
+
+                # Add line data
+                valid_lines = [ln for ln in executed_lines if ln > 0]
+                for line_num in sorted(valid_lines):
+                    lcov_lines.append(f"DA:{line_num},1")
+
+                # Summary
+                lines_hit = len(valid_lines)
+                lcov_lines.extend([f"LF:{lines_hit}", f"LH:{lines_hit}", "end_of_record"])
+
+            if len(lcov_lines) <= 1:
+                log.debug("No coverage data to report")
+                return None
+
+            content = "\n".join(lcov_lines) + "\n"
+
+            # Record files processed telemetry
+            files_with_coverage = len([line for line in lcov_lines if line.startswith("SF:")])
+            self._record_telemetry(CODE_COVERAGE_FILES, files_with_coverage)
+
+            log.debug("Generated LCOV report: %d bytes for %d files", len(content), files_with_coverage)
+            return content.encode("utf-8")
+
+        except Exception:
+            log.exception("Failed to generate LCOV report")
+            return None
 
     def _is_pytest_cov_enabled(self, config) -> bool:
         """Check if pytest-cov is enabled."""
@@ -333,8 +529,8 @@ class CoverageIntegration:
 
         # Import git and CI tag constants
         try:
-            from ddtrace.testing.internal.git import GitTag
             from ddtrace.testing.internal.ci import CITag
+            from ddtrace.testing.internal.git import GitTag
         except ImportError:
             log.debug("Could not import GitTag/CITag constants")
             return event
@@ -342,18 +538,18 @@ class CoverageIntegration:
         # Add git tags
         git_tags = [
             GitTag.REPOSITORY_URL,
-            GitTag.COMMIT_SHA,  
+            GitTag.COMMIT_SHA,
             GitTag.BRANCH,
             GitTag.TAG,
             GitTag.COMMIT_MESSAGE,
             GitTag.COMMIT_AUTHOR_NAME,
-            GitTag.COMMIT_AUTHOR_EMAIL, 
+            GitTag.COMMIT_AUTHOR_EMAIL,
             GitTag.COMMIT_AUTHOR_DATE,
             GitTag.COMMIT_COMMITTER_NAME,
             GitTag.COMMIT_COMMITTER_EMAIL,
             GitTag.COMMIT_COMMITTER_DATE,
         ]
-        
+
         for git_tag in git_tags:
             if git_tag in self.env_tags:
                 event[git_tag] = self.env_tags[git_tag]
@@ -362,7 +558,7 @@ class CoverageIntegration:
         ci_tags = [
             CITag.PROVIDER_NAME,
             CITag.PIPELINE_ID,
-            CITag.PIPELINE_NAME, 
+            CITag.PIPELINE_NAME,
             CITag.PIPELINE_NUMBER,
             CITag.PIPELINE_URL,
             CITag.JOB_NAME,
@@ -372,7 +568,7 @@ class CoverageIntegration:
             CITag.NODE_NAME,
             CITag.NODE_LABELS,
         ]
-        
+
         for ci_tag in ci_tags:
             if ci_tag in self.env_tags:
                 event[ci_tag] = self.env_tags[ci_tag]
