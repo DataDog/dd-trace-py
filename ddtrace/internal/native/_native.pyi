@@ -4,6 +4,7 @@ from typing import Dict
 from typing import List
 from typing import Literal
 from typing import Optional
+from typing import Tuple
 from typing import Union
 
 from ddtrace._trace._span_link import SpanLink
@@ -519,6 +520,19 @@ class ffe:
 SpanStr = Union[str, bytes]
 SpanNumeric = Union[int, float]
 SpanKey = str
+
+class SpanSerializer:
+    max_size: int
+    max_item_size: int
+
+    def __len__(self) -> int: ...
+    def put(self, trace: List[SpanData]): ...
+    def encode(self) -> List[Tuple[VecBuffer, int]]: ...
+
+class VecBuffer:
+    """A python object implementing the buffer protocol for a read only rust vector of bytes"""
+
+    __isbuffer__ = True
 
 class SpanData:
     # Public API

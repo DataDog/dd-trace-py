@@ -13,6 +13,7 @@ from ._encoding import MsgpackEncoderV04
 from ._encoding import MsgpackEncoderV05
 from .compat import ensure_text
 from .logger import get_logger
+from .native import _native
 
 
 __all__ = ["MsgpackEncoderV04", "MsgpackEncoderV05", "ListStringTable", "MSGPACK_ENCODERS"]
@@ -160,7 +161,9 @@ class JSONEncoderV2(JSONEncoder):
         return res, len(obj.get("traces", []))
 
 
+
+
 MSGPACK_ENCODERS = {
-    "v0.4": MsgpackEncoderV04,
+    "v0.4": _native.SpanSerializer,
     "v0.5": MsgpackEncoderV05,
 }

@@ -43,6 +43,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     rand::register_rand(m)?;
     span::register_native_span(m)?;
+    span_serializer::register_span_serializer(m)?;
 
     // Add FFE submodule
     m.add_wrapped(pyo3::wrap_pymodule!(ffe::ffe))?;
