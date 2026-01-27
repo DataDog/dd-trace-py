@@ -99,7 +99,7 @@ def capture_coverage_instance_from_pytest_cov(session) -> t.Optional[t.Any]:
                 log.debug("pytest_cov_plugin._cov is None")
 
         # Log available attributes for debugging
-        available_attrs = [attr for attr in dir(pytest_cov_plugin) if not attr.startswith('__')]
+        available_attrs = [attr for attr in dir(pytest_cov_plugin) if not attr.startswith("__")]
         log.debug("Available attributes in pytest-cov plugin: %s", available_attrs)
         log.debug("Could not find coverage instance in pytest-cov plugin")
         return None
@@ -148,7 +148,7 @@ class CoverageInstanceProvider:
 
         # Try to get existing coverage instance from pytest-cov first
         coverage_instance = capture_coverage_instance_from_pytest_cov(config)
-        if coverage_instance and hasattr(coverage_instance, 'stop'):
+        if coverage_instance and hasattr(coverage_instance, "stop"):
             self._coverage_instance = coverage_instance
             return coverage_instance
 
@@ -675,7 +675,9 @@ class CoverageUploadStrategy:
 
             if hasattr(result, "error_type") and result.error_type:
                 log.error("Coverage upload failed: %s", result.error_type)
-                self.telemetry_recorder.record_telemetry(COVERAGE_UPLOAD_REQUEST_ERRORS, 1, {"error": result.error_type})
+                self.telemetry_recorder.record_telemetry(
+                    COVERAGE_UPLOAD_REQUEST_ERRORS, 1, {"error": result.error_type}
+                )
                 return False
             else:
                 log.debug("Coverage upload successful in %.2fms", duration_ms)
@@ -749,7 +751,9 @@ class CoverageIntegration:
         if config and is_coverage_upload_enabled():
             self.coverage_provider.initialize_coverage_early(config)
 
-        self.telemetry_recorder.record_telemetry("coverage.started", 1, {"library": "coveragepy", "framework": "pytest"})
+        self.telemetry_recorder.record_telemetry(
+            "coverage.started", 1, {"library": "coveragepy", "framework": "pytest"}
+        )
         self._initialized = True
 
     def handle_session_finish(self, config, session_span=None):
@@ -764,12 +768,14 @@ class CoverageIntegration:
         if is_coverage_upload_enabled():
             self._handle_coverage_upload(config)
 
-        self.telemetry_recorder.record_telemetry("coverage.finished", 1, {"library": "coveragepy", "framework": "pytest"})
+        self.telemetry_recorder.record_telemetry(
+            "coverage.finished", 1, {"library": "coveragepy", "framework": "pytest"}
+        )
 
     def _handle_coverage_upload(self, config):
         """Handle coverage report generation and upload."""
         coverage_instance = self.coverage_provider.get_or_create_coverage_instance(config)
-        if not coverage_instance or not hasattr(coverage_instance, 'stop'):
+        if not coverage_instance or not hasattr(coverage_instance, "stop"):
             log.debug("No valid coverage instance available for upload")
             return
 
