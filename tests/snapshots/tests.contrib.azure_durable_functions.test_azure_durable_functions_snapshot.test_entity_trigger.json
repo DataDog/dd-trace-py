@@ -1,31 +1,28 @@
-[
-  [
-    {
-      "name": "azure.durable_functions.invoke",
-      "service": "azure_durable_functions",
-      "resource": "Entity sample_entity",
-      "trace_id": 0,
-      "span_id": 1,
-      "parent_id": 0,
-      "type": "serverless",
-      "meta": {
-        "_dd.p.dm": "-0",
-        "_dd.p.tid": "0000000000000000",
-        "aas.function.name": "sample_entity",
-        "aas.function.trigger": "Entity",
-        "component": "azure_durable_functions",
-        "language": "python",
-        "runtime-id": "00000000000000000000000000000000",
-        "span.kind": "internal"
-      },
-      "metrics": {
-        "_dd.top_level": 1,
-        "_dd.tracer_kr": 1.0,
-        "_sampling_priority_v1": 1,
-        "process_id": 0
-      },
-      "duration": 1,
-      "start": 1
-    }
-  ]
-]
+[[
+  {
+    "name": "azure.durable_functions.invoke",
+    "service": "azure_durable_functions",
+    "resource": "Entity sample_entity",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "0000000000000000",
+      "aas.function.name": "sample_entity",
+      "aas.function.trigger": "Entity",
+      "component": "azure_durable_functions",
+      "language": "python",
+      "runtime-id": "00000000000000000000000000000000",
+      "span.kind": "internal"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 0
+    },
+    "duration": 1,
+    "start": 1
+  }]]
