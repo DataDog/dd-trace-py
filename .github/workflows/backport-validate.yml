@@ -38,7 +38,7 @@ jobs:
           git pull origin ${TARGET_BRANCH}
           echo "Target branch HEAD:"
           git show HEAD
-          git cherry-pick -x --mainline 1 ${MERGE_COMMIT} 2>cherrypickerror.txt || true
+          CHERRYPICK_OUT=$(git cherry-pick -x --mainline 1 ${MERGE_COMMIT} 2>cherrypickerror.txt) || true
           ERROR=$(grep -v '^hint' cherrypickerror.txt)
 
           echo "results<<EOF" >> "$GITHUB_OUTPUT"
@@ -47,7 +47,7 @@ jobs:
             echo "This change is marked for backport to ${TARGET_BRANCH}, but it conflicts with that branch." | tee -a "$GITHUB_OUTPUT"
             echo "Attempting to cherrypick this change to ${TARGET_BRANCH} yielded the following error:" | tee -a "$GITHUB_OUTPUT"
             echo "\`\`\`" >> "$GITHUB_OUTPUT"
-            echo "$ERROR" | tee -a "$GITHUB_OUTPUT"
+            echo "$CHERRYPICK_OUT" | tee -a "$GITHUB_OUTPUT"
             echo "\`\`\`" >> "$GITHUB_OUTPUT"
           else
             echo "This change is marked for backport to ${TARGET_BRANCH} and it does not conflict with that branch." | tee -a "$GITHUB_OUTPUT"
