@@ -121,6 +121,30 @@ ASYNCIO_LOCK_CONFIGS: List[LockConfig] = [
 # Derived config for asyncio tests that only need collector + name
 ASYNCIO_COLLECTOR_CONFIGS: List[CollectorConfig] = [(collector, name) for _, collector, name in ASYNCIO_LOCK_CONFIGS]
 
+# Dunders to exclude from comparison between original and wrapped locks.
+# Includes both universal object dunders and lock-specific exclusions.
+EXCLUDED_DUNDERS: Set[str] = {
+    # Universal object dunders (exist on all Python objects)
+    "__class__",
+    "__delattr__",
+    "__dir__",
+    "__doc__",
+    "__format__",
+    "__getattribute__",
+    "__init_subclass__",
+    "__new__",
+    "__reduce_ex__",
+    "__setattr__",
+    "__sizeof__",
+    "__str__",
+    "__subclasshook__",
+    # Lock-specific exclusions (intentionally not wrapped)
+    "__class_getitem__",  # Generic type hints - not needed for locks
+    "__weakref__",  # Weak references - optional
+    "__dict__",  # We use __slots__
+    "__module__",  # Inherited from object
+}
+
 
 # =============================================================================
 # Helper Functions
@@ -151,36 +175,23 @@ def check_method_accessible(obj: object, method_name: str) -> bool:
         return False
 
 
-def get_dunders(cls: Type[object]) -> Set[str]:
-    """Get dunder method names that a class explicitly defines or overrides.
+def get_dunder_methods(obj: object) -> Set[str]:
+    """Get callable dunder methods from a class or instance.
+
+    Works on both classes and instances. Filters out:
+    - Dunders in EXCLUDED_DUNDERS (universal/irrelevant dunders)
+    - Non-callable dunders (attributes like __doc__, __dict__)
 
     This helps detect when a wrapper is missing a dunder that the original has.
     """
-    # These are dunders that exist on all objects - we only care about ones
-    # that the class explicitly overrides or adds
-    unneeded_dunders: Set[str] = {
-        "__class__",
-        "__delattr__",
-        "__dir__",
-        "__doc__",
-        "__format__",
-        "__getattribute__",
-        "__init_subclass__",
-        "__new__",
-        "__reduce_ex__",
-        "__setattr__",
-        "__sizeof__",
-        "__str__",
-        "__subclasshook__",
+    return {
+        name
+        for name in dir(obj)
+        if name.startswith("__")
+        and name.endswith("__")
+        and name not in EXCLUDED_DUNDERS
+        and callable(getattr(obj, name))
     }
-
-    return {name for name in dir(cls) if name.startswith("__") and name.endswith("__") and name not in unneeded_dunders}
-
-
-def get_callable_dunders(obj: object) -> Set[str]:
-    """Get dunders that are callable (methods, not just attributes)."""
-
-    return {name for name in dir(obj) if name.startswith("__") and name.endswith("__") and callable(getattr(obj, name))}
 
 
 # =============================================================================
@@ -636,16 +647,6 @@ class TestDunderMethodCoverage:
         "__aexit__",  # Async context manager
     }
 
-    # Dunders we intentionally don't implement (they're not relevant for locks)
-    INTENTIONALLY_MISSING: Set[str] = {
-        "__class_getitem__",  # Generic type hints - not needed for locks
-        "__init_subclass__",  # Subclass hooks - handled by __mro_entries__
-        "__weakref__",  # Weak references - optional
-        "__dict__",  # We use __slots__
-        "__module__",  # Inherited from object
-        "__doc__",  # Documentation
-    }
-
     def test_lock_allocator_wrapper_has_required_dunders(self) -> None:
         """Verify _LockAllocatorWrapper has all required dunder methods."""
         wrapper_dunders: Set[str] = {
@@ -680,19 +681,19 @@ class TestDunderMethodCoverage:
 
         # Get dunders from original
         original_instance: object = lock_class()  # type: ignore[operator]
-        original_dunders: Set[str] = get_callable_dunders(original_instance)
+        original_dunders: Set[str] = get_dunder_methods(original_instance)
 
         with collector_class(capture_pct=100):  # type: ignore[attr-defined]
             wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
             wrapped_instance: _ProfiledLock = wrapped_class()
-            wrapped_dunders: Set[str] = get_callable_dunders(wrapped_instance)
+            wrapped_dunders: Set[str] = get_dunder_methods(wrapped_instance)
 
             # Find dunders that are on original but missing from wrapped
-            missing: Set[str] = original_dunders - wrapped_dunders - self.INTENTIONALLY_MISSING
+            # (EXCLUDED_DUNDERS already filtered by get_callable_dunders)
+            missing: Set[str] = original_dunders - wrapped_dunders
 
             assert not missing, (
-                f"Wrapped {name} missing dunders from original: {missing}. "
-                f"If intentional, add to INTENTIONALLY_MISSING."
+                f"Wrapped {name} missing dunders from original: {missing}. If intentional, add to EXCLUDED_DUNDERS."
             )
 
     @pytest.mark.parametrize(
@@ -714,17 +715,16 @@ class TestDunderMethodCoverage:
         """
         init_ddup(f"test_class_dunders_{name}")
 
-        original_dunders: Set[str] = get_dunders(lock_class)
+        original_dunders: Set[str] = get_dunder_methods(lock_class)
 
         with collector_class(capture_pct=100):  # type: ignore[attr-defined]
             wrapped_class: _LockAllocatorWrapper = getattr(threading, name)
 
             # The wrapper should expose dunders from the original class
             # via __getattr__ delegation, OR have them directly
+            # (EXCLUDED_DUNDERS already filtered by get_dunders)
             dunder: str
             for dunder in original_dunders:
-                if dunder in self.INTENTIONALLY_MISSING:
-                    continue
                 assert hasattr(wrapped_class, dunder), (
                     f"Wrapper for {name} missing class-level dunder {dunder}. "
                     f"This could break code that accesses {name}.{dunder}"
