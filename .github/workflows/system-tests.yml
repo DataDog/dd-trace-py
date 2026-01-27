@@ -77,7 +77,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'e1cd85f960c713cf6a7e9caa61094b5914d0e386'
+          ref: 'bafc8bc606d76170d98ce3cdb13c75a1ea9cf924'
 
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
@@ -107,8 +107,16 @@ jobs:
     strategy:
       matrix:
         weblog-variant: [flask-poc, uwsgi-poc , django-poc, fastapi, python3.12, django-py3.13]
-        scenario: [remote-config, appsec, appsec-1, other, debugger-1, debugger-2]
-
+        scenario: [remote-config, appsec, appsec-1, other]
+        include:
+          - weblog-variant: flask-poc
+            scenario: debugger-1
+          - weblog-variant: flask-poc
+            scenario: debugger-2
+          - weblog-variant: uwsgi-poc
+            scenario: debugger-1
+          - weblog-variant: uwsgi-poc
+            scenario: debugger-2
       fail-fast: false
     env:
       TEST_LIBRARY: python
@@ -122,7 +130,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'e1cd85f960c713cf6a7e9caa61094b5914d0e386'
+          ref: 'bafc8bc606d76170d98ce3cdb13c75a1ea9cf924'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -184,6 +192,10 @@ jobs:
       - name: Run APPSEC_MISSING_RULES
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
         run: ./run.sh APPSEC_MISSING_RULES
+
+      - name: Run APPSEC_ATO_SDK
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
+        run: ./run.sh APPSEC_ATO_SDK
 
       - name: Run APPSEC_AUTO_EVENTS_EXTENDED
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
@@ -323,7 +335,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'e1cd85f960c713cf6a7e9caa61094b5914d0e386'
+          ref: 'bafc8bc606d76170d98ce3cdb13c75a1ea9cf924'
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
@@ -381,7 +393,7 @@ jobs:
   serverless-system-tests:
     needs: [serverless-system-tests-build-layer]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@e1cd85f960c713cf6a7e9caa61094b5914d0e386
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@bafc8bc606d76170d98ce3cdb13c75a1ea9cf924
     secrets: inherit
     permissions:
       contents: read
@@ -412,7 +424,7 @@ jobs:
   integration-frameworks-system-tests:
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@e1cd85f960c713cf6a7e9caa61094b5914d0e386
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@bafc8bc606d76170d98ce3cdb13c75a1ea9cf924
     secrets: inherit
     permissions:
       contents: read

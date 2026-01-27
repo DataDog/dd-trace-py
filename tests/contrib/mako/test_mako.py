@@ -5,7 +5,6 @@ from mako.lookup import TemplateLookup
 from mako.runtime import Context
 from mako.template import Template
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.mako.constants import DEFAULT_TEMPLATE_NAME
 from ddtrace.contrib.internal.mako.patch import patch
 from ddtrace.contrib.internal.mako.patch import unpatch
@@ -22,7 +21,6 @@ class MakoTest(TracerTestCase):
     def setUp(self):
         super(MakoTest, self).setUp()
         patch()
-        Pin._override(Template, tracer=self.tracer)
 
     def tearDown(self):
         super(MakoTest, self).tearDown()

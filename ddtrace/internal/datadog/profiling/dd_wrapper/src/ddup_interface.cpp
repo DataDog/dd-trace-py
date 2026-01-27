@@ -1,16 +1,54 @@
 #include "ddup_interface.hpp"
 
+#include "defer.hpp"
 #include "libdatadog_helpers.hpp"
-#include "profiler_stats.hpp"
 #include "sample.hpp"
 #include "sample_manager.hpp"
 #include "uploader.hpp"
 #include "uploader_builder.hpp"
 
 #include <cstdlib>
+#include <datadog/profiling.h>
 #include <iostream>
 #include <unistd.h>
 #include <unordered_map>
+
+namespace {
+
+// The Profiles Dictionary used for interning strings and functions
+ddog_prof_ProfilesDictionaryHandle dict_handle = nullptr;
+
+// Initializes the Profiles Dictionary
+bool
+init_profiles_dictionary()
+{
+    auto result = ddog_prof_ProfilesDictionary_new(&dict_handle);
+    if (result.flags) {
+        std::cerr << "could not initialise profiles dictionary: " << result.err << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
+} // namespace
+
+namespace Datadog::internal {
+
+ddog_prof_ProfilesDictionaryHandle
+get_profiles_dictionary()
+{
+    return dict_handle;
+}
+
+void
+release_profiles_dictionary()
+{
+    ddog_prof_ProfilesDictionary_drop(&dict_handle);
+    dict_handle = nullptr;
+}
+
+} // namespace Datadog::internal
 
 // State
 bool is_ddup_initialized = false; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
@@ -21,6 +59,21 @@ std::once_flag ddup_init_flag;    // NOLINT (cppcoreguidelines-avoid-non-const-g
 void
 ddup_postfork_child()
 {
+    // Free our copy of the Profiles Dictionary. Its String IDs refer
+    // to memory that doesn't exist in the child process.
+    Datadog::internal::release_profiles_dictionary();
+
+    // Re-initialize the Profiles Dictionary in the child process
+    if (!init_profiles_dictionary()) {
+        std::cerr << "failed to initialise profiles dictionary in child process, profiler will be disabled"
+                  << std::endl;
+        is_ddup_initialized = false;
+        return;
+    }
+
+    // Initialize cached interned strings with the new Profiles Dictionary
+    Datadog::internal::init_interned_strings();
+
     Datadog::Uploader::postfork_child();
     Datadog::SampleManager::postfork_child();
 }
@@ -28,7 +81,22 @@ ddup_postfork_child()
 void
 ddup_postfork_parent()
 {
+    // The parent keeps its Profiles Dictionary - no need to drop and recreate.
+    // The Profile is already associated with this dictionary, and all
+    // interned strings remain valid.
+
     Datadog::Uploader::postfork_parent();
+}
+
+// Cleanup function to free the Profiles Dictionary on exit
+void
+ddup_cleanup()
+{
+    // (Eventually) order to Profile to be cleared, decreasing the refcount on the Profiles Dictionary
+    Datadog::SampleManager::cleanup();
+
+    // Decrease the refcount on the Profiles Dictionary
+    Datadog::internal::release_profiles_dictionary();
 }
 
 // Since we don't control the internal state of libdatadog's exporter and we want to prevent state-tearing
@@ -154,12 +222,25 @@ void
 ddup_start() // cppcheck-suppress unusedFunction
 {
     std::call_once(ddup_init_flag, []() {
+        // Initialize the profiles dictionary at process start
+        // This is a prerequisite for Datadog::SampleManager::init()
+        // which sets the Profiles Dictionary on the Profile object.
+        if (!init_profiles_dictionary()) {
+            return false;
+        }
+
+        // Initialize cached interned strings (must happen after profiles dictionary is created)
+        Datadog::internal::init_interned_strings();
+
         // Perform any one-time startup operations
         Datadog::SampleManager::init();
 
         // install the ddup_fork_handler for pthread_atfork
         // Right now, only do things in the child _after_ fork
         pthread_atfork(ddup_prefork, ddup_postfork_parent, ddup_postfork_child);
+
+        // Register cleanup function to free resources on exit
+        std::atexit(ddup_cleanup);
 
         // Set the global initialization flag
         is_ddup_initialized = true;
@@ -173,6 +254,10 @@ ddup_start_sample() // cppcheck-suppress unusedFunction
     // Ensure profile_state is initialized before creating Sample objects.
     // ddup_start() uses std::call_once, so it's safe to call multiple times.
     ddup_start();
+
+    if (!is_ddup_initialized) {
+        return nullptr;
+    }
 
     return Datadog::SampleManager::start_sample();
 }
@@ -343,6 +428,16 @@ ddup_upload() // cppcheck-suppress unusedFunction
         return false;
     }
 
+    // Acquire the upload lock before building the uploader.
+    // This ensures that if a fork happens, the prefork handler will wait for us to finish
+    // building and uploading before allowing the fork to proceed. This prevents memory
+    // allocated during build() from being orphaned in the child process.
+    Datadog::Uploader::lock();
+    defer
+    {
+        Datadog::Uploader::unlock();
+    };
+
     // Build the Uploader, which takes care of serializing the Profile and capturing ProfilerStats.
     // This takes a reference in a way that locks the areas where the profile might
     // be modified. It gets cleared and released as soon as serialization is complete (or has failed).
@@ -359,10 +454,12 @@ ddup_upload() // cppcheck-suppress unusedFunction
     // Get the reference to the uploader
     auto& uploader = std::get<Datadog::Uploader>(uploader_or_err);
 
-    // Upload without holding any locks (encoding has already been done in UploaderBuilder::build)
+    // Upload while holding the lock (encoding has already been done in UploaderBuilder::build)
     // This also cancels inflight uploads. There are better ways to do this, but this is what
     // we have for now.
-    return uploader.upload();
+    bool result = uploader.upload_unlocked();
+
+    return result;
 }
 
 void

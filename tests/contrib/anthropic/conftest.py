@@ -3,7 +3,6 @@ import os
 import mock
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.anthropic.patch import patch
 from ddtrace.contrib.internal.anthropic.patch import unpatch
 from ddtrace.llmobs import LLMObs
@@ -24,21 +23,13 @@ def ddtrace_global_config():
 
 
 @pytest.fixture
-def snapshot_tracer(anthropic):
-    pin = Pin.get_from(anthropic)
-    yield pin.tracer
-
-
-@pytest.fixture
-def mock_tracer(ddtrace_global_config, tracer, anthropic):
+def test_spans(ddtrace_global_config, test_spans):
     try:
-        pin = Pin.get_from(anthropic)
-        pin._override(anthropic, tracer=tracer)
         if ddtrace_global_config.get("_llmobs_enabled", False):
             # Have to disable and re-enable LLMObs to use to mock tracer.
             LLMObs.disable()
-            LLMObs.enable(_tracer=tracer, integrations_enabled=False)
-        yield tracer
+            LLMObs.enable(integrations_enabled=False)
+        yield test_spans
     finally:
         LLMObs.disable()
 

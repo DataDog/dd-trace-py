@@ -77,7 +77,9 @@ class TestCustomTags:
 
         # Check that test events have the correct tags.
         skipped_test = event_capture.event_by_test_name("TEST_FOO")
-        assert skipped_test["content"]["meta"]["test.module"] == "."
+        assert (
+            skipped_test["content"]["meta"]["test.module"] == ""
+        )  # Empty string for root-level tests (matches old plugin)
         assert skipped_test["content"]["meta"]["test.suite"] == "test_file.py"
         assert skipped_test["content"]["meta"]["test.name"] == "TEST_FOO"
 

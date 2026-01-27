@@ -3,7 +3,6 @@ import os
 import botocore
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import unpatch
 from ddtrace.contrib.internal.urllib3.patch import patch as urllib3_patch
@@ -33,20 +32,6 @@ def aws_credentials():
     os.environ["AWS_SECURITY_TOKEN"] = "testing"
     os.environ["AWS_SESSION_TOKEN"] = "testing"
     os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
-
-
-@pytest.fixture
-def mock_tracer(bedrock_client, tracer):
-    pin = Pin.get_from(bedrock_client)
-    pin._override(bedrock_client, tracer=tracer)
-    yield tracer
-
-
-@pytest.fixture
-def mock_tracer_agent(bedrock_agent_client, tracer):
-    pin = Pin.get_from(bedrock_agent_client)
-    pin._override(bedrock_agent_client, tracer=tracer)
-    yield tracer
 
 
 @pytest.fixture
@@ -105,19 +90,12 @@ def llmobs_span_writer():
 
 
 @pytest.fixture
-def mock_tracer_proxy(bedrock_client_proxy, tracer):
-    pin = Pin.get_from(bedrock_client_proxy)
-    pin._override(bedrock_client_proxy, tracer=tracer)
-    yield tracer
-
-
-@pytest.fixture
-def bedrock_llmobs(tracer, mock_tracer, llmobs_span_writer):
+def bedrock_llmobs(tracer, llmobs_span_writer):
     llmobs_service.disable()
     with override_global_config(
         {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "tests.llmobs"}
     ):
-        llmobs_service.enable(_tracer=mock_tracer, integrations_enabled=False)
+        llmobs_service.enable(_tracer=tracer, integrations_enabled=False)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         yield llmobs_service
     llmobs_service.disable()

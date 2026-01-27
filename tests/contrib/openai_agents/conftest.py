@@ -10,7 +10,6 @@ from openai.types.responses.web_search_tool_param import UserLocation
 import pytest
 import vcr
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.openai_agents.patch import patch
 from ddtrace.contrib.internal.openai_agents.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
@@ -203,31 +202,17 @@ def openai(agents):
 
 
 @pytest.fixture
-def mock_tracer(agents, tracer):
-    pin = Pin.get_from(agents)
-    pin._override(agents, tracer=tracer)
-    yield tracer
-
-
-@pytest.fixture
-def mock_tracer_chat_completions(agents, openai, mock_tracer):
-    pin = Pin.get_from(agents)
-    pin._override(openai, tracer=mock_tracer)
-    yield mock_tracer
-
-
-@pytest.fixture
 def llmobs_span_writer():
     yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
 
 
 @pytest.fixture
-def agents_llmobs(mock_tracer, llmobs_span_writer):
+def agents_llmobs(tracer, llmobs_span_writer):
     llmobs_service.disable()
     with override_global_config(
         {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "tests.contrib.agents"}
     ):
-        llmobs_service.enable(_tracer=mock_tracer, integrations_enabled=False)
+        llmobs_service.enable(_tracer=tracer, integrations_enabled=False)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         yield llmobs_service
     llmobs_service.disable()

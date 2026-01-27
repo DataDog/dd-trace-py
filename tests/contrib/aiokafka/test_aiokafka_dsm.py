@@ -1,9 +1,9 @@
 from aiokafka.structs import TopicPartition
-import mock
 import pytest
 
 from ddtrace.contrib.internal.aiokafka.patch import patch
 from ddtrace.contrib.internal.aiokafka.patch import unpatch
+from ddtrace.internal.datastreams import data_streams_processor
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
@@ -27,12 +27,12 @@ def patch_aiokafka():
 
 
 @pytest.fixture
-def dsm_processor(tracer):
-    processor = tracer.data_streams_processor
-    with mock.patch("ddtrace.internal.datastreams.data_streams_processor", return_value=processor):
-        yield processor
-        # Processor should be recreated by the tracer fixture
-        processor.shutdown(timeout=5)
+def dsm_processor():
+    processor = data_streams_processor(reset=True)
+    assert processor is not None, "Datastream Monitoring is not enabled"
+    yield processor
+    # Processor should be recreated by the tracer fixture
+    processor.shutdown(timeout=5)
 
 
 @pytest.mark.asyncio

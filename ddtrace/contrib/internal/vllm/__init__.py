@@ -17,8 +17,8 @@ Alternatively, use :func:`patch()<ddtrace.patch>` to manually enable the integra
     patch(vllm=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.vllm["service"]
 
@@ -27,17 +27,6 @@ Global Configuration
    This option can also be set with the ``DD_VLLM_SERVICE`` environment variable.
 
    Default: ``"vllm"``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure particular vLLM instances, use the ``Pin`` API::
-
-    import vllm
-    from ddtrace import Pin
-
-    Pin.override(vllm, service="my-vllm-service")
 
 
 Architecture

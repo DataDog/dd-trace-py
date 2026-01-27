@@ -21,6 +21,7 @@ import uuid
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_HOSTNAME
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_PORT
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_SOCKET_FILE
+from ddtrace.testing.internal.constants import DEFAULT_ENV_NAME
 from ddtrace.testing.internal.constants import DEFAULT_SITE
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.telemetry import ErrorType
@@ -78,6 +79,9 @@ class BackendConnectorSetup:
         This method must be implemented for each backend connection mode subclass.
         """
         pass
+
+    def default_env(self) -> str:
+        return DEFAULT_ENV_NAME
 
     @classmethod
     def detect_setup(cls) -> BackendConnectorSetup:
@@ -171,6 +175,23 @@ class BackendConnectorEVPProxySetup(BackendConnectorSetup):
         self.url = url
         self.base_path = base_path
         self.use_gzip = use_gzip
+
+    def default_env(self) -> str:
+        try:
+            connector = BackendConnector(self.url)
+            result = connector.get_json("/info", max_attempts=2)
+            connector.close()
+        except Exception as e:
+            raise SetupError(f"Error connecting to Datadog agent at {self.url}: {e}")
+
+        if result.error_type:
+            raise SetupError(f"Error connecting to Datadog agent at {self.url}: {result.error_description}")
+
+        if result:
+            default_env = result.parsed_response.get("config", {}).get("default_env", DEFAULT_ENV_NAME)
+            return default_env
+
+        return DEFAULT_ENV_NAME
 
     def get_connector_for_subdomain(self, subdomain: Subdomain) -> BackendConnector:
         return BackendConnector(

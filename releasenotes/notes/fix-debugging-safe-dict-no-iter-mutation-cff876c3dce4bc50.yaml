@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    exception replay: avoid ``RuntimeError`` caused by capturing the 
+    ``__dict__`` attribute of an object that mutates during iteration.

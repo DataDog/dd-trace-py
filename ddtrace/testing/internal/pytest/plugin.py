@@ -14,6 +14,8 @@ from _pytest.runner import runtestprotocol
 import pluggy
 import pytest
 
+from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
+from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
@@ -57,7 +59,12 @@ DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
 SKIPPED_BY_ITR_REASON = "Skipped by Datadog Intelligent Test Runner"
 ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 
-SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
+try:
+    SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
+except AttributeError:
+    # Fallback for pytest < 7.0 - use a simple key
+    # (older pytest versions don't have StashKey)
+    SESSION_MANAGER_STASH_KEY = "session_manager_key"
 
 TEST_FRAMEWORK = "pytest"
 
@@ -113,6 +120,74 @@ def _get_module_path_from_item(item: pytest.Item) -> Path:
         return Path(item.module.__file__).absolute().parent
     except Exception:  # noqa: E722
         return Path.cwd()
+
+
+def _get_relative_module_path_from_item(item: pytest.Item, workspace_path: Path) -> Path:
+    """Get module path from pytest item, converted to relative path."""
+    abs_path = _get_module_path_from_item(item)
+
+    try:
+        return abs_path.relative_to(workspace_path)
+    except ValueError:
+        # If not within workspace, return as-is (fallback)
+        return abs_path
+
+
+def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> t.Tuple[t.Optional[str], int, int]:
+    """
+    Extract test location information (file path, start line, end line) from a pytest item.
+
+    Returns:
+        Tuple of (relative_path, start_line, end_line)
+        - relative_path: path relative to workspace, or None on failure
+        - start_line: starting line number, or 0 if unavailable
+        - end_line: ending line number, or 0 if unavailable
+    """
+    try:
+        # Get absolute path from item
+        item_path = Path(item.path if hasattr(item, "path") else getattr(item, "fspath", "unknown")).absolute()
+        relative_path = str(item_path.relative_to(workspace_path))
+
+        # Try to get precise source line information
+        start_line, end_line = _get_source_lines(item, item_path)
+
+        return relative_path, start_line, end_line
+
+    except (ValueError, OSError, Exception):
+        # Fallback to pytest's reportinfo
+        try:
+            path, start_line, _test_name = item.reportinfo()
+            return path, start_line or 0, 0
+        except Exception:
+            return None, 0, 0
+
+
+def _get_source_lines(item: pytest.Item, item_path: Path) -> t.Tuple[int, int]:
+    """
+    Get start and end line numbers for a test item.
+
+    Returns:
+        Tuple of (start_line, end_line), with 0 indicating unavailable information
+    """
+    if not hasattr(item, "_obj"):
+        # No test object available, fallback to reportinfo
+        try:
+            return item.reportinfo()[1] or 0, 0
+        except Exception:
+            return 0, 0
+
+    try:
+        # Get undecorated test object and extract source lines
+        test_method_object = undecorated(item._obj, item.name, item_path)
+        source_lines = get_source_lines_for_test_method(test_method_object)
+        # Convert None to 0 (our plugin uses 0 as sentinel, but shared util uses None)
+        return source_lines[0] or 0, source_lines[1] or 0
+    except Exception:
+        # Fallback to reportinfo
+        try:
+            return item.reportinfo()[1] or 0, 0
+        except Exception:
+            return 0, 0
 
 
 class TestPhase:
@@ -230,21 +305,32 @@ class TestOptPlugin:
         """
 
         def _on_new_module(module: TestModule) -> None:
-            module.set_location(module_path=_get_module_path_from_item(item))
+            module.set_location(module_path=_get_relative_module_path_from_item(item, self.manager.workspace_path))
 
         def _on_new_suite(suite: TestSuite) -> None:
             pass
 
         def _on_new_test(test: Test) -> None:
-            path, start_line, _test_name = item.reportinfo()
-            test.set_location(path=path, start_line=start_line or 0)
+            """Initialize test with location, parameters, and custom attributes."""
+            # Get test location information (path and line numbers)
+            relative_path, start_line, end_line = _get_test_location_info(item, self.manager.workspace_path)
 
+            # Set test location (use "unknown" path if none found, 0 is default for missing line info)
+            test.set_location(path=relative_path or "unknown", start_line=start_line)
+
+            # Add end line as a tag if available
+            if end_line:
+                test.tags[TestTag.SOURCE_END] = str(end_line)
+
+            # Set test parameters if available
             if parameters := _get_test_parameters_json(item):
                 test.set_parameters(parameters)
 
+            # Mark test as unskippable if needed
             if _is_test_unskippable(item):
                 test.mark_unskippable()
 
+            # Add custom tags if available
             if custom_tags := _get_test_custom_tags(item):
                 test.set_tags(custom_tags)
 
@@ -305,7 +391,9 @@ class TestOptPlugin:
             test_run.start(start_ns=test.start_ns)
             self._set_test_run_data(test_run, item, context)
             test_run.finish()
-            test.set_status(test_run.get_status())
+            final_status = test_run.get_status()
+            test_run.set_final_status(final_status)
+            test.set_status(final_status)
             self.manager.writer.put_item(test_run)
 
         test.finish()
@@ -367,6 +455,12 @@ class TestOptPlugin:
             self._log_test_reports(item, reports)
             test_run.finish()
             test.set_status(test_run.get_status())
+
+        # Set final status on the last test run (single location for both retry and non-retry paths)
+        if test.test_runs:
+            test.test_runs[-1].set_final_status(test.get_status())
+
+        for test_run in test.test_runs:
             self.manager.writer.put_item(test_run)
 
     def _set_test_run_data(self, test_run: TestRun, item: pytest.Item, context: TestContext) -> None:
@@ -421,9 +515,6 @@ class TestOptPlugin:
 
         final_status = retry_handler.get_final_status(test)
         test.set_status(final_status)
-
-        for test_run in test.test_runs:
-            self.manager.writer.put_item(test_run)
 
         # Log final status.
         final_report = retry_reports.make_final_report(test, item, final_status)
@@ -731,8 +822,8 @@ class RetryReports:
         attempting to fix the test, and the attempt fails, we need to provide some feedback on the failure.
 
         Note that we only report _one_ failure per test (either the one embedded in the 'failed' final report, or the
-        one retured by this function), even if the test failed multiple times. This is to avoid spamming the test output
-        with multiple copies of the same error.
+        one returned by this function), even if the test failed multiple times. This is to avoid spamming the test
+        output with multiple copies of the same error.
         """
         suppress_errors = (test.is_quarantined() or test.is_disabled()) and not test.is_attempt_to_fix()
         if suppress_errors:
