@@ -42,7 +42,7 @@ jobs:
           BACKPORT_LABEL: ${{ github.event.label.name }}
           PR_NUMBER: ${{ github.event.pull_request.id }}
           PR_BRANCH: ${{ github.head_ref }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
         run: |
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
@@ -54,13 +54,16 @@ jobs:
 
           git worktree add ${WORKTREE} ${TARGET_BRANCH}
           cd ${WORKTREE}
+          echo "switching"
           git switch --create ${BACKPORT_BRANCH}
+          echo "cherrypicking"
           git cherry-pick -x --mainline 1 ${MERGE_COMMIT}
+          echo "pushing"
           git push --set-upstream origin ${BACKPORT_BRANCH}
 
-          echo "branch=${BACKPORT_BRANCH}" >> $GITHUB_OUTPUT
-          echo "branch-from=${TARGET_BRANCH}" >> $GITHUB_OUTPUT
-          echo "commit=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "branch=${BACKPORT_BRANCH}" | tee -a "$GITHUB_OUTPUT"
+          echo "branch-from=${TARGET_BRANCH}" | tee -a "$GITHUB_OUTPUT"
+          echo "commit=${MERGE_COMMIT}" | tee -a "$GITHUB_OUTPUT"
 
       - name: Push Commit
         uses: DataDog/commit-headless@action/v0.5.2
