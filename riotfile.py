@@ -106,7 +106,7 @@ venv = Venv(
         "pytest-mock": latest,
         "coverage": latest,
         "pytest-cov": latest,
-        "opentracing": ">=2,<3",
+        "opentracing": latest,
         "hypothesis": "<6.45.1",
     },
     env={
@@ -537,7 +537,7 @@ venv = Venv(
                 "python-json-logger": "==2.0.7",
                 "pyfakefs": latest,
                 "pytest-benchmark": latest,
-                "wrapt": [">=1,<2", ">=2,<3"],
+                "wrapt": [latest, "<2.0.0"],
                 "uwsgi": latest,
             },
             venvs=[
@@ -2674,13 +2674,13 @@ venv = Venv(
                     # opentelemetry-api doesn't yet work with Python 3.14
                     pys=select_pys(min_version="3.9", max_version="3.13"),
                     # Ensure we test against versions of opentelemetry-api that broke compatibility with ddtrace
-                    pkgs={"opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", ">=1,<2"]},
+                    pkgs={"opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest]},
                 ),
                 Venv(
                     # opentelemetry-exporter-otlp doesn't yet work with Python 3.14
                     pys=select_pys(min_version="3.9", max_version="3.13"),
                     # v1.15.0 introduced support for logs
-                    pkgs={"opentelemetry-exporter-otlp": ["~=1.15.0", ">=1,<2"]},
+                    pkgs={"opentelemetry-exporter-otlp": ["~=1.15.0", latest]},
                     env={"SDK_EXPORTER_INSTALLED": "1"},
                 ),
             ],
@@ -2750,7 +2750,7 @@ venv = Venv(
         ),
         Venv(
             name="opentracer",
-            pkgs={"opentracing": ">=2,<3", "pytest-randomly": latest},
+            pkgs={"opentracing": latest, "pytest-randomly": latest},
             venvs=[
                 Venv(
                     pys=select_pys(),
