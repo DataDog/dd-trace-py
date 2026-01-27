@@ -1,5 +1,8 @@
 ---
 fixes:
   - |
-    profiling: This fix resolves a crash in the lock profiler when locks are released, and the sample's stack trace is too shallow (less than 3 frames).
+    profiling: Fixed crash in lock profiler when stack traces are too shallow 
+    (less than 4 frames). This could occur during interpreter bootstrap, atexit 
+    callbacks, or other edge cases. In these rare scenarios, locks may now appear 
+    with location "unknown:0" in profiling data instead of causing application crashes.
 
