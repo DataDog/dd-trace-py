@@ -4,6 +4,7 @@ from typing import Optional
 
 from ddtrace.profiling import collector
 
+
 class ExceptionCollector(collector.Collector):
     collect_message: bool
 
@@ -18,5 +19,5 @@ class ExceptionCollector(collector.Collector):
     def snapshot(self) -> None: ...
     def get_stats(self) -> Dict[str, int]: ...
 
+
 def _on_exception_handled(code: Any, instruction_offset: int, exception: BaseException) -> None: ...
-def _excepthook(exc_type: type, exc_value: BaseException, exc_traceback: Any) -> None: ...

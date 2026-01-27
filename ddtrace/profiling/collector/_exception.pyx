@@ -24,7 +24,6 @@ cdef int _next_sample = 100
 cdef long long _total_exceptions = 0
 cdef long long _sampled_exceptions = 0
 cdef int _max_nframe = 64
-cdef object _original_excepthook = None
 
 
 cdef void _collect_exception(object exc_type, object exc_value, object exc_traceback):
@@ -85,26 +84,6 @@ cpdef void _on_exception_handled(object code, int instruction_offset, object exc
         pass
 
 
-cpdef void _excepthook(object exc_type, object exc_value, object exc_traceback):
-    # sys.excepthook handler for uncaught exceptions
-    global _total_exceptions, _sample_counter, _next_sample, _sampled_exceptions
-
-    _total_exceptions += 1
-    _sample_counter += 1
-
-    if _sample_counter >= _next_sample:
-        _next_sample = _fast_poisson.sample(_sampling_interval) or 1
-        _sample_counter = 0
-        try:
-            _collect_exception(exc_type, exc_value, exc_traceback)
-            _sampled_exceptions += 1
-        except:
-            pass
-
-    if _original_excepthook is not None:
-        _original_excepthook(exc_type, exc_value, exc_traceback)
-
-
 class ExceptionCollector(collector.Collector):
     # Collects exception samples using sys.monitoring (Python 3.12+)
 
@@ -123,44 +102,32 @@ class ExceptionCollector(collector.Collector):
         _sampled_exceptions = 0
 
     def _start_service(self):
-        global _original_excepthook
+        if not HAS_MONITORING or sys.version_info < (3, 12):
+            LOG.warning("Exception profiling requires Python 3.12+, disabling")
+            return
 
-        if HAS_MONITORING and sys.version_info >= (3, 12):
-            try:
-                sys.monitoring.use_tool_id(sys.monitoring.PROFILER_ID, "dd-trace-exception-profiler")
-                sys.monitoring.set_events(sys.monitoring.PROFILER_ID, sys.monitoring.events.EXCEPTION_HANDLED)
-                sys.monitoring.register_callback(
-                    sys.monitoring.PROFILER_ID,
-                    sys.monitoring.events.EXCEPTION_HANDLED,
-                    _on_exception_handled,
-                )
-                _original_excepthook = sys.excepthook
-                sys.excepthook = _excepthook
-                LOG.debug("Using sys.monitoring.EXCEPTION_HANDLED")
-            except Exception as e:
-                LOG.debug("Failed to set up monitoring: %s", e)
-                _original_excepthook = sys.excepthook
-                sys.excepthook = _excepthook
-        else:
-            _original_excepthook = sys.excepthook
-            sys.excepthook = _excepthook
-            LOG.debug("Using sys.excepthook only")
+        try:
+            sys.monitoring.use_tool_id(sys.monitoring.PROFILER_ID, "dd-trace-exception-profiler")
+            sys.monitoring.set_events(sys.monitoring.PROFILER_ID, sys.monitoring.events.EXCEPTION_HANDLED)
+            sys.monitoring.register_callback(
+                sys.monitoring.PROFILER_ID,
+                sys.monitoring.events.EXCEPTION_HANDLED,
+                _on_exception_handled,
+            )
+            LOG.debug("Using sys.monitoring.EXCEPTION_HANDLED")
+        except Exception as e:
+            LOG.error("Failed to set up exception monitoring: %s", e)
+            return
 
         LOG.info("ExceptionCollector started: interval=%d", _sampling_interval)
 
     def _stop_service(self):
-        global _original_excepthook
-
         if HAS_MONITORING and sys.version_info >= (3, 12):
             try:
                 sys.monitoring.set_events(sys.monitoring.PROFILER_ID, 0)
                 sys.monitoring.free_tool_id(sys.monitoring.PROFILER_ID)
             except:
                 pass
-
-        if _original_excepthook is not None:
-            sys.excepthook = _original_excepthook
-            _original_excepthook = None
 
         LOG.info("ExceptionCollector stopped: total=%d, sampled=%d", _total_exceptions, _sampled_exceptions)
 
