@@ -133,24 +133,6 @@ class Span(SpanData):
         "__weakref__",
     ]
 
-    def __new__(
-        cls,
-        name: str,
-        service: Optional[str] = None,
-        resource: Optional[str] = None,
-        span_type: Optional[str] = None,
-        trace_id: Optional[int] = None,
-        span_id: Optional[int] = None,
-        parent_id: Optional[int] = None,
-        start: Optional[int] = None,
-        context: Optional[Context] = None,
-        on_finish: Optional[List[Callable[["Span"], None]]] = None,
-        span_api: str = SPAN_API_DATADOG,
-        links: Optional[List[SpanLink]] = None,
-    ) -> "Span":
-        # Initialize the native SpanData base class with only the fields it manages
-        return super().__new__(cls, name, service)
-
     def __init__(
         self,
         name: str,

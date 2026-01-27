@@ -526,14 +526,6 @@ class SpanData:
         cls: Type[_SpanDataT],
         name: str,
         service: Optional[str] = None,
-        resource: Optional[str] = None,
-        span_type: Optional[str] = None,
-        trace_id: Optional[int] = None,
-        span_id: Optional[int] = None,
-        parent_id: Optional[int] = None,
-        start: Optional[int] = None,
-        span_api: str = SPAN_API_DATADOG,
-        links: Optional[List[Any]] = None,
     ) -> _SpanDataT: ...
 
 class SpanEventData:

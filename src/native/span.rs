@@ -90,11 +90,15 @@ fn extract_backed_string_or_none(obj: &Bound<'_, PyAny>) -> PyBackedString {
 #[pyo3::pymethods]
 impl SpanData {
     #[new]
-    #[pyo3(signature = (name, service=None))]
+    #[allow(unused_variables)]
+    #[pyo3(signature = (name, service=None, *args, **kwargs))]
     pub fn __new__<'p>(
         py: Python<'p>,
         name: &Bound<'p, PyAny>,
         service: Option<&Bound<'p, PyAny>>,
+        // Accept *args/**kwargs so subclasses don't need to override __new__
+        args: &Bound<'p, PyTuple>,
+        kwargs: Option<&Bound<'p, PyDict>>,
     ) -> Self {
         let mut span = Self::default();
         span.set_name(name);
