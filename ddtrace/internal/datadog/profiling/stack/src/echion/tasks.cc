@@ -129,28 +129,6 @@ TaskInfo::create(TaskObj* task_addr)
       reinterpret_cast<PyObject*>(task_addr), loop, std::move(*maybe_coro), name, std::move(waiter));
 }
 
-// ----------------------------------------------------------------------------
-Result<TaskInfo::Ptr>
-TaskInfo::current(PyObject* loop)
-{
-    if (loop == NULL) {
-        return ErrorKind::TaskInfoError;
-    }
-
-    auto maybe_current_tasks_dict = MirrorDict::create(asyncio_current_tasks);
-    if (!maybe_current_tasks_dict) {
-        return ErrorKind::TaskInfoError;
-    }
-
-    auto current_tasks_dict = std::move(*maybe_current_tasks_dict);
-    PyObject* task = current_tasks_dict.get_item(loop);
-    if (task == NULL) {
-        return ErrorKind::TaskInfoError;
-    }
-
-    return TaskInfo::create(reinterpret_cast<TaskObj*>(task));
-}
-
 size_t
 TaskInfo::unwind(FrameStack& stack)
 {

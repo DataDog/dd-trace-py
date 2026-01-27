@@ -6,25 +6,25 @@
 #include <optional>
 
 void
-ThreadInfo::unwind(PyThreadState* tstate)
+ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate)
 {
     unwind_python_stack(tstate, python_stack);
 
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
         // We cast it to void to ignore failures.
-        (void)unwind_tasks(tstate);
+        (void)unwind_tasks(echion, tstate);
     } else {
         // We make the assumption that gevent and asyncio are not mixed
         // together to keep the logic here simple. We can always revisit this
         // should there be a substantial demand for it.
-        unwind_greenlets(tstate, native_id);
+        unwind_greenlets(echion, tstate, native_id);
     }
 }
 
 // ----------------------------------------------------------------------------
 Result<void>
-ThreadInfo::unwind_tasks(PyThreadState* tstate)
+ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
 {
     // The size of the "pure Python" stack (before asyncio Frames).
     // Defaults to the full Python stack size (and updated if we find the "_run" Frame)
@@ -33,7 +33,7 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
     // Check if the Python stack contains "_run".
     // To avoid having to do string comparisons every time we unwind Tasks, we keep track
     // of the cache key of the "_run" Frame.
-    static std::optional<Frame::Key> frame_cache_key;
+    auto& frame_cache_key = echion.frame_cache_key();
     if (!frame_cache_key) {
         for (size_t i = 0; i < python_stack.size(); i++) {
             const auto& frame = python_stack[i].get();
@@ -77,16 +77,19 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
     std::unordered_set<PyObject*> parent_tasks;
     std::unordered_map<PyObject*, TaskInfo::Ref> waitee_map; // Indexed by task origin
     std::unordered_map<PyObject*, TaskInfo::Ref> origin_map; // Indexed by task origin
-    static std::unordered_set<PyObject*> previous_task_objects;
 
-    auto maybe_all_tasks = get_all_tasks(tstate);
+    auto maybe_all_tasks = get_all_tasks(echion, tstate);
     if (!maybe_all_tasks) {
         return ErrorKind::TaskInfoError;
     }
 
     auto all_tasks = std::move(*maybe_all_tasks);
     {
-        std::lock_guard<std::mutex> lock(task_link_map_lock);
+        auto& previous_task_objects = echion.previous_task_objects();
+        std::lock_guard<std::mutex> lock(echion.task_link_map_lock());
+
+        auto& task_link_map = echion.task_link_map();
+        auto& weak_task_link_map = echion.weak_task_link_map();
 
         // Clean up the task_link_map. Remove entries associated to tasks that
         // no longer exist.
@@ -192,8 +195,9 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
                 //       actually was on CPU when the Python Thread Stack was captured. One way to work around this
                 //       may be to look at every Task Stack and match it against the Thread Stack. This would be
                 //       somewhat costly though, and so far I have not seen a single instance of this race condition.
-                size_t frames_to_push =
-                  (python_stack.size() > task_stack_size) ? python_stack.size() - task_stack_size : 0;
+                size_t frames_to_push = (python_stack.size() > upper_python_stack_size + task_stack_size)
+                                          ? python_stack.size() - upper_python_stack_size - task_stack_size
+                                          : 0;
                 for (size_t i = 0; i < frames_to_push; i++) {
                     const auto& python_frame = python_stack[frames_to_push - i - 1];
                     stack.push_front(python_frame);
@@ -212,7 +216,9 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
 
             {
                 // Check for, e.g., gather links
-                std::lock_guard<std::mutex> lock(task_link_map_lock);
+                std::lock_guard<std::mutex> lock(echion.task_link_map_lock());
+                auto& task_link_map = echion.task_link_map();
+                auto& weak_task_link_map = echion.weak_task_link_map();
 
                 if (auto maybe_parent = task_link_map.find(task_origin); maybe_parent != task_link_map.end()) {
                     if (auto maybe_origin = origin_map.find(maybe_parent->second); maybe_origin != origin_map.end()) {
@@ -220,13 +226,13 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
                         continue;
                     }
                 }
-            }
 
-            // Check for weak links
-            if (weak_task_link_map.find(task_origin) != weak_task_link_map.end() &&
-                origin_map.find(weak_task_link_map[task_origin]) != origin_map.end()) {
-                current_task = origin_map.find(weak_task_link_map[task_origin])->second;
-                continue;
+                // Check for weak links
+                if (weak_task_link_map.find(task_origin) != weak_task_link_map.end() &&
+                    origin_map.find(weak_task_link_map[task_origin]) != origin_map.end()) {
+                    current_task = origin_map.find(weak_task_link_map[task_origin])->second;
+                    continue;
+                }
             }
 
             break;
@@ -353,7 +359,7 @@ ThreadInfo::get_tasks_from_linked_list(uintptr_t head_addr, std::vector<TaskInfo
 }
 
 Result<std::vector<TaskInfo::Ptr>>
-ThreadInfo::get_all_tasks(PyThreadState* tstate)
+ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
 {
     std::vector<TaskInfo::Ptr> tasks;
     if (this->asyncio_loop == 0)
@@ -377,6 +383,7 @@ ThreadInfo::get_all_tasks(PyThreadState* tstate)
     // tasks that don't inherit from asyncio.Task. Native asyncio.Task instances are stored
     // in linked-lists (handled above) and are NOT added to _scheduled_tasks.
     // This is typically empty in practice, but we handle it for completeness.
+    auto asyncio_scheduled_tasks = echion.asyncio_scheduled_tasks();
     if (asyncio_scheduled_tasks != nullptr) {
         if (auto maybe_scheduled_tasks_set = MirrorSet::create(asyncio_scheduled_tasks)) {
             auto scheduled_tasks_set = std::move(*maybe_scheduled_tasks_set);
@@ -394,7 +401,8 @@ ThreadInfo::get_all_tasks(PyThreadState* tstate)
         }
     }
 
-    if (asyncio_eager_tasks != NULL) {
+    auto asyncio_eager_tasks = echion.asyncio_eager_tasks();
+    if (asyncio_eager_tasks != nullptr) {
         auto maybe_eager_tasks_set = MirrorSet::create(asyncio_eager_tasks);
         if (!maybe_eager_tasks_set) {
             return ErrorKind::TaskInfoError;
@@ -423,12 +431,13 @@ ThreadInfo::get_all_tasks(PyThreadState* tstate)
 #else
 // Pre-Python 3.14: get_all_tasks uses WeakSet approach
 Result<std::vector<TaskInfo::Ptr>>
-ThreadInfo::get_all_tasks(PyThreadState*)
+ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState*)
 {
     std::vector<TaskInfo::Ptr> tasks;
     if (this->asyncio_loop == 0)
         return tasks;
 
+    auto asyncio_scheduled_tasks = echion.asyncio_scheduled_tasks();
     auto maybe_scheduled_tasks_set = MirrorSet::create(asyncio_scheduled_tasks);
     if (!maybe_scheduled_tasks_set) {
         return ErrorKind::TaskInfoError;
@@ -454,7 +463,8 @@ ThreadInfo::get_all_tasks(PyThreadState*)
         }
     }
 
-    if (asyncio_eager_tasks != NULL) {
+    auto asyncio_eager_tasks = echion.asyncio_eager_tasks();
+    if (asyncio_eager_tasks != nullptr) {
         auto maybe_eager_tasks_set = MirrorSet::create(asyncio_eager_tasks);
         if (!maybe_eager_tasks_set) {
             return ErrorKind::TaskInfoError;
@@ -484,9 +494,13 @@ ThreadInfo::get_all_tasks(PyThreadState*)
 
 // ----------------------------------------------------------------------------
 void
-ThreadInfo::unwind_greenlets(PyThreadState* tstate, unsigned long cur_native_id)
+ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsigned long cur_native_id)
 {
-    const std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
+    const std::lock_guard<std::mutex> guard(echion.greenlet_info_map_lock());
+
+    auto& greenlet_info_map = echion.greenlet_info_map();
+    auto& greenlet_parent_map = echion.greenlet_parent_map();
+    auto& greenlet_thread_map = echion.greenlet_thread_map();
 
     if (greenlet_thread_map.find(cur_native_id) == greenlet_thread_map.end())
         return;
@@ -560,7 +574,7 @@ ThreadInfo::unwind_greenlets(PyThreadState* tstate, unsigned long cur_native_id)
 
 // ----------------------------------------------------------------------------
 Result<void>
-ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
+ThreadInfo::sample(EchionSampler& echion, int64_t iid, PyThreadState* tstate, microsecond_t delta)
 {
     Renderer::get().render_thread_begin(tstate, name, delta, thread_id, native_id);
 
@@ -572,7 +586,7 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
 
     Renderer::get().render_cpu_time(is_running() ? cpu_time - previous_cpu_time : 0);
 
-    this->unwind(tstate);
+    this->unwind(echion, tstate);
 
     // Render in this order of priority
     // 1. asyncio Tasks stacks (if any)
@@ -692,9 +706,6 @@ for_each_thread(EchionSampler& echion, InterpreterInfo& interp, PyThreadStateCal
     std::unordered_set<PyThreadState*> threads;
     std::unordered_set<PyThreadState*> seen_threads;
 
-    threads.clear();
-    seen_threads.clear();
-
     // Start from the thread list head
     threads.insert(static_cast<PyThreadState*>(interp.tstate_head));
 
@@ -722,43 +733,17 @@ for_each_thread(EchionSampler& echion, InterpreterInfo& interp, PyThreadStateCal
         {
             const std::lock_guard<std::mutex> guard(echion.thread_info_map_lock());
 
-            if (echion.thread_info_map().find(tstate.thread_id) == echion.thread_info_map().end()) {
-                // If the threading module was not imported in the target then
-                // we mistakenly take the hypno thread as the main thread. We
-                // assume that any missing thread is the actual main thread,
-                // provided we don't already have a thread with the name
-                // "MainThread". Note that this can also happen on shutdown, so
-                // we need to avoid doing anything in that case.
-#if PY_VERSION_HEX >= 0x030b0000
-                auto native_id = tstate.native_thread_id;
-#else
-                auto native_id = getpid();
-#endif
-                bool main_thread_tracked = false;
-                for (auto& kv : echion.thread_info_map()) {
-                    if (kv.second->name == "MainThread") {
-                        main_thread_tracked = true;
-                        break;
-                    }
-                }
-                if (main_thread_tracked)
-                    continue;
-
-                auto maybe_thread_info = ThreadInfo::create(tstate.thread_id, native_id, "MainThread");
-                if (!maybe_thread_info) {
-                    // We failed to create the thread info object so we skip it.
-                    // We'll likely try again later with the valid thread
-                    // information.
-                    continue;
-                }
-
-                echion.thread_info_map().emplace(tstate.thread_id, std::move(*maybe_thread_info));
+            auto it = echion.thread_info_map().find(tstate.thread_id);
+            if (it == echion.thread_info_map().end()) {
+                // We failed to find ThreadInfo for thread_id, maybe there's a
+                // race condition between this call and `register_thread()`.
+                continue;
             }
 
             // Update the tstate_addr for thread info, so we can access
             // asyncio_tasks_head field from `_PyThreadStateImpl` struct
             // later when we unwind tasks.
-            auto thread_info = echion.thread_info_map().find(tstate.thread_id)->second.get();
+            auto thread_info = it->second.get();
             thread_info->tstate_addr = reinterpret_cast<uintptr_t>(tstate_addr);
 
             // Call back with the copied thread state
