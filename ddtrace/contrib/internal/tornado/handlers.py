@@ -54,10 +54,9 @@ async def execute(func, handler, args, kwargs):
             query_parameters = (
                 request.arguments if hasattr(request, "arguments") else getattr(request, "query_arguments", {})
             )
-            headers = dict(getattr(request, "headers", {}))
+            headers = {k.lower(): v for k, v in getattr(request, "headers", {}).items()}
             cookies = {k: handler.get_cookie(k) for k in handler.cookies.keys()}
 
-            headers.pop("Cookie", None)  # Remove Cookie from headers to avoid duplication
             headers.pop("cookie", None)  # Remove Cookie from headers to avoid duplication
 
             ctx.set_item("req_span", req_span)

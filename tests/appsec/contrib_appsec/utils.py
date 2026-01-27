@@ -481,8 +481,11 @@ class Contrib_TestClass_For_Threats:
             path_params = _addresses_store[0].get("http.request.path_params") if _addresses_store else None
             if asm_enabled:
                 assert path_params, path_params
-                assert (path_params["param_str"] if isinstance(path_params, dict) else path_params[1]) in ("abc", b"abc")
-                assert int((path_params["param_int"] if isinstance(path_params, dict) else path_params[0] )) == 137
+                assert (path_params["param_str"] if isinstance(path_params, dict) else path_params[1]) in (
+                    "abc",
+                    b"abc",
+                )
+                assert int((path_params["param_int"] if isinstance(path_params, dict) else path_params[0])) == 137
             else:
                 assert path_params is None
 
@@ -1277,7 +1280,7 @@ class Contrib_TestClass_For_Threats:
                     [{"y": [[[8]], {"len": 1}], "x": [[[8]], {"len": 1}]}],
                 ),
             ),
-            ("_dd.appsec.s.req.params", ([{"param_int": [4], "param_str": [8]}], )),
+            ("_dd.appsec.s.req.params", ([{"param_int": [4], "param_str": [8]}],)),
             ("_dd.appsec.s.res.headers", None),
             (
                 "_dd.appsec.s.res.body",
@@ -1306,7 +1309,7 @@ class Contrib_TestClass_For_Threats:
                             "body": [8],
                             "query_params": [{"y": [[[8]], {"len": 1}], "x": [[[8]], {"len": 1}]}],
                             "cookies": [{"secret": [8]}],
-                            "path_params": [[[8]], {'len': 2}],
+                            "path_params": [[[8]], {"len": 2}],
                         }
                     ],
                 ),
@@ -1380,14 +1383,16 @@ class Contrib_TestClass_For_Threats:
                 assert api, name
                 # all tornado path params are always strings
                 if interface.name == "tornado" and name == "_dd.appsec.s.req.params":
-                    expected_value = ([[{"param_int": [8], "param_str": [8]}], [[[8]], {'len': 2}]])
+                    expected_value = [[{"param_int": [8], "param_str": [8]}], [[[8]], {"len": 2}]]
                 if expected_value is not None:
                     if name == "_dd.appsec.s.res.body" and blocked:
                         assert api == [{"errors": [[[{"detail": [8], "title": [8]}]], {"len": 1}]}]
                     else:
-                        print(api, expected_value)
                         assert any(
-                            all(api[0].get(k) == v for k, v in expected[0].items()) if isinstance(api[0], dict) and isinstance(expected[0], dict) else api[0]==expected[0] for expected in expected_value
+                            all(api[0].get(k) == v for k, v in expected[0].items())
+                            if isinstance(api[0], dict) and isinstance(expected[0], dict)
+                            else api[0] == expected[0]
+                            for expected in expected_value
                         ), (api, name, expected_value)
                 telemetry_calls = {
                     (c.value, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.add_metric.call_args_list

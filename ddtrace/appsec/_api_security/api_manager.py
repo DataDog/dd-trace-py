@@ -35,10 +35,12 @@ M_INFINITY = float("-inf")
 class TooLargeSchemaException(Exception):
     pass
 
+
 def path_param_transform(v):
     if isinstance(v, (list, tuple)):
         return list(v)
     return dict(v)
+
 
 class APIManager(Service):
     BLOCK_COLLECTED = [

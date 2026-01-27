@@ -665,20 +665,24 @@ def tornado_call_waf_first(integration, handler):
         return
     # adding body request support
     handler.request._parse_body()
+    request_headers = get_headers() or {}
     parsed_body = handler.request.body_arguments
     if parsed_body:
         parsed_body = {k: v[0] if len(v) == 1 else list[v] for k, v in parsed_body.items()}
     else:
         _body: bytes = handler.request.body
         try:
-            parsed_body = json.loads(_body)
+            if "json" in request_headers.get("content-type", ""):
+                parsed_body = json.loads(_body)
         except BaseException:
-            try:
+            pass  # nosec
+        try:
+            if not parsed_body and "xml" in request_headers.get("content-type", ""):
                 import ddtrace.vendor.xmltodict as xmltodict
 
                 parsed_body = xmltodict.parse(_body)
-            except BaseException:
-                pass  # nosec
+        except BaseException:
+            pass  # nosec
     if parsed_body:
         set_waf_address(SPAN_DATA_NAMES.REQUEST_BODY, parsed_body)
         call_waf_callback()
@@ -718,9 +722,9 @@ def tornado_call_waf_response(integration: str, handler: object):
     status_code = getattr(handler, "_status_code", None)
     if isinstance(status_code, int):
         status_code = str(status_code)
-    headers = getattr(handler, "_headers", None)
+    response_headers = getattr(handler, "_headers", None)
     set_waf_address(SPAN_DATA_NAMES.RESPONSE_STATUS, status_code)
-    set_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, headers)
+    set_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, response_headers)
     call_waf_callback()
     if block := get_blocked():
         raise BlockingException(block)
