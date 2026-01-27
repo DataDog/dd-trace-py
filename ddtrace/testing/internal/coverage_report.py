@@ -121,7 +121,7 @@ def _generate_merged_lcov_from_coverage_py(
                 executable_lines = executed_lines | missing_lines
                 executable_lines_map[relative_path] = executable_lines
             except Exception:
-                log.warning(f"Could not get missing lines for {relative_path}, using only executed lines")
+                log.debug("Could not get missing lines for %s, using only executed lines", relative_path)
                 # Fallback: assume executed lines are all executable lines
                 executable_lines_map[relative_path] = executed_lines
 

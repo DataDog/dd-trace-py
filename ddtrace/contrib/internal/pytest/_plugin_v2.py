@@ -87,12 +87,6 @@ if _pytest_version_supports_efd():
 
 if _pytest_version_supports_atr():
     from ddtrace.contrib.internal.pytest._atr_utils import atr_get_failed_reports
-
-if _pytest_version_supports_coverage_report_upload():
-    from ddtrace.testing.internal.coverage_utils import setup_coverage_for_session
-    from ddtrace.testing.internal.coverage_utils import upload_coverage_if_available
-
-if _pytest_version_supports_atr():
     from ddtrace.contrib.internal.pytest._atr_utils import atr_get_teststatus
     from ddtrace.contrib.internal.pytest._atr_utils import atr_handle_retries
     from ddtrace.contrib.internal.pytest._atr_utils import atr_pytest_terminal_summary_post_yield
@@ -103,6 +97,10 @@ if _pytest_version_supports_attempt_to_fix():
     from ddtrace.contrib.internal.pytest._attempt_to_fix import attempt_to_fix_get_teststatus
     from ddtrace.contrib.internal.pytest._attempt_to_fix import attempt_to_fix_handle_retries
     from ddtrace.contrib.internal.pytest._attempt_to_fix import attempt_to_fix_pytest_terminal_summary_post_yield
+
+if _pytest_version_supports_coverage_report_upload():
+    from ddtrace.testing.internal.coverage_utils import setup_coverage_for_session
+    from ddtrace.testing.internal.coverage_utils import upload_coverage_if_available
 
 log = get_logger(__name__)
 
@@ -513,7 +511,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
             global coverage_instance_for_upload
             coverage_instance_for_upload = setup_coverage_for_session(session)
             if coverage_instance_for_upload:
-                log.debug("Old plugin: captured pytest-cov coverage instance for report upload")
+                log.debug("v2 plugin: captured pytest-cov coverage instance for report upload")
 
     except Exception:  # noqa: E722
         log.debug("encountered error during session start, disabling Datadog CI Visibility", exc_info=True)
@@ -1008,18 +1006,37 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     # Upload coverage report if supported and available
     if _pytest_version_supports_coverage_report_upload():
         global coverage_instance_for_upload
-        log.debug("Old plugin: Starting coverage upload process")
+        log.debug("v2 plugin: Starting coverage upload process")
         # We need to get the coverage report uploader from somewhere
         # For now, we'll create a minimal implementation
         try:
+            # Get env_tags from the CI Visibility service to avoid duplicate git commands
+            env_tags = None
+            try:
+                from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
+
+                ci_service = require_ci_visibility_service()
+                if hasattr(ci_service, "_tags") and ci_service._tags:
+                    env_tags = ci_service._tags.copy()
+                    # Ensure DD_ENV is included
+                    env_tags.update({"env": os.environ.get("DD_ENV", "none")})
+                    log.debug(
+                        "v2 plugin: Passing %d env_tags to coverage upload (%d git tags)",
+                        len(env_tags),
+                        len([k for k in env_tags if k.startswith("git.")]),
+                    )
+            except Exception as e:
+                log.debug("v2 plugin: Failed to get env_tags from CI service: %s", e)
+
             result = upload_coverage_if_available(
                 session=session,
                 coverage_instance=coverage_instance_for_upload,
-                coverage_report_uploader=None  # Will be handled by the upload function
+                coverage_report_uploader=None,  # Will be handled by the upload function
+                env_tags=env_tags,  # Pass the tags collected by CI Visibility
             )
-            log.debug("Old plugin: Coverage upload result: %s", result)
+            log.debug("v2 plugin: Coverage upload result: %s", result)
         except Exception as e:
-            log.debug("Old plugin: Error during coverage upload: %s", e)
+            log.debug("v2 plugin: Error during coverage upload: %s", e)
 
     InternalTestSession.finish(
         force_finish_children=True,

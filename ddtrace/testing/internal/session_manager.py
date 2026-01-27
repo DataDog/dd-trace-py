@@ -30,6 +30,7 @@ from ddtrace.testing.internal.test_data import TestSuite
 from ddtrace.testing.internal.test_data import TestTag
 from ddtrace.testing.internal.tracer_api import Codeowners
 from ddtrace.testing.internal.utils import asbool
+from ddtrace.testing.internal.v3_plugin_coverage_telemetry import V3PluginCoverageTelemetryRecorder
 from ddtrace.testing.internal.writer import TestCoverageWriter
 from ddtrace.testing.internal.writer import TestOptWriter
 
@@ -109,6 +110,7 @@ class SessionManager:
                 env_tags=self.env_tags,
                 skippable_coverage=self.skippable_coverage,
                 workspace_path=self.workspace_path,
+                telemetry_recorder=V3PluginCoverageTelemetryRecorder(),
             )
         self.session = session
         self.session.set_service(self.service)
@@ -136,9 +138,9 @@ class SessionManager:
         try:
             self.codeowners = Codeowners(cwd=str(self.workspace_path))
         except ValueError:
-            log.warning("CODEOWNERS file is not available")
+            log.debug("CODEOWNERS file is not available")
         except Exception:
-            log.warning("Failed to load CODEOWNERS", exc_info=True)
+            log.debug("Failed to load CODEOWNERS", exc_info=True)
 
     def finish_collection(self) -> None:
         self.setup_retry_handlers()
@@ -159,12 +161,12 @@ class SessionManager:
                     and new_tests_percentage > self.settings.early_flake_detection.faulty_session_threshold
                 )
                 if is_faulty_session:
-                    log.info("Not enabling Early Flake Detection: too many new tests")
+                    log.debug("Not enabling Early Flake Detection: too many new tests")
                     self.session.set_early_flake_detection_abort_reason("faulty")
                 else:
                     self.retry_handlers.append(EarlyFlakeDetectionHandler(self))
             else:
-                log.info("Not enabling Early Flake Detection: no known tests")
+                log.debug("Not enabling Early Flake Detection: no known tests")
 
         if self.settings.auto_test_retries.enabled:
             self.retry_handlers.append(AutoTestRetriesHandler(self))
@@ -301,7 +303,7 @@ class SessionManager:
                 # TODO: ddtrace has a "backend_commits is None" logic here with early return (is it correct?).
                 commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
             else:
-                log.warning("Failed to unshallow repository, continuing to send pack data")
+                log.debug("Failed to unshallow repository, continuing to send pack data")
 
         revisions_to_send = git.get_filtered_revisions(
             excluded_commits=backend_commits, included_commits=commits_not_in_backend
@@ -326,7 +328,6 @@ class SessionManager:
 
     def has_codeowners(self) -> bool:
         return self.codeowners is not None
-
 
     def override_settings_with_env_vars(self) -> None:
         # Kill switches.

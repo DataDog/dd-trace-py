@@ -174,7 +174,10 @@ def test_itr_coverage_augmentation_without_pytest_cov(pytester: Pytester):
 
         # Verify coverage report upload was NOT triggered (requires --cov flag)
         assert "Uploading coverage report to Datadog" not in result.stdout.str()
-        assert "No coverage.py instance provided, coverage report requires --cov flag" in result.stdout.str() or True  # May be logged at debug level
+        # May be logged at debug level, so allow it to be missing
+        assert (
+            "No coverage.py instance provided, coverage report requires --cov flag" in result.stdout.str() or True
+        )
 
 
 def test_itr_coverage_no_backend_coverage(pytester: Pytester):
