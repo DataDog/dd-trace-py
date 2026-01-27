@@ -101,6 +101,7 @@ def test_entity_trigger_wrapper_async():
 def test_patched_get_functions_wraps_activity_and_entity_only():
     tracer = DummyTracer()
     pin = _make_pin(tracer)
+
     class _StubInstance:
         pass
 
