@@ -31,10 +31,8 @@ jobs:
 
           TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
           MERGE_COMMIT=$(git rev-parse HEAD)
-          git fetch
           git checkout origin/${TARGET_BRANCH}
-          git pull origin ${TARGET_BRANCH}
-          CHERRYPICK_OUT=$(git cherry-pick -x --mainline 1 ${MERGE_COMMIT} 2>cherrypickerror.txt) || true
+          CHERRYPICK_OUT=$(git cherry-pick -x --mainline 1 ${MERGE_COMMIT} 2>cherrypickerror.txt) || cat cherrypickerror.txt
           ERROR=$(grep -v '^hint' cherrypickerror.txt)
 
           echo "results<<EOF" >> "$GITHUB_OUTPUT"
@@ -52,7 +50,6 @@ jobs:
           echo "\`\`\`" >> "$GITHUB_OUTPUT"
           echo "git checkout ${TARGET_BRANCH} && git cherry-pick -x --mainline 1 ${MERGE_COMMIT}" | tee -a "$GITHUB_OUTPUT"
           echo "\`\`\`" >> "$GITHUB_OUTPUT"
-          echo "(This commit hash is the HEAD of the temporary branch used by Github Actions, which is a merge commit.)" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Comment PR
