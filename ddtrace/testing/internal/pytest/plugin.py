@@ -295,8 +295,7 @@ class TestOptPlugin:
 
             # Upload coverage report using coverage manager
             self.coverage_manager.upload_coverage_report(
-                coverage_report_uploader=self.manager.coverage_report_uploader,
-                session_config=session.config
+                coverage_report_uploader=self.manager.coverage_report_uploader, session_config=session.config
             )
 
         # Stop coverage collection if it was started
@@ -1102,8 +1101,6 @@ def _get_test_custom_tags(item: pytest.Item) -> t.Dict[str, str]:
             tags[key] = str(value)
 
     return tags
-
-
 
 
 @pytest.fixture(scope="session")
