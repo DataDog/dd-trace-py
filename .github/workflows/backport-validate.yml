@@ -32,8 +32,6 @@ jobs:
           TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
           MERGE_COMMIT=$(git rev-parse HEAD)
           git checkout origin/${TARGET_BRANCH}
-          echo "cherrypicking"
-          git cherry-pick -x --mainline 1 ${MERGE_COMMIT}
           echo "cherrypicking with capture"
           CHERRYPICK_OUT=$( { git cherry-pick -x --mainline 1 ${MERGE_COMMIT} 2>&1; echo $? > /tmp/cmd_status.txt; } ) || true
           CHERRYPICK_STATUS=$(< /tmp/cmd_status.txt)
