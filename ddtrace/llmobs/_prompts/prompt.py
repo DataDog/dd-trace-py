@@ -6,6 +6,7 @@ from typing import Dict
 from typing import List
 from typing import Literal
 from typing import Mapping
+from typing import Optional
 from typing import Union
 
 from ddtrace.llmobs.types import PromptFallback
@@ -32,7 +33,7 @@ class ManagedPrompt:
 
     id: str
     version: str
-    label: str
+    label: Optional[str]
     source: Literal["registry", "cache", "fallback"]
     template: TemplateContent
 
@@ -127,18 +128,16 @@ class ManagedPrompt:
     def from_fallback(
         cls,
         prompt_id: str,
-        label: str,
         fallback: PromptFallback = None,
     ) -> "ManagedPrompt":
         """Create a ManagedPrompt from a fallback value.
 
         Args:
             prompt_id: The prompt identifier.
-            label: The prompt label.
             fallback: A string, message list, Prompt dict, or callable returning any of those.
 
         Returns:
-            A ManagedPrompt with source="fallback".
+            A ManagedPrompt with source="fallback" and label=None.
         """
         template: TemplateContent = ""
         version = "fallback"
@@ -154,7 +153,7 @@ class ManagedPrompt:
         return cls(
             id=prompt_id,
             version=version,
-            label=label,
+            label=None,
             source="fallback",
             template=template,
         )

@@ -10,7 +10,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_MAX_SIZE
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
-from ddtrace.llmobs._constants import DEFAULT_PROMPTS_LABEL
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_TIMEOUT
 from ddtrace.llmobs._constants import PROMPTS_BASE_URL
 from ddtrace.llmobs._constants import PROMPTS_ENDPOINT
@@ -62,7 +61,6 @@ class PromptManager:
         fallback: PromptFallback = None,
     ) -> ManagedPrompt:
         """Retrieve a prompt template from the registry."""
-        label = label or DEFAULT_PROMPTS_LABEL
         key = self._cache_key(prompt_id, label)
 
         # Try hot cache (in-memory)
@@ -90,7 +88,7 @@ class PromptManager:
 
         # Fall back to user-provided or empty prompt
         telemetry.record_prompt_source("fallback", prompt_id)
-        return self._create_fallback_prompt(prompt_id, label, fallback)
+        return self._create_fallback_prompt(prompt_id, fallback)
 
     def clear_cache(self, hot: bool = True, warm: bool = True) -> None:
         """Clear the prompt cache."""
@@ -101,12 +99,11 @@ class PromptManager:
 
     def refresh_prompt(self, prompt_id: str, label: Optional[str] = None) -> Optional[ManagedPrompt]:
         """Force refresh a prompt from the registry, or None if not found."""
-        label = label or DEFAULT_PROMPTS_LABEL
         key = self._cache_key(prompt_id, label)
         return self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=True)
 
-    def _cache_key(self, prompt_id: str, label: str) -> str:
-        return f"{self._ml_app}:{prompt_id}:{label}"
+    def _cache_key(self, prompt_id: str, label: Optional[str]) -> str:
+        return f"{self._ml_app}:{prompt_id}:{label or ''}"
 
     def _update_caches(self, key: str, prompt: ManagedPrompt) -> None:
         """Store a prompt in both hot and warm caches with source='cache'."""
@@ -122,7 +119,7 @@ class PromptManager:
     def _fetch_and_cache(
         self,
         prompt_id: str,
-        label: str,
+        label: Optional[str],
         key: str,
         evict_on_not_found: bool = False,
     ) -> Optional[ManagedPrompt]:
@@ -142,7 +139,7 @@ class PromptManager:
 
         return None
 
-    def _trigger_background_refresh(self, key: str, prompt_id: str, label: str) -> None:
+    def _trigger_background_refresh(self, key: str, prompt_id: str, label: Optional[str]) -> None:
         """Trigger a background refresh if not already in progress."""
         with self._refresh_lock:
             if key in self._refresh_in_progress:
@@ -163,13 +160,15 @@ class PromptManager:
                 self._refresh_in_progress.discard(key)
             log.debug("Failed to start background refresh thread for prompt %s", prompt_id)
 
-    def _background_refresh(self, key: str, prompt_id: str, label: str) -> None:
+    def _background_refresh(self, key: str, prompt_id: str, label: Optional[str]) -> None:
         """Refresh a prompt in the background."""
         self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=True)
         with self._refresh_lock:
             self._refresh_in_progress.discard(key)
 
-    def _fetch_from_registry(self, prompt_id: str, label: str, timeout: float) -> Tuple[Optional[ManagedPrompt], bool]:
+    def _fetch_from_registry(
+        self, prompt_id: str, label: Optional[str], timeout: float
+    ) -> Tuple[Optional[ManagedPrompt], bool]:
         """Fetch from registry. Returns (prompt, not_found)."""
         conn = None
         try:
@@ -187,12 +186,14 @@ class PromptManager:
             if conn is not None:
                 conn.close()
 
-    def _build_path(self, prompt_id: str, label: str) -> str:
+    def _build_path(self, prompt_id: str, label: Optional[str]) -> str:
         """Build the request path for fetching a prompt."""
-        query_params = urlencode({"label": label, "ml_app": self._ml_app})
-        return f"{PROMPTS_ENDPOINT}/{prompt_id}?{query_params}"
+        if label:
+            query_params = urlencode({"label": label})
+            return f"{PROMPTS_ENDPOINT}/{prompt_id}?{query_params}"
+        return f"{PROMPTS_ENDPOINT}/{prompt_id}"
 
-    def _parse_response(self, body: str, prompt_id: str, label: str) -> Optional[ManagedPrompt]:
+    def _parse_response(self, body: str, prompt_id: str, label: Optional[str]) -> Optional[ManagedPrompt]:
         """Parse the API response into a ManagedPrompt."""
         try:
             data = json.loads(body)
@@ -210,10 +211,9 @@ class PromptManager:
     def _create_fallback_prompt(
         self,
         prompt_id: str,
-        label: str,
         fallback: PromptFallback = None,
     ) -> ManagedPrompt:
         """Create a fallback prompt when fetch fails."""
         fallback_type = "user-provided" if fallback else "empty"
-        log.debug("Using %s fallback for prompt %s (label=%s)", fallback_type, prompt_id, label)
-        return ManagedPrompt.from_fallback(prompt_id, label, fallback)
+        log.debug("Using %s fallback for prompt %s", fallback_type, prompt_id)
+        return ManagedPrompt.from_fallback(prompt_id, fallback)
