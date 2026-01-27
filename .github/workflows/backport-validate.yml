@@ -36,7 +36,7 @@ jobs:
           CHERRYPICK_OUT=$( { git cherry-pick -x --mainline 1 ${MERGE_COMMIT} 2>&1; echo $? > /tmp/cmd_status.txt; } ) || true
           CHERRYPICK_STATUS=$(< /tmp/cmd_status.txt)
           rm /tmp/cmd_status.txt
-          echo $CHERRYPICK_STATUS
+          echo "cherrypick status code: ${CHERRYPICK_STATUS}"
 
           echo "results<<EOF" >> "$GITHUB_OUTPUT"
           if [[ ${CHERRYPICK_STATUS} != "0" ]]
@@ -44,7 +44,7 @@ jobs:
             echo "This change is marked for backport to ${TARGET_BRANCH}, but it conflicts with that branch." | tee -a "$GITHUB_OUTPUT"
             echo "Attempting to cherrypick this change to ${TARGET_BRANCH} yielded the following error:" | tee -a "$GITHUB_OUTPUT"
             echo "\`\`\`" >> "$GITHUB_OUTPUT"
-            echo "$CHERRYPICK_OUT" | tee -a "$GITHUB_OUTPUT"
+            echo "$CHERRYPICK_OUT" | grep -v '^hint' | tee -a "$GITHUB_OUTPUT"
             echo "\`\`\`" >> "$GITHUB_OUTPUT"
           else
             echo "This change is marked for backport to ${TARGET_BRANCH} and it does not conflict with that branch." | tee -a "$GITHUB_OUTPUT"
