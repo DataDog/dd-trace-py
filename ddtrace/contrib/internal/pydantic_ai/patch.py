@@ -1,13 +1,13 @@
 import sys
 from typing import Dict
 
+import pydantic_ai
+
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticAsyncContextManager
 from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticRunStream
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
-from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
@@ -29,12 +29,11 @@ def _supported_versions() -> Dict[str, str]:
 PYDANTIC_AI_VERSION = parse_version(get_version())
 
 
-@with_traced_module
-def traced_agent_run_stream(pydantic_ai, pin, func, instance, args, kwargs):
+def traced_agent_run_stream(func, instance, args, kwargs):
     integration = pydantic_ai._datadog_integration
     integration._run_stream_active = True
     span = integration.trace(
-        pin, "Pydantic Agent", submit_to_llmobs=True, model=getattr(instance, "model", None), kind="agent"
+        "Pydantic Agent", submit_to_llmobs=True, model=getattr(instance, "model", None), kind="agent"
     )
     span.name = getattr(instance, "name", None) or "Pydantic Agent"
 
@@ -43,15 +42,14 @@ def traced_agent_run_stream(pydantic_ai, pin, func, instance, args, kwargs):
     return TracedPydanticRunStream(result, span, integration, args, kwargs)
 
 
-@with_traced_module
-def traced_agent_iter(pydantic_ai, pin, func, instance, args, kwargs):
+def traced_agent_iter(func, instance, args, kwargs):
     integration = pydantic_ai._datadog_integration
     # avoid double tracing if run_stream has already been called
     if integration._run_stream_active:
         integration._run_stream_active = False
         return func(*args, **kwargs)
     span = integration.trace(
-        pin, "Pydantic Agent", submit_to_llmobs=True, model=getattr(instance, "model", None), kind="agent"
+        "Pydantic Agent", submit_to_llmobs=True, model=getattr(instance, "model", None), kind="agent"
     )
     span.name = getattr(instance, "name", None) or "Pydantic Agent"
 
@@ -60,26 +58,24 @@ def traced_agent_iter(pydantic_ai, pin, func, instance, args, kwargs):
     return TracedPydanticAsyncContextManager(result, span, instance, integration, args, kwargs)
 
 
-@with_traced_module
-async def traced_tool_manager_call(pydantic_ai, pin, func, instance, args, kwargs):
+async def traced_tool_manager_call(func, instance, args, kwargs):
     tool_call = get_argument_value(args, kwargs, 0, "tool_call", True)
     tool_name = getattr(tool_call, "tool_name", None) or "Pydantic Tool"
     tool_manager_tools = getattr(instance, "tools", {}) or {}
     tool_instance = tool_manager_tools.get(tool_name) or None
-    return await traced_tool_run(pydantic_ai, pin, func, tool_instance, args, kwargs, tool_name)
+    return await traced_tool_run(func, tool_instance, args, kwargs, tool_name)
 
 
-@with_traced_module
-async def traced_tool_call(pydantic_ai, pin, func, instance, args, kwargs):
+async def traced_tool_call(func, instance, args, kwargs):
     tool_name = getattr(instance, "name", None) or "Pydantic Tool"
-    return await traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs, tool_name)
+    return await traced_tool_run(func, instance, args, kwargs, tool_name)
 
 
-async def traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs, tool_name):
+async def traced_tool_run(func, instance, args, kwargs, tool_name):
     integration = pydantic_ai._datadog_integration
     resp = None
     try:
-        span = integration.trace(pin, "Pydantic Tool", submit_to_llmobs=True, kind="tool")
+        span = integration.trace("Pydantic Tool", submit_to_llmobs=True, kind="tool")
         span.name = tool_name
         resp = await func(*args, **kwargs)
         return resp
@@ -93,22 +89,19 @@ async def traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs, tool_n
 
 
 def patch():
-    import pydantic_ai
-
     if getattr(pydantic_ai, "_datadog_patch", False):
         return
 
     pydantic_ai._datadog_patch = True
 
-    Pin().onto(pydantic_ai)
     pydantic_ai._datadog_integration = PydanticAIIntegration(integration_config=config.pydantic_ai)
 
-    wrap(pydantic_ai, "agent.Agent.iter", traced_agent_iter(pydantic_ai))
-    wrap(pydantic_ai, "agent.Agent.run_stream", traced_agent_run_stream(pydantic_ai))
+    wrap(pydantic_ai, "agent.Agent.iter", traced_agent_iter)
+    wrap(pydantic_ai, "agent.Agent.run_stream", traced_agent_run_stream)
     if PYDANTIC_AI_VERSION >= (0, 4, 4):
-        wrap(pydantic_ai, "agent.ToolManager.handle_call", traced_tool_manager_call(pydantic_ai))
+        wrap(pydantic_ai, "agent.ToolManager.handle_call", traced_tool_manager_call)
     else:
-        wrap(pydantic_ai, "tools.Tool.run", traced_tool_call(pydantic_ai))
+        wrap(pydantic_ai, "tools.Tool.run", traced_tool_call)
 
 
 def unpatch():
@@ -127,4 +120,3 @@ def unpatch():
         unwrap(pydantic_ai.tools.Tool, "run")
 
     delattr(pydantic_ai, "_datadog_integration")
-    Pin().remove_from(pydantic_ai)

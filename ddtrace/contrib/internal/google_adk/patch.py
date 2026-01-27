@@ -9,7 +9,6 @@ from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.trace_utils import check_module_path
 from ddtrace.contrib.trace_utils import unwrap
-from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
@@ -30,8 +29,7 @@ def get_version() -> str:
     return getattr(adk, "__version__", "")
 
 
-@with_traced_module
-def _traced_agent_run_async(adk, pin, wrapped, instance, args, kwargs):
+def _traced_agent_run_async(wrapped, instance, args, kwargs):
     """Trace the main execution of an agent (async generator)."""
     integration: GoogleAdkIntegration = adk._datadog_integration
     agent = getattr(instance, "agent", None)
@@ -39,7 +37,6 @@ def _traced_agent_run_async(adk, pin, wrapped, instance, args, kwargs):
     provider_name, model_name = extract_provider_and_model_name(instance=model, model_name_attr="model")
 
     span = integration.trace(
-        pin,
         "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
         provider=provider_name,
         model=model_name,
@@ -73,8 +70,7 @@ def _traced_agent_run_async(adk, pin, wrapped, instance, args, kwargs):
     return _generator()
 
 
-@with_traced_module
-async def _traced_functions_call_tool_async(adk, pin, wrapped, instance, args, kwargs):
+async def _traced_functions_call_tool_async(wrapped, instance, args, kwargs):
     integration: GoogleAdkIntegration = adk._datadog_integration
     agent = extract_agent_from_tool_context(args, kwargs)
     if agent is None:
@@ -87,7 +83,6 @@ async def _traced_functions_call_tool_async(adk, pin, wrapped, instance, args, k
     instance = instance or args[0]
 
     with integration.trace(
-        pin,
         "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
         provider=provider_name,
         model=model_name,
@@ -111,8 +106,7 @@ async def _traced_functions_call_tool_async(adk, pin, wrapped, instance, args, k
             )
 
 
-@with_traced_module
-async def _traced_functions_call_tool_live(adk, pin, wrapped, instance, args, kwargs):
+async def _traced_functions_call_tool_live(wrapped, instance, args, kwargs):
     integration: GoogleAdkIntegration = adk._datadog_integration
     agent = extract_agent_from_tool_context(args, kwargs)
     if agent is None:
@@ -126,7 +120,6 @@ async def _traced_functions_call_tool_live(adk, pin, wrapped, instance, args, kw
     )
 
     with integration.trace(
-        pin,
         "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
         provider=provider_name,
         model=model_name,
@@ -151,8 +144,7 @@ async def _traced_functions_call_tool_live(adk, pin, wrapped, instance, args, kw
             )
 
 
-@with_traced_module
-def _traced_code_executor_execute_code(adk, pin, wrapped, instance, args, kwargs):
+def _traced_code_executor_execute_code(wrapped, instance, args, kwargs):
     """Trace the execution of code by the agent (sync)."""
     integration: GoogleAdkIntegration = adk._datadog_integration
     invocation_context = get_argument_value(args, kwargs, 0, "invocation_context")
@@ -161,7 +153,6 @@ def _traced_code_executor_execute_code(adk, pin, wrapped, instance, args, kwargs
 
     # Signature: execute_code(self, invocation_context, code_execution_input)
     with integration.trace(
-        pin,
         "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
         provider=provider_name,
         model=model_name,
@@ -213,12 +204,12 @@ def patch():
     setattr(adk, "_datadog_integration", integration)
 
     # Agent entrypoints (async generators)
-    wrap("google.adk", "runners.Runner.run_async", _traced_agent_run_async(adk))
-    wrap("google.adk", "runners.Runner.run_live", _traced_agent_run_async(adk))
+    wrap("google.adk", "runners.Runner.run_async", _traced_agent_run_async)
+    wrap("google.adk", "runners.Runner.run_live", _traced_agent_run_async)
 
     # Tool execution (central dispatch)
-    wrap("google.adk", "flows.llm_flows.functions.__call_tool_async", _traced_functions_call_tool_async(adk))
-    wrap("google.adk", "flows.llm_flows.functions.__call_tool_live", _traced_functions_call_tool_live(adk))
+    wrap("google.adk", "flows.llm_flows.functions.__call_tool_async", _traced_functions_call_tool_async)
+    wrap("google.adk", "flows.llm_flows.functions.__call_tool_live", _traced_functions_call_tool_live)
 
     # Code executors
     for code_executor in CODE_EXECUTOR_CLASSES:
@@ -226,7 +217,7 @@ def patch():
             wrap(
                 "google.adk",
                 f"code_executors.{code_executor}.execute_code",
-                _traced_code_executor_execute_code(adk),
+                _traced_code_executor_execute_code,
             )
 
 

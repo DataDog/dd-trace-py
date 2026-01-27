@@ -3,7 +3,6 @@ import sys
 from google import genai
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.google_genai._utils import GoogleGenAIAsyncStreamHandler
 from ddtrace.contrib.internal.google_genai._utils import GoogleGenAIStreamHandler
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -25,12 +24,10 @@ def get_version() -> str:
     return getattr(genai, "__version__", "")
 
 
-@with_traced_module
-def traced_generate(genai, pin, func, instance, args, kwargs):
+def traced_generate(func, instance, args, kwargs):
     integration = genai._datadog_integration
     provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
     with integration.trace(
-        pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
@@ -45,11 +42,10 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-async def traced_async_generate(genai, pin, func, instance, args, kwargs):
+async def traced_async_generate(func, instance, args, kwargs):
     integration = genai._datadog_integration
     provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
     with integration.trace(
-        pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
@@ -63,12 +59,10 @@ async def traced_async_generate(genai, pin, func, instance, args, kwargs):
             integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation="llm")
 
 
-@with_traced_module
-def traced_generate_stream(genai, pin, func, instance, args, kwargs):
+def traced_generate_stream(func, instance, args, kwargs):
     integration = genai._datadog_integration
     provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
     span = integration.trace(
-        pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
@@ -84,12 +78,10 @@ def traced_generate_stream(genai, pin, func, instance, args, kwargs):
         raise
 
 
-@with_traced_module
-async def traced_async_generate_stream(genai, pin, func, instance, args, kwargs):
+async def traced_async_generate_stream(func, instance, args, kwargs):
     integration = genai._datadog_integration
     provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
     span = integration.trace(
-        pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
@@ -105,12 +97,10 @@ async def traced_async_generate_stream(genai, pin, func, instance, args, kwargs)
         raise
 
 
-@with_traced_module
-def traced_embed_content(genai, pin, func, instance, args, kwargs):
+def traced_embed_content(func, instance, args, kwargs):
     integration = genai._datadog_integration
     provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
     with integration.trace(
-        pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
@@ -124,12 +114,10 @@ def traced_embed_content(genai, pin, func, instance, args, kwargs):
             integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation="embedding")
 
 
-@with_traced_module
-async def traced_async_embed_content(genai, pin, func, instance, args, kwargs):
+async def traced_async_embed_content(func, instance, args, kwargs):
     integration = genai._datadog_integration
     provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
     with integration.trace(
-        pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
@@ -148,16 +136,15 @@ def patch():
         return
 
     genai._datadog_patch = True
-    Pin().onto(genai)
     integration = GoogleGenAIIntegration(integration_config=config.google_genai)
     genai._datadog_integration = integration
 
-    wrap("google.genai", "models.Models.generate_content", traced_generate(genai))
-    wrap("google.genai", "models.Models.generate_content_stream", traced_generate_stream(genai))
-    wrap("google.genai", "models.AsyncModels.generate_content", traced_async_generate(genai))
-    wrap("google.genai", "models.AsyncModels.generate_content_stream", traced_async_generate_stream(genai))
-    wrap("google.genai", "models.Models.embed_content", traced_embed_content(genai))
-    wrap("google.genai", "models.AsyncModels.embed_content", traced_async_embed_content(genai))
+    wrap("google.genai", "models.Models.generate_content", traced_generate)
+    wrap("google.genai", "models.Models.generate_content_stream", traced_generate_stream)
+    wrap("google.genai", "models.AsyncModels.generate_content", traced_async_generate)
+    wrap("google.genai", "models.AsyncModels.generate_content_stream", traced_async_generate_stream)
+    wrap("google.genai", "models.Models.embed_content", traced_embed_content)
+    wrap("google.genai", "models.AsyncModels.embed_content", traced_async_embed_content)
 
 
 def unpatch():

@@ -6,7 +6,6 @@ from typing import List
 from typing import Optional
 from weakref import WeakKeyDictionary
 
-from ddtrace._trace.pin import Pin
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
@@ -51,14 +50,14 @@ class CrewAIIntegration(BaseLLMIntegration):
     _planning_crew_ids: List[str] = []  # list of crew IDs that correspond to planning crew instances
     _flow_span_to_method_to_span_dict: WeakKeyDictionary[Span, Dict[str, Dict[str, Any]]] = WeakKeyDictionary()
 
-    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
+    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
         if kwargs.get("_ddtrace_ctx"):
             tracer_ctx, llmobs_ctx = kwargs["_ddtrace_ctx"]
             tracer.context_provider.activate(tracer_ctx)  # type: ignore[arg-type]
             if self.llmobs_enabled and llmobs_ctx:
                 core.dispatch("threading.execution", (llmobs_ctx,))
 
-        span = super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
+        span = super().trace(operation_id, submit_to_llmobs, **kwargs)
 
         if kwargs.get("operation") == "crew":
             crew_id = _get_crew_id(span, "crew")
@@ -84,7 +83,7 @@ class CrewAIIntegration(BaseLLMIntegration):
             span_dict.update({"span_id": str(span.span_id)})
         return span
 
-    def _get_current_ctx(self, pin):
+    def _get_current_ctx(self):
         """Extract current tracer and llmobs contexts to propagate across threads during async task execution."""
         curr_trace_ctx = tracer.current_trace_context()
         if self.llmobs_enabled:

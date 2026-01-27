@@ -7,9 +7,7 @@ import vertexai
 from vertexai.generative_models import GenerativeModel  # noqa:F401
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.trace_utils import unwrap
-from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.contrib.internal.vertexai._utils import VertexAIAsyncStreamHandler
 from ddtrace.contrib.internal.vertexai._utils import VertexAIStreamHandler
@@ -30,33 +28,28 @@ def _supported_versions() -> Dict[str, str]:
     return {"vertexai": ">=1.71.1"}
 
 
-@with_traced_module
-def traced_generate(vertexai, pin, func, instance, args, kwargs):
-    return _traced_generate(vertexai, pin, func, instance, args, kwargs, instance, False)
+def traced_generate(func, instance, args, kwargs):
+    return _traced_generate(func, instance, args, kwargs, instance, False)
 
 
-@with_traced_module
-async def traced_agenerate(vertexai, pin, func, instance, args, kwargs):
-    return await _traced_agenerate(vertexai, pin, func, instance, args, kwargs, instance, False)
+async def traced_agenerate(func, instance, args, kwargs):
+    return await _traced_agenerate(func, instance, args, kwargs, instance, False)
 
 
-@with_traced_module
-def traced_send_message(vertexai, pin, func, instance, args, kwargs):
-    return _traced_generate(vertexai, pin, func, instance, args, kwargs, instance._model, True)
+def traced_send_message(func, instance, args, kwargs):
+    return _traced_generate(func, instance, args, kwargs, instance._model, True)
 
 
-@with_traced_module
-async def traced_send_message_async(vertexai, pin, func, instance, args, kwargs):
-    return await _traced_agenerate(vertexai, pin, func, instance, args, kwargs, instance._model, True)
+async def traced_send_message_async(func, instance, args, kwargs):
+    return await _traced_agenerate(func, instance, args, kwargs, instance._model, True)
 
 
-def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance, is_chat):
+def _traced_generate(func, instance, args, kwargs, model_instance, is_chat):
     integration = vertexai._datadog_integration
     stream = kwargs.get("stream", False)
     generations = None
     provider_name, model_name = extract_provider_and_model_name(instance=model_instance, model_name_attr="_model_name")
     span = integration.trace(
-        pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
@@ -86,13 +79,12 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
     return generations
 
 
-async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_instance, is_chat):
+async def _traced_agenerate(func, instance, args, kwargs, model_instance, is_chat):
     integration = vertexai._datadog_integration
     stream = kwargs.get("stream", False)
     generations = None
     provider_name, model_name = extract_provider_and_model_name(instance=model_instance, model_name_attr="_model_name")
     span = integration.trace(
-        pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
@@ -128,14 +120,13 @@ def patch():
 
     vertexai._datadog_patch = True
 
-    Pin().onto(vertexai)
     integration = VertexAIIntegration(integration_config=config.vertexai)
     vertexai._datadog_integration = integration
 
-    wrap("vertexai", "generative_models.GenerativeModel.generate_content", traced_generate(vertexai))
-    wrap("vertexai", "generative_models.GenerativeModel.generate_content_async", traced_agenerate(vertexai))
-    wrap("vertexai", "generative_models.ChatSession.send_message", traced_send_message(vertexai))
-    wrap("vertexai", "generative_models.ChatSession.send_message_async", traced_send_message_async(vertexai))
+    wrap("vertexai", "generative_models.GenerativeModel.generate_content", traced_generate)
+    wrap("vertexai", "generative_models.GenerativeModel.generate_content_async", traced_agenerate)
+    wrap("vertexai", "generative_models.ChatSession.send_message", traced_send_message)
+    wrap("vertexai", "generative_models.ChatSession.send_message_async", traced_send_message_async)
 
 
 def unpatch():
