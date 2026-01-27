@@ -62,6 +62,7 @@ jobs:
           echo "branch=${BACKPORT_BRANCH}" | tee -a "$GITHUB_OUTPUT"
           echo "branch-from=$(git rev-parse ${TARGET_BRANCH})" | tee -a "$GITHUB_OUTPUT"
           echo "commit=$(git rev-parse HEAD)" | tee -a "$GITHUB_OUTPUT"
+          echo "target-branch=${TARGET_BRANCH}" | tee -a "$GITHUB_OUTPUT"
 
       - name: Push Commit
         uses: DataDog/commit-headless@action/v0.5.2
@@ -73,12 +74,14 @@ jobs:
 
       - name: Create PR
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
         run: |
-          echo " \
+          COMMAND=" \
            gh pr create \
-             --title "title [backport x.y]" \
-             --body "Backport 1234 to x.y" \
-             --base ${{ steps.create-commit.outputs.branch-from }} \
+             --title "${{ github.event.pull_request.title }} [backport ${{ steps.create-commit.outputs.target-branch }}]" \
+             --body "Backport ${{ github.event.pull_request.number }} to ${{ steps.create-commit.outputs.target-branch }}" \
+             --base ${{ steps.create-commit.outputs.target-branch }} \
              --head ${{ steps.create-commit.outputs.branch }} \
           "
+          echo $COMMAND
+          `${COMMAND}`
