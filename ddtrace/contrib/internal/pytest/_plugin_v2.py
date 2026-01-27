@@ -388,8 +388,9 @@ def _early_initialize_coverage_for_upload(config):
         if is_coverage_upload_enabled() and not _is_pytest_cov_enabled(config):
             log.debug("Coverage upload enabled without --cov, initializing early coverage collection")
 
-            env_tags = get_env_tags()
-            _early_coverage_integration = CoverageIntegration(telemetry_writer=None, env_tags=env_tags)
+            # Don't get env_tags here as it may cause git command issues during early init
+            # We'll get them later during session finish when all infrastructure is ready
+            _early_coverage_integration = CoverageIntegration(telemetry_writer=None, env_tags={})
             _early_coverage_integration.initialize(config)
 
     except Exception:
@@ -990,8 +991,12 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if _early_coverage_integration:
         log.debug("Using early initialized coverage integration")
         coverage_integration = _early_coverage_integration
-        # Update with telemetry writer for session finish
+        # Update with telemetry writer and env_tags for session finish
         coverage_integration.telemetry_writer = telemetry_writer
+        # Now it's safe to get env_tags since all infrastructure is ready
+        env_tags = get_env_tags()
+        coverage_integration.env_tags = env_tags
+        log.debug("Updated early coverage integration with env_tags")
     else:
         env_tags = get_env_tags()
         coverage_integration = CoverageIntegration(telemetry_writer=telemetry_writer, env_tags=env_tags)

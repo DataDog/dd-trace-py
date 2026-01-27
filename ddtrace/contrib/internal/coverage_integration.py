@@ -71,11 +71,17 @@ def capture_coverage_instance_from_pytest_cov(session) -> t.Optional[t.Any]:
 
         # Try different ways to access coverage instance
         if hasattr(pytest_cov_plugin, "cov_controller") and pytest_cov_plugin.cov_controller:
-            return pytest_cov_plugin.cov_controller.cov
+            cov_instance = pytest_cov_plugin.cov_controller.cov
+            log.debug("Found coverage instance via cov_controller.cov: %s", type(cov_instance))
+            return cov_instance
         elif hasattr(pytest_cov_plugin, "cov"):
-            return pytest_cov_plugin.cov
+            cov_instance = pytest_cov_plugin.cov
+            log.debug("Found coverage instance via cov: %s", type(cov_instance))
+            return cov_instance
         elif hasattr(pytest_cov_plugin, "_cov"):
-            return pytest_cov_plugin._cov
+            cov_instance = pytest_cov_plugin._cov
+            log.debug("Found coverage instance via _cov: %s", type(cov_instance))
+            return cov_instance
 
         log.debug("Could not find coverage instance in pytest-cov plugin")
         return None
@@ -174,14 +180,17 @@ class CoverageIntegration:
 
         # Handle coverage report upload if enabled
         if is_coverage_upload_enabled():
-            # Try to get existing coverage instance first
-            self._coverage_instance = capture_coverage_instance_from_pytest_cov(config)
-
-            # If no coverage instance exists but upload is enabled, create one
+            # If we already have a coverage instance from early initialization, use it
             if not self._coverage_instance:
-                self._coverage_instance = self._create_coverage_instance_if_needed(config)
+                # Try to get existing coverage instance from pytest-cov first
+                self._coverage_instance = capture_coverage_instance_from_pytest_cov(config)
 
-            if self._coverage_instance:
+                # If no valid coverage instance exists but upload is enabled, create one
+                if not self._coverage_instance or not hasattr(self._coverage_instance, "stop"):
+                    log.debug("No valid coverage instance available, creating one for upload")
+                    self._coverage_instance = self._create_coverage_instance_if_needed(config)
+
+            if self._coverage_instance and hasattr(self._coverage_instance, "stop"):
                 self._setup_and_upload_coverage_report()
 
         self._record_telemetry("coverage.finished", 1, {"library": "coveragepy", "framework": "pytest"})
@@ -305,23 +314,29 @@ class CoverageIntegration:
     def _upload_via_v3_infrastructure(self):
         """Upload coverage report using V3 plugin's existing infrastructure."""
         try:
-            # Use the existing coverage_writer from session manager
-            if not hasattr(self.session_manager, "coverage_writer"):
-                log.debug("V3 plugin: No coverage_writer available")
-                return
-
-            coverage_writer = self.session_manager.coverage_writer
-            connector = coverage_writer.connector
-
             # Generate LCOV report
             lcov_data = self._generate_lcov_report_v3()
             if not lcov_data:
                 log.debug("V3 plugin: No LCOV data to upload")
                 return
 
-            # Upload using existing connector infrastructure
-            self._upload_coverage_report_via_connector(connector, lcov_data, "lcov")
-            log.debug("V3 plugin: Coverage report uploaded successfully")
+            # Try to use the V3 connector first, fallback to generic method
+            if hasattr(self.session_manager, "coverage_writer"):
+                try:
+                    coverage_writer = self.session_manager.coverage_writer
+                    connector = coverage_writer.connector
+                    self._upload_coverage_report_via_connector(connector, lcov_data, "lcov")
+                    log.debug("V3 plugin: Coverage report uploaded via connector")
+                    return
+                except Exception:
+                    log.debug("V3 plugin: Connector upload failed, trying generic method", exc_info=True)
+
+            # Fallback to generic upload method
+            success = self._upload_coverage_report_generic(lcov_data, "lcov", "V3 plugin")
+            if success:
+                log.debug("V3 plugin: Coverage report uploaded via generic method")
+            else:
+                log.error("V3 plugin: Coverage report upload failed")
 
         except Exception:
             log.exception("V3 plugin: Failed to upload coverage report")
@@ -329,15 +344,16 @@ class CoverageIntegration:
     def _upload_via_v2_infrastructure(self):
         """Upload coverage report using V2 plugin's existing infrastructure."""
         try:
-            # For V2 plugin, we need to use the CI Visibility service
+            # For V2 plugin, we need to use the CIVisibilityWriter's HTTP infrastructure
             from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 
             ci_service = require_ci_visibility_service()
-            if not hasattr(ci_service, "_agent_connector"):
-                log.debug("V2 plugin: No agent connector available")
-                return
 
-            connector = ci_service._agent_connector
+            # Get the writer from the CI service tracer
+            writer = getattr(ci_service.tracer._span_aggregator, "writer", None)
+            if not writer:
+                log.debug("V2 plugin: No writer available in CI service")
+                return
 
             # Generate LCOV report
             lcov_data = self._generate_lcov_report_v2()
@@ -345,12 +361,123 @@ class CoverageIntegration:
                 log.debug("V2 plugin: No LCOV data to upload")
                 return
 
-            # Upload using existing connector infrastructure
-            self._upload_coverage_report_via_connector(connector, lcov_data, "lcov")
+            # Use V2-specific upload method that works with CIVisibilityWriter
+            self._upload_coverage_via_v2_writer(writer, lcov_data, "lcov")
             log.debug("V2 plugin: Coverage report uploaded successfully")
 
         except Exception:
             log.exception("V2 plugin: Failed to upload coverage report")
+
+    def _upload_coverage_via_v2_writer(self, writer, lcov_data: bytes, report_format: str):
+        """Upload coverage report using V2 plugin's CIVisibilityWriter."""
+        try:
+            # Use generic coverage upload method
+            success = self._upload_coverage_report_generic(lcov_data, report_format, "V2 plugin")
+
+            if success:
+                log.debug("V2 plugin: Coverage report uploaded successfully")
+            else:
+                log.error("V2 plugin: Coverage report upload failed")
+
+        except Exception:
+            log.exception("V2 plugin: Exception during coverage report upload")
+            self._record_telemetry(COVERAGE_UPLOAD_REQUEST_ERRORS, 1, {"error": "exception"})
+
+    def _upload_coverage_report_generic(self, lcov_data: bytes, report_format: str, plugin_name: str) -> bool:
+        """Generic coverage report upload method that works for both V2 and V3 plugins."""
+        try:
+            import gzip
+            import io
+            import json
+            import os
+            import urllib.request
+            from uuid import uuid4
+
+            # Compress the LCOV data
+            compressed_data = self._compress_data(lcov_data)
+
+            # Create event JSON with git and CI tags
+            event = self._create_coverage_report_event(report_format)
+            event_json = json.dumps(event, separators=(",", ":")).encode("utf-8")
+
+            # Create multipart form data
+            boundary = f"----ddtrace-coverage-{uuid4().hex[:16]}"
+            multipart_data = self._create_multipart_form_data(
+                boundary=boundary,
+                files=[
+                    ("coverage", f"coverage.{report_format}.gz", "application/gzip", compressed_data),
+                    ("event", "event.json", "application/json", event_json),
+                ],
+            )
+
+            # Record telemetry
+            total_size = len(multipart_data)
+            self._record_telemetry(COVERAGE_UPLOAD_REQUEST, 1, {"format": report_format})
+            self._record_telemetry(COVERAGE_UPLOAD_REQUEST_BYTES, total_size)
+
+            # Upload to coverage intake
+            log.debug("%s: Uploading %d bytes coverage report", plugin_name, total_size)
+            start_time = time.time()
+
+            # Use the correct coverage intake URL according to RFC
+            site = os.getenv("DD_SITE", "datad0g.com")
+            coverage_intake_url = f"https://ci-intake.{site}/api/v2/cicovreprt"
+
+            # Get API key from environment
+            api_key = os.getenv("DD_API_KEY")
+            if not api_key:
+                log.debug("%s: No DD_API_KEY found for coverage upload", plugin_name)
+                return False
+
+            # Create headers
+            headers = {
+                "Content-Type": f"multipart/form-data; boundary={boundary}",
+                "dd-api-key": api_key,
+            }
+
+            # Send the request
+            req = urllib.request.Request(coverage_intake_url, data=multipart_data, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=30) as response:
+                status_code = response.getcode()
+                duration_ms = (time.time() - start_time) * 1000
+
+                log.debug("%s: Coverage upload HTTP response: %d", plugin_name, status_code)
+
+                if 200 <= status_code < 300:
+                    log.debug("%s: Coverage upload successful in %.2fms", plugin_name, duration_ms)
+                    self._record_telemetry(COVERAGE_UPLOAD_REQUEST_MS, duration_ms)
+                    return True
+                else:
+                    log.error("%s: Coverage upload failed with status %d", plugin_name, status_code)
+                    self._record_telemetry(COVERAGE_UPLOAD_REQUEST_ERRORS, 1, {"error": "http_error"})
+                    return False
+
+        except Exception as e:
+            log.debug("%s: Coverage upload exception: %s", plugin_name, e)
+            self._record_telemetry(COVERAGE_UPLOAD_REQUEST_ERRORS, 1, {"error": "exception"})
+            return False
+
+    def _create_multipart_form_data(self, boundary: str, files: t.List[t.Tuple[str, str, str, bytes]]) -> bytes:
+        """Create multipart form data for file uploads.
+
+        Args:
+            boundary: The boundary string for multipart data
+            files: List of tuples (field_name, filename, content_type, data)
+        """
+        parts = []
+
+        for field_name, filename, content_type, data in files:
+            parts.append(f"--{boundary}\r\n".encode("utf-8"))
+            parts.append(
+                f'Content-Disposition: form-data; name="{field_name}"; filename="{filename}"\r\n'.encode("utf-8")
+            )
+            parts.append(f"Content-Type: {content_type}\r\n\r\n".encode("utf-8"))
+            parts.append(data)
+            parts.append(b"\r\n")
+
+        # End boundary
+        parts.append(f"--{boundary}--\r\n".encode("utf-8"))
+        return b"".join(parts)
 
     def _upload_coverage_report_via_connector(self, connector, lcov_data: bytes, report_format: str):
         """Upload coverage report using the provided connector."""
@@ -668,6 +795,15 @@ class CoverageIntegration:
             "format": report_format,
             "timestamp": int(time.time() * 1000),
         }
+
+        # Debug: Check if env_tags are available
+        log.debug("Creating coverage report event with %d env_tags", len(self.env_tags))
+        if self.env_tags:
+            # Log some key tags to verify they're populated
+            repo_url = self.env_tags.get("git.repository_url", "NOT_FOUND")
+            branch = self.env_tags.get("git.branch", "NOT_FOUND") 
+            sha = self.env_tags.get("git.commit.sha", "NOT_FOUND")
+            log.debug("Key git tags: repo_url=%s, branch=%s, sha=%s", repo_url, branch, sha)
 
         # Import git and CI tag constants
         try:
