@@ -1,12 +1,19 @@
 #include <echion/stacks.h>
 
+#include <echion/echion_sampler.h>
+
 #include <unordered_set>
 
 // Unwind Python frames starting from frame_addr and push them onto stack.
 // @param max_depth: Maximum number of frames to unwind. Defaults to max_frames.
 // @return: Number of frames added to the stack.
+#if PY_VERSION_HEX >= 0x030b0000
+size_t
+unwind_frame(StackChunk* stack_chunk, PyObject* frame_addr, FrameStack& stack, size_t max_depth)
+#else
 size_t
 unwind_frame(PyObject* frame_addr, FrameStack& stack, size_t max_depth)
+#endif
 {
     std::unordered_set<PyObject*> seen_frames; // Used to detect cycles in the stack
     size_t count = 0;
@@ -19,7 +26,8 @@ unwind_frame(PyObject* frame_addr, FrameStack& stack, size_t max_depth)
         seen_frames.insert(current_frame_addr);
 
 #if PY_VERSION_HEX >= 0x030b0000
-        auto maybe_frame = Frame::read(reinterpret_cast<_PyInterpreterFrame*>(current_frame_addr),
+        auto maybe_frame = Frame::read(stack_chunk,
+                                       reinterpret_cast<_PyInterpreterFrame*>(current_frame_addr),
                                        reinterpret_cast<_PyInterpreterFrame**>(&current_frame_addr));
 #else
         auto maybe_frame = Frame::read(current_frame_addr, &current_frame_addr);
@@ -44,10 +52,15 @@ unwind_frame(PyObject* frame_addr, FrameStack& stack, size_t max_depth)
 }
 
 void
-unwind_python_stack(PyThreadState* tstate, FrameStack& stack)
+unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& stack)
 {
+#if PY_VERSION_HEX < 0x030b0000
+    // Used only for Python 3.11+ to get StackChunk
+    (void)echion;
+#endif
     stack.clear();
 #if PY_VERSION_HEX >= 0x030b0000
+    auto& stack_chunk = echion.stack_chunk();
     if (stack_chunk == nullptr) {
         stack_chunk = std::make_unique<StackChunk>();
     }
@@ -70,5 +83,9 @@ unwind_python_stack(PyThreadState* tstate, FrameStack& stack)
 #else // Python < 3.11
     PyObject* frame_addr = reinterpret_cast<PyObject*>(tstate->frame);
 #endif
+#if PY_VERSION_HEX >= 0x030b0000
+    unwind_frame(stack_chunk.get(), frame_addr, stack);
+#else
     unwind_frame(frame_addr, stack);
+#endif
 }

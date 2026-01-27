@@ -221,7 +221,7 @@ Frame::key(PyCodeObject* code, int lasti)
 // ------------------------------------------------------------------------
 #if PY_VERSION_HEX >= 0x030b0000
 Result<std::reference_wrapper<Frame>>
-Frame::read(_PyInterpreterFrame* frame_addr, _PyInterpreterFrame** prev_addr)
+Frame::read(StackChunk* stack_chunk, _PyInterpreterFrame* frame_addr, _PyInterpreterFrame** prev_addr)
 #else
 Result<std::reference_wrapper<Frame>>
 Frame::read(PyObject* frame_addr, PyObject** prev_addr)

@@ -1,7 +1,12 @@
 #include <echion/greenlets.h>
 
+#if PY_VERSION_HEX >= 0x030b0000
+int
+GreenletInfo::unwind(StackChunk* stack_chunk, PyObject* cur_frame, PyThreadState* tstate, FrameStack& stack)
+#else
 int
 GreenletInfo::unwind(PyObject* cur_frame, PyThreadState* tstate, FrameStack& stack)
+#endif
 {
     PyObject* frame_addr = NULL;
 #if PY_VERSION_HEX >= 0x030d0000
@@ -24,7 +29,11 @@ GreenletInfo::unwind(PyObject* cur_frame, PyThreadState* tstate, FrameStack& sta
 #else // Python < 3.11
     frame_addr = cur_frame == Py_None ? reinterpret_cast<PyObject*>(tstate->frame) : cur_frame;
 #endif
+#if PY_VERSION_HEX >= 0x030b0000
+    auto count = unwind_frame(stack_chunk, frame_addr, stack);
+#else
     auto count = unwind_frame(frame_addr, stack);
+#endif
 
     stack.push_back(Frame::get(name));
 

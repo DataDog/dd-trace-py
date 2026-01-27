@@ -41,8 +41,4 @@ class StackChunk
     std::unique_ptr<StackChunk> previous = nullptr;
 };
 
-// ----------------------------------------------------------------------------
-
-inline std::unique_ptr<StackChunk> stack_chunk = nullptr;
-
 #endif // PY_VERSION_HEX >= 0x030b0000
