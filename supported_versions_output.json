@@ -83,7 +83,7 @@
         "dependency": "asyncpg",
         "integration": "asyncpg",
         "minimum_tracer_supported": "0.23.0",
-        "max_tracer_supported": "0.30.0",
+        "max_tracer_supported": "0.31.0",
         "auto-instrumented": true
     },
     {
@@ -403,7 +403,7 @@
         "dependency": "litellm",
         "integration": "litellm",
         "minimum_tracer_supported": "1.65.4",
-        "max_tracer_supported": "1.65.4",
+        "max_tracer_supported": "1.80.16",
         "pinned": "true",
         "auto-instrumented": true
     },
