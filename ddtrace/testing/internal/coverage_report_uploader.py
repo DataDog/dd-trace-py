@@ -14,7 +14,6 @@ from ddtrace.testing.internal.coverage_report import COVERAGE_REPORT_FORMAT_LCOV
 from ddtrace.testing.internal.coverage_report import compress_coverage_report
 from ddtrace.testing.internal.coverage_report import create_coverage_report_event
 from ddtrace.testing.internal.coverage_report import generate_coverage_report_lcov_from_coverage_py
-from ddtrace.testing.internal.coverage_report import generate_coverage_report_lcov_from_module_collector
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.http import Subdomain
@@ -59,10 +58,10 @@ class CoverageReportUploader:
         Generate and upload the coverage report to the intake endpoint.
 
         Args:
-            cov_instance: The coverage.Coverage instance (if using coverage.py with --cov)
+            cov_instance: The coverage.Coverage instance (required, from pytest-cov --cov)
 
         This method:
-        1. Auto-detects coverage source (coverage.py or ModuleCodeCollector)
+        1. Validates that coverage.py instance is available 
         2. Transforms coverage data to LCOV format
         3. Merges with ITR skipped test coverage data
         4. Compresses the report with gzip
@@ -71,20 +70,17 @@ class CoverageReportUploader:
         """
         log.debug("Generating coverage report for upload")
 
-        # Auto-detect coverage source and generate report
-        if cov_instance is not None:
-            log.debug("Using coverage.py data for coverage report")
-            report_data = generate_coverage_report_lcov_from_coverage_py(
-                cov_instance=cov_instance,
-                workspace_path=self.workspace_path,
-                skippable_coverage=self.skippable_coverage,
-            )
-        else:
-            log.debug("Using ModuleCodeCollector data for coverage report")
-            report_data = generate_coverage_report_lcov_from_module_collector(
-                workspace_path=self.workspace_path,
-                skippable_coverage=self.skippable_coverage,
-            )
+        # Generate report from coverage.py (pytest-cov)
+        if cov_instance is None:
+            log.debug("No coverage.py instance provided, coverage report requires --cov flag")
+            return
+
+        log.debug("Using coverage.py data for coverage report")
+        report_data = generate_coverage_report_lcov_from_coverage_py(
+            cov_instance=cov_instance,
+            workspace_path=self.workspace_path,
+            skippable_coverage=self.skippable_coverage,
+        )
 
         if report_data is None:
             log.debug("No coverage data available, skipping report upload")

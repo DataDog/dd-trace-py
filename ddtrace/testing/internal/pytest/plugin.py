@@ -28,6 +28,8 @@ from ddtrace.testing.internal.pytest.hookspecs import TestOptHooks
 from ddtrace.testing.internal.pytest.report_links import print_test_report_links
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.retry_handlers import RetryHandler
+from ddtrace.testing.internal.coverage_utils import CoverageManager
+from ddtrace.testing.internal.coverage_utils import is_pytest_cov_enabled
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import Test
@@ -227,6 +229,7 @@ class TestOptPlugin:
 
         self.manager = session_manager
         self.session = self.manager.session
+        self.coverage_manager = CoverageManager()
 
         self.extra_failed_reports: t.List[pytest.TestReport] = []
 
@@ -238,6 +241,12 @@ class TestOptPlugin:
 
         if session.config.getoption("ddtrace-patch-all"):
             self.enable_all_ddtrace_integrations = True
+
+        # Set up coverage management
+        self.coverage_manager.setup_coverage_for_session(session)
+        if self.coverage_manager.has_coverage_instance():
+            # Store coverage instance in session manager for compatibility
+            self.manager.coverage_for_report = self.coverage_manager.coverage_instance
 
         self.session.start()
         self.manager.start()
@@ -266,7 +275,7 @@ class TestOptPlugin:
             # Propagate number of skipped tests to the main process.
             session.config.workeroutput["tests_skipped_by_itr"] = self.session.tests_skipped_by_itr
 
-        coverage_percentage = get_coverage_percentage(_is_pytest_cov_enabled(session.config))
+        coverage_percentage = get_coverage_percentage(is_pytest_cov_enabled(session.config))
         if coverage_percentage is not None:
             self.session.metrics[TestTag.CODE_COVERAGE_LINES_PCT] = coverage_percentage
             uninstall_coverage_percentage()
@@ -284,11 +293,11 @@ class TestOptPlugin:
             # When running with xdist, only the main process writes the session event.
             self.manager.writer.put_item(self.session)
 
-            # Upload coverage report if enabled
-            if self.manager.coverage_report_uploader is not None:
-                # Pass coverage.py instance if available, otherwise uploader will use ModuleCodeCollector
-                cov_instance = self.manager.coverage_for_report if _is_pytest_cov_enabled(session.config) else None
-                self.manager.coverage_report_uploader.upload_coverage_report(cov_instance=cov_instance)
+            # Upload coverage report using coverage manager
+            self.coverage_manager.upload_coverage_report(
+                coverage_report_uploader=self.manager.coverage_report_uploader,
+                session_config=session.config
+            )
 
         # Stop coverage collection if it was started
         if self.manager.settings.coverage_enabled or self.manager.settings.coverage_report_upload_enabled:
@@ -953,13 +962,9 @@ def pytest_load_initial_conftests(
 
     early_config.stash[SESSION_MANAGER_STASH_KEY] = session_manager
 
-    # Enable coverage collection for ITR (always uses ModuleCodeCollector)
-    # OR for report upload when --cov is not used (fallback to ModuleCodeCollector)
-    should_use_module_collector = session_manager.settings.coverage_enabled or (
-        session_manager.settings.coverage_report_upload_enabled and not _is_pytest_cov_enabled(early_config)
-    )
-
-    if should_use_module_collector:
+    # Enable coverage collection for ITR only (always uses ModuleCodeCollector)
+    # Coverage report upload now requires pytest-cov (--cov flag)
+    if session_manager.settings.coverage_enabled:
         setup_coverage_collection()
 
     yield
@@ -1002,7 +1007,7 @@ def pytest_configure(config: pytest.Config) -> None:
 
     ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_configure(config)
 
-    if _is_pytest_cov_enabled(config):
+    if is_pytest_cov_enabled(config):
         install_coverage_percentage()
 
 
@@ -1099,16 +1104,6 @@ def _get_test_custom_tags(item: pytest.Item) -> t.Dict[str, str]:
     return tags
 
 
-def _is_pytest_cov_enabled(config) -> bool:
-    if not config.pluginmanager.get_plugin("pytest_cov"):
-        return False
-    cov_option = config.getoption("--cov", default=False)
-    nocov_option = config.getoption("--no-cov", default=False)
-    if nocov_option is True:
-        return False
-    if isinstance(cov_option, list) and cov_option == [True] and not nocov_option:
-        return True
-    return cov_option
 
 
 @pytest.fixture(scope="session")

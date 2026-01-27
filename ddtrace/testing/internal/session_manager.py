@@ -327,24 +327,6 @@ class SessionManager:
     def has_codeowners(self) -> bool:
         return self.codeowners is not None
 
-    def start_coverage_for_report_upload(self) -> None:
-        """
-        Start coverage.py collection for session-level coverage report upload.
-
-        This uses standard coverage.py (not ITR bitmaps) to collect line-level coverage
-        that can be transformed to LCOV format at the end of the session.
-        """
-        try:
-            import coverage
-
-            # Start coverage collection
-            cov = coverage.Coverage(auto_data=True)
-            cov.start()
-            self.coverage_for_report = cov
-
-            log.debug("Started coverage.py collection for report upload")
-        except Exception:
-            log.exception("Failed to start coverage.py collection for report upload")
 
     def override_settings_with_env_vars(self) -> None:
         # Kill switches.

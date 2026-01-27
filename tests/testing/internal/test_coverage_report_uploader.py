@@ -18,12 +18,31 @@ from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.http import ErrorType
 
 
-@pytest.mark.skip(
-    reason="Mocking issues - functionality covered by tests/testing/integration/test_itr_coverage_augmentation.py"
-)
 class TestCoverageReportUploader:
     """Tests for CoverageReportUploader."""
 
+    def test_upload_coverage_report_no_cov_instance(self) -> None:
+        """Test that upload is skipped when no coverage.py instance is provided."""
+        mock_connector_setup = Mock()
+        mock_connector = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        uploader = CoverageReportUploader(
+            connector_setup=mock_connector_setup,
+            env_tags={},
+            skippable_coverage={},
+            workspace_path=Path("/tmp"),
+        )
+
+        # Should return early without calling any backend functions
+        uploader.upload_coverage_report(cov_instance=None)
+
+        mock_connector.post_files.assert_not_called()
+        mock_connector.close.assert_not_called()
+
+    @pytest.mark.skip(
+        reason="Mocking issues - functionality covered by tests/testing/integration/test_itr_coverage_augmentation.py"
+    )
     @patch("ddtrace.testing.internal.coverage_report_uploader.generate_coverage_report_lcov_from_coverage_py")
     def test_upload_coverage_report_no_data(self, mock_generate: Mock) -> None:
         """Test that upload is skipped when no coverage data is available."""

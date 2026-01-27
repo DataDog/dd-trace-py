@@ -112,11 +112,18 @@ def _generate_merged_lcov_from_coverage_py(
             executed_lines = set(cov_data.lines(abs_path_str) or [])
             local_coverage[relative_path] = executed_lines
 
-            # Get missing lines (executable but not covered)
-            missing_lines = set(cov_data.missing(abs_path_str) or [])
-            # Total executable lines = covered + missing
-            executable_lines = executed_lines | missing_lines
-            executable_lines_map[relative_path] = executable_lines
+            # Get missing lines using coverage analysis
+            try:
+                # analysis2 returns: (filename, statements, excluded, missing, formatted_missing)
+                _, statements, _, missing_lines, _ = cov_instance.analysis2(abs_path_str)
+                missing_lines = set(missing_lines or [])
+                # Total executable lines = covered + missing
+                executable_lines = executed_lines | missing_lines
+                executable_lines_map[relative_path] = executable_lines
+            except Exception:
+                log.warning(f"Could not get missing lines for {relative_path}, using only executed lines")
+                # Fallback: assume executed lines are all executable lines
+                executable_lines_map[relative_path] = executed_lines
 
         # Merge with skippable coverage (union)
         merged_coverage: t.Dict[str, t.Set[int]] = {}
@@ -188,8 +195,8 @@ def generate_coverage_report_lcov_from_module_collector(
     """
     Generate an LCOV format coverage report from ModuleCodeCollector data.
 
-    This is used as a fallback when coverage.py is not being used (no --cov flag).
-    If skippable_coverage is provided, merges it with the local coverage data.
+    This function is deprecated and will be removed. Coverage uploads now require pytest-cov.
+    It remains for backward compatibility with existing tests only.
 
     Args:
         workspace_path: The workspace path to use for relative path calculation.

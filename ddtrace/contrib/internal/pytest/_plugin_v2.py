@@ -87,6 +87,12 @@ if _pytest_version_supports_efd():
 
 if _pytest_version_supports_atr():
     from ddtrace.contrib.internal.pytest._atr_utils import atr_get_failed_reports
+
+if _pytest_version_supports_coverage_report_upload():
+    from ddtrace.testing.internal.coverage_utils import setup_coverage_for_session
+    from ddtrace.testing.internal.coverage_utils import upload_coverage_if_available
+
+if _pytest_version_supports_atr():
     from ddtrace.contrib.internal.pytest._atr_utils import atr_get_teststatus
     from ddtrace.contrib.internal.pytest._atr_utils import atr_handle_retries
     from ddtrace.contrib.internal.pytest._atr_utils import atr_pytest_terminal_summary_post_yield
@@ -108,6 +114,9 @@ INCOMPATIBLE_PLUGINS = ("flaky", "rerunfailures")
 skipped_suites = set()
 
 skip_pytest_runtest_protocol = False
+
+# Module-level variable to store the coverage instance for coverage report uploads
+coverage_instance_for_upload = None
 
 # Module-level variable to store the current test's coverage collector
 # This allows access from _pytest_run_one_test which doesn't have direct access to the wrapper's scope
@@ -498,6 +507,13 @@ def pytest_sessionstart(session: pytest.Session) -> None:
 
         if InternalTestSession.efd_enabled() and not _pytest_version_supports_efd():
             log.warning("Early Flake Detection disabled: pytest version is not supported")
+
+        # Set up coverage for coverage report upload if supported
+        if _pytest_version_supports_coverage_report_upload():
+            global coverage_instance_for_upload
+            coverage_instance_for_upload = setup_coverage_for_session(session)
+            if coverage_instance_for_upload:
+                log.debug("Old plugin: captured pytest-cov coverage instance for report upload")
 
     except Exception:  # noqa: E722
         log.debug("encountered error during session start, disabling Datadog CI Visibility", exc_info=True)
@@ -988,6 +1004,22 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
             # Update the session's internal _itr_skipped_count so that when _set_itr_tags() is called
             # during session finishing, it will use the correct worker-aggregated count
             InternalTestSession.set_itr_skipped_count(skipped_count)
+
+    # Upload coverage report if supported and available
+    if _pytest_version_supports_coverage_report_upload():
+        global coverage_instance_for_upload
+        log.debug("Old plugin: Starting coverage upload process")
+        # We need to get the coverage report uploader from somewhere
+        # For now, we'll create a minimal implementation
+        try:
+            result = upload_coverage_if_available(
+                session=session,
+                coverage_instance=coverage_instance_for_upload,
+                coverage_report_uploader=None  # Will be handled by the upload function
+            )
+            log.debug("Old plugin: Coverage upload result: %s", result)
+        except Exception as e:
+            log.debug("Old plugin: Error during coverage upload: %s", e)
 
     InternalTestSession.finish(
         force_finish_children=True,
