@@ -683,8 +683,7 @@ ThreadInfo::update_cpu_time()
 bool
 ThreadInfo::is_running()
 {
-    // Running state is computed in update_cpu_time by taking two back-to-back measurements of the CPU time.
-    return this->running_;
+    return true;
 }
 
 void
