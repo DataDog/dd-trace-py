@@ -36,7 +36,8 @@ jobs:
           git cherry-pick -x --mainline 1 ${MERGE_COMMIT}
           echo "cherrypicking with capture"
           CHERRYPICK_OUT=$( { git cherry-pick -x --mainline 1 ${MERGE_COMMIT} 2>&1; echo $? > /tmp/cmd_status.txt; } ) || true
-          CHERRYPICK_STATUS=$(< cmd_status.txt)
+          CHERRYPICK_STATUS=$(< /tmp/cmd_status.txt)
+          rm /tmp/cmd_status.txt
           echo $CHERRYPICK_STATUS
 
           echo "results<<EOF" >> "$GITHUB_OUTPUT"
