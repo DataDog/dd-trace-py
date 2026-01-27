@@ -37,16 +37,16 @@ class InstrumentationTelemetryMetricsClient(MetricsClient):
         self.namespace = namespace
 
     def increment(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
-        telemetry_writer.add_count_metric(self.namespace, name, int(value), tuple((tags or {}).items()))
+        telemetry_writer.add_count_metric(self.namespace, name, int(value), tuple(tags.items()) if tags else ())
 
     def gauge(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
-        telemetry_writer.add_gauge_metric(self.namespace, name, value, tuple((tags or {}).items()))
+        telemetry_writer.add_gauge_metric(self.namespace, name, value, tuple(tags.items()) if tags else ())
 
     def histogram(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
         pass
 
     def distribution(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
-        telemetry_writer.add_distribution_metric(self.namespace, name, value, tuple((tags or {}).items()))
+        telemetry_writer.add_distribution_metric(self.namespace, name, value, tuple(tags.items()) if tags else ())
 
 
 class Metrics(object):
