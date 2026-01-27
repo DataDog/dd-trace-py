@@ -1,7 +1,7 @@
-import ddtrace.contrib  # noqa: F401
 import pytest
 
 from ddtrace._trace.pin import Pin
+import ddtrace.contrib  # noqa: F401
 from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ACTIVITY_TRIGGER
 from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ENTITY_TRIGGER
 from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_TRIGGER_DEFS
