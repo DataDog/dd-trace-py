@@ -1,3 +1,4 @@
+import importlib.util
 import os
 import platform
 import sys
@@ -90,15 +91,14 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
     python_executable = sys.executable
 
     # Get the path to the receiver script module
-    try:
-        import ddtrace.commands._dd_crashtracker_receiver as receiver_module
+    spec = importlib.util.find_spec("ddtrace.commands._dd_crashtracker_receiver")
+    if spec is None:
+        log.error("Failed to locate _dd_crashtracker_receiver module")
+        return (None, None, None)
 
-        receiver_script_path = receiver_module.__file__
-        if receiver_script_path is None:
-            log.error("Failed to get path to _dd_crashtracker_receiver module")
-            return (None, None, None)
-    except ImportError:
-        log.error("Failed to import _dd_crashtracker_receiver module")
+    receiver_script_path = spec.origin
+    if not receiver_script_path:
+        log.error("Failed to resolve path to _dd_crashtracker_receiver module")
         return (None, None, None)
 
     if crashtracker_config.stacktrace_resolver is None:
