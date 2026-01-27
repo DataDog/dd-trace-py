@@ -134,9 +134,9 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
     # these library path environment variables.
     # setup.py:269
     inherited_env_vars = [
-        "LD_LIBRARY_PATH", # for loading native ext (Linux)
-        "DYLD_LIBRARY_PATH", # for loading native ext (macOS)
-        "PYTHONPATH", # for loading Python, for the receiver script
+        "LD_LIBRARY_PATH",  # for loading native ext (Linux)
+        "DYLD_LIBRARY_PATH",  # for loading native ext (macOS)
+        "PYTHONPATH",  # for loading Python, for the receiver script
     ]
     for env_var in inherited_env_vars:
         env_value = os.environ.get(env_var)
