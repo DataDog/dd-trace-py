@@ -38,7 +38,7 @@ jobs:
           git pull origin ${TARGET_BRANCH}
           echo "Target branch HEAD:"
           git show HEAD
-          git cherry-pick -x --mainline 1 ${MERGE_COMMIT} 2>cherrypickerror.txt | grep -v '^hint' || true
+          $(git cherry-pick -x --mainline 1 ${MERGE_COMMIT} 2>cherrypickerror.txt | grep -v '^hint') || true
           ERROR=$(< cherrypickerror.txt)
 
           echo "results<<EOF" >> "$GITHUB_OUTPUT"
