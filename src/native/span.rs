@@ -121,7 +121,7 @@ impl SpanData {
         span.set_name(name);
         match service {
             Some(obj) => span.set_service(obj),
-            None => span.set_service(&py.None().bind(py)),
+            None => span.set_service(py.None().bind(py)),
         }
         span
     }
