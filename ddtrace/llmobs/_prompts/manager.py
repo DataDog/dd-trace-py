@@ -189,7 +189,7 @@ class PromptManager:
 
     def _build_path(self, prompt_id: str, label: str) -> str:
         """Build the request path for fetching a prompt."""
-        query_params = urlencode({"label": label, "ml_app": self._ml_app})
+        query_params = urlencode({"label": label})
         return f"{PROMPTS_ENDPOINT}/{prompt_id}?{query_params}"
 
     def _parse_response(self, body: str, prompt_id: str, label: str) -> Optional[ManagedPrompt]:
