@@ -552,8 +552,11 @@ class CoverageUploadStrategy:
                 "Content-Length": str(len(multipart_data)),
             }
 
-            # Use the writer's built-in HTTP client infrastructure with authentication
+            # Try writer client first, fallback to generic HTTP
             success = self._send_coverage_via_writer_client(writer, multipart_data, headers)
+            if not success:
+                log.debug("V2 plugin: Writer client failed, falling back to generic HTTP upload")
+                success = self._send_coverage_via_generic_http(lcov_data, report_format, "V2 plugin")
 
             duration_ms = (time.time() - start_time) * 1000
 
@@ -605,9 +608,13 @@ class CoverageUploadStrategy:
         try:
             # Use the writer's existing client infrastructure for coverage uploads
             # The CIVisibilityWriter has coverage clients that handle authentication
+            if not hasattr(writer, '_clients'):
+                log.debug("V2 plugin: Writer does not have _clients attribute")
+                return False
+
             coverage_clients = [
                 client
-                for client in writer.clients
+                for client in writer._clients
                 if hasattr(client, "ENDPOINT") and "cov" in getattr(client, "ENDPOINT", "")
             ]
 
@@ -626,6 +633,51 @@ class CoverageUploadStrategy:
 
         except Exception as e:
             log.debug("V2 plugin: HTTP request via writer client failed: %s", e)
+            return False
+
+    def _send_coverage_via_generic_http(self, lcov_data: bytes, report_format: str, plugin_name: str) -> bool:
+        """Send coverage data via generic HTTP request as fallback for V2 plugin."""
+        try:
+            import urllib.request
+            from uuid import uuid4
+
+            # Compress the LCOV data
+            compressed_data = self._compress_data(lcov_data)
+
+            # Create event JSON with git and CI tags
+            event = self.event_builder.create_coverage_report_event(report_format)
+            event_json = json.dumps(event, separators=(",", ":")).encode("utf-8")
+
+            # Create multipart form data
+            boundary = f"----ddtrace-coverage-{uuid4().hex[:16]}"
+            multipart_data = self._create_multipart_data(boundary, compressed_data, event_json, report_format)
+
+            # Use the correct coverage intake URL
+            import os
+            site = os.getenv("DD_SITE", "datadoghq.com")
+            coverage_intake_url = f"https://ci-intake.{site}/api/v2/cicovreprt"
+
+            # Get API key from environment
+            api_key = os.getenv("DD_API_KEY")
+            if not api_key:
+                log.debug("%s: No DD_API_KEY found for coverage upload", plugin_name)
+                return False
+
+            # Create headers
+            headers = {
+                "Content-Type": f"multipart/form-data; boundary={boundary}",
+                "dd-api-key": api_key,
+            }
+
+            # Send the request
+            req = urllib.request.Request(coverage_intake_url, data=multipart_data, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=30) as response:
+                status_code = response.getcode()
+                log.debug("%s: Coverage upload HTTP response: %d", plugin_name, status_code)
+                return 200 <= status_code < 300
+
+        except Exception as e:
+            log.debug("%s: Generic HTTP upload failed: %s", plugin_name, e)
             return False
 
     def _upload_via_connector(self, connector, lcov_data: bytes, report_format: str) -> bool:
