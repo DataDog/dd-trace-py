@@ -386,8 +386,6 @@ class CoverageIntegration:
     def _upload_coverage_report_generic(self, lcov_data: bytes, report_format: str, plugin_name: str) -> bool:
         """Generic coverage report upload method that works for both V2 and V3 plugins."""
         try:
-            import gzip
-            import io
             import json
             import os
             import urllib.request

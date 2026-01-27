@@ -382,7 +382,6 @@ def _early_initialize_coverage_for_upload(config):
     try:
         from ddtrace.contrib.internal.coverage_integration import CoverageIntegration
         from ddtrace.contrib.internal.coverage_integration import is_coverage_upload_enabled
-        from ddtrace.testing.internal.env_tags import get_env_tags
 
         # Only proceed if coverage upload is enabled but --cov wasn't used
         if is_coverage_upload_enabled() and not _is_pytest_cov_enabled(config):
@@ -989,7 +988,7 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
     # Get env_tags once and reuse across both paths to avoid duplicate git command execution
     env_tags = get_env_tags()
-    
+
     # Use early initialized coverage integration if available, otherwise create new one
     if _early_coverage_integration:
         log.debug("Using early initialized coverage integration")
