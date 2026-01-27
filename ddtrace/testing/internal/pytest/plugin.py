@@ -42,7 +42,6 @@ from ddtrace.testing.internal.tracer_api.context import enable_all_ddtrace_integ
 from ddtrace.testing.internal.tracer_api.context import install_global_trace_filter
 from ddtrace.testing.internal.tracer_api.context import trace_context
 from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
-from ddtrace.testing.internal.tracer_api.coverage import get_coverage_percentage
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage_percentage
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_percentage
@@ -266,10 +265,14 @@ class TestOptPlugin:
             # Propagate number of skipped tests to the main process.
             session.config.workeroutput["tests_skipped_by_itr"] = self.session.tests_skipped_by_itr
 
-        coverage_percentage = get_coverage_percentage(_is_pytest_cov_enabled(session.config))
-        if coverage_percentage is not None:
-            self.session.metrics[TestTag.CODE_COVERAGE_LINES_PCT] = coverage_percentage
-            uninstall_coverage_percentage()
+        # Use simplified coverage integration
+        from ddtrace.contrib.internal.coverage_integration import CoverageIntegration
+
+        coverage_integration = CoverageIntegration(session_manager=self.session)
+        coverage_integration.initialize()
+        coverage_integration.handle_session_finish(session.config)
+
+        uninstall_coverage_percentage()
 
         self.session.finish()
 

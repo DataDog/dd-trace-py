@@ -7,12 +7,7 @@ import pytest
 
 from ddtrace import DDTraceDeprecationWarning
 from ddtrace import config as dd_config
-from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
-from ddtrace.contrib.internal.coverage.data import _coverage_data
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
-from ddtrace.contrib.internal.coverage.patch import run_coverage_report
-from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
-from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.internal.pytest._benchmark_utils import _set_benchmark_data_from_item
 from ddtrace.contrib.internal.pytest._report_links import print_test_report_links
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
@@ -956,25 +951,13 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if not is_test_visibility_enabled():
         return
 
-    invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
-    pytest_cov_status = _is_pytest_cov_enabled(session.config)
-    if _is_coverage_patched() and (pytest_cov_status or invoked_by_coverage_run_status):
-        if invoked_by_coverage_run_status and not pytest_cov_status:
-            run_coverage_report()
+    # Use simplified coverage integration
+    from ddtrace.contrib.internal.coverage_integration import CoverageIntegration
+    from ddtrace.internal.telemetry import telemetry_writer
 
-        lines_pct_value = _coverage_data.get(PCT_COVERED_KEY, None)
-        if lines_pct_value is None:
-            log.debug("Unable to retrieve coverage data for the session span")
-        elif not isinstance(lines_pct_value, (float, int)):
-            t = type(lines_pct_value)
-            log.warning(
-                "Unexpected format for total covered percentage: type=%s.%s, value=%r",
-                t.__module__,
-                t.__name__,
-                lines_pct_value,
-            )
-        else:
-            InternalTestSession.set_covered_lines_pct(lines_pct_value)
+    coverage_integration = CoverageIntegration(telemetry_writer=telemetry_writer)
+    coverage_integration.initialize()
+    coverage_integration.handle_session_finish(session.config, InternalTestSession.get_span())
 
     if ModuleCodeCollector.is_installed():
         ModuleCodeCollector.uninstall()
