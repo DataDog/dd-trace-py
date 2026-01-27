@@ -67,12 +67,6 @@ impl PyBackedString {
             None => PyString::intern(py, self.deref()).into_any(),
         }
     }
-
-    pub fn from_string<'py>(py: Python<'py>, s: &str) -> Self {
-        let s = PyString::new(py, s);
-        // SAFETY: s is valid UTF-8 so the conversion should normally never fail
-        Self::try_from(s).unwrap()
-    }
 }
 
 impl<'py> pyo3::FromPyObject<'_, 'py> for PyBackedString {
@@ -92,7 +86,7 @@ impl<'py> pyo3::FromPyObject<'_, 'py> for PyBackedString {
             return Self::try_from(py_bytes.to_owned());
         }
         Err(PyErr::new::<PyValueError, _>(
-            "argument needs to be either a 'str', uft8 encoded 'bytes', or 'None'",
+            "argument needs to be either a 'str', utf8 encoded 'bytes', or 'None'",
         ))
     }
 }
@@ -106,13 +100,7 @@ impl<'py> pyo3::IntoPyObject<'py> for &PyBackedString {
 
     #[inline]
     fn into_pyobject(self, py: pyo3::Python<'py>) -> Result<Self::Output, Self::Error> {
-        Ok(match &self.storage {
-            // Return the stored Python object (PyString, PyBytes, or PyNone)
-            // NOTE: .to_owned() creates a new Bound wrapper but refs the same Python object
-            Some(python_str) => python_str.bind(py).to_owned(),
-            // Static string case - use intern to get Python's cached singleton for empty strings
-            None => PyString::intern(py, self.deref()).into_any(),
-        })
+        Ok(self.as_py(py))
     }
 }
 

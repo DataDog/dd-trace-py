@@ -1,5 +1,5 @@
 use pyo3::{
-    types::{PyAnyMethods as _, PyInt, PyList, PyModule, PyModuleMethods as _},
+    types::{PyAnyMethods as _, PyDict, PyInt, PyList, PyModule, PyModuleMethods as _, PyTuple},
     Bound, PyAny, PyResult, Python,
 };
 
@@ -16,10 +16,7 @@ impl SpanEventData {
         *_py_args,
         **_py_kwargs,
     ))]
-    pub fn __new__(
-        _py_args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        _py_kwargs: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> Self {
+    pub fn __new__(_py_args: &Bound<'_, PyTuple>, _py_kwargs: Option<&Bound<'_, PyDict>>) -> Self {
         Self::default()
     }
 
@@ -44,10 +41,7 @@ impl SpanLinkData {
         *_py_args,
         **_py_kwargs,
     ))]
-    pub fn __new__(
-        _py_args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        _py_kwargs: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> Self {
+    pub fn __new__(_py_args: &Bound<'_, PyTuple>, _py_kwargs: Option<&Bound<'_, PyDict>>) -> Self {
         Self::default()
     }
 
@@ -110,7 +104,7 @@ impl SpanData {
         span_api = None,
         links = None,
     ))]
-    fn __new__<'p>(
+    pub fn __new__<'p>(
         py: Python<'p>,
         name: &Bound<'p, PyAny>,
         service: Option<&Bound<'p, PyAny>>,
@@ -124,12 +118,11 @@ impl SpanData {
         links: Option<&Bound<'p, PyList>>,
     ) -> Self {
         let mut span = Self::default();
-        // Initialize fields in __new__ since PyO3 doesn't automatically call __init__
-        span.data.name = extract_backed_string_or_default(name);
-        span.data.service = match service {
-            Some(obj) => extract_backed_string_or_none(obj),
-            None => PyBackedString::py_none(py),
-        };
+        span.set_name(name);
+        match service {
+            Some(obj) => span.set_service(obj),
+            None => span.set_service(&py.None().bind(py)),
+        }
         span
     }
 
