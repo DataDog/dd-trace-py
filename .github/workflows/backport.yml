@@ -52,7 +52,8 @@ jobs:
           BACKPORT_BRANCH="backport-${PR_NUMBER}-to-${TARGET_BRANCH}"
 
           git checkout main
-          git merge ${PR_BRANCH}
+          git fetch
+          git merge origin/${PR_BRANCH}
           MERGE_COMMIT=$(git rev-parse HEAD)
 
           git worktree add ${WORKTREE} ${TARGET_BRANCH}
