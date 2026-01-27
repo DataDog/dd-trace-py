@@ -914,8 +914,26 @@ class LLMObs(Service):
         task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
         optimization_task: Callable[[str, str, ConfigType], str],
         dataset: Dataset,
-        evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
-        summary_evaluators: List[Callable[[List, List, List, Dict], Dict]],
+        evaluators: List[
+            Union[
+                Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
+                BaseEvaluator,
+            ]
+        ],
+        summary_evaluators: List[
+            Union[
+                Callable[
+                    [
+                        List[DatasetRecordInputType],
+                        List[JSONType],
+                        List[JSONType],
+                        Dict[str, List[JSONType]],
+                    ],
+                    JSONType,
+                ],
+                BaseSummaryEvaluator,
+            ]
+        ],
         labelization_function: Optional[Callable[[Dict[str, Any]], str]],
         compute_score: Callable[[Dict[str, Dict[str, Any]]], float],
         config: ConfigType,
@@ -941,14 +959,14 @@ class LLMObs(Service):
                                   evaluation examples.
         :param dataset: The dataset to run experiments on, created with ``LLMObs.create_dataset()``
                        or ``LLMObs.pull_dataset()``.
-        :param evaluators: A list of evaluator functions to measure task performance.
-                          Each evaluator must accept parameters ``input_data`` (dict), ``output_data``
-                          (task output), and ``expected_output`` (expected result from dataset).
-                          Should return a JSON-serializable value with the evaluation results.
-        :param summary_evaluators: List of summary evaluator functions that aggregate results
-                                   across all dataset records (REQUIRED). Each function must accept:
-                                   inputs (list), outputs (list), expected_outputs (list), evaluations (dict)
-                                   and return a dict with aggregated metrics.
+        :param evaluators: A list of evaluators to measure task performance. Can be either
+                          class-based evaluators (inheriting from BaseEvaluator) or function-based
+                          evaluators that accept (input_data, output_data, expected_output) parameters.
+                          Should return a JSON-serializable value or an EvaluatorResult with the evaluation results.
+        :param summary_evaluators: List of summary evaluators (REQUIRED). Can be either
+                                   class-based evaluators (inheriting from BaseSummaryEvaluator) or function-based
+                                   evaluators that accept (inputs: List, outputs: List, expected_outputs: List,
+                                   evaluations: Dict) and return aggregated metrics.
         :param labelization_function: Function to generate labels from individual experiment results (REQUIRED).
                                      Takes an individual result dict (containing "evaluations" key) and returns
                                      a string label. Used to categorize examples shown to the optimization LLM.
@@ -1050,9 +1068,13 @@ class LLMObs(Service):
 
         if not isinstance(dataset, Dataset):
             raise TypeError("Dataset must be an LLMObs Dataset object.")
-        if not evaluators or not all(callable(evaluator) for evaluator in evaluators):
-            raise TypeError("Evaluators must be a list of callable functions.")
+        if not evaluators:
+            raise TypeError("Evaluators must be a non-empty list of BaseEvaluator instances or callable functions.")
         for evaluator in evaluators:
+            if isinstance(evaluator, BaseEvaluator):
+                continue
+            if not callable(evaluator):
+                raise TypeError("Evaluator must be a BaseEvaluator instance or a callable function.")
             sig = inspect.signature(evaluator)
             params = sig.parameters
             evaluator_required_params = ("input_data", "output_data", "expected_output")
