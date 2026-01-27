@@ -84,6 +84,32 @@ cpdef void _on_exception_handled(object code, int instruction_offset, object exc
         pass
 
 
+def _on_exception_bytecode(arg):
+    # Bytecode injection callback for Python 3.10/3.11 - HOT PATH
+    # Called at the start of each except block. Exception is in sys.exc_info().
+    # arg is the (line, path, dependency_info) tuple from bytecode injection.
+    global _total_exceptions, _sample_counter, _next_sample, _sampled_exceptions
+
+    _total_exceptions += 1
+    _sample_counter += 1
+
+    if _sample_counter < _next_sample:
+        return
+
+    _next_sample = _fast_poisson.sample(_sampling_interval) or 1
+    _sample_counter = 0
+
+    exc_type, exc_val, exc_tb = sys.exc_info()
+    if exc_type is None:
+        return
+
+    try:
+        _collect_exception(exc_type, exc_val, exc_tb)
+        _sampled_exceptions += 1
+    except:
+        pass
+
+
 class ExceptionCollector(collector.Collector):
     # Collects exception samples using sys.monitoring (Python 3.12+)
 
@@ -102,30 +128,46 @@ class ExceptionCollector(collector.Collector):
         _sampled_exceptions = 0
 
     def _start_service(self):
-        if not HAS_MONITORING or sys.version_info < (3, 12):
-            LOG.warning("Exception profiling requires Python 3.12+, disabling")
-            return
-
-        try:
-            sys.monitoring.use_tool_id(sys.monitoring.PROFILER_ID, "dd-trace-exception-profiler")
-            sys.monitoring.set_events(sys.monitoring.PROFILER_ID, sys.monitoring.events.EXCEPTION_HANDLED)
-            sys.monitoring.register_callback(
-                sys.monitoring.PROFILER_ID,
-                sys.monitoring.events.EXCEPTION_HANDLED,
-                _on_exception_handled,
-            )
-            LOG.debug("Using sys.monitoring.EXCEPTION_HANDLED")
-        except Exception as e:
-            LOG.error("Failed to set up exception monitoring: %s", e)
+        if sys.version_info >= (3, 12) and HAS_MONITORING:
+            # Python 3.12+: Use sys.monitoring for efficient exception tracking
+            try:
+                sys.monitoring.use_tool_id(sys.monitoring.PROFILER_ID, "dd-trace-exception-profiler")
+                sys.monitoring.set_events(sys.monitoring.PROFILER_ID, sys.monitoring.events.EXCEPTION_HANDLED)
+                sys.monitoring.register_callback(
+                    sys.monitoring.PROFILER_ID,
+                    sys.monitoring.events.EXCEPTION_HANDLED,
+                    _on_exception_handled,
+                )
+                LOG.debug("Using sys.monitoring.EXCEPTION_HANDLED")
+            except Exception as e:
+                LOG.error("Failed to set up exception monitoring: %s", e)
+                return
+        elif sys.version_info >= (3, 10):
+            # Python 3.10/3.11: Use bytecode injection
+            try:
+                from ddtrace.profiling.collector._exception_bytecode import install_bytecode_exception_profiling
+                install_bytecode_exception_profiling(_on_exception_bytecode)
+                LOG.debug("Using bytecode injection for exception profiling")
+            except Exception as e:
+                LOG.error("Failed to set up bytecode exception profiling: %s", e)
+                return
+        else:
+            LOG.warning("Exception profiling requires Python 3.10+, disabling")
             return
 
         LOG.info("ExceptionCollector started: interval=%d", _sampling_interval)
 
     def _stop_service(self):
-        if HAS_MONITORING and sys.version_info >= (3, 12):
+        if sys.version_info >= (3, 12) and HAS_MONITORING:
             try:
                 sys.monitoring.set_events(sys.monitoring.PROFILER_ID, 0)
                 sys.monitoring.free_tool_id(sys.monitoring.PROFILER_ID)
+            except:
+                pass
+        elif sys.version_info >= (3, 10):
+            try:
+                from ddtrace.profiling.collector._exception_bytecode import uninstall_bytecode_exception_profiling
+                uninstall_bytecode_exception_profiling()
             except:
                 pass
 
