@@ -48,13 +48,9 @@ jobs:
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
 
           TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
+          MERGE_COMMIT=$(git rev-parse HEAD)
           WORKTREE=".worktrees/backport-${TARGET_BRANCH}"
           BACKPORT_BRANCH="backport-${PR_NUMBER}-to-${TARGET_BRANCH}"
-
-          git checkout main
-          git fetch
-          git merge origin/${PR_BRANCH}
-          MERGE_COMMIT=$(git rev-parse HEAD)
 
           git worktree add ${WORKTREE} ${TARGET_BRANCH}
           cd ${WORKTREE}
@@ -65,7 +61,7 @@ jobs:
 
           echo "branch=${BACKPORT_BRANCH}" | tee -a "$GITHUB_OUTPUT"
           echo "branch-from=${TARGET_BRANCH}" | tee -a "$GITHUB_OUTPUT"
-          echo "commit=${MERGE_COMMIT}" | tee -a "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" | tee -a "$GITHUB_OUTPUT"
 
       - name: Push Commit
         uses: DataDog/commit-headless@action/v0.5.2
