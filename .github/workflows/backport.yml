@@ -16,7 +16,7 @@ jobs:
     # the first || is only for testing
     if: >
       github.event.pull_request.merged
-      || (
+      && (
         github.event.action == 'closed'
         || (
           github.event.action == 'labeled'
