@@ -290,7 +290,10 @@ class LLMObs(Service):
     def _on_span_finish(self, span: Span) -> None:
         if not self.enabled or span.span_type != SpanTypes.LLM:
             return
-        span_kind = span._get_ctx_item(SPAN_KIND)
+        llmobs_span_data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
+        if llmobs_span_data is None:
+            return
+        span_kind = llmobs_span_data["meta"].get("span.kind")
         if span_kind and span_kind == "llm":
             core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
 
@@ -1453,7 +1456,7 @@ class LLMObs(Service):
             return span
 
         llmobs_span_data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
-        llmobs_span_data["meta"]["span_kind"] = operation_kind
+        llmobs_span_data["meta"]["span.kind"] = operation_kind
         if model_name is not None:
             llmobs_span_data["meta"]["model_name"] = model_name
         if model_provider is not None:
@@ -1469,8 +1472,9 @@ class LLMObs(Service):
                 "Ensure the name of your LLM application is set via `DD_LLMOBS_ML_APP` or `LLMObs.enable(ml_app='...')`"
                 "before running your application."
             )
+        llmobs_span_data["ml_app"] = ml_app
         span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})
-        # TODO: MOVE THESE TO META_STRUCT?
+        span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_span_data)
         log.debug(
             "Starting LLMObs span: %s, span_kind: %s, ml_app: %s",
             name,
@@ -1861,7 +1865,7 @@ class LLMObs(Service):
                 validated_tool_definitions = extract_tool_definitions(tool_definitions)
                 if validated_tool_definitions:
                     llmobs_span_data["meta"]["tool_definitions"] = validated_tool_definitions
-            span_kind = span._get_ctx_item(SPAN_KIND) # TODO: How to move this to meta_struct?
+            span_kind = llmobs_span_data["meta"].get("span.kind")
             if _name is not None:
                 span.name = _name
             if prompt is not None:

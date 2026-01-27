@@ -28,14 +28,21 @@ MCP_TOOL_CALL_INTENT = "_ml_obs.meta.intent"
 
 class LLMOBS_STRUCT:
     KEY = "llmobs"
-    SPAN_KIND = "span.kind"
-    MODEL_NAME = "model_name"
-    MODEL_PROVIDER = "model_provider"
+    NAME = "name"
     TAGS = "tags"
     PROMPT = "prompt"
     METRICS = "metrics"
     METADATA = "metadata"
     SPAN_LINKS = "span_links"
+    META = "meta"
+    INPUT = "input"
+    OUTPUT = "output"
+    VALUE = "value"
+    MESSAGES = "messages"
+    AGENT_MANIFEST = "agent_manifest"
+    SPAN_KIND = "span.kind"
+    MODEL_NAME = "model_name"
+    MODEL_PROVIDER = "model_provider"
 
 
 SPAN_START_WHILE_DISABLED_WARNING = (

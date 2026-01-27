@@ -72,10 +72,6 @@ class BaseLLMIntegration:
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
         self._set_base_span_tags(span, **kwargs)
-        if self.llmobs_enabled:
-            llmobs_span_data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
-            tags = llmobs_span_data.get("tags", {})
-            tags["integration"] = self._integration_name
         return span
 
     def llmobs_set_tags(
@@ -90,6 +86,8 @@ class BaseLLMIntegration:
         if not self.llmobs_enabled or not self.is_pc_sampled_llmobs(span):
             return
         llmobs_span_data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
+        tags = llmobs_span_data.get("tags", {})
+        tags["integration"] = self._integration_name
         try:
             self._llmobs_set_tags(span, llmobs_span_data, args, kwargs, response, operation)
         except Exception:
