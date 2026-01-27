@@ -301,20 +301,6 @@ class _ProfiledLock:
         """Get lock variable name from the caller's frame."""
         if self.name is not None:
             return
-<<<<<<< HEAD
-
-        try:
-            # We expect the call stack to be like this:
-            # 0: this
-            # 1: _acquire/_release
-            # 2: acquire/release (or __enter__/__exit__)
-            # 3: caller frame
-            if config.enable_asserts:
-                frame: FrameType = sys._getframe(1)
-                if frame.f_code.co_name not in ACQUIRE_RELEASE_CO_NAMES:
-                    raise AssertionError(f"Unexpected frame in stack: '{frame.f_code.co_name}'")
-=======
->>>>>>> 57e8f8fbc9 (fix crashes due to shallow stacks)
 
         try:
             # We expect the call stack to be like this:
