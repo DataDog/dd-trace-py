@@ -42,7 +42,7 @@ def _mark_wrapped(obj):
     try:
         target.__dd_wrapped__ = True
     except Exception:
-        pass
+        pass  # nosec
 
 
 def _clear_wrapped(obj):
@@ -50,7 +50,7 @@ def _clear_wrapped(obj):
         if hasattr(obj, "__dd_wrapped__"):
             delattr(obj, "__dd_wrapped__")
     except Exception:
-        pass
+        pass  # nosec
 
 
 def get_version() -> str:
