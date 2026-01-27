@@ -53,7 +53,6 @@ from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_MAX_SIZE
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
-from ddtrace.llmobs._constants import DEFAULT_PROMPTS_LABEL
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_TIMEOUT
 from ddtrace.llmobs._constants import DISPATCH_ON_GUARDRAIL_SPAN_START
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_SPAN_FINISH
@@ -1393,7 +1392,7 @@ class LLMObs(Service):
         Retrieve a prompt template from the Datadog Prompt Registry.
 
         :param prompt_id: The unique identifier of the prompt in the registry
-        :param label: Deployment label (e.g., "prod", "dev"). Defaults to "prod"
+        :param label: Deployment label (e.g., "prod", "dev"). If not provided, returns the latest version.
         :param fallback: Fallback to use if prompt cannot be fetched (cold start + API failure).
                          Can be a template string, message list, Prompt dict, or a callable that
                          returns any of those. If None, returns empty prompt.
@@ -1402,11 +1401,11 @@ class LLMObs(Service):
 
         Example::
 
-            # Simple usage
+            # Simple usage - returns the latest version
             prompt = LLMObs.get_prompt("greeting")
             messages = prompt.format(user="Alice")
 
-            # With label and fallback
+            # With explicit label and fallback
             prompt = LLMObs.get_prompt(
                 "greeting",
                 label="prod",
@@ -1424,7 +1423,7 @@ class LLMObs(Service):
         """
         prompt_manager = cls._ensure_prompt_manager()
         if prompt_manager is None:
-            return ManagedPrompt.from_fallback(prompt_id, label or DEFAULT_PROMPTS_LABEL, fallback)
+            return ManagedPrompt.from_fallback(prompt_id, fallback)
 
         return prompt_manager.get_prompt(prompt_id, label, fallback)
 
@@ -1456,7 +1455,7 @@ class LLMObs(Service):
 
         Args:
             prompt_id: The prompt identifier.
-            label: The prompt label. Defaults to "prod".
+            label: The prompt label. If not provided, returns the latest version.
 
         Returns:
             The refreshed prompt, or None if fetch failed or prompt manager is not available.
