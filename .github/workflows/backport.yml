@@ -54,6 +54,7 @@ jobs:
 
           git worktree add ${WORKTREE} ${TARGET_BRANCH}
           cd ${WORKTREE}
+          git branch -D ${BACKPORT_BRANCH} || true
           echo "switching"
           git switch --create ${BACKPORT_BRANCH}
           echo "cherrypicking"
