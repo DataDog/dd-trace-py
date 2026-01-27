@@ -4,8 +4,12 @@ from typing import Dict
 from typing import List
 from typing import Literal
 from typing import Optional
+from typing import Type
+from typing import TypeVar
 
 from ddtrace.internal.constants import SPAN_API_DATADOG
+
+_SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
 
 class DDSketch:
     def __init__(self): ...
@@ -518,8 +522,8 @@ class SpanData:
     name: str
     service: Optional[str]
 
-    def __init__(
-        self,
+    def __new__(
+        cls: Type[_SpanDataT],
         name: str,
         service: Optional[str] = None,
         resource: Optional[str] = None,
@@ -530,7 +534,7 @@ class SpanData:
         start: Optional[int] = None,
         span_api: str = SPAN_API_DATADOG,
         links: Optional[List[Any]] = None,
-    ): ...
+    ) -> _SpanDataT: ...
 
 class SpanEventData:
     def __init__(self, name: str, attributes: Optional[Dict[str, Any]], time_unix_nano: Optional[int]): ...
