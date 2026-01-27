@@ -45,6 +45,9 @@ class Sampler
     bool do_adaptive_sampling = true;
     void adapt_sampling_interval();
 
+    void atfork_child();
+    friend void _stack_atfork_child();
+
   public:
     // Singleton instance
     static Sampler& get();
