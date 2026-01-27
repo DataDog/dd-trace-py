@@ -34,5 +34,9 @@ class GreenletInfo
     {
     }
 
+#if PY_VERSION_HEX >= 0x030b0000
+    int unwind(StackChunk* stack_chunk, PyObject*, PyThreadState*, FrameStack&);
+#else
     int unwind(PyObject*, PyThreadState*, FrameStack&);
+#endif
 };
