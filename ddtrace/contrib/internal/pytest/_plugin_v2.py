@@ -983,8 +983,8 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     from ddtrace.contrib.internal.coverage_integration import CoverageIntegration
     from ddtrace.internal.telemetry import telemetry_writer
     from ddtrace.testing.internal.env_tags import get_env_tags
-    from ddtrace.testing.internal.telemetry import TelemetryAPI
     from ddtrace.testing.internal.http import BackendConnectorSetup
+    from ddtrace.testing.internal.telemetry import TelemetryAPI
 
     global _early_coverage_integration
 
