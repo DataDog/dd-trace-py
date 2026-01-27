@@ -987,18 +987,18 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
     global _early_coverage_integration
 
+    # Get env_tags once and reuse across both paths to avoid duplicate git command execution
+    env_tags = get_env_tags()
+    
     # Use early initialized coverage integration if available, otherwise create new one
     if _early_coverage_integration:
         log.debug("Using early initialized coverage integration")
         coverage_integration = _early_coverage_integration
-        # Update with telemetry writer and env_tags for session finish
+        # Update with telemetry writer and reuse cached env_tags (which includes git metadata)
         coverage_integration.telemetry_writer = telemetry_writer
-        # Now it's safe to get env_tags since all infrastructure is ready
-        env_tags = get_env_tags()
         coverage_integration.env_tags = env_tags
-        log.debug("Updated early coverage integration with env_tags")
+        log.debug("Updated early coverage integration with %d cached env_tags", len(env_tags))
     else:
-        env_tags = get_env_tags()
         coverage_integration = CoverageIntegration(telemetry_writer=telemetry_writer, env_tags=env_tags)
         coverage_integration.initialize(session.config)
 

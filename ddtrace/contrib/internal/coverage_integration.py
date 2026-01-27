@@ -801,7 +801,7 @@ class CoverageIntegration:
         if self.env_tags:
             # Log some key tags to verify they're populated
             repo_url = self.env_tags.get("git.repository_url", "NOT_FOUND")
-            branch = self.env_tags.get("git.branch", "NOT_FOUND") 
+            branch = self.env_tags.get("git.branch", "NOT_FOUND")
             sha = self.env_tags.get("git.commit.sha", "NOT_FOUND")
             log.debug("Key git tags: repo_url=%s, branch=%s, sha=%s", repo_url, branch, sha)
 
