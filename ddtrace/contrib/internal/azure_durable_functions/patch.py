@@ -36,11 +36,10 @@ config._add(
 
 
 def _mark_wrapped(obj):
-    target = getattr(obj, "__wrapped__", None)
-    if target is None:
+    if getattr(obj, "__wrapped__", None) is not None:
         return
     try:
-        target.__dd_wrapped__ = True
+        obj.__dd_wrapped__ = True
     except Exception:
         pass  # nosec
 
