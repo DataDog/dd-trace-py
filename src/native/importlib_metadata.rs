@@ -236,7 +236,6 @@ pub struct Distribution {
     metadata: Py<PyDict>,
     #[pyo3(get)]
     version: String,
-    debug: bool,
 }
 
 #[pymethods]
@@ -344,36 +343,8 @@ impl Distribution {
         let file_path = self.path.join(filename);
 
         match fs::read_to_string(&file_path) {
-            Ok(content) => {
-                if self.debug && self.name == "pytest-cov" && filename == "top_level.txt" {
-                    eprintln!(
-                        "DEBUG RUST: pytest-cov top_level.txt SUCCESS at: {:?}",
-                        file_path
-                    );
-                    eprintln!("DEBUG RUST: content: {:?}", content);
-                }
-                Ok(Some(content))
-            }
-            Err(e) => {
-                if self.debug && self.name == "pytest-cov" && filename == "top_level.txt" {
-                    eprintln!(
-                        "DEBUG RUST: pytest-cov top_level.txt FAILED at: {:?}",
-                        file_path
-                    );
-                    eprintln!("DEBUG RUST: error: {}", e);
-                    eprintln!("DEBUG RUST: file exists: {}", file_path.exists());
-                    eprintln!("DEBUG RUST: dist path: {:?}", self.path);
-
-                    // Check if directory exists and list contents
-                    if self.path.is_dir() {
-                        if let Ok(entries) = fs::read_dir(&self.path) {
-                            eprintln!("DEBUG RUST: Directory contents:");
-                            for entry in entries.flatten() {
-                                eprintln!("  {:?}", entry.file_name());
-                            }
-                        }
-                    }
-                }
+            Ok(content) => Ok(Some(content)),
+            Err(_) => {
                 // Match stdlib behavior - suppress various error types and return None
                 // This matches importlib.metadata's suppress() context manager behavior
                 Ok(None)
@@ -384,39 +355,23 @@ impl Distribution {
 
 /// Fast distributions() implementation
 #[pyfunction]
-#[pyo3(signature = (debug=false))]
-pub fn distributions(py: Python, debug: bool) -> PyResult<Vec<Py<Distribution>>> {
+pub fn distributions(py: Python) -> PyResult<Vec<Py<Distribution>>> {
     // Get sys.path from Python
     let sys = py.import("sys")?;
     let path_attr = sys.getattr("path")?;
     let path_list = path_attr.cast::<PyList>()?;
 
-    if debug {
-        eprintln!("DEBUG RUST: sys.path scanning");
-    }
     let mut paths = Vec::with_capacity(path_list.len());
-    for (i, item) in path_list.iter().enumerate() {
+    for item in path_list.iter() {
         if let Ok(path_str) = item.extract::<String>() {
-            if debug {
-                eprintln!("DEBUG RUST: sys.path[{}] = {:?}", i, path_str);
-            }
             // Empty string in sys.path means current directory
             let path = if path_str.is_empty() {
-                let resolved = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-                if debug {
-                    eprintln!("DEBUG RUST: empty string resolved to {:?}", resolved);
-                }
-                resolved
+                std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
             } else {
                 PathBuf::from(path_str)
             };
             if path.exists() && path.is_dir() {
-                if debug {
-                    eprintln!("DEBUG RUST: scanning {:?}", path);
-                }
                 paths.push(path);
-            } else if debug {
-                eprintln!("DEBUG RUST: skipping {:?} (not exists or not dir)", path);
             }
         }
     }
@@ -453,16 +408,7 @@ pub fn distributions(py: Python, debug: bool) -> PyResult<Vec<Py<Distribution>>>
                 path: info.path.clone(),
                 metadata: metadata_dict.unbind(),
                 version: version.clone(),
-                debug,
             };
-
-            if name == "pytest-cov" && debug {
-                eprintln!(
-                    "DEBUG RUST: Found pytest-cov distribution at {:?}",
-                    info.path
-                );
-                eprintln!("DEBUG RUST: pytest-cov version: {}", version);
-            }
 
             result.push(Py::new(py, dist)?);
         }

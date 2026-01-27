@@ -611,5 +611,11 @@ def distributions() -> List[Distribution]:
     """
     Fast Rust implementation of importlib.metadata.distributions().
     Returns a list of all distributions found in sys.path.
+
+    This is an optimized drop-in replacement for importlib.metadata.distributions()
+    that provides significant startup performance improvements by:
+    - Using efficient Rust code for filesystem scanning
+    - Parsing only essential metadata fields (name, version)
+    - Avoiding expensive Python object creation overhead
     """
     ...
