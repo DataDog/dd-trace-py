@@ -1,16 +1,14 @@
 dependency,integration,minimum_tracer_supported,max_tracer_supported,auto-instrumented
 aiobotocore,aiobotocore,1.0.7,3.1.1,False
-aiohttp,aiohttp,3.7.4.post0,3.13.3,True
+aiohttp,aiohttp,3.13.3,3.13.3,True
 aiohttp-jinja2,aiohttp_jinja2,1.5.1,1.6,True
 aiohttp_jinja2,aiohttp_jinja2,1.5.1,1.6,True
 aiokafka,aiokafka,0.9.0,0.13.0,True
-aiomysql,aiomysql,0.1.1,0.3.2,True
+aiomysql,aiomysql,0.1.1,0.1.1,True
 aiopg,aiopg *,0.16.0,1.4.0,True
-algoliasearch,algoliasearch *,2.6.3,2.6.3,True
 anthropic,anthropic,0.28.1,0.76.0,True
-aredis,aredis,1.1.8,1.1.8,True
-pytest-asyncio,asyncio *,0.21.1,1.3.0,True
-asyncpg,asyncpg,0.23.0,0.31.0,True
+pytest-asyncio,asyncio *,0.21.1,0.21.1,True
+asyncpg,asyncpg,0.31.0,0.31.0,True
 avro,avro,1.12.1,1.12.1,True
 datadog-lambda,aws_lambda,8.121.0,8.121.0,True
 datadog_lambda,aws_lambda,8.121.0,8.121.0,True
@@ -19,38 +17,37 @@ azure-functions,azure_functions *,1.10.1,1.24.0,True
 azure-servicebus,azure_servicebus *,7.14.3,7.14.3,True
 boto3,botocore *,1.34.49,1.38.26,True
 botocore,botocore *,1.34.49,1.38.26,True
-bottle,bottle,0.12.25,0.13.4,True
+bottle,bottle,0.12.25,0.12.25,True
 celery,celery,5.6.2,5.6.2,True
-cherrypy,cherrypy,17.0.0,18.10.0,False
+cherrypy,cherrypy,18.10.0,18.10.0,False
 python-consul,consul,1.1.0,1.1.0,True
-crewai,crewai,0.102.0,1.9.0,True
-django,django,2.2.28,6.0.1,True
+crewai,crewai,0.102.0,1.9.1,True
+django,django,2.2.28,4.2.27,True
 dogpile-cache,dogpile_cache,0.6.8,1.5.0,True
 dogpile.cache,dogpile_cache,0.6.8,1.5.0,True
 dogpile_cache,dogpile_cache,0.6.8,1.5.0,True
-dramatiq,dramatiq,1.10.0,2.0.1,True
+dramatiq,dramatiq,1.18.0,2.0.1,True
 elastic-transport,elasticsearch,8.17.1,9.2.1,True
 elasticsearch,elasticsearch,7.13.4,9.2.1,True
-elasticsearch1,elasticsearch,1.10.0,1.10.0,True
+elasticsearch1,elasticsearch,1.1.0,3.1.0,True
 elasticsearch2,elasticsearch,2.5.1,2.5.1,True
 elasticsearch5,elasticsearch,5.5.6,5.5.6,True
-elasticsearch6,elasticsearch,6.8.2,6.8.2,True
+elasticsearch6,elasticsearch,1.1.0,3.1.0,True
 elasticsearch7,elasticsearch,7.13.4,7.17.13,True
 opensearch-py,elasticsearch,1.1.0,3.1.0,True
 falcon,falcon,3.0.1,4.2.0,True
-fastapi,fastapi,0.64.0,0.128.0,True
+fastapi,fastapi,0.90.1,0.128.0,True
 flask,flask,1.1.4,3.1.2,True
-flask-cache,flask_cache,0.13.1,0.13.1,False
+flask-cache,flask_cache,1.10.1,2.3.1,False
 flask-caching,flask_cache,1.10.1,2.3.1,False
 gevent,gevent,21.1.2,25.9.1,True
-google-adk,google_adk,1.0.0,1.23.0,True
+google-adk,google_adk,1.0.0,1.0.0,True
 google-genai,google_genai,1.47.0,1.60.0,True
-graphql-core,graphql,3.1.7,3.2.7,True
-grpcio,grpc,1.34.1,1.76.0,True
+graphql-core,graphql,3.2.7,3.2.7,True
+grpcio,grpc,1.34.1,1.49.1,True
 httpx,httpx,0.25.2,0.28.1,True
-jinja2,jinja2,2.10.3,3.1.6,True
-confluent-kafka,kafka,1.9.2,2.13.0,True
-kombu,kombu,4.6.11,5.6.2,False
+jinja2,jinja2,3.0.3,3.1.6,True
+kombu,kombu,5.6.2,5.6.2,False
 langchain-core,langchain,0.1.53,1.2.7,True
 langgraph,langgraph,0.2.23,1.0.7,True
 langgraph-checkpoint,langgraph,1.0.12,4.0.0,True
@@ -58,43 +55,40 @@ langgraph-prebuilt,langgraph,0.1.8,1.0.7,True
 litellm,litellm *,1.65.4,1.80.16,True
 logbook,logbook,1.0.0,1.9.2,True
 loguru,loguru,0.4.1,0.7.3,True
-mako,mako,1.0.14,1.3.10,True
 mariadb,mariadb,1.0.11,1.1.14,True
 mcp,mcp,1.10.1,1.26.0,True
 molten,molten,1.0.2,1.0.2,True
-mysql-connector-python,mysql,8.0.5,9.6.0,True
-mysqlclient,mysqldb,2.2.6,2.2.7,True
-openai,openai,1.0.0,2.15.0,True
+mysql-connector-python,mysql,8.0.33,9.6.0,True
+mysqlclient,mysqldb,2.2.6,2.2.6,True
+openai,openai,1.0.0,1.76.2,True
 openai-agents,openai_agents,0.0.19,0.7.0,True
 protobuf,protobuf,6.33.4,6.33.4,False
-psycopg,psycopg,3.0.18,3.3.2,True
+psycopg,psycopg,3.2.13,3.2.13,True
 psycopg2-binary,psycopg,2.9.11,2.9.11,True
 pydantic-ai-slim,pydantic_ai *,0.3.0,0.8.1,True
 pylibmc,pylibmc,1.6.3,1.6.3,True
 pymemcache,pymemcache,3.4.4,4.0.0,True
-pymongo,pymongo,3.8.0,4.16.0,True
+pymongo,pymongo,3.12.3,4.16.0,True
 pymysql,pymysql,0.10.1,1.1.2,True
 pynamodb,pynamodb *,5.5.1,5.5.1,True
 pyodbc,pyodbc,4.0.39,5.3.0,True
-pyramid,pyramid,1.10.8,2.0.2,True
-pytest,pytest,6.2.5,9.0.2,False
-pytest-bdd,pytest_bdd *,4.1.0,6.0.1,False
-ray,ray *,2.46.0,2.53.0,False
+pyramid,pyramid,2.0.2,2.0.2,True
+pytest,pytest,7.4.4,9.0.2,False
+pytest-bdd,pytest_bdd *,6.0.1,6.0.1,False
+ray,ray *,2.53.0,2.53.0,False
 redis,redis,4.6.0,7.1.0,True
 redis-py-cluster,rediscluster,2.0.0,2.1.3,True
-requests,requests,2.25.1,2.32.5,True
-rq,rq,1.8.1,2.6.1,True
-sanic,sanic,20.12.7,25.12.0,True
-snowflake-connector-python,snowflake,2.4.6,4.0.0,False
-sqlalchemy,sqlalchemy,1.3.24,2.0.46,False
-pysqlite3-binary,sqlite3,0.5.4.post2,0.5.4.post2,True
-starlette,starlette,0.14.2,0.52.1,True
-structlog,structlog,20.2.0,25.5.0,True
-tornado,tornado *,6.1,6.5.4,False
-urllib3,urllib3,1.25.8,2.6.3,False
+requests,requests,2.32.5,2.32.5,True
+rq,rq,2.6.1,2.6.1,True
+sanic,sanic,20.12.7,22.12.0,True
+snowflake-connector-python,snowflake,2.7.12,4.0.0,False
+starlette,starlette,0.20.4,0.52.1,True
+structlog,structlog,25.5.0,25.5.0,True
+tornado,tornado *,6.2,6.4.1,False
+urllib3,urllib3,1.26.6,2.6.3,False
 valkey,valkey,6.1.1,6.1.1,True
 google-cloud-aiplatform,vertexai,1.71.1,1.71.1,True
 vertexai,vertexai,1.71.1,1.71.1,True
-vertica-python,vertica *,0.6.14,0.7.4,True
+vertica-python,vertica *,0.6.14,0.6.14,True
 vllm,vllm *,0.14.1,0.14.1,True
-yaaredis,yaaredis,2.0.4,3.0.0,True
+yaaredis,yaaredis,3.0.0,3.0.0,True
