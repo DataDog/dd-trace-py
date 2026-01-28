@@ -117,7 +117,7 @@ def start_coverage(
             _last_coverage_instance = existing
             return existing
     except Exception:
-        pass
+        log.debug("Failed to access running coverage", exc_info=True)
 
     try:
         cov = Coverage(
