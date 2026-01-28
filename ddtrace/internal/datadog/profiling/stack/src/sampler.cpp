@@ -8,7 +8,6 @@
 #include "echion/errors.h"
 #include "echion/greenlets.h"
 #include "echion/interp.h"
-#include "echion/strings.h"
 #include "echion/tasks.h"
 #include "echion/threads.h"
 #include "echion/vm.h"
@@ -184,7 +183,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
         });
 
         Sample::profile_borrow().stats().increment_sampling_event_count();
-        Sample::profile_borrow().stats().set_string_table_count(string_table.size());
+        Sample::profile_borrow().stats().set_string_table_count(echion->string_table().size());
 
         if (do_adaptive_sampling) {
             // Adjust the sampling interval at most every second
@@ -286,9 +285,7 @@ _stack_atfork_child()
     // Clear renderer caches to avoid using stale interned IDs
     Sampler::get().postfork_child();
 
-    // Reset the string_table mutex to avoid deadlock if fork happened while it was held
-    // Note: task_link_map_lock and greenlet_info_map_lock are handled in EchionSampler::postfork_child
-    string_table.postfork_child();
+    // Note: string_table mutex reset is handled in EchionSampler::postfork_child
 }
 
 __attribute__((constructor)) void
@@ -300,7 +297,10 @@ _stack_init()
 void
 Sampler::one_time_setup()
 {
-    init_frame_cache(echion_frame_cache_size);
+    echion->init_frame_cache(echion_frame_cache_size);
+
+    // Give the renderer access to the string table for lookups
+    renderer_ptr->set_string_table(echion->string_table());
 
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the atfork handler to ensure that we're tracking the correct process
@@ -417,8 +417,18 @@ Sampler::weak_link_tasks(PyObject* parent, PyObject* child)
     echion->weak_task_link_map()[child] = parent;
 }
 
+Result<uintptr_t>
+Sampler::get_greenlet_name_key(PyObject* name)
+{
+    auto maybe_key = echion->string_table().key(name, StringTag::GreenletName);
+    if (!maybe_key) {
+        return ErrorKind::LookupError;
+    }
+    return *maybe_key;
+}
+
 void
-Sampler::track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* frame)
+Sampler::track_greenlet(uintptr_t greenlet_id, uintptr_t name_key, PyObject* frame)
 {
     const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
 
@@ -426,9 +436,9 @@ Sampler::track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* 
     auto entry = greenlet_info_map.find(greenlet_id);
     if (entry != greenlet_info_map.end()) {
         // Greenlet is already tracked so we update its info
-        entry->second = std::make_unique<GreenletInfo>(greenlet_id, frame, name);
+        entry->second = std::make_unique<GreenletInfo>(greenlet_id, frame, name_key);
     } else {
-        greenlet_info_map.emplace(greenlet_id, std::make_unique<GreenletInfo>(greenlet_id, frame, name));
+        greenlet_info_map.emplace(greenlet_id, std::make_unique<GreenletInfo>(greenlet_id, frame, name_key));
     }
 
     // Update the thread map
