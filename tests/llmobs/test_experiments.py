@@ -1931,7 +1931,7 @@ def test_experiment_span_multi_run_tags(llmobs, llmobs_events, test_dataset_one_
         assert event["_dd"]["scope"] == "experiments"
 
 
-# Tests for evaluator concurrency (evaluator_jobs parameter)
+# Tests for evaluator concurrency (jobs parameter)
 
 
 def test_evaluators_run_with_jobs_parameter(llmobs, test_dataset_one_record):
@@ -2000,7 +2000,7 @@ def test_evaluators_with_errors_concurrent(llmobs, test_dataset_one_record):
 
 
 def test_summary_evaluators_run_concurrently(llmobs, test_dataset_one_record):
-    """Test that summary evaluators can run with evaluator_jobs > 1."""
+    """Test that summary evaluators can run with jobs > 1."""
 
     def summary_eval_1(inputs, outputs, expected_outputs, evaluators_results):
         return 10

@@ -668,16 +668,13 @@ class Experiment:
         jobs: int = 1,
         raise_errors: bool = False,
         sample_size: Optional[int] = None,
-        evaluator_jobs: int = 1,
     ) -> ExperimentResult:
         """Run the experiment by executing the task on all dataset records and evaluating the results.
 
-        :param jobs: Maximum number of concurrent task executions (default: 1)
+        :param jobs: Maximum number of concurrent task and evaluator executions (default: 1)
         :param raise_errors: Whether to raise exceptions on task or evaluator errors (default: False)
         :param sample_size: Optional number of dataset records to sample for testing
                             (default: None, uses full dataset)
-        :param evaluator_jobs: Maximum number of concurrent evaluator and summary evaluator executions
-                               (default: 1, sequential execution)
         :return: ExperimentResult containing evaluation results and metadata
         """
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
@@ -713,8 +710,8 @@ class Experiment:
             self._tags["run_id"] = str(run._id)
             self._tags["run_iteration"] = str(run._run_iteration)
             task_results = self._run_task(jobs, run, raise_errors, sample_size)
-            evaluations = self._run_evaluators(task_results, raise_errors=raise_errors, jobs=evaluator_jobs)
-            summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=evaluator_jobs)
+            evaluations = self._run_evaluators(task_results, raise_errors=raise_errors, jobs=jobs)
+            summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=jobs)
             run_result = self._merge_results(run, task_results, evaluations, summary_evals)
             experiment_evals = self._generate_metrics_from_exp_results(run_result)
             self._llmobs_instance._dne_client.experiment_eval_post(
