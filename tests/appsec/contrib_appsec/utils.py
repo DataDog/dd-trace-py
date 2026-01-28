@@ -1667,7 +1667,20 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize("ep_enabled", [True, False])
     @pytest.mark.parametrize(
         ["endpoint", "parameters", "rule", "top_functions"],
-        [("lfi", {"filename1": "/etc/passwd", "filename2": "/etc/master.passwd"}, "rasp-930-100", ("rasp",))]
+        [
+            (
+                "lfi",
+                {"filename1": "/etc/passwd", "filename2": "/etc/master.passwd"},
+                "rasp-930-100",
+                ("rasp",),
+            ),
+            (
+                "lfi",
+                {"filename_pathlib1": "/etc/passwd", "filename_pathlib2": "/etc/master.passwd"},
+                "rasp-930-100",
+                ("rasp",),
+            ),
+        ]
         + [
             ("ssrf", {f"url_{p1}_1": "169.254.169.254", f"url_{p2}_2": "169.254.169.253"}, "rasp-934-100", (f1, f2))
             for (p1, f1), (p2, f2) in itertools.product(
