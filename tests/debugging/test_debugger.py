@@ -624,6 +624,101 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
             assert snapshot.probe.probe_id == "line-probe-wrapped-method"
 
 
+def test_debugger_function_and_line_probse_on_lazy_wrapped_function(stuff):
+    """Test that we can correctly instrument view functions with line and function
+    probes.
+    """
+    from ddtrace.internal.wrapping.context import LazyWrappingContext
+
+    class CounterWC(LazyWrappingContext):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.count = 0
+
+        def __enter__(self):
+            self.count += 1
+            return super().__enter__()
+
+    (wc := CounterWC(stuff.durationstuff)).wrap()
+
+    line_probes = [
+        create_snapshot_line_probe(
+            probe_id=f"line-probe-lazy-wrapping-{n}",
+            source_file="tests/submod/stuff.py",
+            line=132,
+            condition=None,
+            rate=float("inf"),
+        )
+        for n in range(10)
+    ]
+
+    function_probes = [
+        create_snapshot_function_probe(
+            probe_id=f"function-probe-lazy-wrapping-{n}",
+            module="tests.submod.stuff",
+            func_qname="durationstuff",
+            rate=float("inf"),
+        )
+        for n in range(10)
+    ]
+
+    with debugger() as d:
+        for r in range(10):
+            d.add_probes(*function_probes, *line_probes)
+
+            stuff.durationstuff(0)
+
+            d.remove_probes(*function_probes, *line_probes)
+
+            snapshots = d.uploader.wait_for_payloads(len(function_probes) + len(line_probes))
+
+            assert {s["debugger"]["snapshot"]["probe"]["id"] for s in snapshots} == {
+                f"line-probe-lazy-wrapping-{n}" for n in range(len(line_probes))
+            } | {f"function-probe-lazy-wrapping-{n}" for n in range(len(function_probes))}
+
+            assert wc.count == r + 1
+
+
+def test_debugger_function_probe_on_lazy_wrapped_function(stuff):
+    from ddtrace.internal.wrapping.context import LazyWrappingContext
+
+    class LWC(LazyWrappingContext):
+        entered = False
+
+        def __enter__(self):
+            self.entered = True
+            return super().__enter__()
+
+    (c := LWC(stuff.throwexcstuff)).wrap()
+
+    probe = create_snapshot_function_probe(
+        probe_id="function-probe-lazy-wrapping",
+        module="tests.submod.stuff",
+        func_qname="throwexcstuff",
+        rate=float("inf"),
+    )
+
+    with debugger() as d:
+        # Test that we can re-instrument the function correctly and that we
+        # don't accidentally instrument the temporary trampoline instead.
+        for _ in range(10):
+            d.add_probes(probe)
+
+            try:
+                stuff.throwexcstuff()
+            except Exception:
+                pass
+
+            d.remove_probes(probe)
+
+            assert c.entered
+
+            c.entered = False
+
+            with d.assert_single_snapshot() as snapshot:
+                assert snapshot.probe.probe_id == "function-probe-lazy-wrapping"
+
+
 def test_probe_status_logging(remote_config_worker, stuff):
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
@@ -1163,7 +1258,7 @@ def test_debugger_modified_probe(stuff):
 
         stuff.Stuff().instancestuff()
 
-        _, msg = d.uploader.wait_for_payloads(2)
+        (msg,) = d.uploader.wait_for_payloads(1)
         assert "hello brave new world" == msg["message"], msg
         assert msg["debugger"]["snapshot"]["probe"]["version"] == 2, msg
 

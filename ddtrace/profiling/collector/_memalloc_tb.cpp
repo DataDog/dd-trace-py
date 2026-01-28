@@ -343,9 +343,6 @@ traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
     // Push allocation info to sample
     // Note: profile_state is initialized in memalloc_start() before any traceback_t objects are created
     sample.push_alloc(weighted_size, count);
-    // Push heap info - use actual size (not weighted) for heap tracking
-    // TODO(dsn): figure out if this actually makes sense, or if we should use the weighted size
-    sample.push_heap(size);
 
     // Get thread native_id and name from Python's threading module and push to sample
     push_threadinfo_to_sample(sample);
@@ -357,8 +354,7 @@ traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
 
 // AIDEV-NOTE: Constructor invokes CPython APIs via init_sample_invokes_cpython()
 traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe)
-  : reported(false)
-  , sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
+  : sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
 {
     // Validate Sample object is in a valid state before use
     if (max_nframe == 0) {
@@ -366,13 +362,5 @@ traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe)
         return;
     }
 
-    init_sample_invokes_cpython(size, weighted_size);
-}
-
-void
-traceback_t::reset_invokes_cpython(size_t size, size_t weighted_size)
-{
-    sample.clear_buffers();
-    reported = false;
     init_sample_invokes_cpython(size, weighted_size);
 }

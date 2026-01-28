@@ -1,6 +1,5 @@
 import unittest
 
-from ddtrace._trace.pin import Pin
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 
 
@@ -14,7 +13,7 @@ class CeleryPatchTest(unittest.TestCase):
         patch(celery=True)
 
         app = celery.Celery()
-        assert Pin.get_from(app) is not None
+        assert getattr(app, "__datadog_patch", False)
         unpatch()
 
     def test_patch_before_import(self):
@@ -25,7 +24,7 @@ class CeleryPatchTest(unittest.TestCase):
         import celery
 
         app = celery.Celery()
-        assert Pin.get_from(app) is not None
+        assert getattr(app, "__datadog_patch", False)
         unpatch()
 
     def test_and_emit_get_version(self):
