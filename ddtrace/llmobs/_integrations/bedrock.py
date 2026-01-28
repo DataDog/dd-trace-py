@@ -142,6 +142,7 @@ class BedrockIntegration(BaseLLMIntegration):
                 METADATA: metadata,
                 METRICS: usage_metrics if span_kind != "workflow" else {},
                 OUTPUT_MESSAGES: output_messages,
+                INTEGRATION: self._integration_name,
             }
         )
 
