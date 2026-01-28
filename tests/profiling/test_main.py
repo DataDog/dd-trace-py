@@ -222,15 +222,13 @@ def test_no_segfault_on_quick_shutdown() -> None:
     """
     import signal
 
-    SIGSEGV_EXIT_CODE = 128 + signal.SIGSEGV  # 139 on Linux
+    env = os.environ.copy()
+    env["DD_PROFILING_ENABLED"] = "1"
+    # Use a very short sampling interval to increase chance of race
+    env["DD_PROFILING_STACK_V2_INTERVAL"] = "0.001"
 
     # Run multiple iterations to catch intermittent race conditions
     for i in range(5):
-        env = os.environ.copy()
-        env["DD_PROFILING_ENABLED"] = "1"
-        # Use a very short sampling interval to increase chance of race
-        env["DD_PROFILING_STACK_V2_INTERVAL"] = "0.001"
-
         # Run a script that starts profiling and exits immediately
         stdout, stderr, exitcode, _ = call_program(
             "ddtrace-run",
@@ -242,13 +240,9 @@ def test_no_segfault_on_quick_shutdown() -> None:
             timeout=30,
         )
 
-        # Check for segfault (exit code 139 = 128 + SIGSEGV)
-        assert exitcode != SIGSEGV_EXIT_CODE, (
-            f"Iteration {i}: Profiler segfaulted during shutdown! "
-            f"Exit code: {exitcode}, stdout: {stdout}, stderr: {stderr}"
-        )
-        # Also check for other crash signals
-        assert exitcode >= 0, (
+        # Check for segfault (exit code 139 = 128 + SIGSEGV) or other crash signals
+        sigsev_exit_code: int = 128 + signal.SIGSEGV  # 139 on Linux
+        assert exitcode >= 0 and exitcode != sigsev_exit_code, (
             f"Iteration {i}: Profiler crashed during shutdown! "
             f"Exit code: {exitcode}, stdout: {stdout}, stderr: {stderr}"
         )
