@@ -57,6 +57,8 @@ class CodeProvenance:
         # would include all modules, not just stdlib modules.
         if sys.version_info >= (3, 10):
             for name in sys.stdlib_module_names:
+                if name not in sys.modules:
+                    continue
                 try:
                     spec = importlib.util.find_spec(name)
                     if spec and spec.origin == "frozen":

@@ -527,6 +527,7 @@ venv = Venv(
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
+                "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED": "0",  # DEV: Temporary, remove once merged
             },
             command="pytest -v {cmdargs} tests/internal/",
