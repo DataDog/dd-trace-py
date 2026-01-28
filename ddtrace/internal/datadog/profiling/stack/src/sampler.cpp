@@ -1,7 +1,15 @@
 #include "sampler.hpp"
 
 #include "dd_wrapper/include/sample.hpp"
+#include "python_headers.hpp"
 #include "thread_span_links.hpp"
+
+// Py_IsFinalizing() is public API in Python 3.13+, use _Py_IsFinalizing() for older versions.
+#if PY_VERSION_HEX >= 0x030d0000
+#define IS_PYTHON_FINALIZING() Py_IsFinalizing()
+#else
+#define IS_PYTHON_FINALIZING() _Py_IsFinalizing()
+#endif
 
 #include "echion/danger.h"
 #include "echion/echion_sampler.h"
@@ -169,6 +177,13 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
     auto* const runtime = &_PyRuntime;
     while (seq_num == thread_seq_num.load()) {
+        // Check if Python is finalizing to prevent segfaults during shutdown.
+        // During Python finalization, interpreter structures may be freed while this thread
+        // is still running.
+        if (IS_PYTHON_FINALIZING()) {
+            break;
+        }
+
         auto sample_time_now = steady_clock::now();
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
@@ -194,8 +209,9 @@ Sampler::sampling_thread(const uint64_t seq_num)
             }
         }
 
-        // Before sleeping, check whether the user has called for this thread to die.
-        if (seq_num != thread_seq_num.load()) {
+        // Before sleeping, check whether the user has called for this thread to die,
+        // or if Python is finalizing.
+        if (seq_num != thread_seq_num.load() || IS_PYTHON_FINALIZING()) {
             break;
         }
 
