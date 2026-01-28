@@ -25,6 +25,7 @@ from ddtrace.llmobs._constants import INPUT_TYPE_IMAGE
 from ddtrace.llmobs._constants import INPUT_TYPE_TEXT
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_AUTO
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
@@ -36,6 +37,7 @@ from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
@@ -906,11 +908,13 @@ def set_prompt_tracking_tags(span: Span, *, is_multimodal: bool = False) -> None
     if is_multimodal:
         new_tags[PROMPT_MULTIMODAL] = "true"
 
-    existing_tags = span._get_ctx_item(TAGS)
-    if existing_tags:
-        existing_tags.update(new_tags)
-    else:
-        span._set_ctx_item(TAGS, new_tags)
+    llmobs_span_data = _get_llmobs_data_metastruct(span)
+    existing_tags = llmobs_span_data.get(LLMOBS_STRUCT.TAGS)
+    if existing_tags is None:
+        existing_tags = {}
+        llmobs_span_data[LLMOBS_STRUCT.TAGS] = existing_tags
+    existing_tags.update(new_tags)
+    span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_span_data)
 
 
 def openai_set_meta_tags_from_response(

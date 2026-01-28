@@ -6,13 +6,14 @@ from ddtrace.internal.utils import get_argument_value
 
 
 class TracedPydanticAsyncContextManager(wrapt.ObjectProxy):
-    def __init__(self, wrapped, span, instance, integration, args, kwargs):
+    def __init__(self, wrapped, span, instance, integration, args, kwargs, operation):
         super().__init__(wrapped)
         self._dd_span = span
         self._dd_instance = instance
         self._dd_integration = integration
         self._args = args
         self._kwargs = kwargs
+        self._dd_span_kind = operation
         self._agent_run = None
 
     async def __aenter__(self):
@@ -27,7 +28,7 @@ class TracedPydanticAsyncContextManager(wrapt.ObjectProxy):
                 self._dd_span.set_exc_info(exc_type, exc_val, exc_tb)
             elif self._dd_integration.is_pc_sampled_llmobs(self._dd_span):
                 self._dd_integration.llmobs_set_tags(
-                    self._dd_span, args=self._args, kwargs=self._kwargs, response=self._agent_run
+                    self._dd_span, args=self._args, kwargs=self._kwargs, response=self._agent_run, operation=self._dd_span_kind
                 )
         finally:
             if exc_type:
@@ -36,18 +37,19 @@ class TracedPydanticAsyncContextManager(wrapt.ObjectProxy):
 
 
 class TracedPydanticRunStream(wrapt.ObjectProxy):
-    def __init__(self, wrapped, span, integration, args, kwargs):
+    def __init__(self, wrapped, span, integration, args, kwargs, operation):
         super().__init__(wrapped)
         self._dd_span = span
         self._dd_integration = integration
         self._args = args
         self._kwargs = kwargs
+        self._dd_span_kind = operation
         self._streamed_run_result = None
 
     async def __aenter__(self):
         result = await self.__wrapped__.__aenter__()
         self._streamed_run_result = TracedPydanticStreamedRunResult(
-            result, self._dd_span, self._dd_integration, self._args, self._kwargs
+            result, self._dd_span, self._dd_integration, self._args, self._kwargs, self._dd_span_kind,
         )
         return self._streamed_run_result
 
@@ -63,19 +65,20 @@ class TracedPydanticRunStream(wrapt.ObjectProxy):
 
 
 class TracedPydanticStreamedRunResult(wrapt.ObjectProxy):
-    def __init__(self, wrapped, span, integration, args, kwargs):
+    def __init__(self, wrapped, span, integration, args, kwargs, operation):
         super().__init__(wrapped)
         self._dd_span = span
         self._dd_integration = integration
         self._args = args
         self._kwargs = kwargs
+        self._dd_span_kind = operation
         # needed for extracting usage metrics from the streamed run result
         self._kwargs["streamed_run_result"] = self.__wrapped__
         self._generator = None
 
     def stream(self, *args, **kwargs):
         self._generator = TracedPydanticGenerator(
-            self.__wrapped__.stream(*args, **kwargs), self._dd_span, self._dd_integration, self._args, self._kwargs
+            self.__wrapped__.stream(*args, **kwargs), self._dd_span, self._dd_integration, self._args, self._kwargs, self._dd_span_kind,
         )
         return self._generator
 
@@ -87,6 +90,7 @@ class TracedPydanticStreamedRunResult(wrapt.ObjectProxy):
             self._dd_integration,
             self._args,
             self._kwargs,
+            self._dd_span_kind,
             delta,
         )
         return self._generator
@@ -98,6 +102,7 @@ class TracedPydanticStreamedRunResult(wrapt.ObjectProxy):
             self._dd_integration,
             self._args,
             self._kwargs,
+            self._dd_span_kind,
         )
         return self._generator
 
@@ -108,24 +113,26 @@ class TracedPydanticStreamedRunResult(wrapt.ObjectProxy):
             self._dd_integration,
             self._args,
             self._kwargs,
+            self._dd_span_kind,
         )
         return self._generator
 
     async def get_output(self):
         result = await self.__wrapped__.get_output()
-        self._dd_integration.llmobs_set_tags(self._dd_span, args=self._args, kwargs=self._kwargs, response=result)
+        self._dd_integration.llmobs_set_tags(self._dd_span, args=self._args, kwargs=self._kwargs, response=result, operation=self._dd_span_kind)
         self._dd_span.finish()
         return result
 
 
 class TracedPydanticGenerator(wrapt.ObjectProxy):
-    def __init__(self, wrapped, span, integration, args, kwargs, delta=False):
+    def __init__(self, wrapped, span, integration, args, kwargs, operation, delta=False):
         super().__init__(wrapped)
         self._self_dd_span = span
         self._self_dd_integration = integration
         self._self_args = args
         self._self_kwargs = kwargs
         self._self_last_chunk = None
+        self._self_dd_span_kind = operation
         self._self_delta = delta
         self._self_span_finished = False
 
@@ -134,7 +141,7 @@ class TracedPydanticGenerator(wrapt.ObjectProxy):
             return
         self._self_span_finished = True
         self._self_dd_integration.llmobs_set_tags(
-            self._self_dd_span, args=self._self_args, kwargs=self._self_kwargs, response=self._self_last_chunk
+            self._self_dd_span, args=self._self_args, kwargs=self._self_kwargs, response=self._self_last_chunkk, operation=self._self_dd_span_kind
         )
         self._self_dd_span.finish()
 

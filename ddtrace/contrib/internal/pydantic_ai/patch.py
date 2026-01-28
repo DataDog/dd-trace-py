@@ -40,7 +40,7 @@ def traced_agent_run_stream(pydantic_ai, pin, func, instance, args, kwargs):
 
     result = func(*args, **kwargs)
     kwargs["instance"] = instance
-    return TracedPydanticRunStream(result, span, integration, args, kwargs)
+    return TracedPydanticRunStream(result, span, integration, args, kwargs, operation="agent")
 
 
 @with_traced_module
@@ -57,7 +57,7 @@ def traced_agent_iter(pydantic_ai, pin, func, instance, args, kwargs):
 
     result = func(*args, **kwargs)
     kwargs["instance"] = instance
-    return TracedPydanticAsyncContextManager(result, span, instance, integration, args, kwargs)
+    return TracedPydanticAsyncContextManager(result, span, instance, integration, args, kwargs, operation="agent")
 
 
 @with_traced_module
@@ -88,7 +88,7 @@ async def traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs, tool_n
         raise
     finally:
         kwargs["instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation="tool")
         span.finish()
 
 

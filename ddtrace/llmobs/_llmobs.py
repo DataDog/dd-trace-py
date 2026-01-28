@@ -108,6 +108,7 @@ from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_session_id
@@ -290,10 +291,10 @@ class LLMObs(Service):
     def _on_span_finish(self, span: Span) -> None:
         if not self.enabled or span.span_type != SpanTypes.LLM:
             return
-        llmobs_span_data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
+        llmobs_span_data = _get_llmobs_data_metastruct(span)
         if llmobs_span_data is None:
             return
-        span_kind = llmobs_span_data["meta"].get("span.kind")
+        span_kind = llmobs_span_data[LLMOBS_STRUCT.META].get(LLMOBS_STRUCT.SPAN_KIND)
         if span_kind and span_kind == "llm":
             core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
 
@@ -324,7 +325,7 @@ class LLMObs(Service):
         llmobs_span_data: LLMObsSpanData = {
             "trace_id": format_trace_id(llmobs_trace_id),
             "span_id": str(span.span_id),
-            "parent_id": parent_id,
+            "parent_id": "",
             "name": _get_span_name(span),
             "meta": {"input": {}, "output": {}},
             "metrics": {},
@@ -334,7 +335,7 @@ class LLMObs(Service):
         }
         if session_id:
             llmobs_span_data["session_id"] = session_id
-        # TODO: Add span links, input, output, span_kind, model_name, model_provider, metadata, scope (experiments), tool_definitions, intent
+        # TODO: Add scope (experiments), intent
         #  LLMObsSpanData doesn't need start_ns, duration, status, error msg/stack/type since we get it for free from APM span
         return llmobs_span_data
 
@@ -543,9 +544,6 @@ class LLMObs(Service):
         # TODO: Integration tag is added after span is created at integration base trace() step
         if _is_evaluation_span(span):
             tags[constants.RUNNER_IS_INTEGRATION_SPAN_TAG] = "ragas"
-        existing_tags = span._get_ctx_item(TAGS)
-        if existing_tags is not None:
-            tags.update(existing_tags)
 
         # set experiment tags on children spans if the tags do not already exist
         experiment_id = span.context.get_baggage_item(EXPERIMENT_ID_KEY)
@@ -1422,20 +1420,22 @@ class LLMObs(Service):
     def _activate_llmobs_span(self, span: Span) -> None:
         """Propagate the llmobs parent span's ID as the new span's parent ID and activate the new span."""
         llmobs_parent = self._llmobs_context_provider.active()
+        llmobs_span_data = _get_llmobs_data_metastruct(span)
         if llmobs_parent:
-            span._set_ctx_item(PARENT_ID_KEY, str(llmobs_parent.span_id))
+            llmobs_span_data[LLMOBS_STRUCT.PARENT_ID] = str(llmobs_parent.span_id)
+            parent_llmobs_span_data = _get_llmobs_data_metastruct(llmobs_parent)
             parent_llmobs_trace_id = (
-                llmobs_parent._get_ctx_item(LLMOBS_TRACE_ID)
+                parent_llmobs_span_data.get(LLMOBS_STRUCT.TRACE_ID)
                 if isinstance(llmobs_parent, Span)
                 else llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
             )
             llmobs_trace_id = (
                 int(parent_llmobs_trace_id) if parent_llmobs_trace_id is not None else llmobs_parent.trace_id
             )
-            span._set_ctx_item(LLMOBS_TRACE_ID, llmobs_trace_id)
+            llmobs_span_data[LLMOBS_STRUCT.TRACE_ID] = llmobs_trace_id
         else:
-            span._set_ctx_item(PARENT_ID_KEY, ROOT_PARENT_ID)
-            span._set_ctx_item(LLMOBS_TRACE_ID, rand128bits())
+            llmobs_span_data[LLMOBS_STRUCT.PARENT_ID] = ROOT_PARENT_ID
+            llmobs_span_data[LLMOBS_STRUCT.TRACE_ID] = rand128bits()
         self._llmobs_context_provider.activate(span)
 
     def _start_span(
@@ -1455,7 +1455,7 @@ class LLMObs(Service):
         if not self.enabled:
             return span
 
-        llmobs_span_data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
+        llmobs_span_data = _get_llmobs_data_metastruct(span)
         llmobs_span_data["meta"]["span.kind"] = operation_kind
         if model_name is not None:
             llmobs_span_data["meta"]["model_name"] = model_name
@@ -1834,7 +1834,7 @@ class LLMObs(Service):
             if span.finished:
                 error = "invalid_finished_span"
                 raise LLMObsAnnotateSpanError("Cannot annotate a finished span.")
-            llmobs_span_data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
+            llmobs_span_data = _get_llmobs_data_metastruct(span)
             if llmobs_span_data is None:
                 error = "invalid_llmobs_span_data"
                 raise LLMObsAnnotateSpanError("Error annotating LLMObs span.")
