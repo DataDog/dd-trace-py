@@ -274,6 +274,7 @@ def extract_github_actions(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Opt
     github_repository = env.get("GITHUB_REPOSITORY")
     git_commit_sha = env.get("GITHUB_SHA")
     github_run_id = env.get("GITHUB_RUN_ID")
+    github_job_id = env.get("JOB_CHECK_RUN_ID")
     run_attempt = env.get("GITHUB_RUN_ATTEMPT")
 
     pipeline_url = "{0}/{1}/actions/runs/{2}".format(
@@ -310,6 +311,7 @@ def extract_github_actions(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Opt
         CITag.PIPELINE_NAME: env.get("GITHUB_WORKFLOW"),
         CITag.PIPELINE_NUMBER: env.get("GITHUB_RUN_NUMBER"),
         CITag.PIPELINE_URL: pipeline_url,
+        CITag.JOB_ID: github_job_id,
         CITag.JOB_NAME: env.get("GITHUB_JOB"),
         CITag.PROVIDER_NAME: "github",
         CITag.WORKSPACE_PATH: env.get("GITHUB_WORKSPACE"),

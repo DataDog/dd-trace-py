@@ -359,6 +359,7 @@ def extract_github_actions(env):
     github_repository = env.get("GITHUB_REPOSITORY")
     git_commit_sha = env.get("GITHUB_SHA")
     github_run_id = env.get("GITHUB_RUN_ID")
+    github_job_id = env.get("JOB_CHECK_RUN_ID")
     run_attempt = env.get("GITHUB_RUN_ATTEMPT")
 
     pipeline_url = "{0}/{1}/actions/runs/{2}".format(
@@ -391,6 +392,7 @@ def extract_github_actions(env):
         git.REPOSITORY_URL: "{0}/{1}.git".format(github_server_url, github_repository),
         git.COMMIT_HEAD_SHA: git_commit_head_sha,
         JOB_URL: "{0}/{1}/commit/{2}/checks".format(github_server_url, github_repository, git_commit_sha),
+        JOB_ID: github_job_id,
         PIPELINE_ID: github_run_id,
         PIPELINE_NAME: env.get("GITHUB_WORKFLOW"),
         PIPELINE_NUMBER: env.get("GITHUB_RUN_NUMBER"),
