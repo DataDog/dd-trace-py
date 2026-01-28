@@ -17,7 +17,6 @@ from urllib.parse import urlparse
 
 from ddtrace import config
 from ddtrace.internal import agent
-from ddtrace.internal import forksafe
 from ddtrace.internal.evp_proxy.constants import EVP_EVENT_SIZE_LIMIT
 from ddtrace.internal.evp_proxy.constants import EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
@@ -25,6 +24,7 @@ from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.llmobs import _telemetry as telemetry
@@ -150,7 +150,7 @@ class BaseLLMObsWriter(PeriodicService):
         _default_project: Project = Project(name="", _id=""),
     ) -> None:
         super(BaseLLMObsWriter, self).__init__(interval=interval)
-        self._lock = forksafe.RLock()
+        self._lock = RLock()
         self._buffer: List[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]] = []
         self._buffer_size: int = 0
         self._timeout: float = timeout

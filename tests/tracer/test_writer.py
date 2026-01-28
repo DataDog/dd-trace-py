@@ -48,7 +48,8 @@ def mock_sys_platform(new_value):
 def managed_writer(writer_class, writer_url, **writer_kwargs):
     """Context manager that creates, starts, and stops a writer, ensuring all payloads are flushed."""
     writer = writer_class(writer_url, **writer_kwargs)
-    writer.start()
+    if writer_class != NativeWriter:
+        writer.start()
     try:
         yield writer
     finally:

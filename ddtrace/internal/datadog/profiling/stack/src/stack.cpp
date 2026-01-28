@@ -28,16 +28,18 @@ _stack_start(PyObject* self, PyObject* args, PyObject* kwargs)
 PyCFunction stack_start = cast_to_pycfunction(_stack_start);
 
 static PyObject*
-stack_stop(PyObject* self, PyObject* args)
+stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    (void)self;
-    (void)args;
     Sampler::get().stop();
+
     // Explicitly clear ThreadSpanLinks. The memory should be cleared up
     // when the program exits as ThreadSpanLinks is a static singleton instance.
     // However, this was necessary to make sure that the state is not shared
     // across tests, as the tests are run in the same process.
+    Py_BEGIN_ALLOW_THREADS; // Release GIL before busy-waiting
     ThreadSpanLinks::get_instance().reset();
+    Py_END_ALLOW_THREADS; // Re-acquire GIL
+
     Py_RETURN_NONE;
 }
 
