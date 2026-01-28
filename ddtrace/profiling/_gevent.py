@@ -14,7 +14,7 @@ from ddtrace.internal.datadog.profiling import stack
 
 # Original objects
 _gevent_hub_spawn_raw: t.Callable[..., _Greenlet] = gevent.hub.spawn_raw
-_gevent_joinall: t.Callable[..., None] = gevent.joinall
+_gevent_joinall: t.Callable[..., t.Sequence[_Greenlet]] = gevent.joinall
 _gevent_wait: t.Callable[..., t.Any] = gevent.wait
 _gevent_iwait: t.Callable[..., t.Any] = gevent.iwait
 
@@ -159,7 +159,7 @@ def wrap_spawn(original: t.Callable[..., _Greenlet]) -> t.Callable[..., _Greenle
     return _
 
 
-def joinall(greenlets: t.Sequence[_Greenlet], *args: t.Any, **kwargs: t.Any) -> None:
+def joinall(greenlets: t.Sequence[_Greenlet], *args: t.Any, **kwargs: t.Any) -> t.Sequence[_Greenlet]:
     # This is a wrapper around gevent.joinall to track the greenlets
     # that are being joined.
     current_greenlet = gevent.getcurrent()
@@ -168,7 +168,7 @@ def joinall(greenlets: t.Sequence[_Greenlet], *args: t.Any, **kwargs: t.Any) -> 
     current_greenlet_id: int = thread.get_ident(current_greenlet)
     for g in greenlets:
         link_greenlets(thread.get_ident(g), current_greenlet_id)
-    _gevent_joinall(greenlets, *args, **kwargs)
+    return _gevent_joinall(greenlets, *args, **kwargs)
 
 
 def wait_wrapper(original: t.Callable[..., t.Any]) -> t.Callable[..., t.Any]:

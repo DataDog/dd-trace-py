@@ -268,11 +268,6 @@ Sampler::postfork_child()
         std::cerr << "Failed to register thread: " << std::hex << current_thread_id << std::dec << " (" << native_id
                   << ") " << name << std::endl;
     }
-
-    // Clear renderer caches to avoid using stale interned string/function IDs
-    if (renderer_ptr) {
-        renderer_ptr->postfork_child();
-    }
 }
 
 void
