@@ -839,7 +839,7 @@ class Experiment:
         return task_results
 
     def _run_evaluators(
-        self, task_results: List[TaskResult], raise_errors: bool = False, jobs: int = 10
+        self, task_results: List[TaskResult], raise_errors: bool = False, jobs: int = 1
     ) -> List[EvaluationResult]:
         """Run evaluators on task results with concurrent execution using ThreadPoolExecutor.
 
@@ -847,7 +847,7 @@ class Experiment:
 
         :param task_results: List of task results to evaluate
         :param raise_errors: Whether to raise exceptions on evaluation errors
-        :param jobs: Maximum number of concurrent evaluator executions (default: 10)
+        :param jobs: Maximum number of concurrent evaluator executions (default: 1)
         """
 
         def _evaluate_single(evaluator: Any, idx: int, task_result: TaskResult) -> Tuple[str, Dict[str, JSONType]]:
