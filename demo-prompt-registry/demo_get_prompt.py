@@ -76,10 +76,31 @@ def demo_chat_template():
     return prompt
 
 
+def demo_no_label():
+    """Demo: Fetch prompt without label (returns latest version)."""
+    print("=" * 60)
+    print("Demo 3: No Label (returns latest version)")
+    print("=" * 60)
+
+    prompt = LLMObs.get_prompt(
+        "langchain_sequential_chain_example.greeting_template",
+        # No label - returns the latest version
+    )
+
+    print(f"Prompt ID: {prompt.id}")
+    print(f"Version: {prompt.version}")
+    print(f"Label: {prompt.label}")
+    print(f"Source: {prompt.source}")
+    print(f"Template: {prompt.template}")
+    print()
+
+    return prompt
+
+
 def demo_not_found():
     """Demo: Handle prompt not found gracefully."""
     print("=" * 60)
-    print("Demo 3: Prompt Not Found (with fallback)")
+    print("Demo 4: Prompt Not Found (with fallback)")
     print("=" * 60)
 
     # With user-provided fallback
@@ -105,7 +126,7 @@ def demo_not_found():
 def demo_caching():
     """Demo: Show caching behavior."""
     print("=" * 60)
-    print("Demo 4: Caching Behavior")
+    print("Demo 5: Caching Behavior")
     print("=" * 60)
 
     # Clear cache to start fresh
@@ -136,7 +157,7 @@ def demo_caching():
 def demo_refresh():
     """Demo: Force refresh a prompt."""
     print("=" * 60)
-    print("Demo 5: Force Refresh")
+    print("Demo 6: Force Refresh")
     print("=" * 60)
 
     # Get cached version
@@ -173,6 +194,7 @@ def main():
     try:
         demo_text_template()
         demo_chat_template()
+        demo_no_label()
         demo_not_found()
         demo_caching()
         demo_refresh()
