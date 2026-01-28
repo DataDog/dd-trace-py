@@ -78,25 +78,39 @@ def uninstall_coverage_percentage():
 def get_coverage_percentage(pytest_cov_status: bool) -> t.Optional[float]:
     """
     Retrieve coverage percentage collected during a pytest-cov test session, if available.
+
+    This retrieves the percentage from _coverage_data if:
+    1. Coverage.py is patched AND (pytest-cov is enabled OR coverage run was used)
+    2. OR if a report was generated that stored the percentage (e.g., via coverage report upload)
     """
     invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
-    if _is_coverage_patched() and (pytest_cov_status or invoked_by_coverage_run_status):
+
+    # AIDEV-NOTE: Check if we should retrieve percentage from coverage.py
+    should_get_from_coverage = _is_coverage_patched() and (pytest_cov_status or invoked_by_coverage_run_status)
+
+    if should_get_from_coverage:
+        # Generate report if using coverage run without pytest-cov
         if invoked_by_coverage_run_status and not pytest_cov_status:
             run_coverage_report()
 
-        lines_pct_value = _coverage_data.get(PCT_COVERED_KEY, None)
-        if lines_pct_value is None:
-            log.debug("Unable to retrieve coverage data for the session span")
-        elif not isinstance(lines_pct_value, (float, int)):
-            t = type(lines_pct_value)
-            log.warning(
-                "Unexpected format for total covered percentage: type=%s.%s, value=%r",
-                t.__module__,
-                t.__name__,
-                lines_pct_value,
-            )
-        else:
-            log.debug("Code coverage: %s%%", lines_pct_value)
-            return lines_pct_value
-
-    return None
+    # AIDEV-NOTE: Try to retrieve percentage from _coverage_data
+    # This works for:
+    # - pytest-cov (after patching)
+    # - coverage run (after running report)
+    # - coverage report upload (after generating LCOV/other report)
+    lines_pct_value = _coverage_data.get(PCT_COVERED_KEY, None)
+    if lines_pct_value is None:
+        log.debug("Unable to retrieve coverage data for the session span")
+        return None
+    elif not isinstance(lines_pct_value, (float, int)):
+        t = type(lines_pct_value)
+        log.warning(
+            "Unexpected format for total covered percentage: type=%s.%s, value=%r",
+            t.__module__,
+            t.__name__,
+            lines_pct_value,
+        )
+        return None
+    else:
+        log.debug("Code coverage: %s%%", lines_pct_value)
+        return lines_pct_value

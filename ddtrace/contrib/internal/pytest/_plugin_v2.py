@@ -364,8 +364,14 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
         _disable_ci_visibility()
 
 
+def _is_pytest_cov_available(config) -> bool:
+    """Check if pytest-cov plugin is available (installed)."""
+    return config.pluginmanager.get_plugin("pytest_cov") is not None
+
+
 def _is_pytest_cov_enabled(config) -> bool:
-    if not config.pluginmanager.get_plugin("pytest_cov"):
+    """Check if pytest-cov plugin is both available and enabled via command-line options."""
+    if not _is_pytest_cov_available(config):
         return False
     cov_option = config.getoption("--cov", default=False)
     nocov_option = config.getoption("--no-cov", default=False)

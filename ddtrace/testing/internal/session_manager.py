@@ -164,6 +164,44 @@ class SessionManager:
         self.coverage_writer.start()
         atexit.register(self.finish)
 
+    def upload_coverage_report(
+        self, coverage_report_bytes: bytes, coverage_format: str, git_tags: t.Optional[t.Dict[str, str]] = None
+    ) -> bool:
+        """
+        Upload a coverage report to Datadog CI Intake.
+
+        This creates a temporary API client connection to upload the coverage report.
+
+        Args:
+            coverage_report_bytes: The coverage report content (will be gzipped by the API client)
+            coverage_format: The format of the report (lcov, cobertura, jacoco, clover, opencover, simplecov)
+            git_tags: Optional dict of git and CI tags (defaults to empty dict)
+
+        Returns:
+            True if upload succeeded, False otherwise
+        """
+        try:
+            # AIDEV-NOTE: Create temporary API client for upload
+            api_client = APIClient(
+                service=self.service,
+                env=self.env,
+                env_tags=self.env_tags,
+                itr_skipping_level=self.itr_skipping_level,
+                configurations=self.platform_tags,
+                connector_setup=self.connector_setup,
+                telemetry_api=self.telemetry_api,
+            )
+
+            try:
+                result = api_client.upload_coverage_report(coverage_report_bytes, coverage_format, git_tags)
+                return result
+            finally:
+                api_client.close()
+
+        except Exception as e:
+            log.exception("Error uploading coverage report: %s", e)
+            return False
+
     def finish(self) -> None:
         # Avoid being called again by atexit if we've already been called by the pytest plugin.
         atexit.unregister(self.finish)
@@ -343,6 +381,10 @@ class SessionManager:
         if asbool(os.environ.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false")):
             log.debug("TIA code coverage collection is enabled by environment variable")
             self.settings.coverage_enabled = True
+
+        if asbool(os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false")):
+            log.debug("Code coverage report upload is enabled by environment variable")
+            self.settings.coverage_report_upload_enabled = True
 
     def show_settings(self) -> None:
         log.info("Service: %s (env: %s)", self.service, self.env)

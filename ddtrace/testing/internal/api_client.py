@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import json
 import logging
 from pathlib import Path
@@ -41,10 +42,12 @@ class APIClient:
         self.itr_skipping_level = itr_skipping_level
         self.configurations = configurations
         self.connector = connector_setup.get_connector_for_subdomain(Subdomain.API)
+        self.coverage_connector = connector_setup.get_connector_for_subdomain(Subdomain.CICOVREPRT)
         self.telemetry_api = telemetry_api
 
     def close(self) -> None:
         self.connector.close()
+        self.coverage_connector.close()
 
     def get_settings(self) -> Settings:
         telemetry = self.telemetry_api.with_request_metric_names(
@@ -370,3 +373,74 @@ class APIClient:
         self.telemetry_api.record_skippable_count(count=len(skippable_items), level=self.itr_skipping_level)
 
         return skippable_items, correlation_id
+
+    def upload_coverage_report(
+        self, coverage_report_bytes: bytes, coverage_format: str, git_tags: t.Optional[t.Dict[str, str]] = None
+    ) -> bool:
+        """
+        Upload a coverage report to Datadog CI Intake.
+
+        Args:
+            coverage_report_bytes: The coverage report content (will be gzipped)
+            coverage_format: The format of the report (lcov, cobertura, jacoco, clover, opencover, simplecov)
+            git_tags: Optional dict of git and CI tags (defaults to empty dict)
+
+        Returns:
+            True if upload succeeded, False otherwise
+        """
+        telemetry = self.telemetry_api.with_request_metric_names(
+            count="coverage_report.upload",
+            duration="coverage_report.upload_ms",
+            response_bytes=None,
+            error="coverage_report.upload_errors",
+        )
+
+        try:
+            # AIDEV-NOTE: Compress the coverage report with gzip
+            compressed_report = gzip.compress(coverage_report_bytes)
+            log.debug(
+                "Compressed coverage report: %d bytes -> %d bytes", len(coverage_report_bytes), len(compressed_report)
+            )
+
+            # AIDEV-NOTE: Create the event payload with required fields
+            event_data = {
+                "type": "coverage_report",
+                "format": coverage_format,
+                # AIDEV-TODO: Add git and CI tags later
+                "tags": git_tags or {},
+            }
+
+            # AIDEV-NOTE: Create multipart/form-data attachments
+            files = [
+                FileAttachment(
+                    name="coverage",
+                    filename="coverage.txt.gz",
+                    content_type="application/gzip",
+                    data=compressed_report,
+                ),
+                FileAttachment(
+                    name="event",
+                    filename=None,
+                    content_type="application/json",
+                    data=json.dumps(event_data).encode("utf-8"),
+                ),
+            ]
+
+            log.debug("Uploading coverage report: format=%s, size=%d bytes", coverage_format, len(compressed_report))
+
+        except Exception as e:
+            log.exception("Error preparing coverage report upload: %s", e)
+            telemetry.record_error(ErrorType.UNKNOWN)
+            return False
+
+        try:
+            result = self.coverage_connector.post_files(
+                "/api/v2/cicovreprt", files=files, send_gzip=False, telemetry=telemetry
+            )
+            result.on_error_raise_exception()
+            log.info("Successfully uploaded coverage report")
+            return True
+
+        except Exception as e:
+            log.warning("Failed to upload coverage report: %s", e)
+            return False

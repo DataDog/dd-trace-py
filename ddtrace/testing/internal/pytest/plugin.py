@@ -266,6 +266,65 @@ class TestOptPlugin:
             # Propagate number of skipped tests to the main process.
             session.config.workeroutput["tests_skipped_by_itr"] = self.session.tests_skipped_by_itr
 
+        # AIDEV-NOTE: If coverage report upload is enabled, generate and upload the report
+        if self.manager.settings.coverage_report_upload_enabled:
+            import tempfile
+
+            from ddtrace.contrib.internal.coverage.patch import generate_lcov_report
+            from ddtrace.contrib.internal.coverage.patch import get_coverage_instance
+            from ddtrace.contrib.internal.coverage.patch import stop_coverage
+
+            # Stop coverage if we started it ourselves
+            if not _is_pytest_cov_enabled(session.config):
+                log.debug("Stopping coverage.py collection")
+                stop_coverage(save=True)
+
+            # Get the coverage instance to generate reports
+            cov = get_coverage_instance()
+            if cov is not None:
+                try:
+                    # AIDEV-NOTE: Determine coverage format
+                    # Try to detect if using pytest-cov or coverage run, otherwise default to LCOV
+                    coverage_format = "lcov"  # Default to LCOV
+
+                    # Generate the report in a temporary file
+                    with tempfile.NamedTemporaryFile(mode="wb", suffix=".lcov", delete=False) as tmp_file:
+                        tmp_path = Path(tmp_file.name)
+
+                    # AIDEV-NOTE: Generate LCOV report. This returns the percentage and also stores it
+                    # in _coverage_data, so we don't need to generate a second report just for the percentage.
+                    pct_covered = generate_lcov_report(cov=cov, outfile=str(tmp_path))
+                    if pct_covered is not None:
+                        log.debug("Generated LCOV coverage report: %s (%.1f%% coverage)", tmp_path, pct_covered)
+                    else:
+                        log.debug("Generated LCOV coverage report: %s", tmp_path)
+
+                    # Read the report file
+                    coverage_report_bytes = tmp_path.read_bytes()
+                    log.debug("Read coverage report: %d bytes", len(coverage_report_bytes))
+
+                    # Upload the report
+                    # AIDEV-TODO: Add git and CI tags to the upload
+                    upload_success = self.manager.upload_coverage_report(
+                        coverage_report_bytes=coverage_report_bytes, coverage_format=coverage_format, git_tags={}
+                    )
+
+                    if upload_success:
+                        log.info("Successfully uploaded coverage report")
+                    else:
+                        log.warning("Failed to upload coverage report")
+
+                    # Clean up temporary file
+                    try:
+                        tmp_path.unlink()
+                    except Exception:
+                        log.debug("Could not delete temporary coverage report file: %s", tmp_path)
+
+                except Exception as e:
+                    log.exception("Error generating or uploading coverage report: %s", e)
+            else:
+                log.warning("Coverage instance not available for report generation")
+
         coverage_percentage = get_coverage_percentage(_is_pytest_cov_enabled(session.config))
         if coverage_percentage is not None:
             self.session.metrics[TestTag.CODE_COVERAGE_LINES_PCT] = coverage_percentage
@@ -941,7 +1000,14 @@ def pytest_load_initial_conftests(
 
     early_config.stash[SESSION_MANAGER_STASH_KEY] = session_manager
 
-    if session_manager.settings.coverage_enabled:
+    # AIDEV-NOTE: Coverage collection decision tree:
+    # - coverage_report_upload_enabled: Use coverage.py (external) to generate uploadable reports
+    # - coverage_enabled: Use ddtrace's ModuleCodeCollector (internal)
+    # When coverage_report_upload_enabled, we rely on pytest-cov to run coverage.py if available,
+    # or start it ourselves if not. The actual coverage.py startup is handled later in pytest_configure
+    # when we know if pytest-cov is available.
+    if session_manager.settings.coverage_enabled and not session_manager.settings.coverage_report_upload_enabled:
+        # Only use our own coverage collector if report upload is not enabled
         setup_coverage_collection()
 
     yield
@@ -984,8 +1050,20 @@ def pytest_configure(config: pytest.Config) -> None:
 
     ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_configure(config)
 
-    if _is_pytest_cov_enabled(config):
-        install_coverage_percentage()
+    # AIDEV-NOTE: Coverage.py integration when report upload is enabled
+    # If coverage_report_upload_enabled and pytest-cov is NOT running, we need to start coverage.py ourselves
+    if session_manager.settings.coverage_report_upload_enabled and not _is_pytest_cov_enabled(config):
+        # Start coverage.py ourselves for report generation
+        from ddtrace.contrib.internal.coverage.patch import start_coverage
+
+        workspace_path = get_workspace_path()
+        start_coverage(source=[str(workspace_path)])
+        log.debug("Started coverage.py collection for report upload (pytest-cov not enabled)")
+
+    # Patch coverage.py to capture percentage if it's available and (enabled OR needed for report upload)
+    if _is_pytest_cov_available(config):
+        if _is_pytest_cov_enabled(config) or session_manager.settings.coverage_report_upload_enabled:
+            install_coverage_percentage()
 
 
 def _get_test_command(config: pytest.Config) -> str:
@@ -1081,8 +1159,14 @@ def _get_test_custom_tags(item: pytest.Item) -> t.Dict[str, str]:
     return tags
 
 
+def _is_pytest_cov_available(config) -> bool:
+    """Check if pytest-cov plugin is available (installed)."""
+    return config.pluginmanager.get_plugin("pytest_cov") is not None
+
+
 def _is_pytest_cov_enabled(config) -> bool:
-    if not config.pluginmanager.get_plugin("pytest_cov"):
+    """Check if pytest-cov plugin is both available and enabled via command-line options."""
+    if not _is_pytest_cov_available(config):
         return False
     cov_option = config.getoption("--cov", default=False)
     nocov_option = config.getoption("--no-cov", default=False)
