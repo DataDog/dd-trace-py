@@ -152,8 +152,6 @@ def on_finish(func, handler, args, kwargs):
                 True,
             ),
         )
-    request = handler.request
-
     return func(*args, **kwargs)
 
 

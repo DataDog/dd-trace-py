@@ -317,8 +317,8 @@ class Contrib_TestClass_For_Threats:
                 f"no {asm_constants.APPSEC.TRUNCATION_STRING_LENGTH} metric {met}"
             )
             # 12030 is due to response encoding
-            value = int(get_entry_span_metric(asm_constants.APPSEC.TRUNCATION_STRING_LENGTH))
-            assert value == 12029, value
+            truncation_str_len = int(get_entry_span_metric(asm_constants.APPSEC.TRUNCATION_STRING_LENGTH))
+            assert truncation_str_len == 12029, truncation_str_len
             assert get_entry_span_metric(asm_constants.APPSEC.TRUNCATION_CONTAINER_SIZE)
             assert int(get_entry_span_metric(asm_constants.APPSEC.TRUNCATION_CONTAINER_SIZE)) == 518
 
@@ -528,13 +528,15 @@ class Contrib_TestClass_For_Threats:
         [
             ("Fooipheader", {"Fooipheader": "", "X-Real-Ip": "8.8.8.8"}, None),
             ("Fooipheader", {"Fooipheader": "invalid_ip", "X-Real-Ip": "8.8.8.8"}, None),
-            # ("Fooipheader", {"Fooipheader": "", "X-Real-Ip": "アスダス"}, None),
+            ("Fooipheader", {"Fooipheader": "", "X-Real-Ip": "アスダス"}, None),
             ("X-Use-This", {"X-Use-This": "4.4.4.4", "X-Real-Ip": "8.8.8.8"}, "4.4.4.4"),
         ],
     )
     def test_client_ip_header_set_by_env_var(
         self, interface: Interface, get_entry_span_tag, entry_span, asm_enabled, env_var, headers, expected
     ):
+        if interface.name == "tornado" and not headers.get("X-Real-Ip", "").isascii():
+            pytest.skip("tornado fails on non ascii headers with decode error, which is fine.")
         from ddtrace.ext import http
 
         with override_global_config(dict(_asm_enabled=asm_enabled, _client_ip_header=env_var)):
@@ -578,7 +580,7 @@ class Contrib_TestClass_For_Threats:
                 assert (st := self.status(response)) == 403, f"status mismatch {st}"
                 assert get_entry_span_tag("actor.ip") == rules._IP.BLOCKED
                 assert get_entry_span_tag(http.STATUS_CODE) == "403"
-                # assert get_entry_span_tag(http.URL) == "http://localhost:8000/"
+                assert get_entry_span_tag(http.URL) == f"http://localhost:{interface.SERVER_PORT}/"
                 assert get_entry_span_tag(http.METHOD) == "GET"
                 block_id = self.check_single_rule_triggered("blk-001-001", entry_span)
                 assert self.body(response) == _format_template(getattr(constants, body, ""), block_id), self.body(
@@ -1749,11 +1751,9 @@ class Contrib_TestClass_For_Threats:
             ),
             mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as mocked,
         ):
-            import urllib.parse
-
             self.update_tracer(interface)
             assert asm_config._asm_enabled == asm_enabled
-            response = interface.client.get(f"/rasp/{endpoint}/?{urllib.parse.urlencode(parameters)}")
+            response = interface.client.get(f"/rasp/{endpoint}/?{urlencode(parameters)}")
             code = status_expected if asm_enabled and ep_enabled else 200
             assert self.status(response) == code, (self.status(response), code, self.body(response))
             assert get_entry_span_tag(http.STATUS_CODE) == str(code), (get_entry_span_tag(http.STATUS_CODE), code)

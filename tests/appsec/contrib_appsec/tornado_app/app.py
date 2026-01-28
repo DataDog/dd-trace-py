@@ -116,7 +116,8 @@ class HomeHandler(BaseHandler):
 
 
 class AsmHandler(BaseHandler):
-    async def _handle(self, param_int: int, param_str: str) -> None:
+    # only str are possible with path params on tornado
+    async def _handle(self, param_int: str, param_str: str) -> None:
         query_params = self._query_params()
         body = {
             "path_params": {"param_int": param_int, "param_str": param_str},

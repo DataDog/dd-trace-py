@@ -2,3 +2,4 @@
 features:
   - |
     AAP: This introduces AAP support for tornado web framework. 
+    This must be explicitely enabled with ``DD_TRACE_TORNADO_ENABLED=true`` or ``DD_PATCH_MODULES=tornado:true``
