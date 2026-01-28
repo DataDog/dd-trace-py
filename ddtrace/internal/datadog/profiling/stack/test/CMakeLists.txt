@@ -69,3 +69,4 @@ endfunction()
 
 # Add the tests
 dd_wrapper_add_test(test_thread_span_links test_thread_span_links.cpp)
+dd_wrapper_add_test(test_stack_chunk_update test_stack_chunk_update.cpp)
