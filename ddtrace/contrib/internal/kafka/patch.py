@@ -28,6 +28,7 @@ from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTPPropagator as Propagator
+from ddtrace.trace import tracer
 
 
 _Producer = confluent_kafka.Producer
@@ -176,7 +177,7 @@ def traced_produce(func, instance, args, kwargs):
     message_key = kwargs.get("key", "") or ""
     partition = kwargs.get("partition", -1)
     headers = get_argument_value(args, kwargs, 6, "headers", optional=True) or {}
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
@@ -254,11 +255,11 @@ def _instrument_message(messages, pin, start_ns, instance, err):
     first_message = messages[0] if len(messages) else None
     if first_message is not None and config.kafka.distributed_tracing_enabled and first_message.headers():
         ctx = Propagator.extract(dict(first_message.headers()))
-    with pin.tracer.start_span(
+    with tracer.start_span(
         name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
-        child_of=ctx if ctx is not None and ctx.trace_id is not None else pin.tracer.context_provider.active(),
+        child_of=ctx if ctx is not None and ctx.trace_id is not None else tracer.context_provider.active(),
         activate=True,
     ) as span:
         # reset span start time to before function call

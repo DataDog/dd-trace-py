@@ -22,6 +22,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import tracer
 
 
 # Ports which, if set, will not be used in hostnames/service names
@@ -119,7 +120,7 @@ def _wrap_urlopen(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_url_operation("urllib3.request", protocol="http", direction=SpanDirection.OUTBOUND),
         service=trace_utils.ext_service(pin, config.urllib3),
         span_type=SpanTypes.HTTP,
