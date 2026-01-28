@@ -1,6 +1,6 @@
+import importlib.util
 import os
 import platform
-import shutil
 import sys
 from typing import Dict
 from typing import Optional
@@ -9,12 +9,16 @@ from ddtrace import config
 from ddtrace import version
 from ddtrace.internal import forksafe
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.process_tags import process_tags
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.crashtracker import config as crashtracker_config
 from ddtrace.internal.settings.profiling import config as profiling_config
 from ddtrace.internal.settings.profiling import config_str
+
+
+log = get_logger(__name__)
 
 
 is_available = True
@@ -81,17 +85,20 @@ def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
 
 
 def _get_args(additional_tags: Optional[Dict[str, str]]):
-    dd_crashtracker_receiver = shutil.which("_dd_crashtracker_receiver")
+    # Instead of searching PATH for the receiver binary, invoke the receiver script
+    # directly with the current Python interpreter. This is more reliable and doesn't
+    # depend on PATH configuration.
+    python_executable = sys.executable
 
-    # If not found in PATH, try ddtrace installation directory. This can happen
-    # in an injected environment
-    if dd_crashtracker_receiver is None:
-        script_path = os.path.join(os.path.dirname(__file__), "..", "..", "commands", "_dd_crashtracker_receiver.py")
-        if os.path.exists(script_path):
-            dd_crashtracker_receiver = script_path
+    # Get the path to the receiver script module
+    spec = importlib.util.find_spec("ddtrace.commands._dd_crashtracker_receiver")
+    if spec is None:
+        log.error("Failed to locate _dd_crashtracker_receiver module")
+        return (None, None, None)
 
-    if dd_crashtracker_receiver is None:
-        print("Failed to find _dd_crashtracker_receiver", file=sys.stderr)
+    receiver_script_path = spec.origin
+    if not receiver_script_path:
+        log.error("Failed to resolve path to _dd_crashtracker_receiver module")
         return (None, None, None)
 
     if crashtracker_config.stacktrace_resolver is None:
@@ -105,7 +112,7 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
     else:
         # This should never happen, as the value is validated in the crashtracker_config
         # module.
-        print(f"Invalid stacktrace_resolver value: {crashtracker_config.stacktrace_resolver}", file=sys.stderr)
+        log.error("Invalid stacktrace_resolver value: %s", crashtracker_config.stacktrace_resolver)
         stacktrace_resolver = StacktraceCollection.EnabledWithInprocessSymbols
 
     # Create crashtracker configuration
@@ -127,10 +134,24 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
     if crashtracking_enabled is not None:
         receiver_env["DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED"] = crashtracking_enabled
 
+    # Crashtracker is supported only on Linux and macOS, so we only need to inherit
+    # these library path environment variables.
+    # setup.py:269
+    inherited_env_vars = [
+        "LD_LIBRARY_PATH",  # for loading native ext (Linux)
+        "DYLD_LIBRARY_PATH",  # for loading native ext (macOS)
+        "PYTHONPATH",  # for loading Python, for the receiver script
+    ]
+    for env_var in inherited_env_vars:
+        env_value = os.environ.get(env_var)
+        if env_value is not None:
+            receiver_env[env_var] = env_value
+
+    # This is equivalent to: python /path/to/_dd_crashtracker_receiver.py
     receiver_config = CrashtrackerReceiverConfig(
-        [],  # args
+        [python_executable, receiver_script_path],  # args: [program_name, script_path]
         receiver_env,
-        dd_crashtracker_receiver,  # path_to_receiver_binary
+        python_executable,  # path_to_receiver_binary: use current Python interpreter
         crashtracker_config.stderr_filename,
         crashtracker_config.stdout_filename,
     )
@@ -157,7 +178,7 @@ def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
     try:
         config, receiver_config, metadata = _get_args(additional_tags)
         if config is None or receiver_config is None or metadata is None:
-            print("Failed to start crashtracker: failed to construct crashtracker configuration", file=sys.stderr)
+            log.error("Failed to start crashtracker: failed to construct crashtracker configuration")
             return False
 
         # TODO: Add this back in post Code Freeze (need to update config registry)
@@ -172,15 +193,12 @@ def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
             # fork
             config, receiver_config, metadata = _get_args(additional_tags)
             if config is None or receiver_config is None or metadata is None:
-                print(
-                    "Failed to restart crashtracker after fork: failed to construct crashtracker configuration",
-                    file=sys.stderr,
-                )
+                log.error("Failed to restart crashtracker after fork: failed to construct crashtracker configuration")
                 return
             crashtracker_on_fork(config, receiver_config, metadata)
 
         forksafe.register(crashtracker_fork_handler)
-    except Exception as e:
-        print(f"Failed to start crashtracker: {e}", file=sys.stderr)
+    except Exception:
+        log.exception("Failed to start crashtracker")
         return False
     return True

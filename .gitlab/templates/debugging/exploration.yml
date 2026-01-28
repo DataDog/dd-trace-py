@@ -12,7 +12,6 @@
     - python${{PYTHON_VERSION}} -m pip install -e .
   after_script:
     - cat ${{DD_DEBUGGER_EXPL_OUTPUT_FILE}}
-    - !reference [.cached_testrunner, after_script]
   needs: []
   artifacts:
     paths:
