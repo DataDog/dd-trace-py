@@ -823,4 +823,3 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
             output = celery_proc.stdout.read().decode("utf-8", errors="replace")
             # Check for panics in the output
             assert "panic" not in output.lower(), f"Found panic in celery beat output:\n{output}"
-
