@@ -115,6 +115,8 @@ def test_awakeable_periodic_service():
     for _ in range(10):
         awake_me.awake()
 
+    assert queue == list(range(n))
+
     # Sleep long enough to also trigger the periodic function with the timeout
     sleep(1.1 * interval)
 
