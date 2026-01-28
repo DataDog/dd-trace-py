@@ -403,7 +403,7 @@
         "dependency": "litellm",
         "integration": "litellm",
         "minimum_tracer_supported": "1.65.4",
-        "max_tracer_supported": "1.65.4",
+        "max_tracer_supported": "1.80.16",
         "pinned": "true",
         "auto-instrumented": true
     },
@@ -439,7 +439,7 @@
         "dependency": "mcp",
         "integration": "mcp",
         "minimum_tracer_supported": "1.10.1",
-        "max_tracer_supported": "1.16.0",
+        "max_tracer_supported": "1.26.0",
         "auto-instrumented": true
     },
     {
