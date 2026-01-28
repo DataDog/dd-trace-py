@@ -798,3 +798,29 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
                 if not err:
                     break
                 assert b"SIGSEGV" not in err
+
+    def test_celery_beat_no_panic(self):
+        """Test that celery worker with --beat option doesn't cause panics.
+
+        When celery starts the beat scheduler, it closes file descriptors which
+        can cause panics in the native writer if not properly handled. This test
+        ensures that the native runtime is properly shut down before FDs are closed.
+        """
+        with self.override_env(
+            dict(
+                DD_RUNTIME_METRICS_ENABLED="true",
+            )
+        ):
+            celery_proc = subprocess.Popen(
+                ["ddtrace-run", "celery", "--app=tests.contrib.celery.tasks", "worker", "--beat", "--loglevel=info"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+            sleep(5)
+            celery_proc.terminate()
+            celery_proc.wait(timeout=10)
+
+            output = celery_proc.stdout.read().decode("utf-8", errors="replace")
+            # Check for panics in the output
+            assert "panic" not in output.lower(), f"Found panic in celery beat output:\n{output}"
+

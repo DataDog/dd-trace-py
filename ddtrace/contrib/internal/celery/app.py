@@ -53,7 +53,7 @@ def patch_app(app, pin=None):
 
     # When celery starts the beat process it closes all open file descriptors with `close_open_fds`.
     # This causes panics as it closes the native runtime file descriptors.
-    # To prevent this we shutdown the native runtime before closing the fds and recreate it after to reopen fds.
+    # To prevent this we shut down the native runtime before closing the fds and recreate it after to reopen fds.
     trace_utils.wrap("celery.platforms", "close_open_fds", _patched_close_open_fds)
 
     # connect to the Signal framework
@@ -154,12 +154,12 @@ def _patched_close_open_fds(func, instance, args, kwargs):
     """
     Celery closes all open file descriptors to isolate some fork child.
     This causes the native runtime to panic because it expects to have a valid fd.
-    We shutdown the native runtime before closing fds to avoid panics when interacting with closed fds,
+    We stop the native runtime before closing fds to avoid panics when interacting with closed fds,
     and recreate it after.
     """
     if hasattr(tracer._span_aggregator.writer, "_before_fork"):
         # The NativeWriter provides fork hooks to stop and recreate the native runtime.
-        # We reuse these hooks here to shutdown and restart the native runtime.
+        # We reuse these hooks here to shut down and restart the native runtime.
         tracer._span_aggregator.writer._before_fork()
         log.debug("Shutting down native runtime before closing fds")
 
