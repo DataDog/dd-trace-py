@@ -1553,6 +1553,8 @@ def listen():
         "molten.trace_func",
         "redis.execute_pipeline",
         "redis.command",
+        "azure.durable_functions.patched_activity",
+        "azure.durable_functions.patched_entity",
         "azure.functions.patched_event_hubs",
         "azure.functions.patched_route_request",
         "azure.functions.patched_service_bus",
