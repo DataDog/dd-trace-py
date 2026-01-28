@@ -18,6 +18,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap as _u
 from ddtrace.internal.wrapping import wrap as _w
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
+from ddtrace.trace import tracer
 from ddtrace.vendor.sqlcommenter import _generate_comment_from_metadata as _generate_comment_from_metadata
 
 from ....internal.schema import schematize_service_name
@@ -133,7 +134,7 @@ def traced_get_socket(func, args, kwargs):
             yield sock_info
             return
 
-    with pin.tracer.trace(
+    with tracer.trace(
         "pymongo.%s" % _CHECKOUT_FN_NAME,
         service=trace_utils.ext_service(pin, config.pymongo),
         span_type=SpanTypes.MONGODB,
