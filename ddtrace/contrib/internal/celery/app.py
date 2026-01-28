@@ -19,6 +19,8 @@ from ddtrace.contrib.internal.celery.signals import trace_retry
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.forksafe import ddtrace_after_in_parent
+from ddtrace.internal.forksafe import ddtrace_before_fork
 from ddtrace.internal.logger import get_logger
 
 
@@ -53,7 +55,8 @@ def patch_app(app, pin=None):
 
     # When celery starts the beat process it closes all open file descriptors with `close_open_fds`.
     # This causes panics as it closes the native runtime file descriptors.
-    # To prevent this we shut down the native runtime before closing the fds and recreate it after to reopen fds.
+    # To prevent this we call the treat the `close_open_fds` method as a fork
+    # calling fork hook before and after to make sure all native runtime are shut down.
     trace_utils.wrap("celery.platforms", "close_open_fds", _patched_close_open_fds)
 
     # connect to the Signal framework
@@ -154,20 +157,15 @@ def _patched_close_open_fds(func, instance, args, kwargs):
     """
     Celery closes all open file descriptors to isolate some fork child.
     This causes the native runtime to panic because it expects to have a valid fd.
-    We stop the native runtime before closing fds to avoid panics when interacting with closed fds,
-    and recreate it after.
+    We call fork hook to avoid panics when the native runtime interacts with closed fds.
     """
-    if hasattr(tracer._span_aggregator.writer, "_before_fork"):
-        # The NativeWriter provides fork hooks to stop and recreate the native runtime.
-        # We reuse these hooks here to shut down and restart the native runtime.
-        tracer._span_aggregator.writer._before_fork()
-        log.debug("Shutting down native runtime before closing fds")
+    ddtrace_before_fork()
+    log.debug("Shutting down native runtime before closing fds")
 
     try:
         result = func(*args, **kwargs)
     finally:
-        if hasattr(tracer._span_aggregator.writer, "_after_fork"):
-            tracer._span_aggregator.writer._after_fork()
-            log.debug("Restarting native runtime after closing fds")
+        ddtrace_after_in_parent()
+        log.debug("Restarting native runtime after closing fds")
 
     return result
