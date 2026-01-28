@@ -41,24 +41,9 @@ _read_signed_varint(unsigned char* table, ssize_t size, ssize_t* i)
 }
 #endif
 
-// ----------------------------------------------------------------------------
-void
-init_frame_cache(size_t capacity)
-{
-    frame_cache = new LRUCache<uintptr_t, Frame>(capacity);
-}
-
-// ----------------------------------------------------------------------------
-void
-reset_frame_cache()
-{
-    delete frame_cache;
-    frame_cache = nullptr;
-}
-
 // ------------------------------------------------------------------------
 Result<Frame::Ptr>
-Frame::create(PyCodeObject* code, int lasti)
+Frame::create(PyCodeObject* code, int lasti, StringTable& string_table)
 {
     auto maybe_filename = string_table.key(code->co_filename, StringTag::FileName);
     if (!maybe_filename) {
@@ -221,10 +206,16 @@ Frame::key(PyCodeObject* code, int lasti)
 // ------------------------------------------------------------------------
 #if PY_VERSION_HEX >= 0x030b0000
 Result<std::reference_wrapper<Frame>>
-Frame::read(_PyInterpreterFrame* frame_addr, _PyInterpreterFrame** prev_addr)
+Frame::read(_PyInterpreterFrame* frame_addr,
+            _PyInterpreterFrame** prev_addr,
+            StringTable& string_table,
+            LRUCache<uintptr_t, Frame>& frame_cache)
 #else
 Result<std::reference_wrapper<Frame>>
-Frame::read(PyObject* frame_addr, PyObject** prev_addr)
+Frame::read(PyObject* frame_addr,
+            PyObject** prev_addr,
+            StringTable& string_table,
+            LRUCache<uintptr_t, Frame>& frame_cache)
 #endif
 {
 #if PY_VERSION_HEX >= 0x030b0000
@@ -273,7 +264,7 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
     int instr_offset = static_cast<int>(frame_addr->instr_ptr - 1 - code_units);
     int code_offset = offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
     const int lasti = instr_offset - code_offset;
-    auto maybe_frame = Frame::get(code_obj, lasti);
+    auto maybe_frame = Frame::get(code_obj, lasti, string_table, frame_cache);
     if (!maybe_frame) {
         return ErrorKind::FrameError;
     }
@@ -285,7 +276,8 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
         (frame_addr->instr_ptr - 1 -
          reinterpret_cast<_Py_CODEUNIT*>((reinterpret_cast<PyCodeObject*>(frame_addr->f_executable)))))) -
       offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
-    auto maybe_frame = Frame::get(reinterpret_cast<PyCodeObject*>(frame_addr->f_executable), lasti);
+    auto maybe_frame =
+      Frame::get(reinterpret_cast<PyCodeObject*>(frame_addr->f_executable), lasti, string_table, frame_cache);
     if (!maybe_frame) {
         return ErrorKind::FrameError;
     }
@@ -295,7 +287,7 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
     const int lasti =
       (static_cast<int>((frame_addr->prev_instr - reinterpret_cast<_Py_CODEUNIT*>((frame_addr->f_code))))) -
       offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
-    auto maybe_frame = Frame::get(frame_addr->f_code, lasti);
+    auto maybe_frame = Frame::get(frame_addr->f_code, lasti, string_table, frame_cache);
     if (!maybe_frame) {
         return ErrorKind::FrameError;
     }
@@ -320,7 +312,7 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
         return ErrorKind::FrameError;
     }
 
-    auto maybe_frame = Frame::get(py_frame.f_code, py_frame.f_lasti);
+    auto maybe_frame = Frame::get(py_frame.f_code, py_frame.f_lasti, string_table, frame_cache);
     if (!maybe_frame) {
         return ErrorKind::FrameError;
     }
@@ -334,11 +326,11 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
 
 // ----------------------------------------------------------------------------
 Result<std::reference_wrapper<Frame>>
-Frame::get(PyCodeObject* code_addr, int lasti)
+Frame::get(PyCodeObject* code_addr, int lasti, StringTable& string_table, LRUCache<uintptr_t, Frame>& frame_cache)
 {
     auto frame_key = Frame::key(code_addr, lasti);
 
-    auto maybe_frame = frame_cache->lookup(frame_key);
+    auto maybe_frame = frame_cache.lookup(frame_key);
     if (maybe_frame) {
         return *maybe_frame;
     }
@@ -348,7 +340,7 @@ Frame::get(PyCodeObject* code_addr, int lasti)
         return std::ref(INVALID_FRAME);
     }
 
-    auto maybe_new_frame = Frame::create(&code, lasti);
+    auto maybe_new_frame = Frame::create(&code, lasti, string_table);
     if (!maybe_new_frame) {
         return std::ref(INVALID_FRAME);
     }
@@ -363,17 +355,17 @@ Frame::get(PyCodeObject* code_addr, int lasti)
                           new_frame->location.line_end,
                           new_frame->location.column,
                           new_frame->location.column_end);
-    frame_cache->store(frame_key, std::move(new_frame));
+    frame_cache.store(frame_key, std::move(new_frame));
     return std::ref(f);
 }
 
 // ----------------------------------------------------------------------------
 Frame&
-Frame::get(StringTable::Key name)
+Frame::get(StringTable::Key name, LRUCache<uintptr_t, Frame>& frame_cache)
 {
     uintptr_t frame_key = static_cast<uintptr_t>(name);
 
-    auto maybe_frame = frame_cache->lookup(frame_key);
+    auto maybe_frame = frame_cache.lookup(frame_key);
     if (maybe_frame) {
         return *maybe_frame;
     }
@@ -388,6 +380,6 @@ Frame::get(StringTable::Key name)
                           frame->location.line_end,
                           frame->location.column,
                           frame->location.column_end);
-    frame_cache->store(frame_key, std::move(frame));
+    frame_cache.store(frame_key, std::move(frame));
     return f;
 }

@@ -4,7 +4,6 @@
 
 #include "dd_wrapper/include/sample_manager.hpp"
 
-#include "echion/strings.h"
 #include <ddup_interface.hpp>
 #include <unordered_map>
 
@@ -143,7 +142,9 @@ StackRenderer::render_frame(Frame& frame)
     auto maybe_name_id = string_id_cache.find(frame.name);
     if (maybe_name_id == string_id_cache.end()) {
         std::string_view name_str;
-        auto maybe_name_str = string_table.lookup(frame.name);
+        auto maybe_name_str = string_table_ptr
+                                ? string_table_ptr->lookup(frame.name)
+                                : Result<std::reference_wrapper<const std::string>>(ErrorKind::LookupError);
         if (maybe_name_str) {
             name_str = maybe_name_str->get();
         } else {
@@ -161,7 +162,9 @@ StackRenderer::render_frame(Frame& frame)
     if (line == 0) {
         if (!pushed_task_name) {
             std::string_view name_str;
-            auto maybe_name_str = string_table.lookup(frame.name);
+            auto maybe_name_str = string_table_ptr
+                                    ? string_table_ptr->lookup(frame.name)
+                                    : Result<std::reference_wrapper<const std::string>>(ErrorKind::LookupError);
             if (maybe_name_str) {
                 name_str = maybe_name_str->get();
             } else {
@@ -180,7 +183,9 @@ StackRenderer::render_frame(Frame& frame)
     auto maybe_filename_id = string_id_cache.find(frame.filename);
     if (maybe_filename_id == string_id_cache.end()) {
         std::string_view filename_str;
-        auto maybe_filename_str = string_table.lookup(frame.filename);
+        auto maybe_filename_str = string_table_ptr
+                                    ? string_table_ptr->lookup(frame.filename)
+                                    : Result<std::reference_wrapper<const std::string>>(ErrorKind::LookupError);
         if (maybe_filename_str) {
             filename_str = maybe_filename_str->get();
         } else {

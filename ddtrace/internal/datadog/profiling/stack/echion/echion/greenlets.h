@@ -34,5 +34,9 @@ class GreenletInfo
     {
     }
 
-    int unwind(PyObject*, PyThreadState*, FrameStack&);
+    int unwind(PyObject*,
+               PyThreadState*,
+               FrameStack&,
+               StringTable& string_table,
+               LRUCache<uintptr_t, Frame>& frame_cache);
 };

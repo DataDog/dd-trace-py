@@ -5,9 +5,10 @@
 #include "constants.hpp"
 #include "stack_renderer.hpp"
 
-#include "echion/strings.h"
+#include "echion/errors.h"
 
 class EchionSampler;
+class StringTable;
 
 namespace Datadog {
 
@@ -60,7 +61,10 @@ class Sampler
     void link_tasks(PyObject* parent, PyObject* child);
     void weak_link_tasks(PyObject* parent, PyObject* child);
     void sampling_thread(const uint64_t seq_num);
-    void track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* frame);
+    void track_greenlet(uintptr_t greenlet_id, uintptr_t name_key, PyObject* frame);
+
+    // Get a string key from the string table (for greenlet names from Python)
+    Result<uintptr_t> get_greenlet_name_key(PyObject* name);
     void untrack_greenlet(uintptr_t greenlet_id);
     void link_greenlets(uintptr_t parent, uintptr_t child);
     void update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame);

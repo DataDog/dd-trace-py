@@ -126,7 +126,7 @@ class TaskInfo
     // only if it is awaiting another Task.
     TaskInfo::Ptr waiter = nullptr;
 
-    [[nodiscard]] static Result<TaskInfo::Ptr> create(TaskObj*);
+    [[nodiscard]] static Result<TaskInfo::Ptr> create(TaskObj*, StringTable& string_table);
     TaskInfo(PyObject* origin, PyObject* loop, GenInfo::Ptr coro, StringTable::Key name, TaskInfo::Ptr waiter)
       : origin(origin)
       , loop(loop)
@@ -137,5 +137,5 @@ class TaskInfo
     {
     }
 
-    size_t unwind(FrameStack&);
+    size_t unwind(FrameStack&, StringTable& string_table, LRUCache<uintptr_t, Frame>& frame_cache);
 };
