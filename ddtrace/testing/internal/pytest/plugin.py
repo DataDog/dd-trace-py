@@ -7,6 +7,7 @@ import logging
 import os
 from pathlib import Path
 import re
+import tempfile
 import traceback
 import typing as t
 
@@ -14,6 +15,9 @@ from _pytest.runner import runtestprotocol
 import pluggy
 import pytest
 
+from ddtrace.contrib.internal.coverage.patch import generate_lcov_report
+from ddtrace.contrib.internal.coverage.patch import is_coverage_running
+from ddtrace.contrib.internal.coverage.patch import stop_coverage
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
@@ -268,16 +272,9 @@ class TestOptPlugin:
 
         # AIDEV-NOTE: If coverage report upload is enabled, generate and upload the report
         if self.manager.settings.coverage_report_upload_enabled:
-            import tempfile
-
-            from ddtrace.contrib.internal.coverage.patch import generate_lcov_report
-            from ddtrace.contrib.internal.coverage.patch import get_coverage_instance
-            from ddtrace.contrib.internal.coverage.patch import stop_coverage
-
             # Get the coverage instance BEFORE stopping it
             # Once coverage is stopped, Coverage.current() returns None
-            cov = get_coverage_instance()
-            if cov is not None:
+            if is_coverage_running():
                 try:
                     coverage_format = "lcov"  # Default to LCOV
 
@@ -287,7 +284,7 @@ class TestOptPlugin:
 
                     # Generate LCOV report. This returns the percentage and also stores it
                     # in _coverage_data, so we don't need to generate a second report just for the percentage.
-                    pct_covered = generate_lcov_report(cov=cov, outfile=str(tmp_path))
+                    pct_covered = generate_lcov_report(outfile=str(tmp_path))
                     log.debug("Generated LCOV coverage report: %s (%.1f%% coverage)", tmp_path, pct_covered)
 
                     # Read the report file

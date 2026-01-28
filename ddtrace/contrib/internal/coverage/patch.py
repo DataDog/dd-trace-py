@@ -201,18 +201,10 @@ def get_coverage_instance() -> Optional[Any]:
 
 
 def is_coverage_running() -> bool:
-    """
-    Check if a coverage instance is available.
-
-    Returns True if we have a coverage instance (running or stopped with data),
-    or if coverage.py is running externally (e.g., pytest-cov).
-
-    Note: This returns False only after coverage has been completely erased.
-    """
     return get_coverage_instance() is not None
 
 
-def generate_lcov_report(cov: Optional[Any] = None, outfile: Optional[str] = None, **kwargs: Any) -> Optional[float]:
+def generate_lcov_report(cov: Optional[Any] = None, **kwargs: Any) -> Optional[float]:
     """
     Generate an LCOV coverage report.
 
@@ -232,9 +224,6 @@ def generate_lcov_report(cov: Optional[Any] = None, outfile: Optional[str] = Non
     if cov is None:
         log.debug("No coverage instance available")
         return None
-
-    if outfile is not None:
-        kwargs["outfile"] = outfile
 
     pct_covered = cov.lcov_report(**kwargs)
     if pct_covered is not None:

@@ -181,22 +181,8 @@ class SessionManager:
             True if upload succeeded, False otherwise
         """
         try:
-            # # AIDEV-NOTE: Create temporary API client for upload
-            # api_client = APIClient(
-            #     service=self.service,
-            #     env=self.env or "none",
-            #     env_tags=self.env_tags,
-            #     itr_skipping_level=self.itr_skipping_level,
-            #     configurations=self.platform_tags,
-            #     connector_setup=self.connector_setup,
-            #     telemetry_api=self.telemetry_api,
-            # )
-
-            # try:
             result = self.api_client.upload_coverage_report(coverage_report_bytes, coverage_format, tags)
             return result
-            # finally:
-            #     api_client.close()
 
         except Exception as e:
             log.exception("Error uploading coverage report: %s", e)
