@@ -117,7 +117,7 @@ class HomeHandler(BaseHandler):
 
 class AsmHandler(BaseHandler):
     # only str are possible with path params on tornado
-    async def _handle(self, param_int: str, param_str: str) -> None:
+    async def _handle(self, param_int: int, param_str: str) -> None:
         query_params = self._query_params()
         body = {
             "path_params": {"param_int": param_int, "param_str": param_str},
@@ -137,10 +137,10 @@ class AsmHandler(BaseHandler):
                 response_headers[vk[0]] = vk[1]
         self._write_json(body, status=status, headers=response_headers)
 
-    async def get(self, param_int: int, param_str: str) -> None:
+    async def get(self, param_int: str, param_str: str) -> None:
         await self._handle(int(param_int), param_str)
 
-    async def post(self, param_int: int, param_str: str) -> None:
+    async def post(self, param_int: str, param_str: str) -> None:
         await self._handle(int(param_int), param_str)
 
 
