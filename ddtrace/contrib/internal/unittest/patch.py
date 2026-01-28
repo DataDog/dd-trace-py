@@ -96,11 +96,6 @@ def _initialize_unittest_data():
         _CIVisibility._unittest_data["unskippable_tests"] = set()
 
 
-def _set_tracer(tracer: ddtrace.tracer):
-    """Manually sets the tracer instance to `unittest.`"""
-    unittest._datadog_tracer = tracer
-
-
 def _check_if_code_coverage_available():
     if _CIVisibility._instance._collect_coverage_enabled and not is_coverage_available():
         log.warning(
@@ -646,7 +641,7 @@ def _start_test_session_span(instance) -> ddtrace.trace.Span:
     """
     Starts a test session span and sets the required tags for a `unittest` session instance.
     """
-    tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
+    tracer = _CIVisibility._instance.tracer
     test_command = _extract_command_name_from_session(instance)
     resource_name = _generate_session_resource(test_command)
     test_session_span = tracer.trace(
@@ -687,7 +682,7 @@ def _start_test_module_span(instance) -> ddtrace.trace.Span:
     """
     Starts a test module span and sets the required tags for a `unittest` module instance.
     """
-    tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
+    tracer = _CIVisibility._instance.tracer
     test_session_span = _extract_session_span()
     test_module_name = _extract_module_name_from_module(instance)
     resource_name = _generate_module_resource(test_module_name)
@@ -730,7 +725,7 @@ def _start_test_suite_span(instance) -> ddtrace.trace.Span:
     """
     Starts a test suite span and sets the required tags for a `unittest` suite instance.
     """
-    tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
+    tracer = _CIVisibility._instance.tracer
     test_module_path = _extract_module_file_path(instance)
     test_module_span = _extract_module_span(test_module_path)
     test_suite_name = _extract_suite_name_from_test_method(instance)
@@ -766,7 +761,7 @@ def _start_test_span(instance, test_suite_span: ddtrace.trace.Span) -> ddtrace.t
     """
     Starts a test  span and sets the required tags for a `unittest` test instance.
     """
-    tracer = getattr(unittest, "_datadog_tracer", _CIVisibility._instance.tracer)
+    tracer = _CIVisibility._instance.tracer
     test_name = _extract_test_method_name(instance)
     test_method_object = _extract_test_method_object(instance)
     test_suite_name = _extract_suite_name_from_test_method(instance)

@@ -84,7 +84,5 @@ def traced_render(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) 
         resource=resource,
         span_type=http.TEMPLATE,
         tags=tags,
-        # TODO: Migrate all tests to snapshot tests and remove this
-        tracer=config_django._tracer,
     ):
         return func(*args, **kwargs)

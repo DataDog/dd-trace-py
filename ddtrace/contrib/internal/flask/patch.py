@@ -395,7 +395,7 @@ def patched_wsgi_app(pin, wrapped, instance, args, kwargs):
     # DEV: This is safe before this is the args for a WSGI handler
     #   https://www.python.org/dev/peps/pep-3333/
     environ, start_response = args
-    middleware = _FlaskWSGIMiddleware(wrapped, tracer, config.flask, pin)
+    middleware = _FlaskWSGIMiddleware(wrapped, None, config.flask, pin)
     return middleware(environ, start_response)
 
 

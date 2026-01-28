@@ -545,7 +545,6 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
 
     def setUp(self):
         """Before each test case, configure the global tracer with a DummyWriter"""
-        self.tracer = ddtrace.tracer
         self.scoped_tracer = scoped_tracer()
         self.tracer = self.scoped_tracer.__enter__()
         super(TracerTestCase, self).setUp()
@@ -602,15 +601,9 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
 
     @contextlib.contextmanager
     def override_global_tracer(self, tracer=None):
-        original = ddtrace.tracer
-        tracer = tracer or self.tracer
-        ddtrace.tracer = tracer
-        core.tracer = tracer
-        try:
-            yield
-        finally:
-            ddtrace.tracer = original
-            core.tracer = original
+        # TODO(munir): Remove this context manager. We no longer override
+        # the global tracer in tests.
+        yield
 
 
 class DummyWriterMixin:
@@ -1100,17 +1093,11 @@ def assert_dict_issuperset(a, b):
 
 @contextmanager
 def override_global_tracer(tracer):
-    """Helper functions that overrides the global tracer available in the
-    `ddtrace` package. This is required because in some `httplib` tests we
-    can't get easily the PIN object attached to the `HTTPConnection` to
-    replace the used tracer with a dummy tracer.
     """
-    original_tracer = ddtrace.tracer
-    ddtrace.tracer = tracer
-    core.tracer = tracer
+    TODO(munir): Remove this context manager. We no longer overrid
+    the global tracer in tests.
+    """
     yield
-    ddtrace.tracer = original_tracer
-    core.tracer = original_tracer
 
 
 class SnapshotFailed(Exception):
@@ -1205,14 +1192,10 @@ class TestAgentClient:
 
 class SnapshotTest:
     token: str
-    tracer: ddtrace.trace.Tracer
     _client: TestAgentClient
 
-    def __init__(self, token: str, tracer: Optional[ddtrace.trace.Tracer] = None):
-        if not tracer:
-            tracer = ddtrace.tracer
-        self.tracer = tracer
-        self._client = TestAgentClient(base_url=self.tracer.agent_trace_url, token=token)
+    def __init__(self, token: str):
+        self._client = TestAgentClient(base_url=ddtrace.tracer.agent_trace_url, token=token)
 
     def requests(self) -> List[Dict[str, Any]]:
         return self._client.requests()
@@ -1227,7 +1210,6 @@ def snapshot_context(
     token,
     agent_sample_rate_by_service=None,
     ignores=None,
-    tracer=None,
     async_mode=True,
     variants=None,
     wait_for_num_traces=None,
@@ -1241,8 +1223,7 @@ def snapshot_context(
         token = "{}_{}".format(token, variant_id) if variant_id else token
 
     ignores = ignores or []
-    if not tracer:
-        tracer = ddtrace.tracer
+    tracer = ddtrace.tracer
 
     parsed = parse.urlparse(tracer._span_aggregator.writer.intake_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
@@ -1292,7 +1273,6 @@ def snapshot_context(
                 pytest.fail(r.read().decode("utf-8", errors="ignore"), pytrace=False)
         try:
             yield SnapshotTest(
-                tracer=tracer,
                 token=token,
             )
         finally:

@@ -9,7 +9,6 @@ import cherrypy
 from cherrypy.test import helper
 import pytest
 
-import ddtrace
 from ddtrace import config
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
@@ -52,7 +51,6 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         super(TestCherrypy, self).setUp()
         self.traced_app = TraceMiddleware(
             cherrypy,
-            self.tracer,
             service="test.cherrypy.service",
             distributed_tracing=True,
         )
@@ -71,7 +69,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         # and `TraceMiddleware` are used together. `traced_app` MUST
         # be assigned otherwise it's not possible to reproduce the
         # problem (the test scope must keep a strong reference)
-        traced_app = TraceMiddleware(cherrypy, self.tracer)  # noqa: F841
+        TraceMiddleware(cherrypy)  # noqa: F841
         self.getPage("/")
         time.sleep(0.1)
         self.assertHeader("Content-Type", "text/html;charset=utf-8")
@@ -87,7 +85,6 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert cherrypy.tools.tracer.service == "test.cherrypy.service"
         TraceMiddleware(
             cherrypy,
-            self.tracer,
             service="new-intake",
         )
         self.getPage("/")
@@ -570,7 +567,6 @@ class TestCherrypySnapshot(helper.CPWebCase):
         config.cherrypy.http.trace_headers(["Host", "my-header"])
         self.traced_app = TraceMiddleware(
             cherrypy,
-            tracer=ddtrace.tracer,
             service="test.cherrypy.service",
             distributed_tracing=True,
         )
@@ -634,7 +630,6 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         super(TestCherrypy, self).setUp()
         self.traced_app = TraceMiddleware(
             cherrypy,
-            self.tracer,
             distributed_tracing=True,
         )
 
@@ -691,7 +686,6 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         super(TestCherrypy, self).setUp()
         self.traced_app = TraceMiddleware(
             cherrypy,
-            self.tracer,
             distributed_tracing=True,
         )
 

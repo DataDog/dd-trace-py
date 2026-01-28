@@ -23,7 +23,6 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Span
-from ddtrace.trace import Tracer
 from ddtrace.trace import tracer
 
 
@@ -126,7 +125,7 @@ def _handle_error(span, response_error, status_code):
 
 
 @contextmanager
-def _activated_span(tracer: Tracer, span: Span):
+def _activated_span(span: Span):
     prev_span = tracer.context_provider.active()
     tracer.context_provider.activate(span)
     try:
@@ -139,7 +138,6 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
     def __init__(self, wrapped, span, tracer):
         super(_WrappedResponseCallFuture, self).__init__(wrapped)
         self._span = span
-        self._tracer = tracer
         # Registers callback on the _MultiThreadedRendezvous future to finish
         # span in case StopIteration is never raised but RPC is terminated
         _handle_response(self._span, self.__wrapped__)
@@ -156,7 +154,7 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
         # https://github.com/googleapis/python-api-core/blob/35e87e0aca52167029784379ca84e979098e1d6c/google/api_core/grpc_helpers.py#L84
         # https://github.com/GoogleCloudPlatform/grpc-gcp-python/blob/5a2cd9807bbaf1b85402a2a364775e5b65853df6/src/grpc_gcp/_channel.py#L102
         try:
-            with _activated_span(self._tracer, self._span):
+            with _activated_span(self._span):
                 return next(self.__wrapped__)
         except StopIteration:
             # Callback will handle span finishing
@@ -252,7 +250,7 @@ class _ClientInterceptor(
         )
         if span is None:
             return continuation(client_call_details, request)
-        with _activated_span(tracer, span):
+        with _activated_span(span):
             try:
                 response = continuation(client_call_details, request)
                 _handle_response(span, response)
@@ -272,9 +270,9 @@ class _ClientInterceptor(
         )
         if span is None:
             return continuation(client_call_details, request)
-        with _activated_span(tracer, span):
+        with _activated_span(span):
             response_iterator = continuation(client_call_details, request)
-            response_iterator = _WrappedResponseCallFuture(response_iterator, span, tracer)
+            response_iterator = _WrappedResponseCallFuture(response_iterator, span)
         return response_iterator
 
     def intercept_stream_unary(self, continuation, client_call_details, request_iterator):
@@ -284,7 +282,7 @@ class _ClientInterceptor(
         )
         if span is None:
             return continuation(client_call_details, request_iterator)
-        with _activated_span(tracer, span):
+        with _activated_span(span):
             try:
                 response = continuation(client_call_details, request_iterator)
                 _handle_response(span, response)
@@ -304,7 +302,7 @@ class _ClientInterceptor(
         )
         if span is None:
             return continuation(client_call_details, request_iterator)
-        with _activated_span(tracer, span):
+        with _activated_span(span):
             response_iterator = continuation(client_call_details, request_iterator)
             response_iterator = _WrappedResponseCallFuture(response_iterator, span, tracer)
         return response_iterator
