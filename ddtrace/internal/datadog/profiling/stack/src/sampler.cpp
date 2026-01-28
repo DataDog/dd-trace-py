@@ -205,9 +205,6 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // systems.
         std::this_thread::sleep_until(sample_time_now + microseconds(sample_interval_us.load()));
     }
-
-    // Mark the request as served
-    thread_seq_num = 0;
 }
 
 void
@@ -357,10 +354,6 @@ Sampler::stop()
     // Modifying the thread sequence number will cause the sampling thread to exit when it completes
     // a sampling loop.  Currently there is no mechanism to force stuck threads, should they get locked.
     ++thread_seq_num;
-
-    while (thread_seq_num.load() > 0) {
-        std::this_thread::sleep_for(std::chrono::microseconds(1));
-    }
 }
 
 void

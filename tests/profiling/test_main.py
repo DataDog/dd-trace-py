@@ -71,10 +71,10 @@ def test_fork(tmp_path: Path) -> None:
     env = os.environ.copy()
     env["DD_PROFILING_OUTPUT_PPROF"] = filename
     env["DD_PROFILING_CAPTURE_PCT"] = "100"
-    stdout, _, exitcode, pid = call_program(
-        "python", os.path.join(os.path.dirname(__file__), "simple_program_fork.py"), env=env
+    stdout, stderr, exitcode, pid = call_program(
+        sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_fork.py"), env=env
     )
-    assert exitcode == 0
+    assert exitcode == 0, stderr
     stdout = stdout.decode() if isinstance(stdout, bytes) else stdout
     child_pid = stdout.strip()
     profile = pprof_utils.parse_newest_profile(f"{filename}.{pid}", allow_penultimate=True)
