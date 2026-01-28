@@ -35,6 +35,7 @@ from tests.profiling.collector.lock_utils import LineNo
 from tests.profiling.collector.lock_utils import get_lock_linenos
 from tests.profiling.collector.lock_utils import init_linenos
 from tests.profiling.collector.pprof_utils import pprof_pb2
+from tests.profiling.collector.test_utils import init_ddup
 
 
 PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
@@ -62,7 +63,8 @@ CollectorTypeClass = Type[CollectorTypeInst]
 _test_global_lock: LockTypeInst
 
 
-class TestBar: ...
+class TestBar:
+    pass
 
 
 _test_global_bar_instance: TestBar
@@ -281,7 +283,9 @@ def test_lock_gevent_tasks() -> None:
         expected_filename: str = "test_threading.py"
         linenos: LineNo = get_lock_linenos(test_name)
 
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)  # pyright: ignore[reportInvalidTypeForm]
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(  # pyright: ignore[reportInvalidTypeForm]
+            output_filename
+        )
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
@@ -443,6 +447,147 @@ def test_assertion_error_raised_with_enable_asserts():
             lock.acquire()
 
 
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"), timeout=30)
+def test_internal_lock_skips_asserts() -> None:
+    """Ensure internal locks don't trigger assert failures when asserts are enabled."""
+    import threading
+
+    from ddtrace.profiling.collector.threading import ThreadingConditionCollector
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_internal_lock_skips_asserts")
+
+    with ThreadingLockCollector(capture_pct=100), ThreadingConditionCollector(capture_pct=100):
+        cond = threading.Condition()
+        # Acquire/release uses the internal lock created inside threading.py.
+        error: list[BaseException] = []
+
+        def _run() -> None:
+            try:
+                cond.acquire()
+                cond.release()
+            except BaseException as exc:
+                error.append(exc)
+
+        t = threading.Thread(target=_run, name="internal-lock-check")
+        t.start()
+        t.join(5.0)
+        if t.is_alive():
+            raise AssertionError(
+                "internal lock acquisition hung; likely assert in _update_name with DD_PROFILING_ENABLE_ASSERTS"
+            )
+        if error:
+            raise error[0]
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="false"))
+def test_profiled_lock_ctor_handles_shallow_stack() -> None:
+    """Test that _ProfiledLock.__init__ handles shallow stacks gracefully.
+
+    Direct instantiation of _ProfiledLock creates a shallower stack than normal usage
+    through the allocator wrapper, which can trigger ValueError from sys._getframe(3).
+    """
+    import threading
+
+    from ddtrace.profiling import collector
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_profiled_lock_ctor_shallow")
+
+    # Direct instantiation creates shallow stack: only this function -> _ProfiledLock.__init__
+    # Normal path: caller -> Lock() -> _LockAllocatorWrapper.__call__ -> _profiled_allocate_lock -> __init__
+    real_lock = threading.Lock()
+    capture_sampler = collector.CaptureSampler(capture_pct=100)
+
+    # This should NOT crash even though sys._getframe(3) might fail in some contexts
+    profiled_lock = _ProfiledLock(
+        wrapped=real_lock,
+        tracer=None,
+        max_nframes=64,
+        capture_sampler=capture_sampler,
+    )
+
+    # Lock should be functional regardless of init_location
+    assert profiled_lock.acquire()
+    profiled_lock.release()
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="false"))
+def test_flush_sample_handles_shallow_stack() -> None:
+    """Test that _flush_sample doesn't crash when call stack is too shallow.
+
+    This can happen during atexit callbacks (e.g., Cassandra cluster shutdown).
+    """
+    import threading
+    import time
+
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_flush_sample_shallow")
+
+    # Create lock normally to get proper init_location
+    with ThreadingLockCollector(capture_pct=100):
+        lock = threading.Lock()
+
+    # Access the wrapped _ProfiledLock
+    profiled_lock = lock
+    assert isinstance(profiled_lock, _ProfiledLock)
+
+    # Simulate acquired state
+    profiled_lock.acquired_time = time.monotonic_ns()
+    profiled_lock.name = "test_lock"
+
+    # Direct call to _flush_sample creates shallow stack
+    # Normal path: caller -> release -> _release -> _flush_sample (4 frames)
+    # This path: test function -> _flush_sample (2 frames)
+    # sys._getframe(3) in _flush_sample will fail, but should be caught
+    start = time.monotonic_ns()
+    end = time.monotonic_ns()
+
+    # Should NOT crash
+    profiled_lock._flush_sample(start, end, is_acquire=False)
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="false"))
+def test_update_name_handles_shallow_stack() -> None:
+    """Test that _update_name doesn't crash when call stack is too shallow.
+
+    This can happen when _update_name is called from contexts with fewer than 4 frames.
+    """
+    import threading
+
+    from ddtrace.profiling import collector
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_update_name_shallow")
+
+    # Create lock with direct instantiation (shallow stack)
+    real_lock = threading.Lock()
+    capture_sampler = collector.CaptureSampler(capture_pct=100)
+    profiled_lock = _ProfiledLock(
+        wrapped=real_lock,
+        tracer=None,
+        max_nframes=64,
+        capture_sampler=capture_sampler,
+    )
+
+    assert profiled_lock.name is None
+
+    # Direct call to _update_name creates shallow stack or wrong call pattern
+    # Normal path: caller -> acquire -> _acquire -> _update_name (4+ frames with specific function names)
+    # This path: test function -> _update_name (wrong pattern)
+    # The assertion checks or sys._getframe(3) will fail, but should be caught
+    profiled_lock._update_name()
+
+    # Should not crash, name may or may not be set depending on stack depth
+    # but we shouldn't assert a specific value
+
+
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="false"))
 def test_all_exceptions_suppressed_by_default() -> None:
     """
@@ -484,8 +629,6 @@ def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
     e.g. when BoundedSemaphore's c-tor calls Semaphore c-tor.
     We expect that the call to Semaphore c-tor goes to the unpatched version, and NOT our patched version.
     """
-    from tests.profiling.collector.test_utils import init_ddup
-
     init_ddup("test_semaphore_and_bounded_semaphore_collectors_coexist")
 
     # Both collectors active at the same time - this triggers the inheritance case
@@ -1521,11 +1664,13 @@ class BaseSemaphoreTest(BaseThreadingLockCollectorTest):
             # Create a regular lock from user code
             regular_lock: LockTypeInst = threading.Lock()
             assert hasattr(regular_lock, "is_internal"), "Lock should be wrapped with is_internal attribute"
-            assert not regular_lock.is_internal, f"Regular lock should NOT be internal, got: {regular_lock.is_internal}"  # pyright: ignore[reportAttributeAccessIssue]
+            # pyright: ignore[reportAttributeAccessIssue]
+            assert not regular_lock.is_internal, f"Regular lock should NOT be internal, got: {regular_lock.is_internal}"
 
             # Create a semaphore-like lock - it should NOT be internal
             sem: LockTypeInst = self.lock_class(1)
-            assert not sem.is_internal, f"{lock_type_name} should NOT be internal, got: {sem.is_internal}"  # pyright: ignore[reportAttributeAccessIssue]
+            # pyright: ignore[reportAttributeAccessIssue]
+            assert not sem.is_internal, f"{lock_type_name} should NOT be internal, got: {sem.is_internal}"
 
             # Access the internal lock (Semaphore-like -> Condition -> Lock)
             # The Condition is at sem._cond, and its lock is at sem._cond._lock
