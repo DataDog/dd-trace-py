@@ -20,7 +20,3 @@
 #if PY_VERSION_HEX >= 0x030e0000
 #include <internal/pycore_runtime.h>
 #endif
-
-inline PyObject* asyncio_current_tasks = NULL;
-inline PyObject* asyncio_scheduled_tasks = NULL; // WeakSet
-inline PyObject* asyncio_eager_tasks = NULL;     // set

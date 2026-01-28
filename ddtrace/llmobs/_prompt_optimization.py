@@ -8,11 +8,15 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import TypedDict
+from typing import Union
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._experiment import BaseEvaluator
+from ddtrace.llmobs._experiment import BaseSummaryEvaluator
 from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecordInputType
+from ddtrace.llmobs._experiment import EvaluatorResult
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentResult
 from ddtrace.llmobs._experiment import ExperimentRowResult
@@ -439,10 +443,28 @@ class PromptOptimization:
         task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
         optimization_task: Callable[[str, str, ConfigType], str],
         dataset: Dataset,
-        evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
+        evaluators: List[
+            Union[
+                Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
+                BaseEvaluator,
+            ]
+        ],
         project_name: str,
         config: ConfigType,
-        summary_evaluators: List[Callable[[List, List, List, Dict], Dict]],
+        summary_evaluators: List[
+            Union[
+                Callable[
+                    [
+                        List[DatasetRecordInputType],
+                        List[JSONType],
+                        List[JSONType],
+                        Dict[str, List[JSONType]],
+                    ],
+                    JSONType,
+                ],
+                BaseSummaryEvaluator,
+            ]
+        ],
         compute_score: Callable[[Dict[str, Dict[str, Any]]], float],
         labelization_function: Optional[Callable[[Dict[str, Any]], str]],
         _llmobs_instance: Optional["LLMObs"] = None,
@@ -458,7 +480,9 @@ class PromptOptimization:
                                   ``system_prompt`` (str), ``user_prompt`` (str), and ``config`` (dict).
                                   Must return the new prompt.
         :param dataset: Dataset to run experiments on.
-        :param evaluators: List of evaluator functions to measure task performance.
+        :param evaluators: List of evaluators to measure task performance. Can be either
+                          class-based evaluators (inheriting from BaseEvaluator) or function-based
+                          evaluators that accept (input_data, output_data, expected_output) parameters.
         :param project_name: Project name for organizing optimization runs.
         :param config: Configuration dictionary. Must contain:
                       - ``prompt`` (mandatory): Initial prompt template
@@ -466,14 +490,10 @@ class PromptOptimization:
                       - ``evaluation_output_format`` (optional): the output format wanted
                       - ``runs`` (optional): The number of times to run the experiment, or, run the task for every
                                              dataset record the defined number of times.
-        :param summary_evaluators: List of summary evaluator functions (REQUIRED).
-                                   Each must accept (
-                                    inputs: List,
-                                    outputs: List,
-                                    expected_outputs: List,
-                                    evaluations: Dict
-                                   )
-                                   and return Dict with aggregated metrics.
+        :param summary_evaluators: List of summary evaluators (REQUIRED). Can be either
+                                   class-based evaluators (inheriting from BaseSummaryEvaluator) or function-based
+                                   evaluators that accept (inputs: List, outputs: List, expected_outputs: List,
+                                   evaluations: Dict) and return aggregated metrics.
         :param compute_score: Function to compute iteration score (REQUIRED).
                              Takes summary_evaluations dict from the experiment result and returns float score.
                              Used to compare and rank different prompt iterations.
@@ -655,8 +675,8 @@ class PromptOptimization:
             project_name=self._tags["project_name"],
             dataset=self._dataset,
             task=self._task,
-            evaluators=self._evaluators,  # type: ignore[arg-type]
-            summary_evaluators=self._summary_evaluators,  # type: ignore[arg-type]
+            evaluators=self._evaluators,
+            summary_evaluators=self._summary_evaluators,
             _llmobs_instance=self._llmobs_instance,
             config=experiment_config,
             runs=runs_int,
