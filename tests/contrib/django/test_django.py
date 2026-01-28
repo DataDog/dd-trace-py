@@ -707,16 +707,13 @@ Database tests
 @pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_DATABASES": "true"})
 def test_connection():
     from tests.contrib.django.utils import setup_django_test_spans
-    from tests.contrib.django.utils import with_django_db
-
-    setup = setup_django_test_spans()
-    test_spans = setup.__enter__()
+    from tests.contrib.django.utils import with_default_django_db
 
     """
     When database queries are made from Django
         The queries are traced
     """
-    with with_django_db(test_spans):
+    with setup_django_test_spans() as test_spans, with_default_django_db(test_spans):
         from django.contrib.auth.models import User
 
         users = User.objects.count()
@@ -732,7 +729,6 @@ def test_connection():
         assert span.span_type == "sql"
         assert span.get_tag("django.db.vendor") == "sqlite"
         assert span.get_tag("django.db.alias") == "default"
-    setup.__exit__(None, None, None)
 
 
 """
@@ -1602,13 +1598,10 @@ def test_cached_view():
     from django.test import Client
 
     from tests.contrib.django.utils import setup_django_test_spans
-    from tests.contrib.django.utils import with_django_db
-
-    setup = setup_django_test_spans()
-    test_spans = setup.__enter__()
+    from tests.contrib.django.utils import with_default_django_db
 
     # make the first request so that the view is cached
-    with with_django_db(test_spans):
+    with setup_django_test_spans() as test_spans, with_default_django_db(test_spans):
         client = Client()
         response = client.get("/cached-users/")
         assert response.status_code == 200
@@ -1660,7 +1653,6 @@ def test_cached_view():
 
         assert span_view.get_tags() == expected_meta_view, span_view.get_tags()
         assert span_header.get_tags() == expected_meta_header
-    setup.__exit__(None, None, None)
 
 
 """
@@ -1742,11 +1734,9 @@ def test_schematized_default_db_service_name(
 import django
 
 from tests.contrib.django.utils import setup_django_test_spans
-from tests.contrib.django.utils import with_django_db
+from tests.contrib.django.utils import with_default_django_db
 
-setup = setup_django_test_spans()
-test_spans = setup.__enter__()
-with with_django_db(test_spans):
+with setup_django_test_spans() as test_spans, with_default_django_db(test_spans):
     from django.contrib.auth.models import User
 
     users = User.objects.count()
@@ -1761,7 +1751,6 @@ with with_django_db(test_spans):
     assert span.span_type == "sql"
     assert span.get_tag("django.db.vendor") == "sqlite"
     assert span.get_tag("django.db.alias") == "default"
-setup.__exit__(None, None, None)
     """.format(expected_service_name)
 
     env = os.environ.copy()
@@ -1826,12 +1815,9 @@ if __name__ == "__main__":
 )
 def test_database_service_prefix_can_be_overridden():
     from tests.contrib.django.utils import setup_django_test_spans
-    from tests.contrib.django.utils import with_django_db
+    from tests.contrib.django.utils import with_default_django_db
 
-    setup = setup_django_test_spans()
-    test_spans = setup.__enter__()
-
-    with with_django_db(test_spans):
+    with setup_django_test_spans() as test_spans, with_default_django_db(test_spans):
         from django.contrib.auth.models import User
 
         User.objects.count()
@@ -1841,18 +1827,16 @@ def test_database_service_prefix_can_be_overridden():
 
         span = spans[0]
         assert span.service == "my-defaultdb"
-    setup.__exit__(None, None, None)
 
 
-@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_DATABASES": "true", "DD_DJANGO_DATABASE_SERVICE_NAME": "django-db"})
+@pytest.mark.subprocess(
+    env={"DD_DJANGO_INSTRUMENT_DATABASES": "true", "DD_DJANGO_DATABASE_SERVICE_NAME": "django-db"}, err=None
+)
 def test_database_service_can_be_overridden():
     from tests.contrib.django.utils import setup_django_test_spans
-    from tests.contrib.django.utils import with_django_db
+    from tests.contrib.django.utils import with_default_django_db
 
-    setup = setup_django_test_spans()
-    test_spans = setup.__enter__()
-
-    with with_django_db(test_spans):
+    with setup_django_test_spans() as test_spans, with_default_django_db(test_spans):
         from django.contrib.auth.models import User
 
         User.objects.count()
@@ -1862,7 +1846,6 @@ def test_database_service_can_be_overridden():
 
         span = spans[0]
         assert span.service == "django-db"
-    setup.__exit__(None, None, None)
 
 
 @pytest.mark.subprocess(
@@ -1874,12 +1857,9 @@ def test_database_service_can_be_overridden():
 )
 def test_database_service_prefix_precedence():
     from tests.contrib.django.utils import setup_django_test_spans
-    from tests.contrib.django.utils import with_django_db
+    from tests.contrib.django.utils import with_default_django_db
 
-    setup = setup_django_test_spans()
-    test_spans = setup.__enter__()
-
-    with with_django_db(test_spans):
+    with setup_django_test_spans() as test_spans, with_default_django_db(test_spans):
         from django.contrib.auth.models import User
 
         User.objects.count()
@@ -1889,7 +1869,6 @@ def test_database_service_prefix_precedence():
 
         span = spans[0]
         assert span.service == "django-db"
-    setup.__exit__(None, None, None)
 
 
 @pytest.mark.subprocess(
