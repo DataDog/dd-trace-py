@@ -3,6 +3,7 @@ import logging
 import re
 import typing as t
 
+from ddtrace.ext.ci import github_actions
 from ddtrace.testing.internal import git
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.utils import _filter_sensitive_info
@@ -269,54 +270,22 @@ def extract_codefresh(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional
 
 @register_provider("GITHUB_SHA")
 def extract_github_actions(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[str]]:
-    """Extract CI tags from Github environ."""
-    github_server_url = _filter_sensitive_info(env.get("GITHUB_SERVER_URL"))
-    github_repository = env.get("GITHUB_REPOSITORY")
-    git_commit_sha = env.get("GITHUB_SHA")
-    github_run_id = env.get("GITHUB_RUN_ID")
-    github_job_id = env.get("JOB_CHECK_RUN_ID")
-    run_attempt = env.get("GITHUB_RUN_ATTEMPT")
-
-    pipeline_url = "{0}/{1}/actions/runs/{2}".format(
-        github_server_url,
-        github_repository,
-        github_run_id,
+    """Extract CI tags from Github Actions environment."""
+    return github_actions.extract_github_actions(
+        env,
+        _ci_env_vars_tag=CITag._CI_ENV_VARS,
+        _filter_sensitive_info=_filter_sensitive_info,
+        git_module=GitTag,
+        job_id_tag=CITag.JOB_ID,
+        job_name_tag=CITag.JOB_NAME,
+        job_url_tag=CITag.JOB_URL,
+        pipeline_id_tag=CITag.PIPELINE_ID,
+        pipeline_name_tag=CITag.PIPELINE_NAME,
+        pipeline_number_tag=CITag.PIPELINE_NUMBER,
+        pipeline_url_tag=CITag.PIPELINE_URL,
+        provider_name_tag=CITag.PROVIDER_NAME,
+        workspace_path_tag=CITag.WORKSPACE_PATH,
     )
-
-    git_commit_head_sha = None
-    if "GITHUB_EVENT_PATH" in env:
-        try:
-            with open(env["GITHUB_EVENT_PATH"]) as f:
-                github_event_data = json.load(f)
-                git_commit_head_sha = github_event_data.get("pull_request", {}).get("head", {}).get("sha")
-        except Exception as e:
-            log.error("Failed to read or parse GITHUB_EVENT_PATH: %s", e)
-
-    env_vars = {
-        "GITHUB_SERVER_URL": github_server_url,
-        "GITHUB_REPOSITORY": github_repository,
-        "GITHUB_RUN_ID": github_run_id,
-    }
-    if run_attempt:
-        env_vars["GITHUB_RUN_ATTEMPT"] = run_attempt
-        pipeline_url = "{0}/attempts/{1}".format(pipeline_url, run_attempt)
-
-    return {
-        GitTag.BRANCH: env.get("GITHUB_HEAD_REF") or env.get("GITHUB_REF"),
-        GitTag.COMMIT_SHA: git_commit_sha,
-        GitTag.REPOSITORY_URL: "{0}/{1}.git".format(github_server_url, github_repository),
-        GitTag.COMMIT_HEAD_SHA: git_commit_head_sha,
-        CITag.JOB_URL: "{0}/{1}/commit/{2}/checks".format(github_server_url, github_repository, git_commit_sha),
-        CITag.PIPELINE_ID: github_run_id,
-        CITag.PIPELINE_NAME: env.get("GITHUB_WORKFLOW"),
-        CITag.PIPELINE_NUMBER: env.get("GITHUB_RUN_NUMBER"),
-        CITag.PIPELINE_URL: pipeline_url,
-        CITag.JOB_ID: github_job_id,
-        CITag.JOB_NAME: env.get("GITHUB_JOB"),
-        CITag.PROVIDER_NAME: "github",
-        CITag.WORKSPACE_PATH: env.get("GITHUB_WORKSPACE"),
-        CITag._CI_ENV_VARS: json.dumps(env_vars, separators=(",", ":")),
-    }
 
 
 @register_provider("GITLAB_CI")
