@@ -88,7 +88,8 @@ class PromptManager:
 
         # Fall back to user-provided or empty prompt
         telemetry.record_prompt_source("fallback", prompt_id)
-        return self._create_fallback_prompt(prompt_id, fallback)
+        log.debug("Using %s fallback for prompt %s", "user-provided" if fallback else "empty", prompt_id)
+        return ManagedPrompt.from_fallback(prompt_id, fallback)
 
     def clear_cache(self, hot: bool = True, warm: bool = True) -> None:
         """Clear the prompt cache."""
@@ -207,13 +208,3 @@ class PromptManager:
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             log.warning("Failed to parse prompt response: %s", e)
             return None
-
-    def _create_fallback_prompt(
-        self,
-        prompt_id: str,
-        fallback: PromptFallback = None,
-    ) -> ManagedPrompt:
-        """Create a fallback prompt when fetch fails."""
-        fallback_type = "user-provided" if fallback else "empty"
-        log.debug("Using %s fallback for prompt %s", fallback_type, prompt_id)
-        return ManagedPrompt.from_fallback(prompt_id, fallback)
