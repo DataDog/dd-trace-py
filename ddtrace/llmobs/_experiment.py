@@ -15,6 +15,7 @@ from typing import Dict
 from typing import Iterator
 from typing import List
 from typing import Optional
+from typing import Sequence
 from typing import Tuple
 from typing import TypedDict
 from typing import Union
@@ -607,7 +608,7 @@ class Experiment:
         name: str,
         task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
         dataset: Dataset,
-        evaluators: List[
+        evaluators: Sequence[
             Union[
                 Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
                 BaseEvaluator,
