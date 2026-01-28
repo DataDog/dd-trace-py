@@ -108,6 +108,13 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "azure-functions-durable",
+        "integration": "azure_durable_functions",
+        "minimum_tracer_supported": "1.4.0",
+        "max_tracer_supported": "1.4.0",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "azure-eventhub",
         "integration": "azure_eventhubs",
         "minimum_tracer_supported": "5.12.2",

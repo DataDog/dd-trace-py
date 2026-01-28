@@ -10,12 +10,12 @@ except Exception:
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+from ddtrace.contrib.internal.azure_functions.utils import wrap_function_with_tracing
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 from ddtrace.internal.schema import schematize_service_name
 
 from .utils import create_context
-from .utils import wrap_function_with_tracing
 
 
 _DURABLE_ACTIVITY_TRIGGER = "activityTrigger"
