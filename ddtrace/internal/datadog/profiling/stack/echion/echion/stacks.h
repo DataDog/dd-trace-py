@@ -38,11 +38,18 @@ class FrameStack : public std::deque<Frame::Ref>
 
 // ----------------------------------------------------------------------------
 size_t
-unwind_frame(PyObject* frame_addr, FrameStack& stack, size_t max_depth = max_frames);
+unwind_frame(PyObject* frame_addr,
+             FrameStack& stack,
+             StringTable& string_table,
+             LRUCache<uintptr_t, Frame>& frame_cache,
+             size_t max_depth = max_frames);
 
 // ----------------------------------------------------------------------------
 void
-unwind_python_stack(PyThreadState* tstate, FrameStack& stack);
+unwind_python_stack(PyThreadState* tstate,
+                    FrameStack& stack,
+                    StringTable& string_table,
+                    LRUCache<uintptr_t, Frame>& frame_cache);
 
 // ----------------------------------------------------------------------------
 class StackInfo

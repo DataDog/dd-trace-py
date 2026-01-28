@@ -63,7 +63,11 @@ class StackRenderer : public RendererInterface
     // the sample is created, this has to be reset.
     bool pushed_task_name = false;
 
+    // Reference to string table for looking up frame names/filenames
+    StringTable* string_table_ptr = nullptr;
+
   public:
+    void set_string_table(StringTable& st) { string_table_ptr = &st; }
     Result<void> open() override;
     void close() override {}
     void header() override {}

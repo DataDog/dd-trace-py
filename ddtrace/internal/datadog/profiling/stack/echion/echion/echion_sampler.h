@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include <echion/cache.h>
 #include <echion/threads.h>
 
 class EchionSampler
@@ -31,6 +32,12 @@ class EchionSampler
     // Task unwinding state
     std::optional<Frame::Key> frame_cache_key_;
     std::unordered_set<PyObject*> previous_task_objects_;
+
+    // String table for caching Python strings (filenames, function names, etc.)
+    StringTable string_table_;
+
+    // Frame cache for caching Frame objects
+    std::unique_ptr<LRUCache<uintptr_t, Frame>> frame_cache_;
 
   public:
     EchionSampler() = default;
@@ -60,6 +67,14 @@ class EchionSampler
     std::optional<Frame::Key>& frame_cache_key() { return frame_cache_key_; }
     std::unordered_set<PyObject*>& previous_task_objects() { return previous_task_objects_; }
 
+    StringTable& string_table() { return string_table_; }
+    const StringTable& string_table() const { return string_table_; }
+
+    LRUCache<uintptr_t, Frame>& frame_cache() { return *frame_cache_; }
+    const LRUCache<uintptr_t, Frame>& frame_cache() const { return *frame_cache_; }
+
+    void init_frame_cache(size_t capacity) { frame_cache_ = std::make_unique<LRUCache<uintptr_t, Frame>>(capacity); }
+
     void postfork_child()
     {
         // Re-init mutexes (placement new to avoid UB)
@@ -74,5 +89,8 @@ class EchionSampler
         greenlet_info_map_.clear();
         greenlet_parent_map_.clear();
         greenlet_thread_map_.clear();
+
+        // Reset the string_table mutex to avoid deadlock if fork happened while it was held
+        string_table_.postfork_child();
     }
 };
