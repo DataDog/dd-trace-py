@@ -96,8 +96,8 @@ PATCH_MODULES = {
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
     "azure_eventhubs": True,
-    "azure_durable_functions": True,
     "azure_functions": True,
+    "azure_durable_functions": True,
     "azure_servicebus": True,
     "tornado": False,
     "openai": True,

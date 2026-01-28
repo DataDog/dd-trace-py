@@ -10,6 +10,8 @@ from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ORCH
 from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_TRIGGER_DEFS
 from ddtrace.contrib.internal.azure_durable_functions.patch import _patched_get_functions
 from ddtrace.contrib.internal.azure_durable_functions.patch import _wrap_durable_trigger
+from ddtrace.contrib.internal.azure_durable_functions.patch import patch as durable_patch
+from ddtrace.contrib.internal.azure_durable_functions.patch import unpatch as durable_unpatch
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -120,7 +122,11 @@ def test_patched_get_functions_wraps_activity_and_entity_only():
         def wrapped():
             return [activity_fn, entity_fn, orchestration_fn, no_trigger_fn]
 
-        functions = _patched_get_functions(wrapped, instance, (), {})
+        durable_patch()
+        try:
+            functions = _patched_get_functions(wrapped, instance, (), {})
+        finally:
+            durable_unpatch()
 
         assert functions[0]._func is not user_func
         assert functions[1]._func is not user_func
