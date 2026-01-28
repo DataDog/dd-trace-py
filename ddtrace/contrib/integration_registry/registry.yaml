@@ -16,7 +16,7 @@ integrations:
   - aiohttp
   tested_versions_by_dependency:
     aiohttp:
-      min: 3.13.3
+      min: 3.7.4.post0
       max: 3.13.3
 
 - integration_name: aiohttp_jinja2
@@ -51,7 +51,7 @@ integrations:
   tested_versions_by_dependency:
     aiomysql:
       min: 0.1.1
-      max: 0.1.1
+      max: 0.3.2
 
 - integration_name: aiopg
   is_external_package: true
@@ -197,7 +197,7 @@ integrations:
   tested_versions_by_dependency:
     bottle:
       min: 0.12.25
-      max: 0.12.25
+      max: 0.13.4
 
 - integration_name: celery
   is_external_package: true
@@ -216,7 +216,7 @@ integrations:
   - cherrypy
   tested_versions_by_dependency:
     cherrypy:
-      min: 18.10.0
+      min: 17.0.0
       max: 18.10.0
 
 - integration_name: consul
@@ -288,7 +288,7 @@ integrations:
   - dramatiq
   tested_versions_by_dependency:
     dramatiq:
-      min: 1.18.0
+      min: 1.10.0
       max: 2.0.1
 
 - integration_name: elasticsearch
@@ -311,8 +311,8 @@ integrations:
       min: 7.13.4
       max: 9.2.1
     elasticsearch1:
-      min: 1.1.0
-      max: 3.1.0
+      min: 1.10.0
+      max: 1.10.0
     elasticsearch2:
       min: 2.5.1
       max: 2.5.1
@@ -320,8 +320,8 @@ integrations:
       min: 5.5.6
       max: 5.5.6
     elasticsearch6:
-      min: 1.1.0
-      max: 3.1.0
+      min: 6.8.2
+      max: 6.8.2
     elasticsearch7:
       min: 7.13.4
       max: 7.17.13
@@ -346,7 +346,7 @@ integrations:
   - fastapi
   tested_versions_by_dependency:
     fastapi:
-      min: 0.90.1
+      min: 0.64.0
       max: 0.128.0
 
 - integration_name: flask
@@ -395,7 +395,7 @@ integrations:
   tested_versions_by_dependency:
     google-adk:
       min: 1.0.0
-      max: 1.0.0
+      max: 1.23.0
 
 - integration_name: google_genai
   is_external_package: true
@@ -414,7 +414,7 @@ integrations:
   - graphql-core
   tested_versions_by_dependency:
     graphql-core:
-      min: 3.2.7
+      min: 3.1.7
       max: 3.2.7
 
 - integration_name: grpc
@@ -425,7 +425,7 @@ integrations:
   tested_versions_by_dependency:
     grpcio:
       min: 1.34.1
-      max: 1.49.1
+      max: 1.76.0
 
 - integration_name: gunicorn
   is_external_package: true
@@ -468,8 +468,8 @@ integrations:
   - confluent-kafka
   tested_versions_by_dependency:
     confluent-kafka:
-      min: 1.9.2
-      max: 2.6.2
+      min: 2.13.0
+      max: 2.13.0
 
 - integration_name: kombu
   is_external_package: true
@@ -478,7 +478,7 @@ integrations:
   - kombu
   tested_versions_by_dependency:
     kombu:
-      min: 5.6.2
+      min: 5.0.2
       max: 5.6.2
 
 - integration_name: langchain
@@ -601,7 +601,7 @@ integrations:
   tested_versions_by_dependency:
     mysqlclient:
       min: 2.2.6
-      max: 2.2.6
+      max: 2.2.7
 
 - integration_name: openai
   is_external_package: true
@@ -611,7 +611,7 @@ integrations:
   tested_versions_by_dependency:
     openai:
       min: 1.0.0
-      max: 1.76.2
+      max: 2.16.0
 
 - integration_name: openai_agents
   is_external_package: true
@@ -641,8 +641,8 @@ integrations:
   - psycopg2-binary
   tested_versions_by_dependency:
     psycopg:
-      min: 3.2.13
-      max: 3.2.13
+      min: 3.0.18
+      max: 3.3.2
     psycopg2-binary:
       min: 2.9.11
       max: 2.9.11
@@ -724,7 +724,7 @@ integrations:
   - pyramid
   tested_versions_by_dependency:
     pyramid:
-      min: 2.0.2
+      min: 1.10.8
       max: 2.0.2
 
 - integration_name: pytest
@@ -734,7 +734,7 @@ integrations:
   - pytest
   tested_versions_by_dependency:
     pytest:
-      min: 7.4.4
+      min: 6.2.5
       max: 9.0.2
 
 - integration_name: pytest_bdd
@@ -744,7 +744,7 @@ integrations:
   - pytest-bdd
   tested_versions_by_dependency:
     pytest-bdd:
-      min: 6.0.1
+      min: 4.1.0
       max: 6.0.1
 
 - integration_name: pytest_benchmark
@@ -760,7 +760,7 @@ integrations:
   - ray
   tested_versions_by_dependency:
     ray:
-      min: 2.53.0
+      min: 2.46.0
       max: 2.53.0
 
 - integration_name: redis
@@ -800,7 +800,7 @@ integrations:
   - rq
   tested_versions_by_dependency:
     rq:
-      min: 2.6.1
+      min: 1.8.1
       max: 2.6.1
 
 - integration_name: sanic
@@ -826,7 +826,7 @@ integrations:
   - snowflake-connector-python
   tested_versions_by_dependency:
     snowflake-connector-python:
-      min: 2.7.12
+      min: 2.4.6
       max: 4.0.0
 
 - integration_name: sqlalchemy
@@ -837,7 +837,7 @@ integrations:
   tested_versions_by_dependency:
     sqlalchemy:
       min: 1.3.24
-      max: 2.0.43
+      max: 2.0.46
 
 - integration_name: sqlite3
   is_external_package: false
@@ -850,7 +850,7 @@ integrations:
   - starlette
   tested_versions_by_dependency:
     starlette:
-      min: 0.20.4
+      min: 0.14.2
       max: 0.52.1
 
 - integration_name: structlog
@@ -860,7 +860,7 @@ integrations:
   - structlog
   tested_versions_by_dependency:
     structlog:
-      min: 25.5.0
+      min: 20.2.0
       max: 25.5.0
 
 - integration_name: subprocess
@@ -874,8 +874,8 @@ integrations:
   - tornado
   tested_versions_by_dependency:
     tornado:
-      min: 6.2.0
-      max: 6.4.1
+      min: 6.1.0
+      max: 6.5.4
 
 - integration_name: unittest
   is_external_package: false
@@ -927,7 +927,7 @@ integrations:
   tested_versions_by_dependency:
     vertica-python:
       min: 0.6.14
-      max: 0.6.14
+      max: 0.7.4
 
 - integration_name: vllm
   is_external_package: true
@@ -954,5 +954,5 @@ integrations:
   - yaaredis
   tested_versions_by_dependency:
     yaaredis:
-      min: 3.0.0
+      min: 2.0.4
       max: 3.0.0
