@@ -12,7 +12,6 @@
       "_dd.base_service": "tests.contrib.redis",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
-      "cheese": "camembert",
       "component": "redis",
       "db.system": "redis",
       "language": "python",

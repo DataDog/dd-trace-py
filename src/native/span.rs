@@ -1,6 +1,6 @@
 use pyo3::{
     types::{PyInt, PyList, PyModule, PyModuleMethods as _},
-    Bound, PyObject, PyResult, Python,
+    Bound, Py, PyAny, PyResult, Python,
 };
 
 #[pyo3::pyclass(name = "SpanEventData", module = "ddtrace.internal._native", subclass)]
@@ -23,8 +23,8 @@ impl SpanEventData {
 
     pub fn __init__(
         &mut self,
-        _name: PyObject,
-        _attributes: Option<PyObject>,
+        _name: Py<PyAny>,
+        _attributes: Option<Py<PyAny>>,
         _time_unix_nano: Option<u64>,
     ) -> PyResult<()> {
         Ok(())
@@ -62,9 +62,9 @@ impl SpanLinkData {
         &mut self,
         trace_id: &Bound<'p, PyInt>,
         span_id: &Bound<'p, PyInt>,
-        tracestate: Option<PyObject>,
+        tracestate: Option<Py<PyAny>>,
         flags: Option<&Bound<'p, PyInt>>,
-        attributes: Option<PyObject>,
+        attributes: Option<Py<PyAny>>,
         _dropped_attributes: u32,
     ) -> PyResult<()> {
         Ok(())
@@ -110,15 +110,15 @@ impl SpanData {
     fn __init__<'p>(
         &mut self,
         _py: Python<'p>,
-        name: PyObject,
-        service: Option<PyObject>,
-        resource: Option<PyObject>,
-        span_type: Option<PyObject>,
+        name: Py<PyAny>,
+        service: Option<Py<PyAny>>,
+        resource: Option<Py<PyAny>>,
+        span_type: Option<Py<PyAny>>,
         trace_id: Option<&Bound<'p, PyInt>>,
         span_id: Option<&Bound<'p, PyInt>>,
         parent_id: Option<&Bound<'p, PyInt>>,
         start: Option<f64>,
-        span_api: Option<PyObject>,
+        span_api: Option<Py<PyAny>>,
         links: Option<Bound<'p, PyList>>,
     ) -> PyResult<()> {
         Ok(())
