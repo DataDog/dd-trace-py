@@ -8,11 +8,11 @@ import os
 import platform
 import re
 from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
 from typing import MutableMapping  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from ddtrace.ext import git
+from ddtrace.ext.ci import github_actions
 from ddtrace.internal.logger import get_logger
 
 
@@ -353,55 +353,22 @@ def extract_codefresh(env):
 
 def extract_github_actions(env):
     # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
-    """Extract CI tags from Github environ."""
-
-    github_server_url = _filter_sensitive_info(env.get("GITHUB_SERVER_URL"))
-    github_repository = env.get("GITHUB_REPOSITORY")
-    git_commit_sha = env.get("GITHUB_SHA")
-    github_run_id = env.get("GITHUB_RUN_ID")
-    github_job_id = env.get("JOB_CHECK_RUN_ID")
-    run_attempt = env.get("GITHUB_RUN_ATTEMPT")
-
-    pipeline_url = "{0}/{1}/actions/runs/{2}".format(
-        github_server_url,
-        github_repository,
-        github_run_id,
+    """Extract CI tags from Github Actions environment."""
+    return github_actions.extract_github_actions(
+        env,
+        _ci_env_vars_tag=_CI_ENV_VARS,
+        _filter_sensitive_info=_filter_sensitive_info,
+        git_module=git,
+        job_id_tag=JOB_ID,
+        job_name_tag=JOB_NAME,
+        job_url_tag=JOB_URL,
+        pipeline_id_tag=PIPELINE_ID,
+        pipeline_name_tag=PIPELINE_NAME,
+        pipeline_number_tag=PIPELINE_NUMBER,
+        pipeline_url_tag=PIPELINE_URL,
+        provider_name_tag=PROVIDER_NAME,
+        workspace_path_tag=WORKSPACE_PATH,
     )
-
-    git_commit_head_sha = None
-    if "GITHUB_EVENT_PATH" in env:
-        try:
-            with open(env["GITHUB_EVENT_PATH"]) as f:
-                github_event_data = json.load(f)
-                git_commit_head_sha = github_event_data.get("pull_request", {}).get("head", {}).get("sha")
-        except Exception as e:
-            log.error("Failed to read or parse GITHUB_EVENT_PATH: %s", e)
-
-    env_vars = {
-        "GITHUB_SERVER_URL": github_server_url,
-        "GITHUB_REPOSITORY": github_repository,
-        "GITHUB_RUN_ID": github_run_id,
-    }
-    if run_attempt:
-        env_vars["GITHUB_RUN_ATTEMPT"] = run_attempt
-        pipeline_url = "{0}/attempts/{1}".format(pipeline_url, run_attempt)
-
-    return {
-        git.BRANCH: env.get("GITHUB_HEAD_REF") or env.get("GITHUB_REF"),
-        git.COMMIT_SHA: git_commit_sha,
-        git.REPOSITORY_URL: "{0}/{1}.git".format(github_server_url, github_repository),
-        git.COMMIT_HEAD_SHA: git_commit_head_sha,
-        JOB_URL: "{0}/{1}/commit/{2}/checks".format(github_server_url, github_repository, git_commit_sha),
-        JOB_ID: github_job_id,
-        PIPELINE_ID: github_run_id,
-        PIPELINE_NAME: env.get("GITHUB_WORKFLOW"),
-        PIPELINE_NUMBER: env.get("GITHUB_RUN_NUMBER"),
-        PIPELINE_URL: pipeline_url,
-        JOB_NAME: env.get("GITHUB_JOB"),
-        PROVIDER_NAME: "github",
-        WORKSPACE_PATH: env.get("GITHUB_WORKSPACE"),
-        _CI_ENV_VARS: json.dumps(env_vars, separators=(",", ":")),
-    }
 
 
 def extract_gitlab(env):
