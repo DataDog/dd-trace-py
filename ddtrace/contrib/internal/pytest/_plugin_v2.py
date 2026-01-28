@@ -7,12 +7,7 @@ import pytest
 
 from ddtrace import DDTraceDeprecationWarning
 from ddtrace import config as dd_config
-from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
-from ddtrace.contrib.internal.coverage.data import _coverage_data
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
-from ddtrace.contrib.internal.coverage.patch import run_coverage_report
-from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
-from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.internal.pytest._benchmark_utils import _set_benchmark_data_from_item
 from ddtrace.contrib.internal.pytest._report_links import print_test_report_links
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
@@ -376,6 +371,31 @@ def _is_pytest_cov_enabled(config) -> bool:
     return cov_option
 
 
+# Global coverage integration instance for early initialization
+_early_coverage_integration = None
+
+
+def _early_initialize_coverage_for_upload(config):
+    """Initialize coverage collection early if upload is enabled but --cov wasn't specified."""
+    global _early_coverage_integration
+
+    try:
+        from ddtrace.contrib.internal.coverage_integration import CoverageIntegration
+        from ddtrace.contrib.internal.coverage_integration import is_coverage_upload_enabled
+
+        # Only proceed if coverage upload is enabled but --cov wasn't used
+        if is_coverage_upload_enabled() and not _is_pytest_cov_enabled(config):
+            log.debug("Coverage upload enabled without --cov, initializing early coverage collection")
+
+            # Don't get env_tags here as it may cause git command issues during early init
+            # We'll get them later during session finish when all infrastructure is ready
+            _early_coverage_integration = CoverageIntegration(telemetry_writer=None, env_tags={})
+            _early_coverage_integration.initialize(config)
+
+    except Exception:
+        log.debug("Failed to initialize early coverage for upload", exc_info=True)
+
+
 def pytest_configure(config: pytest_Config) -> None:
     global skip_pytest_runtest_protocol
 
@@ -396,6 +416,9 @@ def pytest_configure(config: pytest_Config) -> None:
             enable_test_visibility(config=dd_config.pytest)
             if _is_pytest_cov_enabled(config):
                 patch_coverage()
+
+            # Initialize early coverage collection for upload if enabled
+            _early_initialize_coverage_for_upload(config)
 
             skip_pytest_runtest_protocol = False
 
@@ -956,25 +979,36 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if not is_test_visibility_enabled():
         return
 
-    invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
-    pytest_cov_status = _is_pytest_cov_enabled(session.config)
-    if _is_coverage_patched() and (pytest_cov_status or invoked_by_coverage_run_status):
-        if invoked_by_coverage_run_status and not pytest_cov_status:
-            run_coverage_report()
+    # Use simplified coverage integration
+    from ddtrace.contrib.internal.coverage_integration import CoverageIntegration
+    from ddtrace.internal.telemetry import telemetry_writer
+    from ddtrace.testing.internal.env_tags import get_env_tags
+    from ddtrace.testing.internal.telemetry import TelemetryAPI
+    from ddtrace.testing.internal.http import BackendConnectorSetup
 
-        lines_pct_value = _coverage_data.get(PCT_COVERED_KEY, None)
-        if lines_pct_value is None:
-            log.debug("Unable to retrieve coverage data for the session span")
-        elif not isinstance(lines_pct_value, (float, int)):
-            t = type(lines_pct_value)
-            log.warning(
-                "Unexpected format for total covered percentage: type=%s.%s, value=%r",
-                t.__module__,
-                t.__name__,
-                lines_pct_value,
-            )
-        else:
-            InternalTestSession.set_covered_lines_pct(lines_pct_value)
+    global _early_coverage_integration
+
+    # Initialize telemetry API before calling get_env_tags() to avoid RuntimeError
+    if not TelemetryAPI._instance:
+        connector_setup = BackendConnectorSetup.detect_setup()
+        TelemetryAPI(connector_setup=connector_setup)
+
+    # Get env_tags once and reuse across both paths to avoid duplicate git command execution
+    env_tags = get_env_tags()
+
+    # Use early initialized coverage integration if available, otherwise create new one
+    if _early_coverage_integration:
+        log.debug("Using early initialized coverage integration")
+        coverage_integration = _early_coverage_integration
+        # Update with telemetry writer and reuse cached env_tags (which includes git metadata)
+        coverage_integration.telemetry_writer = telemetry_writer
+        coverage_integration.env_tags = env_tags
+        log.debug("Updated early coverage integration with %d cached env_tags", len(env_tags))
+    else:
+        coverage_integration = CoverageIntegration(telemetry_writer=telemetry_writer, env_tags=env_tags)
+        coverage_integration.initialize(session.config)
+
+    coverage_integration.handle_session_finish(session.config, InternalTestSession.get_span())
 
     if ModuleCodeCollector.is_installed():
         ModuleCodeCollector.uninstall()
