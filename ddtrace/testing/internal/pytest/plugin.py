@@ -303,10 +303,9 @@ class TestOptPlugin:
                     coverage_report_bytes = tmp_path.read_bytes()
                     log.debug("Read coverage report: %d bytes", len(coverage_report_bytes))
 
-                    # Upload the report
-                    # AIDEV-TODO: Add git and CI tags to the upload
+                    # Upload the report (tags are populated from env_tags in the API client)
                     upload_success = self.manager.upload_coverage_report(
-                        coverage_report_bytes=coverage_report_bytes, coverage_format=coverage_format, git_tags={}
+                        coverage_report_bytes=coverage_report_bytes, coverage_format=coverage_format, tags=None
                     )
 
                     if upload_success:

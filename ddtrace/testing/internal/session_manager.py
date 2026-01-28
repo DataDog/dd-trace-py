@@ -165,7 +165,7 @@ class SessionManager:
         atexit.register(self.finish)
 
     def upload_coverage_report(
-        self, coverage_report_bytes: bytes, coverage_format: str, git_tags: t.Optional[t.Dict[str, str]] = None
+        self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[t.Dict[str, str]] = None
     ) -> bool:
         """
         Upload a coverage report to Datadog CI Intake.
@@ -175,7 +175,7 @@ class SessionManager:
         Args:
             coverage_report_bytes: The coverage report content (will be gzipped by the API client)
             coverage_format: The format of the report (lcov, cobertura, jacoco, clover, opencover, simplecov)
-            git_tags: Optional dict of git and CI tags (defaults to empty dict)
+            tags: Optional additional tags to include in the event
 
         Returns:
             True if upload succeeded, False otherwise
@@ -184,7 +184,7 @@ class SessionManager:
             # AIDEV-NOTE: Create temporary API client for upload
             api_client = APIClient(
                 service=self.service,
-                env=self.env,
+                env=self.env or "none",
                 env_tags=self.env_tags,
                 itr_skipping_level=self.itr_skipping_level,
                 configurations=self.platform_tags,
@@ -193,7 +193,7 @@ class SessionManager:
             )
 
             try:
-                result = api_client.upload_coverage_report(coverage_report_bytes, coverage_format, git_tags)
+                result = api_client.upload_coverage_report(coverage_report_bytes, coverage_format, tags)
                 return result
             finally:
                 api_client.close()

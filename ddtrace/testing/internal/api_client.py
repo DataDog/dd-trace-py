@@ -4,9 +4,11 @@ import gzip
 import json
 import logging
 from pathlib import Path
+import time
 import typing as t
 import uuid
 
+from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendConnectorSetup
@@ -374,8 +376,75 @@ class APIClient:
 
         return skippable_items, correlation_id
 
+    def _create_coverage_report_event(
+        self, coverage_format: str, tags: t.Optional[t.Dict[str, str]] = None
+    ) -> t.Dict[str, t.Any]:
+        """
+        Create the event JSON for the coverage report upload with git and CI tags.
+
+        Args:
+            coverage_format: The format of the coverage report
+            tags: Optional additional tags to include
+
+        Returns:
+            Event dictionary with type, format, timestamp, and all available git/CI tags
+        """
+        event: t.Dict[str, t.Any] = {
+            "type": "coverage_report",
+            "format": coverage_format,
+            "timestamp": int(time.time() * 1000),
+        }
+
+        # Add any custom tags provided
+        if tags:
+            event.update(tags)
+
+        # AIDEV-NOTE: Add git tags from env_tags
+        git_tags = [
+            GitTag.REPOSITORY_URL,
+            GitTag.COMMIT_SHA,
+            GitTag.BRANCH,
+            GitTag.TAG,
+            GitTag.COMMIT_MESSAGE,
+            GitTag.COMMIT_AUTHOR_NAME,
+            GitTag.COMMIT_AUTHOR_EMAIL,
+            GitTag.COMMIT_AUTHOR_DATE,
+            GitTag.COMMIT_COMMITTER_NAME,
+            GitTag.COMMIT_COMMITTER_EMAIL,
+            GitTag.COMMIT_COMMITTER_DATE,
+        ]
+
+        for git_tag in git_tags:
+            if git_tag in self.env_tags:
+                event[git_tag] = self.env_tags[git_tag]
+
+        # AIDEV-NOTE: Add CI tags from env_tags
+        ci_tags = [
+            CITag.PROVIDER_NAME,
+            CITag.PIPELINE_ID,
+            CITag.PIPELINE_NAME,
+            CITag.PIPELINE_NUMBER,
+            CITag.PIPELINE_URL,
+            CITag.JOB_NAME,
+            CITag.JOB_URL,
+            CITag.STAGE_NAME,
+            CITag.WORKSPACE_PATH,
+            CITag.NODE_NAME,
+            CITag.NODE_LABELS,
+        ]
+
+        for ci_tag in ci_tags:
+            if ci_tag in self.env_tags:
+                event[ci_tag] = self.env_tags[ci_tag]
+
+        # AIDEV-NOTE: Add PR number if available
+        if "git.pull_request.number" in self.env_tags:
+            event["pr.number"] = self.env_tags["git.pull_request.number"]
+
+        return event
+
     def upload_coverage_report(
-        self, coverage_report_bytes: bytes, coverage_format: str, git_tags: t.Optional[t.Dict[str, str]] = None
+        self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[t.Dict[str, str]] = None
     ) -> bool:
         """
         Upload a coverage report to Datadog CI Intake.
@@ -383,16 +452,16 @@ class APIClient:
         Args:
             coverage_report_bytes: The coverage report content (will be gzipped)
             coverage_format: The format of the report (lcov, cobertura, jacoco, clover, opencover, simplecov)
-            git_tags: Optional dict of git and CI tags (defaults to empty dict)
+            tags: Optional additional tags to include in the event
 
         Returns:
             True if upload succeeded, False otherwise
         """
         telemetry = self.telemetry_api.with_request_metric_names(
-            count="coverage_report.upload",
-            duration="coverage_report.upload_ms",
-            response_bytes=None,
-            error="coverage_report.upload_errors",
+            count="coverage_upload.request",
+            duration="coverage_upload.request_ms",
+            response_bytes="coverage_upload.request_bytes",  # FIXME: Request bytes != response bytes
+            error="coverage_upload.request_errors",
         )
 
         try:
@@ -402,13 +471,8 @@ class APIClient:
                 "Compressed coverage report: %d bytes -> %d bytes", len(coverage_report_bytes), len(compressed_report)
             )
 
-            # AIDEV-NOTE: Create the event payload with required fields
-            event_data = {
-                "type": "coverage_report",
-                "format": coverage_format,
-                # AIDEV-TODO: Add git and CI tags later
-                "tags": git_tags or {},
-            }
+            # AIDEV-NOTE: Create the event payload with git and CI tags
+            event_data = self._create_coverage_report_event(coverage_format, tags)
 
             # AIDEV-NOTE: Create multipart/form-data attachments
             files = [
