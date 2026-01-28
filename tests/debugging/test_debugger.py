@@ -32,7 +32,10 @@ from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.inspection import linenos
 from tests.debugging.mocking import debugger
+from tests.debugging.utils import compile_capture_expressions
 from tests.debugging.utils import compile_template
+from tests.debugging.utils import create_capture_expressions_function_probe
+from tests.debugging.utils import create_capture_expressions_line_probe
 from tests.debugging.utils import create_log_function_probe
 from tests.debugging.utils import create_log_line_probe
 from tests.debugging.utils import create_metric_line_probe
@@ -993,6 +996,83 @@ def test_debugger_log_line_probe_generate_messages(stuff):
         assert "No such local variable: 'foo'" == msg1["debugger"]["snapshot"]["evaluationErrors"][0]["message"], msg1
 
         assert not msg1["debugger"]["snapshot"]["captures"]
+
+
+def test_debugger_capture_expressions_line_probe_(stuff):
+    with debugger(upload_flush_interval=float("inf")) as d:
+        d.add_probes(
+            create_capture_expressions_line_probe(
+                probe_id="foo",
+                source_file="tests/submod/stuff.py",
+                line=36,
+                rate=float("inf"),
+                **compile_capture_expressions([{"name": "foo", "expr": {"dsl": "bar", "json": {"ref": "bar"}}}]),
+            ),
+        )
+
+        sentinel = {"foo": 42}
+        # recursive reference to itself for infinite depth
+        sentinel["self"] = sentinel  # type: ignore
+
+        stuff.Stuff().instancestuff(sentinel)
+
+        (msg,) = d.uploader.wait_for_payloads(1)
+
+        assert msg["debugger"]["snapshot"]["captures"]["lines"]["36"] == {
+            "captureExpressions": {
+                "foo": {
+                    "type": "dict",
+                    "entries": [
+                        [{"type": "str", "value": "'foo'"}, {"type": "int", "value": "42"}],
+                        [
+                            {"type": "str", "value": "'self'"},
+                            {
+                                "type": "dict",
+                                "entries": [
+                                    [{"type": "str", "value": "'foo'"}, {"type": "int", "value": "42"}],
+                                    [
+                                        {"type": "str", "value": "'self'"},
+                                        {
+                                            "type": "dict",
+                                            "entries": [
+                                                [{"type": "str", "value": "'foo'"}, {"type": "int", "value": "42"}],
+                                                [
+                                                    {"type": "str", "value": "'self'"},
+                                                    {"type": "dict", "notCapturedReason": "depth", "size": 2},
+                                                ],
+                                            ],
+                                            "size": 2,
+                                        },
+                                    ],
+                                ],
+                                "size": 2,
+                            },
+                        ],
+                    ],
+                    "size": 2,
+                }
+            }
+        }
+
+
+def test_debugger_capture_expressions_function_probe(stuff):
+    with debugger() as d:
+        d.add_probes(
+            create_capture_expressions_function_probe(
+                probe_id="exit-probe",
+                module="tests.submod.stuff",
+                func_qname="mutator",
+                evaluate_at=ProbeEvalTiming.EXIT,
+                **compile_capture_expressions(
+                    [{"name": "retval", "expr": {"dsl": "@return", "json": {"ref": "@return"}}}]
+                ),
+            )
+        )
+
+        stuff.mutator(arg=[])
+
+        with d.assert_single_snapshot() as snapshot:
+            assert snapshot.return_capture["captureExpressions"]["retval"] == {"isNull": True, "type": "NoneType"}
 
 
 class SpanProbeTestCase(TracerTestCase):

@@ -202,6 +202,7 @@ class SpanExceptionProbe(LogLineProbe):
             template=message,
             segments=[LiteralTemplateSegment(message)],
             take_snapshot=True,
+            capture_expressions=[],
             limits=DEFAULT_CAPTURE_LIMITS,
             condition=None,
             condition_error_rate=0.0,
