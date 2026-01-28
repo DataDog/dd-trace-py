@@ -108,6 +108,13 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "azure-functions",
+        "integration": "azure_durable_functions",
+        "minimum_tracer_supported": "1.10.1",
+        "max_tracer_supported": "1.24.0",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "azure-functions-durable",
         "integration": "azure_durable_functions",
         "minimum_tracer_supported": "1.4.0",
@@ -126,7 +133,7 @@
         "dependency": "azure-functions",
         "integration": "azure_functions",
         "minimum_tracer_supported": "1.10.1",
-        "max_tracer_supported": "1.23.0",
+        "max_tracer_supported": "1.24.0",
         "pinned": "true",
         "auto-instrumented": true
     },
