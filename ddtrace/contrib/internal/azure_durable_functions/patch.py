@@ -25,6 +25,7 @@ _DURABLE_TRIGGER_DEFS = {
     _DURABLE_ACTIVITY_TRIGGER: ("Activity", "azure.durable_functions.patched_activity"),
     _DURABLE_ENTITY_TRIGGER: ("Entity", "azure.durable_functions.patched_entity"),
 }
+_PATCHED_DFAPP = False
 
 
 config._add(
@@ -75,6 +76,20 @@ def patch():
         return
     durable_functions._datadog_patch = True
 
+    if _should_patch_dfapp():
+        _patch_dfapp()
+
+
+def _should_patch_dfapp() -> bool:
+    try:
+        import azure.functions as azure_functions
+    except Exception:
+        return True
+    return not getattr(azure_functions, "_datadog_patch", False)
+
+
+def _patch_dfapp():
+    global _PATCHED_DFAPP
     try:
         from azure.durable_functions.decorators import durable_app
     except Exception:
@@ -84,6 +99,7 @@ def patch():
         Pin().onto(durable_app.DFApp)
         _w("azure.durable_functions.decorators.durable_app", "DFApp.get_functions", _patched_get_functions)
         _mark_wrapped(durable_app.DFApp.get_functions)
+        _PATCHED_DFAPP = True
 
 
 def _patched_get_functions(wrapped, instance, args, kwargs):
@@ -92,6 +108,13 @@ def _patched_get_functions(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     functions = wrapped(*args, **kwargs)
+    wrap_durable_functions(pin, functions)
+    return functions
+
+
+def wrap_durable_functions(pin, functions):
+    if durable_functions is None or not getattr(durable_functions, "_datadog_patch", False):
+        return
 
     for function in functions:
         trigger = function.get_trigger()
@@ -111,8 +134,6 @@ def _patched_get_functions(wrapped, instance, args, kwargs):
         trigger_name, context_name = trigger_def
         function._func = _wrap_durable_trigger(pin, func, function_name, trigger_name, context_name)
 
-    return functions
-
 
 def _wrap_durable_trigger(pin, func, function_name, trigger_type, context_name):
     def context_factory(kwargs):
@@ -129,11 +150,15 @@ def _wrap_durable_trigger(pin, func, function_name, trigger_type, context_name):
 
 
 def unpatch():
+    global _PATCHED_DFAPP
     if durable_functions is None:
         return
     if not getattr(durable_functions, "_datadog_patch", False):
         return
     durable_functions._datadog_patch = False
+
+    if not _PATCHED_DFAPP:
+        return
 
     try:
         from azure.durable_functions.decorators import durable_app
@@ -143,3 +168,4 @@ def unpatch():
     if durable_app is not None and hasattr(durable_app, "DFApp"):
         _u(durable_app.DFApp, "get_functions")
         _clear_wrapped(durable_app.DFApp.get_functions)
+    _PATCHED_DFAPP = False
