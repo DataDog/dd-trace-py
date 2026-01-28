@@ -8,6 +8,11 @@ To start the service manually, invoke the ``enable`` method::
 
 from ._evaluators import BaseEvaluator
 from ._evaluators import EvaluatorContext
+from ._evaluators import JSONValidator
+from ._evaluators import LengthValidator
+from ._evaluators import RegexMatch
+from ._evaluators import SemanticSimilarity
+from ._evaluators import StringCheck
 from ._evaluators import SummaryEvaluatorContext
 from ._experiment import Dataset
 from ._experiment import DatasetRecord
@@ -25,6 +30,11 @@ __all__ = [
     "Prompt",
     "BaseEvaluator",
     "EvaluatorContext",
+    "StringCheck",
+    "RegexMatch",
+    "LengthValidator",
+    "JSONValidator",
+    "SemanticSimilarity",
     "EvaluatorResult",
     "SummaryEvaluatorContext",
 ]
