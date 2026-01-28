@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 import sqlite3
 import subprocess
 from typing import Optional
@@ -83,8 +84,12 @@ def rasp(endpoint: str):
             if param.startswith("filename"):
                 filename = query_params[param]
                 try:
-                    with open(filename, "rb") as f:
-                        res.append(f"File: {f.read()}")
+                    if param.startswith("filename_pathlib"):
+                        with Path(filename).open("rb") as f:
+                            res.append(f"File (pathlib): {f.read()}")
+                    else:
+                        with open(filename, "rb") as f:
+                            res.append(f"File: {f.read()}")
                 except Exception as e:
                     res.append(f"Error: {e}")
         tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
