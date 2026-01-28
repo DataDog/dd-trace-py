@@ -1,0 +1,66 @@
+name: Validate Backport
+on:
+  pull_request:
+    types:
+      - labeled
+
+jobs:
+  validate-backport:
+    name: Validate Backport
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    if: >
+      github.event.action == 'labeled' && contains(github.event.label.name, 'backport')
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Check Conflicts
+        env:
+          BACKPORT_LABEL: ${{ github.event.label.name }}
+          PR_BRANCH: ${{ github.head_ref }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        id: backport_validation
+        run: |
+
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+
+          TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
+          echo "PR branch HEAD:"
+          git show HEAD
+          MERGE_COMMIT=$(git rev-parse HEAD)
+          git fetch
+          git checkout origin/${TARGET_BRANCH}
+          git pull origin ${TARGET_BRANCH}
+          echo "Target branch HEAD:"
+          git show HEAD
+          ERROR=$(git cherry-pick -x --mainline 1 ${MERGE_COMMIT} 2>&1 | grep -v '^hint') || true
+
+          echo "results<<EOF" >> "$GITHUB_OUTPUT"
+          if [[ ! -z ${ERROR} ]]
+          then
+            echo "This change is marked for backport to ${TARGET_BRANCH}, but it conflicts with that branch." | tee -a "$GITHUB_OUTPUT"
+            echo "Attempting to cherrypick this change to ${TARGET_BRANCH} yielded the following error:" | tee -a "$GITHUB_OUTPUT"
+            echo "\`\`\`" >> "$GITHUB_OUTPUT"
+            echo "$ERROR" | tee -a "$GITHUB_OUTPUT"
+            echo "\`\`\`" >> "$GITHUB_OUTPUT"
+          else
+            echo "This change is marked for backport to ${TARGET_BRANCH} and it does not conflict with that branch." | tee -a "$GITHUB_OUTPUT"
+          fi
+          echo "The command used to test backporting was" | tee -a "$GITHUB_OUTPUT"
+          echo "\`\`\`" >> "$GITHUB_OUTPUT"
+          echo "git cherry-pick -x --mainline 1 ${MERGE_COMMIT}" | tee -a "$GITHUB_OUTPUT"
+          echo "\`\`\`" >> "$GITHUB_OUTPUT"
+          echo "(This commit hash is the HEAD of the temporary branch used by Github Actions, which is a merge commit.)" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Comment PR
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
+        with:
+          file-path: comment.txt
+          message: |
+            ${{ steps.backport_validation.outputs.results }}

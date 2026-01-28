@@ -80,6 +80,7 @@ def cleanup_loaded_modules() -> None:
             "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
             "wrapt",
             "bytecode",  # needed by before-fork hooks
+            "pathlib",  # used in singledispatch
         ]
     )
     for m in list(_ for _ in sys.modules if _ not in ddtrace.LOADED_MODULES):

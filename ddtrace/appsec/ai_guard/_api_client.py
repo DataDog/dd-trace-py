@@ -320,9 +320,9 @@ def new_ai_guard_client(
     if not api_key or not app_key:
         raise ValueError("Authentication credentials required: provide DD_API_KEY and DD_APP_KEY")
 
-    if endpoint is None:
+    if not endpoint:
         endpoint = ai_guard_config._ai_guard_endpoint
-    if endpoint is None:
+    if not endpoint:
         site = f"app.{config._dd_site}" if config._dd_site.count(".") == 1 else config._dd_site
         endpoint = f"https://{site}/api/v2/ai-guard"
 

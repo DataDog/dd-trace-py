@@ -79,7 +79,20 @@ class PyRef
     {
         Py_INCREF(_obj);
     }
-    inline ~PyRef() { Py_DECREF(_obj); }
+    inline ~PyRef()
+    {
+        // Avoid calling Py_DECREF during finalization as the thread state
+        // may be NULL, causing crashes in Python 3.14+ where _Py_Dealloc
+        // dereferences tstate immediately. This check uses relaxed atomics
+        // so it's not perfectly synchronized, but provides a safety net.
+#if PY_VERSION_HEX >= 0x030d0000
+        if (!Py_IsFinalizing()) {
+#else
+        if (!_Py_IsFinalizing()) {
+#endif
+            Py_DECREF(_obj);
+        }
+    }
 
   private:
     PyObject* _obj;
@@ -92,6 +105,10 @@ class Event
     void set()
     {
         std::lock_guard<std::mutex> lock(_mutex);
+
+        if (_set)
+            return;
+
         _set = true;
         _cond.notify_all();
     }
@@ -298,7 +315,6 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
 
                     // Awake signal
                     self->_request->clear();
-                    self->_served->set();
                 }
             }
 
@@ -315,7 +331,14 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
                 error = true;
                 break;
             }
+
+            // If this came from a request mark it as served
+            self->_served->set();
         }
+
+        // Set request served in case any threads are waiting while a thread is
+        // stopping.
+        self->_served->set();
 
         // Run the shutdown callback if there was no error and we are not
         // at Python shutdown.

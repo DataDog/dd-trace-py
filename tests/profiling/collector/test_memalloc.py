@@ -1013,3 +1013,59 @@ def test_memalloc_sample_size(
 
     for predicate, default in zip(predicates, (1024 * 1024, 1, 512, 512 * 1024 * 1024)):
         assert predicate(_derive_default_heap_sample_size(config.heap, default))
+
+
+def test_memory_collector_stack_order(tmp_path: Path) -> None:
+    """Test that stack frames are reported in leaf-to-root order (innermost to outermost).
+
+    This test verifies the fix for upside-down flamegraphs by ensuring that when we have
+    a call chain like outer() -> middle() -> inner() -> allocation, the frames are
+    reported in the order: inner, middle, outer (leaf-to-root).
+    """
+    output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_stack_order")
+
+    # Define nested functions to create a known call stack
+    def outer_frame() -> Union[tuple[None, ...], bytearray]:
+        return middle_frame()
+
+    def middle_frame() -> Union[tuple[None, ...], bytearray]:
+        return inner_frame()
+
+    def inner_frame() -> Union[tuple[None, ...], bytearray]:
+        # This is the leaf frame where the actual allocation happens
+        return _create_allocation(256)
+
+    mc = memalloc.MemoryCollector(heap_sample_size=64)
+
+    with mc:
+        # Create allocations with our known call stack
+        data = []
+        for _ in range(20):
+            data.append(outer_frame())
+
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+
+    # Get samples with alloc-space > 0
+    alloc_space_idx = pprof_utils.get_sample_type_index(profile, "alloc-space")
+    samples = [s for s in profile.sample if s.value[alloc_space_idx] > 0]
+
+    assert len(samples) > 0, "Should have captured allocation samples"
+
+    # Helper to create StackLocation with just function name
+    def loc(f_name: str) -> pprof_utils.StackLocation:
+        return pprof_utils.StackLocation(function_name=f_name, filename="", line_no=-1)
+
+    # Verify we have a sample with the expected stack order: inner, middle, outer (leaf-to-root)
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name="MainThread",
+            locations=[
+                loc("inner_frame"),
+                loc("middle_frame"),
+                loc("outer_frame"),
+            ],
+        ),
+        print_samples_on_failure=True,
+    )

@@ -44,6 +44,7 @@ variables:
       - "pywheels/*.whl"
       - "pywheels/*.tar.gz"
       - "debugwheelhouse/*.log"
+      - "debugwheelhouse/*.zip"
 
 .upload_wheels_base:
   tags: ["arch:amd64"]
@@ -79,6 +80,10 @@ variables:
         IMAGE_TAG: *AARCH64_IMAGES
   script:
     - manylinux-interpreters ensure "${PYTHON_TAG}"
+    - |
+      if [[ "${UNPIN_DEPENDENCIES:-"false"}" == "true" ]]; then
+        manylinux-interpreters ensure "cp314-cp314"  # NB unpinning script requires Py>=311
+      fi
     - export UV_PYTHON="/opt/python/${PYTHON_TAG}/bin/python"
     - |
       find src/native -type f -exec touch -t 202401010000 {} \;
