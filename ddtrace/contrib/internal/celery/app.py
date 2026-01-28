@@ -51,7 +51,9 @@ def patch_app(app, pin=None):
     # Patch apply_async
     trace_utils.wrap("celery.app.task", "Task.apply_async", _traced_apply_async_function(config.celery, "apply_async"))
 
-    # Patch DaemonContext.open to manage forksafe hooks during daemonization
+    # When celery starts the beat process it closes all open file descriptors with `close_open_fds`.
+    # This causes panics as it closes the native runtime file descriptors.
+    # To prevent this we shutdown the native runtime before closing the fds and recreate it after to reopen fds.
     trace_utils.wrap("celery.platforms", "close_open_fds", _patched_close_open_fds)
 
     # connect to the Signal framework
@@ -79,7 +81,7 @@ def unpatch_app(app):
     trace_utils.unwrap(celery.beat.Scheduler, "apply_entry")
     trace_utils.unwrap(celery.beat.Scheduler, "tick")
     trace_utils.unwrap(celery.app.task.Task, "apply_async")
-    trace_utils.unwrap(celery.platforms.DaemonContext, "open")
+    trace_utils.unwrap(celery.platforms, "close_open_fds")
 
     signals.task_prerun.disconnect(trace_prerun)
     signals.task_postrun.disconnect(trace_postrun)
@@ -151,19 +153,21 @@ def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
 def _patched_close_open_fds(func, instance, args, kwargs):
     """
     Celery closes all open file descriptors to isolate some fork child.
-    This causes the native runtime to panic.
-    We shutdown the native runtime before closing fds to avoid panics when interacting with closed fds.
+    This causes the native runtime to panic because it expects to have a valid fd.
+    We shutdown the native runtime before closing fds to avoid panics when interacting with closed fds,
+    and recreate it after.
     """
-    # Disable after-fork hooks before daemonization
     if hasattr(tracer._span_aggregator.writer, "_before_fork"):
+        # The NativeWriter provides fork hooks to stop and recreate the native runtime.
+        # We reuse these hooks here to shutdown and restart the native runtime.
         tracer._span_aggregator.writer._before_fork()
-    log.debug("Shutting down native runtime before closing fds")
+        log.debug("Shutting down native runtime before closing fds")
 
     try:
         result = func(*args, **kwargs)
     finally:
         if hasattr(tracer._span_aggregator.writer, "_after_fork"):
             tracer._span_aggregator.writer._after_fork()
-        log.debug("Restarting native runtime after closing fds")
+            log.debug("Restarting native runtime after closing fds")
 
     return result
