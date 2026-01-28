@@ -105,6 +105,10 @@ class Event
     void set()
     {
         std::lock_guard<std::mutex> lock(_mutex);
+
+        if (_set)
+            return;
+
         _set = true;
         _cond.notify_all();
     }
@@ -308,13 +312,11 @@ PeriodicThread_start(PeriodicThread* self)
                 AllowThreads _;
 
                 if (self->_request->wait(self->_next_call_time)) {
-                    self->_request->clear();
-
                     if (self->_stopping)
                         break;
 
                     // Awake signal
-                    self->_served->set();
+                    self->_request->clear();
                 }
             }
 
@@ -334,7 +336,14 @@ PeriodicThread_start(PeriodicThread* self)
 
             self->_next_call_time =
               std::chrono::steady_clock::now() + std::chrono::milliseconds((long long)(self->interval * 1000));
+
+            // If this came from a request mark it as served
+            self->_served->set();
         }
+
+        // Set request served in case any threads are waiting while a thread is
+        // stopping.
+        self->_served->set();
 
         // Run the shutdown callback if there was no error and we are not
         // at Python shutdown.

@@ -45,6 +45,9 @@ class Sampler
     bool do_adaptive_sampling = true;
     void adapt_sampling_interval();
 
+    void atfork_child();
+    friend void _stack_atfork_child();
+
   public:
     // Singleton instance
     static Sampler& get();
@@ -53,9 +56,7 @@ class Sampler
     void register_thread(uint64_t id, uint64_t native_id, const char* name);
     void unregister_thread(uint64_t id);
     void track_asyncio_loop(uintptr_t thread_id, PyObject* loop);
-    void init_asyncio(PyObject* _asyncio_current_tasks,
-                      PyObject* _asyncio_scheduled_tasks,
-                      PyObject* _asyncio_eager_tasks);
+    void init_asyncio(PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eager_tasks);
     void link_tasks(PyObject* parent, PyObject* child);
     void weak_link_tasks(PyObject* parent, PyObject* child);
     void sampling_thread(const uint64_t seq_num);
