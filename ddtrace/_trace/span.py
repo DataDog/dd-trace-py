@@ -107,7 +107,6 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
 class Span(SpanData):
     __slots__ = [
         # Public span attributes
-        "resource",
         "_span_api",
         "span_id",
         "trace_id",
@@ -183,7 +182,6 @@ class Span(SpanData):
                 raise TypeError("parent_id must be an integer")
             return
 
-        self.resource = resource or self.name
         self.span_type = span_type
         self._span_api = span_api
 
