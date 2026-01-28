@@ -1931,9 +1931,6 @@ def test_experiment_span_multi_run_tags(llmobs, llmobs_events, test_dataset_one_
         assert event["_dd"]["scope"] == "experiments"
 
 
-# Tests for evaluator concurrency (jobs parameter)
-
-
 def test_evaluators_run_with_jobs_parameter(llmobs, test_dataset_one_record):
     """Test that evaluators can run with jobs > 1."""
 

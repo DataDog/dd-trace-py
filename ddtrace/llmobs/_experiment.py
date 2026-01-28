@@ -884,7 +884,6 @@ class Experiment:
                     evaluator_name = str(evaluator)
                     eval_result = None
 
-                # Handle EvaluatorResult return type
                 if isinstance(eval_result, EvaluatorResult):
                     if eval_result.reasoning:
                         extra_return_values["reasoning"] = eval_result.reasoning
