@@ -41,3 +41,22 @@ class TestAzureDurableFunctionsPatch(PatchTestCase.Base):
         if dfapp is None:
             self.skipTest("DFApp not available in azure-functions-durable")
         self.assert_not_double_wrapped(dfapp.get_functions)
+
+    def test_dfapp_not_double_wrapped_with_azure_functions(self):
+        dfapp = self._get_dfapp()
+        if dfapp is None:
+            self.skipTest("DFApp not available in azure-functions-durable")
+
+        from ddtrace.contrib.internal.azure_durable_functions.patch import patch as durable_patch
+        from ddtrace.contrib.internal.azure_durable_functions.patch import unpatch as durable_unpatch
+        from ddtrace.contrib.internal.azure_functions.patch import patch as azure_functions_patch
+        from ddtrace.contrib.internal.azure_functions.patch import unpatch as azure_functions_unpatch
+
+        try:
+            azure_functions_patch()
+            durable_patch()
+            self.assert_wrapped(dfapp.get_functions)
+            self.assert_not_double_wrapped(dfapp.get_functions)
+        finally:
+            durable_unpatch()
+            azure_functions_unpatch()
