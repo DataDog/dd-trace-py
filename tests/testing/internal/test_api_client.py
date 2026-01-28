@@ -1431,19 +1431,6 @@ class TestAPIClientUploadCoverageReport:
     ) -> None:
         """Test coverage report upload without git data."""
         mock_connector = Mock()
-
-        # # Mock post_files to trigger telemetry recording
-        # def mock_post_files_with_telemetry(*args, **kwargs):
-        #     telemetry = kwargs.get("telemetry")
-        #     if telemetry:
-        #         telemetry.record_request(
-        #             seconds=0.1,
-        #             response_bytes=100,
-        #             compressed_response=False,
-        #             error=None,
-        #         )
-        #     return BackendResult(response=Mock(status=200), response_length=100)
-
         mock_connector.post_files.side_effect = mock_post_files_with_telemetry
 
         mock_connector_setup = Mock()
