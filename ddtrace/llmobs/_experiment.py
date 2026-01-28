@@ -915,28 +915,27 @@ class Experiment:
                 **extra_return_values,
             }
 
-        evaluations: List[EvaluationResult] = []
-        for idx, task_result in enumerate(task_results):
-            # Run all evaluators for this task result concurrently using ThreadPoolExecutor
-            evals_dict: Dict[str, Dict[str, JSONType]] = {}
+        results_by_idx: Dict[int, Dict[str, Dict[str, JSONType]]] = {idx: {} for idx in range(len(task_results))}
 
-            with ThreadPoolExecutor(max_workers=jobs) as executor:
-                # Submit all evaluator tasks
-                futures = [
-                    executor.submit(_evaluate_single, evaluator, idx, task_result) for evaluator in self._evaluators
-                ]
+        with ThreadPoolExecutor(max_workers=jobs) as executor:
+            futures_to_idx = {
+                executor.submit(_evaluate_single, evaluator, idx, task_result): idx
+                for idx, task_result in enumerate(task_results)
+                for evaluator in self._evaluators
+            }
 
-                # Collect results
-                for future in futures:
-                    try:
-                        evaluator_name, eval_data = future.result()
-                        evals_dict[evaluator_name] = eval_data
-                    except Exception:
-                        if raise_errors:
-                            raise
+            for future in futures_to_idx:
+                idx = futures_to_idx[future]
+                try:
+                    evaluator_name, eval_data = future.result()
+                    results_by_idx[idx][evaluator_name] = eval_data
+                except Exception:
+                    if raise_errors:
+                        raise
 
-            evaluation: EvaluationResult = {"idx": idx, "evaluations": evals_dict}
-            evaluations.append(evaluation)
+        evaluations: List[EvaluationResult] = [
+            {"idx": idx, "evaluations": results_by_idx[idx]} for idx in range(len(task_results))
+        ]
         return evaluations
 
     def _run_summary_evaluators(
