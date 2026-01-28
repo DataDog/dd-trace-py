@@ -231,10 +231,7 @@ Sampler::get()
 void
 Sampler::postfork_child()
 {
-    // Clear renderer caches to avoid using stale interned string/function IDs
-    if (renderer_ptr) {
-        renderer_ptr->postfork_child();
-    }
+    // Clear stale echion state (mutexes, maps) from parent process
     if (echion) {
         echion->postfork_child();
     }
