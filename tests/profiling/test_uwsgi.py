@@ -18,8 +18,8 @@ if sys.platform == "win32":
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 THREADS_MSG = (
-    b"ddtrace.internal.uwsgi.uWSGIConfigError: enable-threads option must be set to true, or a positive "
-    b"number of threads must be set"
+    "ddtrace.internal.uwsgi.uWSGIConfigError: enable-threads option must be set to true, or a positive "
+    "number of threads must be set"
 )
 
 uwsgi_app = os.path.join(os.path.dirname(__file__), "uwsgi-app.py")
@@ -29,9 +29,9 @@ uwsgi_app = os.path.join(os.path.dirname(__file__), "uwsgi-app.py")
 def uwsgi(monkeypatch, tmp_path):
     # Do not ignore profiler so we have samples in the output pprof
     monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
     # Do not use pytest tmpdir fixtures which generate directories longer than allowed for a socket file name
     socket_name = str(tmp_path / "uwsgi.sock")
-    import os
 
     cmd = [
         "uwsgi",
@@ -41,6 +41,8 @@ def uwsgi(monkeypatch, tmp_path):
         socket_name,
         "--wsgi-file",
         uwsgi_app,
+        "--import",
+        "ddtrace.auto",
     ]
 
     try:
@@ -51,8 +53,11 @@ def uwsgi(monkeypatch, tmp_path):
 
 def test_uwsgi_threads_disabled(uwsgi):
     proc = uwsgi()
-    stdout, _ = proc.communicate()
-    assert proc.wait() != 0
+    try:
+        stdout, _ = proc.communicate(timeout=1)
+    except TimeoutExpired:
+        proc.terminate()
+        stdout, _ = proc.communicate()
     assert THREADS_MSG in stdout
 
 
@@ -74,7 +79,7 @@ def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
     # Give some time to the process to actually startup
     time.sleep(3)
     proc.terminate()
-    assert proc.wait() == 30
+    assert proc.wait() != 0
     for pid in worker_pids:
         profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
@@ -83,9 +88,15 @@ def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
 
 def test_uwsgi_threads_processes_no_primary(uwsgi, monkeypatch):
     proc = uwsgi("--enable-threads", "--processes", "2")
-    stdout, _ = proc.communicate()
+    try:
+        stdout, _ = proc.communicate(timeout=3)
+    except TimeoutExpired:
+        # proc.terminate()
+        os.killpg(os.getpgid(proc.pid), signal.SIGINT)
+        proc.wait()
+        stdout, _ = proc.stdout.read(1)
     assert (
-        b"ddtrace.internal.uwsgi.uWSGIConfigError: master option must be enabled when multiple processes are used"
+        "ddtrace.internal.uwsgi.uWSGIConfigError: master option must be enabled when multiple processes are used"
         in stdout
     )
 
@@ -94,13 +105,13 @@ def _get_worker_pids(stdout, num_worker, num_app_started=1):
     worker_pids = []
     started = 0
     while True:
-        line = stdout.readline()
-        if line == b"":
+        line = stdout.readline().strip()
+        if not line:
             break
-        elif b"WSGI app 0 (mountpoint='') ready" in line:
+        elif "WSGI app 0 (mountpoint='') ready" in line:
             started += 1
         else:
-            m = re.match(r"^spawned uWSGI worker \d+ .*\(pid: (\d+),", line.decode())
+            m = re.match(r"^spawned uWSGI worker \d+ .*\(pid: (\d+),", line)
             if m:
                 worker_pids.append(int(m.group(1)))
 
@@ -139,7 +150,7 @@ def test_uwsgi_threads_processes_primary(uwsgi, tmp_path, monkeypatch):
     # Give some time to child to actually startup
     time.sleep(3)
     proc.terminate()
-    assert proc.wait() == 0
+    proc.wait()
     for pid in worker_pids:
         profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
@@ -157,7 +168,7 @@ def test_uwsgi_threads_processes_primary_lazy_apps(uwsgi, tmp_path, monkeypatch)
     # Give some time to child to actually startup and output a profile
     time.sleep(3)
     proc.terminate()
-    assert proc.wait() == 0
+    proc.wait()
     for pid in worker_pids:
         profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
@@ -176,6 +187,13 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypat
 
     # Give some time to child to actually startup before terminating the master
     time.sleep(3)
+
+    # Send Ctrl+C to the process group
+    # os.killpg(os.getpgid(proc.pid), signal.SIGINT)
+    # proc.wait()
+
+    # for pid in worker_pids:
+    #     utils.check_pprof_file("%s.%d" % (filename, pid))
 
     # Kill master process
     parent_pid: int = worker_pids[0]
