@@ -387,19 +387,19 @@ class APIClient:
             tags: Optional additional tags to include
 
         Returns:
-            Event dictionary with type, format, timestamp, and all available git/CI tags
+            Event dictionary with type, format, and all available git/CI tags
         """
         event: t.Dict[str, t.Any] = {
             "type": "coverage_report",
             "format": coverage_format,
-            "timestamp": int(time.time() * 1000),
+            "timestamp": int(time.time() * 1000),  # FIXME: Is this needed?
         }
 
         # Add any custom tags provided
         if tags:
             event.update(tags)
 
-        # AIDEV-NOTE: Add git tags from env_tags
+        # Add git tags from env_tags
         git_tags = [
             GitTag.REPOSITORY_URL,
             GitTag.COMMIT_SHA,
@@ -418,7 +418,7 @@ class APIClient:
             if git_tag in self.env_tags:
                 event[git_tag] = self.env_tags[git_tag]
 
-        # AIDEV-NOTE: Add CI tags from env_tags
+        # Add CI tags from env_tags
         ci_tags = [
             CITag.PROVIDER_NAME,
             CITag.PIPELINE_ID,
@@ -437,7 +437,7 @@ class APIClient:
             if ci_tag in self.env_tags:
                 event[ci_tag] = self.env_tags[ci_tag]
 
-        # AIDEV-NOTE: Add PR number if available
+        # Add PR number if available
         if "git.pull_request.number" in self.env_tags:
             event["pr.number"] = self.env_tags["git.pull_request.number"]
 
@@ -465,26 +465,30 @@ class APIClient:
         )
 
         try:
-            # AIDEV-NOTE: Compress the coverage report with gzip
+            # Compress the coverage report with gzip
             compressed_report = gzip.compress(coverage_report_bytes)
             log.debug(
                 "Compressed coverage report: %d bytes -> %d bytes", len(coverage_report_bytes), len(compressed_report)
             )
 
-            # AIDEV-NOTE: Create the event payload with git and CI tags
+            # Create the event payload with git and CI tags
             event_data = self._create_coverage_report_event(coverage_format, tags)
 
-            # AIDEV-NOTE: Create multipart/form-data attachments
+            # Debug log the event payload to diagnose 400 errors
+            log.debug("Coverage report event payload: %s", json.dumps(event_data, indent=2))
+
+            # Create multipart/form-data attachments
+            # Filename format: coverage.{format}.gz (e.g., coverage.lcov.gz)
             files = [
                 FileAttachment(
                     name="coverage",
-                    filename="coverage.txt.gz",
+                    filename=f"coverage.{coverage_format}.gz",
                     content_type="application/gzip",
                     data=compressed_report,
                 ),
                 FileAttachment(
                     name="event",
-                    filename=None,
+                    filename="event.json",
                     content_type="application/json",
                     data=json.dumps(event_data).encode("utf-8"),
                 ),
@@ -501,6 +505,16 @@ class APIClient:
             result = self.coverage_connector.post_files(
                 "/api/v2/cicovreprt", files=files, send_gzip=False, telemetry=telemetry
             )
+
+            # Log response details for debugging
+            if result.error_type:
+                log.warning(
+                    "Coverage report upload failed: error=%s, description=%s, response_body=%s",
+                    result.error_type,
+                    result.error_description,
+                    result.response_body[:500] if result.response_body else None,
+                )
+
             result.on_error_raise_exception()
             log.info("Successfully uploaded coverage report")
             return True

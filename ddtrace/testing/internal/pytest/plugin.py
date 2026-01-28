@@ -274,30 +274,21 @@ class TestOptPlugin:
             from ddtrace.contrib.internal.coverage.patch import get_coverage_instance
             from ddtrace.contrib.internal.coverage.patch import stop_coverage
 
-            # Stop coverage if we started it ourselves
-            if not _is_pytest_cov_enabled(session.config):
-                log.debug("Stopping coverage.py collection")
-                stop_coverage(save=True)
-
-            # Get the coverage instance to generate reports
+            # Get the coverage instance BEFORE stopping it
+            # Once coverage is stopped, Coverage.current() returns None
             cov = get_coverage_instance()
             if cov is not None:
                 try:
-                    # AIDEV-NOTE: Determine coverage format
-                    # Try to detect if using pytest-cov or coverage run, otherwise default to LCOV
                     coverage_format = "lcov"  # Default to LCOV
 
                     # Generate the report in a temporary file
                     with tempfile.NamedTemporaryFile(mode="wb", suffix=".lcov", delete=False) as tmp_file:
                         tmp_path = Path(tmp_file.name)
 
-                    # AIDEV-NOTE: Generate LCOV report. This returns the percentage and also stores it
+                    # Generate LCOV report. This returns the percentage and also stores it
                     # in _coverage_data, so we don't need to generate a second report just for the percentage.
                     pct_covered = generate_lcov_report(cov=cov, outfile=str(tmp_path))
-                    if pct_covered is not None:
-                        log.debug("Generated LCOV coverage report: %s (%.1f%% coverage)", tmp_path, pct_covered)
-                    else:
-                        log.debug("Generated LCOV coverage report: %s", tmp_path)
+                    log.debug("Generated LCOV coverage report: %s (%.1f%% coverage)", tmp_path, pct_covered)
 
                     # Read the report file
                     coverage_report_bytes = tmp_path.read_bytes()
@@ -309,9 +300,9 @@ class TestOptPlugin:
                     )
 
                     if upload_success:
-                        log.info("Successfully uploaded coverage report")
+                        log.debug("Successfully uploaded coverage report")
                     else:
-                        log.warning("Failed to upload coverage report")
+                        log.debug("Failed to upload coverage report")
 
                     # Clean up temporary file
                     try:
@@ -319,10 +310,22 @@ class TestOptPlugin:
                     except Exception:
                         log.debug("Could not delete temporary coverage report file: %s", tmp_path)
 
+                    # Stop coverage AFTER generating and uploading the report
+                    # (if we started it ourselves)
+                    if not _is_pytest_cov_enabled(session.config):
+                        log.debug("Stopping coverage.py collection")
+                        stop_coverage(save=True)
+
                 except Exception as e:
-                    log.exception("Error generating or uploading coverage report: %s", e)
+                    log.debug("Error generating or uploading coverage report: %s", e)
+                    # Still try to stop coverage even if report generation failed
+                    if not _is_pytest_cov_enabled(session.config):
+                        try:
+                            stop_coverage(save=True)
+                        except Exception:
+                            log.debug("Could not stop coverage after error", exc_info=True)
             else:
-                log.warning("Coverage instance not available for report generation")
+                log.debug("Coverage instance not available for report generation")
 
         coverage_percentage = get_coverage_percentage(_is_pytest_cov_enabled(session.config))
         if coverage_percentage is not None:
