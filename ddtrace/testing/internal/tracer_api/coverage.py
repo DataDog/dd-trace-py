@@ -10,8 +10,7 @@ import logging
 from pathlib import Path
 import typing as t
 
-from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
-from ddtrace.contrib.internal.coverage.data import _coverage_data
+from ddtrace.contrib.internal.coverage.patch import get_coverage_percentage as get_cached_coverage_percentage
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.patch import unpatch as unpatch_coverage
@@ -79,7 +78,7 @@ def get_coverage_percentage(pytest_cov_status: bool) -> t.Optional[float]:
     """
     Retrieve coverage percentage collected during a pytest-cov test session, if available.
 
-    This retrieves the percentage from _coverage_data if:
+    This retrieves the cached percentage if:
     1. Coverage.py is patched AND (pytest-cov is enabled OR coverage run was used)
     2. OR if a report was generated that stored the percentage (e.g., via coverage report upload)
     """
@@ -93,12 +92,12 @@ def get_coverage_percentage(pytest_cov_status: bool) -> t.Optional[float]:
         if invoked_by_coverage_run_status and not pytest_cov_status:
             run_coverage_report()
 
-    # AIDEV-NOTE: Try to retrieve percentage from _coverage_data
+    # Try to retrieve cached percentage
     # This works for:
     # - pytest-cov (after patching)
     # - coverage run (after running report)
     # - coverage report upload (after generating LCOV/other report)
-    lines_pct_value = _coverage_data.get(PCT_COVERED_KEY, None)
+    lines_pct_value = get_cached_coverage_percentage()
     if lines_pct_value is None:
         log.debug("Unable to retrieve coverage data for the session span")
         return None

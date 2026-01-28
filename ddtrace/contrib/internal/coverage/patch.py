@@ -4,8 +4,6 @@ from typing import Optional
 
 import wrapt
 
-from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
-from ddtrace.contrib.internal.coverage.data import _coverage_data
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
@@ -20,13 +18,17 @@ except ImportError:
 
 log = get_logger(__name__)
 
-# AIDEV-NOTE: Module-level variable to store the managed coverage instance
-# This allows us to track coverage instances we start on demand
-_managed_coverage_instance: Optional[Any] = None
+# Constant for backwards compatibility
+PCT_COVERED_KEY = "pct_covered"
+
+# Simple caches
+# - _last_coverage_instance: Keep reference to last instance for generating reports after stop()
+# - _cached_coverage_percentage: Cache the last reported coverage percentage
+_last_coverage_instance: Optional[Any] = None
+_cached_coverage_percentage: Optional[float] = None
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
@@ -35,100 +37,89 @@ def _supported_versions() -> Dict[str, str]:
 
 
 def patch():
-    """
-    Patch the instrumented methods from Coverage.py
-    """
+    """Patch Coverage.py to capture coverage percentage when reports are generated."""
     if coverage is None or getattr(coverage, "_datadog_patch", False):
         return
 
     coverage._datadog_patch = True
-
-    _w = wrapt.wrap_function_wrapper
-
-    _w(coverage, "Coverage.report", report_total_pct_covered_wrapper)
+    wrapt.wrap_function_wrapper(coverage, "Coverage.report", report_total_pct_covered_wrapper)
 
 
 def unpatch():
-    """
-    Undo patched instrumented methods from Coverage.py
-    """
+    """Remove Coverage.py patching."""
     if coverage is None or not getattr(coverage, "_datadog_patch", False):
         return
 
     _u(coverage.Coverage, "report")
-
     coverage._datadog_patch = False
 
 
-def report_total_pct_covered_wrapper(func, instance, args: tuple, kwargs: dict):
+def report_total_pct_covered_wrapper(func: Any, instance: Any, args: tuple, kwargs: dict) -> Any:
+    """Wrapper to cache the percentage when report() is called."""
+    global _cached_coverage_percentage
     pct_covered = func(*args, **kwargs)
-    _coverage_data[PCT_COVERED_KEY] = pct_covered
+    _cached_coverage_percentage = pct_covered
     return pct_covered
 
 
-def run_coverage_report(force=False):
+def run_coverage_report(force: bool = False) -> None:
+    """Run a coverage report on the current instance and cache the percentage."""
+    global _cached_coverage_percentage
     if coverage is None and not force:
         return
     try:
         current_coverage_object = coverage.Coverage.current()
-        _coverage_data[PCT_COVERED_KEY] = current_coverage_object.report()
+        _cached_coverage_percentage = current_coverage_object.report()
     except Exception:
         log.warning("An exception occurred when running a coverage report")
 
 
 # ============================================================================
-# Enhanced Coverage.py Integration API
+# Simple wrappers around Coverage.py API
 # ============================================================================
 
 
 def start_coverage(
-    source=None,
-    omit=None,
-    include=None,
-    config_file=True,
-    auto_data=False,
-    data_suffix=None,
-    **kwargs,
-):
-    # type: (Optional[Any], Optional[Any], Optional[Any], bool, bool, Optional[str], Any) -> Optional[Any]
+    source: Any = None,
+    omit: Any = None,
+    include: Any = None,
+    config_file: Any = True,
+    auto_data: bool = False,
+    data_suffix: Optional[str] = None,
+    **kwargs: Any,
+) -> Optional[Any]:
     """
-    Start coverage collection on demand.
-
-    This creates and starts a new Coverage instance that is managed by ddtrace.
-    If coverage.py is already running (either started externally or by us),
-    we return the existing instance instead.
+    Start coverage collection.
 
     Args:
         source: List of file paths or package names to measure
-        omit: List of file paths to omit from measurement
-        include: List of file paths to include in measurement
-        config_file: Path to .coveragerc file, or True to use default, or False to disable
+        omit: List of file paths to omit
+        include: List of file paths to include
+        config_file: Path to .coveragerc, or True for default, or False to disable
         auto_data: If True, save data automatically at exit
         data_suffix: Suffix for the data file
-        **kwargs: Additional arguments to pass to Coverage()
+        **kwargs: Additional arguments for Coverage()
 
     Returns:
         The Coverage instance, or None if coverage.py is not available
-
-    Example:
-        >>> cov = start_coverage(source=["myapp"], omit=["*/tests/*"])
-        >>> # ... run code to measure ...
-        >>> stop_coverage()
     """
-    global _managed_coverage_instance
+    global _last_coverage_instance
 
     if Coverage is None:
-        log.debug("coverage.py is not loaded, cannot start coverage collection")
+        log.debug("coverage.py is not available")
         return None
 
-    # Check if there's already a running instance
-    existing_instance = get_coverage_instance()
-    if existing_instance is not None:
-        log.debug("Coverage is already running, returning existing instance")
-        return existing_instance
+    # Check if coverage is already running
+    try:
+        existing = Coverage.current()
+        if existing is not None:
+            log.debug("Coverage is already running")
+            _last_coverage_instance = existing
+            return existing
+    except Exception:
+        pass
 
     try:
-        # Create a new Coverage instance with the provided configuration
         cov = Coverage(
             source=source,
             omit=omit,
@@ -139,36 +130,28 @@ def start_coverage(
             **kwargs,
         )
         cov.start()
-        _managed_coverage_instance = cov
-        log.debug("Started new coverage collection")
+        _last_coverage_instance = cov
+        log.debug("Started coverage collection")
         return cov
     except Exception as e:
-        log.warning("Failed to start coverage collection: %s", e, exc_info=True)
+        log.warning("Failed to start coverage: %s", e, exc_info=True)
         return None
 
 
-def stop_coverage(save=True, erase=False):
-    # type: (bool, bool) -> Optional[Any]
+def stop_coverage(save: bool = True, erase: bool = False) -> Optional[Any]:
     """
     Stop coverage collection.
 
-    This stops the coverage instance we're managing. If coverage was started
-    externally, this will still attempt to stop it.
-
     Args:
-        save: If True, save the collected data to disk
+        save: If True, save the collected data
         erase: If True, erase the data after stopping
 
     Returns:
-        The Coverage instance that was stopped, or None if no instance was running
-
-    Example:
-        >>> stop_coverage(save=True)
+        The Coverage instance, or None if not running
     """
-    global _managed_coverage_instance
+    global _last_coverage_instance
 
     if coverage is None:
-        log.debug("coverage.py is not loaded, cannot stop coverage collection")
         return None
 
     cov = get_coverage_instance()
@@ -182,75 +165,67 @@ def stop_coverage(save=True, erase=False):
             cov.save()
         if erase:
             cov.erase()
-        log.debug("Stopped coverage collection (save=%s, erase=%s)", save, erase)
-
-        # Clear our managed instance reference
-        if _managed_coverage_instance is not None:
-            _managed_coverage_instance = None
-
+            # Clear reference when data is erased
+            _last_coverage_instance = None
+        log.debug("Stopped coverage (save=%s, erase=%s)", save, erase)
         return cov
     except Exception as e:
-        log.warning("Failed to stop coverage collection: %s", e, exc_info=True)
+        log.warning("Failed to stop coverage: %s", e, exc_info=True)
         return None
 
 
-def get_coverage_instance():
-    # type: () -> Optional[Any]
+def get_coverage_instance() -> Optional[Any]:
     """
-    Get the currently running Coverage instance.
+    Get the current Coverage instance.
 
-    This returns either:
-    1. The instance we started via start_coverage()
-    2. An externally started instance (e.g., via pytest-cov or `coverage run`)
-    3. None if no coverage is running
+    Returns our tracked instance first (whether running or stopped),
+    or falls back to any externally running instance (e.g., pytest-cov).
+    This allows generating reports after stopping coverage.
 
     Returns:
-        The Coverage instance, or None if no instance is running
-
-    Example:
-        >>> cov = get_coverage_instance()
-        >>> if cov:
-        ...     print(f"Coverage is running with data file: {cov.config.data_file}")
+        The Coverage instance, or None if not available
     """
-    global _managed_coverage_instance
-
     if coverage is None:
         return None
 
-    # First, check if we have a managed instance
-    if _managed_coverage_instance is not None:
-        return _managed_coverage_instance
+    # First check if we have a tracked instance (our instance, may be stopped)
+    if _last_coverage_instance is not None:
+        return _last_coverage_instance
 
-    # Otherwise, try to get the current instance (may have been started externally)
+    # Fall back to checking for an external running instance (e.g., pytest-cov)
     try:
         return Coverage.current()
     except Exception as e:
-        log.debug("Failed to get current coverage instance: %s", e)
+        log.debug("Failed to get coverage instance: %s", e)
         return None
 
 
-def get_coverage_data(cov=None):
-    # type: (Optional[Any]) -> Optional[Any]
+def is_coverage_running() -> bool:
     """
-    Get the coverage data object from a Coverage instance.
+    Check if a coverage instance is available.
 
-    This provides access to the raw coverage data, which can be used to
-    inspect what lines were covered.
+    Returns True if we have a coverage instance (running or stopped with data),
+    or if coverage.py is running externally (e.g., pytest-cov).
+
+    Note: This returns False only after coverage has been completely erased.
+    """
+    return get_coverage_instance() is not None
+
+
+def generate_lcov_report(cov: Optional[Any] = None, outfile: Optional[str] = None, **kwargs: Any) -> Optional[float]:
+    """
+    Generate an LCOV coverage report.
 
     Args:
-        cov: Coverage instance, or None to use the current instance
+        cov: Coverage instance (defaults to current instance)
+        outfile: Path to write the report
+        **kwargs: Additional arguments for lcov_report()
 
     Returns:
-        The CoverageData object, or None if not available
-
-    Example:
-        >>> data = get_coverage_data()
-        >>> if data:
-        ...     measured_files = data.measured_files()
-        ...     for filename in measured_files:
-        ...         lines = data.lines(filename)
-        ...         print(f"{filename}: {len(lines)} lines covered")
+        Coverage percentage, or None if unavailable
     """
+    global _cached_coverage_percentage
+
     if cov is None:
         cov = get_coverage_instance()
 
@@ -258,141 +233,42 @@ def get_coverage_data(cov=None):
         log.debug("No coverage instance available")
         return None
 
-    try:
-        return cov.get_data()
-    except Exception as e:
-        log.warning("Failed to get coverage data: %s", e, exc_info=True)
-        return None
+    if outfile is not None:
+        kwargs["outfile"] = outfile
+
+    pct_covered = cov.lcov_report(**kwargs)
+    if pct_covered is not None:
+        _cached_coverage_percentage = pct_covered
+    return pct_covered
 
 
-def generate_coverage_report(
-    cov=None,
-    morfs=None,
-    show_missing=None,
-    ignore_errors=None,
-    file=None,
-    omit=None,
-    include=None,
-    skip_covered=None,
-    contexts=None,
-    skip_empty=None,
-    precision=None,
-    sort=None,
-):
-    # type: (...) -> Optional[float]
+def get_coverage_percentage() -> Optional[float]:
+    """Get the cached coverage percentage from the last report."""
+    return _cached_coverage_percentage
+
+
+def get_coverage_data(cov: Optional[Any] = None) -> Dict[str, Any]:
     """
-    Generate a text coverage report.
+    Get coverage metadata dict (for backwards compatibility).
 
-    Args:
-        cov: Coverage instance, or None to use the current instance
-        morfs: List of file paths or modules to report on
-        show_missing: Show line numbers of statements that weren't executed
-        ignore_errors: Ignore errors while reporting
-        file: File object to write the report to (default: stdout)
-        omit: List of file paths to omit from the report
-        include: List of file paths to include in the report
-        skip_covered: Skip files with 100% coverage
-        contexts: List of contexts to include in the report
-        skip_empty: Skip files with no executable code
-        precision: Number of decimal places to display for percentages
-        sort: Sort order for the report (default: name)
-
-    Returns:
-        The total percentage covered, or None on error
-
-    Example:
-        >>> pct = generate_coverage_report(show_missing=True, skip_covered=True)
-        >>> print(f"Coverage: {pct:.1f}%")
+    Returns a dict with PCT_COVERED_KEY if percentage is cached.
     """
-    if cov is None:
-        cov = get_coverage_instance()
-
-    if cov is None:
-        log.debug("No coverage instance available for report generation")
-        return None
-
-    try:
-        # Build kwargs dict, only including non-None values
-        kwargs = {}
-        if morfs is not None:
-            kwargs["morfs"] = morfs
-        if show_missing is not None:
-            kwargs["show_missing"] = show_missing
-        if ignore_errors is not None:
-            kwargs["ignore_errors"] = ignore_errors
-        if file is not None:
-            kwargs["file"] = file
-        if omit is not None:
-            kwargs["omit"] = omit
-        if include is not None:
-            kwargs["include"] = include
-        if skip_covered is not None:
-            kwargs["skip_covered"] = skip_covered
-        if contexts is not None:
-            kwargs["contexts"] = contexts
-        if skip_empty is not None:
-            kwargs["skip_empty"] = skip_empty
-        if precision is not None:
-            kwargs["precision"] = precision
-        if sort is not None:
-            kwargs["sort"] = sort
-
-        pct_covered = cov.report(**kwargs)
-        _coverage_data[PCT_COVERED_KEY] = pct_covered
-        return pct_covered
-    except Exception as e:
-        log.warning("Failed to generate coverage report: %s", e, exc_info=True)
-        return None
+    if _cached_coverage_percentage is not None:
+        return {PCT_COVERED_KEY: _cached_coverage_percentage}
+    return {}
 
 
-def generate_lcov_report(cov=None, outfile=None, **kwargs):
-    # type: (Optional[Any], Optional[str], Any) -> Optional[float]
-    """
-    Generate an LCOV coverage report.
+def erase_coverage() -> None:
+    """Erase all coverage data and clear the cache."""
+    global _last_coverage_instance, _cached_coverage_percentage
 
-    Args:
-        cov: Coverage instance, or None to use the current instance
-        outfile: Path to write the LCOV report to (default: coverage.lcov)
-        **kwargs: Additional arguments to pass to cov.lcov_report()
+    cov = get_coverage_instance()
+    if cov:
+        try:
+            cov.erase()
+        except Exception as e:
+            log.warning("Failed to erase coverage: %s", e)
 
-    Returns:
-        The total percentage covered, or None on error
-
-    Example:
-        >>> pct = generate_lcov_report(outfile="coverage.lcov")
-        >>> print(f"Coverage: {pct:.1f}%")
-    """
-    if cov is None:
-        cov = get_coverage_instance()
-
-    if cov is None:
-        log.debug("No coverage instance available for LCOV report generation")
-        return None
-
-    try:
-        if outfile is not None:
-            kwargs["outfile"] = outfile
-
-        pct_covered = cov.lcov_report(**kwargs)
-        # AIDEV-NOTE: Store percentage in _coverage_data for get_coverage_percentage() to retrieve
-        if pct_covered is not None:
-            _coverage_data[PCT_COVERED_KEY] = pct_covered
-        return pct_covered
-    except Exception as e:
-        log.warning("Failed to generate LCOV coverage report: %s", e, exc_info=True)
-        return None
-
-
-def is_coverage_running():
-    # type: () -> bool
-    """
-    Check if coverage collection is currently running.
-
-    Returns:
-        True if coverage is running, False otherwise
-
-    Example:
-        >>> if is_coverage_running():
-        ...     print("Coverage is active")
-    """
-    return get_coverage_instance() is not None
+    # Clear both caches since data is gone
+    _last_coverage_instance = None
+    _cached_coverage_percentage = None

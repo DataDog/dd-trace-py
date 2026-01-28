@@ -418,6 +418,10 @@ class APIClient:
             if git_tag in self.env_tags:
                 event[git_tag] = self.env_tags[git_tag]
 
+        # Warn if Git repository URL is missing
+        if GitTag.REPOSITORY_URL not in self.env_tags:
+            log.warning("Git repository URL not available for coverage report upload")
+
         # Add CI tags from env_tags
         ci_tags = [
             CITag.PROVIDER_NAME,
@@ -457,6 +461,11 @@ class APIClient:
         Returns:
             True if upload succeeded, False otherwise
         """
+        # Skip empty reports
+        if not coverage_report_bytes:
+            log.warning("Coverage report is empty, skipping upload")
+            return False
+
         telemetry = self.telemetry_api.with_request_metric_names(
             count="coverage_upload.request",
             duration="coverage_upload.request_ms",
@@ -508,7 +517,7 @@ class APIClient:
 
             # Log response details for debugging
             if result.error_type:
-                log.warning(
+                log.error(
                     "Coverage report upload failed: error=%s, description=%s, response_body=%s",
                     result.error_type,
                     result.error_description,
@@ -520,5 +529,5 @@ class APIClient:
             return True
 
         except Exception as e:
-            log.warning("Failed to upload coverage report: %s", e)
+            log.error("Failed to upload coverage report: %s", e)
             return False
