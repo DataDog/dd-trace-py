@@ -32,6 +32,8 @@ ENTER_EXIT_CO_NAMES: frozenset[str] = frozenset(
     ["acquire", "release", "__enter__", "__exit__", "__aenter__", "__aexit__"]
 )
 
+CALLER_FRAME_INDEX: int = 3
+
 
 def _current_thread() -> Tuple[int, str]:
     thread_id: int = _thread.get_ident()
@@ -96,12 +98,15 @@ class _ProfiledLock:
         self.capture_sampler: collector.CaptureSampler = capture_sampler
         # Frame depth: 0=__init__, 1=_profiled_allocate_lock, 2=_LockAllocatorWrapper.__call__, 3=caller
         try:
-            frame: FrameType = sys._getframe(3)
-            code: CodeType = frame.f_code
-            self.init_location: str = f"{os.path.basename(code.co_filename)}:{frame.f_lineno}"
+            frame: FrameType = sys._getframe(CALLER_FRAME_INDEX)
         except ValueError:
-            # Stack too shallow (e.g., direct instantiation in tests or shallow call context)
+            # Shallow call stacks can happen in edge cases (e.g., interpreter bootstrap).
+            if config.enable_asserts:
+                raise
             self.init_location = "unknown:0"
+        else:
+            code: CodeType = frame.f_code
+            self.init_location = f"{os.path.basename(code.co_filename)}:{frame.f_lineno}"
         self.acquired_time: Optional[int] = None
         self.name: Optional[str] = None
         # If True, this lock is internal to another sync primitive (e.g., Lock inside Semaphore)
@@ -184,6 +189,8 @@ class _ProfiledLock:
                 # Instrumentation must never crash user code
                 pass  # nosec
         if error_info is not None:
+            err: BaseException
+            tb: Optional[TracebackType]
             err, tb = error_info
             raise err.with_traceback(tb)
 
@@ -219,6 +226,8 @@ class _ProfiledLock:
                 # Instrumentation must never crash user code
                 pass  # nosec
         if error_info is not None:
+            err: BaseException
+            tb: Optional[TracebackType]
             err, tb = error_info
             raise err.with_traceback(tb)
 
@@ -265,7 +274,7 @@ class _ProfiledLock:
 
             # If we can't get the task frame, we use the caller frame.
             # Call stack: 0: _flush_sample, 1: _acquire/_release, 2: acquire/release/__enter__/__exit__, 3: caller
-            frame: FrameType = task_frame or sys._getframe(3)
+            frame: FrameType = task_frame or sys._getframe(CALLER_FRAME_INDEX)
             frames: List[DDFrame] = _traceback.pyframe_to_frames(frame, self.max_nframes)
             for ddframe in frames:
                 handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
@@ -296,9 +305,10 @@ class _ProfiledLock:
 
     def _update_name(self) -> None:
         """Get lock variable name from the caller's frame."""
+        if self.name is not None:
+            return
+
         try:
-            if self.name is not None:
-                return
             # We expect the call stack to be like this:
             # 0: this
             # 1: _acquire/_release
@@ -314,7 +324,7 @@ class _ProfiledLock:
                     raise AssertionError(f"Unexpected frame in stack: '{frame.f_code.co_name}'")
 
             # First, look at the local variables of the caller frame, and then the global variables
-            frame = sys._getframe(3)
+            frame = sys._getframe(CALLER_FRAME_INDEX)
             self.name = self._find_name(frame.f_locals) or self._find_name(frame.f_globals) or ""
         except AssertionError:
             if config.enable_asserts:
