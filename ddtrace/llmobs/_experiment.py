@@ -865,7 +865,7 @@ class Experiment:
 
             try:
                 if _is_class_evaluator(evaluator):
-                    evaluator_name = evaluator.name  # type: ignore[union-attr]
+                    evaluator_name = evaluator.name
                     combined_metadata = {**metadata, "experiment_config": self._config}
                     context = EvaluatorContext(
                         input_data=input_data,
@@ -875,10 +875,10 @@ class Experiment:
                         span_id=task_result.get("span_id"),
                         trace_id=task_result.get("trace_id"),
                     )
-                    eval_result = evaluator.evaluate(context)  # type: ignore[union-attr]
+                    eval_result = evaluator.evaluate(context)
                 elif _is_function_evaluator(evaluator):
-                    evaluator_name = evaluator.__name__  # type: ignore[union-attr]
-                    eval_result = evaluator(input_data, output_data, expected_output)  # type: ignore[operator]
+                    evaluator_name = evaluator.__name__
+                    eval_result = evaluator(input_data, output_data, expected_output)
                 else:
                     logger.warning(
                         "Evaluator %s is neither a BaseEvaluator instance nor a callable function", evaluator
@@ -980,7 +980,7 @@ class Experiment:
 
             try:
                 if _is_class_summary_evaluator(summary_evaluator):
-                    evaluator_name = summary_evaluator.name  # type: ignore[union-attr]
+                    evaluator_name = summary_evaluator.name
                     context = SummaryEvaluatorContext(
                         inputs=inputs,
                         outputs=outputs,
@@ -988,12 +988,10 @@ class Experiment:
                         evaluation_results=eval_results_by_name,
                         metadata=metadata_list,
                     )
-                    eval_result = summary_evaluator.evaluate(context)  # type: ignore[union-attr]
+                    eval_result = summary_evaluator.evaluate(context)
                 else:
-                    evaluator_name = summary_evaluator.__name__  # type: ignore[union-attr]
-                    eval_result = summary_evaluator(  # type: ignore[operator]
-                        inputs, outputs, expected_outputs, eval_results_by_name
-                    )
+                    evaluator_name = summary_evaluator.__name__
+                    eval_result = summary_evaluator(inputs, outputs, expected_outputs, eval_results_by_name)
                 eval_result_value = eval_result
             except Exception as e:
                 exc_type, exc_value, exc_tb = sys.exc_info()
