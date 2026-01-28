@@ -19,7 +19,7 @@ idna==3.11
 iniconfig==2.1.0
 mock==5.2.0
 opentracing==2.4.0
-packaging==26.0
+packaging==25.0
 pluggy==1.6.0
 pygments==2.19.2
 pytest==8.4.2

@@ -21,7 +21,7 @@ memray==1.19.1
 mock==5.2.0
 msgpack==1.1.2
 opentracing==2.4.0
-packaging==26.0
+packaging==25.0
 platformdirs==4.4.0
 pluggy==1.6.0
 py-cpuinfo==9.0.0
@@ -32,9 +32,9 @@ pytest-benchmark==5.2.3
 pytest-cov==7.0.0
 pytest-memray==1.8.0
 pytest-mock==3.15.1
-rich==14.3.1
+rich==14.2.0
 sortedcontainers==2.4.0
-textual==7.4.0
-tomli==2.4.0
+textual==6.8.0
+tomli==2.3.0
 typing-extensions==4.15.0
 uc-micro-py==1.0.3
