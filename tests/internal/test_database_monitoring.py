@@ -149,6 +149,7 @@ def test_dbm_not_propagating_base_hash_when_deactivated():
         injected_sql = modified_args[0]
 
         assert "ddsh" not in injected_sql
+        assert PROPAGATED_HASH not in dbspan._metrics
         assert PROPAGATED_HASH not in dbspan._meta
 
 
@@ -163,6 +164,8 @@ def test_dbm_not_propagating_base_hash_when_deactivated():
     )
 )
 def test_dbm_propagating_base_hash_when_activated():
+    import re
+
     from ddtrace.internal import process_tags
     from ddtrace.internal.constants import PROPAGATED_HASH
     from ddtrace.propagation import _database_monitoring
@@ -179,10 +182,17 @@ def test_dbm_propagating_base_hash_when_activated():
         modified_args, _ = dbm_propagator.inject(dbspan, args, kwargs)
 
         injected_sql = modified_args[0]
+        ddsh_value = None
 
-        assert "ddsh" in injected_sql
         assert PROPAGATED_HASH in dbspan._meta
+        assert "ddsh" in injected_sql
+
+        match = re.search(r"ddsh='(\d+)'", injected_sql)
+        if match:
+            ddsh_value = match.group(1)
+
         assert dbspan._meta[PROPAGATED_HASH] == str(process_tags.base_hash)
+        assert ddsh_value == dbspan._meta[PROPAGATED_HASH]
 
 
 @pytest.mark.subprocess(

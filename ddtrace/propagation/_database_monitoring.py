@@ -136,7 +136,7 @@ class _DBM_Propagator(object):
             dbm_tags[DBM_TRACE_PARENT_KEY] = db_span.context._traceparent
 
         if dbm_config.inject_sql_basehash and (base_hash := process_tags.base_hash):
-            dbm_tags[DBM_SERVICE_HASH] = base_hash
+            dbm_tags[DBM_SERVICE_HASH] = str(base_hash)
 
         sql_comment = self.comment_generator(**dbm_tags)
         if sql_comment:
