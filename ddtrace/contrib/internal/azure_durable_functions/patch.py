@@ -36,23 +36,6 @@ config._add(
 )
 
 
-def _mark_wrapped(obj):
-    if getattr(obj, "__wrapped__", None) is not None:
-        return
-    try:
-        obj.__dd_wrapped__ = True
-    except Exception:
-        pass  # nosec
-
-
-def _clear_wrapped(obj):
-    try:
-        if hasattr(obj, "__dd_wrapped__"):
-            delattr(obj, "__dd_wrapped__")
-    except Exception:
-        pass  # nosec
-
-
 def get_version() -> str:
     try:
         from importlib.metadata import version
@@ -98,7 +81,6 @@ def _patch_dfapp():
     if durable_app is not None and hasattr(durable_app, "DFApp"):
         Pin().onto(durable_app.DFApp)
         _w("azure.durable_functions.decorators.durable_app", "DFApp.get_functions", _patched_get_functions)
-        _mark_wrapped(durable_app.DFApp.get_functions)
         _PATCHED_DFAPP = True
 
 
@@ -167,5 +149,4 @@ def unpatch():
 
     if durable_app is not None and hasattr(durable_app, "DFApp"):
         _u(durable_app.DFApp, "get_functions")
-        _clear_wrapped(durable_app.DFApp.get_functions)
     _PATCHED_DFAPP = False
