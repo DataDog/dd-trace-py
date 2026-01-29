@@ -420,7 +420,8 @@ void
 Sampler::join(double timeout_seconds)
 {
     // Wait for the sampling thread to stop
-    if (sampling_thread_handle == 0) {
+    pthread_t handle = sampling_thread_handle;
+    if (handle == 0) {
         return; // Thread was never started
     }
 
@@ -429,11 +430,12 @@ Sampler::join(double timeout_seconds)
         std::unique_lock<std::mutex> lock(thread_mutex);
         auto timeout = std::chrono::duration<double>(timeout_seconds);
         thread_cv.wait_for(lock, timeout, [this]() { return !thread_running.load(); });
+        // After timeout, we can't safely join (thread might still be running)
+        // Just mark handle as invalid
     } else {
-        // Wait indefinitely using pthread_join
-        if (thread_running.load()) {
-            pthread_join(sampling_thread_handle, nullptr);
-        }
+        // Wait indefinitely using pthread_join - always join if thread was started
+        // This ensures we wait for the thread to fully exit, not just set the flag
+        pthread_join(handle, nullptr);
     }
 
     // Reset the handle after joining
