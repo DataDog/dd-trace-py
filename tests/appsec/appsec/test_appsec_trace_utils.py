@@ -333,7 +333,7 @@ class EventsSDKTestCase(TracerTestCase):
         with self._caplog.at_level(logging.DEBUG):
             try:
                 should_block_user(tracer, "111")
-                block_request_if_user_blocked(tracer, "111")
+                block_request_if_user_blocked("111")
                 track_custom_event(tracer, "testevent", {})
                 track_user_login_success_event(tracer, "111", {})
                 track_user_login_failure_event(tracer, "111", {})

@@ -19,7 +19,7 @@ if PYTEST_ASYNCIO_VERSION < (1, 0):
     async def app(loop):
         app = setup_app()
         trace_app(app)
-        return (app,)
+        return app
 
     @pytest.fixture
     async def untraced_app(loop):

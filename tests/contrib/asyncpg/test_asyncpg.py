@@ -409,7 +409,7 @@ class AsyncPgTestCase(AsyncioTestCase):
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     async def test_asyncpg_dbm_propagation_enabled(self):
-        conn, _ = await self._get_conn()
+        conn = await self._get_conn()
 
         await conn.execute("SELECT 1")
         spans = self.get_spans()
