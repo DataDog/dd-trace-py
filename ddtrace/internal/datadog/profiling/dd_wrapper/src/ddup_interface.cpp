@@ -59,6 +59,8 @@ std::once_flag ddup_init_flag;    // NOLINT (cppcoreguidelines-avoid-non-const-g
 void
 ddup_postfork_child()
 {
+    // We should be releasing allocs_m before we release the Profiles Dictionary
+
     // Free our copy of the Profiles Dictionary. Its String IDs refer
     // to memory that doesn't exist in the child process.
     Datadog::internal::release_profiles_dictionary();
