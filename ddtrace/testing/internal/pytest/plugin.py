@@ -412,7 +412,7 @@ class TestOptPlugin:
             self.manager.writer.put_item(test_module)
             TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
-    @catch_and_log_exceptions()
+    @catch_and_log_exceptions
     def pytest_runtest_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> bool:
         item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
         self._do_test_runs(item, nextitem)

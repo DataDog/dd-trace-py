@@ -74,7 +74,7 @@ def uninstall_coverage_percentage():
     unpatch_coverage()
 
 
-@catch_and_log_exceptions()
+@catch_and_log_exceptions
 def get_coverage_percentage(pytest_cov_status: bool) -> t.Optional[float]:
     """
     Retrieve coverage percentage collected during a pytest-cov test session, if available.

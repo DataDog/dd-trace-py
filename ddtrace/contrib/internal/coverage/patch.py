@@ -1,3 +1,4 @@
+import logging
 from typing import Dict
 
 import wrapt
@@ -5,6 +6,7 @@ import wrapt
 from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
 from ddtrace.contrib.internal.coverage.data import _coverage_data
 from ddtrace.contrib.internal.coverage.utils import is_coverage_loaded
+from ddtrace.internal.logger import catch_and_log_exceptions
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
@@ -59,11 +61,9 @@ def report_total_pct_covered_wrapper(func, instance, args: tuple, kwargs: dict):
     return pct_covered
 
 
+@catch_and_log_exceptions(log, logging.WARNING)
 def run_coverage_report():
     if not is_coverage_loaded():
         return
-    try:
-        current_coverage_object = coverage.Coverage.current()
-        _coverage_data[PCT_COVERED_KEY] = current_coverage_object.report()
-    except Exception:
-        log.warning("An exception occurred when running a coverage report")
+    current_coverage_object = coverage.Coverage.current()
+    _coverage_data[PCT_COVERED_KEY] = current_coverage_object.report()
