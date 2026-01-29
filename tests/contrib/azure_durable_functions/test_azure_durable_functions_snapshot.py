@@ -12,6 +12,7 @@ SNAPSHOT_IGNORES = [
     "duration",
     "start",
     "error",
+    "service",
     "meta._dd.p.dm",
     "meta._dd.p.tid",
     "meta._dd.base_service",
