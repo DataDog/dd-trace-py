@@ -7,6 +7,7 @@ import pytest
 
 from ddtrace.propagation._utils import get_wsgi_header
 from tests.appsec.contrib_appsec import utils
+from tests.utils import scoped_tracer
 
 
 class Test_Django(utils.Contrib_TestClass_For_Threats):
@@ -58,12 +59,12 @@ class Test_Django(utils.Contrib_TestClass_For_Threats):
         client.post = patch_post
 
         interface = utils.Interface("django", django, client)
+        interface.SERVER_PORT = self.SERVER_PORT
         interface.version = django.VERSION
-        with utils.test_tracer() as tracer:
+        with scoped_tracer() as tracer:
             interface.tracer = tracer
             interface.printer = printer
-            with utils.post_tracer(interface):
-                yield interface
+            yield interface
 
     def status(self, response):
         return response.status_code

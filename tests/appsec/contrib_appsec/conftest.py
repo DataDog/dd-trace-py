@@ -3,8 +3,21 @@ from ddtrace.ext import SpanTypes  # noqa: F401
 
 
 # ensure the tracer is loaded and started first for possible iast patching
-print(f"ddtrace version {ddtrace.version.get_version()}")
+print(f"ddtrace version {ddtrace.version.__version__}")
 
+try:
+    from ddtrace.contrib.internal.tornado import patch as tornado_patch  # noqa: E402
+
+    # patch tornado if possible
+    tornado_patch.patch()  # noqa: E402
+except Exception:
+    pass  # nosec
+
+from http.server import BaseHTTPRequestHandler  # noqa: E402
+from http.server import ThreadingHTTPServer  # noqa: E402
+import socket  # noqa: E402
+import threading  # noqa: E402
+import time  # noqa: E402
 
 import pytest  # noqa: E402
 
@@ -61,6 +74,83 @@ def check_waf_timeout(request):
     asm_config._waf_timeout = 50_000.0
     yield
     asm_config._waf_timeout = previous_timeout
+
+
+@pytest.fixture
+def api10_http_server_port(monkeypatch):
+    class Api10Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self._handle_request()
+
+        def do_POST(self):
+            content_length = int(self.headers.get("Content-Length", "0"))
+            if content_length:
+                self.rfile.read(content_length)
+            self._handle_request()
+
+        def log_message(self, *args, **kwargs):
+            pass  # silence test output
+
+        def _handle_request(self):
+            if self.path == "/request-headers":
+                status = 200
+                body = b"ok"
+                headers = {"Content-Type": "text/plain"}
+            elif self.path == "/response-headers":
+                status = 200
+                body = b"ok"
+                headers = {"Content-Type": "text/plain", "x-api10-response": "api10-response-header"}
+            elif self.path == "/response-body":
+                status = 200
+                body = b'{"payload": "api10-response-body"}'
+                headers = {"Content-Type": "application/json"}
+            elif self.path == "/response-status":
+                status = 210
+                body = b"ok"
+                headers = {"Content-Type": "application/json"}
+            elif self.path == "/redirect-source":
+                status = 302
+                body = b'{"payload": "api10-response-body"}'
+                headers = {
+                    "Content-Type": "application/json",
+                    "Location": "/redirect-target",
+                    "x-api10-redirect": "api10-redirect",
+                }
+            elif self.path == "/redirect-target":
+                status = 200
+                body = b'{"payload": "api10-response-body"}'
+                headers = {"Content-Type": "application/json"}
+            else:
+                status = 404
+                body = b"not found"
+                headers = {"Content-Type": "text/plain"}
+
+            self.send_response(status)
+            for header, value in headers.items():
+                self.send_header(header, value)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Api10Handler)
+    _, port = server.server_address
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    deadline = time.monotonic() + 2.0
+    while True:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.1):
+                break
+        except OSError:
+            if time.monotonic() >= deadline:
+                raise RuntimeError("api10 http server failed to start")
+            time.sleep(0.01)
+
+    yield port
+    server.shutdown()
+    server.server_close()
+    thread.join(timeout=5)
 
 
 @pytest.fixture
@@ -124,3 +214,7 @@ def printer(request):
                 terminal_reporter.write_line(*args, **kwargs)
 
     return printer
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "xfail_interface: mark test to be xfailed for the given interface")

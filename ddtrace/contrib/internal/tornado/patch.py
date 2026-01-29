@@ -46,6 +46,9 @@ def patch():
     _w("tornado.web", "RequestHandler._execute", handlers.execute)
     _w("tornado.web", "RequestHandler.on_finish", handlers.on_finish)
     _w("tornado.web", "RequestHandler.log_exception", handlers.log_exception)
+    _w("tornado.web", "RequestHandler.flush", handlers._on_flush)
+
+    # patch Template system
     _w("tornado.template", "Template.generate", template.generate)
     # wrapt handles lazy imports, so we can wrap even if tornado.gen isn't imported yet
     try:

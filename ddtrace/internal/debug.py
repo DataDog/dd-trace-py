@@ -15,6 +15,7 @@ from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
+from ddtrace.version import __version__
 
 from .logger import get_logger
 
@@ -119,7 +120,7 @@ def collect(tracer):
         is_64_bit=sys.maxsize > 2**32,
         architecture=architecture()[0],
         vm=platform.python_implementation(),
-        version=ddtrace.__version__,
+        version=__version__,
         lang="python",
         lang_version=platform.python_version(),
         pip_version=pip_version,
@@ -152,6 +153,7 @@ def collect(tracer):
         git_repository_url=git_repository_url,
         git_commit_sha=git_commit_sha,
         git_main_package=git_main_package,
+        log_level_override=os.getenv("DD_TRACE_LOG_LEVEL"),
     )
 
 

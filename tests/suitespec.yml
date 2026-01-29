@@ -76,7 +76,6 @@ components:
     - ddtrace/__init__.py
     - ddtrace/py.typed
     - ddtrace/version.py
-    - ddtrace/_version.py
     - ddtrace/internal/settings/_config.py
     - src/native/*
   datastreams:
@@ -115,7 +114,6 @@ components:
   telemetry:
     - ddtrace/internal/telemetry/*
   tracing:
-    - ddtrace/_hooks.py
     - ddtrace/_logger.py
     - ddtrace/_monkey.py
     - ddtrace/_trace/*
@@ -173,6 +171,7 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@contrib'
+      - '@vendor'
       - tests/integration/*
       - tests/snapshots/tests.integration.*
     pattern: integration-latest*
@@ -184,6 +183,7 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@contrib'
+      - '@vendor'
       - tests/integration/*
       - tests/snapshots/tests.integration.*
     pattern: integration-snapshot*
@@ -196,12 +196,13 @@ suites:
       - ddtrace/contrib/integration_registry/*
     runner: riot
   internal:
-    parallelism: 2
+    venvs_per_job: 3
     paths:
       - '@core'
       - '@remoteconfig'
       - '@symbol_db'
       - '@tracing'
+      - '@vendor'
       - ddtrace/internal/*
       - tests/internal/*
       - tests/submod/*
@@ -224,6 +225,7 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@runtime'
+      - '@vendor'
       - tests/runtime/*
     runner: riot
     skip: true
@@ -245,6 +247,7 @@ suites:
       - '@tracing'
       - '@settings'
       - '@profiling'
+      - '@vendor'
       - tests/telemetry/*
       - tests/snapshots/tests.telemetry.*
     runner: riot
@@ -254,7 +257,6 @@ suites:
       DD_TRACE_AGENT_URL: http://localhost:8126
       KUBERNETES_MEMORY_REQUEST: "4Gi"
       KUBERNETES_MEMORY_LIMIT: "4Gi"
-    parallelism: 14
     paths:
       - '@tracing'
       - '@bootstrap'
@@ -265,10 +267,12 @@ suites:
       - '@remoteconfig'
       - '@futures'
       - '@ci_visibility'
+      - '@vendor'
       - tests/tracer/*
       - tests/snapshots/test_*
     retry: 2
     runner: riot
+    venvs_per_job: 1
   vendor:
     parallelism: 1
     paths:

@@ -62,27 +62,27 @@ Run scenario
 
 The scenario can be run using the built image to compare two versions of the library and save the results in a local artifacts folder::
 
-  scripts/perf-run-scenario <scenario> <version> <version> <artifacts>
+  scripts/perf-run-scenario <scenario> <baseline-version> <candidate-version> --artifacts <artifacts>
 
 The version specifiers can reference published versions on PyPI, git repositories, or `.` for your local version.
 
 To run benchmarks against a single version without comparison, pass an empty string ``""`` as the second version::
 
-  scripts/perf-run-scenario <scenario> <version> "" <artifacts>
+  scripts/perf-run-scenario <scenario> <baseline-version> "" --artifacts <artifacts>
 
 Example::
 
   # Compare PyPI versions 0.50.0 vs 0.51.0
-  scripts/perf-run-scenario span ddtrace==0.50.0 ddtrace==0.51.0 ./artifacts/
+  scripts/perf-run-scenario span ddtrace==0.50.0 ddtrace==0.51.0 --artifacts ./artifacts/
 
   # Compare PyPI version 0.50.0 vs your local changes
-  scripts/perf-run-scenario span ddtrace==0.50.0 . ./artifacts/
+  scripts/perf-run-scenario span ddtrace==0.50.0 . --artifacts ./artifacts/
 
   # Compare git branch 1.x vs git branch my-feature
-  scripts/perf-run-scenario span Datadog/dd-trace-py@1.x Datadog/dd-trace-py@my-feature ./artifacts/
+  scripts/perf-run-scenario span Datadog/dd-trace-py@1.x Datadog/dd-trace-py@my-feature --artifacts ./artifacts/
 
   # Run benchmark on a single version without comparison
-  scripts/perf-run-scenario span ddtrace==0.51.0 "" ./artifacts/
+  scripts/perf-run-scenario span ddtrace==0.51.0 "" --artifacts ./artifacts/
 
 
 Profiling
@@ -93,7 +93,7 @@ You may also generate profiling data from each scenario using `viztracer`_ by pr
 Example::
 
   # Compare and profile PyPI version 2.8.4 against your local changes, and store the results in ./artifacts/
-  PROFILE_BENCHMARKS=1 scripts/perf-run-scenario span ddtrace==2.8.4 . ./artifacts/
+  PROFILE_BENCHMARKS=1 scripts/perf-run-scenario span ddtrace==2.8.4 . --artifacts ./artifacts/
 
 One ``viztracer`` output will be created for every scenario run in the artifacts directory.
 

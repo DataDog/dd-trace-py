@@ -1,8 +1,6 @@
 import bottle
 import webtest
 
-import ddtrace
-from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
 
@@ -16,18 +14,14 @@ class TraceBottleTest(TracerTestCase):
     """
 
     def setUp(self):
-        # provide a dummy tracer
-        self.tracer = DummyTracer()
-        self._original_tracer = ddtrace.tracer
-        ddtrace.tracer = self.tracer
         # provide a Bottle app
+        super().setUp()
         self.app = bottle.Bottle()
 
     def tearDown(self):
-        # restore the tracer
-        ddtrace.tracer = self._original_tracer
+        super(TraceBottleTest, self).tearDown()
 
-    def _trace_app(self, tracer=None):
+    def _trace_app(self):
         self.app = webtest.TestApp(self.app)
 
     def test_200(self):
@@ -36,7 +30,7 @@ class TraceBottleTest(TracerTestCase):
         def hi(name):
             return "hi %s" % name
 
-        self._trace_app(self.tracer)
+        self._trace_app()
 
         # make a request
         resp = self.app.get("/hi/dougie")
@@ -59,7 +53,7 @@ class TraceBottleTest(TracerTestCase):
         def hi():
             raise Exception("oh no")
 
-        self._trace_app(self.tracer)
+        self._trace_app()
 
         # make a request
         try:

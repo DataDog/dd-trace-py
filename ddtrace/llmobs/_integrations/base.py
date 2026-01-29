@@ -16,6 +16,7 @@ from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.trace import Span
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -26,20 +27,12 @@ class BaseLLMIntegration:
 
     def __init__(self, integration_config: IntegrationConfig) -> None:
         self.integration_config = integration_config
-        self._span_pc_sampler = RateSampler(
-            sample_rate=getattr(integration_config, "span_prompt_completion_sample_rate", 1.0)
-        )
         self._llmobs_pc_sampler = RateSampler(sample_rate=config._llmobs_sample_rate)
 
     @property
     def llmobs_enabled(self) -> bool:
         """Return whether submitting llmobs payloads is enabled."""
         return LLMObs.enabled
-
-    def is_pc_sampled_span(self, span: Span) -> bool:
-        if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
-            return False
-        return self._span_pc_sampler.sample(span)
 
     def is_pc_sampled_llmobs(self, span: Span) -> bool:
         # Sampling of llmobs payloads is independent of spans, but we're using a RateSampler for consistency.
@@ -59,12 +52,18 @@ class BaseLLMIntegration:
         Eventually those should also be internal service spans once peer.service is implemented.
         """
         span_name = kwargs.get("span_name", None) or "{}.request".format(self._integration_name)
-        span = pin.tracer.trace(
+        span_type = SpanTypes.LLM if (submit_to_llmobs and self.llmobs_enabled) else None
+        parent_context = kwargs.get("parent_context") or tracer.context_provider.active()
+
+        span = tracer.start_span(
             span_name,
-            resource=operation_id,
+            child_of=parent_context,
             service=int_service(pin, self.integration_config),
-            span_type=SpanTypes.LLM if (submit_to_llmobs and self.llmobs_enabled) else None,
+            resource=operation_id,
+            span_type=span_type,
+            activate=True,
         )
+
         log.debug("Creating LLM span with type %s", span.span_type)
         # determine if the span represents a proxy request
         base_url = self._get_base_url(**kwargs)
@@ -77,18 +76,6 @@ class BaseLLMIntegration:
         if self.llmobs_enabled:
             span._set_ctx_item(INTEGRATION, self._integration_name)
         return span
-
-    def trunc(self, text: str) -> str:
-        """Truncate the given text.
-
-        Use to avoid attaching too much data to spans.
-        """
-        if not text:
-            return text
-        text = text.replace("\n", "\\n").replace("\t", "\\t")
-        if len(text) > self.integration_config.span_char_limit:
-            text = text[: self.integration_config.span_char_limit] + "..."
-        return text
 
     def llmobs_set_tags(
         self,

@@ -16,6 +16,8 @@ If you're trying to set up a local development environment, read `this <https://
 
 `Library design documentation for contributors <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-design.rst>`_.
 
+`Fuzzing native code documentation for contributors <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-fuzzing.rst>`_.
+
 Thanks for working with us!
 
 .. _change_process:
@@ -47,7 +49,7 @@ When submitting a pull request, ensure the following requirements are met:
 * **All changes are related to the pull request's stated goal** - Keep changes focused and avoid scope creep.
 * **The change includes tests OR the PR description describes a testing strategy** - All code changes should be tested appropriately.
 * **The change includes or references documentation updates if necessary** - Update user-facing documentation when adding new features or changing behavior.
-* **Backport labels are set if applicable** - Apply appropriate backport labels for fixes and CI changes as described in the `Backporting`_ section.
+* **Backport labels are set if applicable** - Apply appropriate backport labels for critical fixes as described in the `Backporting`_ section.
 * **Avoids breaking API changes** - Follow the :doc:`versioning policy <versioning>` to maintain backward compatibility.
 * **The PR description includes an overview of the change** - Clearly describe what the change does and why it's needed.
 * **The PR description articulates the motivation for the change** - Explain the problem being solved or the improvement being made.
@@ -81,12 +83,11 @@ Backporting
 
 Each minor version has its own branch.
 
-* **Fix PRs** are backported to all maintained release branches.
-* **CI PRs** are backported to the maintained release branches.
+* **Fix PRs** are backported to the most recent release branch only when they are critically important.
 * **New features** (``feat`` PRs) are not backported.
 * **Chore, documentation, and other PRs** are not backported.
 
-If your pull request is a ``fix`` or ``ci`` change, apply the backport labels corresponding to the minor
+If your pull request is a critical ``fix`` change, apply the backport labels corresponding to the minor
 versions that need the change.
 
 Tests
@@ -100,6 +101,20 @@ Releases
 
 If you're managing a new release of the library, follow the instructions
 `here <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-release.rst>`_.
+
+Regressions
+-----------
+
+If a major regression is detected, please add a warning note at the top of the release introducing this regression.
+The following information should be included:
+
+- A link to a description of the regression (which can be included in the fix)
+- The impacted product
+- The release including a fix if available
+
+Example for release v4.1.0::
+
+    ⚠️ [An issue](https://github.com/DataDog/dd-trace-py/pull/15818) was detected with memory profiling in this release. Please consider upgrading to [v4.1.3](https://github.com/DataDog/dd-trace-py/releases/tag/v4.1.3) or newer
 
 Documentation
 -------------
@@ -148,6 +163,7 @@ about Instrumentation Telemetry.
     contributing-design
     contributing-integrations
     contributing-testing
+    contributing-fuzzing
     contributing-tracing
     contributing-release
     releasenotes

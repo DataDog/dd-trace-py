@@ -3,25 +3,10 @@ import os
 import dogpile
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.dogpile_cache.patch import patch
 from ddtrace.contrib.internal.dogpile_cache.patch import unpatch
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
-from tests.utils import DummyTracer
-from tests.utils import TracerSpanContainer
 from tests.utils import assert_is_measured
-
-
-@pytest.fixture
-def tracer():
-    return DummyTracer()
-
-
-@pytest.fixture
-def test_spans(tracer):
-    container = TracerSpanContainer(tracer)
-    yield container
-    container.reset()
 
 
 @pytest.fixture
@@ -31,7 +16,6 @@ def region(tracer):
     # The backend is trivial so we can use memory to simplify test setup.
     test_region = dogpile.cache.make_region(name="TestRegion", key_mangler=lambda x: x)
     test_region.configure("dogpile.cache.memory")
-    Pin._override(dogpile.cache, tracer=tracer)
     return test_region
 
 
@@ -57,27 +41,6 @@ def multi_cache(region):
         return [i * 2 for i in x]
 
     return fn
-
-
-def test_doesnt_trace_with_no_pin(tracer, single_cache, multi_cache, test_spans):
-    # No pin is set
-    unpatch()
-
-    assert single_cache(1) == 2
-    assert test_spans.pop_traces() == []
-
-    assert multi_cache(2, 3) == [4, 6]
-    assert test_spans.pop_traces() == []
-
-
-def test_doesnt_trace_with_disabled_pin(tracer, single_cache, multi_cache, test_spans):
-    tracer.enabled = False
-
-    assert single_cache(1) == 2
-    assert test_spans.pop_traces() == []
-
-    assert multi_cache(2, 3) == [4, 6]
-    assert test_spans.pop_traces() == []
 
 
 def test_traces_get_or_create(tracer, single_cache, test_spans):
@@ -255,8 +218,7 @@ except AttributeError:
     from dogpile import lock as dogpile_lock
 
 # Required fixtures
-from tests.contrib.dogpile_cache.test_tracing import tracer
-from tests.contrib.dogpile_cache.test_tracing import test_spans
+from tests.conftest import *
 from tests.contrib.dogpile_cache.test_tracing import region
 from tests.contrib.dogpile_cache.test_tracing import cleanup
 from tests.contrib.dogpile_cache.test_tracing import single_cache

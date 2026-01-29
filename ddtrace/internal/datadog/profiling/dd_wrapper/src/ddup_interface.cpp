@@ -1,5 +1,6 @@
 #include "ddup_interface.hpp"
 
+#include "defer.hpp"
 #include "libdatadog_helpers.hpp"
 #include "profiler_stats.hpp"
 #include "sample.hpp"
@@ -73,6 +74,12 @@ ddup_set_runtime_id(std::string_view runtime_id) // cppcheck-suppress unusedFunc
 }
 
 void
+ddup_set_process_id() // cppcheck-suppress unusedFunction
+{
+    Datadog::UploaderBuilder::set_process_id();
+}
+
+void
 ddup_config_runtime_version(std::string_view runtime_version) // cppcheck-suppress unusedFunction
 {
     Datadog::UploaderBuilder::set_runtime_version(runtime_version);
@@ -94,6 +101,12 @@ void
 ddup_config_user_tag(std::string_view key, std::string_view val) // cppcheck-suppress unusedFunction
 {
     Datadog::UploaderBuilder::set_tag(key, val);
+}
+
+void
+ddup_config_process_tags(std::string_view process_tags) // cppcheck-suppress unusedFunction
+{
+    Datadog::UploaderBuilder::set_process_tags(process_tags);
 }
 
 void
@@ -158,6 +171,10 @@ ddup_start() // cppcheck-suppress unusedFunction
 Datadog::Sample*
 ddup_start_sample() // cppcheck-suppress unusedFunction
 {
+    // Ensure profile_state is initialized before creating Sample objects.
+    // ddup_start() uses std::call_once, so it's safe to call multiple times.
+    ddup_start();
+
     return Datadog::SampleManager::start_sample();
 }
 
@@ -304,29 +321,9 @@ ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns) // cppchec
 }
 
 void
-ddup_increment_sampling_event_count() // cppcheck-suppress unusedFunction
-{
-    auto borrowed = Datadog::Sample::profile_borrow();
-    borrowed.stats().increment_sampling_event_count();
-}
-
-void
-ddup_increment_sample_count() // cppcheck-suppress unusedFunction
-{
-    auto borrowed = Datadog::Sample::profile_borrow();
-    borrowed.stats().increment_sample_count();
-}
-
-void
 ddup_flush_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
 {
     sample->flush_sample();
-}
-
-void
-ddup_flush_sample_v2(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
-{
-    sample->flush_sample(/*reverse_locations*/ true);
 }
 
 void
@@ -347,6 +344,16 @@ ddup_upload() // cppcheck-suppress unusedFunction
         return false;
     }
 
+    // Acquire the upload lock before building the uploader.
+    // This ensures that if a fork happens, the prefork handler will wait for us to finish
+    // building and uploading before allowing the fork to proceed. This prevents memory
+    // allocated during build() from being orphaned in the child process.
+    Datadog::Uploader::lock();
+    defer
+    {
+        Datadog::Uploader::unlock();
+    };
+
     // Build the Uploader, which takes care of serializing the Profile and capturing ProfilerStats.
     // This takes a reference in a way that locks the areas where the profile might
     // be modified. It gets cleared and released as soon as serialization is complete (or has failed).
@@ -363,10 +370,12 @@ ddup_upload() // cppcheck-suppress unusedFunction
     // Get the reference to the uploader
     auto& uploader = std::get<Datadog::Uploader>(uploader_or_err);
 
-    // Upload without holding any locks (encoding has already been done in UploaderBuilder::build)
+    // Upload while holding the lock (encoding has already been done in UploaderBuilder::build)
     // This also cancels inflight uploads. There are better ways to do this, but this is what
     // we have for now.
-    return uploader.upload();
+    bool result = uploader.upload_unlocked();
+
+    return result;
 }
 
 void

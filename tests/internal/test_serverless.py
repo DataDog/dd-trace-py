@@ -1,5 +1,3 @@
-import sys
-
 import pytest
 
 from ddtrace.internal.serverless import in_azure_function
@@ -32,7 +30,6 @@ def test_not_azure_function():
 
 standard_blocklist = [
     "ddtrace.appsec._api_security.api_manager",
-    "ddtrace.appsec._iast._ast.ast_patching",
     "ddtrace.internal.telemetry.writer",
     "email.mime.application",
     "email.mime.multipart",
@@ -45,12 +42,14 @@ standard_blocklist = [
     # These modules must not be imported because their source files are
     # specifically removed from the serverless python layer.
     # See https://github.com/DataDog/datadog-lambda-python/blob/main/Dockerfile
+    "ddtrace.appsec._iast._ast.ast_patching",
     "ddtrace.appsec._iast._ast.iastpatch",
     "ddtrace.appsec._iast._taint_tracking._native",
+    "ddtrace.appsec._iast._taint_tracking._vendor",
     "ddtrace.appsec._iast._stacktrace",
     "ddtrace.internal.datadog.profiling.libdd_wrapper",
     "ddtrace.internal.datadog.profiling.ddup._ddup",
-    "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
+    "ddtrace.internal.datadog.profiling.stack._stack",
     "ddtrace.internal._file_queue",
     "secrets",
 ]
@@ -71,7 +70,7 @@ expanded_blocklist = (
         ("ddtrace.contrib.internal.psycopg", expanded_blocklist),
         # requests imports urlib3 which imports importlib.metadata
         # TODO: Fix the requests parameter in a future PR
-        # ("ddtrace.contrib.internal.requests", standard_blocklist),
+        ("ddtrace.contrib.internal.requests", standard_blocklist),
     ],
 )
 def test_slow_imports(package, blocklist, run_python_code_in_subprocess):
@@ -133,16 +132,7 @@ import {package}
         ("ddtrace.internal.utils", "http"),
         ("ddtrace.llmobs", "LLMObs"),
         ("ddtrace.opentelemetry", "TracerProvider"),
-        pytest.param(
-            "ddtrace.profiling",
-            "profiler",
-            # when 3.14 is officially supported, this xfail can be removed.
-            marks=pytest.mark.xfail(
-                reason="throws AttributeError: module 'asyncio.events' has no attribute 'BaseDefaultEventLoopPolicy'",
-                condition=sys.version_info >= (3, 14),
-                strict=True,
-            ),
-        ),
+        ("ddtrace.profiling", "profiler"),
         ("ddtrace.propagation.http", "HTTPPropagator"),
         ("ddtrace.trace", "Context, Span, tracer"),
         ("ddtrace.trace", "Span"),

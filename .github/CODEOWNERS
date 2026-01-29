@@ -81,9 +81,9 @@ ddtrace/ext/test_visibility                           @DataDog/ci-app-libraries
 ddtrace/ext/test.py                                   @DataDog/ci-app-libraries
 ddtrace/internal/ci_visibility                        @DataDog/ci-app-libraries
 ddtrace/internal/test_visibility                      @DataDog/ci-app-libraries
-ddtrace/internal/codeowners.py                        @DataDog/apm-core-python @datadog/ci-app-libraries
-ddtrace/internal/coverage                             @DataDog/apm-core-python @datadog/ci-app-libraries
-tests/internal/test_codeowners.py                     @datadog/ci-app-libraries
+ddtrace/internal/codeowners.py                        @DataDog/apm-core-python @DataDog/ci-app-libraries
+ddtrace/internal/coverage                             @DataDog/apm-core-python @DataDog/ci-app-libraries
+tests/internal/test_codeowners.py                     @DataDog/ci-app-libraries
 tests/ci_visibility                                   @DataDog/ci-app-libraries
 tests/coverage                                        @DataDog/apm-core-python @DataDog/ci-app-libraries
 tests/tracer/test_ci.py                               @DataDog/ci-app-libraries
@@ -96,6 +96,9 @@ tests/contrib/freezegun                               @DataDog/ci-app-libraries
 ddtrace/internal/selenium                             @DataDog/ci-app-libraries
 tests/contrib/selenium                                @DataDog/ci-app-libraries
 tests/snapshots/test_selenium_*                       @DataDog/ci-app-libraries
+# New Test Optimization plugin
+ddtrace/testing/                                      @DataDog/ci-app-libraries
+tests/testing/                                        @DataDog/ci-app-libraries
 
 # Debugger
 ddtrace/debugging/                  @DataDog/debugger-python
@@ -112,6 +115,8 @@ tests/internal/symbol_db/           @DataDog/debugger-python
 .gitlab/tests/debugging.yml         @DataDog/debugger-python
 
 # ASM
+.cursor/rules/appsec.mdc            @DataDog/asm-python
+.cursor/rules/iast.mdc              @DataDog/asm-python
 .gitlab/tests/appsec.yml            @DataDog/asm-python
 benchmarks/appsec*                  @DataDog/asm-python
 benchmarks/bm/iast_utils*           @DataDog/asm-python
@@ -137,8 +142,16 @@ ddtrace/profiling                   @DataDog/profiling-python
 ddtrace/internal/settings/profiling.py       @DataDog/profiling-python
 ddtrace/internal/datadog/profiling  @DataDog/profiling-python
 tests/profiling                     @DataDog/profiling-python
-tests/profiling_v2                  @DataDog/profiling-python
+.github/workflows/profiling-native.yml       @DataDog/profiling-python
 .gitlab/tests/profiling.yml         @DataDog/profiling-python
+.github/workflows/pytorch_gpu_tests.yml @DataDog/profiling-python
+
+# Crashtracker
+ddtrace/internal/core/crashtracking.py       @DataDog/profiling-python @DataDog/apm-core-python
+ddtrace/internal/settings/crashtracker.py   @DataDog/profiling-python @DataDog/apm-core-python
+ddtrace/commands/_dd_crashtracker_receiver.py @DataDog/profiling-python @DataDog/apm-core-python
+tests/internal/crashtracker/                 @DataDog/profiling-python @DataDog/apm-core-python
+src/native/crashtracker*                     @DataDog/profiling-python @DataDog/apm-core-python
 
 # MLObs
 ddtrace/llmobs/                                               @DataDog/ml-observability
@@ -159,6 +172,7 @@ ddtrace/contrib/internal/litellm                              @DataDog/ml-observ
 ddtrace/contrib/internal/pydantic_ai                          @DataDog/ml-observability
 ddtrace/contrib/internal/ray                                  @DataDog/ml-observability
 ddtrace/contrib/internal/mcp                                  @DataDog/ml-observability
+ddtrace/contrib/internal/vllm                                 @DataDog/ml-observability
 tests/llmobs                                                  @DataDog/ml-observability
 tests/contrib/openai                                          @DataDog/ml-observability
 tests/contrib/langchain                                       @DataDog/ml-observability
@@ -180,6 +194,7 @@ tests/contrib/litellm                                         @DataDog/ml-observ
 tests/contrib/pydantic_ai                                     @DataDog/ml-observability
 tests/contrib/ray                                             @DataDog/ml-observability
 tests/contrib/mcp                                             @DataDog/ml-observability
+tests/contrib/vllm                                            @DataDog/ml-observability
 .gitlab/tests/llmobs.yml                                      @DataDog/ml-observability
 # MLObs snapshot tests
 tests/snapshots/tests.contrib.anthropic.*                     @DataDog/ml-observability
@@ -194,10 +209,17 @@ tests/snapshots/tests.contrib.langgraph.*                     @DataDog/ml-observ
 tests/snapshots/tests.contrib.crewai.*                        @DataDog/ml-observability
 tests/snapshots/tests.contrib.openai_agents.*                 @DataDog/ml-observability
 tests/snapshots/tests.contrib.litellm.*                       @DataDog/ml-observability
+tests/snapshots/tests.contrib.vllm.*                          @DataDog/ml-observability
 
 # Remote Config
 ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python
 tests/internal/remoteconfig         @DataDog/remote-config @DataDog/apm-core-python
+
+# Feature Flags
+ddtrace/openfeature/                      @DataDog/feature-flagging-and-experimentation-sdk
+ddtrace/internal/openfeature/             @DataDog/feature-flagging-and-experimentation-sdk
+ddtrace/internal/settings/openfeature.py  @DataDog/feature-flagging-and-experimentation-sdk
+tests/openfeature/                        @DataDog/feature-flagging-and-experimentation-sdk
 
 # API SDK
 ddtrace/trace/                                     @DataDog/apm-sdk-capabilities-python
@@ -208,8 +230,6 @@ ddtrace/opentelemetry/                             @DataDog/apm-sdk-capabilities
 ddtrace/internal/opentelemetry                     @DataDog/apm-sdk-capabilities-python
 ddtrace/opentracer/                                @DataDog/apm-sdk-capabilities-python
 ddtrace/propagation/                               @DataDog/apm-sdk-capabilities-python
-ddtrace/openfeature/                              @DataDog/asm-python @DataDog/apm-core-python
-tests/openfeature/                                @DataDog/asm-python @DataDog/apm-core-python
 ddtrace/internal/settings/_opentelemetry.py                 @DataDog/apm-sdk-capabilities-python
 
 ddtrace/internal/sampling.py                       @DataDog/apm-sdk-capabilities-python
@@ -229,33 +249,44 @@ tests/tracer/                                      @DataDog/apm-sdk-capabilities
 # Override because order matters
 tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
 
-# Serverless
-ddtrace/contrib/internal/aws_lambda                         @DataDog/apm-serverless
-ddtrace/contrib/internal/azure_eventhubs                    @DataDog/serverless @DataDog/apm-serverless
-ddtrace/contrib/internal/azure_functions                    @DataDog/serverless @DataDog/apm-serverless
-ddtrace/contrib/internal/azure_servicebus                   @DataDog/serverless @DataDog/apm-serverless
-ddtrace/ext/aws.py                                          @DataDog/apm-serverless @DataDog/apm-idm-python
-ddtrace/ext/azure_eventhubs.py                              @DataDog/serverless @DataDog/apm-serverless
-ddtrace/ext/azure_servicebus.py                             @DataDog/serverless @DataDog/apm-serverless
-tests/contrib/aws_lambda                                    @DataDog/apm-serverless
-tests/contrib/azure_eventhubs                               @DataDog/serverless @DataDog/apm-serverless
-tests/contrib/azure_functions                               @DataDog/serverless @DataDog/apm-serverless
-tests/contrib/azure_functions_eventhubs                     @DataDog/serverless @DataDog/apm-serverless
-tests/contrib/azure_functions_servicebus                    @DataDog/serverless @DataDog/apm-serverless
-tests/contrib/azure_servicebus                              @DataDog/serverless @DataDog/apm-serverless
-tests/internal/test_serverless.py                           @DataDog/apm-core-python @DataDog/apm-serverless @DataDog/asm-python
-tests/snapshots/tests.contrib.aws_lambda.*.                 @DataDog/apm-serverless
-tests/snapshots/tests.contrib.azure_eventhubs.*             @DataDog/serverless @DataDog/apm-serverless
-tests/snapshots/tests.contrib.azure_functions.*             @DataDog/serverless @DataDog/apm-serverless
-tests/snapshots/tests.contrib.azure_functions_eventhubs.*   @DataDog/serverless @DataDog/apm-serverless
-tests/snapshots/tests.contrib.azure_functions_servicebus.*  @DataDog/serverless @DataDog/apm-serverless
-tests/snapshots/tests.contrib.azure_servicebus.*            @DataDog/serverless @DataDog/apm-serverless
+# AWS Lambda
+ddtrace/contrib/internal/aws_lambda                       @DataDog/apm-serverless @DataDog/serverless-aws
+tests/contrib/aws_lambda                                  @DataDog/apm-serverless @DataDog/serverless-aws
+tests/snapshots/tests.contrib.aws_lambda.*                @DataDog/apm-serverless @DataDog/serverless-aws
+
+# AWS SDK
+ddtrace/ext/aws.py                                        @DataDog/apm-serverless @DataDog/serverless-aws @DataDog/apm-idm-python
+
+# Azure Functions
+ddtrace/contrib/internal/azure_eventhubs                  @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
+ddtrace/contrib/internal/azure_functions                  @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
+ddtrace/contrib/internal/azure_servicebus                 @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
+tests/contrib/azure_functions*                            @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
+tests/snapshots/tests.contrib.azure_functions*            @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp
+
+# Azure SDK
+ddtrace/ext/azure_eventhubs.py                            @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp @DataDog/apm-idm-python
+ddtrace/ext/azure_servicebus.py                           @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp @DataDog/apm-idm-python
+tests/contrib/azure_eventhubs                             @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp @DataDog/apm-idm-python
+tests/contrib/azure_servicebus                            @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp @DataDog/apm-idm-python
+tests/snapshots/tests.contrib.azure_eventhubs.*           @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp @DataDog/apm-idm-python
+tests/snapshots/tests.contrib.azure_servicebus.*          @DataDog/apm-serverless @DataDog/serverless-azure-and-gcp @DataDog/apm-idm-python
+
+# Serverless (mixed)
+tests/internal/test_serverless.py                         @DataDog/apm-serverless @DataDog/asm-python @DataDog/serverless-aws @DataDog/serverless-azure-and-gcp
 
 # Data Streams Monitoring
-ddtrace/internal/datastreams        @DataDog/data-streams-monitoring
-tests/datastreams                   @DataDog/data-streams-monitoring
+ddtrace/data_streams.py                                   @DataDog/data-streams-monitoring
+ddtrace/internal/datastreams                              @DataDog/data-streams-monitoring
+tests/datastreams                                         @DataDog/data-streams-monitoring
+tests/contrib/**/test_*dsm.py                             @DataDog/data-streams-monitoring
 
 # ASM (order matters)
 tests/**/*appsec*               @DataDog/asm-python
 tests/**/*iast*                 @DataDog/asm-python
 tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities-python @DataDog/asm-python
+
+# Fuzzing
+.gitlab/fuzz.yml                  @DataDog/chaos-platform @DataDog/profiling-python
+.gitlab/scripts/fuzz_infra.py     @DataDog/chaos-platform @DataDog/profiling-python
+docker/Dockerfile.fuzz            @DataDog/chaos-platform @DataDog/profiling-python

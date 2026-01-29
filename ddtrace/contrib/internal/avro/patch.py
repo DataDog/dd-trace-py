@@ -6,6 +6,7 @@ import wrapt
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.internal.utils.wrappers import unwrap
+from ddtrace.trace import tracer
 
 from .schema_iterator import SchemaExtractor
 
@@ -59,10 +60,10 @@ def _traced_serialize(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    active = pin.tracer.current_span()
+    active = tracer.current_span()
 
     try:
-        func(*args, **kwargs)
+        return func(*args, **kwargs)
     finally:
         if active:
             SchemaExtractor.attach_schema_on_span(instance.writers_schema, active, SchemaExtractor.SERIALIZATION)
@@ -77,10 +78,10 @@ def _traced_deserialize(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    active = pin.tracer.current_span()
+    active = tracer.current_span()
 
     try:
-        func(*args, **kwargs)
+        return func(*args, **kwargs)
     finally:
         reader = instance
         if active and reader:

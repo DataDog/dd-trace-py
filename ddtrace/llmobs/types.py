@@ -5,6 +5,12 @@ from typing import TypedDict
 from typing import Union
 
 
+JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
+NonNoneJSONType = Union[str, int, float, bool, List[JSONType], Dict[str, JSONType]]
+ExperimentConfigType = Dict[str, JSONType]
+DatasetRecordInputType = Dict[str, NonNoneJSONType]
+
+
 class ExportedLLMObsSpan(TypedDict):
     span_id: str
     trace_id: str
@@ -102,6 +108,7 @@ class _Meta(TypedDict, total=False):
     expected_output: _MetaIO
     evaluations: Any
     tool_definitions: List[ToolDefinition]
+    intent: str
 
 
 class _SpanLink(TypedDict):

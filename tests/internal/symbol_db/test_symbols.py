@@ -267,34 +267,61 @@ def test_symbols_upload_enabled():
     assert remoteconfig_poller.get_registered("LIVE_DEBUGGING_SYMBOL_DB") is not None
 
 
-@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_SYMBOL_DATABASE_INCLUDES="tests.submod.stuff"))
+@pytest.mark.subprocess(
+    ddtrace_run=True, env=dict(DD_SYMBOL_DATABASE_INCLUDES="tests.submod.stuff,tests.submod.traced_stuff")
+)
 def test_symbols_force_upload():
+    import typing as t
+
     from ddtrace.internal.symbol_db.symbols import ScopeType
     from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
-
-    contexts = []
-
-    def _upload_context(context):
-        contexts.append(context)
-
-    SymbolDatabaseUploader._upload_context = staticmethod(_upload_context)
 
     SymbolDatabaseUploader.install(shallow=False)
     assert SymbolDatabaseUploader.shallow is False
 
-    def get_scope(contexts, name):
-        for context in (_.to_json() for _ in contexts):
-            for scope in context["scopes"]:
-                if scope["name"] == name:
-                    return scope
-        raise ValueError(f"Scope {name} not found in {contexts}")
+    context = t.cast(SymbolDatabaseUploader, SymbolDatabaseUploader._instance)._context
+
+    def get_scope(name: str) -> t.Optional[dict]:
+        for scope in context.to_json()["scopes"]:
+            if scope["name"] == name:
+                return scope
+        return None
+
+    for name in ("tests.submod.stuff", "tests.submod.traced_stuff"):
+        assert get_scope(name) is None
 
     import tests.submod.stuff  # noqa
     import tests.submod.traced_stuff  # noqa
 
-    scope = get_scope(contexts, "tests.submod.stuff")
-    assert scope["scope_type"] == ScopeType.MODULE
-    assert scope["name"] == "tests.submod.stuff"
+    for name in ("tests.submod.stuff", "tests.submod.traced_stuff"):
+        assert (scope := get_scope(name)) is not None
+        assert scope["scope_type"] == ScopeType.MODULE
+        assert scope["name"] == name
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True, env=dict(DD_SYMBOL_DATABASE_INCLUDES="tests.submod.stuff,tests.submod.traced_stuff"), err=None
+)
+def test_symbols_timeout_upload():
+    from time import sleep
+    import typing as t
+
+    from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
+
+    SymbolDatabaseUploader.install(shallow=False)
+    assert SymbolDatabaseUploader.is_installed()
+
+    context = t.cast(SymbolDatabaseUploader, SymbolDatabaseUploader._instance)._context
+
+    import tests.submod.stuff  # noqa
+    import tests.submod.traced_stuff  # noqa
+
+    for _ in range(5):
+        if not context:
+            break
+        sleep(1)
+    else:
+        raise AssertionError("Symbols not uploaded")
 
 
 @pytest.mark.subprocess(ddtrace_run=True, err=None)
@@ -319,10 +346,12 @@ def test_symbols_fork_uploads():
 
     for _ in range(10):
         if not (pid := os.fork()):
-            _rc_callback(rc_data)
-            assert SymbolDatabaseUploader.is_installed() != (
-                get_ancestor_runtime_id() is not None and forksafe.has_forked()
-            )
+            # Call the RC callback multiple times to check for stability
+            for i in range(10):
+                _rc_callback(rc_data)
+                assert SymbolDatabaseUploader.is_installed() != (
+                    get_ancestor_runtime_id() is not None and forksafe.has_forked()
+                ), f"iteration {i} is stable"
             os._exit(0)
 
         pids.append(pid)

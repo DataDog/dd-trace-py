@@ -1,34 +1,165 @@
-compute_library_version:
-  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
-  tags: [ "arch:amd64" ]
+variables:
+  IMAGE_BASE_URL: "registry.ddbuild.io/dd-trace-py"
+  MANYLINUX_AMD64_IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+
+.PYTHON_VERSIONS: &PYTHON_VERSIONS
+  - "3.9"
+  - "3.10"
+  - "3.11"
+  - "3.12"
+  - "3.13"
+  - "3.14"
+
+.PYTHON_TAGS: &PYTHON_TAGS
+  - "cp39-cp39"
+  - "cp310-cp310"
+  - "cp311-cp311"
+  - "cp312-cp312"
+  - "cp313-cp313"
+  - "cp314-cp314"
+
+.AARCH64_IMAGES: &AARCH64_IMAGES
+  - "v85383414-751efc0-manylinux2014_aarch64"
+  - "v85383359-751efc0-musllinux_1_2_aarch64"
+
+.X86_64_IMAGES: &X86_64_IMAGES
+  - "v85383392-751efc0-manylinux2014_x86_64"
+  - "v85383325-751efc0-musllinux_1_2_x86_64"
+
+.build_base:
   stage: package
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
-  script: |
-    set -eo pipefail
-
-    if [ -z ${GH_TOKEN} ]
-    then
-      # Use dd-octo-sts to get GitHub token
-      dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > token
-      gh auth login --with-token < token
-      rm token
-    fi
-    # Prevent git operation errors:
-    #   failed to determine base repo: failed to run git: fatal: detected dubious ownership in repository at ...
-    git config --global --add safe.directory "${CI_PROJECT_DIR}"
-    .gitlab/download-library-version-from-gh-actions.sh
-
-    echo "SETUPTOOLS_SCM_PRETEND_VERSION_FOR_DDTRACE=$(cat library-version/version.txt)" | tee library_version.env
-    echo "DDTRACE_VERSION=$(cat library-version/version.txt)" | tee -a library_version.env
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: "12"
+    CARGO_BUILD_JOBS: "12"
+    CMAKE_ARGS: "-DNATIVE_TESTING=OFF"
+    # DEV: Hack to make ASM CMake able to find the Python3 library
+    CIBW_BUILD: "1"
+    # job resource requests
+    KUBERNETES_CPU_REQUEST: "6"
+    KUBERNETES_MEMORY_REQUEST: "10Gi"
+    KUBERNETES_MEMORY_LIMIT: "10Gi"
+    DD_DISABLE_VPA: true
   artifacts:
-    reports:
-      dotenv: library_version.env
     paths:
-      - "library-version/version.txt"
+      - "pywheels/*.whl"
+      - "pywheels/*.tar.gz"
+      - "debugwheelhouse/*.log"
+      - "debugwheelhouse/*.zip"
 
-download_ddtrace_artifacts:
+.upload_wheels_base:
+  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/images/mirror/amazon/aws-cli:2.4.29
+  stage: package
+  variables:
+    BUCKET: dd-trace-py-builds
+
+"build sdist":
+  extends: .build_base
+  image: "${IMAGE_BASE_URL}:${IMAGE_TAG}"
+  tags: [ "arch:${ARCH_TAG}" ]
+  variables:
+    DD_CYTHONIZE: "0"
+    ARCH_TAG: "amd64"
+    PYTHON_TAG: "cp314-cp314"
+    UV_PYTHON: "/opt/python/cp314-cp314/bin/python"
+    IMAGE_TAG: "${MANYLINUX_AMD64_IMAGE_TAG}"
+  script:
+    - .gitlab/scripts/build-sdist.sh
+
+"build linux":
+  extends: .build_base
+  image: ${IMAGE_BASE_URL}:${IMAGE_TAG}
+  tags: [ "arch:$ARCH_TAG" ]
+  parallel:
+    matrix:
+      - ARCH_TAG: "amd64"
+        PYTHON_TAG: *PYTHON_TAGS
+        IMAGE_TAG: *X86_64_IMAGES
+      - ARCH_TAG: "arm64"
+        PYTHON_TAG: *PYTHON_TAGS
+        IMAGE_TAG: *AARCH64_IMAGES
+  script:
+    - manylinux-interpreters ensure "${PYTHON_TAG}"
+    - |
+      if [[ "${UNPIN_DEPENDENCIES:-"false"}" == "true" ]]; then
+        manylinux-interpreters ensure "cp314-cp314"  # NB unpinning script requires Py>=311
+      fi
+    - export UV_PYTHON="/opt/python/${PYTHON_TAG}/bin/python"
+    - |
+      find src/native -type f -exec touch -t 202401010000 {} \;
+      find ddtrace/ -type f -name "*.pyx" -exec touch -t 202401010000 {} \;
+      find ddtrace/ -type f -name "*.c" -exec touch -t 202401010000 {} \;
+      find ddtrace/ -type f -name "*.cpp" -exec touch -t 202401010000 {} \;
+      find ddtrace/ -type f -name "*.h" -exec touch -t 202401010000 {} \;
+    - .gitlab/scripts/build-wheel.sh
+
+"build macos":
+  extends: .build_base
+  tags: [ "macos:sonoma-$ARCH_TAG", "specific:true" ]
+  parallel:
+    matrix:
+      - ARCH_TAG:
+          - "amd64"
+          - "arm64"
+        PYTHON_VERSIONS:
+          - "3.9 3.10"
+          - "3.11 3.12"
+          - "3.13 3.14"
+  variables:
+    SYSTEM_VERSION_COMPAT: "0"
+  script: |
+    set -euo pipefail
+    for python_version in ${PYTHON_VERSIONS}; do
+      echo -e "\e[0Ksection_start:`date +%s`:build_macos_${python_version}\r\e[0KBuilding macOS wheel for Python ${python_version}"
+
+      export UV_PYTHON="${python_version}"
+      .gitlab/scripts/build-wheel.sh
+
+      echo -e "\e[0Ksection_end:`date +%s`:build_macos_${python_version}\r\e[0K"
+    done
+
+"upload manylinux2014_x86_64":
+  extends: .upload_wheels_base
+  needs:
+    - job: "build linux"
+      artifacts: true
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: *PYTHON_TAGS
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+    - job: "package version"
+  script:
+    - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}" manylinux2014_x86_64
+    - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}" manylinux2014_x86_64
+
+"test sdist":
+  image: registry.ddbuild.io/images/mirror/python:3.9.6-alpine3.14
+  tags: [ "arch:arm64" ]
+  stage: package
+  variables:
+    CARGO_BUILD_JOBS: "12"
+    CMAKE_BUILD_PARALLEL_LEVEL: "12"
+    KUBERNETES_CPU_REQUEST: "6"
+    KUBERNETES_MEMORY_REQUEST: "10Gi"
+    KUBERNETES_MEMORY_LIMIT: "10Gi"
+    DD_DISABLE_VPA: true
+  needs:
+    - job: "build sdist"
+      artifacts: true
+  script:
+    - SDIST_FILE=$(ls ${CI_PROJECT_DIR}/pywheels/*.tar.gz | head -n 1)
+    - TMP_DIR=$(mktemp -d) && cd $TMP_DIR
+    - |
+      apk add curl git gcc g++ musl-dev libffi-dev openssl-dev bash cargo make cmake patchelf
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      export PATH="$HOME/.cargo/bin:$PATH"
+      pip install twine readme_renderer[md] "cmarkgfm<2025.10.20"
+    - twine check ${SDIST_FILE}
+    - pip install ${SDIST_FILE}
+    - python ${CI_PROJECT_DIR}/tests/smoke_test.py
+
+"download windows wheels":
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   tags: [ "arch:amd64" ]
   stage: package
@@ -56,7 +187,9 @@ download_dependency_wheels:
   image: registry.ddbuild.io/images/mirror/python:$PYTHON_IMAGE_TAG
   tags: [ "arch:amd64" ]
   stage: package
-  needs: [ download_ddtrace_artifacts ]
+  needs:
+    - job: "build linux"
+      artifacts: true
   variables:
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
   parallel:
@@ -83,73 +216,57 @@ download_dependency_wheels:
     paths:
       - "pywheels-dep/"
 
-publish-wheels-to-s3:
-  tags: ["arch:amd64"]
-  image: registry.ddbuild.io/images/mirror/amazon/aws-cli:2.4.29
+"upload all":
+  extends: .upload_wheels_base
+  needs: [ "ddtrace package", "package version" ]
+  script: |
+    set -euo pipefail
+
+    # Upload to commit SHA and pipeline ID paths
+    .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}"
+    .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}"
+
+    # Upload to branch path (only for main/release branches)
+    if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+      .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_BRANCH}"
+    fi
+
+# Extract package version from pyproject.toml and save to dotenv artifact
+"package version":
+  image: registry.ddbuild.io/images/mirror/python:3.14.0
+  tags: [ "arch:amd64" ]
+  stage: package
+  script:
+    - PACKAGE_VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+    - echo "PACKAGE_VERSION=${PACKAGE_VERSION}" | tee -a package_version.env
+    # Validate commit tag matches version if tag is set
+    - |
+      if [ -n "${CI_COMMIT_TAG:-}" ]; then
+        EXPECTED_TAG="v${PACKAGE_VERSION}"
+        if [ "${CI_COMMIT_TAG}" != "${EXPECTED_TAG}" ]; then
+          echo "[ERROR] CI_COMMIT_TAG (${CI_COMMIT_TAG}) does not match expected tag (${EXPECTED_TAG})"
+          exit 1
+        fi
+      fi
+  artifacts:
+    reports:
+      dotenv: package_version.env
+
+# Aggregate and validate all built wheels
+"ddtrace package":
+  image: registry.ddbuild.io/images/mirror/python:3.14.0
+  tags: [ "arch:amd64" ]
   stage: package
   needs:
-    - job: download_ddtrace_artifacts
-      artifacts: true
-    - job: compute_library_version
-      artifacts: true
-  variables:
-    BUCKET: dd-trace-py-builds
+    - "build linux"
+    - "build macos"
+    - "build sdist"
+    - "download windows wheels"
+    - "package version"
   script:
-    - set -euo pipefail
-    - shopt -s nullglob
-    # Find wheels
-    - WHEELS=(pywheels/*.whl)
-    - |
-      if [ ${#WHEELS[@]} -eq 0 ]; then
-        echo "No wheels found in pywheels/"; exit 1
-      fi
-    - echo "Found ${#WHEELS[@]} wheel(s):"
-    - printf ' - %s\n' "${WHEELS[@]}"
-
-    - |
-      if [ -f library-version/version.txt ]; then
-        VERSION="$(tr -d '\r\n' < library-version/version.txt)"
-      fi
-
-      if [ -z "${VERSION:-}" ]; then
-        echo "ERROR: VERSION is not defined or library-version/version.txt missing!"
-        exit 1
-      fi
-
-    - printf 'Detected version %s\n' ${VERSION}
-
-    # Upload all wheels to versioned prefix and pipeline-id prefix
-    - aws s3 cp --recursive --exclude "*" --include "*.whl" pywheels "s3://${BUCKET}/${VERSION}/"
-    - aws s3 cp --recursive --exclude "*" --include "*.whl" pywheels "s3://${BUCKET}/${CI_PIPELINE_ID}/"
-
-    - |
-      VERSION_ENC="${VERSION//+/%2B}"
-      S3_BASE_VER="https://${BUCKET}.s3.amazonaws.com/${VERSION_ENC}"
-      S3_BASE_PIPE="https://${BUCKET}.s3.amazonaws.com/${CI_PIPELINE_ID}"
-
-      generate_index_html() {
-        local outfile="$1"
-        {
-          echo "<!DOCTYPE html><html lang=\"en\"><body>"
-          for w in "${WHEELS[@]}"; do
-            fname="$(basename "$w")"
-            enc_fname="${fname//+/%2B}"
-            echo "<a href=\"${enc_fname}\">${fname}</a><br>"
-          done
-          echo "</body></html>"
-        } > "${outfile}"
-      }
-
-      # Generate both minimal indexes
-      generate_index_html "index.version.html"
-      generate_index_html "index.pipeline.html"
-
-      # Upload to each S3 prefix
-      aws s3 cp "index.version.html" "s3://${BUCKET}/${VERSION}/index.html" --content-type text/html
-      aws s3 cp "index.pipeline.html" "s3://${BUCKET}/${CI_PIPELINE_ID}/index.html" --content-type text/html
-
-      # Print the clickable URLs
-      VER_INDEX_URL="${S3_BASE_VER}/index.html"
-      PIPE_INDEX_URL="${S3_BASE_PIPE}/index.html"
-      echo "S3 index (version):  ${VER_INDEX_URL}"
-      echo "S3 index (pipeline): ${PIPE_INDEX_URL}"
+    - pip install packaging
+    - .gitlab/validate-ddtrace-package.py pywheels
+  artifacts:
+    paths:
+      - "pywheels/*.whl"
+      - "pywheels/*.tar.gz"

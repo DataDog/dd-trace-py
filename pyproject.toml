@@ -1,8 +1,7 @@
 [build-system]
 requires = [
-    "setuptools_scm[toml]>=4",
     "cython",
-    "cmake>=3.24.2,<3.28; python_version>='3.8'",
+    "cmake>=3.24.2,<3.28",
     "setuptools-rust<2",
     "patchelf>=0.17.0.0; sys_platform == 'linux'",
 ]
@@ -10,14 +9,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
-# DEV: to directly override the version specifier, comment this...
-#dynamic = ["version"]
-# ...and uncomment this
-version = "4.1.0dev"
+version = "4.4.0rc2"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
-requires-python = ">=3.9"
+# ddtrace has many sub-components which can break when CPython internals
+# change over versions, .e.g. profiling. So we explicitly mark incompatibility
+# with versions we don't support yet.
+requires-python = ">=3.9,<3.15"
 authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
 ]
@@ -26,7 +25,6 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -61,7 +59,7 @@ _dd_crashtracker_receiver = "ddtrace.commands._dd_crashtracker_receiver:main"
 ddcontextvars_context = "ddtrace.internal.opentelemetry.context:DDRuntimeContext"
 
 [project.entry-points.pytest11]
-ddtrace = "ddtrace.contrib.internal.pytest.plugin"
+ddtrace = "ddtrace.testing.internal.pytest.entry_point"
 
 [project.entry-points.'ddtrace.products']
 "apm-tracing-rc" = "ddtrace.internal.remoteconfig.products.apm_tracing"
@@ -70,6 +68,7 @@ ddtrace = "ddtrace.contrib.internal.pytest.plugin"
 "exception-replay" = "ddtrace.debugging._products.exception_replay"
 "live-debugger" = "ddtrace.debugging._products.live_debugger"
 "error-tracking" = "ddtrace.errortracking.product"
+"openfeature" = "ddtrace.internal.openfeature.product"
 "remote-configuration" = "ddtrace.internal.remoteconfig.products.client"
 "symbol-database" = "ddtrace.internal.symbol_db.product"
 "appsec" = "ddtrace.internal.appsec.product"
@@ -82,10 +81,6 @@ Changelog = "https://github.com/DataDog/dd-trace-py/releases"
 Documentation = "https://ddtrace.readthedocs.io/en/stable/"
 Homepage = "https://github.com/DataDog/dd-trace-py"
 "Source Code" = "https://github.com/DataDog/dd-trace-py/"
-
-[tool.setuptools_scm]
-version_scheme = "release-branch-semver"  # Must be "release-branch-semver" for now in main, see https://github.com/DataDog/dd-trace-py/issues/8801
-write_to = "ddtrace/_version.py"
 
 [tool.cython-lint]
 max-line-length = 120
@@ -148,10 +143,10 @@ exclude = [
     "ddtrace/vendor/*",
     "ddtrace/appsec/_iast/_taint_tracking/_vendor/*",
     "tests/profiling/collector/pprof_*pb2.py",
-    "tests/profiling/simple_program_gevent.py",
     "tests/contrib/grpc/hello_pb2.py",
     "tests/contrib/django_celery/app/*",
     "tests/contrib/protobuf/schemas/**/*.py",
+    "tests/coverage/included_path/py39_line_numbers.py",
     "tests/appsec/iast/fixtures/ast/str/non_utf8_content.py",
     "tests/appsec/iast/fixtures/aspects/str/non_utf8_content.py",
     "tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py"

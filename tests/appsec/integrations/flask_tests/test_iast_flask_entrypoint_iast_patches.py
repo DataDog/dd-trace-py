@@ -93,7 +93,6 @@ def test_ddtrace_iast_flask_patch_iast_disabled():
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.app_main_patched"]
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="APPSEC-59493: Test not compatible with Python 3.8")
 @pytest.mark.subprocess(err=None)
 def test_ddtrace_iast_flask_no_patch():
     import dis

@@ -7,18 +7,37 @@ fi
 
 ARTIFACTS=/artifacts/${RUN_ID}/${SCENARIO}
 
-OUTPUT_V1=${ARTIFACTS}/${DDTRACE_V1}/
+OUTPUT_V1=${ARTIFACTS}/baseline/
 mkdir -p ${OUTPUT_V1}
 source ${VENV_DDTRACE_V1}/bin/activate
 python run.py ${OUTPUT_V1}
 deactivate
 
 if [ "${DDTRACE_V2}" != "" ]; then
-  OUTPUT_V2=${ARTIFACTS}/${DDTRACE_V2}/
+  OUTPUT_V2=${ARTIFACTS}/candidate/
   mkdir -p ${OUTPUT_V2}
   source ${VENV_DDTRACE_V2}/bin/activate
   python run.py ${OUTPUT_V2}
-  # use pyperf to compare results from both runs
-  pyperf compare_to --table ${OUTPUT_V1}/results.json ${OUTPUT_V2}/results.json
+
+  # Compare results for each config separately
+  # Results are named results.{config_name}.json (e.g., results.cache_on.json)
+  # If results.json exists (single config), use that; otherwise compare each config
+  if [ -f "${OUTPUT_V1}/results.json" ] && [ -f "${OUTPUT_V2}/results.json" ]; then
+    # Single config benchmark
+    pyperf compare_to --table "${OUTPUT_V1}/results.json" "${OUTPUT_V2}/results.json"
+  else
+    # Multiple configs - compare each one
+    for result_file in ${OUTPUT_V1}/results.*.json; do
+      if [ -f "${result_file}" ]; then
+        config_name=$(basename "${result_file}" | sed 's/results\.\(.*\)\.json/\1/')
+        v1_file="${OUTPUT_V1}/results.${config_name}.json"
+        v2_file="${OUTPUT_V2}/results.${config_name}.json"
+        if [ -f "${v2_file}" ]; then
+          echo "Comparing config: ${config_name}"
+          pyperf compare_to --table "${v1_file}" "${v2_file}"
+        fi
+      fi
+    done
+  fi
   deactivate
 fi

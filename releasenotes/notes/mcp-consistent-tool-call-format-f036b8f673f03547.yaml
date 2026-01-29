@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Changes format of MCP server tool call span input, output, and tags to include the full request and response objects.

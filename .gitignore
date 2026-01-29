@@ -48,6 +48,8 @@ var/
 .installed.cfg
 *.egg
 *.whl
+pywheels/
+debugwheelhouse/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -112,10 +114,14 @@ celerybeat-schedule*
 # it must be versioned to keep track of backing services defaults
 !.env
 
+# Local docker-compose overrides
+docker-compose.override.yml
+
 # virtualenv
 .venv*
 venv/
 ENV/
+pip_cache_shared_venvs/
 
 # Worktrees
 .worktrees/
@@ -147,13 +153,11 @@ ENV/
 
 # Claude
 CLAUDE.local.md
+.claude/settings.local.json
 
 # Riot
 .riot/venv*
 .riot/requirements/*.in
-
-# Auto-generated version file
-ddtrace/_version.py
 
 # Benchmarks
 artifacts/
@@ -205,3 +209,6 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 
 # Rust build artifacts
 src/native/target*
+
+# Fuzzing corpus, output and artifacts
+.fuzz/

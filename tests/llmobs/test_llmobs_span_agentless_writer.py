@@ -94,7 +94,8 @@ def test_send_completion_bad_api_key(mock_writer_logs):
         "span",
         "https://llmobs-intake.datad0g.com/api/v2/llmobs",
         403,
-        b'{"errors":[{"status":"403","title":"Forbidden","detail":"API key is invalid"}]}',
+        mock.ANY,  # Backend may return "API key is invalid" or "API key is missing"
+        extra={"send_to_telemetry": False},
     )
 
 
@@ -157,4 +158,5 @@ llmobs_span_writer.enqueue(_completion_event())
     assert status == 0, err
     assert out == b""
     assert b"got response code 403" in err
-    assert b'status: b\'{"errors":[{"status":"403","title":"Forbidden","detail":"API key is invalid"}]}\'\n' in err
+    # Backend may return "API key is invalid" or "API key is missing"
+    assert b'"status":"403"' in err and b'"title":"Forbidden"' in err

@@ -14,7 +14,6 @@ from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 COMMON_RESPONSE_LLM_METADATA = {
     "temperature": mock.ANY,
     "top_p": mock.ANY,
-    "reasoning_tokens": mock.ANY,
     "tool_choice": "auto",
     "tools": mock.ANY,
     "truncation": "disabled",
@@ -159,6 +158,7 @@ def _assert_expected_agent_run(
                     "input_tokens": mock.ANY,
                     "output_tokens": mock.ANY,
                     "total_tokens": mock.ANY,
+                    "reasoning_output_tokens": mock.ANY,
                 },
                 metadata=COMMON_RESPONSE_LLM_METADATA,
                 model_name="gpt-4o-2024-08-06",
@@ -196,12 +196,12 @@ def _assert_expected_agent_run(
 
 
 @pytest.mark.asyncio
-async def test_llmobs_single_agent(agents, mock_tracer, request_vcr, llmobs_events, simple_agent):
+async def test_llmobs_single_agent(agents, test_spans, request_vcr, llmobs_events, simple_agent):
     """Test tracing with a simple agent with no tools or handoffs"""
     with request_vcr.use_cassette("test_simple_agent.yaml"):
         result = await agents.Runner.run(simple_agent, "What is the capital of France?")
 
-    spans = mock_tracer.pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
@@ -237,7 +237,7 @@ async def test_llmobs_single_agent(agents, mock_tracer, request_vcr, llmobs_even
 
 
 @pytest.mark.asyncio
-async def test_llmobs_streamed_single_agent(agents, mock_tracer, request_vcr, llmobs_events, simple_agent):
+async def test_llmobs_streamed_single_agent(agents, test_spans, request_vcr, llmobs_events, simple_agent):
     from openai.types.responses import ResponseTextDeltaEvent
 
     final_output = ""
@@ -248,7 +248,7 @@ async def test_llmobs_streamed_single_agent(agents, mock_tracer, request_vcr, ll
             if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
                 final_output += event.data.delta
 
-    spans = mock_tracer.pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
@@ -283,12 +283,12 @@ async def test_llmobs_streamed_single_agent(agents, mock_tracer, request_vcr, ll
     )
 
 
-def test_llmobs_single_agent_sync(agents, mock_tracer, request_vcr, llmobs_events, simple_agent):
+def test_llmobs_single_agent_sync(agents, test_spans, request_vcr, llmobs_events, simple_agent):
     """Test tracing with a simple agent with no tools or handoffs"""
     with request_vcr.use_cassette("test_simple_agent.yaml"):
         result = agents.Runner.run_sync(simple_agent, "What is the capital of France?")
 
-    spans = mock_tracer.pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
@@ -324,7 +324,7 @@ def test_llmobs_single_agent_sync(agents, mock_tracer, request_vcr, llmobs_event
 
 
 @pytest.mark.asyncio
-async def test_llmobs_manual_tracing_llmobs(agents, mock_tracer, request_vcr, llmobs_events, simple_agent):
+async def test_llmobs_manual_tracing_llmobs(agents, test_spans, request_vcr, llmobs_events, simple_agent):
     from agents.tracing import custom_span
     from agents.tracing import trace
 
@@ -335,7 +335,7 @@ async def test_llmobs_manual_tracing_llmobs(agents, mock_tracer, request_vcr, ll
             cspan.finish()
             result = await agents.Runner.run(simple_agent, "What is the capital of France?")
 
-    spans = mock_tracer.pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
@@ -378,12 +378,12 @@ async def test_llmobs_manual_tracing_llmobs(agents, mock_tracer, request_vcr, ll
 
 @pytest.mark.asyncio
 async def test_llmobs_single_agent_with_tool_calls_llmobs(
-    agents, mock_tracer, request_vcr, llmobs_events, addition_agent
+    agents, test_spans, request_vcr, llmobs_events, addition_agent
 ):
     with request_vcr.use_cassette("test_single_agent_with_tool_calls.yaml"):
         result = await agents.Runner.run(addition_agent, "What is the sum of 1 and 2?")
 
-    spans = mock_tracer.pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
@@ -451,11 +451,11 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
 
 
 @pytest.mark.asyncio
-async def test_llmobs_single_agent_with_ootb_tools(agents, mock_tracer, request_vcr, llmobs_events, weather_agent):
+async def test_llmobs_single_agent_with_ootb_tools(agents, test_spans, request_vcr, llmobs_events, weather_agent):
     with request_vcr.use_cassette("test_single_agent_with_ootb_tools.yaml"):
         result = await agents.Runner.run(weather_agent, "What is the weather like in New York right now?")
 
-    spans = mock_tracer.pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
@@ -494,13 +494,13 @@ async def test_llmobs_single_agent_with_ootb_tools(agents, mock_tracer, request_
 
 
 @pytest.mark.asyncio
-async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, llmobs_events, research_workflow):
+async def test_llmobs_multiple_agent_handoffs(agents, test_spans, request_vcr, llmobs_events, research_workflow):
     with request_vcr.use_cassette("test_multiple_agent_handoffs.yaml"):
         result = await agents.Runner.run(
             research_workflow, "What is a brief summary of what happened yesterday in the soccer world??"
         )
 
-    spans = mock_tracer.pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
@@ -614,11 +614,11 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
 
 @pytest.mark.asyncio
 async def test_llmobs_single_agent_with_tool_errors(
-    agents, mock_tracer, request_vcr, llmobs_events, addition_agent_with_tool_errors
+    agents, test_spans, request_vcr, llmobs_events, addition_agent_with_tool_errors
 ):
     with request_vcr.use_cassette("test_agent_with_tool_errors.yaml"):
         result = await agents.Runner.run(addition_agent_with_tool_errors, "What is the sum of 1 and 2?")
-    spans = mock_tracer.pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
@@ -699,14 +699,14 @@ async def test_llmobs_single_agent_with_tool_errors(
 
 @pytest.mark.asyncio
 async def test_llmobs_oai_agents_with_chat_completions_span_linking(
-    agents, mock_tracer_chat_completions, request_vcr, llmobs_events, research_workflow
+    agents, openai, test_spans, request_vcr, llmobs_events, research_workflow
 ):
     with request_vcr.use_cassette("test_multiple_agent_handoffs_with_chat_completions.yaml"):
         result = await agents.Runner.run(
             research_workflow, "Research and then summarize what happened yesterday in the soccer world"
         )
 
-    spans = mock_tracer_chat_completions.pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
@@ -748,12 +748,12 @@ async def test_llmobs_oai_agents_with_chat_completions_span_linking(
 
 
 async def test_llmobs_oai_agents_with_guardrail_spans(
-    agents, mock_tracer_chat_completions, request_vcr, llmobs_events, simple_agent_with_guardrail
+    agents, openai, test_spans, request_vcr, llmobs_events, simple_agent_with_guardrail
 ):
     with request_vcr.use_cassette("test_oai_agents_with_guardrail_spans.yaml"):
         await agents.Runner.run(simple_agent_with_guardrail, "What is the sum of 1 and 2?")
 
-    spans = mock_tracer_chat_completions.pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)
     llmobs_events.sort(key=lambda event: event["start_ns"])
 
@@ -763,3 +763,27 @@ async def test_llmobs_oai_agents_with_guardrail_spans(
     _assert_span_link(llmobs_events[2], llmobs_events[3], "output", "input")
     # assert LLM span links to output guardrail span
     _assert_span_link(llmobs_events[5], llmobs_events[6], "output", "input")
+
+
+@pytest.mark.asyncio
+async def test_no_error_when_current_span_is_none(agents, tracer, simple_agent):
+    """Regression test: tag_agent_manifest should not raise AttributeError when current_span is None."""
+    from ddtrace._trace.pin import Pin
+    from ddtrace.contrib.internal.openai_agents.patch import _patched_run_single_turn
+
+    # Create an async mock for the original function that _patched_run_single_turn wraps
+    async def mock_func(*args, **kwargs):
+        return None
+
+    # Directly test the patched function with current_span returning None
+    with mock.patch.object(tracer, "current_span", return_value=None):
+        # Should not raise AttributeError: 'NoneType' object has no attribute '_set_ctx_item'
+        await _patched_run_single_turn(
+            agents,
+            Pin(),
+            mock_func,
+            instance=None,
+            args=(simple_agent,),
+            kwargs={"input": "What is the capital of France?"},
+            agent_index=0,
+        )

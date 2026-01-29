@@ -79,7 +79,20 @@ class PyRef
     {
         Py_INCREF(_obj);
     }
-    inline ~PyRef() { Py_DECREF(_obj); }
+    inline ~PyRef()
+    {
+        // Avoid calling Py_DECREF during finalization as the thread state
+        // may be NULL, causing crashes in Python 3.14+ where _Py_Dealloc
+        // dereferences tstate immediately. This check uses relaxed atomics
+        // so it's not perfectly synchronized, but provides a safety net.
+#if PY_VERSION_HEX >= 0x030d0000
+        if (!Py_IsFinalizing()) {
+#else
+        if (!_Py_IsFinalizing()) {
+#endif
+            Py_DECREF(_obj);
+        }
+    }
 
   private:
     PyObject* _obj;
@@ -92,6 +105,10 @@ class Event
     void set()
     {
         std::lock_guard<std::mutex> lock(_mutex);
+
+        if (_set)
+            return;
+
         _set = true;
         _cond.notify_all();
     }
@@ -167,6 +184,8 @@ static PyMemberDef PeriodicThread_members[] = {
       offsetof(PeriodicThread, _ddtrace_profiling_ignore),
       0,
       "whether to ignore the thread for profiling" },
+
+    { "_is_after_fork", T_BOOL, offsetof(PeriodicThread, _after_fork), READONLY, "whether the thread is after fork" },
 
     { NULL } /* Sentinel */
 };
@@ -247,6 +266,14 @@ PeriodicThread__on_shutdown(PeriodicThread* self)
 static PyObject*
 PeriodicThread_start(PeriodicThread* self, PyObject* args)
 {
+    // After fork, the child process should not restart threads that were running in the parent
+    // until properly reinitialized through forksafe handlers. This prevents crashes when
+    // pthread_create is called before threading state is safe (e.g., in uvloop's _after_fork).
+    // Check this first because after fork, self->_thread is non-null but the thread doesn't exist.
+    if (self->_after_fork) {
+        Py_RETURN_NONE;
+    }
+
     if (self->_thread != nullptr) {
         PyErr_SetString(PyExc_RuntimeError, "Thread already started");
         return NULL;
@@ -288,7 +315,6 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
 
                     // Awake signal
                     self->_request->clear();
-                    self->_served->set();
                 }
             }
 
@@ -305,7 +331,14 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
                 error = true;
                 break;
             }
+
+            // If this came from a request mark it as served
+            self->_served->set();
         }
+
+        // Set request served in case any threads are waiting while a thread is
+        // stopping.
+        self->_served->set();
 
         // Run the shutdown callback if there was no error and we are not
         // at Python shutdown.
@@ -366,8 +399,12 @@ PeriodicThread_stop(PeriodicThread* self, PyObject* args)
         return NULL;
     }
 
-    self->_stopping = true;
-    self->_request->set();
+    if (!self->_after_fork) {
+        // The thread is no longer running so it makes no sense to stop it.
+        // Attempting to acquire the Event lock could deadlock.
+        self->_stopping = true;
+        self->_request->set();
+    }
 
     Py_RETURN_NONE;
 }

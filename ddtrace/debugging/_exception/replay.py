@@ -1,5 +1,6 @@
 from collections import deque
 from dataclasses import dataclass
+from pathlib import Path
 from threading import current_thread
 from types import FrameType
 from types import TracebackType
@@ -8,13 +9,13 @@ import uuid
 
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogLineProbe
+from ddtrace.debugging._safety import safe_getattr
 from ddtrace.debugging._session import Session
 from ddtrace.debugging._signal.snapshot import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import core
-from ddtrace.internal.compat import Path
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
@@ -113,20 +114,28 @@ def limit_exception(exc_ident: int) -> bool:
 def unwind_exception_chain(
     exc: t.Optional[BaseException], tb: t.Optional[TracebackType]
 ) -> t.Tuple[ExceptionChain, t.Optional[uuid.UUID]]:
-    """Unwind the exception chain and assign it an ID."""
-    chain: ExceptionChain = deque()
+    """Unwind the exception chain and assign it an ID.
 
-    while exc is not None:
+    The chain goes from "cause to effect", meaning that every cause for an
+    exception is put first.
+    """
+    chain: ExceptionChain = deque()
+    seen: t.Set[int] = set()  # Track visited exceptions by id to detect cycles
+
+    while exc is not None and id(exc) not in seen:
+        seen.add(id(exc))
         chain.appendleft((exc, tb))
 
-        if exc.__cause__ is not None:
-            exc = exc.__cause__
-        elif exc.__context__ is not None and not exc.__suppress_context__:
-            exc = exc.__context__
+        if (cause := safe_getattr(exc, "__cause__")) is not None:
+            exc, tb = cause, safe_getattr(cause, "__traceback__")
         else:
-            exc = None
-
-        tb = getattr(exc, "__traceback__", None)
+            if (context := safe_getattr(exc, "__context__")) is not None:
+                if not safe_getattr(exc, "__suppress_context__", False):
+                    exc, tb = context, safe_getattr(context, "__traceback__")
+                else:
+                    exc = None
+            else:
+                exc = None
 
     exc_id = None
     if chain:
@@ -141,12 +150,18 @@ def unwind_exception_chain(
     return chain, exc_id
 
 
-def get_tb_frames_from_exception_chain(chain: ExceptionChain) -> t.List[TracebackType]:
-    """Get the frames from the exception chain."""
-    frames: t.List[TracebackType] = []
+def get_tb_frames_from_exception_chain(chain: ExceptionChain) -> t.Generator[t.Tuple[int, TracebackType], None, None]:
+    """Get the frames from the exception chain.
+
+    For each exception in the chain we collect the maximum number of frames
+    configured, starting from the point where the exception was thrown.
+    """
+    frame_count = 0
 
     for _, tb in chain:
-        local_frames = []
+        # Retain only the last N frames from the traceback, where N is the
+        # configured max size for span tracebacks.
+        local_frames: t.Deque[TracebackType] = deque(maxlen=global_config._span_traceback_max_size)
         if tb is None or tb.tb_frame is None:
             continue
 
@@ -155,11 +170,18 @@ def get_tb_frames_from_exception_chain(chain: ExceptionChain) -> t.List[Tracebac
             local_frames.append(_tb)
             _tb = _tb.tb_next
 
-        # Get only the last N frames from the traceback, where N is the
-        # configured max size for span tracebacks.
-        frames.extend(local_frames[-global_config._span_traceback_max_size :])
+        # Update the frame count to allow computing the sequence number
+        frame_count += len(local_frames)
 
-    return frames
+        # Set the initial sequence number. This will decrease as we yield the
+        # new frames
+        frame_index = frame_count
+
+        # Pop and yield the frames from this traceback in reverse order
+        while local_frames:
+            frame = local_frames.pop()
+            yield frame_index, frame
+            frame_index -= 1
 
 
 class SpanExceptionProbe(LogLineProbe):
@@ -180,6 +202,7 @@ class SpanExceptionProbe(LogLineProbe):
             template=message,
             segments=[LiteralTemplateSegment(message)],
             take_snapshot=True,
+            capture_expressions=[],
             limits=DEFAULT_CAPTURE_LIMITS,
             condition=None,
             condition_error_rate=0.0,
@@ -262,8 +285,7 @@ class SpanExceptionHandler:
                 return False
 
             snapshot = None
-            snapshot_id = frame.f_locals.get(SNAPSHOT_KEY, None)
-            if snapshot_id is None:
+            if (snapshot_id := frame.f_locals.get(SNAPSHOT_KEY, None)) is None:
                 # We don't have a snapshot for the frame so we create one
                 if cached_only:
                     # If we only want a cached snapshot we return True as a signal
@@ -328,7 +350,7 @@ class SpanExceptionHandler:
 
         # Capture more frames if we have budget left, otherwise set just the
         # tags on the span for those frames that we have already captured.
-        for seq_nr, _tb in reversed(list(enumerate(get_tb_frames_from_exception_chain(chain), 1))):
+        for seq_nr, _tb in get_tb_frames_from_exception_chain(chain):
             has_snapshot_budget = frames_captured < config.max_frames
             has_captured = self._attach_tb_frame_snapshot_to_span(
                 span, _tb, exc_id, seq_nr, cached_only=not has_snapshot_budget

@@ -1,6 +1,4 @@
 #include "aspect_index.h"
-#include "helpers.h"
-#include "utils/string_utils.h"
 
 /**
  * @brief Index aspect
@@ -26,7 +24,7 @@ index_aspect(PyObject* result_o,
             const auto idx_long = PyLong_AsLong(idx);
             if (current_range->start <= idx_long and idx_long < (current_range->start + current_range->length)) {
                 ranges_to_set.emplace_back(
-                  initializer->allocate_taint_range(0l, 1l, current_range->source, current_range->secure_marks));
+                  safe_allocate_taint_range(0l, 1l, current_range->source, current_range->secure_marks));
                 break;
             }
         }
@@ -36,7 +34,7 @@ index_aspect(PyObject* result_o,
             const size_t& len_result_o{ get_pyobject_size(result_o) };
             const auto& current_range = ranges.at(0);
             ranges_to_set.emplace_back(
-              initializer->allocate_taint_range(0l, len_result_o, current_range->source, current_range->secure_marks));
+              safe_allocate_taint_range(0l, len_result_o, current_range->source, current_range->secure_marks));
         } catch (const std::out_of_range& ex) {
             if (nullptr == result_o) {
                 throw py::index_error();
@@ -80,8 +78,10 @@ api_index_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         return nullptr;
     }
 
+    CHECK_IAST_INITIALIZED_OR_RETURN(result_o);
+
     TRY_CATCH_ASPECT("index_aspect", return result_o, , {
-        const auto tx_map = taint_engine_context->get_tainted_object_map(candidate_text);
+        const auto tx_map = safe_get_tainted_object_map(candidate_text);
         if (tx_map == nullptr or tx_map->empty()) {
             return result_o;
         }

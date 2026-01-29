@@ -136,7 +136,7 @@ services:
             - DD_POOL_TRACE_CHECK_FAILURES=true
             - DD_DISABLE_ERROR_RESPONSES=true
             - ENABLED_CHECKS=trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
-            - SNAPSHOT_IGNORED_ATTRS=span_id,trace_id,parent_id,duration,start,metrics.system.pid,metrics.system.process_id,metrics.process_id,meta.runtime-id,meta._dd.p.tid,meta.pathway.hash,metrics._dd.tracer_kr,meta._dd.parent_id,meta.kafka.cluster_id
+            - SNAPSHOT_IGNORED_ATTRS=span_id,trace_id,parent_id,duration,start,metrics.system.pid,metrics.system.process_id,metrics.process_id,meta.runtime-id,meta._dd.p.tid,meta.pathway.hash,metrics._dd.tracer_kr,meta._dd.parent_id,meta.kafka.cluster_id,meta._dd.git.repository_url
 
     vertica:
         image: vertica/vertica-ce
@@ -185,8 +185,12 @@ services:
         # build:
         #  context: ./docker
         #  dockerfile: Dockerfile
-        image: ghcr.io/datadog/dd-trace-py/testrunner:1717b70091ae646ec3ee29a5cb77158a82209aa3@sha256:aac6cacc68517874da310d5ea78a967f34af8388af5c6621aba77a73c4757657
+        image: ghcr.io/datadog/dd-trace-py/testrunner:1802bf8a83c7826f8414f7dcc18cb29067f7e690@sha256:8ca2c0c6b34db4e0ef7f5ab55f717908ed2b9ae197b2c11b48b7359a1549a202
         command: bash
+        # Resource limits: defaults to 0 (unlimited, uses all available system resources)
+        # Set DD_TEST_CPUS (e.g., "4") and DD_TEST_MEMORY (e.g., "8g") to apply limits
+        cpus: "${DD_TEST_CPUS:-0}"
+        mem_limit: "${DD_TEST_MEMORY:-0}"
         environment:
           DD_FAST_BUILD: "1"
           CMAKE_BUILD_PARALLEL_LEVEL: "12"

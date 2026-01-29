@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
 
-import sys
-
-import pytest
-
 from ddtrace.appsec._iast._stacktrace import get_info_frame
 
 
@@ -31,7 +27,6 @@ async def test_stacktrace_async():
     assert class_ is not None
 
 
-@pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Test compatible with Python 3.9+")
 async def test_stacktrace_async_no_relevant_frame():
     """
     In the absence of any non-ddtrace and non-stdlib frame in the stacktrace, no frame is returned.

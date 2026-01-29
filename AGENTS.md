@@ -9,6 +9,21 @@
 3. **Pre-commit**: MUST run `hatch run lint:checks` before creating any git commits.
 4. **Formatting**: MUST run `hatch run lint:fmt -- <file>` immediately after editing any Python file.
 
+**Never:**
+1. Change public API contracts (breaks real applications)
+2. Commit secrets (use environment variables)
+3. Assume business logic (always ask)
+4. Remove AIDEV- comments without instruction
+5. Skip linting before committing
+6. Check and remove unexpected prints
+
+**Always:**
+1. Use the run-tests skill for test execution
+2. Use the lint skill before committing
+3. Ask when unsure about implementation details
+4. Update AIDEV- anchors when modifying related code
+5. Consider performance impact (this runs in production)
+
 ## Initial Setup for AI Assistants
 
 When starting a new chat session, ALWAYS read and apply the rules from:
@@ -18,6 +33,7 @@ When starting a new chat session, ALWAYS read and apply the rules from:
    - `linting.mdc` - Code quality and formatting
    - `testing.mdc` - Test execution guidelines
    - `repo-structure.mdc` - Repository structure
+   - `appsec.mdc` - Application Security (AppSec) features including IAST, AAP, RASP, API Security
 
 ## Skills
 
@@ -58,6 +74,29 @@ This project has custom skills that provide specialized workflows. **Always chec
 
 **Usage:** Use the Skill tool with command "lint"
 
+### find-cpython-usage
+
+**Use whenever:** Adding support for a new Python version or investigating CPython API dependencies.
+
+**Purpose:** Identifies all CPython internal headers and structures used in the codebase:
+- Searches for CPython header includes
+- Finds struct field accesses
+- Documents CPython internals we depend on
+
+**Usage:** Use the Skill tool with command "find-cpython-usage"
+
+### compare-cpython-versions
+
+**Use whenever:** Comparing CPython source code between two Python versions to identify changes.
+
+**Purpose:** Compares CPython headers and structs between versions:
+- Uses git diff or manual diff to compare versions
+- Identifies breaking changes and API modifications
+- Assesses impact on our codebase
+
+**Usage:** Use the Skill tool with command "compare-cpython-versions"
+
 ---
 
 <!-- Add more skills below as they are created -->
+

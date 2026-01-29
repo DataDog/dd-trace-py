@@ -15,7 +15,6 @@ import urllib
 from urllib.parse import quote
 from urllib.parse import urlparse
 
-import ddtrace
 from ddtrace import config
 from ddtrace.internal import agent
 from ddtrace.internal import forksafe
@@ -49,6 +48,7 @@ from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _SpanLink
+from ddtrace.version import __version__
 
 
 logger = get_logger(__name__)
@@ -104,6 +104,9 @@ class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
     error: Optional[Dict[str, str]]
     tags: List[str]
     experiment_id: str
+    reasoning: str
+    assessment: str
+    metadata: Dict[str, JSONType]
 
 
 def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
@@ -246,7 +249,12 @@ class BaseLLMObsWriter(PeriodicService):
         except Exception:
             telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error="connection_error")
             logger.error(
-                "failed to send %d LLMObs %s events to %s", len(events), self.EVENT_TYPE, self._intake, exc_info=True
+                "failed to send %d LLMObs %s events to %s",
+                len(events),
+                self.EVENT_TYPE,
+                self._intake,
+                exc_info=True,
+                extra={"send_to_telemetry": False},
             )
 
     def _send_payload(self, payload: bytes, num_events: int):
@@ -262,6 +270,7 @@ class BaseLLMObsWriter(PeriodicService):
                     self._url,
                     resp.status,
                     resp.read(),
+                    extra={"send_to_telemetry": False},
                 )
                 telemetry.record_dropped_payload(num_events, event_type=self.EVENT_TYPE, error="http_error")
             else:
@@ -269,7 +278,12 @@ class BaseLLMObsWriter(PeriodicService):
             return Response.from_http_response(resp)
         except Exception:
             logger.error(
-                "failed to send %d LLMObs %s events to %s", num_events, self.EVENT_TYPE, self._intake, exc_info=True
+                "failed to send %d LLMObs %s events to %s",
+                num_events,
+                self.EVENT_TYPE,
+                self._intake,
+                exc_info=True,
+                extra={"send_to_telemetry": False},
             )
             raise
         finally:
@@ -723,7 +737,7 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
         for event in events:
             event_data = {
                 "_dd.stage": "raw",
-                "_dd.tracer_version": ddtrace.__version__,
+                "_dd.tracer_version": __version__,
                 "event_type": "span",
                 "spans": [event],
             }

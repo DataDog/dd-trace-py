@@ -93,6 +93,10 @@ class TaintEngineContext
     // Clear all maps and free all slots.
     void clear_all_request_context_slots();
 
+    // Fork-safe: Abandon all slots without cleanup (for post-fork child process).
+    // This skips calling destructors/cleanup on slots containing invalid PyObject pointers.
+    void clear_tainted_object_map();
+
     // Convenience: retrieve the tainted object directly if present in any
     // active map; nullptr otherwise.
     TaintedObjectPtr get_tainted_object_from_request_context_slot(PyObject* tainted_object);

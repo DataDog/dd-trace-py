@@ -26,6 +26,8 @@ components:
     - ddtrace/contrib/internal/openai_agents/*
   pydantic_ai:
     - ddtrace/contrib/internal/pydantic_ai/*
+  vllm:
+    - ddtrace/contrib/internal/vllm/*
 suites:
   anthropic:
     parallelism: 2
@@ -105,6 +107,7 @@ suites:
       - tests/snapshots/tests.contrib.litellm.*
     runner: riot
     snapshot: true
+    venvs_per_job: 1
   llmobs:
     paths:
       - '@bootstrap'
@@ -114,7 +117,7 @@ suites:
       - tests/llmobs/*
     runner: riot
     snapshot: true
-    parallelism: 5
+    venvs_per_job: 1
   mcp:
     parallelism: 1
     paths:
@@ -129,7 +132,7 @@ suites:
     runner: riot
     snapshot: true
   openai:
-    parallelism: 14
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -182,6 +185,7 @@ suites:
       - tests/snapshots/tests.contrib.openai_agents.*
     runner: riot
     snapshot: true
+    venvs_per_job: 2
   pydantic_ai:
     paths:
       - '@bootstrap'
@@ -194,3 +198,19 @@ suites:
       - tests/snapshots/tests.contrib.pydantic_ai.*
     runner: riot
     snapshot: true
+    venvs_per_job: 2
+  vllm:
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@vllm'
+      - '@llmobs'
+      - tests/contrib/vllm/*
+      - tests/snapshots/tests.contrib.vllm.*
+    runner: riot
+    gpu: true
+    snapshot: true
+    skip: true  # Temporarily disabled

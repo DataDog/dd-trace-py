@@ -1,3 +1,5 @@
+#include <cstdlib>
+#include <cstring>
 #include <pybind11/pybind11.h>
 
 #include "source.h"
@@ -6,16 +8,67 @@ using namespace std;
 namespace py = pybind11;
 using namespace pybind11::literals;
 
+// Default truncation length if environment variable is not set
+constexpr size_t DEFAULT_TRUNCATION_LENGTH = 250;
+
+// Static variables for caching the truncation length
+namespace {
+size_t g_cached_truncation_length = 0;
+}
+
+// Get the truncation max length from environment variable
+size_t
+get_source_truncation_max_length()
+{
+    if (g_cached_truncation_length == 0) {
+        const char* env_value = std::getenv("DD_IAST_TRUNCATION_MAX_VALUE_LENGTH");
+        if (env_value != nullptr) {
+            try {
+                long parsed_value = std::strtol(env_value, nullptr, 10);
+                if (parsed_value > 0) {
+                    g_cached_truncation_length = static_cast<size_t>(parsed_value);
+                } else {
+                    g_cached_truncation_length = DEFAULT_TRUNCATION_LENGTH;
+                }
+            } catch (...) {
+                g_cached_truncation_length = DEFAULT_TRUNCATION_LENGTH;
+            }
+        } else {
+            g_cached_truncation_length = DEFAULT_TRUNCATION_LENGTH;
+        }
+    }
+
+    return g_cached_truncation_length;
+}
+
+// Reset the cached truncation length (for testing purposes only)
+void
+reset_source_truncation_cache()
+{
+    g_cached_truncation_length = 0;
+}
+
+// Truncate value string if it exceeds the max length
+string
+truncate_source_value(string value)
+{
+    size_t max_length = get_source_truncation_max_length();
+    if (value.length() > max_length) {
+        return value.substr(0, max_length);
+    }
+    return value;
+}
+
 Source::Source(string name, string value, OriginType origin)
   : name(std::move(name))
-  , value(std::move(value))
+  , value(truncate_source_value(std::move(value)))
   , origin(origin)
 {
 }
 
 Source::Source(int name, string value, const OriginType origin)
   : name(origin_to_str(OriginType{ name }))
-  , value(std::move(value))
+  , value(truncate_source_value(std::move(value)))
   , origin(origin)
 {
 }
@@ -45,8 +98,8 @@ Source::get_hash() const
 void
 pyexport_source(py::module& m)
 {
-    m.def("origin_to_str", &origin_to_str, "origin"_a, py::return_value_policy::reference);
-    m.def("str_to_origin", &str_to_origin, "origin"_a, py::return_value_policy::reference);
+    m.def("origin_to_str", &origin_to_str, "origin"_a);
+    m.def("str_to_origin", &str_to_origin, "origin"_a);
     py::enum_<TagMappingMode>(m, "TagMappingMode")
       .value("Normal", TagMappingMode::Normal)
       .value("Mapper", TagMappingMode::Mapper)

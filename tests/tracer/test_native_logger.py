@@ -7,6 +7,25 @@ import pytest
 from ddtrace.internal.native._native import logger
 
 
+@pytest.fixture(autouse=True)
+def cleanup_native_logger():
+    """Disable all native logging after the test to avoid unwanted logging in other tests"""
+    yield
+    try:
+        logger.disable("file")
+    except ValueError:
+        # If the logging output has not been enabled the native code returns a value error
+        pass
+    try:
+        logger.disable("stdout")
+    except ValueError:
+        pass
+    try:
+        logger.disable("stderr")
+    except ValueError:
+        pass
+
+
 @pytest.mark.parametrize(
     "output, expected",
     [
@@ -74,12 +93,19 @@ def test_logger_subprocess(
     backend, configured_level, message_level, should_log, tmp_path, ddtrace_run_python_code_in_subprocess
 ):
     log_path = tmp_path / f"{backend}_{configured_level}_{message_level}.log"
+    # Use absolute path to avoid subprocess working directory issues
+    log_path_abs = str(log_path.resolve())
+    # Ensure parent directory exists (tmp_path fixture should guarantee this)
+    if not tmp_path.exists():
+        tmp_path.mkdir(parents=True, exist_ok=True)
 
     env = os.environ.copy()
     env["_DD_TRACE_WRITER_NATIVE"] = "1"
     env["_DD_NATIVE_LOGGING_BACKEND"] = backend
-    env["_DD_NATIVE_LOGGING_FILE_PATH"] = log_path
+    env["_DD_NATIVE_LOGGING_FILE_PATH"] = log_path_abs
     env["_DD_NATIVE_LOGGING_LOG_LEVEL"] = configured_level
+    # Suppress UserWarning (e.g., pkg_resources deprecation warnings) in subprocess
+    env["PYTHONWARNINGS"] = "ignore::UserWarning"
 
     message = f"msg_{uuid.uuid4().hex}"
     code = """

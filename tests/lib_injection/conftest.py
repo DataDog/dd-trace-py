@@ -13,10 +13,10 @@ except ImportError:
 
 import pytest
 
-from ddtrace.version import get_version
+from ddtrace import __version__
 
 
-HOST_DDTRACE_VERSION = get_version()
+HOST_DDTRACE_VERSION = __version__
 LIBS_INJECTION_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../lib-injection"))
 LIBS_INJECTION_SRC_DIR = os.path.join(LIBS_INJECTION_DIR, "sources")
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))

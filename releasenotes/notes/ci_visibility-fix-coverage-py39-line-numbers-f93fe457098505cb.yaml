@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where code coverage instrumentation in Python 3.9 would raise an exception
+    while handling line numbers in some corner cases.

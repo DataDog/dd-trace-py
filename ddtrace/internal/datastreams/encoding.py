@@ -1,7 +1,7 @@
 import struct
 from typing import Tuple  # noqa:F401
 
-from .fnv import _get_byte
+from ddtrace.internal.utils.fnv import _get_byte
 
 
 MAX_VAR_LEN_64 = 9

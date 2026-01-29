@@ -21,7 +21,7 @@ Integrations shouldn't include any code that references concepts that are specif
 include Tracing Spans and the AppSec WAF.
 
 Integrations should avoid exposing a public API unless it is absolutely necessary. Users should be able to configure
-the integration by setting environment variables or using the Pin API. For cases where a public API is necessary, integrations
+the integration by setting environment variables. For cases where a public API is necessary, integrations
 should expose the API in ``ddtrace.contrib.<integration_name>.py``.
 
 Integrations should define a ``ddtrace.contrib.internal.<integration>.__init__.py`` module that contains a doc string describing the integration

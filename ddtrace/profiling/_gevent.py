@@ -9,14 +9,14 @@ import gevent.hub
 from greenlet import greenlet
 from greenlet import settrace
 
-from ddtrace.internal.datadog.profiling import stack_v2
+from ddtrace.internal.datadog.profiling import stack
 
 
 # Original objects
-_gevent_hub_spawn_raw = gevent.hub.spawn_raw
-_gevent_joinall = gevent.joinall
-_gevent_wait = gevent.wait
-_gevent_iwait = gevent.iwait
+_gevent_hub_spawn_raw: t.Callable[..., _Greenlet] = gevent.hub.spawn_raw
+_gevent_joinall: t.Callable[..., t.Sequence[_Greenlet]] = gevent.joinall
+_gevent_wait: t.Callable[..., t.Any] = gevent.wait
+_gevent_iwait: t.Callable[..., t.Any] = gevent.iwait
 
 # Global package state
 _greenlet_frames: t.Dict[int, t.Union[FrameType, bool, None]] = {}
@@ -24,7 +24,7 @@ _original_greenlet_tracer: t.Optional[t.Callable[[str, t.Any], None]] = None
 _greenlet_parent_map: t.Dict[int, int] = {}
 _parent_greenlet_count: t.Dict[int, int] = {}
 
-FRAME_NOT_SET = False  # Sentinel for when the frame is not set
+FRAME_NOT_SET: bool = False  # Sentinel for when the frame is not set
 
 
 class GreenletTrackingError(Exception):
@@ -34,11 +34,11 @@ class GreenletTrackingError(Exception):
 
 
 def track_gevent_greenlet(greenlet: _Greenlet) -> _Greenlet:
-    greenlet_id = thread.get_ident(greenlet)
+    greenlet_id: int = thread.get_ident(greenlet)
     frame: t.Union[FrameType, bool, None] = FRAME_NOT_SET
 
     try:
-        stack_v2.track_greenlet(greenlet_id, greenlet.name or type(greenlet).__qualname__, frame)
+        stack.track_greenlet(greenlet_id, greenlet.name or type(greenlet).__qualname__, frame)
     except AttributeError as e:
         raise GreenletTrackingError("Cannot track greenlet with no name attribute") from e
     except Exception as e:
@@ -60,13 +60,13 @@ def track_gevent_greenlet(greenlet: _Greenlet) -> _Greenlet:
 
 def update_greenlet_frame(greenlet_id: int, frame: t.Union[FrameType, bool, None]) -> None:
     _greenlet_frames[greenlet_id] = frame
-    stack_v2.update_greenlet_frame(greenlet_id, frame)
+    stack.update_greenlet_frame(greenlet_id, frame)
 
 
 def greenlet_tracer(event: str, args: t.Any) -> None:
     if event in {"switch", "throw"}:
         # This tracer function runs in the context of the target
-        origin, target = t.cast(t.Tuple[Greenlet, Greenlet], args)
+        origin, target = t.cast(t.Tuple[_Greenlet, _Greenlet], args)
 
         if (origin_id := thread.get_ident(origin)) not in _greenlet_frames:
             try:
@@ -105,8 +105,8 @@ def greenlet_tracer(event: str, args: t.Any) -> None:
 
 
 def untrack_greenlet(greenlet: _Greenlet) -> None:
-    greenlet_id = thread.get_ident(greenlet)
-    stack_v2.untrack_greenlet(greenlet_id)
+    greenlet_id: int = thread.get_ident(greenlet)
+    stack.untrack_greenlet(greenlet_id)
     _greenlet_frames.pop(greenlet_id, None)
     _parent_greenlet_count.pop(greenlet_id, None)
     if (parent_id := _greenlet_parent_map.pop(greenlet_id, None)) is not None:
@@ -116,7 +116,7 @@ def untrack_greenlet(greenlet: _Greenlet) -> None:
 
 
 def link_greenlets(greenlet_id: int, parent_id: int) -> None:
-    stack_v2.link_greenlets(greenlet_id, parent_id)
+    stack.link_greenlets(greenlet_id, parent_id)
     _parent_greenlet_count[parent_id] = _parent_greenlet_count.get(parent_id, 0) + 1
     _greenlet_parent_map[greenlet_id] = parent_id
 
@@ -140,8 +140,8 @@ class Greenlet(_Greenlet):
             return greenlet
 
     def join(self, *args: t.Any, **kwargs: t.Any) -> None:
-        target_id = thread.get_ident(self)
-        origin_id = thread.get_ident(gevent.getcurrent())
+        target_id: int = thread.get_ident(self)
+        origin_id: int = thread.get_ident(gevent.getcurrent())
 
         link_greenlets(target_id, origin_id)
 
@@ -159,16 +159,16 @@ def wrap_spawn(original: t.Callable[..., _Greenlet]) -> t.Callable[..., _Greenle
     return _
 
 
-def joinall(greenlets: t.Sequence[_Greenlet], *args: t.Any, **kwargs: t.Any) -> None:
+def joinall(greenlets: t.Sequence[_Greenlet], *args: t.Any, **kwargs: t.Any) -> t.Sequence[_Greenlet]:
     # This is a wrapper around gevent.joinall to track the greenlets
     # that are being joined.
     current_greenlet = gevent.getcurrent()
     if isinstance(current_greenlet, greenlet):
         current_greenlet = gevent.hub.get_hub()
-    current_greenlet_id = thread.get_ident(current_greenlet)
+    current_greenlet_id: int = thread.get_ident(current_greenlet)
     for g in greenlets:
         link_greenlets(thread.get_ident(g), current_greenlet_id)
-    _gevent_joinall(greenlets, *args, **kwargs)
+    return _gevent_joinall(greenlets, *args, **kwargs)
 
 
 def wait_wrapper(original: t.Callable[..., t.Any]) -> t.Callable[..., t.Any]:
@@ -182,7 +182,7 @@ def wait_wrapper(original: t.Callable[..., t.Any]) -> t.Callable[..., t.Any]:
             current_greenlet = gevent.getcurrent()
             if isinstance(current_greenlet, greenlet):
                 current_greenlet = gevent.hub.get_hub()
-            current_greenlet_id = thread.get_ident(current_greenlet)
+            current_greenlet_id: int = thread.get_ident(current_greenlet)
             for g in greenlets:
                 link_greenlets(thread.get_ident(g), current_greenlet_id)
 
@@ -204,7 +204,7 @@ def patch() -> None:
 
     gevent.hub.spawn_raw = wrap_spawn(_gevent_hub_spawn_raw)
 
-    _original_greenlet_tracer = settrace(greenlet_tracer)
+    _original_greenlet_tracer = t.cast(t.Callable[[str, t.Any], None], settrace(greenlet_tracer))
 
 
 def unpatch() -> None:

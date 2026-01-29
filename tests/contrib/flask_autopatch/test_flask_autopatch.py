@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import flask
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.ext import http
 from ddtrace.internal.compat import is_wrapted
@@ -17,7 +16,6 @@ class FlaskAutopatchTestCase(TracerTestCase):
     def setUp(self):
         super(FlaskAutopatchTestCase, self).setUp()
         self.app = flask.Flask(__name__)
-        Pin._override(self.app, service="test-flask", tracer=self.tracer)
         self.client = self.app.test_client()
 
     def test_patched(self):
@@ -89,12 +87,12 @@ class FlaskAutopatchTestCase(TracerTestCase):
 
         # Assert span services
         for span in spans:
-            self.assertEqual(span.service, "test-flask")
+            self.assertEqual(span.service, "test.flask.service")
 
         # Root request span
         req_span = spans[0]
         assert_is_measured(req_span)
-        self.assertEqual(req_span.service, "test-flask")
+        self.assertEqual(req_span.service, "test.flask.service")
         self.assertEqual(req_span.name, "flask.request")
         self.assertEqual(req_span.resource, "GET /")
         self.assertEqual(req_span.span_type, "web")
@@ -114,7 +112,7 @@ class FlaskAutopatchTestCase(TracerTestCase):
 
         # Handler span
         handler_span = spans[5]
-        self.assertEqual(handler_span.service, "test-flask")
+        self.assertEqual(handler_span.service, "test.flask.service")
 
         expected_span_name = (
             "flask.process_response"

@@ -299,6 +299,26 @@ def test_startup_logs_sampling_rules():
     ], f.get("sampling_rules")
 
 
+@pytest.mark.subprocess()
+def test_startup_logs_log_level_override_default():
+    from ddtrace.internal import debug
+    from ddtrace.trace import tracer
+
+    f = debug.collect(tracer)
+
+    assert f.get("log_level_override") is None
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_LOG_LEVEL": "WARNING"})
+def test_startup_logs_log_level_override_set():
+    from ddtrace.internal import debug
+    from ddtrace.trace import tracer
+
+    f = debug.collect(tracer)
+
+    assert f.get("log_level_override") == "WARNING"
+
+
 def test_error_output_ddtracerun_debug_mode():
     p = subprocess.Popen(
         ["ddtrace-run", "python", "tests/integration/hello.py"],

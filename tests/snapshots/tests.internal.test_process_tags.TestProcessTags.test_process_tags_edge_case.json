@@ -10,17 +10,17 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6911dc5a00000000",
-      "_dd.tags.process": "entrypoint.basedir:,entrypoint.name:test_script,entrypoint.type:script,entrypoint.workdir:workdir",
+      "_dd.p.tid": "69244c0600000000",
+      "_dd.tags.process": "entrypoint.name:test_script,entrypoint.type:script,entrypoint.workdir:workdir",
       "language": "python",
-      "runtime-id": "2d5de91f8dd9442cad7faca5554a09f1"
+      "runtime-id": "9f7b2a86304f4a82b0ad44b603ed29a0"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 605
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
     },
-    "duration": 35458,
-    "start": 1762778202321224878
+    "duration": 108917,
+    "start": 1763986438852106093
   }]]

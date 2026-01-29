@@ -1,5 +1,6 @@
 import os
 from threading import Event
+from time import monotonic
 from time import sleep
 
 import pytest
@@ -114,6 +115,8 @@ def test_awakeable_periodic_service():
     for _ in range(10):
         awake_me.awake()
 
+    assert queue == list(range(n))
+
     # Sleep long enough to also trigger the periodic function with the timeout
     sleep(1.1 * interval)
 
@@ -124,13 +127,16 @@ def test_awakeable_periodic_service():
 
 def test_forksafe_awakeable_periodic_service():
     queue = [None]
+    periodic_ran = Event()
 
     class AwakeMe(periodic.ForksafeAwakeablePeriodicService):
         def reset(self):
             queue.clear()
+            periodic_ran.clear()
 
         def periodic(self):
             queue.append(len(queue))
+            periodic_ran.set()
 
     awake_me = AwakeMe(1)
     awake_me.start()
@@ -143,6 +149,7 @@ def test_forksafe_awakeable_periodic_service():
         # reset
         assert not queue
         awake_me.awake()
+        periodic_ran.wait(timeout=5)  # Wait for periodic() to complete
         assert queue
         os._exit(42)
 
@@ -151,3 +158,70 @@ def test_forksafe_awakeable_periodic_service():
     _, status = os.waitpid(pid, 0)
     exit_code = os.WEXITSTATUS(status)
     assert exit_code == 42
+
+
+def test_periodic_after_fork_no_restart():
+    """Test that PeriodicThread.start() is safe to call after _after_fork().
+
+    This prevents crashes when external libraries (like uvloop) call fork and
+    try to restart threads before our forksafe handlers run.
+    """
+
+    def _run_periodic():
+        pass
+
+    t = periodic.PeriodicThread(0.1, _run_periodic)
+    t.start()
+
+    # Simulate what happens in a child process after fork
+    t._after_fork()
+
+    # This should not crash or create a new thread
+    t.start()  # Should be a no-op
+
+    # Verify thread is marked as after_fork
+    assert t._is_after_fork is True
+
+
+def test_timer():
+    end = 0
+
+    class TestTimer(periodic.Timer):
+        def timeout(self):
+            nonlocal end
+            end = monotonic()
+
+    T = 0.1
+    t = TestTimer(T)
+
+    start = monotonic()
+    t.start()
+    t.join()
+
+    assert end >= start + T
+
+
+def test_timer_reset():
+    end = count = 0
+
+    class TestTimer(periodic.Timer):
+        def timeout(self):
+            nonlocal end, count
+
+            count += 1
+            end = monotonic()
+
+    T = 0.1
+    t = TestTimer(T)
+
+    start = monotonic()
+    t.start()
+
+    for _ in range(N := 5):
+        sleep(T / 2)
+        t.reset()
+
+    t.join()
+
+    assert count == 1, "timed out once"
+    assert end >= start + (N * T / 2) + T

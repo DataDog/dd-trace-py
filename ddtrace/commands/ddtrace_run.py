@@ -8,6 +8,7 @@ import sys
 import typing  # noqa:F401
 
 import ddtrace
+from ddtrace.version import __version__
 
 
 def _find_executable(args: typing.Optional[argparse.Namespace]) -> typing.Optional[str]:
@@ -70,7 +71,7 @@ def _get_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
     )
     parser.add_argument("-p", "--profiling", help="enable profiling (disabled by default)", action="store_true")
-    parser.add_argument("-v", "--version", action="version", version="%(prog)s " + ddtrace.__version__)
+    parser.add_argument("-v", "--version", action="version", version="%(prog)s " + __version__)
     parser.add_argument("-nc", "--colorless", help="print output of command without color", action="store_true")
     return parser
 

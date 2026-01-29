@@ -1,11 +1,11 @@
 from contextlib import contextmanager
 import os
+from pathlib import Path
 import secrets
 import tempfile
 import typing
 
 from ddtrace.internal._unpatched import unpatched_open
-from ddtrace.internal.compat import Path
 from ddtrace.internal.logger import get_logger
 
 

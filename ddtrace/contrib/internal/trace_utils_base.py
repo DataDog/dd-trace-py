@@ -150,7 +150,10 @@ def _set_url_tag(integration_config: IntegrationConfig, span: Span, url: str, qu
         # users should set ``DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING=False``. This case should be
         # removed when config.global_query_string_obfuscation_disabled is removed (v3.0).
         span._set_tag_str(http.URL, url)
-    elif getattr(config._obfuscation_query_string_pattern, "pattern", None) == b"":
+    elif (
+        config._obfuscation_query_string_pattern is None
+        or getattr(config._obfuscation_query_string_pattern, "pattern", None) == b""
+    ):
         # obfuscation is disabled when DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP=""
         span._set_tag_str(http.URL, strip_query_string(url))
     else:

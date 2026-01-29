@@ -238,7 +238,16 @@ class Debugger(Service):
 
         log.debug("Disabling %s", cls.__name__)
 
+        adapter = remoteconfig_poller.get_registered("LIVE_DEBUGGING")
+
         remoteconfig_poller.unregister("LIVE_DEBUGGING")
+
+        # Currently the product enablement and the callback registration are
+        # tied together within the RC client so here we have to pretend that
+        # once we have disabled the debugger we also get an empty configuration
+        # payload from RC.
+        if adapter is not None:
+            cast(ProbeRCAdapter, adapter).delete_all_probes()
 
         unregister_post_run_module_hook(cls._on_run_module)
 
@@ -400,9 +409,6 @@ class Debugger(Service):
     def _inject_probes(self, probes: List[LineProbe]) -> None:
         for probe in probes:
             if probe not in self._probe_registry:
-                if len(self._probe_registry) >= di_config.max_probes:
-                    log.warning("Too many active probes. Ignoring new ones.")
-                    return
                 log.debug("[%s][P: %s] Received new %s.", os.getpid(), os.getppid(), probe)
                 self._probe_registry.register(probe)
 
@@ -529,10 +535,6 @@ class Debugger(Service):
 
     def _wrap_functions(self, probes: List[FunctionProbe]) -> None:
         for probe in probes:
-            if len(self._probe_registry) >= di_config.max_probes:
-                log.warning("Too many active probes. Ignoring new ones.")
-                return
-
             self._probe_registry.register(probe)
             try:
                 assert probe.module is not None  # nosec

@@ -21,7 +21,6 @@ from ._utils cimport PyBytesLike_Check
 from ..constants import _ORIGIN_KEY as ORIGIN_KEY
 from .constants import SPAN_LINKS_KEY
 from .constants import SPAN_EVENTS_KEY
-from .constants import MAX_UINT_64BITS
 from .logger import get_logger
 from .._trace._limits import MAX_SPAN_META_VALUE_LEN
 from .._trace._limits import TRUNCATED_SPAN_ATTRIBUTE_LEN
@@ -1234,7 +1233,6 @@ cdef class Packer(object):
     cdef int _pack(self, object o) except -1:
         cdef long long llval
         cdef unsigned long long ullval
-        cdef long longval
         cdef double dval
         cdef char* rawval
         cdef int ret
@@ -1259,7 +1257,8 @@ cdef class Packer(object):
                         default_used = True
                         continue
                     else:
-                        raise OverflowError("Integer value out of range")
+                        o = "Integer value out of range"
+                        continue
             elif PyFloat_CheckExact(o):
                 dval = o
                 ret = msgpack_pack_double(&self.pk, dval)
@@ -1275,12 +1274,14 @@ cdef class Packer(object):
                 if self.encoding == NULL:
                     ret = msgpack_pack_unicode(&self.pk, o, ITEM_LIMIT)
                     if ret == -2:
-                        raise ValueError("unicode string is too large")
+                        o = f"Unicode string is too large {L}"
+                        continue
                 else:
                     o = PyUnicode_AsEncodedString(o, self.encoding, self.unicode_errors)
                     L = len(o)
                     if L > ITEM_LIMIT:
-                        raise ValueError("unicode string is too large")
+                        o = f"Unicode string is too large {L}"
+                        continue
                     ret = msgpack_pack_raw(&self.pk, L)
                     if ret == 0:
                         rawval = o
@@ -1289,7 +1290,8 @@ cdef class Packer(object):
                 d = <dict>o
                 L = len(d)
                 if L > ITEM_LIMIT:
-                    raise ValueError("dict is too large")
+                    o = f"Dictionnary is too large {L}"
+                    continue
                 ret = msgpack_pack_map(&self.pk, L)
                 if ret == 0:
                     for k, v in d.items():
@@ -1302,7 +1304,8 @@ cdef class Packer(object):
             elif PyList_CheckExact(o):
                 L = Py_SIZE(o)
                 if L > ITEM_LIMIT:
-                    raise ValueError("list is too large")
+                    o = f"List is too large {L}"
+                    continue
                 ret = msgpack_pack_array(&self.pk, L)
                 if ret == 0:
                     for v in o:
@@ -1315,7 +1318,8 @@ cdef class Packer(object):
                 else:
                     ret = msgpack_pack_false(&self.pk)
             else:
-                PyErr_Format(TypeError, b"can not serialize '%.200s' object", Py_TYPE(o).tp_name)
+                o = f"Can not serialize [{type(o).__name__}] object"
+                continue
             return ret
 
     cpdef pack(self, object obj):

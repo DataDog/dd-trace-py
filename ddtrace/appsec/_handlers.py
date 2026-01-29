@@ -8,11 +8,17 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace._trace.span import Span
+from ddtrace._trace.trace_handlers import httpx_url_to_str
 from ddtrace.appsec._asm_request_context import _call_waf
 from ddtrace.appsec._asm_request_context import _call_waf_first
+from ddtrace.appsec._asm_request_context import _get_asm_context
+from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import set_body_response
+from ddtrace.appsec._asm_request_context import should_analyze_body_response
+from ddtrace.appsec._common_module_patches import _get_rasp_capability
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._http_utils import extract_cookies_from_headers
 from ddtrace.appsec._http_utils import normalize_headers
@@ -24,7 +30,9 @@ from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal import telemetry
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import RESPONSE_HEADERS
+from ddtrace.internal.core import ExecutionContext
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import http as http_utils
@@ -32,7 +40,8 @@ from ddtrace.internal.utils.http import parse_form_multipart
 import ddtrace.vendor.xmltodict as xmltodict
 
 
-log = get_logger(__name__)
+logger = get_logger(__name__)
+
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
@@ -264,7 +273,7 @@ def _on_request_span_modifier(
                 # no raw body
                 req_body = None
         except Exception:
-            log.debug("Failed to parse request body", exc_info=True)
+            logger.debug("Failed to parse request body", exc_info=True)
         finally:
             # Reset wsgi input to the beginning
             if wsgi_input:
@@ -329,7 +338,7 @@ def _wsgi_make_block_content(ctx, construct_url) -> Tuple[int, List[Tuple[str, s
         if user_agent:
             req_span._set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))
+        logger.warning("Could not set some span tags on blocked request: %s", str(e))
     resp_headers.append(("Content-Length", str(len(content))))
     return status, resp_headers, content
 
@@ -370,7 +379,7 @@ def _asgi_make_block_content(ctx, url) -> Tuple[int, List[Tuple[bytes, bytes]], 
         if user_agent:
             req_span._set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))
+        logger.warning("Could not set some span tags on blocked request: %s", str(e))
     resp_headers.append((b"Content-Length", str(len(content)).encode()))
     return status, resp_headers, content
 
@@ -391,7 +400,7 @@ def _on_flask_blocked_request(span):
         if user_agent:
             span._set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))
+        logger.warning("Could not set some span tags on blocked request: %s", str(e))
 
 
 def _on_start_response_blocked(ctx, flask_config, response_headers, status):
@@ -410,7 +419,220 @@ def _on_telemetry_periodic():
             ]
         )
     except Exception:
-        log.debug("Could not set appsec_enabled telemetry config status", exc_info=True)
+        logger.debug("Could not set appsec_enabled telemetry config status", exc_info=True)
+
+
+# Stripe
+
+
+def _on_checkout_session_create(session):
+    try:
+        mode = session.mode
+        if mode != "payment":
+            return
+
+        discounts_coupon = None
+        discounts_promotion_code = None
+        if session.discounts:
+            discount = session.discounts[0]
+            coupon = discount.coupon
+            if coupon:
+                if isinstance(coupon, str):
+                    discounts_coupon = coupon
+                else:
+                    discounts_coupon = coupon.id
+
+            promotion_code = discount.promotion_code
+            if promotion_code:
+                if isinstance(promotion_code, str):
+                    discounts_promotion_code = promotion_code
+                else:
+                    discounts_promotion_code = promotion_code.id
+
+        total_details_amount_discount = None
+        total_details_amount_shipping = None
+        if session.total_details:
+            total_details_amount_discount = session.total_details.amount_discount
+            total_details_amount_shipping = session.total_details.amount_shipping
+
+        payment_creation_data = {
+            "integration": "stripe",
+            "id": session.id,
+            "amount_total": session.amount_total,
+            "client_reference_id": session.client_reference_id,
+            "currency": session.currency,
+            "discounts.coupon": discounts_coupon,
+            "discounts.promotion_code": discounts_promotion_code,
+            "livemode": session.livemode,
+            "total_details.amount_discount": total_details_amount_discount,
+            "total_details.amount_shipping": total_details_amount_shipping,
+        }
+
+        call_waf_callback({"PAYMENT_CREATION": payment_creation_data})
+    except AttributeError:
+        logger.debug("can't extract payment creation data from Session object", exc_info=True)
+
+
+def _on_payment_intent_create(payment_intent):
+    try:
+        payment_method = payment_intent.payment_method
+        if not isinstance(payment_method, str):
+            payment_method = payment_method.id
+
+        payment_creation_data = {
+            "integration": "stripe",
+            "id": payment_intent.id,
+            "amount": payment_intent.amount,
+            "currency": payment_intent.currency,
+            "livemode": payment_intent.livemode,
+            "payment_method": payment_method,
+        }
+
+        call_waf_callback({"PAYMENT_CREATION": payment_creation_data})
+    except AttributeError:
+        logger.debug("can't extract payment creation data from PaymentIntent object", exc_info=True)
+
+
+def _on_payment_intent_event(event):
+    try:
+        if event.type == "payment_intent.succeeded":
+            waf_data_name = "PAYMENT_SUCCESS"
+
+            payment_intent_webhook_data = {
+                "payment_method": event.data.object.payment_method,
+            }
+
+        elif event.type == "payment_intent.payment_failed":
+            waf_data_name = "PAYMENT_FAILURE"
+
+            payment_intent_webhook_data = {
+                "last_payment_error.code": event.data.object.last_payment_error.code,
+                "last_payment_error.decline_code": event.data.object.last_payment_error.decline_code,
+                "last_payment_error.payment_method.id": event.data.object.last_payment_error.payment_method.id,
+                "last_payment_error.payment_method.type": event.data.object.last_payment_error.payment_method.type,
+            }
+        elif event.type == "payment_intent.canceled":
+            waf_data_name = "PAYMENT_CANCELLATION"
+
+            payment_intent_webhook_data = {
+                "cancellation_reason": event.data.object.cancellation_reason,
+            }
+        else:
+            return
+
+        payment_intent_webhook_data |= {
+            "integration": "stripe",
+            "id": event.data.object.id,
+            "amount": event.data.object.amount,
+            "currency": event.data.object.currency,
+            "livemode": event.data.object.livemode,
+        }
+
+        call_waf_callback({waf_data_name: payment_intent_webhook_data})
+    except AttributeError:
+        logger.debug("can't extract payment_intent event data from Event object", exc_info=True)
+
+
+# HTTPX
+APPSEC_SSRF_ANALYZE_BODY_KEY = "appsec.ssrf_analyze_body"
+
+
+def _on_httpx_request_started(ctx: ExecutionContext) -> None:
+    if not _get_rasp_capability("ssrf"):
+        return
+    asm_context = _get_asm_context()
+    if asm_context is None:
+        return
+
+    analyze_body = should_analyze_body_response(asm_context)
+    ctx.set_item(APPSEC_SSRF_ANALYZE_BODY_KEY, analyze_body)
+
+
+def _on_httpx_client_send_single_request_started(ctx: ExecutionContext) -> None:
+    if not _get_rasp_capability("ssrf"):
+        return
+
+    asm_context = _get_asm_context()
+    if asm_context is None:
+        return
+
+    request = ctx.get_item("request")
+    if request is None:
+        return
+
+    raw_url = httpx_url_to_str(request.url)
+
+    addresses = {
+        EXPLOIT_PREVENTION.ADDRESS.SSRF: raw_url,
+        "DOWN_REQ_METHOD": request.method,
+        "DOWN_REQ_HEADERS": request.headers,
+    }
+
+    analyze_body = ctx.find_item(APPSEC_SSRF_ANALYZE_BODY_KEY)
+    if analyze_body:
+        try:
+            addresses["DOWN_REQ_BODY"] = json.loads(request.content)
+        except Exception:
+            pass  # nosec
+    call_waf_callback(
+        addresses,
+        rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
+    )
+    asm_context.downstream_requests += 1
+    if blocking_config := get_blocked():
+        raise BlockingException(blocking_config, EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, raw_url)
+
+
+def _on_httpx_client_send_single_request_ended(ctx: ExecutionContext, exc_info) -> None:
+    exc_type, _, _ = exc_info
+    if exc_type is not None:
+        return
+
+    if not _get_rasp_capability("ssrf"):
+        return
+
+    response = ctx.get_item("response")
+    if not response or not (300 <= response.status_code < 400):
+        return
+
+    addresses = {
+        "DOWN_RES_STATUS": str(response.status_code),
+        "DOWN_RES_HEADERS": response.headers,
+    }
+
+    call_waf_callback(
+        addresses,
+        rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES,
+    )
+
+
+def _on_httpx_request_ended(ctx: ExecutionContext, exc_info) -> None:
+    exc_type, _, _ = exc_info
+    if exc_type is not None:
+        return
+
+    if not _get_rasp_capability("ssrf"):
+        return
+
+    response = ctx.get_item("response")
+    if not response or (300 <= response.status_code < 400):
+        return
+
+    addresses = {
+        "DOWN_RES_STATUS": str(response.status_code),
+        "DOWN_RES_HEADERS": response.headers,
+    }
+
+    if ctx.get_item(APPSEC_SSRF_ANALYZE_BODY_KEY):
+        try:
+            addresses["DOWN_RES_BODY"] = response.json()
+        except Exception:
+            pass  # nosec
+
+    call_waf_callback(
+        addresses,
+        rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES,
+    )
 
 
 def listen():
@@ -428,6 +650,17 @@ def listen():
     core.on("aws_lambda.start_request", _on_lambda_start_request)
     core.on("aws_lambda.start_response", _on_lambda_start_response)
     core.on("aws_lambda.parse_body", _on_lambda_parse_body)
+
+    core.on("appsec.stripe.checkout.session.create", _on_checkout_session_create)
+    core.on("appsec.stripe.payment_intent.create", _on_payment_intent_create)
+    core.on("appsec.stripe.webhook.construct_event", _on_payment_intent_event)
+    core.on("appsec.stripe.stripe_client.construct_event", _on_payment_intent_event)
+    core.on("appsec.stripe.stripe_client.parse_event_notification", _on_payment_intent_event)
+
+    core.on("context.started.httpx.client._send_single_request", _on_httpx_client_send_single_request_started)
+    core.on("context.ended.httpx.client._send_single_request", _on_httpx_client_send_single_request_ended)
+    core.on("context.started.httpx.request", _on_httpx_request_started)
+    core.on("context.ended.httpx.request", _on_httpx_request_ended)
 
     # disabling threats grpc listeners.
     # core.on("grpc.server.response.message", _on_grpc_server_response)

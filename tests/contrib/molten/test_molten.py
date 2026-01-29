@@ -3,7 +3,6 @@ from molten.testing import TestClient
 import pytest
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.molten.patch import patch
@@ -54,18 +53,15 @@ def molten_app():
 class TestMolten(TracerTestCase):
     """Ensures Molten is properly instrumented."""
 
-    TEST_SERVICE = "molten-patch"
-
     @pytest.mark.usefixtures("molten_app")
     def setUp(self):
         super(TestMolten, self).setUp()
         patch()
-        Pin._override(molten, tracer=self.tracer)
         self.app = molten_app()
         self.client = TestClient(self.app)
 
     def tearDown(self):
-        super(TestMolten, self).setUp()
+        super(TestMolten, self).tearDown()
         unpatch()
 
     def make_request(self, headers=None, params=None, route=None):
@@ -101,12 +97,6 @@ class TestMolten(TracerTestCase):
             self.assertEqual(len(spans), 18)
         else:
             self.assertEqual(len(spans), 16)
-
-        # test override of service name
-        Pin._override(molten, service=self.TEST_SERVICE)
-        response = self.make_request()
-        spans = self.pop_spans()
-        self.assertEqual(spans[0].service, "molten-patch")
 
     def make_route_reporting_test(self, endpoint, status_code, expected_route):
         self.client.request("GET", endpoint)
@@ -280,15 +270,11 @@ class TestMolten(TracerTestCase):
     def test_unpatch_patch(self):
         """Tests unpatch-patch cycle"""
         unpatch()
-        self.assertIsNone(Pin.get_from(molten))
         self.make_request()
         spans = self.pop_spans()
         self.assertEqual(len(spans), 0)
 
         patch()
-        # Need to override Pin here as we do in setUp
-        Pin._override(molten, tracer=self.tracer)
-        self.assertTrue(Pin.get_from(molten) is not None)
         self.make_request()
         spans = self.pop_spans()
         self.assertTrue(len(spans) > 0)
@@ -296,14 +282,12 @@ class TestMolten(TracerTestCase):
     def test_patch_unpatch(self):
         """Tests repatch-unpatch cycle"""
         # Already call patch in setUp
-        self.assertTrue(Pin.get_from(molten) is not None)
         self.make_request()
         spans = self.pop_spans()
         self.assertTrue(len(spans) > 0)
 
         # Test unpatch
         unpatch()
-        self.assertTrue(Pin.get_from(molten) is None)
         self.make_request()
         spans = self.pop_spans()
         self.assertEqual(len(spans), 0)
@@ -494,7 +478,7 @@ class TestMolten(TracerTestCase):
                                 api_gateway_resource="GET /",
                                 method="GET",
                                 status_code=test_endpoint["status"],
-                                url="local/",
+                                url="https://local/",
                                 start=1736973768,
                                 is_distributed=test_headers == distributed_headers,
                                 distributed_trace_id=1,

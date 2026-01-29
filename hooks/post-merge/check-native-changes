@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#
+# Post-merge hook to check for native code changes
+# Called automatically by Autohook after git merge or git pull
+#
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Check for native code changes
+"$SCRIPT_DIR/scripts/check-native-changes" "HEAD@{1}" "HEAD"

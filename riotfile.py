@@ -95,6 +95,7 @@ _appsec_threats_iast_variants = [
             "DD_IAST_ENABLED": "true",
             "DD_IAST_REQUEST_SAMPLING": "100",
             "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            "DD_IAST_WEAK_HASH_ALGORITHMS": "NOTexist",
         },
     ),
 ]
@@ -118,6 +119,7 @@ venv = Venv(
         "DD_PATCH_MODULES": "unittest:false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
         "CARGO_BUILD_JOBS": "12",
+        "DD_PYTEST_USE_NEW_PLUGIN": "true",
     },
     venvs=[
         Venv(
@@ -166,7 +168,7 @@ venv = Venv(
         Venv(
             name="appsec_integrations_packages",
             pys=select_pys(),
-            command="python -m pytest -v tests/appsec/integrations/packages_tests/",
+            command="pytest -v tests/appsec/integrations/packages_tests/",
             pkgs={
                 "gevent": latest,
                 "pytest-xdist": latest,
@@ -190,16 +192,21 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_integrations_stripe",
+            pys=select_pys(),
+            command="pytest {cmdargs} -v tests/appsec/integrations/stripe_tests/ ",
+            pkgs={
+                "stripe": [latest, "~=11.0", "~=12.0", "~=13.0"],
+                "vcrpy": latest,
+            },
+        ),
+        Venv(
             name="appsec_iast_packages",
-            # TODO(APPSEC-60019): virtualenv-clone doesn't support Python 3.14
-            # FIXME: GrpcIO is hanging with 3.13 on CI + hatch for some reason
-            pys=["3.11", "3.12"],
-            command="pytest {cmdargs} tests/appsec/iast_packages/",
+            pys=["3.11", "3.12", "3.13", "3.14"],
+            command="pytest {cmdargs}  -vvv -rxf tests/appsec/iast_packages/",
             pkgs={
                 "requests": latest,
-                "astunparse": latest,
                 "flask": latest,
-                "virtualenv-clone": latest,
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
@@ -253,38 +260,42 @@ venv = Venv(
                     pkgs={"django": "~=2.2"},
                 ),
                 Venv(
-                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pys=select_pys(max_version="3.13"),
                     pkgs={"django": "~=3.2", "legacy-cgi": latest},
                 ),
                 Venv(
-                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pys=select_pys(max_version="3.13"),
                     pkgs={"django": "==4.0.10", "legacy-cgi": latest},
                 ),
                 Venv(
-                    pys=["3.13"],
+                    pys=select_pys(max_version="3.13"),
                     pkgs={"django": "==4.0.10", "legacy-cgi": latest},
                 ),
                 Venv(
-                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pys=select_pys(max_version="3.13"),
                     pkgs={"django": "~=4.2"},
                 ),
                 Venv(
-                    pys=["3.13"],
+                    pys=select_pys(max_version="3.13"),
                     pkgs={"django": "~=4.2", "legacy-cgi": latest},
                 ),
                 Venv(
-                    pys=["3.10"],
-                    pkgs={"django": "~=5.1"},
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"django": "~=5.2"},
                 ),
                 Venv(
-                    pys=["3.13"],
-                    pkgs={"django": "~=5.1", "legacy-cgi": latest},
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"django": latest},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"django": latest, "legacy-cgi": latest},
                 ),
             ],
         ),
         Venv(
             name="appsec_integrations_fastapi",
-            command="pytest {cmdargs} tests/appsec/integrations/fastapi_tests/",
+            command="pytest -vvv {cmdargs} tests/appsec/integrations/fastapi_tests/",
             pkgs={
                 "requests": latest,
                 "python-multipart": latest,
@@ -311,19 +322,14 @@ venv = Venv(
                     pkgs={"fastapi": "==0.94.1"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.13"),
-                    pkgs={"fastapi": ["~=0.114.2", latest], "mcp": "==1.20.0"},
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"fastapi": "~=0.114.2", "mcp": "==1.20.0"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"fastapi": latest, "pydantic": "~=2.12.1", "mcp": "==1.20.0"},
                 ),
             ],
-        ),
-        Venv(
-            name="profile-diff",
-            command="python scripts/diff.py {cmdargs}",
-            pys="3",
-            pkgs={
-                "austin-python": "~=1.0",
-                "rich": latest,
-            },
         ),
         Venv(
             name="appsec_iast_default",
@@ -332,7 +338,6 @@ venv = Venv(
                 "requests": latest,
                 "urllib3": latest,
                 "cryptography": latest,
-                "astunparse": latest,
                 "simplejson": latest,
                 "grpcio": latest,
                 "pytest-asyncio": latest,
@@ -523,7 +528,7 @@ venv = Venv(
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED": "0",  # DEV: Temporary, remove once merged
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             command="pytest -v {cmdargs} tests/internal/",
             pkgs={
@@ -534,6 +539,7 @@ venv = Venv(
                 "pyfakefs": latest,
                 "pytest-benchmark": latest,
                 "wrapt": [latest, "<2.0.0"],
+                "uwsgi": latest,
             },
             venvs=[
                 Venv(
@@ -558,7 +564,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/lib_injection/",
             venvs=[
                 Venv(
-                    pys=select_pys(max_version="3.13"),
+                    pys=select_pys(),
                     pkgs={
                         "PyYAML": latest,
                         "pytest-randomly": latest,
@@ -659,6 +665,8 @@ venv = Venv(
                 "httpretty": latest,
                 "typing-extensions": latest,
                 "pytest-asyncio": latest,
+                "pytest-benchmark": latest,
+                "pytest-memray": latest,
             },
             pys=select_pys(),
         ),
@@ -1231,6 +1239,9 @@ venv = Venv(
                     venvs=[
                         Venv(pys=["3.9"], pkgs={"exceptiongroup": latest}),
                     ],
+                    env={
+                        "DD_PYTEST_USE_NEW_PLUGIN": "false",
+                    },
                 ),
                 Venv(
                     pkgs={
@@ -1376,6 +1387,9 @@ venv = Venv(
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
+                "DD_IAST_MAX_CONCURRENT_REQUEST": "1000",
+                "DD_IAST_TRUNCATION_MAX_VALUE_LENGTH": "10000",
+                "DD_IAST_MAX_RANGE_COUNT": "10000",
             },
         ),
         Venv(
@@ -1745,6 +1759,7 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "requests": latest,
                 "aiofiles": latest,
+                "cloudpickle": latest,
             },
             venvs=[
                 Venv(
@@ -1793,6 +1808,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             venvs=[
                 Venv(
@@ -1839,6 +1855,50 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="testing",
+            command="pytest --no-ddtrace --no-cov {cmdargs} tests/testing/",
+            pkgs={
+                "pytest-randomly": latest,
+                "pytest-xdist": latest,
+                "pytest-benchmark": latest,
+                "pytest-bdd": latest,
+            },
+            env={
+                "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "true",
+                "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "0",
+            },
+            venvs=[
+                Venv(
+                    pys="3.9",
+                    pkgs={
+                        "pytest": [
+                            "~=7.2",
+                            "~=8.0",
+                        ],
+                        "msgpack": latest,
+                        "more_itertools": "<8.11.0",
+                        # "pytest-mock": "==2.0.0",
+                        "httpx": "<0.28.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "pytest": [
+                            "~=7.2",
+                            "~=8.0",
+                            latest,  # pytest 9.x does not support Python 3.9.
+                        ],
+                        "msgpack": latest,
+                        "asynctest": "==0.13.0",
+                        "more_itertools": "<8.11.0",
+                        "httpx": "<0.28.0",
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="unittest",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/unittest/",
             pkgs={
@@ -1859,6 +1919,9 @@ venv = Venv(
             command="pytest --no-ddtrace {cmdargs} tests/contrib/asynctest/",
             pkgs={
                 "pytest-randomly": latest,
+            },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             venvs=[
                 Venv(
@@ -1885,6 +1948,9 @@ venv = Venv(
                     # FIXME: add support for v6.1
                     ">=6.0,<6.1",
                 ],
+            },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             venvs=[
                 Venv(
@@ -1916,6 +1982,9 @@ venv = Venv(
                 "msgpack": latest,
                 "pytest-randomly": latest,
             },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
+            },
             venvs=[
                 Venv(
                     pkgs={
@@ -1933,6 +2002,9 @@ venv = Venv(
             pkgs={
                 "flaky": latest,
                 "pytest-randomly": latest,
+            },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
         ),
         Venv(
@@ -2087,8 +2159,8 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
                 "httpx": [
-                    "~=0.17.0",
-                    "~=0.23.0",
+                    "~=0.25.0",
+                    "~=0.27.0",
                     latest,
                 ],
             },
@@ -2912,13 +2984,25 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/litellm",
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
-                "litellm": "==1.65.4",
                 "vcrpy": latest,
                 "pytest-asyncio": latest,
                 "botocore": latest,
                 "boto3": latest,
-                "openai": "==1.68.2",
             },
+            venvs=[
+                Venv(
+                    pkgs={
+                        "litellm": "==1.65.4",
+                        "openai": "==1.68.2",
+                    },
+                ),
+                Venv(
+                    pkgs={
+                        "litellm": "==1.80.16",
+                        "openai": ">=2.8.0",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="anthropic",
@@ -2946,6 +3030,7 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "vertexai": [latest],
                 "google-ai-generativelanguage": [latest],
+                "google-cloud-aiplatform": [latest],
             },
         ),
         Venv(
@@ -2999,7 +3084,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(),
                     pkgs={
-                        "pydantic-ai": ["==0.3.0", "==0.4.4"],
+                        "pydantic-ai": ["==0.3.0", "==0.4.4", "==0.8.1"],
                         "pydantic": "==2.12.0a1",
                     },
                 ),
@@ -3174,6 +3259,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             venvs=[
                 Venv(
@@ -3183,7 +3269,7 @@ venv = Venv(
         ),
         Venv(
             name="subprocess",
-            command="pytest {cmdargs} --no-cov tests/contrib/subprocess",
+            command="pytest -vvvv {cmdargs} --no-cov tests/contrib/subprocess",
             pkgs={
                 "pytest-randomly": latest,
             },
@@ -3215,6 +3301,17 @@ venv = Venv(
             pys=select_pys(min_version="3.9", max_version="3.13"),
         ),
         Venv(
+            name="vllm",
+            command="pytest {cmdargs} tests/contrib/vllm",
+            pkgs={
+                "pytest-asyncio": "==0.21.1",
+                "pytest-randomly": latest,
+                "torch": latest,
+                "vllm": ">=0.10.2",
+            },
+            pys=select_pys(min_version="3.10", max_version="3.13"),
+        ),
+        Venv(
             name="valkey",
             command="pytest {cmdargs} tests/contrib/valkey",
             pkgs={
@@ -3225,9 +3322,9 @@ venv = Venv(
             pys=select_pys(),
         ),
         Venv(
-            name="profile-v2",
+            name="profile",
             # NB riot commands that use this Venv must include --pass-env to work properly
-            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling_v2/collector/test_memalloc.py' {cmdargs} tests/profiling_v2",  # noqa: E501
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling/collector/test_memalloc.py' {cmdargs} tests/profiling",  # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "CPUCOUNT": "12",
@@ -3249,9 +3346,9 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    name="profile-v2-uwsgi",
-                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2/test_uwsgi.py",  # noqa: E501
-                    pys=select_pys(max_version="3.13"),
+                    name="profile-uwsgi",
+                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/test_uwsgi.py",  # noqa: E501
+                    pys=select_pys(max_version="3.13"),  # uwsgi<2.0.30 is not compatible with Python 3.14
                     pkgs={
                         "uwsgi": "<2.0.30",
                         "protobuf": latest,
@@ -3334,7 +3431,7 @@ venv = Venv(
                         ),
                     ],
                 ),
-                # Python >= 3.11
+                # Python >= 3.11 (excluding 3.14)
                 Venv(
                     pys=select_pys("3.11", "3.13"),
                     pkgs={"uwsgi": latest},
@@ -3366,11 +3463,43 @@ venv = Venv(
                         ),
                     ],
                 ),
+                # Python 3.14 - protobuf 4.22.0 is not compatible (TypeError: Metaclasses with custom tp_new)
                 Venv(
-                    name="profile-v2-memalloc",
-                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2/collector/test_memalloc.py",  # noqa: E501
-                    # skipping v3.14 for now due to an unstable `lz4 ` lib issue: https://gitlab.ddbuild.io/DataDog/apm-reliability/dd-trace-py/-/jobs/1163312347
-                    pys=select_pys(max_version="3.13"),
+                    pys="3.14",
+                    pkgs={"uwsgi": latest},
+                    venvs=[
+                        Venv(
+                            pkgs={
+                                # Use latest only - protobuf 4.22.0 fails with Python 3.14
+                                "protobuf": latest,
+                            },
+                        ),
+                        # Gevent
+                        Venv(
+                            env={
+                                "DD_PROFILE_TEST_GEVENT": "1",
+                            },
+                            pkgs={
+                                "gunicorn[gevent]": latest,
+                                "gevent": latest,
+                                "protobuf": latest,
+                            },
+                        ),
+                        # memcpy-based sampler
+                        Venv(
+                            env={
+                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                            },
+                            pkgs={
+                                "protobuf": latest,
+                            },
+                        ),
+                    ],
+                ),
+                Venv(
+                    name="profile-memalloc",
+                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py",  # noqa: E501
+                    pys=select_pys(),
                     pkgs={
                         "protobuf": latest,
                     },
@@ -3399,7 +3528,7 @@ venv = Venv(
             },
             command="pytest --no-cov {cmdargs} -c /dev/null --no-ddtrace tests/contrib/selenium",
             env={
-                "DD_AGENT_TRACER_URL": "9126",
+                "DD_AGENT_PORT": "9126",
             },
             venvs=[
                 Venv(
@@ -3447,19 +3576,19 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(max_version="3.13"),
+                    pys=select_pys(),
                     pkgs={
                         "flask": "~=2.2",
                     },
                 ),
                 Venv(
-                    pys=select_pys(max_version="3.13"),
+                    pys=select_pys(),
                     pkgs={
                         "flask": "~=3.0",
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.11", max_version="3.13"),
+                    pys=select_pys(min_version="3.11"),
                     pkgs={
                         "flask": "~=3.1",
                         "Werkzeug": "~=3.1",
@@ -3512,6 +3641,7 @@ venv = Venv(
             command="pytest tests/appsec/contrib_appsec/test_django.py {cmdargs}",
             pkgs={
                 "requests": latest,
+                "httpx": latest,
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -3566,6 +3696,7 @@ venv = Venv(
                 "pytest-cov": latest,
                 "requests": latest,
                 "hypothesis": latest,
+                "httpx": latest,
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -3645,6 +3776,44 @@ venv = Venv(
                     pys=["3.10", "3.13"],
                     pkgs={
                         "fastapi": "~=0.114.2",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+            ],
+        ),
+        Venv(
+            name="appsec_threats_tornado",
+            command="pytest tests/appsec/contrib_appsec/test_tornado.py {cmdargs}",
+            pkgs={
+                "requests": latest,
+                "httpx": latest,
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
+                "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+                "DD_API_SECURITY_SAMPLE_DELAY": "0",
+                "DD_PATCH_MODULES": "unittest:false",
+            },
+            venvs=[
+                Venv(
+                    pys=["3.9", "3.12"],
+                    pkgs={
+                        "tornado": "~=6.3",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.9", "3.12"],
+                    pkgs={
+                        "tornado": "~=6.4",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.10", "3.14"],
+                    pkgs={
+                        "tornado": "~=6.5",
                     },
                     venvs=_appsec_threats_iast_variants,
                 ),

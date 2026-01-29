@@ -12,7 +12,7 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_module_distribution_versions
 from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
-from ddtrace.version import get_version
+from ddtrace.version import __version__
 
 from ..hostname import get_hostname
 
@@ -65,7 +65,7 @@ def _get_application(key):
         "env": env or "",
         "language_name": "python",
         "language_version": _format_version_info(sys.version_info),
-        "tracer_version": get_version(),
+        "tracer_version": __version__,
         "runtime_name": platform.python_implementation(),
         "runtime_version": _format_version_info(sys.implementation.version),
     }

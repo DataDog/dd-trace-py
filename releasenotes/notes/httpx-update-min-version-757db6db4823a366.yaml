@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    httpx: This upgrades the minimum supported version of the ``httpx`` library from ``0.17.1`` to ``0.25.0``.
+    If you are using ``httpx`` versions prior to ``0.25.0``, upgrade to ``httpx>=0.25.0`` to ensure compatibility with ``ddtrace``.

@@ -7,8 +7,6 @@ import sqlalchemy
 import starlette
 from starlette.testclient import TestClient
 
-import ddtrace
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.internal.sqlalchemy.patch import patch as sql_patch
 from ddtrace.contrib.internal.sqlalchemy.patch import unpatch as sql_unpatch
@@ -17,10 +15,10 @@ from ddtrace.contrib.internal.starlette.patch import unpatch as starlette_unpatc
 from ddtrace.propagation import http as http_propagation
 from tests.contrib.starlette.app import get_app
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
-from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import override_global_config
 from tests.utils import override_http_config
+from tests.utils import scoped_tracer
 from tests.utils import snapshot
 
 
@@ -40,14 +38,10 @@ def engine():
 
 @pytest.fixture
 def tracer(engine):
-    original_tracer = ddtrace.tracer
-    tracer = DummyTracer()
-    Pin._override(engine, tracer=tracer)
-    ddtrace.tracer = tracer
-    starlette_patch()
-    yield tracer
-    ddtrace.tracer = original_tracer
-    starlette_unpatch()
+    with scoped_tracer() as tracer:
+        starlette_patch()
+        yield tracer
+        starlette_unpatch()
 
 
 @pytest.fixture
@@ -528,8 +522,6 @@ with TestClient(app) as test_client:
     assert b"datadog context not present in ASGI request scope, trace middleware may be missing\n" in err, err
 
 
-# Ignoring span link attributes until values are
-# normalized: https://github.com/DataDog/dd-apm-test-agent/issues/154
 @snapshot(ignores=["meta._dd.span_links"])
 def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
     """Tests if background tasks have been excluded from span duration"""
@@ -631,6 +623,6 @@ def test_inferred_spans_api_gateway(client, test_spans):
             api_gateway_resource="GET /",
             method="GET",
             status_code="200",
-            url="local/",
+            url="https://local/",
             start=1736973768,
         )

@@ -13,29 +13,12 @@ All traces submitted from the OpenAI integration are tagged by:
 - ``openai.user.api_key``: OpenAI API key used to make the request (obfuscated to match the OpenAI UI representation ``sk-...XXXX`` where ``XXXX`` is the last 4 digits of the key).
 
 
-(beta) Prompt and Completion Sampling
+Streamed Responses Support
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The following data is collected in span tags with a default sampling rate of ``1.0``:
-
-- Prompt inputs and completions for the ``completions`` endpoint.
-- Message inputs and completions for the ``chat.completions`` endpoint.
-- Embedding inputs for the ``embeddings`` endpoint.
-- Image input filenames and completion URLs for the ``images`` endpoint.
-- Audio input filenames and completions for the ``audio`` endpoint.
-
-
-(beta) Streamed Responses Support
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The OpenAI integration **estimates** prompt and completion token counts if streaming is turned on.
-This is because the ``usage`` field is not returned in streamed completions, which is what
-the integration relies on for reporting metrics.
-
-Streaming responses should produce a ``openai.stream`` span. This span is tagged with estimated
-completion and total tokens. The integration will make a best effort attempt to tag the original
-parent ``openai.request`` span with completion and total usage information, but this parent span
-may be flushed before this information is available.
+The OpenAI integration **estimates** prompt and completion token counts for streamed completion/chat completion responses if
+``stream_options["include_usage"]`` is set to ``False`` in the request. This is because the ``usage`` field is not returned
+by default in streamed completion/chat completions, which is what the integration relies on for reporting token metrics.
 
 The ``_est_tokens`` function implements token count estimations. It returns the average of simple
 token estimation techniques that do not rely on installing a tokenizer.
@@ -66,55 +49,12 @@ Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the OpenAI
     # patch(openai=True, aiohttp=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.openai["service"]
 
    The service name reported by default for OpenAI requests.
 
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_OPENAI_SERVICE`` environment
-   variables.
-
-   Default: ``DD_SERVICE``
-
-
-.. py:data:: (beta) ddtrace.config.openai["span_char_limit"]
-
-   Configure the maximum number of characters for the following data within span tags:
-
-   - Prompt inputs and completions
-   - Message inputs and completions
-   - Embedding inputs
-
-   Text exceeding the maximum number of characters is truncated to the character limit
-   and has ``...`` appended to the end.
-
-   Alternatively, you can set this option with the ``DD_OPENAI_SPAN_CHAR_LIMIT`` environment
-   variable.
-
-   Default: ``128``
-
-
-.. py:data:: (beta) ddtrace.config.openai["span_prompt_completion_sample_rate"]
-
-   Configure the sample rate for the collection of prompts and completions as span tags.
-
-   Alternatively, you can set this option with the ``DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE`` environment
-   variable.
-
-   Default: ``1.0``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure the OpenAI integration on a per-instance basis use the
-``Pin`` API::
-
-    import openai
-    from ddtrace import config
-    from ddtrace._trace.pin import Pin
-
-    Pin.override(openai, service="my-openai-service")
+   Alternatively, set this option with the ``DD_OPENAI_SERVICE`` environment variable.
 """  # noqa: E501

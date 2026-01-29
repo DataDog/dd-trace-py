@@ -21,6 +21,12 @@ if [[ $OSTYPE == 'darwin'* ]]; then
   export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
 fi
 
+# Make sure bc is installed
+if ! command -v bc &> /dev/null; then
+  echo "Error: bc not found. Please install bc."
+  exit 1
+fi
+
 # Function to find the highest version of compilers
 # Note that the product of this check is ignored if the user passes CC/CXX
 find_highest_compiler_version() {
@@ -76,7 +82,7 @@ CLANGTIDY_CMD=${highest_clangxx/clang++/clang-tidy}
 # Targets to target dirs
 declare -A target_dirs
 target_dirs["ddup"]="ddup"
-target_dirs["stack_v2"]="stack_v2"
+target_dirs["stack"]="stack"
 target_dirs["dd_wrapper"]="dd_wrapper"
 
 # Compiler options
@@ -224,8 +230,8 @@ print_help() {
   echo ""
   echo "Targets:"
   echo "  all_test (default)"
-  echo "  stack_v2 (also builds dd_wrapper)"
-  echo "  stack_v2_test (also builds dd_wrapper_test)"
+  echo "  stack (also builds dd_wrapper)"
+  echo "  stack_test (also builds dd_wrapper_test)"
   echo "  ddup (also builds dd_wrapper)"
   echo "  ddup_test (also builds dd_wrapper_test)"
 }
@@ -350,11 +356,11 @@ add_target() {
 
   case "${target}" in
     all|--)
-      targets+=("stack_v2")
+      targets+=("stack")
       targets+=("ddup")
       ;;
-    stack_v2)
-      targets+=("stack_v2")
+    stack)
+      targets+=("stack")
       ;;
     ddup)
       targets+=("ddup")

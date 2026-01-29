@@ -95,8 +95,7 @@ def test_urlib_parse_patching():
 
     bytecode = dis.Bytecode(urllib.parse.urlsplit)
     assert "add_aspect" in bytecode.codeobj.co_names
-    if sys.version_info > (3, 9):
-        assert "replace_aspect" in bytecode.codeobj.co_names
+    assert "replace_aspect" in bytecode.codeobj.co_names
     assert "slice_aspect" in bytecode.codeobj.co_names
     assert "lower_aspect" in bytecode.codeobj.co_names
 
@@ -116,8 +115,5 @@ def test_urlib_parse_propagation():
     assert result.netloc == "localhost:8000"
 
     assert get_tainted_ranges(result.path) == [TaintRange(0, 13, Source("first_element", text, OriginType.PARAMETER))]
-    if sys.version_info > (3, 9):
-        assert get_tainted_ranges(result.scheme) == [
-            TaintRange(0, 4, Source("first_element", text, OriginType.PARAMETER))
-        ]
+    assert get_tainted_ranges(result.scheme) == [TaintRange(0, 4, Source("first_element", text, OriginType.PARAMETER))]
     assert get_tainted_ranges(result.netloc) == [TaintRange(0, 14, Source("first_element", text, OriginType.PARAMETER))]

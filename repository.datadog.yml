@@ -2,11 +2,11 @@
 schema-version: v1
 kind: mergequeue
 enable: true
-workflow_type: noqueue # TODO: change to speculative once stable
+workflow_type: speculative
 merge_method: squash
 gitlab_check_enable: true
-gitlab_jobs_retry_enable: true
-gitlab_fail_fast: true
+gitlab_jobs_retry_enable: false
+gitlab_fail_fast: false
 
 ---
 schema-version: v1

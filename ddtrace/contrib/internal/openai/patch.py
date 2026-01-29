@@ -1,4 +1,3 @@
-import os
 import sys
 from typing import Dict
 
@@ -14,22 +13,16 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import OpenAIIntegration
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
 
 
-config._add(
-    "openai",
-    {
-        "span_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        "span_char_limit": int(os.getenv("DD_OPENAI_SPAN_CHAR_LIMIT", 128)),
-    },
-)
+config._add("openai", {})
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return version.VERSION
 
 
@@ -193,11 +186,6 @@ def patched_client_init(openai, pin, func, instance, args, kwargs):
     func(*args, **kwargs)
     integration = openai._datadog_integration
     integration._client = instance
-    api_key = kwargs.get("api_key")
-    if api_key is None:
-        api_key = instance.api_key
-    if api_key is not None:
-        integration.user_api_key = api_key
     return
 
 
@@ -404,7 +392,7 @@ def _patched_endpoint_async(openai, patch_hook):
 @with_traced_module
 def patched_convert(openai, pin, func, instance, args, kwargs):
     """Patch convert captures header information in the openai response"""
-    span = pin.tracer.current_span()
+    span = tracer.current_span()
     if not span:
         return func(*args, **kwargs)
 

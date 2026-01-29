@@ -45,7 +45,6 @@ from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._database_monitoring import dbm_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.openfeature import config as ffe_config
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import AgentWriterInterface
@@ -289,6 +288,29 @@ def override_http_config(integration, values):
 
 
 @contextlib.contextmanager
+def scoped_tracer(use_dummy_writer=True):
+    """Provides a test-scoped global tracer with no configuration leaks."""
+    try:
+        if use_dummy_writer:
+            ddtrace.tracer._span_aggregator.writer = DummyWriter(trace_flush_enabled=check_test_agent_status())
+        yield ddtrace.tracer
+    finally:
+        # Reset global tracer to original state
+        ddtrace.tracer.shutdown()
+        # Remove the instance attribute that was set during shutdown, so the class attribute is used again
+        if (
+            hasattr(ddtrace.tracer, "start_span")
+            and ddtrace.tracer.start_span == ddtrace.tracer._start_span_after_shutdown
+        ):
+            delattr(ddtrace.tracer, "start_span")
+        # Tracer uses a singleton pattern. We reinitialize the existing object (not create a new one)
+        # because ddtrace.tracer, ddtrace.trace.tracer, ddtrace.internal.core.tracer, etc. all reference
+        # the same object. Reinitializing updates all references automatically.
+        Tracer._instance = None
+        Tracer.__init__(ddtrace.tracer)
+
+
+@contextlib.contextmanager
 def override_dbm_config(values):
     config_keys = ["propagation_mode"]
     originals = dict((key, getattr(dbm_config, key)) for key in config_keys)
@@ -517,37 +539,53 @@ class TestSpanContainer(object):
 
 class TracerTestCase(TestSpanContainer, BaseTestCase):
     """
-    BaseTracerTestCase is a base test case for when you need access to a dummy tracer and span assertions
+    BaseTracerTestCase is a base test case for when you need access to a dummy tracer and span assertions.
+    Uses the global ddtrace.tracer with a DummyWriter to capture spans.
     """
 
     def setUp(self):
-        """Before each test case, setup a dummy tracer to use"""
-        self.tracer = DummyTracer()
-
+        """Before each test case, configure the global tracer with a DummyWriter"""
+        self.tracer = ddtrace.tracer
+        self.scoped_tracer = scoped_tracer()
+        self.tracer = self.scoped_tracer.__enter__()
         super(TracerTestCase, self).setUp()
 
     def tearDown(self):
-        """After each test case, reset and remove the dummy tracer"""
-        super(TracerTestCase, self).tearDown()
-
-        self.reset()
-        delattr(self, "tracer")
+        """After each test case, reset the tracer state"""
+        try:
+            super(TracerTestCase, self).tearDown()
+        finally:
+            self.scoped_tracer.__exit__(None, None, None)
+            self.reset()
 
     def get_spans(self):
         """Required subclass method for TestSpanContainer"""
-        return self.tracer.get_spans()
+        writer = self.tracer._span_aggregator.writer
+        if hasattr(writer, "spans"):
+            return writer.spans
+        return []
 
     def pop_spans(self):
+        """Pop and return all spans from the writer"""
         # type: () -> List[Span]
-        return self.tracer.pop()
+        writer = self.tracer._span_aggregator.writer
+        if hasattr(writer, "pop"):
+            return writer.pop()
+        return []
 
     def pop_traces(self):
+        """Pop and return all traces from the writer"""
         # type: () -> List[List[Span]]
-        return self.tracer.pop_traces()
+        writer = self.tracer._span_aggregator.writer
+        if hasattr(writer, "pop_traces"):
+            return writer.pop_traces()
+        return []
 
     def reset(self):
         """Helper to reset the existing list of spans created"""
-        self.tracer._span_aggregator.writer.pop()
+        writer = self.tracer._span_aggregator.writer
+        if hasattr(writer, "pop"):
+            writer.pop()
 
     def trace(self, *args, **kwargs):
         """Wrapper for self.tracer.trace that returns a TestSpan"""
@@ -608,13 +646,13 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
     """DummyWriter is a small fake writer used for tests. not thread-safe."""
 
     def __init__(self, *args, **kwargs):
+        # Remove trace_flush_enabled as it's not accepted by NativeWriter/AgentWriter
+        self.trace_flush_enabled = kwargs.pop("trace_flush_enabled", False)
+
         # original call
         if len(args) == 0 and "intake_url" not in kwargs:
             kwargs["intake_url"] = agent_config.trace_agent_url
         kwargs["api_version"] = kwargs.get("api_version", "v0.5")
-
-        # only flush traces to test agent if ``trace_flush_enabled`` is explicitly set to True
-        self._trace_flush_enabled = kwargs.pop("trace_flush_enabled", False) is True
 
         # DEV: We don't want to do anything with the response callback
         # so we set it to a no-op lambda function
@@ -635,24 +673,22 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         if spans:
             traces = [spans]
             self.json_encoder.encode_traces(traces)
-            if self._trace_flush_enabled:
-                self._inner_writer.write(spans=spans)
-            else:
-                self.msgpack_encoder.put(spans)
-                self.msgpack_encoder.encode()
+            self.msgpack_encoder.put(spans)
+            self.msgpack_encoder.encode()
+            if self.trace_flush_enabled:
+                self._inner_writer.write(spans)
 
     def pop(self):
         spans = DummyWriterMixin.pop(self)
-        if self._trace_flush_enabled:
-            flush_test_tracer_spans(self)
         # Stop the writer threads in case the writer is no longer used.
         # Otherwise we risk accumulating threads and file descriptors causing crashes
         # In case the writer is used again it will be restarted by native side.
-        self._inner_writer.before_fork()
+        if isinstance(self._inner_writer, NativeWriter):
+            self._inner_writer._exporter.stop_worker()
         return spans
 
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "DummyWriter":
-        return self.__class__(trace_flush_enabled=self._trace_flush_enabled)
+        return DummyWriter(trace_flush_enabled=self.trace_flush_enabled)
 
     def flush_queue(self, raise_exc: bool = False) -> None:
         return self._inner_writer.flush_queue(raise_exc)
@@ -716,50 +752,6 @@ class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
             self._encoded = self._encoder._build_payload([spans])
 
 
-class DummyTracer(Tracer):
-    """
-    DummyTracer is a tracer which uses the DummyWriter by default
-    """
-
-    def __init__(self, *args, **kwargs):
-        super(DummyTracer, self).__init__()
-        self._trace_flush_disabled_via_env = not asbool(os.getenv("_DD_TEST_TRACE_FLUSH_ENABLED", True))
-        self._trace_flush_enabled = True
-        # Ensure DummyTracer is always initialized with a DummyWriter
-        self._span_aggregator.writer = DummyWriter(
-            trace_flush_enabled=check_test_agent_status() if not self._trace_flush_disabled_via_env else False
-        )
-
-    @property
-    def agent_url(self):
-        # type: () -> str
-        return self._span_aggregator.writer.intake_url
-
-    @property
-    def encoder(self):
-        # type: () -> Encoder
-        return self._span_aggregator.writer.msgpack_encoder
-
-    def get_spans(self):
-        # type: () -> List[List[Span]]
-        spans = self._span_aggregator.writer.spans
-        if self._trace_flush_enabled:
-            flush_test_tracer_spans(self._span_aggregator.writer)
-        return spans
-
-    def pop(self):
-        # type: () -> List[Span]
-        spans = self._span_aggregator.writer.pop()
-        return spans
-
-    def pop_traces(self):
-        # type: () -> List[List[Span]]
-        traces = self._span_aggregator.writer.pop_traces()
-        if self._trace_flush_enabled:
-            flush_test_tracer_spans(self._span_aggregator.writer)
-        return traces
-
-
 class TestSpan(Span):
     """
     Test wrapper for a :class:`ddtrace.trace.Span` that provides additional functions and assertions
@@ -788,6 +780,16 @@ class TestSpan(Span):
 
         # DEV: Use `object.__setattr__` to by-pass this class's `__setattr__`
         object.__setattr__(self, "_span", span)
+
+    def __getattribute__(self, name):
+        _span = super().__getattribute__("_span")
+        if hasattr(_span, name):
+            result = getattr(_span, name)
+            # If the attribute returns the wrapped span itself, return the wrapper instead
+            if result is _span:
+                return self
+            return result
+        return super().__getattribute__(name)
 
     def __getattr__(self, key):
         """
@@ -971,32 +973,35 @@ class TestSpan(Span):
 
 class TracerSpanContainer(TestSpanContainer):
     """
-    A class to wrap a :class:`tests.utils.tracer.DummyTracer` with a
+    A class to wrap a :class:`ddtrace.trace.Tracer` with a
     :class:`tests.utils.span.TestSpanContainer` to use in tests
     """
 
     def __init__(self, tracer):
+        if not isinstance(tracer._span_aggregator.writer, DummyWriter):
+            raise ValueError("Tracer must have a DummyWriter")
         self.tracer = tracer
         super(TracerSpanContainer, self).__init__()
 
-    def get_spans(self):
-        """
-        Overridden method to return all spans attached to this tracer
+    @property
+    def writer(self):
+        return self.tracer._span_aggregator.writer
 
-        :returns: List of spans attached to this tracer
-        :rtype: list
-        """
-        return self.tracer._span_aggregator.writer.spans
+    def get_spans(self):
+        """Required subclass method for TestSpanContainer"""
+        return self.writer.spans
 
     def pop(self):
-        return self.tracer.pop()
+        """Pop and return all spans from the writer"""
+        return self.writer.pop()
 
     def pop_traces(self):
-        return self.tracer.pop_traces()
+        """Pop and return all traces from the writer"""
+        return self.writer.pop_traces()
 
     def reset(self):
         """Helper to reset the existing list of spans created"""
-        self.tracer.pop()
+        self.writer.pop()
 
 
 class TestSpanNode(TestSpan, TestSpanContainer):
@@ -1510,21 +1515,6 @@ def check_test_agent_status():
             return False
     except Exception:
         return False
-
-
-def flush_test_tracer_spans(writer):
-    client = writer._clients[0]
-    n_traces = len(client.encoder)
-    try:
-        if not (encoded_traces := client.encoder.encode()):
-            return
-
-        [(encoded_traces, _)] = encoded_traces
-        if encoded_traces is None:
-            return
-        writer._send_payload(encoded_traces, n_traces, client)
-    except Exception:
-        return
 
 
 def add_dd_env_variables_to_headers(headers):

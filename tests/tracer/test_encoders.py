@@ -34,7 +34,6 @@ from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.trace import Context
 from ddtrace.trace import Span
-from tests.utils import DummyTracer
 
 
 _ORIGIN_KEY = ORIGIN_KEY.encode()
@@ -231,9 +230,29 @@ class TestEncoders(TestCase):
 
 def test_encode_meta_struct():
     # test encoding for MsgPack format
-    encoder = MSGPACK_ENCODERS["v0.4"](2 << 10, 2 << 10)
+    # Add error case with recovery
+    encoder = MSGPACK_ENCODERS["v0.4"](1 << 11, 1 << 11)
     super_span = Span(name="client.testing", trace_id=1)
-    payload = {"tttt": {"iuopç": [{"abcd": 1, "bcde": True}, {}]}, "zzzz": b"\x93\x01\x02\x03", "ZZZZ": [1, 2, 3]}
+
+    class T:
+        pass
+
+    payload = {
+        "tttt": {"iuopç": [{"abcd": 1, "bcde": True}, {}]},
+        "zzzz": b"\x93\x01\x02\x03",
+        "ZZZZ": [1, 2, 3],
+        "error_object": object(),
+        "error_integer": 1 << 129,
+        "list": [{}, {"x": "a"}, {"error_custom": T()}],
+    }
+    payload_expected = {
+        "tttt": {"iuopç": [{"abcd": 1, "bcde": True}, {}]},
+        "zzzz": b"\x93\x01\x02\x03",
+        "ZZZZ": [1, 2, 3],
+        "error_object": "Can not serialize [object] object",
+        "error_integer": "Integer value out of range",
+        "list": [{}, {"x": "a"}, {"error_custom": "Can not serialize [T] object"}],
+    }
 
     super_span._set_struct_tag("payload", payload)
     super_span.set_tag("payload", "meta_payload")
@@ -254,7 +273,7 @@ def test_encode_meta_struct():
     assert items[0][0][b"trace_id"] == items[0][1][b"trace_id"]
     for j in range(2):
         assert b"client.testing" == items[0][j][b"name"]
-    assert msgpack.unpackb(items[0][0][b"meta_struct"][b"payload"]) == payload
+    assert msgpack.unpackb(items[0][0][b"meta_struct"][b"payload"]) == payload_expected
 
 
 def decode(obj, reconstruct=True):
@@ -762,8 +781,7 @@ def test_span_link_v05_encoding():
         (MsgpackEncoderV05, 9),
     ],
 )
-def test_encoder_propagates_dd_origin(Encoder, item):
-    tracer = DummyTracer()
+def test_encoder_propagates_dd_origin(tracer, Encoder, item):
     encoder = Encoder(1 << 20, 1 << 20)
     with tracer.trace("Root") as root:
         root.context.dd_origin = CI_APP_TEST_ORIGIN
@@ -933,15 +951,20 @@ def _value():
         {"trace_id": "trace_id"},
         {"span_id": "span_id"},
         {"parent_id": "parent_id"},
-        {"service": True},
+        # {"service": True},  # Now handled gracefully by Rust (converts to None)
         {"resource": 50},
-        {"name": [1, 2, 3]},
+        # {"name": [1, 2, 3]},  # Now handled gracefully by Rust (converts to "")
         {"start_ns": []},
         {"duration_ns": {}},
         {"span_type": 100},
     ],
 )
 def test_encoding_invalid_data_raises(data):
+    """Test that invalid data types for certain fields raise during encoding.
+
+    Note: name and service are now validated at the Rust layer and convert
+    invalid types gracefully, so they no longer raise during encoding.
+    """
     encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
 
     span = Span(name="test")
@@ -955,6 +978,43 @@ def test_encoding_invalid_data_raises(data):
     assert e.match(r"failed to pack span: Span\(name="), e
     encoded_traces = encoder.encode()
     assert (not encoded_traces) or (encoded_traces[0][0] is None)
+
+
+@pytest.mark.parametrize(
+    "field,invalid_value,expected_value",
+    [
+        ("service", True, None),  # Invalid service type -> None
+        ("name", [1, 2, 3], ""),  # Invalid name type -> "" (default)
+        ("service", {"dict": "value"}, None),  # Invalid service type -> None
+        ("name", 123, ""),  # Invalid name type -> ""
+    ],
+)
+def test_encoding_invalid_name_service_handled_gracefully(field, invalid_value, expected_value):
+    """Test that invalid data types for name/service are handled gracefully.
+
+    Since name and service are now backed by Rust PyBackedString, invalid types
+    are converted at setter time rather than raising during encoding.
+
+    - Invalid name types -> "" (empty string)
+    - Invalid service types -> None (allows inheritance from parent/config)
+    """
+    encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
+
+    span = Span(name="test")
+    setattr(span, field, invalid_value)
+
+    # Ensure name is never None (must always be a string)
+    assert span.name is not None
+    assert isinstance(span.name, str)
+
+    # Should not raise - invalid types are converted gracefully
+    trace = [span]
+    encoder.put(trace)
+
+    encoded_traces = encoder.encode()
+    assert encoded_traces is not None
+    # Verify the span field was converted to the expected value
+    assert getattr(span, field) == expected_value
 
 
 @pytest.mark.parametrize(
@@ -1031,7 +1091,10 @@ def test_json_encoder_traces_bytes():
     """
     Regression test for: https://github.com/DataDog/dd-trace-py/issues/3115
 
-    Ensure we properly decode `bytes` objects when encoding with the JSONEncoder
+    Ensure we properly handle `bytes` objects when encoding with the JSONEncoder.
+
+    Note: Invalid UTF-8 bytes are converted to empty string at the Rust layer,
+    as we only accept valid str/bytes/None types for span names.
     """
     import json
     import os
@@ -1045,7 +1108,7 @@ def test_json_encoder_traces_bytes():
     data = encoder.encode_traces(
         [
             [
-                Span(name=b"\x80span.a"),
+                Span(name=b"\x80span.a"),  # Invalid UTF-8 bytes -> empty string
                 Span(name="\x80span.b"),
                 Span(name="\x80span.b"),
             ]
@@ -1058,6 +1121,7 @@ def test_json_encoder_traces_bytes():
     assert len(traces) == 1
     span_a, span_b, span_c = traces[0]
 
-    assert "\\x80span.a" == span_a["name"]
+    # Invalid UTF-8 bytes are converted to empty string
+    assert "" == span_a["name"]
     assert "\x80span.b" == span_b["name"]
     assert "\x80span.b" == span_c["name"]

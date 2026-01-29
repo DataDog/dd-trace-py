@@ -31,15 +31,11 @@ from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import user
 import ddtrace.internal  # noqa: F401
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
-from ddtrace.internal.serverless import has_aws_lambda_agent_extension
-from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.writer import AgentWriterInterface
-from ddtrace.internal.writer import LogWriter
 from ddtrace.trace import Context
 from ddtrace.trace import tracer as global_tracer
 from tests.subprocesstest import run_in_subprocess
-from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import override_global_config
 
@@ -677,6 +673,30 @@ class TracerTestCases(TracerTestCase):
             assert span.context.dd_user_id == user_id_string
             assert user_id == "44Om44O844K244O8SUQ="
 
+    def test_tracer_wrap_executor_shutdown(self):
+        assert self.tracer._wrap_executor is None
+        self.tracer._wrap_executor = lambda *args, **kwargs: None
+
+        @self.tracer.wrap()
+        def f():
+            pass
+
+        f()
+
+        spans = self.pop_spans()
+        # Wrap executor should override the default tracing function
+        assert len(spans) == 0
+        self.tracer.shutdown()
+        # After shutdown, the wrap executor should be reset
+        assert self.tracer._wrap_executor is None
+
+    def test_tracer_context_provider_shutdown(self):
+        context = Context(trace_id=1, span_id=1)
+        self.tracer.context_provider.activate(context)
+        assert self.tracer.context_provider.active() == context
+        self.tracer.shutdown()
+        assert self.tracer.context_provider.active() is None
+
 
 @pytest.mark.subprocess(env=dict(DD_AGENT_PORT=None, DD_AGENT_HOST=None, DD_TRACE_AGENT_URL=None))
 def test_tracer_url_default():
@@ -731,7 +751,7 @@ def test_tracer_shutdown():
 
 
 @pytest.mark.skip(reason="Fails to Pickle RateLimiter in the Tracer")
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_tracer_fork():
     import contextlib
     import multiprocessing
@@ -782,12 +802,10 @@ def test_tracer_fork():
     assert len(t._span_aggregator.writer._encoder) == 1
 
 
-def test_tracer_with_version():
-    t = DummyTracer()
-
+def test_tracer_with_version(tracer):
     # With global `config.version` defined
     with override_global_config(dict(version="1.2.3")):
-        with t.trace("test.span") as span:
+        with tracer.trace("test.span") as span:
             assert span.get_tag(VERSION_KEY) == "1.2.3"
 
             # override manually
@@ -795,7 +813,7 @@ def test_tracer_with_version():
             assert span.get_tag(VERSION_KEY) == "4.5.6"
 
     # With no `config.version` defined
-    with t.trace("test.span") as span:
+    with tracer.trace("test.span") as span:
         assert span.get_tag(VERSION_KEY) is None
 
         # explicitly set in the span
@@ -803,18 +821,16 @@ def test_tracer_with_version():
         assert span.get_tag(VERSION_KEY) == "1.2.3"
 
     # With global tags set
-    t.set_tags({VERSION_KEY: "tags.version"})
+    tracer.set_tags({VERSION_KEY: "tags.version"})
     with override_global_config(dict(version="config.version")):
-        with t.trace("test.span") as span:
+        with tracer.trace("test.span") as span:
             assert span.get_tag(VERSION_KEY) == "config.version"
 
 
-def test_tracer_with_env():
-    t = DummyTracer()
-
+def test_tracer_with_env(tracer):
     # With global `config.env` defined
     with override_global_config(dict(env="prod")):
-        with t.trace("test.span") as span:
+        with tracer.trace("test.span") as span:
             assert span.get_tag(ENV_KEY) == "prod"
 
             # override manually
@@ -822,7 +838,7 @@ def test_tracer_with_env():
             assert span.get_tag(ENV_KEY) == "prod-staging"
 
     # With no `config.env` defined
-    with t.trace("test.span") as span:
+    with tracer.trace("test.span") as span:
         assert span.get_tag(ENV_KEY) is None
 
         # explicitly set in the span
@@ -830,9 +846,9 @@ def test_tracer_with_env():
         assert span.get_tag(ENV_KEY) == "prod-staging"
 
     # With global tags set
-    t.set_tags({ENV_KEY: "tags.env"})
+    tracer.set_tags({ENV_KEY: "tags.env"})
     with override_global_config(dict(env="config.env")):
-        with t.trace("test.span") as span:
+        with tracer.trace("test.span") as span:
             assert span.get_tag(ENV_KEY) == "config.env"
 
 
@@ -924,16 +940,6 @@ class EnvTracerTestCase(TracerTestCase):
                     assert child2.service == "django"
                     assert VERSION_KEY in child2.get_tags() and child2.get_tag(VERSION_KEY) == "0.1.2"
 
-    @run_in_subprocess(
-        env_overrides=dict(
-            AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="", DD_TRACE_AGENT_URL="", DATADOG_TRACE_AGENT_HOSTNAME=""
-        )
-    )
-    def test_detect_agentless_env_with_lambda(self):
-        assert in_aws_lambda()
-        assert not has_aws_lambda_agent_extension()
-        assert isinstance(ddtrace.tracer._span_aggregator.writer, LogWriter)
-
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):
         assert isinstance(global_tracer._span_aggregator.writer, AgentWriterInterface)
@@ -951,8 +957,7 @@ class EnvTracerTestCase(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(DD_TAGS="service:mysvc,env:myenv,version:myvers"))
     def test_tags_from_DD_TAGS(self):
-        t = DummyTracer()
-        with t.trace("test") as s:
+        with self.tracer.trace("test") as s:
             assert s.service == "mysvc"
             assert s.get_tag("env") == "myenv"
             assert s.get_tag("version") == "myvers"
@@ -982,6 +987,24 @@ class EnvTracerTestCase(TracerTestCase):
             assert s.get_tag("version") == "0.123"
 
 
+@pytest.mark.subprocess(
+    env=dict(
+        AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="", DD_TRACE_AGENT_URL="", DATADOG_TRACE_AGENT_HOSTNAME=""
+    )
+)
+def test_detect_agentless_env_with_lambda():
+    import ddtrace
+    from ddtrace.internal.serverless import has_aws_lambda_agent_extension
+    from ddtrace.internal.serverless import in_aws_lambda
+    from ddtrace.internal.writer import LogWriter
+
+    assert in_aws_lambda()
+    assert not has_aws_lambda_agent_extension()
+    assert isinstance(ddtrace.tracer._span_aggregator.writer, LogWriter), (
+        f"Expected LogWriter, got {ddtrace.tracer._span_aggregator.writer}"
+    )
+
+
 def test_tracer_set_runtime_tags():
     with global_tracer.start_span("foobar") as span:
         pass
@@ -1001,7 +1024,7 @@ def _test_tracer_runtime_tags_fork_task(tracer, q):
 
 
 @pytest.mark.skip(reason="Fails to Pickle RateLimiter in the Tracer")
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_tracer_runtime_tags_fork():
     import multiprocessing
 
@@ -1042,8 +1065,8 @@ def test_enable():
 
 
 @pytest.mark.subprocess(
-    err=b"Shutting down tracer with 2 unfinished spans. "
-    b"Unfinished spans will not be sent to Datadog: "
+    err=b"Shutting down tracer with 2 spans. "
+    b"These spans will not be sent to Datadog: "
     b"trace_id=123 parent_id=0 span_id=456 name=unfinished_span1 "
     b"resource=my_resource1 started=46121775360.0 sampling_priority=2, "
     b"trace_id=123 parent_id=456 span_id=666 name=unfinished_span2 "
@@ -1082,9 +1105,7 @@ def test_threaded_import():
     t.join(60)
 
 
-def test_runtime_id_parent_only():
-    tracer = DummyTracer()
-
+def test_runtime_id_parent_only(tracer):
     # Parent spans should have runtime-id
     with tracer.trace("test") as s:
         rtid = s.get_tag("runtime-id")
@@ -1105,7 +1126,7 @@ def test_runtime_id_parent_only():
     PYTHON_VERSION_INFO >= (3, 12),
     reason="This test runs in a multithreaded process, using os.fork() may cause deadlocks in child processes",
 )
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_runtime_id_fork():
     import os
 
@@ -1336,7 +1357,8 @@ def test_ctx(tracer, test_spans):
     assert s3.parent_id == s2.span_id
     assert s4.parent_id == s1.span_id
     assert s1.trace_id == s2.trace_id == s3.trace_id == s4.trace_id
-    assert s1.get_metric(_SAMPLING_PRIORITY_KEY) == 1
+    # Agent based sampling may set the sampling priority to either 0 or 1.
+    assert s1.get_metric(_SAMPLING_PRIORITY_KEY) in (AUTO_KEEP, AUTO_REJECT)
     assert s2.get_metric(_SAMPLING_PRIORITY_KEY) is None
     assert _ORIGIN_KEY not in s1.get_tags()
 
@@ -1689,7 +1711,7 @@ def test_closing_other_context_spans_multi_spans(tracer, test_spans):
     assert len(spans) == 2
 
 
-@pytest.mark.subprocess(err=None)
+@pytest.mark.subprocess(err=None, env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_fork_manual_span_same_context():
     import ddtrace.auto  # noqa
 
@@ -1719,7 +1741,7 @@ def test_fork_manual_span_same_context():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess(err=None)
+@pytest.mark.subprocess(err=None, env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_fork_manual_span_different_contexts():
     import ddtrace.auto  # noqa
 
@@ -1744,7 +1766,7 @@ def test_fork_manual_span_different_contexts():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess(err=None)
+@pytest.mark.subprocess(err=None, env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_fork_pid():
     import ddtrace.auto  # noqa
 

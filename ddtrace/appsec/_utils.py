@@ -11,6 +11,7 @@ from typing import List
 from typing import Optional
 from typing import Union
 
+from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
@@ -96,6 +97,8 @@ class DDWaf_result:
                 self.api_security[k] = v
             elif isinstance(v, str):
                 self.meta_tags[k] = v
+            elif isinstance(v, bool):
+                self.metrics[k] = int(v)
             else:
                 self.metrics[k] = v
         self.keep = keep
@@ -408,10 +411,23 @@ def unpatching_popen():
     os.close = unpatched_close
     original_popen = subprocess.Popen
     subprocess.Popen = unpatched_Popen
+    # Save the original bypass flag value
+    original_bypass_flag = asm_config._bypass_instrumentation_for_waf
     asm_config._bypass_instrumentation_for_waf = True
     try:
         yield
     finally:
         subprocess.Popen = original_popen
         os.close = original_os_close
-        asm_config._bypass_instrumentation_for_waf = False
+        # In tests, restore the original value to avoid corrupting test configurations
+        # In production, force to False to ensure instrumentation is re-enabled
+        if asm_config._is_testing_instrumentation_for_waf:
+            # If it was already True, restore it (likely a test scenario)
+            asm_config._bypass_instrumentation_for_waf = original_bypass_flag
+        else:
+            # If it was False, keep it False (normal production scenario)
+            asm_config._bypass_instrumentation_for_waf = False
+
+
+def is_inferred_span(span: Span) -> bool:
+    return span.name in ("aws.apigateway", "aws.httpapi")

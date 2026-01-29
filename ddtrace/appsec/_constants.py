@@ -132,6 +132,7 @@ TELEMETRY_OFF_NAME = "OFF"
 TELEMETRY_DEBUG_NAME = "DEBUG"
 TELEMETRY_MANDATORY_NAME = "MANDATORY"
 TELEMETRY_INFORMATION_NAME = "INFORMATION"
+IAST_TRUNCATION_MAX_VALUE_LENGTH_DEFAULT = 250
 
 TELEMETRY_DEBUG_VERBOSITY = 10
 TELEMETRY_INFORMATION_VERBOSITY = 20
@@ -153,6 +154,9 @@ class IAST(metaclass=Constant_Class):
     )
     DD_IAST_MAX_CONCURRENT_REQUESTS: Literal["DD_IAST_MAX_CONCURRENT_REQUESTS"] = "DD_IAST_MAX_CONCURRENT_REQUESTS"
     ENV_TELEMETRY_REPORT_LVL: Literal["DD_IAST_TELEMETRY_VERBOSITY"] = "DD_IAST_TELEMETRY_VERBOSITY"
+    ENV_DD_IAST_TRUNCATION_MAX_VALUE_LENGTH: Literal["DD_IAST_TRUNCATION_MAX_VALUE_LENGTH"] = (
+        "DD_IAST_TRUNCATION_MAX_VALUE_LENGTH"
+    )
     LAZY_TAINT: Literal["_DD_IAST_LAZY_TAINT"] = "_DD_IAST_LAZY_TAINT"
     JSON: Literal["_dd.iast.json"] = "_dd.iast.json"
     STRUCT: Literal["iast"] = "iast"
@@ -209,6 +213,12 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     RESPONSE_STATUS: Literal["server.response.status"] = "server.response.status"
     RESPONSE_HEADERS_NO_COOKIES: Literal["server.response.headers.no_cookies"] = "server.response.headers.no_cookies"
     RESPONSE_BODY: Literal["server.response.body"] = "server.response.body"
+    PAYMENT_CREATION: Literal["server.business_logic.payment.creation"] = "server.business_logic.payment.creation"
+    PAYMENT_SUCCESS: Literal["server.business_logic.payment.success"] = "server.business_logic.payment.success"
+    PAYMENT_FAILURE: Literal["server.business_logic.payment.failure"] = "server.business_logic.payment.failure"
+    PAYMENT_CANCELLATION: Literal["server.business_logic.payment.cancellation"] = (
+        "server.business_logic.payment.cancellation"
+    )
     PERSISTENT_ADDRESSES = frozenset(
         (
             REQUEST_BODY,
@@ -225,6 +235,10 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
             RESPONSE_STATUS,
             RESPONSE_HEADERS_NO_COOKIES,
             RESPONSE_BODY,
+            PAYMENT_CREATION,
+            PAYMENT_SUCCESS,
+            PAYMENT_FAILURE,
+            PAYMENT_CANCELLATION,
         )
     )
 
@@ -244,6 +258,10 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     DOWN_RES_STATUS: Literal["server.io.net.response.status"] = "server.io.net.response.status"
     DOWN_RES_HEADERS: Literal["server.io.net.response.headers"] = "server.io.net.response.headers"
     DOWN_RES_BODY: Literal["server.io.net.response.body"] = "server.io.net.response.body"
+
+    HEADER_ADDRESSES = frozenset(
+        (DOWN_REQ_HEADERS, DOWN_RES_HEADERS, REQUEST_HEADERS_NO_COOKIES, RESPONSE_HEADERS_NO_COOKIES)
+    )
 
 
 class SPAN_DATA_NAMES(metaclass=Constant_Class):
@@ -362,7 +380,8 @@ class DEFAULT(metaclass=Constant_Class):
         r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:[_-]?phrase)?|secret(?:[_-]?key)?|(?:(?:api|private|public|access)[_-]?)"
         r"key(?:[_-]?id)?|(?:(?:auth|access|id|refresh)[_-]?)?token|consumer[_-]?(?:id|key|secret)|sign(?:ed|ature)?"
         r"|auth(?:entication|orization)?|jsessionid|phpsessid|asp\.net(?:[_-]|-)sessionid|sid|jwt)"
-        r'(?:\s*=([^;&]+)|"\s*:\s*("[^"]+"|\d+))|bearer\s+([a-z0-9\._\-]+)|token\s*:\s*([a-z0-9]{13})|gh[opsu]_([0-9a-zA-Z]{36})'
+        r'(?:\s*=([^;&]+)|"\s*:\s*("[^"]+"|\d+))|bearer\s+([a-z0-9\._\-]+)|token\s*:\s*([a-z0-9]{13})'
+        r"|gh[opsu]_([0-9a-zA-Z]{36})"
         r"|ey[I-L][\w=-]+\.(ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?)|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}([^\-]+)[\-]"
         r"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*([a-z0-9\/\.+]{100,})"
     )

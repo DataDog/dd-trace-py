@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    CI Visibility: This introduces a new version of the ``pytest`` plugin, with architectural improvements. This new
+    version uses an independent span writer for Test Optimization (similar to the ``DD_CIVISIBILITY_USE_BETA_WRITER``
+    option), and also contains performance and memory usage improvements. The new version is currently experimental, and
+    can be enabled by setting the ``DD_PYTEST_USE_NEW_PLUGIN`` environment variable to ``true``.
