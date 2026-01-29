@@ -251,7 +251,7 @@ def get_log_injection_state(raw_config: Optional[str]) -> bool:
 F = t.TypeVar("F", bound=t.Callable[..., t.Any])
 
 
-def catch_and_log_exceptions(_logger: logging.Logger, level: t.Optional[int], ret_none: bool) -> t.Callable[[F], F]:
+def catch_and_log_exceptions(_logger: logging.Logger, ret_none: bool, level: t.Optional[int]) -> t.Callable[[F], F]:
     def decorator(f: F) -> F:
         @wraps(f)
         def wrapper(*args: t.Any, **kwargs: t.Any) -> t.Any:

@@ -15,4 +15,4 @@ if ddconfig._raise:
 else:
     import logging
 
-    _catch_and_log_exceptions = catch_and_log_exceptions(log, logging.ERROR, False)
+    _catch_and_log_exceptions = catch_and_log_exceptions(log, ret_none=False, level=logging.ERROR)

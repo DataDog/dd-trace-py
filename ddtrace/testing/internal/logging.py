@@ -31,4 +31,4 @@ def setup_logging() -> None:
 
 def catch_and_log_exceptions() -> t.Callable[[F], F]:
     """Pre-configured decorator factory for catching and logging exceptions with testing logger."""
-    return _catch_and_log(testing_logger, None, True)
+    return _catch_and_log(testing_logger, ret_none=True, level=None)

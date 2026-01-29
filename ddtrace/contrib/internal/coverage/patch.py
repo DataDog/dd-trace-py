@@ -61,7 +61,7 @@ def report_total_pct_covered_wrapper(func, instance, args: tuple, kwargs: dict):
     return pct_covered
 
 
-@catch_and_log_exceptions(log, logging.WARNING)
+@catch_and_log_exceptions(log, ret_none=False, level=logging.WARNING)
 def run_coverage_report():
     if not is_coverage_loaded():
         return
