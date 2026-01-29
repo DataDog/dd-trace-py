@@ -1654,7 +1654,8 @@ venv = Venv(
                         ],
                     },
                 ),
-                Venv(pys=select_pys(min_version="3.11"), pkgs={"mariadb": ["~=1.1.2", latest]}),
+                # mariadb does not support Python 3.14 yet
+                Venv(pys=select_pys(min_version="3.11", max_version="3.13"), pkgs={"mariadb": ["~=1.1.2", latest]}),
             ],
         ),
         Venv(
