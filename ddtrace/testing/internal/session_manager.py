@@ -385,6 +385,10 @@ class SessionManager:
         )
         log.info("Test Optimization settings: Known Tests enabled: %s", self.settings.known_tests_enabled)
         log.info("Test Optimization settings: Auto Test Retries enabled: %s", self.settings.auto_test_retries.enabled)
+        log.info(
+            "Test Optimization settings: Coverage Report Upload enabled: %s",
+            self.settings.coverage_report_upload_enabled,
+        )
 
 
 def _get_service_name_from_git_repo(env_tags: t.Dict[str, str]) -> t.Optional[str]:

@@ -25,6 +25,8 @@ PCT_COVERED_KEY = "pct_covered"
 # - _last_coverage_instance: Keep reference to last instance for generating reports after stop()
 # - _cached_coverage_percentage: Cache the last reported coverage percentage
 _last_coverage_instance: Optional[Any] = None
+# Global to track external coverage instances (e.g., from pytest-cov)
+_external_coverage_instance: Optional[Any] = None
 _cached_coverage_percentage: Optional[float] = None
 
 
@@ -179,7 +181,8 @@ def get_coverage_instance() -> Optional[Any]:
     Get the current Coverage instance.
 
     Returns our tracked instance first (whether running or stopped),
-    or falls back to any externally running instance (e.g., pytest-cov).
+    then registered external instances (e.g., pytest-cov),
+    or falls back to any externally running instance.
     This allows generating reports after stopping coverage.
 
     Returns:
@@ -192,12 +195,41 @@ def get_coverage_instance() -> Optional[Any]:
     if _last_coverage_instance is not None:
         return _last_coverage_instance
 
+    # Check for registered external instance (e.g., pytest-cov)
+    if _external_coverage_instance is not None:
+        return _external_coverage_instance
+
     # Fall back to checking for an external running instance (e.g., pytest-cov)
     try:
         return Coverage.current()
     except Exception as e:
         log.debug("Failed to get coverage instance: %s", e)
         return None
+
+
+def register_external_coverage_instance(cov_instance: Any) -> None:
+    """
+    Register an external coverage instance (e.g., from pytest-cov).
+
+    This allows ddtrace to detect and use coverage instances that were
+    started by external tools like pytest-cov.
+
+    Args:
+        cov_instance: The coverage instance to register
+    """
+    global _external_coverage_instance
+    _external_coverage_instance = cov_instance
+    log.debug("Registered external coverage instance")
+
+
+def unregister_external_coverage_instance() -> None:
+    """
+    Unregister the external coverage instance.
+    """
+    global _external_coverage_instance, _cached_coverage_percentage
+    _external_coverage_instance = None
+    _cached_coverage_percentage = None
+    log.debug("Unregistered external coverage instance and cleared cached percentage")
 
 
 def is_coverage_running() -> bool:

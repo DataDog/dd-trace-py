@@ -17,7 +17,9 @@ import pytest
 
 from ddtrace.contrib.internal.coverage.patch import generate_lcov_report
 from ddtrace.contrib.internal.coverage.patch import is_coverage_running
+from ddtrace.contrib.internal.coverage.patch import register_external_coverage_instance
 from ddtrace.contrib.internal.coverage.patch import stop_coverage
+from ddtrace.contrib.internal.coverage.patch import unregister_external_coverage_instance
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
@@ -270,10 +272,19 @@ class TestOptPlugin:
             # Propagate number of skipped tests to the main process.
             session.config.workeroutput["tests_skipped_by_itr"] = self.session.tests_skipped_by_itr
 
-        # AIDEV-NOTE: If coverage report upload is enabled, generate and upload the report
+        # If coverage report upload is enabled, generate and upload the report
         if self.manager.settings.coverage_report_upload_enabled:
-            # Get the coverage instance BEFORE stopping it
-            # Once coverage is stopped, Coverage.current() returns None
+            # If pytest-cov is enabled but coverage detection fails, register the pytest-cov instance
+            if _is_pytest_cov_enabled(session.config) and not is_coverage_running():
+                # Try to get coverage from pytest-cov plugin and register it
+                for plugin in session.config.pluginmanager.list_name_plugin():
+                    _, plugin_instance = plugin
+                    if hasattr(plugin_instance, "cov_controller") and plugin_instance.cov_controller:
+                        register_external_coverage_instance(plugin_instance.cov_controller.cov)
+                        log.debug("Registered pytest-cov coverage instance with ddtrace")
+                        break
+
+            # Now check if coverage is available (either ddtrace started or pytest-cov registered)
             if is_coverage_running():
                 try:
                     coverage_format = "lcov"  # Default to LCOV
@@ -323,6 +334,9 @@ class TestOptPlugin:
                             log.debug("Could not stop coverage after error", exc_info=True)
             else:
                 log.debug("Coverage instance not available for report generation")
+
+            # Clean up external coverage instance registration
+            unregister_external_coverage_instance()
 
         coverage_percentage = get_coverage_percentage(_is_pytest_cov_enabled(session.config))
         if coverage_percentage is not None:
