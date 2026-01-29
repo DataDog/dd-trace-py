@@ -33,7 +33,16 @@ from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
 
 
+try:
+    from ddtrace.profiling.collector import _memalloc
+except ImportError:
+    logging.getLogger(__name__).debug("failed to import memalloc", exc_info=True)
+    _memalloc = None  # type: ignore[assignment]
+
+
 LOG = logging.getLogger(__name__)
+
+CollectorType = Union[collector.Collector, memalloc.MemoryCollector]
 
 
 class Profiler(object):
@@ -42,6 +51,11 @@ class Profiler(object):
     Note that the whole Python process is profiled, not only the code executed. Data from all running threads are
     caught.
 
+    Note that this class is an umbrella Profiler class that wraps around the _ProfilerInstance class (which is
+    cloned and restarted on fork).
+    The _ProfilerInstance class itself wraps Collector objects which are the "true" Profilers.
+
+    On fork, the _ProfilerInstance class is stopped, then cloned and restarted.
     """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -98,6 +112,7 @@ class Profiler(object):
         except service.ServiceStatusError:
             # This can happen in uWSGI mode: the children won't have the _profiler started from the master process
             pass
+
         self._profiler = self._profiler.copy()
         self._profiler.start()
 
@@ -110,6 +125,8 @@ class _ProfilerInstance(service.Service):
 
     Each process must manage its own instance.
 
+    All Collectors need ddup to be available, configured and initialised in order to work.
+    The _ProfilerInstance is responsible for ensuring it before starting any Collectors.
     """
 
     def __init__(
@@ -127,6 +144,16 @@ class _ProfilerInstance(service.Service):
         enable_code_provenance: bool = profiling_config.code_provenance,
         endpoint_collection_enabled: bool = profiling_config.endpoint_collection,
     ):
+        """
+        Initiliases the Profiler by
+        - Reading configuration
+        - Creating Collector instances based on configuration
+        - Creating the Scheduler instance (responsible for uploading Profiles)
+        - Initialising and starting ddup.
+        - Initialising memalloc if available.
+
+        Note: This function does not start Collectors (which must be done by calling `start`).
+        """
         super().__init__()
         # User-supplied values
         self.service: Optional[str] = service if service is not None else config.service
@@ -145,7 +172,7 @@ class _ProfilerInstance(service.Service):
         # Non-user-supplied values
         # Note: memalloc.MemoryCollector is not a subclass of collector.Collector, so we need to use a union type.
         #       This is because its snapshot method cannot be static.
-        self._collectors: List[collector.Collector | memalloc.MemoryCollector] = []
+        self._collectors: List[CollectorType] = []
         self._collectors_on_import: Optional[List[tuple[str, Callable[[Any], None]]]] = None
         self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
         self._lambda_function_name: Optional[str] = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
@@ -162,7 +189,13 @@ class _ProfilerInstance(service.Service):
                 return False
         return True
 
-    def _build_default_exporters(self) -> None:
+    def _initialise_native_extensions(self) -> None:
+        """
+        Configures and initialises the native extensionsn namely ddup and memalloc.
+
+        This does not start any profiling.
+        """
+
         if self._lambda_function_name is not None:
             self.tags.update({"functionname": self._lambda_function_name})
 
@@ -187,6 +220,11 @@ class _ProfilerInstance(service.Service):
             process_tags=self.process_tags,
         )
         ddup.start()
+
+        if _memalloc is not None:
+            _memalloc.initialize()
+        else:
+            LOG.warning("memalloc is not available, disabling")
 
     def __post_init__(self) -> None:
         if self._stack_collector_enabled:
@@ -263,7 +301,7 @@ class _ProfilerInstance(service.Service):
         if self._memory_collector_enabled:
             self._collectors.append(memalloc.MemoryCollector())
 
-        self._build_default_exporters()
+        self._initialise_native_extensions()
 
         scheduler_class: Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = (
             scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler

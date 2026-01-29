@@ -5,11 +5,8 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include "_memalloc_debug.h"
 #include "_memalloc_heap.h"
-#include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
-#include "_pymacro.h"
 
 // Ensure profile_state is initialized before creating Sample objects
 #include "ddup_interface.hpp"
@@ -187,9 +184,12 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
      * or memalloc_heap. The higher-level collector deals with this. */
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
 
+    // Free the memalloc heap tracker data.
+    // This is only useful when stopping on process exit, as on fork we already call this as part of the fork handler.
+    // Calling it here again in case of a fork is a no-op and is not dangerous.
     memalloc_heap_tracker_deinit_no_cpython();
 
-    /* Finally, we know in-progress sampling won't use the buffer pool, so clear it out */
+    // Finally, we know in-progress sampling won't use the buffer pool, so clear it out
     traceback_t::deinit_invokes_cpython();
 
     memalloc_enabled = false;
@@ -207,18 +207,57 @@ memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 {
     if (!memalloc_enabled) {
         PyErr_SetString(PyExc_RuntimeError, "the memalloc module was not started");
-        return NULL;
+        return nullptr;
     }
 
     memalloc_heap_no_cpython();
     Py_RETURN_NONE;
 }
 
-static PyMethodDef module_methods[] = { { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
-                                        { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
-                                        { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
-                                        /* sentinel */
-                                        { NULL, NULL, 0, NULL } };
+static void
+_memalloc_atfork_child()
+{
+    if (!memalloc_enabled) {
+        return;
+    }
+
+    // Reset the memalloc state to ensure we're not tracking any allocations
+    // that were made in the parent process.
+    memalloc_heap_tracker_deinit_no_cpython();
+
+    // We can't reset/deinit traceback_t because doing so uses the CPython API, so calling it here
+    // (without holding the GIL) is not safe.
+}
+
+static bool is_memalloc_initialized = false; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
+static std::once_flag memalloc_init_flag;    // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
+
+PyDoc_STRVAR(memalloc_initialize__doc__,
+             "initialize($module, /)\n"
+             "--\n"
+             "\n"
+             "Initialize the memalloc module.\n"
+             "\n"
+             "Register the atfork handler for the memalloc module.");
+static PyObject*
+memalloc_initialize(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
+{
+    std::call_once(memalloc_init_flag, []() {
+        pthread_atfork(nullptr, nullptr, _memalloc_atfork_child);
+        is_memalloc_initialized = true;
+    });
+
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef module_methods[] = {
+    { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
+    { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
+    { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
+    { "initialize", (PyCFunction)memalloc_initialize, METH_NOARGS, memalloc_initialize__doc__ },
+    /* sentinel */
+    { nullptr, nullptr, 0, nullptr }
+};
 
 PyDoc_STRVAR(module_doc, "Module to trace memory blocks allocated by Python.");
 
