@@ -103,7 +103,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             if operation in OPENAI_LLM_OPERATIONS
             else operation
         )
-        model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
+        model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model") or "unknown_model"
 
         model_provider = "openai"
         if self._is_provider(span, "azure"):
@@ -123,7 +123,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         update_proxy_workflow_input_output_value(span, span_kind)
         metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
         span._set_ctx_items(
-            {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
+            {SPAN_KIND: span_kind, MODEL_NAME: model_name, MODEL_PROVIDER: model_provider, METRICS: metrics}
         )
 
     @staticmethod

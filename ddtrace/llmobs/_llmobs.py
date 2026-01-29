@@ -12,6 +12,7 @@ from typing import Dict
 from typing import List
 from typing import Literal
 from typing import Optional
+from typing import Sequence
 from typing import Set
 from typing import Tuple
 from typing import Union
@@ -96,6 +97,8 @@ from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
+from ddtrace.llmobs._experiment import BaseEvaluator
+from ddtrace.llmobs._experiment import BaseSummaryEvaluator
 from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
@@ -912,8 +915,26 @@ class LLMObs(Service):
         task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
         optimization_task: Callable[[str, str, ConfigType], str],
         dataset: Dataset,
-        evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
-        summary_evaluators: List[Callable[[List, List, List, Dict], Dict]],
+        evaluators: List[
+            Union[
+                Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
+                BaseEvaluator,
+            ]
+        ],
+        summary_evaluators: List[
+            Union[
+                Callable[
+                    [
+                        List[DatasetRecordInputType],
+                        List[JSONType],
+                        List[JSONType],
+                        Dict[str, List[JSONType]],
+                    ],
+                    JSONType,
+                ],
+                BaseSummaryEvaluator,
+            ]
+        ],
         labelization_function: Optional[Callable[[Dict[str, Any]], str]],
         compute_score: Callable[[Dict[str, Dict[str, Any]]], float],
         config: ConfigType,
@@ -939,14 +960,14 @@ class LLMObs(Service):
                                   evaluation examples.
         :param dataset: The dataset to run experiments on, created with ``LLMObs.create_dataset()``
                        or ``LLMObs.pull_dataset()``.
-        :param evaluators: A list of evaluator functions to measure task performance.
-                          Each evaluator must accept parameters ``input_data`` (dict), ``output_data``
-                          (task output), and ``expected_output`` (expected result from dataset).
-                          Should return a JSON-serializable value with the evaluation results.
-        :param summary_evaluators: List of summary evaluator functions that aggregate results
-                                   across all dataset records (REQUIRED). Each function must accept:
-                                   inputs (list), outputs (list), expected_outputs (list), evaluations (dict)
-                                   and return a dict with aggregated metrics.
+        :param evaluators: A list of evaluators to measure task performance. Can be either
+                          class-based evaluators (inheriting from BaseEvaluator) or function-based
+                          evaluators that accept (input_data, output_data, expected_output) parameters.
+                          Should return a JSON-serializable value or an EvaluatorResult with the evaluation results.
+        :param summary_evaluators: List of summary evaluators (REQUIRED). Can be either
+                                   class-based evaluators (inheriting from BaseSummaryEvaluator) or function-based
+                                   evaluators that accept (inputs: List, outputs: List, expected_outputs: List,
+                                   evaluations: Dict) and return aggregated metrics.
         :param labelization_function: Function to generate labels from individual experiment results (REQUIRED).
                                      Takes an individual result dict (containing "evaluations" key) and returns
                                      a string label. Used to categorize examples shown to the optimization LLM.
@@ -1048,9 +1069,13 @@ class LLMObs(Service):
 
         if not isinstance(dataset, Dataset):
             raise TypeError("Dataset must be an LLMObs Dataset object.")
-        if not evaluators or not all(callable(evaluator) for evaluator in evaluators):
-            raise TypeError("Evaluators must be a list of callable functions.")
+        if not evaluators:
+            raise TypeError("Evaluators must be a non-empty list of BaseEvaluator instances or callable functions.")
         for evaluator in evaluators:
+            if isinstance(evaluator, BaseEvaluator):
+                continue
+            if not callable(evaluator):
+                raise TypeError("Evaluator must be a BaseEvaluator instance or a callable function.")
             sig = inspect.signature(evaluator)
             params = sig.parameters
             evaluator_required_params = ("input_data", "output_data", "expected_output")
@@ -1080,21 +1105,29 @@ class LLMObs(Service):
         name: str,
         task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
         dataset: Dataset,
-        evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]]],
+        evaluators: Sequence[
+            Union[
+                Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
+                BaseEvaluator,
+            ]
+        ],
         description: str = "",
         project_name: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
         config: Optional[ConfigType] = None,
         summary_evaluators: Optional[
             List[
-                Callable[
-                    [
-                        List[DatasetRecordInputType],
-                        List[JSONType],
-                        List[JSONType],
-                        Dict[str, List[JSONType]],
+                Union[
+                    Callable[
+                        [
+                            List[DatasetRecordInputType],
+                            List[JSONType],
+                            List[JSONType],
+                            Dict[str, List[JSONType]],
+                        ],
+                        JSONType,
                     ],
-                    JSONType,
+                    BaseSummaryEvaluator,
                 ]
             ]
         ] = None,
@@ -1105,16 +1138,20 @@ class LLMObs(Service):
         :param name: The name of the experiment.
         :param task: The task function to run. Must accept parameters ``input_data`` and ``config``.
         :param dataset: The dataset to run the experiment on, created with LLMObs.pull/create_dataset().
-        :param evaluators: A list of evaluator functions to evaluate the task output.
-                           Must accept parameters ``input_data``, ``output_data``, and ``expected_output``.
+        :param evaluators: A list of evaluator functions or BaseEvaluator instances to evaluate the task output.
+                           Function-based evaluators must accept parameters ``input_data``, ``output_data``,
+                           and ``expected_output``.
+                           Class-based evaluators must inherit from BaseEvaluator and implement the evaluate method.
         :param project_name: The name of the project to save the experiment to.
         :param description: A description of the experiment.
         :param tags: A dictionary of string key-value tag pairs to associate with the experiment.
         :param config: A configuration dictionary describing the experiment.
-        :param summary_evaluators: A list of summary evaluator functions to evaluate the task results and evaluations
-                                   to produce a single value.
-                                   Must accept parameters ``inputs``, ``outputs``, ``expected_outputs``,
-                                   ``evaluators_results``.
+        :param summary_evaluators: A list of summary evaluator functions or BaseSummaryEvaluator instances to evaluate
+                                   the task results and evaluations to produce a single value.
+                                   Function-based summary evaluators must accept parameters ``inputs``, ``outputs``,
+                                   ``expected_outputs``, ``evaluators_results``.
+                                   Class-based summary evaluators must inherit from BaseSummaryEvaluator and implement
+                                   the evaluate method which receives a SummaryEvaluatorContext.
         :param runs: The number of times to run the experiment, or, run the task for every dataset record the defined
                      number of times.
         """
@@ -1126,19 +1163,36 @@ class LLMObs(Service):
             raise TypeError("Task function must have 'input_data' and 'config' parameters.")
         if not isinstance(dataset, Dataset):
             raise TypeError("Dataset must be an LLMObs Dataset object.")
-        if not evaluators or not all(callable(evaluator) for evaluator in evaluators):
-            raise TypeError("Evaluators must be a list of callable functions.")
+        if not evaluators or not all(
+            callable(evaluator) or isinstance(evaluator, BaseEvaluator) for evaluator in evaluators
+        ):
+            raise TypeError("Evaluators must be a list of callable functions or BaseEvaluator instances.")
         for evaluator in evaluators:
+            if isinstance(evaluator, BaseEvaluator):
+                continue
+            if not callable(evaluator):
+                raise TypeError(f"Evaluator {evaluator} must be callable or an instance of BaseEvaluator.")
             sig = inspect.signature(evaluator)
             params = sig.parameters
             evaluator_required_params = ("input_data", "output_data", "expected_output")
             if not all(param in params for param in evaluator_required_params):
                 raise TypeError("Evaluator function must have parameters {}.".format(evaluator_required_params))
-
-        if summary_evaluators and not all(callable(summary_evaluator) for summary_evaluator in summary_evaluators):
-            raise TypeError("Summary evaluators must be a list of callable functions.")
+        if summary_evaluators and not all(
+            callable(summary_evaluator) or isinstance(summary_evaluator, BaseSummaryEvaluator)
+            for summary_evaluator in summary_evaluators
+        ):
+            raise TypeError(
+                "Summary evaluators must be a list of callable functions or BaseSummaryEvaluator instances."
+            )
         if summary_evaluators:
             for summary_evaluator in summary_evaluators:
+                if isinstance(summary_evaluator, BaseSummaryEvaluator):
+                    continue
+                if not callable(summary_evaluator):
+                    raise TypeError(
+                        f"Summary evaluator {summary_evaluator} must be callable "
+                        "or an instance of BaseSummaryEvaluator."
+                    )
                 sig = inspect.signature(summary_evaluator)
                 params = sig.parameters
                 summary_evaluator_required_params = (

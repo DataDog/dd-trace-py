@@ -156,15 +156,14 @@ static PyObject*
 stack_init_asyncio(PyObject* self, PyObject* args)
 {
     (void)self;
-    PyObject* asyncio_current_tasks;
     PyObject* asyncio_scheduled_tasks;
     PyObject* asyncio_eager_tasks;
 
-    if (!PyArg_ParseTuple(args, "OOO", &asyncio_current_tasks, &asyncio_scheduled_tasks, &asyncio_eager_tasks)) {
+    if (!PyArg_ParseTuple(args, "OO", &asyncio_scheduled_tasks, &asyncio_eager_tasks)) {
         return NULL;
     }
 
-    Sampler::get().init_asyncio(asyncio_current_tasks, asyncio_scheduled_tasks, asyncio_eager_tasks);
+    Sampler::get().init_asyncio(asyncio_scheduled_tasks, asyncio_eager_tasks);
 
     Py_RETURN_NONE;
 }
