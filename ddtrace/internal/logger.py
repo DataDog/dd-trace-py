@@ -33,10 +33,12 @@ Usage:
 import collections
 from dataclasses import dataclass
 from dataclasses import field
+from functools import wraps
 import logging
 import os
 import time
 import traceback
+import typing as t
 from typing import DefaultDict
 from typing import Dict
 from typing import Optional
@@ -244,3 +246,25 @@ def get_log_injection_state(raw_config: Optional[str]) -> bool:
                 normalized,
             )
     return False
+
+
+F = t.TypeVar("F", bound=t.Callable[..., t.Any])
+
+
+def catch_and_log_exceptions(_logger: logging.Logger, ret_none: bool, level: t.Optional[int]) -> t.Callable[[F], F]:
+    def decorator(f: F) -> F:
+        @wraps(f)
+        def wrapper(*args: t.Any, **kwargs: t.Any) -> t.Any:
+            try:
+                return f(*args, **kwargs)
+            except Exception:
+                if level:
+                    _logger.log(level, "Error while calling %s", f.__name__)
+                else:
+                    _logger.exception("Error while calling %s", f.__name__)
+                if ret_none:
+                    return None
+
+        return t.cast(F, wrapper)
+
+    return decorator

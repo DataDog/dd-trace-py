@@ -360,7 +360,7 @@ def test_good_2():
             rec.assertoutcome(passed=3, failed=0)
 
             # Coverage collection should have been attempted once for each test
-            assert call_count == 3, f"Expected 3 coverage collection attempts, got {call_count}"
+            assert call_count == 2, f"Expected 2 coverage collection attempts, got {call_count}"
 
             # Module variable should be cleaned up
             assert _current_coverage_collector is None

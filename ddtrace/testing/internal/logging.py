@@ -1,8 +1,8 @@
-from functools import wraps
 import logging
 import os
 import typing as t
 
+from ddtrace.internal.logger import catch_and_log_exceptions as _catch_and_log
 from ddtrace.testing.internal.utils import asbool
 
 
@@ -30,15 +30,5 @@ def setup_logging() -> None:
 
 
 def catch_and_log_exceptions() -> t.Callable[[F], F]:
-    def decorator(f: F) -> F:
-        @wraps(f)
-        def wrapper(*args: t.Any, **kwargs: t.Any) -> t.Any:
-            try:
-                return f(*args, **kwargs)
-            except Exception:
-                testing_logger.exception("Error while calling %s", f.__name__)
-                return None
-
-        return t.cast(F, wrapper)
-
-    return decorator
+    """Pre-configured decorator factory for catching and logging exceptions with testing logger."""
+    return _catch_and_log(testing_logger, ret_none=True, level=None)
