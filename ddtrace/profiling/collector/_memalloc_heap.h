@@ -13,6 +13,8 @@
 memalloc_heap_tracker_init_no_cpython(uint32_t sample_size);
 void
 memalloc_heap_tracker_deinit_no_cpython(void);
+void
+memalloc_heap_postfork_child(void);
 
 void
 memalloc_heap_no_cpython(void);

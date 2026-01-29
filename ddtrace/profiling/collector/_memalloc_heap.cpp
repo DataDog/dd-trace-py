@@ -115,6 +115,9 @@ class heap_tracker_t
 
     void export_heap_no_cpython();
 
+    /* Clear internal state after fork to avoid stale data */
+    void postfork_child();
+
     /* Global instance of the heap tracker */
     static heap_tracker_t* instance;
 
@@ -126,6 +129,12 @@ class heap_tracker_t
 
   private:
     static uint32_t next_sample_size_no_cpython(uint32_t sample_size);
+
+    /* Reset sampling state counters */
+    void reset_sampling_state();
+
+    /* Clear all tracked data and reset state - used after fork */
+    void clear_state();
 
     /* Heap profiler sampling interval */
     uint64_t sample_size;
@@ -200,10 +209,31 @@ heap_tracker_t::next_sample_size_no_cpython(uint32_t sample_size)
 // Method implementations
 heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
   : sample_size(sample_size_val)
-  , current_sample_size(next_sample_size_no_cpython(sample_size_val))
-  , allocated_memory(0)
+  , current_sample_size(0) // Will be set by reset_sampling_state()
+  , allocated_memory(0)    // Will be set by reset_sampling_state()
 {
     pool.reserve(POOL_CAPACITY); // Pre-allocate pool capacity to avoid reallocations
+    reset_sampling_state();
+}
+
+void
+heap_tracker_t::reset_sampling_state()
+{
+    allocated_memory = 0;
+    current_sample_size = next_sample_size_no_cpython(sample_size);
+}
+
+void
+heap_tracker_t::clear_state()
+{
+    // Clear tracked allocations - they contain samples with stale data
+    allocs_m.clear();
+
+    // Clear pool - cached traceback objects may contain stale sample data
+    pool.clear();
+
+    // Reset sampling state to start fresh
+    reset_sampling_state();
 }
 
 void
@@ -253,8 +283,7 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
     assert(inserted && "add_sample: found existing entry for key that should have been removed");
 
     // Get ready for the next sample
-    allocated_memory = 0;
-    current_sample_size = next_sample_size_no_cpython(sample_size);
+    reset_sampling_state();
 }
 
 void
@@ -293,6 +322,23 @@ memalloc_heap_tracker_deinit_no_cpython(void)
     heap_tracker_t* old_instance = heap_tracker_t::instance;
     heap_tracker_t::instance = nullptr;
     delete old_instance;
+}
+
+void
+memalloc_heap_postfork_child(void)
+{
+    if (heap_tracker_t::instance) {
+        heap_tracker_t::instance->postfork_child();
+    }
+}
+
+void
+heap_tracker_t::postfork_child()
+{
+    // Clear all tracked data and reset sampling state.
+    // After fork, the child process has its own memory space, and samples from the parent
+    // may contain invalid pointers (e.g., if string interning was used).
+    clear_state();
 }
 
 void

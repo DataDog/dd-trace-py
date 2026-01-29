@@ -1,3 +1,4 @@
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -227,6 +228,21 @@ static struct PyModuleDef module_def = {
     module_methods,        NULL,        NULL,       NULL, NULL,
 };
 
+/* Fork handler to clear stale state after fork.
+ * This runs in the child process after fork, before any Python code executes.
+ * It clears tracked allocations and pool state that may contain stale pointers
+ * or data from the parent process. */
+static void
+memalloc_atfork_child(void)
+{
+    // Clear heap tracker state to avoid using stale data from parent process.
+    // This is critical because:
+    // 1. allocs_m may contain samples with pointers that are invalid in child
+    // 2. pool may contain cached traceback_t objects with stale sample data
+    // 3. We need to reset sampling state for the child process
+    memalloc_heap_postfork_child();
+}
+
 PyMODINIT_FUNC
 PyInit__memalloc(void)
 {
@@ -234,6 +250,12 @@ PyInit__memalloc(void)
     m = PyModule_Create(&module_def);
     if (m == NULL)
         return NULL;
+
+    // Register fork handler to clear heap tracker state in child process.
+    // This must be done at module initialization to ensure it runs before any
+    // allocations are tracked. The handler runs after pthread_atfork child handlers
+    // (like ddup_postfork_child) but before Python's os.register_at_fork handlers.
+    pthread_atfork(NULL, NULL, memalloc_atfork_child);
 
     return m;
 }
