@@ -23,6 +23,7 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -47,11 +48,11 @@ def trace_prerun(*args, **kwargs):
 
     request_headers = task.request.get("headers", {})
     request_headers = request_headers or retrieve_span_context(task, task_id)
-    trace_utils.activate_distributed_headers(pin.tracer, int_config=config.celery, request_headers=request_headers)
+    trace_utils.activate_distributed_headers(tracer, int_config=config.celery, request_headers=request_headers)
 
     # propagate the `Span` in the current task Context
     service = config.celery["worker_service_name"]
-    span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SpanTypes.WORKER)
+    span = tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SpanTypes.WORKER)
 
     # set span.kind to the type of request being performed
     span._set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
@@ -114,12 +115,12 @@ def trace_before_publish(*args, **kwargs):
     # the attached distributed context.
     if config.celery["distributed_tracing"]:
         request_headers = retrieve_span_context(task, task_id, is_publish=False)
-        trace_utils.activate_distributed_headers(pin.tracer, int_config=config.celery, request_headers=request_headers)
+        trace_utils.activate_distributed_headers(tracer, int_config=config.celery, request_headers=request_headers)
 
     # apply some tags here because most of the data is not available
     # in the task_after_publish signal
     service = config.celery["producer_service_name"]
-    span = pin.tracer.trace(c.PRODUCER_ROOT_SPAN, service=service, resource=task_name)
+    span = tracer.trace(c.PRODUCER_ROOT_SPAN, service=service, resource=task_name)
 
     # Store an item called "task span" in case after_task_publish doesn't get called
     core.set_item("task_span", span)

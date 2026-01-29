@@ -9,6 +9,7 @@ from typing import Iterable
 from typing import List
 from typing import Optional
 from typing import Type
+from typing import cast
 
 from ddtrace import config as tracer_config
 from ddtrace.debugging._config import di_config
@@ -364,6 +365,12 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
         else:
             self._configs.pop(config_id, None)
 
+    def _send_delete_all_probes(self) -> None:
+        for prev_probes in self._configs.values():
+            self._dispatch_probe_events(prev_probes, {})
+
+        self._configs.clear()
+
 
 class ProbeRCAdapter(PubSub):
     __publisher_class__ = RemoteConfigPublisher
@@ -373,3 +380,6 @@ class ProbeRCAdapter(PubSub):
     def __init__(self, _preprocess_results, callback, status_logger):
         self._publisher = self.__publisher_class__(self.__shared_data__, _preprocess_results)
         self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, "DEBUGGER", status_logger)
+
+    def delete_all_probes(self):
+        cast(DebuggerRemoteConfigSubscriber, self._subscriber)._send_delete_all_probes()
