@@ -3612,27 +3612,32 @@ venv = Venv(
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
             },
             venvs=[
+                # langchain 0.1.x with langchain-experimental 0.0.x
+                # (langchain-experimental has no 0.1.x releases)
                 Venv(
                     pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
                     pkgs={
-                        "langchain": "~=0.1",
-                        "langchain-experimental": "~=0.1",
+                        "langchain": "~=0.1.0",
+                        "langchain-experimental": "~=0.0.50",
                     },
                 ),
+                # langchain 0.2.x with langchain-community 0.2.x
+                # (langchain-experimental has no 0.2.x, use 0.0.x)
                 Venv(
                     pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
                     pkgs={
-                        "langchain": "~=0.2",
-                        "langchain-community": "~=0.2",
-                        "langchain-experimental": "~=0.2",
+                        "langchain": "~=0.2.0",
+                        "langchain-community": "~=0.2.0",
+                        "langchain-experimental": "~=0.0.50",
                     },
                 ),
+                # langchain 0.3.x with matching 0.3.x packages
                 Venv(
                     pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
                     pkgs={
-                        "langchain": "~=0.3",
-                        "langchain-community": "~=0.3",
-                        "langchain-experimental": "~=0.3",
+                        "langchain": "~=0.3.0",
+                        "langchain-community": "~=0.3.0",
+                        "langchain-experimental": "~=0.3.0",
                     },
                 ),
             ],
