@@ -3868,21 +3868,14 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    # langchain 1.x removed AgentExecutor from langchain.agents
+                    # so we pin to 0.2.x which is the last version with the old API
+                    pys=select_pys(min_version="3.9", max_version="3.13"),
                     pkgs={
                         "langchain": "==0.2.17",
                         "langchain-core": "==0.2.43",
                         "langchain-openai": "==0.1.7",
                         "openai": "==1.102.0",
-                    },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.13"),
-                    pkgs={
-                        "langchain": latest,
-                        "langchain-core": latest,
-                        "langchain-openai": latest,
-                        "openai": latest,
                     },
                 ),
             ],
