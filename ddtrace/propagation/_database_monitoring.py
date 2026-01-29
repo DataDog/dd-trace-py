@@ -87,7 +87,7 @@ class _DBM_Propagator(object):
 
         # the base hash is injected in the comment and on the span tags for correlation purpose
         if dbm_config.inject_sql_basehash and (base_hash := process_tags.base_hash):
-            dbspan.set_metric(PROPAGATED_HASH, base_hash)
+            dbspan._set_tag_str(PROPAGATED_HASH, str(base_hash))
 
         original_sql_statement = get_argument_value(args, kwargs, self.sql_pos, self.sql_kw)
         # add dbm comment to original_sql_statement
