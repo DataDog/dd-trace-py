@@ -42,6 +42,21 @@ stack_stop(PyObject* self, PyObject* args)
 }
 
 static PyObject*
+stack_join(PyObject* self, PyObject* args)
+{
+    (void)self;
+    double timeout = 0.0;
+    if (!PyArg_ParseTuple(args, "|d", &timeout)) {
+        return NULL;
+    }
+    // Release the GIL while waiting for the thread to stop
+    Py_BEGIN_ALLOW_THREADS;
+    Sampler::get().join(timeout);
+    Py_END_ALLOW_THREADS;
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_set_interval(PyObject* self, PyObject* args)
 {
     // Assumes the interval is given in fractional seconds
@@ -290,6 +305,7 @@ update_greenlet_frame(PyObject* Py_UNUSED(m), PyObject* args)
 static PyMethodDef _stack_methods[] = {
     { "start", reinterpret_cast<PyCFunction>(stack_start), METH_VARARGS | METH_KEYWORDS, "Start the sampler" },
     { "stop", stack_stop, METH_VARARGS, "Stop the sampler" },
+    { "join", stack_join, METH_VARARGS, "Wait for the sampler thread to stop" },
     { "register_thread", stack_thread_register, METH_VARARGS, "Register a thread" },
     { "unregister_thread", stack_thread_unregister, METH_VARARGS, "Unregister a thread" },
     { "set_interval", stack_set_interval, METH_VARARGS, "Set the sampling interval" },

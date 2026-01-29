@@ -2,5 +2,6 @@
 fixes:
   - |
     profiling: Fix a race condition that could cause a segfault during Python interpreter
-    shutdown. The native sampling thread now checks ``Py_IsFinalizing()`` to exit early
+    shutdown. The native sampling thread now properly waits for completion during profiler
+    shutdown via a new join mechanism, and checks ``Py_IsFinalizing()`` to exit early
     when Python is shutting down, preventing access to freed interpreter structures.

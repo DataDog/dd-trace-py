@@ -215,8 +215,11 @@ def test_no_segfault_on_quick_shutdown() -> None:
     This guards against a race condition where the native sampling thread could
     access Python interpreter structures during finalization, causing a segfault.
 
-    The fix adds Py_IsFinalizing() checks in the sampling loop to exit early when
-    Python is shutting down.
+    The fix includes:
+    1. A join mechanism that waits for the native sampling thread to fully stop
+       before the profiler shutdown completes.
+    2. Py_IsFinalizing() checks in the sampling loop to exit early when Python
+       is shutting down.
 
     Note: Race conditions are probabilistic and may not reliably fail without the fix.
     This test verifies the fix prevents crashes and documents the expected behavior.
@@ -249,3 +252,23 @@ def test_no_segfault_on_quick_shutdown() -> None:
             f"Iteration {i}: Profiler crashed during shutdown! "
             f"Exit code: {exitcode}, stdout: {stdout}, stderr: {stderr}"
         )
+
+
+def test_stack_sampler_join() -> None:
+    """Test that the native stack sampler can be properly joined after stopping."""
+    from ddtrace.internal.datadog.profiling import stack
+
+    # Start the sampler
+    assert stack.start() is True
+
+    # Stop should signal the thread to exit
+    stack.stop()
+
+    # Join should wait for the thread to actually stop (with a reasonable timeout)
+    # This should not hang or crash
+    stack.join(5.0)  # 5 second timeout
+
+    # After joining, starting again should work
+    assert stack.start() is True
+    stack.stop()
+    stack.join(5.0)

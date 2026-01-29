@@ -67,3 +67,12 @@ class StackCollector(collector.Collector):
 
         # Tell the native thread running the v2 sampler to stop
         stack.stop()
+
+    def join(self, timeout: typing.Optional[float] = None) -> None:
+        """Wait for the native sampling thread to stop.
+
+        :param timeout: Maximum time to wait in seconds, or None for no timeout.
+        """
+        LOG.debug("Profiling StackCollector joining")
+        stack.join(timeout if timeout is not None else 0.0)
+        LOG.debug("Profiling StackCollector joined")

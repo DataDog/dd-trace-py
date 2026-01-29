@@ -27,12 +27,16 @@
 
 using namespace Datadog;
 
-// Helper class for spawning a std::thread with control over its default stack size
+// Platform-specific includes
 #ifdef __linux__
 #include <ctime>
 #include <sys/resource.h>
 #include <unistd.h>
+#elif defined(__MACH__)
+#include <mach/mach.h>
+#endif
 
+// Helper struct and function for pthread-based thread creation (used on all platforms)
 struct ThreadArgs
 {
     Sampler* sampler;
@@ -49,6 +53,8 @@ call_sampling_thread(void* args)
     return nullptr;
 }
 
+#ifdef __linux__
+// Linux-specific: create thread with custom stack size
 pthread_t
 create_thread_with_stack(size_t stack_size, Sampler* sampler, uint64_t seq_num)
 {
@@ -72,8 +78,6 @@ create_thread_with_stack(size_t stack_size, Sampler* sampler, uint64_t seq_num)
     }
     return thread_id;
 }
-#elif defined(__MACH__)
-#include <mach/mach.h>
 #endif
 
 void
@@ -221,6 +225,13 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // systems.
         std::this_thread::sleep_until(sample_time_now + microseconds(sample_interval_us.load()));
     }
+
+    // Notify that the thread has stopped
+    {
+        std::lock_guard<std::mutex> lock(thread_mutex);
+        thread_running.store(false);
+    }
+    thread_cv.notify_all();
 }
 
 void
@@ -369,6 +380,9 @@ Sampler::start()
     static std::once_flag once;
     std::call_once(once, [this]() { this->one_time_setup(); });
 
+    // Mark thread as running before we launch it
+    thread_running.store(true);
+
     // Launch the sampling thread.
     // Thread lifetime is bounded by the value of the sequence number.  When it is changed from the value the thread was
     // launched with, the thread will exit.
@@ -376,14 +390,18 @@ Sampler::start()
     // We might as well get the default stack size and use that
     rlimit stack_sz = {};
     getrlimit(RLIMIT_STACK, &stack_sz);
-    if (create_thread_with_stack(stack_sz.rlim_cur, this, ++thread_seq_num) == 0) {
+    sampling_thread_handle = create_thread_with_stack(stack_sz.rlim_cur, this, ++thread_seq_num);
+    if (sampling_thread_handle == 0) {
+        thread_running.store(false);
         return false;
     }
 #else
-    try {
-        std::thread t(&Sampler::sampling_thread, this, ++thread_seq_num);
-        t.detach();
-    } catch (const std::exception& e) {
+    // On macOS, use pthread directly for consistent join semantics
+    auto* thread_args = new ThreadArgs{ this, ++thread_seq_num };
+    int ret = pthread_create(&sampling_thread_handle, nullptr, call_sampling_thread, thread_args);
+    if (ret != 0) {
+        delete thread_args;
+        thread_running.store(false);
         return false;
     }
 #endif
@@ -394,8 +412,32 @@ void
 Sampler::stop()
 {
     // Modifying the thread sequence number will cause the sampling thread to exit when it completes
-    // a sampling loop.  Currently there is no mechanism to force stuck threads, should they get locked.
+    // a sampling loop.
     ++thread_seq_num;
+}
+
+void
+Sampler::join(double timeout_seconds)
+{
+    // Wait for the sampling thread to stop
+    if (sampling_thread_handle == 0) {
+        return; // Thread was never started
+    }
+
+    if (timeout_seconds > 0.0) {
+        // Use condition variable with timeout
+        std::unique_lock<std::mutex> lock(thread_mutex);
+        auto timeout = std::chrono::duration<double>(timeout_seconds);
+        thread_cv.wait_for(lock, timeout, [this]() { return !thread_running.load(); });
+    } else {
+        // Wait indefinitely using pthread_join
+        if (thread_running.load()) {
+            pthread_join(sampling_thread_handle, nullptr);
+        }
+    }
+
+    // Reset the handle after joining
+    sampling_thread_handle = 0;
 }
 
 void
