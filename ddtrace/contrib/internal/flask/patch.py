@@ -39,7 +39,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.trace import tracer
 
 from .wrappers import _wrap_call_with_pin_check
 from .wrappers import get_current_app
