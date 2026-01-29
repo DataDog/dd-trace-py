@@ -117,7 +117,7 @@
     {
         "dependency": "azure-functions-durable",
         "integration": "azure_durable_functions",
-        "minimum_tracer_supported": "1.2.10",
+        "minimum_tracer_supported": "1.2.1",
         "max_tracer_supported": "1.4.0",
         "auto-instrumented": true
     },
