@@ -159,8 +159,8 @@ def _patched_close_open_fds(func, instance, args, kwargs):
     This causes the native runtime to panic because it expects to have a valid fd.
     We call fork hook to avoid panics when the native runtime interacts with closed fds.
     """
-    ddtrace_before_fork()
     log.debug("Shutting down native runtime before closing fds")
+    ddtrace_before_fork()
 
     try:
         result = func(*args, **kwargs)
