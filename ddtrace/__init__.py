@@ -28,6 +28,8 @@ from .version import __version__
 if os.environ.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
     from ddtrace.trace import tracer  # noqa: F401
 
+# Initalize DSM support (if enabled)
+import ddtrace.internal.datastreams  # noqa: F401
 
 __all__ = [
     "__version__",

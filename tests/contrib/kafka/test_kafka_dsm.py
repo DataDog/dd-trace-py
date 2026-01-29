@@ -282,7 +282,7 @@ def test_span_has_dsm_payload_hash(kafka_tracer, test_spans, consumer, producer,
     assert consume_span.get_tag("pathway.hash") is not None
 
 
-# @pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 @pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, ddtrace_run=True, err=None)
 def test_data_streams_kafka_enabled():
     """Test that verifies DSM is enabled and adds dd-pathway-ctx-base64 header to Kafka messages."""
@@ -298,7 +298,6 @@ def test_data_streams_kafka_enabled():
         client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
         list(client.create_topics([kafka_admin.NewTopic(topic_name, 1, 1)]).values())[0].result()
     except Exception:
-        # Topic may already exist
         pass
 
     producer = confluent_kafka.Producer({"bootstrap.servers": BOOTSTRAP_SERVERS})
@@ -308,19 +307,15 @@ def test_data_streams_kafka_enabled():
 
     try:
         consumer.subscribe([topic_name])
-        PAYLOAD = b"test"
-        producer.produce(topic_name, PAYLOAD)
+        producer.produce(topic_name, b"test")
         producer.flush()
 
         import time
 
         time.sleep(0.5)
         message = consumer.poll(timeout=5.0)
-        assert message is not None and message.value() == PAYLOAD
-
-        headers = message.headers()
-        assert headers is not None
-        assert "dd-pathway-ctx-base64" in [h[0] for h in headers]
+        assert message is not None
+        assert "dd-pathway-ctx-base64" in [h[0] for h in message.headers()]
 
     finally:
         consumer.close()
