@@ -1435,7 +1435,6 @@ class LLMObs(Service):
 
         return PromptManager(
             api_key=api_key,
-            app_key=cls._app_key,
             ml_app=ml_app,
             endpoint_override=endpoint_override,
             cache_ttl=cache_ttl,
