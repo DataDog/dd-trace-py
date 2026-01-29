@@ -68,13 +68,13 @@ def test_activity_trigger_wrapper_sync():
         span = spans[0]
 
         expected_name = schematize_cloud_faas_operation(
-            "azure.durable_functions.invoke", cloud_provider="azure", cloud_service="functions"
+            "azure.functions.invoke", cloud_provider="azure", cloud_service="functions"
         )
         assert span.name == expected_name
-        assert span.service == int_service(pin, config.azure_durable_functions)
+        assert span.service == int_service(pin, config.azure_functions)
         assert span.resource == "Activity sample_activity"
         assert span.span_type == SpanTypes.SERVERLESS
-        assert span.get_tag(COMPONENT) == "azure_durable_functions"
+        assert span.get_tag(COMPONENT) == "azure_functions"
         assert span.get_tag("aas.function.name") == "sample_activity"
         assert span.get_tag("aas.function.trigger") == "Activity"
         assert span.get_tag(SPAN_KIND) == SpanKind.INTERNAL
