@@ -871,7 +871,7 @@ class Experiment:
 
                 try:
                     if _is_class_evaluator(evaluator):
-                        evaluator_name = evaluator.name
+                        evaluator_name = evaluator.name  # type: ignore[union-attr]
                         combined_metadata = {**metadata, "experiment_config": self._config}
                         context = EvaluatorContext(
                             input_data=input_data,
@@ -881,10 +881,10 @@ class Experiment:
                             span_id=task_result.get("span_id"),
                             trace_id=task_result.get("trace_id"),
                         )
-                        eval_result = evaluator.evaluate(context)
+                        eval_result = evaluator.evaluate(context)  # type: ignore[union-attr]
                     elif _is_function_evaluator(evaluator):
-                        evaluator_name = evaluator.__name__
-                        eval_result = evaluator(input_data, output_data, expected_output)
+                        evaluator_name = evaluator.__name__  # type: ignore[union-attr]
+                        eval_result = evaluator(input_data, output_data, expected_output)  # type: ignore[operator]
                     else:
                         logger.warning(
                             "Evaluator %s is neither a BaseEvaluator instance nor a callable function", evaluator
