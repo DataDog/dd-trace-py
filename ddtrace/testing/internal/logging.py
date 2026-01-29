@@ -29,4 +29,6 @@ def setup_logging() -> None:
     testing_logger.addHandler(handler)
 
 
-catch_and_log_exceptions = _catch_and_log(testing_logger, None)
+def catch_and_log_exceptions() -> t.Callable[[F], F]:
+    """Pre-configured decorator factory for catching and logging exceptions with testing logger."""
+    return _catch_and_log(testing_logger, None, True)
