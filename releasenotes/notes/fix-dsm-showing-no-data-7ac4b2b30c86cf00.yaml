@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    data_streams: This fix resolves an issue where no data was shown in DSM.

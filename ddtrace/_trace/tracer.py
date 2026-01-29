@@ -150,6 +150,9 @@ class Tracer(object):
             partial_flush_min_spans=config._partial_flush_min_spans,
             dd_processors=[PeerServiceProcessor(_ps_config), BaseServiceProcessor()],
         )
+        if config._data_streams_enabled:
+            # Import the datastreams package to register event handlers for kafka, botocore, etc.
+            import ddtrace.internal.datastreams  # noqa: F401
 
         # Ensure that tracer exit hooks are registered and unregistered once per instance
         forksafe.register_before_fork(self._sample_before_fork)
