@@ -681,6 +681,9 @@ class Experiment:
                             (default: None, uses full dataset)
         :return: ExperimentResult containing evaluation results and metadata
         """
+        if jobs < 1:
+            raise ValueError("jobs must be at least 1")
+
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             raise ValueError(
                 "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
