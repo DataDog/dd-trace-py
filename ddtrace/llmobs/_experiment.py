@@ -854,7 +854,7 @@ class Experiment:
         :param jobs: Maximum number of concurrent evaluator executions (default: 1)
         """
 
-        def _evaluate_row(idx: int, task_result: TaskResult) -> Tuple[int, Dict[str, Dict[str, JSONType]]]:
+        def _evaluate_row(idx: int, task_result: TaskResult) -> Dict[str, Dict[str, JSONType]]:
             record: DatasetRecord = self._dataset[idx]
             input_data = record["input_data"]
             output_data = task_result["output"]
@@ -923,23 +923,13 @@ class Experiment:
                     **extra_return_values,
                 }
 
-            return idx, row_results
-
-        results_by_idx: Dict[int, Dict[str, Dict[str, JSONType]]] = {}
+            return row_results
 
         with ThreadPoolExecutor(max_workers=jobs) as executor:
-            futures = [executor.submit(_evaluate_row, idx, task_result) for idx, task_result in enumerate(task_results)]
-
-            for future in futures:
-                try:
-                    idx, row_results = future.result()
-                    results_by_idx[idx] = row_results
-                except Exception:
-                    if raise_errors:
-                        raise
+            results = list(executor.map(lambda args: _evaluate_row(*args), enumerate(task_results)))
 
         evaluations: List[EvaluationResult] = [
-            {"idx": idx, "evaluations": results_by_idx[idx]} for idx in range(len(task_results))
+            {"idx": idx, "evaluations": row_results} for idx, row_results in enumerate(results)
         ]
         return evaluations
 
