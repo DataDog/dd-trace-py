@@ -106,7 +106,7 @@ def _annotate_llmobs_span_data(
         if model_provider is not None:
             llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.MODEL_PROVIDER] = model_provider
         if metadata is not None:
-            existing_metadata = llmobs_span_data.get(LLMOBS_STRUCT.META) or {}
+            existing_metadata = llmobs_span_data[LLMOBS_STRUCT.META].get(LLMOBS_STRUCT.METADATA) or {}
             existing_metadata.update(metadata)
             llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.METADATA] = existing_metadata
         if metrics is not None:
@@ -122,7 +122,7 @@ def _annotate_llmobs_span_data(
         if input_value is not None:
             llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.VALUE] = input_value
         if input_documents is not None:
-            llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.DOCUMENTS] = input_value
+            llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.DOCUMENTS] = input_documents
         if prompt is not None:
             llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.PROMPT] = prompt
         if output_messages is not None:
@@ -130,7 +130,7 @@ def _annotate_llmobs_span_data(
         if output_value is not None:
             llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.VALUE] = output_value
         if output_documents is not None:
-            llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.DOCUMENTS] = output_value
+            llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.DOCUMENTS] = output_documents
         if tool_definitions is not None:
             llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.TOOL_DEFINITIONS] = tool_definitions
         if session_id is not None:
