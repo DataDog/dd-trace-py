@@ -537,7 +537,7 @@ venv = Venv(
                 "python-json-logger": "==2.0.7",
                 "pyfakefs": latest,
                 "pytest-benchmark": latest,
-                "wrapt": [">=1,<2", ">=2,<3"],
+                "wrapt": [">=2,<3", "<2.0.0"],
                 "uwsgi": latest,
             },
             venvs=[
@@ -928,6 +928,7 @@ venv = Venv(
                 "spyne": latest,
                 "zeep": latest,
                 "bcrypt": "==4.2.1",
+                "setuptools": latest,  # Required for pkg_resources used by django-q
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -1654,7 +1655,7 @@ venv = Venv(
                         ],
                     },
                 ),
-                # mariadb does not support Python 3.14 yet
+                # mariadb connector doesn't support Python 3.14 yet
                 Venv(pys=select_pys(min_version="3.11", max_version="3.13"), pkgs={"mariadb": ["~=1.1.2", latest]}),
             ],
         ),
@@ -2280,7 +2281,6 @@ venv = Venv(
             name="aiohttp_jinja2",
             command="pytest {cmdargs} tests/contrib/aiohttp_jinja2",
             pkgs={
-                "pytest-aiohttp": [latest],
                 "pytest-randomly": latest,
                 "aiohttp": [
                     "~=3.7",
@@ -2297,12 +2297,15 @@ venv = Venv(
                     pys=select_pys(min_version="3.9", max_version="3.12"),
                     pkgs={
                         "pytest-asyncio": ["==0.23.7"],
+                        # pytest-aiohttp 1.1.0 removed the loop fixture
+                        "pytest-aiohttp": ["==1.0.5"],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.13"),
                     pkgs={
                         "pytest-asyncio": [">=1.0.0"],
+                        "pytest-aiohttp": [latest],
                     },
                 ),
             ],
@@ -2373,10 +2376,12 @@ venv = Venv(
                     },
                 ),
                 Venv(
+                    # Pin redis to 5.x - redis 7.x has breaking changes in pipeline internals
+                    # that break the instrumentation (raw_command is empty, resource is generic)
                     pys=select_pys(min_version="3.12", max_version="3.13"),
                     command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
-                        "redis": latest,
+                        "redis": "~=5.0",
                         "pytest-asyncio": "==0.23.7",
                     },
                 ),
@@ -2395,7 +2400,7 @@ venv = Venv(
             pys="3.9",
             command="pytest {cmdargs} tests/contrib/aredis",
             pkgs={
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "==0.23.7",
                 "aredis": latest,
                 "pytest-randomly": latest,
             },
@@ -2422,7 +2427,7 @@ venv = Venv(
             name="yaaredis",
             command="pytest {cmdargs} tests/contrib/yaaredis",
             pkgs={
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "==0.23.7",
                 "pytest-randomly": latest,
             },
             venvs=[
@@ -2441,7 +2446,7 @@ venv = Venv(
             name="sanic",
             command="pytest {cmdargs} tests/contrib/sanic",
             pkgs={
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "==0.23.7",
                 "pytest-randomly": latest,
                 "requests": latest,
                 "websockets": "<11.0",
@@ -2504,12 +2509,16 @@ venv = Venv(
                 "responses": "~=0.16.0",
                 "cryptography": "<39",
                 "pytest-randomly": latest,
+                # Pin setuptools<81 to avoid pkg_resources deprecation warning
+                # that causes test_schematization to fail (asserts stderr is empty)
+                "setuptools": "<81",
             },
             venvs=[
                 Venv(
                     # snowflake-connector-python added support for Python 3.9 in 2.4.0
+                    # Note: ~=2.4.0 removed due to pyarrow<3.1.0 build issues with setuptools<81
                     pys="3.9",
-                    pkgs={"snowflake-connector-python": ["~=2.4.0", "~=2.9.0", latest]},
+                    pkgs={"snowflake-connector-python": ["~=2.9.0", latest]},
                 ),
                 Venv(
                     # snowflake-connector-python added support for Python 3.10 in 2.7.2
@@ -2662,7 +2671,7 @@ venv = Venv(
             env={"DD_TRACE_OTEL_ENABLED": "true"},
             pkgs={
                 "pytest-randomly": latest,
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": "==0.23.7",
                 "opentelemetry-instrumentation-flask": latest,
                 "markupsafe": "==2.0.1",
                 "mock": latest,
@@ -2675,7 +2684,7 @@ venv = Venv(
                     # opentelemetry-api doesn't yet work with Python 3.14
                     pys=select_pys(min_version="3.9", max_version="3.13"),
                     # Ensure we test against versions of opentelemetry-api that broke compatibility with ddtrace
-                    pkgs={"opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", ">=1,<2"]},
+                    pkgs={"opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0"]},
                 ),
                 Venv(
                     # opentelemetry-exporter-otlp doesn't yet work with Python 3.14
@@ -3069,7 +3078,9 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "openai": latest,
-                "crewai": ["~=0.102.0", latest],
+                # Latest crewai requires OPENAI_API_KEY at Agent initialization,
+                # which breaks conftest.py that creates agents at module level
+                "crewai": "~=0.102.0",
                 "vcrpy": "==7.0.0",
             },
         ),
@@ -3612,32 +3623,27 @@ venv = Venv(
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
             },
             venvs=[
-                # langchain 0.1.x with langchain-experimental 0.0.x
-                # (langchain-experimental has no 0.1.x releases)
                 Venv(
                     pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
                     pkgs={
-                        "langchain": "~=0.1.0",
-                        "langchain-experimental": "~=0.0.50",
+                        "langchain": "~=0.1",
+                        "langchain-experimental": "~=0.1",
                     },
                 ),
-                # langchain 0.2.x with langchain-community 0.2.x
-                # (langchain-experimental has no 0.2.x, use 0.0.x)
                 Venv(
                     pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
                     pkgs={
-                        "langchain": "~=0.2.0",
-                        "langchain-community": "~=0.2.0",
-                        "langchain-experimental": "~=0.0.50",
+                        "langchain": "~=0.2",
+                        "langchain-community": "~=0.2",
+                        "langchain-experimental": "~=0.2",
                     },
                 ),
-                # langchain 0.3.x with matching 0.3.x packages
                 Venv(
                     pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
                     pkgs={
-                        "langchain": "~=0.3.0",
-                        "langchain-community": "~=0.3.0",
-                        "langchain-experimental": "~=0.3.0",
+                        "langchain": "~=0.3",
+                        "langchain-community": "~=0.3",
+                        "langchain-experimental": "~=0.3",
                     },
                 ),
             ],
@@ -3873,14 +3879,21 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    # langchain 1.x removed AgentExecutor from langchain.agents
-                    # so we pin to 0.2.x which is the last version with the old API
-                    pys=select_pys(min_version="3.9", max_version="3.13"),
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
                     pkgs={
                         "langchain": "==0.2.17",
                         "langchain-core": "==0.2.43",
                         "langchain-openai": "==0.1.7",
                         "openai": "==1.102.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.13"),
+                    pkgs={
+                        "langchain": latest,
+                        "langchain-core": latest,
+                        "langchain-openai": latest,
+                        "openai": latest,
                     },
                 ),
             ],

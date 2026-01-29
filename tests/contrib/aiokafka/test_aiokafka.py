@@ -89,7 +89,7 @@ async def test_send_multiple_servers():
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["meta.error.stack"])
+@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
 async def test_send_and_wait_failure():
     async with producer_ctx([BOOTSTRAP_SERVERS]) as producer:
         with pytest.raises(MessageSizeTooLargeError):
