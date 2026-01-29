@@ -285,3 +285,8 @@ tests/contrib/**/test_*dsm.py                             @DataDog/data-streams-
 tests/**/*appsec*               @DataDog/asm-python
 tests/**/*iast*                 @DataDog/asm-python
 tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities-python @DataDog/asm-python
+
+# Fuzzing
+.gitlab/fuzz.yml                  @DataDog/chaos-platform @DataDog/profiling-python
+.gitlab/scripts/fuzz_infra.py     @DataDog/chaos-platform @DataDog/profiling-python
+docker/Dockerfile.fuzz            @DataDog/chaos-platform @DataDog/profiling-python
