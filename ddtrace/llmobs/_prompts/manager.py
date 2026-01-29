@@ -30,7 +30,6 @@ class PromptManager:
     def __init__(
         self,
         api_key: str,
-        ml_app: str,
         endpoint_override: Optional[str] = None,
         cache_ttl: float = DEFAULT_PROMPTS_CACHE_TTL,
         cache_max_size: int = DEFAULT_PROMPTS_CACHE_MAX_SIZE,
@@ -38,7 +37,6 @@ class PromptManager:
         file_cache_enabled: bool = True,
         cache_dir: Optional[str] = None,
     ) -> None:
-        self._ml_app = ml_app
         self._endpoint_override = endpoint_override.rstrip("/") if endpoint_override else None
         self._timeout = timeout
 
@@ -100,7 +98,7 @@ class PromptManager:
         return self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=True)
 
     def _cache_key(self, prompt_id: str, label: Optional[str]) -> str:
-        return f"{self._ml_app}:{prompt_id}:{label or ''}"
+        return f"{prompt_id}:{label or ''}"
 
     def _update_caches(self, key: str, prompt: ManagedPrompt) -> None:
         """Store a prompt in both hot and warm caches with source='cache'."""
