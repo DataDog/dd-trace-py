@@ -4,7 +4,6 @@ import celery
 from celery import signals
 
 from ddtrace import config
-from ddtrace import tracer
 from ddtrace._trace.pin import _DD_PIN_NAME
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
