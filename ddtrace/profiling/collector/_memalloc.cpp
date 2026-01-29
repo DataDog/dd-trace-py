@@ -174,8 +174,9 @@ static PyObject*
 memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 {
     if (!memalloc_enabled) {
-        PyErr_SetString(PyExc_RuntimeError, "the memalloc module was not started");
-        return NULL;
+        // Idempotent: already stopped (or never started), nothing to do.
+        // This can happen after fork when the atfork handler already restored the allocator.
+        Py_RETURN_NONE;
     }
 
     /* First, uninstall our wrappers. There may still be calls to our wrapper in progress,
@@ -220,6 +221,16 @@ _memalloc_atfork_child()
     if (!memalloc_enabled) {
         return;
     }
+
+    // Restore the original allocator before flipping the flag.
+    // This is critical: if we only flip memalloc_enabled without restoring,
+    // subsequent stop() calls will be no-ops (because memalloc_enabled is false),
+    // and start() will store the wrapper as the "original" allocator,
+    // causing infinite recursion when allocating.
+    PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
+
+    // Flip to make it possible to restart it in the child after fork (otherwise it raises an error)
+    memalloc_enabled = false;
 
     // Reset the memalloc state to ensure we're not tracking any allocations
     // that were made in the parent process.
