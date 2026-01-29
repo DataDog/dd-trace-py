@@ -1,7 +1,7 @@
 [[
   {
-    "name": "azure.durable_functions.invoke",
-    "service": "azure_durable_functions",
+    "name": "azure.functions.invoke",
+    "service": "azure_functions",
     "resource": "Activity sample_activity",
     "trace_id": 0,
     "span_id": 1,
@@ -12,7 +12,7 @@
       "_dd.p.tid": "0000000000000000",
       "aas.function.name": "sample_activity",
       "aas.function.trigger": "Activity",
-      "component": "azure_durable_functions",
+      "component": "azure_functions",
       "language": "python",
       "runtime-id": "00000000000000000000000000000000",
       "span.kind": "internal"

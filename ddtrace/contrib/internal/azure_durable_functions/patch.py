@@ -7,11 +7,9 @@ except Exception:
     durable_functions = None
 
 from ddtrace import config
+from ddtrace.contrib.internal.azure_functions.utils import create_context
 from ddtrace.contrib.internal.azure_functions.utils import wrap_function_with_tracing
 from ddtrace.ext import SpanKind
-from ddtrace.internal.schema import schematize_service_name
-
-from .utils import create_context
 
 
 _DURABLE_ACTIVITY_TRIGGER = "activityTrigger"
@@ -21,14 +19,6 @@ _DURABLE_TRIGGER_DEFS = {
     _DURABLE_ACTIVITY_TRIGGER: ("Activity", "azure.durable_functions.patched_activity"),
     _DURABLE_ENTITY_TRIGGER: ("Entity", "azure.durable_functions.patched_entity"),
 }
-
-
-config._add(
-    "azure_durable_functions",
-    dict(
-        _default_service=schematize_service_name("azure_durable_functions"),
-    ),
-)
 
 
 def get_version() -> str:
@@ -86,7 +76,7 @@ def _wrap_durable_trigger(pin, func, function_name, trigger_type, context_name):
     def pre_dispatch(ctx, kwargs):
         return (
             "azure.durable_functions.trigger_call_modifier",
-            (ctx, config.azure_durable_functions, function_name, trigger_type, SpanKind.INTERNAL),
+            (ctx, config.azure_functions, function_name, trigger_type, SpanKind.INTERNAL),
         )
 
     return wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch)
