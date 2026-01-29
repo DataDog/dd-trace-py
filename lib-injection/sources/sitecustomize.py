@@ -348,7 +348,15 @@ def _inject():
         _log("user-installed ddtrace not found, configuring application to use injection site-packages")
 
         current_platform = "manylinux2014" if _get_clib() == "gnu" else "musllinux_1_2"
-        _log("detected platform %s" % current_platform, level="debug")
+        # Determine architecture
+        current_arch = platform.machine()
+        if current_arch == "x86_64":
+            current_arch = "x86_64"
+        elif current_arch in ["aarch64", "arm64"]:
+            current_arch = "aarch64"
+        else:
+            current_arch = "x86_64"  # Default fallback
+        _log("detected platform %s, architecture %s" % (current_platform, current_arch), level="debug")
 
         pkgs_path = os.path.join(SCRIPT_DIR, "ddtrace_pkgs")
         _log("ddtrace_pkgs path is %r" % pkgs_path, level="debug")
@@ -462,9 +470,23 @@ def _inject():
             )
             return
 
-        site_pkgs_path = os.path.join(
+        # Try architecture-specific directory first (new format), fall back to platform-only (legacy)
+        arch_site_pkgs_path = os.path.join(
+            pkgs_path,
+            "%s%s-%s-%s" % (SITE_PKGS_MARKER, ".".join(PYTHON_VERSION.split(".")[:2]), current_platform, current_arch),
+        )
+        legacy_site_pkgs_path = os.path.join(
             pkgs_path, "%s%s-%s" % (SITE_PKGS_MARKER, ".".join(PYTHON_VERSION.split(".")[:2]), current_platform)
         )
+
+        if os.path.exists(arch_site_pkgs_path):
+            site_pkgs_path = arch_site_pkgs_path
+            _log("using architecture-specific site-packages path: %r" % site_pkgs_path, level="debug")
+        elif os.path.exists(legacy_site_pkgs_path):
+            site_pkgs_path = legacy_site_pkgs_path
+            _log("using legacy site-packages path: %r" % site_pkgs_path, level="debug")
+        else:
+            site_pkgs_path = arch_site_pkgs_path  # Use new format for error reporting
         _log("site-packages path is %r" % site_pkgs_path, level="debug")
         if not os.path.exists(site_pkgs_path):
             _log("ddtrace site-packages not found in %r, aborting" % site_pkgs_path, level="error")
