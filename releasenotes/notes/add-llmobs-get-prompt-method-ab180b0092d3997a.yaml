@@ -5,6 +5,7 @@ features:
     The method returns a ``ManagedPrompt`` object with a ``format()`` method for variable substitution.
     Use with ``annotation_context`` to correlate prompts with LLM spans::
 
-        prompt = LLMObs.get_prompt("greeting", label="prod", fallback="Hello {{user}}!")
-        with LLMObs.annotation_context(prompt=prompt):
-            openai.chat.completions.create(messages=prompt.format(user="Alice"))
+        prompt = LLMObs.get_prompt("greeting")
+        variables = {"user": "Alice"}
+        with LLMObs.annotation_context(prompt=prompt.to_annotation_dict(**variables)):
+            openai.chat.completions.create(messages=prompt.format(**variables))

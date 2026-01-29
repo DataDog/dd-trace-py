@@ -1416,14 +1416,9 @@ class LLMObs(Service):
     def _initialize_prompt_manager(cls) -> Optional[PromptManager]:
         """Initialize the prompt manager with configuration."""
         api_key = config._dd_api_key
-        ml_app = config._llmobs_ml_app
 
         if not api_key:
             log.warning("DD_API_KEY not set. Prompt registry will not be available.")
-            return None
-
-        if not ml_app:
-            log.warning("DD_LLMOBS_ML_APP not set. Prompt registry will not be available.")
             return None
 
         cache_ttl = _get_config("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL, float)
@@ -1435,8 +1430,6 @@ class LLMObs(Service):
 
         return PromptManager(
             api_key=api_key,
-            app_key=cls._app_key,
-            ml_app=ml_app,
             endpoint_override=endpoint_override,
             cache_ttl=cache_ttl,
             cache_max_size=cache_max_size,
