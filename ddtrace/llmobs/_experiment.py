@@ -1003,15 +1003,17 @@ class Experiment:
                 },
             )
 
+        evaluations: List[EvaluationResult] = []
         evals_dict: Dict[str, Dict[str, JSONType]] = {}
 
         with ThreadPoolExecutor(max_workers=jobs) as executor:
             results = list(executor.map(_evaluate_summary_single, self._summary_evaluators))
 
-        for evaluator_name, eval_data in results:
+        for idx, (evaluator_name, eval_data) in enumerate(results):
             evals_dict[evaluator_name] = eval_data
+            evaluations.append({"idx": idx, "evaluations": evals_dict})
 
-        return [{"idx": 0, "evaluations": evals_dict}]
+        return evaluations
 
     def _merge_results(
         self,
