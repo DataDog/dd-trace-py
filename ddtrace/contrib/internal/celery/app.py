@@ -21,6 +21,7 @@ from ddtrace.internal import core
 from ddtrace.internal.forksafe import ddtrace_after_in_parent
 from ddtrace.internal.forksafe import ddtrace_before_fork
 from ddtrace.internal.logger import get_logger
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -99,7 +100,7 @@ def _traced_beat_function(integration_config, fn_name, resource_fn=None):
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
 
-        with pin.tracer.trace(
+        with tracer.trace(
             "celery.beat.{}".format(fn_name),
             span_type=SpanTypes.WORKER,
             service=trace_utils.ext_service(pin, integration_config),
