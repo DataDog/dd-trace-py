@@ -199,6 +199,9 @@ class BaseEvaluator(ABC):
                     metadata={"threshold": self.threshold},
                     tags={"type": "semantic"}
                 )
+
+    Note: The ``evaluate`` method may be called concurrently from multiple threads.
+    Avoid modifying instance attributes inside ``evaluate()``; use local variables instead.
     """
 
     def __init__(self, name: Optional[str] = None):
