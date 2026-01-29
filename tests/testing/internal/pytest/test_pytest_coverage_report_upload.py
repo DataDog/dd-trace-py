@@ -13,6 +13,18 @@ from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import setup_standard_mocks
 
 
+def get_mock_git_env_tags():
+    """Get mock git environment tags for CI testing."""
+    return {
+        "git.repository_url": "https://github.com/DataDog/dd-trace-py.git",
+        "git.commit.sha": "test123abc",
+        "git.branch": "test-branch",
+        "ci.provider.name": "github",
+        "ci.pipeline.id": "test-pipeline-123",
+        "ci.job.name": "test-job",
+    }
+
+
 class TestPytestCoverageReportUpload:
     """Tests for coverage report upload integration with pytest plugin."""
 
@@ -41,6 +53,7 @@ class TestPytestCoverageReportUpload:
                     return_value=mock_client,
                 ),
                 setup_standard_mocks(),
+                patch("tests.testing.mocks.get_env_tags", return_value=get_mock_git_env_tags()),
                 monkeypatch.context() as m,
             ):
                 m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
@@ -123,6 +136,9 @@ class TestPytestCoverageReportUpload:
             """
         )
 
+        # Mock git metadata to avoid CI issues with missing git info
+        mock_env_tags = get_mock_git_env_tags()
+
         with CoverageReportUploadCapture.capture() as upload_capture:
             mock_client = mock_api_client_settings(
                 coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
@@ -133,6 +149,7 @@ class TestPytestCoverageReportUpload:
                     return_value=mock_client,
                 ),
                 setup_standard_mocks(),
+                patch("tests.testing.mocks.get_env_tags", return_value=mock_env_tags),
                 monkeypatch.context() as m,
             ):
                 m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
