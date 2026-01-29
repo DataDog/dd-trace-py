@@ -31,7 +31,6 @@ class PromptManager:
         self,
         api_key: str,
         ml_app: str,
-        app_key: Optional[str] = None,
         endpoint_override: Optional[str] = None,
         cache_ttl: float = DEFAULT_PROMPTS_CACHE_TTL,
         cache_max_size: int = DEFAULT_PROMPTS_CACHE_MAX_SIZE,
@@ -45,8 +44,6 @@ class PromptManager:
 
         # Pre-build headers since they don't change
         self._headers: Dict[str, str] = {"DD-API-KEY": api_key, "Content-Type": "application/json"}
-        if app_key:
-            self._headers["dd-application-key"] = app_key
 
         self._hot_cache = HotCache(max_size=cache_max_size, ttl_seconds=cache_ttl)
         self._warm_cache = WarmCache(enabled=file_cache_enabled, cache_dir=cache_dir)
