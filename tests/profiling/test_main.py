@@ -210,15 +210,16 @@ def test_profiler_start_up_with_module_clean_up_in_protobuf_app() -> None:
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Signal-based exit codes only on Unix")
 def test_no_segfault_on_quick_shutdown() -> None:
-    """Test that the profiler doesn't segfault when Python exits quickly.
+    """Regression test: profiler should not segfault when Python exits quickly.
 
-    This is a regression test for a race condition where the native sampling thread
-    could access Python interpreter structures during finalization, causing a segfault.
+    This guards against a race condition where the native sampling thread could
+    access Python interpreter structures during finalization, causing a segfault.
 
     The fix adds Py_IsFinalizing() checks in the sampling loop to exit early when
     Python is shutting down.
 
-    We run the test multiple times to increase the chance of catching the race condition.
+    Note: Race conditions are probabilistic and may not reliably fail without the fix.
+    This test verifies the fix prevents crashes and documents the expected behavior.
     """
     import signal
 
@@ -228,14 +229,16 @@ def test_no_segfault_on_quick_shutdown() -> None:
     env["DD_PROFILING_STACK_V2_INTERVAL"] = "0.001"
 
     # Run multiple iterations to catch intermittent race conditions
-    for i in range(5):
-        # Run a script that starts profiling and exits immediately
+    # More iterations = higher chance of hitting the race window
+    for i in range(50):
+        # Run a script that starts profiling, waits briefly for the sampling
+        # thread to start, then exits - this maximizes chance of race condition
         stdout, stderr, exitcode, _ = call_program(
             "ddtrace-run",
             sys.executable,
             "-c",
-            # Start profiler and exit immediately - this triggers the race condition
-            "import ddtrace.profiling.auto; import sys; sys.exit(0)",
+            # Brief sleep ensures sampling thread is running before we exit
+            "import ddtrace.profiling.auto; import time; time.sleep(0.005); import sys; sys.exit(0)",
             env=env,
             timeout=30,
         )

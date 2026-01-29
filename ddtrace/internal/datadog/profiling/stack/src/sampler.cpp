@@ -179,7 +179,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
     while (seq_num == thread_seq_num.load()) {
         // Check if Python is finalizing to prevent segfaults during shutdown.
         // During Python finalization, interpreter structures may be freed while this thread
-        // is still running.
+        // is still running. This fixes a race condition that can cause segfaults.
         if (IS_PYTHON_FINALIZING()) {
             break;
         }
