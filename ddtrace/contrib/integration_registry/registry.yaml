@@ -108,7 +108,7 @@ integrations:
   - asyncpg
   tested_versions_by_dependency:
     asyncpg:
-      min: 0.31.0
+      min: 0.23.0
       max: 0.31.0
 
 - integration_name: avro
@@ -261,7 +261,7 @@ integrations:
   tested_versions_by_dependency:
     django:
       min: 2.2.28
-      max: 4.2.27
+      max: 6.0.1
 
 - integration_name: dogpile_cache
   is_external_package: true
@@ -367,8 +367,8 @@ integrations:
   - flask-caching
   tested_versions_by_dependency:
     flask-cache:
-      min: 1.10.1
-      max: 2.3.1
+      min: 0.13.1
+      max: 0.13.1
     flask-caching:
       min: 1.10.1
       max: 2.3.1
@@ -458,7 +458,7 @@ integrations:
   - jinja2
   tested_versions_by_dependency:
     jinja2:
-      min: 3.0.3
+      min: 2.10.3
       max: 3.1.6
 
 - integration_name: kafka
@@ -468,7 +468,7 @@ integrations:
   - confluent-kafka
   tested_versions_by_dependency:
     confluent-kafka:
-      min: 2.13.0
+      min: 1.9.2
       max: 2.13.0
 
 - integration_name: kombu
@@ -478,7 +478,7 @@ integrations:
   - kombu
   tested_versions_by_dependency:
     kombu:
-      min: 5.0.2
+      min: 4.6.11
       max: 5.6.2
 
 - integration_name: langchain
@@ -590,7 +590,7 @@ integrations:
   - mysql-connector-python
   tested_versions_by_dependency:
     mysql-connector-python:
-      min: 8.0.33
+      min: 8.0.5
       max: 9.6.0
 
 - integration_name: mysqldb
@@ -684,7 +684,7 @@ integrations:
   - pymongo
   tested_versions_by_dependency:
     pymongo:
-      min: 3.12.3
+      min: 3.8.0
       max: 4.16.0
 
 - integration_name: pymysql
@@ -790,7 +790,7 @@ integrations:
   - requests
   tested_versions_by_dependency:
     requests:
-      min: 2.32.5
+      min: 2.25.1
       max: 2.32.5
 
 - integration_name: rq
@@ -811,7 +811,7 @@ integrations:
   tested_versions_by_dependency:
     sanic:
       min: 20.12.7
-      max: 22.12.0
+      max: 25.12.0
 
 - integration_name: selenium
   is_external_package: true
@@ -892,7 +892,7 @@ integrations:
   - urllib3
   tested_versions_by_dependency:
     urllib3:
-      min: 1.26.6
+      min: 1.25.8
       max: 2.6.3
 
 - integration_name: valkey

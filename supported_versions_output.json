@@ -75,14 +75,14 @@
         "dependency": "pytest-asyncio",
         "integration": "asyncio",
         "minimum_tracer_supported": "0.21.1",
-        "max_tracer_supported": "0.21.1",
+        "max_tracer_supported": "1.3.0",
         "pinned": "true",
         "auto-instrumented": true
     },
     {
         "dependency": "asyncpg",
         "integration": "asyncpg",
-        "minimum_tracer_supported": "0.31.0",
+        "minimum_tracer_supported": "0.23.0",
         "max_tracer_supported": "0.31.0",
         "auto-instrumented": true
     },
@@ -186,7 +186,7 @@
         "dependency": "django",
         "integration": "django",
         "minimum_tracer_supported": "2.2.28",
-        "max_tracer_supported": "4.2.27",
+        "max_tracer_supported": "6.0.1",
         "auto-instrumented": true
     },
     {
@@ -297,8 +297,8 @@
     {
         "dependency": "flask-cache",
         "integration": "flask_cache",
-        "minimum_tracer_supported": "1.10.1",
-        "max_tracer_supported": "2.3.1",
+        "minimum_tracer_supported": "0.13.1",
+        "max_tracer_supported": "0.13.1",
         "auto-instrumented": false
     },
     {
@@ -353,21 +353,21 @@
     {
         "dependency": "jinja2",
         "integration": "jinja2",
-        "minimum_tracer_supported": "3.0.3",
+        "minimum_tracer_supported": "2.10.3",
         "max_tracer_supported": "3.1.6",
         "auto-instrumented": true
     },
     {
         "dependency": "confluent-kafka",
         "integration": "kafka",
-        "minimum_tracer_supported": "2.13.0",
+        "minimum_tracer_supported": "1.9.2",
         "max_tracer_supported": "2.13.0",
         "auto-instrumented": true
     },
     {
         "dependency": "kombu",
         "integration": "kombu",
-        "minimum_tracer_supported": "5.0.2",
+        "minimum_tracer_supported": "4.6.11",
         "max_tracer_supported": "5.6.2",
         "auto-instrumented": false
     },
@@ -452,7 +452,7 @@
     {
         "dependency": "mysql-connector-python",
         "integration": "mysql",
-        "minimum_tracer_supported": "8.0.33",
+        "minimum_tracer_supported": "8.0.5",
         "max_tracer_supported": "9.6.0",
         "auto-instrumented": true
     },
@@ -523,7 +523,7 @@
     {
         "dependency": "pymongo",
         "integration": "pymongo",
-        "minimum_tracer_supported": "3.12.3",
+        "minimum_tracer_supported": "3.8.0",
         "max_tracer_supported": "4.16.0",
         "auto-instrumented": true
     },
@@ -596,7 +596,7 @@
     {
         "dependency": "requests",
         "integration": "requests",
-        "minimum_tracer_supported": "2.32.5",
+        "minimum_tracer_supported": "2.25.1",
         "max_tracer_supported": "2.32.5",
         "auto-instrumented": true
     },
@@ -611,7 +611,7 @@
         "dependency": "sanic",
         "integration": "sanic",
         "minimum_tracer_supported": "20.12.7",
-        "max_tracer_supported": "22.12.0",
+        "max_tracer_supported": "25.12.0",
         "auto-instrumented": true
     },
     {
@@ -660,7 +660,7 @@
     {
         "dependency": "urllib3",
         "integration": "urllib3",
-        "minimum_tracer_supported": "1.26.6",
+        "minimum_tracer_supported": "1.25.8",
         "max_tracer_supported": "2.6.3",
         "auto-instrumented": false
     },
