@@ -963,8 +963,7 @@ class Experiment:
 
                 eval_results_by_name[name].append(eval_value.get("value"))
 
-        def _evaluate_summary_single(idx: int, summary_evaluator: Any) -> tuple[int, str, Dict[str, JSONType]]:
-            """Evaluate a single summary evaluator."""
+        def _evaluate_summary_single(summary_evaluator: Any) -> tuple[str, Dict[str, JSONType]]:
             eval_result_value: JSONType = None
             eval_err: JSONType = None
             evaluator_name = ""
@@ -997,7 +996,6 @@ class Experiment:
                     raise RuntimeError(f"Summary evaluator {evaluator_name} failed") from e
 
             return (
-                idx,
                 evaluator_name,
                 {
                     "value": eval_result_value,
@@ -1005,26 +1003,15 @@ class Experiment:
                 },
             )
 
-        evaluations: List[EvaluationResult] = []
         evals_dict: Dict[str, Dict[str, JSONType]] = {}
 
         with ThreadPoolExecutor(max_workers=jobs) as executor:
-            futures = [
-                executor.submit(_evaluate_summary_single, idx, summary_evaluator)
-                for idx, summary_evaluator in enumerate(self._summary_evaluators)
-            ]
+            results = list(executor.map(_evaluate_summary_single, self._summary_evaluators))
 
-            for future in futures:
-                try:
-                    idx, evaluator_name, eval_data = future.result()
-                    evals_dict[evaluator_name] = eval_data
-                    evaluation: EvaluationResult = {"idx": idx, "evaluations": evals_dict}
-                    evaluations.append(evaluation)
-                except Exception:
-                    if raise_errors:
-                        raise
+        for evaluator_name, eval_data in results:
+            evals_dict[evaluator_name] = eval_data
 
-        return evaluations
+        return [{"idx": 0, "evaluations": evals_dict}]
 
     def _merge_results(
         self,
