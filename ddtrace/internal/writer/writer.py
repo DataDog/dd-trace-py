@@ -808,23 +808,19 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
 
+        before_fork_hook = make_weak_method_hook(self.before_fork_hook)
+        self._fork_hook = before_fork_hook
+        forksafe.register_before_fork(before_fork_hook)
+
         self._exporter = self._create_exporter()
 
-        if self._sync_mode:
-            fork_hook = make_weak_method_hook(self.before_fork_sync)
-            self._fork_hook = fork_hook
-            forksafe.register_before_fork(fork_hook)
-        else:
-            try:
-                if self.status != service.ServiceStatus.RUNNING:
-                    self.start()
-
-            except service.ServiceStatusError:
-                log.warning("failed to start writer service")
-
-    def before_fork_sync(self):
-        """Before fork hook used in sync mode."""
-        self._exporter.stop_worker()
+    def before_fork_hook(self):
+        """
+        This hook is used to shut down the native runtime before forking when the service is not running.
+        When the PeriodicService is running, the native runtime is shut down by the PeriodicThread logic.
+        """
+        if self.status != service.ServiceStatus.RUNNING:
+            self._exporter.stop_worker()
 
     def __del__(self):
         if self._fork_hook:
@@ -1006,6 +1002,15 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if spans is None:
             return
 
+        if self._sync_mode is False:
+            # Start the Writer on first write.
+            try:
+                if self.status != service.ServiceStatus.RUNNING:
+                    self.start()
+
+            except service.ServiceStatusError:
+                log.warning("failed to start writer service")
+
         self._metrics_dist("writer.accepted.traces")
         self._metrics["accepted_traces"] += 1
         self._set_keep_rate(spans)
@@ -1099,6 +1104,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         # Native threads should be stopped even if the writer is not running
         finally:
             self._exporter.stop_worker()
+            if self._fork_hook:
+                forksafe.unregister_before_fork(self._fork_hook)
+                self._fork_hook = None
 
     def _start_service(self, *args, **kwargs):
         super()._start_service(*args, **kwargs)
