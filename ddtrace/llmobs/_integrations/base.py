@@ -12,10 +12,10 @@ from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.integration import IntegrationConfig
-from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.trace import Span
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 
 
 log = get_logger(__name__)
@@ -85,22 +85,16 @@ class BaseLLMIntegration:
         """Extract input/output information from the request and response to be submitted to LLMObs."""
         if not self.llmobs_enabled or not self.is_pc_sampled_llmobs(span):
             return
-        llmobs_span_data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
-        tags = llmobs_span_data.get("tags", {})
-        tags["integration"] = self._integration_name
+        _annotate_llmobs_span_data(span, tags={"integration": self._integration_name})
         try:
-            self._llmobs_set_tags(span, llmobs_span_data, args, kwargs, response, operation)
+            self._llmobs_set_tags(span, args, kwargs, response, operation)
         except Exception:
             log.error("Error extracting LLMObs fields for span %s, likely due to malformed data", span, exc_info=True)
-        finally:
-            if llmobs_span_data is not None:
-                span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_span_data)
 
     @abc.abstractmethod
     def _llmobs_set_tags(
         self,
         span: Span,
-        llmobs_span_data,
         args: List[Any],
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,

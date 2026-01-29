@@ -9,8 +9,8 @@ from ddtrace._trace.pin import Pin
 from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
-from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
@@ -60,26 +60,25 @@ class PydanticAIIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
         if operation == "agent":
-            self._llmobs_set_tags_agent(span, llmobs_span_data, args, kwargs, response)
+            self._llmobs_set_tags_agent(span, args, kwargs, response)
         elif operation == "tool":
-            self._llmobs_set_tags_tool(span, llmobs_span_data, args, kwargs, response)
+            self._llmobs_set_tags_tool(span, args, kwargs, response)
 
-        llmobs_span_data["meta"].update(
-            {
-                LLMOBS_STRUCT.SPAN_KIND: operation,
-                LLMOBS_STRUCT.MODEL_NAME: span.get_tag("pydantic_ai.request.model") or "",
-                LLMOBS_STRUCT.MODEL_PROVIDER: span.get_tag("pydantic_ai.request.provider") or "",
-            }
+        _annotate_llmobs_span_data(
+            span,
+            kind=operation,
+            model_name=span.get_tag("pydantic_ai.request.model") or "",
+            model_provider=span.get_tag("pydantic_ai.request.provider") or "",
         )
 
     def _llmobs_set_tags_agent(
-        self, span: Span, llmobs_span_data, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any]
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any]
     ) -> None:
         from pydantic_ai.agent import AgentRun
 
         agent_instance = kwargs.get("instance", None)
         agent_name = getattr(agent_instance, "name", None)
-        self._tag_agent_manifest(span, llmobs_span_data, kwargs, agent_instance)
+        self._tag_agent_manifest(span, kwargs, agent_instance)
         user_prompt = get_argument_value(args, kwargs, 0, "user_prompt")
         result = response
         if isinstance(result, AgentRun) and hasattr(result, "result"):
@@ -92,12 +91,16 @@ class PydanticAIIntegration(BaseLLMIntegration):
                     result += part.content
                 elif hasattr(part, "args_as_json_str"):
                     result += part.args_as_json_str()
-        llmobs_span_data[LLMOBS_STRUCT.NAME] = agent_name or "PydanticAI Agent"
-        llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.VALUE] = user_prompt
-        llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.VALUE] = result
+
+        _annotate_llmobs_span_data(
+            span,
+            name=agent_name or "PydanticAI Agent",
+            input_value=user_prompt,
+            output_value=result,
+        )
 
     def _llmobs_set_tags_tool(
-        self, span: Span, llmobs_span_data, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None
     ) -> None:
         tool_instance = kwargs.get("instance", None)
         tool_call = get_argument_value(args, kwargs, 0, "call", optional=True) or get_argument_value(
@@ -114,14 +117,20 @@ class PydanticAIIntegration(BaseLLMIntegration):
         tool_description = (
             _get_attr(tool_def, "description", "") if tool_def else _get_attr(tool_instance, "description", "")
         )
-        llmobs_span_data[LLMOBS_STRUCT.NAME] = tool_name
-        llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.METADATA] = {"description": tool_description}
-        llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.VALUE] = tool_input
 
+        output_value = None
         if not span.error:
             # depending on the version, the output may be a ToolReturnPart or the raw response
             output_content = getattr(response, "content", "") or response
-            llmobs_span_data["meta"]["output"]["value"] = output_content
+            output_value = output_content
+
+        _annotate_llmobs_span_data(
+            span,
+            name=tool_name,
+            metadata={"description": tool_description},
+            input_value=tool_input,
+            output_value=output_value,
+        )
 
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
@@ -134,7 +143,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             ),
         )
 
-    def _tag_agent_manifest(self, span: Span, llmobs_span_data, kwargs: Dict[str, Any], agent: Any) -> None:
+    def _tag_agent_manifest(self, span: Span, kwargs: Dict[str, Any], agent: Any) -> None:
         if not agent:
             return
 
@@ -154,7 +163,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             manifest["system_prompts"] = agent._system_prompts
         manifest["tools"] = self._get_agent_tools(agent)
 
-        llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.AGENT_MANIFEST] = manifest
+        _annotate_llmobs_span_data(span, agent_manifest=manifest)
 
     def _get_agent_tools(self, agent: Any) -> List[Dict[str, Any]]:
         """

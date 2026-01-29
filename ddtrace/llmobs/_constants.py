@@ -39,6 +39,7 @@ class LLMOBS_STRUCT:
     METADATA = "metadata"
     SPAN_LINKS = "span_links"
     META = "meta"
+    TOOL_DEFINITIONS = "tool_definitions"
     INPUT = "input"
     OUTPUT = "output"
     VALUE = "value"

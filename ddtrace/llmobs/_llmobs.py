@@ -109,6 +109,7 @@ from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import _get_llmobs_trace_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_session_id
@@ -278,15 +279,21 @@ class LLMObs(Service):
         if not self.enabled or span.span_type != SpanTypes.LLM:
             return
         llmobs_span_data = None
-        self._activate_llmobs_span(span)
-        telemetry.record_span_started()
-        self._do_annotations(span)
         try:
             llmobs_span_data = self._initialized_llmobs_struct(span)
-        except (KeyError, ValueError, TypeError):
-            pass
-        if llmobs_span_data is not None:
             span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_span_data)
+            self._activate_llmobs_span(span)
+            telemetry.record_span_started()
+            self._do_annotations(span)
+        except (KeyError, ValueError, TypeError):
+            log.error(
+                "Error generating LLMObs span data for span %s, likely due to malformed span",
+                span,
+                exc_info=True,
+            )
+        finally:
+            if llmobs_span_data is not None:
+                span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_span_data)
 
     def _on_span_finish(self, span: Span) -> None:
         if not self.enabled or span.span_type != SpanTypes.LLM:
@@ -294,44 +301,37 @@ class LLMObs(Service):
         llmobs_span_data = _get_llmobs_data_metastruct(span)
         if llmobs_span_data is None:
             return
+        breakpoint()
         span_kind = llmobs_span_data[LLMOBS_STRUCT.META].get(LLMOBS_STRUCT.SPAN_KIND)
         if span_kind and span_kind == "llm":
             core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
 
     def _initialized_llmobs_struct(self, span: Span) -> LLMObsSpanData:
         """Starts LLMObsSpanEvent"""
-        llmobs_trace_id = span._get_ctx_item(LLMOBS_TRACE_ID)
-        if llmobs_trace_id is None:
-            raise ValueError("Failed to extract LLMObs trace ID from span context.")
-
-        parent_id = span._get_ctx_item(PARENT_ID_KEY)
-        if parent_id is None:
-            parent_id = ROOT_PARENT_ID
-
         ml_app = _get_ml_app(span)
         if ml_app is None:
             raise ValueError(
                 "ML app is required for sending LLM Observability data. "
                 "Ensure this configuration is set before running your application."
             )
-        else:
-            span._set_ctx_item(ML_APP, ml_app) # TODO: Why do we need this?
-
         session_id = _get_session_id(span)
-        if session_id is not None:
-            span._set_ctx_item(SESSION_ID, session_id)
         tags = self._llmobs_tags(span, ml_app, session_id)
 
         llmobs_span_data: LLMObsSpanData = {
-            "trace_id": format_trace_id(llmobs_trace_id),
+            "trace_id": "",  # Updated on span activation
             "span_id": str(span.span_id),
-            "parent_id": "",
+            "parent_id": "",  # Updated on span activation
             "name": _get_span_name(span),
             "meta": {"input": {}, "output": {}},
             "metrics": {},
             "tags": tags,
             "ml_app": ml_app,
             "span_links": [],
+            "_dd": {
+                "span_id": str(span.span_id),
+                "trace_id": format_trace_id(span.trace_id),
+                "apm_trace_id": format_trace_id(span.trace_id),
+            }
         }
         if session_id:
             llmobs_span_data["session_id"] = session_id
@@ -1388,7 +1388,7 @@ class LLMObs(Service):
                 raise LLMObsExportSpanError("Span must be an LLMObs-generated span.")
             return ExportedLLMObsSpan(
                 span_id=str(span.span_id),
-                trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID) or span.trace_id),
+                trace_id=format_trace_id(_get_llmobs_trace_id(span) or span.trace_id),
             )
         except (TypeError, AttributeError):
             error = "invalid_span"
@@ -1411,9 +1411,7 @@ class LLMObs(Service):
             return active
         elif isinstance(active, Span):
             context = active.context
-            context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(active._get_ctx_item(LLMOBS_TRACE_ID)) or str(
-                active.trace_id
-            )
+            context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(_get_llmobs_trace_id(active)) or str(active.trace_id)
             return context
         return None
 
@@ -1423,19 +1421,15 @@ class LLMObs(Service):
         llmobs_span_data = _get_llmobs_data_metastruct(span)
         if llmobs_parent:
             llmobs_span_data[LLMOBS_STRUCT.PARENT_ID] = str(llmobs_parent.span_id)
-            parent_llmobs_span_data = _get_llmobs_data_metastruct(llmobs_parent)
             parent_llmobs_trace_id = (
-                parent_llmobs_span_data.get(LLMOBS_STRUCT.TRACE_ID)
+                _get_llmobs_trace_id(llmobs_parent)
                 if isinstance(llmobs_parent, Span)
                 else llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
             )
-            llmobs_trace_id = (
-                int(parent_llmobs_trace_id) if parent_llmobs_trace_id is not None else llmobs_parent.trace_id
-            )
-            llmobs_span_data[LLMOBS_STRUCT.TRACE_ID] = llmobs_trace_id
+            llmobs_span_data[LLMOBS_STRUCT.TRACE_ID] = parent_llmobs_trace_id or format_trace_id(llmobs_parent.trace_id)
         else:
             llmobs_span_data[LLMOBS_STRUCT.PARENT_ID] = ROOT_PARENT_ID
-            llmobs_span_data[LLMOBS_STRUCT.TRACE_ID] = rand128bits()
+            llmobs_span_data[LLMOBS_STRUCT.TRACE_ID] = format_trace_id(rand128bits())
         self._llmobs_context_provider.activate(span)
 
     def _start_span(
@@ -1473,7 +1467,6 @@ class LLMObs(Service):
                 "before running your application."
             )
         llmobs_span_data["ml_app"] = ml_app
-        span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})
         span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_span_data)
         log.debug(
             "Starting LLMObs span: %s, span_kind: %s, ml_app: %s",
@@ -2193,8 +2186,8 @@ class LLMObs(Service):
 
         ml_app = None
         if isinstance(active_span, Span):
-            ml_app = active_span._get_ctx_item(ML_APP)
-            llmobs_trace_id = active_span._get_ctx_item(LLMOBS_TRACE_ID)
+            ml_app = _get_ml_app(active_span)
+            llmobs_trace_id = _get_llmobs_trace_id(active_span)
         elif active_context is not None:
             ml_app = active_context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app
             llmobs_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or rand128bits()

@@ -10,12 +10,12 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
@@ -47,7 +47,6 @@ class AnthropicIntegration(BaseLLMIntegration):
     def _llmobs_set_tags(
         self,
         span: Span,
-        llmobs_span_data,
         args: List[Any],
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
@@ -59,9 +58,9 @@ class AnthropicIntegration(BaseLLMIntegration):
             parameters["temperature"] = kwargs.get("temperature")
         if kwargs.get("max_tokens"):
             parameters["max_tokens"] = kwargs.get("max_tokens")
+        tools = None
         if kwargs.get("tools"):
             tools = self._extract_tools(kwargs.get("tools"))
-            llmobs_span_data["meta"]["tool_definitions"] = tools
         messages = kwargs.get("messages")
         system_prompt = kwargs.get("system")
         input_messages = self._extract_input_message(list(messages) if messages else [], system_prompt)
@@ -74,17 +73,17 @@ class AnthropicIntegration(BaseLLMIntegration):
         usage = _get_attr(response, "usage", {})
         metrics = self._extract_usage(span, usage) if span_kind != "workflow" else {}
 
-        llmobs_span_data["meta"].update(
-            {
-                LLMOBS_STRUCT.SPAN_KIND: span_kind,
-                LLMOBS_STRUCT.MODEL_NAME: span.get_tag("anthropic.request.model") or "",
-                LLMOBS_STRUCT.MODEL_PROVIDER: "anthropic",
-                LLMOBS_STRUCT.METADATA: parameters,
-            }
+        _annotate_llmobs_span_data(
+            span,
+            kind=span_kind,
+            model_name=span.get_tag(MODEL) or "",
+            model_provider="anthropic",
+            metadata=parameters,
+            input_messages=input_messages,
+            output_messages=output_messages,
+            metrics=metrics,
+            tool_definitions=tools,
         )
-        llmobs_span_data["meta"]["input"]["messages"] = input_messages
-        llmobs_span_data["meta"]["output"]["messages"] = output_messages
-        llmobs_span_data["metrics"].update(metrics)
         update_proxy_workflow_input_output_value(span, span_kind)
 
     def _extract_input_message(
