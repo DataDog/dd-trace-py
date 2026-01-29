@@ -177,7 +177,7 @@ class TestPytestCoverageReportUpload:
                     return_value=mock_client,
                 ),
                 setup_standard_mocks(),
-                patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value=mock_env_tags),
+                patch("tests.testing.mocks.get_env_tags", return_value=mock_env_tags),
                 monkeypatch.context() as m,
             ):
                 m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")

@@ -15,11 +15,11 @@ from _pytest.runner import runtestprotocol
 import pluggy
 import pytest
 
+from ddtrace.contrib.internal.coverage.patch import clear_coverage_instance
 from ddtrace.contrib.internal.coverage.patch import generate_lcov_report
 from ddtrace.contrib.internal.coverage.patch import is_coverage_running
-from ddtrace.contrib.internal.coverage.patch import register_external_coverage_instance
+from ddtrace.contrib.internal.coverage.patch import set_coverage_instance
 from ddtrace.contrib.internal.coverage.patch import stop_coverage
-from ddtrace.contrib.internal.coverage.patch import unregister_external_coverage_instance
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
@@ -280,7 +280,7 @@ class TestOptPlugin:
                 for plugin in session.config.pluginmanager.list_name_plugin():
                     _, plugin_instance = plugin
                     if hasattr(plugin_instance, "cov_controller") and plugin_instance.cov_controller:
-                        register_external_coverage_instance(plugin_instance.cov_controller.cov)
+                        set_coverage_instance(plugin_instance.cov_controller.cov)
                         log.debug("Registered pytest-cov coverage instance with ddtrace")
                         break
 
@@ -335,13 +335,13 @@ class TestOptPlugin:
             else:
                 log.debug("Coverage instance not available for report generation")
 
-            # Clean up external coverage instance registration
-            unregister_external_coverage_instance()
-
         coverage_percentage = get_coverage_percentage(_is_pytest_cov_enabled(session.config))
         if coverage_percentage is not None:
             self.session.metrics[TestTag.CODE_COVERAGE_LINES_PCT] = coverage_percentage
             uninstall_coverage_percentage()
+
+            # Clean up external coverage instance registration
+            clear_coverage_instance()
 
         self.session.finish()
 

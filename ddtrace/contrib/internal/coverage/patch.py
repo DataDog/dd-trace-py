@@ -21,12 +21,8 @@ log = get_logger(__name__)
 # Constant for backwards compatibility
 PCT_COVERED_KEY = "pct_covered"
 
-# Simple caches
-# - _last_coverage_instance: Keep reference to last instance for generating reports after stop()
-# - _cached_coverage_percentage: Cache the last reported coverage percentage
-_last_coverage_instance: Optional[Any] = None
-# Global to track external coverage instances (e.g., from pytest-cov)
-_external_coverage_instance: Optional[Any] = None
+# Coverage instance and percentage cache
+_coverage_instance: Optional[Any] = None
 _cached_coverage_percentage: Optional[float] = None
 
 
@@ -57,21 +53,23 @@ def unpatch():
 
 
 def report_total_pct_covered_wrapper(func: Any, instance: Any, args: tuple, kwargs: dict) -> Any:
-    """Wrapper to cache the percentage when report() is called."""
-    global _cached_coverage_percentage
+    """Wrapper to track coverage instance and cache percentage when report() is called."""
+    global _coverage_instance, _cached_coverage_percentage
+    _coverage_instance = instance
     pct_covered = func(*args, **kwargs)
     _cached_coverage_percentage = pct_covered
     return pct_covered
 
 
-def run_coverage_report(force: bool = False) -> None:
-    """Run a coverage report on the current instance and cache the percentage."""
+def run_coverage_report() -> None:
+    """Run a coverage report on the current instance."""
     global _cached_coverage_percentage
-    if coverage is None and not force:
+    if coverage is None:
         return
     try:
-        current_coverage_object = coverage.Coverage.current()
-        _cached_coverage_percentage = current_coverage_object.report()
+        cov = get_coverage_instance()
+        if cov:
+            _cached_coverage_percentage = cov.report()
     except Exception:
         log.warning("An exception occurred when running a coverage report")
 
@@ -105,7 +103,7 @@ def start_coverage(
     Returns:
         The Coverage instance, or None if coverage.py is not available
     """
-    global _last_coverage_instance
+    global _coverage_instance
 
     if Coverage is None:
         log.debug("coverage.py is not available")
@@ -116,7 +114,7 @@ def start_coverage(
         existing = Coverage.current()
         if existing is not None:
             log.debug("Coverage is already running")
-            _last_coverage_instance = existing
+            _coverage_instance = existing
             return existing
     except Exception:
         log.debug("Failed to access running coverage", exc_info=True)
@@ -132,7 +130,7 @@ def start_coverage(
             **kwargs,
         )
         cov.start()
-        _last_coverage_instance = cov
+        _coverage_instance = cov
         log.debug("Started coverage collection")
         return cov
     except Exception as e:
@@ -151,7 +149,7 @@ def stop_coverage(save: bool = True, erase: bool = False) -> Optional[Any]:
     Returns:
         The Coverage instance, or None if not running
     """
-    global _last_coverage_instance
+    global _coverage_instance
 
     if coverage is None:
         return None
@@ -168,7 +166,7 @@ def stop_coverage(save: bool = True, erase: bool = False) -> Optional[Any]:
         if erase:
             cov.erase()
             # Clear reference when data is erased
-            _last_coverage_instance = None
+            _coverage_instance = None
         log.debug("Stopped coverage (save=%s, erase=%s)", save, erase)
         return cov
     except Exception as e:
@@ -180,26 +178,17 @@ def get_coverage_instance() -> Optional[Any]:
     """
     Get the current Coverage instance.
 
-    Returns our tracked instance first (whether running or stopped),
-    then registered external instances (e.g., pytest-cov),
-    or falls back to any externally running instance.
-    This allows generating reports after stopping coverage.
-
     Returns:
         The Coverage instance, or None if not available
     """
     if coverage is None:
         return None
 
-    # First check if we have a tracked instance (our instance, may be stopped)
-    if _last_coverage_instance is not None:
-        return _last_coverage_instance
+    # Return cached instance if available
+    if _coverage_instance is not None:
+        return _coverage_instance
 
-    # Check for registered external instance (e.g., pytest-cov)
-    if _external_coverage_instance is not None:
-        return _external_coverage_instance
-
-    # Fall back to checking for an external running instance (e.g., pytest-cov)
+    # Fall back to checking for an external running instance
     try:
         return Coverage.current()
     except Exception as e:
@@ -207,29 +196,26 @@ def get_coverage_instance() -> Optional[Any]:
         return None
 
 
-def register_external_coverage_instance(cov_instance: Any) -> None:
+def set_coverage_instance(cov_instance: Any) -> None:
     """
-    Register an external coverage instance (e.g., from pytest-cov).
-
-    This allows ddtrace to detect and use coverage instances that were
-    started by external tools like pytest-cov.
+    Set the current coverage instance.
 
     Args:
-        cov_instance: The coverage instance to register
+        cov_instance: The coverage instance to set
     """
-    global _external_coverage_instance
-    _external_coverage_instance = cov_instance
-    log.debug("Registered external coverage instance")
+    global _coverage_instance
+    _coverage_instance = cov_instance
+    log.debug("Set coverage instance")
 
 
-def unregister_external_coverage_instance() -> None:
+def clear_coverage_instance() -> None:
     """
-    Unregister the external coverage instance.
+    Clear the coverage instance.
     """
-    global _external_coverage_instance, _cached_coverage_percentage
-    _external_coverage_instance = None
+    global _coverage_instance, _cached_coverage_percentage
+    _coverage_instance = None
     _cached_coverage_percentage = None
-    log.debug("Unregistered external coverage instance and cleared cached percentage")
+    log.debug("Cleared coverage instance and cached percentage")
 
 
 def is_coverage_running() -> bool:
@@ -281,7 +267,7 @@ def get_coverage_data(cov: Optional[Any] = None) -> Dict[str, Any]:
 
 def erase_coverage() -> None:
     """Erase all coverage data and clear the cache."""
-    global _last_coverage_instance, _cached_coverage_percentage
+    global _coverage_instance, _cached_coverage_percentage
 
     cov = get_coverage_instance()
     if cov:
@@ -290,6 +276,6 @@ def erase_coverage() -> None:
         except Exception as e:
             log.warning("Failed to erase coverage: %s", e)
 
-    # Clear both caches since data is gone
-    _last_coverage_instance = None
+    # Clear cache since data is gone
+    _coverage_instance = None
     _cached_coverage_percentage = None
