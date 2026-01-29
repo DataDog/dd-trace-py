@@ -774,6 +774,16 @@ class TestSpan(Span):
         # DEV: Use `object.__setattr__` to by-pass this class's `__setattr__`
         object.__setattr__(self, "_span", span)
 
+    def __getattribute__(self, name):
+        _span = super().__getattribute__("_span")
+        if hasattr(_span, name):
+            result = getattr(_span, name)
+            # If the attribute returns the wrapped span itself, return the wrapper instead
+            if result is _span:
+                return self
+            return result
+        return super().__getattribute__(name)
+
     def __getattr__(self, key):
         """
         First look for property on the base :class:`ddtrace.trace.Span` otherwise return this object's attribute

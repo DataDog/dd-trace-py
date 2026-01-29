@@ -3,8 +3,10 @@ from collections import deque
 from tornado.web import HTTPError
 
 from ddtrace import config
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import ArgumentError
@@ -16,7 +18,7 @@ from .constants import REQUEST_SPAN_KEY
 from .stack_context import TracerStackContext
 
 
-def execute(func, handler, args, kwargs):
+async def execute(func, handler, args, kwargs):
     """
     Wrap the handler execute method so that the entire request is within the same
     ``TracerStackContext``. This simplifies users code when the automatic ``Context``
@@ -41,16 +43,54 @@ def execute(func, handler, args, kwargs):
             headers_case_sensitive=True,
         ) as ctx:
             req_span = ctx.span
+            request = handler.request
+            method = getattr(request, "method", "")
+            protocol = getattr(request, "protocol", "http")
+            host = getattr(request, "host", "")
+            uri = getattr(request, "uri", "")
+            full_url = f"{protocol}://{host}{uri}"
+            query_string = getattr(request, "query", "")
+            query_parameters = (
+                request.arguments if hasattr(request, "arguments") else getattr(request, "query_arguments", {})
+            )
+            headers = {k.lower(): v for k, v in getattr(request, "headers", {}).items()}
+            cookies = {k: handler.get_cookie(k) for k in handler.cookies.keys()}
+
+            headers.pop("cookie", None)  # Remove Cookie from headers to avoid duplication
 
             ctx.set_item("req_span", req_span)
             core.dispatch("web.request.start", (ctx, config.tornado))
 
-            http_route = _find_route(handler.application.default_router.rules, handler.request)
+            http_route, path_params = _find_route(handler.application.default_router.rules, handler.request)
             if http_route is not None and isinstance(http_route, str):
                 req_span._set_tag_str("http.route", http_route)
-            setattr(handler.request, REQUEST_SPAN_KEY, req_span)
-
-            return func(*args, **kwargs)
+            setattr(request, REQUEST_SPAN_KEY, req_span)
+            trace_utils.set_http_meta(
+                req_span,
+                config.tornado,
+                method=method,
+                url=full_url,
+                query=query_string,
+                request_headers=headers,
+                raw_uri=full_url,
+                parsed_query=query_parameters,
+                peer_ip=request.remote_ip,
+                route=http_route,
+                headers_are_case_sensitive=True,
+                request_cookies=cookies,
+                request_path_params=path_params,
+            )
+            dispatch_res = core.dispatch_with_results("tornado.start_request", ("tornado", handler)).tornado_future
+            if dispatch_res and dispatch_res.value is not None:
+                return await dispatch_res.value
+            try:
+                return await func(*args, **kwargs)
+            except BlockingException as b:
+                dispatch_res = core.dispatch_with_results(
+                    "tornado.block_request", ("tornado", handler, b.args[0])
+                ).tornado_future
+                if dispatch_res and dispatch_res.value is not None:
+                    return await dispatch_res.value
 
 
 def _find_route(initial_rule_set, request):
@@ -64,13 +104,22 @@ def _find_route(initial_rule_set, request):
 
     while len(rules) > 0:
         rule = rules.popleft()
-        if rule.matcher.match(request) is not None:
+        if (m := rule.matcher.match(request)) is not None:
             if hasattr(rule.matcher, "_path"):
-                return rule.matcher._path
+                return rule.matcher._path, m.get("path_args", []) or m.get("path_kwargs", {})
             elif hasattr(rule.target, "rules"):
                 rules.extendleft(rule.target.rules)
 
-    return "^$"
+    return "^$", {}
+
+
+def _on_flush(func, handler, args, kwargs):
+    """
+    Wrap the ``RequestHandler.flush`` method.
+    """
+    # safe-guard: expected arguments -> set_status(self, status_code, reason=None)
+    core.dispatch("tornado.send_response", ("tornado", handler))
+    return func(*args, **kwargs)
 
 
 def on_finish(func, handler, args, kwargs):
@@ -102,7 +151,6 @@ def on_finish(func, handler, args, kwargs):
                 True,
             ),
         )
-
     return func(*args, **kwargs)
 
 
