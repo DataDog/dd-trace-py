@@ -328,3 +328,417 @@ class TestCoverageReportGeneration:
 
         # Should end with end_of_record
         assert "end_of_record" in lcov
+
+
+class TestCoverageReportUploadSettings:
+    """Tests for backend settings vs environment variable precedence."""
+
+    def test_backend_enabled_env_var_disabled(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """Test that backend setting overrides disabled env var."""
+        pytester.makepyfile(
+            test_sample="""
+            def test_ok():
+                assert True
+            """
+        )
+
+        with CoverageReportUploadCapture.capture() as upload_capture:
+            # Backend says enabled, env var says disabled
+            mock_client = mock_api_client_settings(
+                coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
+            )
+            with (
+                patch(
+                    "ddtrace.testing.internal.session_manager.APIClient",
+                    return_value=mock_client,
+                ),
+                setup_standard_mocks(),
+                monkeypatch.context() as m,
+            ):
+                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "0")
+
+                result = pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
+
+        assert result.ret == 0
+
+        # Backend setting should override env var - upload should occur
+        coverage_uploads = upload_capture.get_coverage_report_uploads()
+        assert len(coverage_uploads) == 1
+
+    def test_backend_disabled_env_var_enabled(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """Test behavior when backend setting is disabled but env var is enabled."""
+        pytester.makepyfile(
+            test_sample="""
+            def test_ok():
+                assert True
+            """
+        )
+
+        with CoverageReportUploadCapture.capture() as upload_capture:
+            # Backend says disabled, env var says enabled
+            mock_client = mock_api_client_settings(
+                coverage_report_upload_enabled=False, coverage_upload_capture=upload_capture
+            )
+            with (
+                patch(
+                    "ddtrace.testing.internal.session_manager.APIClient",
+                    return_value=mock_client,
+                ),
+                setup_standard_mocks(),
+                monkeypatch.context() as m,
+            ):
+                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
+
+                result = pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
+
+        assert result.ret == 0
+
+        # Backend setting should not take precedence here
+        coverage_uploads = upload_capture.get_coverage_report_uploads()
+        assert len(coverage_uploads) == 1  # Env var enabled overrides backend
+
+    def test_both_backend_and_env_enabled(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """Test that upload works when both backend and env var are enabled."""
+        pytester.makepyfile(
+            test_sample="""
+            def test_ok():
+                assert True
+            """
+        )
+
+        with CoverageReportUploadCapture.capture() as upload_capture:
+            mock_client = mock_api_client_settings(
+                coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
+            )
+            with (
+                patch(
+                    "ddtrace.testing.internal.session_manager.APIClient",
+                    return_value=mock_client,
+                ),
+                setup_standard_mocks(),
+                monkeypatch.context() as m,
+            ):
+                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
+
+                result = pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
+
+        assert result.ret == 0
+
+        # Both enabled - upload should occur
+        coverage_uploads = upload_capture.get_coverage_report_uploads()
+        assert len(coverage_uploads) == 1
+
+    def test_both_backend_and_env_disabled(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """Test that no upload occurs when both backend and env var are disabled."""
+        pytester.makepyfile(
+            test_sample="""
+            def test_ok():
+                assert True
+            """
+        )
+
+        with CoverageReportUploadCapture.capture() as upload_capture:
+            mock_client = mock_api_client_settings(
+                coverage_report_upload_enabled=False, coverage_upload_capture=upload_capture
+            )
+            with (
+                patch(
+                    "ddtrace.testing.internal.session_manager.APIClient",
+                    return_value=mock_client,
+                ),
+                setup_standard_mocks(),
+                monkeypatch.context() as m,
+            ):
+                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "0")
+
+                result = pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
+
+        assert result.ret == 0
+
+        # Both disabled - no upload should occur
+        coverage_uploads = upload_capture.get_coverage_report_uploads()
+        assert len(coverage_uploads) == 0
+
+    def test_env_var_invalid_values(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """Test handling of invalid environment variable values."""
+        pytester.makepyfile(
+            test_sample="""
+            def test_ok():
+                assert True
+            """
+        )
+
+        test_cases = [
+            ("invalid", "Backend enabled should still work with invalid env var"),
+            ("", "Backend enabled should still work with empty env var"),
+            ("yes", "Backend enabled should still work with non-numeric env var"),
+            ("2", "Backend enabled should still work with non-boolean env var"),
+        ]
+
+        for env_value, description in test_cases:
+            with CoverageReportUploadCapture.capture() as upload_capture:
+                mock_client = mock_api_client_settings(
+                    coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
+                )
+                with (
+                    patch(
+                        "ddtrace.testing.internal.session_manager.APIClient",
+                        return_value=mock_client,
+                    ),
+                    setup_standard_mocks(),
+                    monkeypatch.context() as m,
+                ):
+                    m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", env_value)
+
+                    result = pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
+
+            assert result.ret == 0, description
+
+            # Should still upload when backend is enabled regardless of invalid env var
+            coverage_uploads = upload_capture.get_coverage_report_uploads()
+            assert len(coverage_uploads) == 1, f"Failed for env_value='{env_value}': {description}"
+
+
+class TestCoverageConfigurationEdgeCases:
+    """Tests for configuration edge cases."""
+
+    def test_pytest_cov_and_module_collector_both_active(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """Test behavior when both pytest-cov and ModuleCodeCollector might be active."""
+        pytester.makepyfile(
+            test_sample="""
+            def add_numbers(a, b):
+                return a + b
+
+            def test_add():
+                result = add_numbers(2, 3)
+                assert result == 5
+            """
+        )
+
+        with CoverageReportUploadCapture.capture() as upload_capture:
+            mock_client = mock_api_client_settings(
+                coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
+            )
+            with (
+                patch(
+                    "ddtrace.testing.internal.session_manager.APIClient",
+                    return_value=mock_client,
+                ),
+                setup_standard_mocks(),
+                monkeypatch.context() as m,
+            ):
+                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
+
+                # Run with --cov (pytest-cov) which should take precedence
+                result = pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
+
+        assert result.ret == 0
+
+        # Should generate coverage report (pytest-cov takes precedence)
+        coverage_uploads = upload_capture.get_coverage_report_uploads()
+        assert len(coverage_uploads) == 1
+
+        # Verify LCOV content is generated correctly
+        lcov_content = upload_capture.get_lcov_content(coverage_uploads[0])
+        assert "SF:" in lcov_content  # Source file entries
+        assert "DA:" in lcov_content  # Line data entries
+
+    def test_coverage_with_custom_config_file(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """Test coverage collection with custom coverage configuration."""
+        # Create a custom .coveragerc file
+        pytester.makefile(
+            ".coveragerc",
+            """
+            [run]
+            branch = True
+            source = .
+            omit =
+                test_*
+                */tests/*
+
+            [report]
+            precision = 2
+            show_missing = True
+            """,
+        )
+
+        pytester.makepyfile(
+            test_sample="""
+            def complex_function(x):
+                if x > 0:
+                    return x * 2
+                else:
+                    return x * -1
+
+            def test_complex():
+                assert complex_function(5) == 10
+                assert complex_function(-3) == 3
+            """
+        )
+
+        with CoverageReportUploadCapture.capture() as upload_capture:
+            mock_client = mock_api_client_settings(
+                coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
+            )
+            with (
+                patch(
+                    "ddtrace.testing.internal.session_manager.APIClient",
+                    return_value=mock_client,
+                ),
+                setup_standard_mocks(),
+                monkeypatch.context() as m,
+            ):
+                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
+
+                result = pytester.inline_run("--ddtrace", "--cov", "--cov-config=.coveragerc", "-v", "-s")
+
+        assert result.ret == 0
+
+        # Verify coverage report was generated with custom config
+        coverage_uploads = upload_capture.get_coverage_report_uploads()
+        assert len(coverage_uploads) == 1
+
+        lcov_content = upload_capture.get_lcov_content(coverage_uploads[0])
+        assert "SF:" in lcov_content  # Assert basic lcov structure is present
+
+    def test_coverage_with_multiple_source_paths(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """Test coverage collection across multiple source directories."""
+        # Create multiple source directories
+        pytester.makepyfile(
+            **{
+                "src/module1.py": """
+                def func1():
+                    return "module1"
+                """,
+                "lib/module2.py": """
+                def func2():
+                    return "module2"
+                """,
+                "test_modules.py": """
+                import sys
+                sys.path.extend(['src', 'lib'])
+
+                from module1 import func1
+                from module2 import func2
+
+                def test_both_modules():
+                    assert func1() == "module1"
+                    assert func2() == "module2"
+                """,
+            }
+        )
+
+        with CoverageReportUploadCapture.capture() as upload_capture:
+            mock_client = mock_api_client_settings(
+                coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
+            )
+            with (
+                patch(
+                    "ddtrace.testing.internal.session_manager.APIClient",
+                    return_value=mock_client,
+                ),
+                setup_standard_mocks(),
+                monkeypatch.context() as m,
+            ):
+                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
+
+                result = pytester.inline_run("--ddtrace", "--cov=src", "--cov=lib", "-v", "-s")
+
+        assert result.ret == 0
+
+        # Verify coverage includes both source directories
+        coverage_uploads = upload_capture.get_coverage_report_uploads()
+        assert len(coverage_uploads) == 1
+
+        lcov_content = upload_capture.get_lcov_content(coverage_uploads[0])
+        # Should contain entries for both modules
+        assert "module1.py" in lcov_content
+        assert "module2.py" in lcov_content
+
+    def test_coverage_report_with_empty_test_suite(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """Test coverage report generation when no tests are collected."""
+        # Create a file with no tests
+        pytester.makepyfile(
+            no_tests="""
+            def unused_function():
+                return "not covered"
+            """
+        )
+
+        with CoverageReportUploadCapture.capture() as upload_capture:
+            mock_client = mock_api_client_settings(
+                coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
+            )
+            with (
+                patch(
+                    "ddtrace.testing.internal.session_manager.APIClient",
+                    return_value=mock_client,
+                ),
+                setup_standard_mocks(),
+                monkeypatch.context() as m,
+            ):
+                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
+
+                # Run but no tests will be collected
+                result = pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
+
+        # Should handle gracefully even with no tests
+        assert result.ret == 5  # pytest exit code for no tests collected
+
+        # May or may not upload coverage depending on implementation
+        # Currently we send the report (it may be empty)
+        coverage_uploads = upload_capture.get_coverage_report_uploads()
+        assert coverage_uploads == 1  # 0 would be acceptable too
+
+    def test_coverage_report_format_validation_edge_cases(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """Test LCOV format validation with edge cases."""
+        pytester.makepyfile(
+            test_sample="""
+            def function_with_special_chars():
+                # Function with unicode and special characters
+                message = "Hello, 世界! 🌍"
+                return message
+
+            def test_special_chars():
+                result = function_with_special_chars()
+                assert "世界" in result
+                assert "🌍" in result
+            """
+        )
+
+        with CoverageReportUploadCapture.capture() as upload_capture:
+            mock_client = mock_api_client_settings(
+                coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
+            )
+            with (
+                patch(
+                    "ddtrace.testing.internal.session_manager.APIClient",
+                    return_value=mock_client,
+                ),
+                setup_standard_mocks(),
+                monkeypatch.context() as m,
+            ):
+                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
+
+                result = pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
+
+        assert result.ret == 0
+
+        coverage_uploads = upload_capture.get_coverage_report_uploads()
+        assert len(coverage_uploads) == 1
+
+        # Verify LCOV can handle files with special characters
+        lcov_content = upload_capture.get_lcov_content(coverage_uploads[0])
+
+        # Basic LCOV structure should be intact
+        assert "SF:" in lcov_content
+        assert "DA:" in lcov_content
+        assert "end_of_record" in lcov_content
+
+        # Should be valid UTF-8
+        assert isinstance(lcov_content, str)
+
+        # Try encoding/decoding to ensure it's valid
+        encoded = lcov_content.encode("utf-8")
+        decoded = encoded.decode("utf-8")
+        assert decoded == lcov_content
