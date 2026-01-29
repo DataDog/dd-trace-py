@@ -15,7 +15,6 @@ from ddtrace.contrib.internal.unittest.constants import MODULE_OPERATION_NAME
 from ddtrace.contrib.internal.unittest.constants import SESSION_OPERATION_NAME
 from ddtrace.contrib.internal.unittest.constants import SUITE_OPERATION_NAME
 from ddtrace.contrib.internal.unittest.constants import TEST_OPERATION_NAME
-from ddtrace.contrib.internal.unittest.patch import _set_tracer
 from ddtrace.contrib.internal.unittest.patch import patch
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
@@ -79,7 +78,6 @@ class UnittestTestCase(TracerTestCase):
     @_disable_ci_visibility
     def test_unittest_set_test_session_name(self):
         """Check that the unittest command is used to set the test session name."""
-        _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
             def test_will_pass_first(self):
@@ -96,7 +94,6 @@ class UnittestTestCase(TracerTestCase):
     @_disable_ci_visibility
     def test_unittest_pass_single(self):
         """Test with a `unittest` test which should pass."""
-        _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
             def test_will_pass_first(self):
@@ -152,7 +149,6 @@ class UnittestTestCase(TracerTestCase):
     @_disable_ci_visibility
     def test_unittest_pass_multiple(self):
         """Tests with`unittest` tests which should pass."""
-        _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
             def test_will_pass_first(self):
@@ -222,7 +218,6 @@ class UnittestTestCase(TracerTestCase):
     @_disable_ci_visibility
     def test_unittest_skip_single_no_reason(self):
         """Tests with a `unittest` test which should be skipped."""
-        _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
             @unittest.skip
@@ -282,7 +277,6 @@ class UnittestTestCase(TracerTestCase):
     @_disable_ci_visibility
     def test_unittest_skip_single_reason(self):
         """Tests with a `unittest` test which should be skipped."""
-        _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
             @unittest.skip("demonstrating skipping with a reason")
@@ -342,7 +336,6 @@ class UnittestTestCase(TracerTestCase):
     @_disable_ci_visibility
     def test_unittest_skip_multiple_reason(self):
         """Test with `unittest` tests which should be skipped."""
-        _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
             @unittest.skip("demonstrating skipping with a reason")
@@ -421,7 +414,6 @@ class UnittestTestCase(TracerTestCase):
     @_disable_ci_visibility
     def test_unittest_skip_combined(self):
         """Test with `unittest` tests which should be skipped."""
-        _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
             @unittest.skip
@@ -498,7 +490,6 @@ class UnittestTestCase(TracerTestCase):
     @_disable_ci_visibility
     def test_unittest_fail_single(self):
         """Test with `unittest` tests which should fail."""
-        _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
             def test_will_fail(self):
@@ -559,7 +550,6 @@ class UnittestTestCase(TracerTestCase):
     @_disable_ci_visibility
     def test_unittest_fail_multiple(self):
         """Test with `unittest` tests which should fail."""
-        _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
             def test_will_fail_first(self):
@@ -636,7 +626,6 @@ class UnittestTestCase(TracerTestCase):
     @_disable_ci_visibility
     def test_unittest_combined(self):
         """Test with `unittest` tests which pass, get skipped and fail combined."""
-        _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
             def test_will_pass_first(self):
@@ -737,7 +726,6 @@ class UnittestTestCase(TracerTestCase):
     @_disable_ci_visibility
     def test_unittest_nested_test_cases(self):
         """Test with `unittest` test cases which pass, get skipped and fail combined."""
-        _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
             class SubTest1(unittest.TestCase):
@@ -879,7 +867,6 @@ class UnittestTestCase(TracerTestCase):
     @_disable_ci_visibility
     def test_unittest_xfail_xpass(self):
         """Test with `unittest` test cases which pass, get skipped, xfail and xpass"""
-        _set_tracer(self.tracer)
 
         class UnittestExampleTestCase(unittest.TestCase):
             class SubTest1(unittest.TestCase):

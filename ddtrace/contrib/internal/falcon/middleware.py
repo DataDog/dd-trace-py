@@ -6,14 +6,23 @@ from ddtrace.internal import core
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.trace import tracer
+from ddtrace.vendor.debtcollector import deprecate
 
 
 class TraceMiddleware(object):
-    def __init__(self, tracer, service=None, distributed_tracing=None):
+    def __init__(self, tracer=None, service=None, distributed_tracing=None):
         if service is None:
             service = schematize_service_name("falcon")
-        # store tracing references
-        self.tracer = tracer
+
+        if tracer is not None:
+            deprecate(
+                "The tracer parameter is deprecated",
+                message="The global tracer will be used instead.",
+                category=DDTraceDeprecationWarning,
+                removal_version="5.0.0",
+            )
         self.service = service
         if distributed_tracing is not None:
             config.falcon["distributed_tracing"] = distributed_tracing
@@ -28,7 +37,6 @@ class TraceMiddleware(object):
             span_type=SpanTypes.WEB,
             service=self.service,
             tags={},
-            tracer=self.tracer,
             distributed_headers=headers,
             integration_config=config.falcon,
             activate_distributed_headers=True,
@@ -44,7 +52,7 @@ class TraceMiddleware(object):
             )
 
     def process_resource(self, req, resp, resource, params):
-        span = self.tracer.current_span()
+        span = tracer.current_span()
         if not span:
             return  # unexpected
         span.resource = "%s %s" % (req.method, _name(resource))
@@ -52,7 +60,7 @@ class TraceMiddleware(object):
     def process_response(self, req, resp, resource, req_succeeded=None):
         # req_succeded is not a kwarg in the API, but we need that to support
         # Falcon 1.0 that doesn't provide this argument
-        span = self.tracer.current_span()
+        span = tracer.current_span()
         if not span:
             return  # unexpected
 

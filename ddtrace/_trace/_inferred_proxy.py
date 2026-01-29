@@ -12,6 +12,7 @@ from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.propagation.http import _extract_header_value
 from ddtrace.propagation.http import _possible_header
+from ddtrace.trace import tracer
 
 
 log = logging.getLogger(__name__)
@@ -76,7 +77,7 @@ POSSIBLE_PROXY_HEADER_USER = _possible_header("x-dd-proxy-user")
 HEADER_USERAGENT = _possible_header("user-agent")
 
 
-def create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of, tracer) -> None:
+def create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of) -> None:
     if not headers:
         return None
 

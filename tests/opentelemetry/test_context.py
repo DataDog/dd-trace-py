@@ -82,6 +82,7 @@ def _subprocess_task(parent_span_context, errors):
     import ddtrace.auto  # noqa
 
     from ddtrace.opentelemetry import TracerProvider
+    from ddtrace.trace import tracer as ddtracer
 
     # Tracer provider must be set in the subprocess otherwise the default tracer will be used
     opentelemetry.trace.set_tracer_provider(TracerProvider())
@@ -95,7 +96,7 @@ def _subprocess_task(parent_span_context, errors):
     finally:
         # Process.terminate() send a termination signal which skips the execution of exit handlers.
         # We must flush all traces before the process is killed.
-        ot_tracer._tracer.flush()
+        ddtracer.flush()
 
 
 @pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.tracestate"])
@@ -105,13 +106,14 @@ def test_otel_trace_across_fork():
 
     from opentelemetry.trace import get_tracer
 
+    from ddtrace.trace import tracer as ddtracer
     from tests.opentelemetry.test_context import _subprocess_task
 
     oteltracer = get_tracer(__name__)
 
     errors = multiprocessing.Queue()
     with oteltracer.start_as_current_span("root") as root:
-        oteltracer._tracer.sample(root._ddspan)
+        ddtracer.sample(root._ddspan)
         p = multiprocessing.Process(target=_subprocess_task, args=(root.get_span_context(), errors))
         try:
             p.start()

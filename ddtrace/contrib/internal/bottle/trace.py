@@ -3,13 +3,15 @@ from bottle import HTTPResponse
 from bottle import request
 from bottle import response
 
-import ddtrace
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.trace import tracer
+from ddtrace.vendor.debtcollector import deprecate
 
 
 class TracePlugin(object):
@@ -17,8 +19,14 @@ class TracePlugin(object):
     api = 2
 
     def __init__(self, service="bottle", tracer=None, distributed_tracing=None):
+        if tracer is not None:
+            deprecate(
+                "The tracer parameter is deprecated",
+                message="The global tracer will be used instead.",
+                category=DDTraceDeprecationWarning,
+                removal_version="5.0.0",
+            )
         self.service = config._get_service(default=service)
-        self.tracer = tracer or ddtrace.tracer
         if distributed_tracing is not None:
             config.bottle.distributed_tracing = distributed_tracing
 
@@ -32,7 +40,7 @@ class TracePlugin(object):
 
     def apply(self, callback, route):
         def wrapped(*args, **kwargs):
-            if not self.tracer or not self.tracer.enabled:
+            if not tracer or not tracer.enabled:
                 return callback(*args, **kwargs)
 
             resource = "{} {}".format(request.method, route.rule)
@@ -47,7 +55,6 @@ class TracePlugin(object):
                     service=self.service,
                     resource=resource,
                     tags={},
-                    tracer=self.tracer,
                     distributed_headers=request.headers,
                     integration_config=config.bottle,
                     headers_case_sensitive=True,

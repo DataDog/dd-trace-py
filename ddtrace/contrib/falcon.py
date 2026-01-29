@@ -2,16 +2,15 @@
 To trace the falcon web framework, install the trace middleware::
 
     import falcon
-    from ddtrace.trace import tracer
     from ddtrace.contrib.falcon import TraceMiddleware
 
-    mw = TraceMiddleware(tracer, 'my-falcon-app')
+    mw = TraceMiddleware('my-falcon-app')
     falcon.API(middleware=[mw])
 
 You can also use the autopatching functionality::
 
     import falcon
-    from ddtrace.trace import tracer, patch
+    from ddtrace.trace import patch
 
     patch(falcon=True)
 

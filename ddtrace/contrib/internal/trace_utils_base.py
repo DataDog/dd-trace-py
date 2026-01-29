@@ -129,7 +129,7 @@ def set_user(
 
         if (may_block or mode == "auto") and asm_config._asm_enabled:
             exc = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
-                "set_user_for_asm", [tracer, user_id, mode, session_id]
+                "set_user_for_asm", [user_id, mode, session_id]
             ).block_user.exception
             if exc:
                 raise exc

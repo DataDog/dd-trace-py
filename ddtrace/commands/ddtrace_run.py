@@ -89,7 +89,7 @@ def _prepare_env(parser: argparse.ArgumentParser):
         # Inline imports for performance.
         from ddtrace.internal.debug import pretty_collect
 
-        print(pretty_collect(ddtrace.tracer, color=not args.colorless))
+        print(pretty_collect(color=not args.colorless))
         sys.exit(0)
 
     root_dir = os.path.dirname(ddtrace.__file__)

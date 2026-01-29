@@ -3,8 +3,6 @@ import pyramid.renderers
 from pyramid.settings import asbool
 import wrapt
 
-# project
-import ddtrace
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -15,16 +13,17 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
+# project
+from ddtrace.trace import tracer
+
 from .constants import SETTINGS_DISTRIBUTED_TRACING
 from .constants import SETTINGS_SERVICE
 from .constants import SETTINGS_TRACE_ENABLED
-from .constants import SETTINGS_TRACER
 
 
 log = get_logger(__name__)
 
 DD_TWEEN_NAME = "ddtrace.contrib.pyramid:trace_tween_factory"
-DD_TRACER = "_datadog_tracer"
 
 
 def trace_pyramid(config):
@@ -45,10 +44,6 @@ def trace_render(func, instance, args, kwargs):
     if not request:
         log.debug("No request passed to render, will not be traced")
         return func(*args, **kwargs)
-    tracer = getattr(request, DD_TRACER, None)
-    if not tracer:
-        log.debug("No tracer found in request, will not be traced")
-        return func(*args, **kwargs)
 
     with tracer.trace("pyramid.render", span_type=SpanTypes.TEMPLATE) as span:
         span._set_tag_str(COMPONENT, config.pyramid.integration_name)
@@ -60,7 +55,6 @@ def trace_tween_factory(handler, registry):
     # configuration
     settings = registry.settings
     service = settings.get(SETTINGS_SERVICE) or schematize_service_name("pyramid")
-    tracer = settings.get(SETTINGS_TRACER) or ddtrace.tracer
     enabled = asbool(settings.get(SETTINGS_TRACE_ENABLED, tracer.enabled))
 
     # ensure distributed tracing within pyramid settings matches config
@@ -79,7 +73,6 @@ def trace_tween_factory(handler, registry):
                     service=service,
                     resource="404",
                     tags={},
-                    tracer=tracer,
                     distributed_headers=request.headers,
                     integration_config=config.pyramid,
                     activate_distributed_headers=True,
@@ -90,7 +83,6 @@ def trace_tween_factory(handler, registry):
                 ctx.set_item("req_span", req_span)
                 core.dispatch("web.request.start", (ctx, config.pyramid))
 
-                setattr(request, DD_TRACER, tracer)  # used to find the tracer in templates
                 response = None
                 status = None
                 try:

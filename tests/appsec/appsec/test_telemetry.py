@@ -150,7 +150,6 @@ def test_metrics_when_appsec_block_custom(telemetry_writer, tracer):
             [
                 build_payload("ASM", actions, "actions"),
             ],
-            tracer,
         )
         # using a header to trigger the block of default rules
         set_http_meta(span, rules.Config(), request_headers={"User-Agent": "dd-test-scanner-log-block"})
@@ -325,7 +324,7 @@ def test_appsec_enabled_metric(
     ):
         tracer.configure(appsec_enabled=appsec_enabled)
         if rc_enabled:
-            enable_asm(tracer)
+            enable_asm()
 
         telemetry_writer._dispatch()
 
