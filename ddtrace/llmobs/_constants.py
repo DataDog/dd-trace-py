@@ -146,12 +146,6 @@ INPUT_TYPE_IMAGE = "input_image"
 INPUT_TYPE_FILE = "input_file"
 INPUT_TYPE_TEXT = "input_text"
 
-# Managed Prompt Registry constants
-MANAGED_PROMPT_ID = "_dd.llmobs.prompt.id"
-MANAGED_PROMPT_VERSION = "_dd.llmobs.prompt.version"
-MANAGED_PROMPT_LABEL = "_dd.llmobs.prompt.label"
-MANAGED_PROMPT_SOURCE = "_dd.llmobs.prompt.source"
-
 # Cache defaults
 DEFAULT_PROMPTS_CACHE_TTL = 60  # seconds before stale
 DEFAULT_PROMPTS_CACHE_MAX_SIZE = 500  # max prompts in memory
