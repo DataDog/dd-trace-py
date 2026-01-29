@@ -8,10 +8,10 @@ from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ACTI
 from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ENTITY_TRIGGER
 from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ORCHESTRATION_TRIGGER
 from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_TRIGGER_DEFS
-from ddtrace.contrib.internal.azure_durable_functions.patch import _patched_get_functions
 from ddtrace.contrib.internal.azure_durable_functions.patch import _wrap_durable_trigger
 from ddtrace.contrib.internal.azure_durable_functions.patch import patch as durable_patch
 from ddtrace.contrib.internal.azure_durable_functions.patch import unpatch as durable_unpatch
+from ddtrace.contrib.internal.azure_durable_functions.patch import wrap_durable_functions
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -101,15 +101,10 @@ def test_entity_trigger_wrapper_async():
         assert span.get_tag(SPAN_KIND) == SpanKind.INTERNAL
 
 
-def test_patched_get_functions_wraps_activity_and_entity_only():
+def test_wrap_durable_functions_wraps_activity_and_entity_only():
+    """Test that wrap_durable_functions wraps activity and entity triggers but not orchestration."""
     with scoped_tracer() as tracer:
         pin = _make_pin(tracer)
-
-        class _StubInstance:
-            pass
-
-        instance = _StubInstance()
-        pin.onto(instance)
 
         def user_func():
             return "ok"
@@ -119,12 +114,11 @@ def test_patched_get_functions_wraps_activity_and_entity_only():
         orchestration_fn = _StubFunction("orchestrator", _StubTrigger(_DURABLE_ORCHESTRATION_TRIGGER), user_func)
         no_trigger_fn = _StubFunction("no_trigger", None, user_func)
 
-        def wrapped():
-            return [activity_fn, entity_fn, orchestration_fn, no_trigger_fn]
+        functions = [activity_fn, entity_fn, orchestration_fn, no_trigger_fn]
 
         durable_patch()
         try:
-            functions = _patched_get_functions(wrapped, instance, (), {})
+            wrap_durable_functions(pin, functions)
         finally:
             durable_unpatch()
 
