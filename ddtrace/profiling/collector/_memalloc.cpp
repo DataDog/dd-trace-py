@@ -35,6 +35,10 @@ static memalloc_context_t global_memalloc_ctx;
 static bool memalloc_enabled = false;
 static std::once_flag memalloc_fork_handler_flag;
 
+/* Forward declaration */
+static void
+memalloc_atfork_child(void);
+
 static void
 memalloc_free(void* ctx, void* ptr)
 {
@@ -119,7 +123,6 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     ddup_start();
 
     // Register fork handler to clear heap tracker state in child process.
-    // NOTE: it is possible that memory allocator
     std::call_once(memalloc_fork_handler_flag, []() { pthread_atfork(NULL, NULL, memalloc_atfork_child); });
 
     char* val = getenv("_DD_MEMALLOC_DEBUG_RNG_SEED");
@@ -259,9 +262,6 @@ memalloc_atfork_child(void)
     // without throwing "already started" errors. This eliminates the need for complex
     // Python-level error handling in forksafe scenarios.
     memalloc_enabled = false;
-
-    // Reset fork handler flag so it can be reinstalled if the child process restarts profiling
-    memalloc_fork_handler_flag = {};
 }
 
 PyMODINIT_FUNC
