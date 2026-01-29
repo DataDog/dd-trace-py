@@ -1,7 +1,9 @@
 #include <cassert>
 #include <cmath>
 #include <cstdlib>
+#include <iostream>
 #include <memory>
+#include <unistd.h>
 #include <vector>
 
 #define PY_SSIZE_T_CLEAN
@@ -114,6 +116,7 @@ class heap_tracker_t
     void add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb);
 
     void export_heap_no_cpython();
+    void debug_dump_allocs_no_cpython();
 
     /* Global instance of the heap tracker */
     static heap_tracker_t* instance;
@@ -206,6 +209,14 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
+    static int untrack_count = 0;
+    untrack_count++;
+    if (untrack_count % 100 == 0) {
+        std::cerr << "[DEBUG untrack_no_cpython] PID=" << getpid()
+                  << " called " << untrack_count << " times, allocs_m.size()=" << allocs_m.size()
+                  << std::endl;
+    }
+
     auto node = allocs_m.extract(ptr);
     if (node.empty()) {
         return;
@@ -214,6 +225,8 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
     std::unique_ptr<traceback_t> tb = std::move(node.mapped());
     if (tb && !tb->reported) {
         /* If the sample hasn't been reported yet, set heap size to zero and export it */
+        std::cerr << "[DEBUG untrack_no_cpython] PID=" << getpid()
+                  << " exporting unreported sample, ptr=" << ptr << std::endl;
         tb->sample.reset_heap();
         tb->sample.export_sample();
         tb->reported = true;
@@ -274,6 +287,16 @@ heap_tracker_t::export_heap_no_cpython()
         tb->sample.export_sample();
         tb->reported = true;
     }
+}
+
+void
+heap_tracker_t::debug_dump_allocs_no_cpython()
+{
+    memalloc_gil_debug_guard_t guard(gil_guard);
+    std::cerr << "[DEBUG debug_dump_allocs] PID=" << getpid()
+              << " allocs_m.size()=" << allocs_m.size()
+              << " pool.size()=" << pool.size()
+              << std::endl;
 }
 
 // Static member definition
@@ -378,5 +401,13 @@ memalloc_heap_no_cpython(void)
 {
     if (heap_tracker_t::instance) {
         heap_tracker_t::instance->export_heap_no_cpython();
+    }
+}
+
+void
+memalloc_heap_debug_dump_allocs_no_cpython(void)
+{
+    if (heap_tracker_t::instance) {
+        heap_tracker_t::instance->debug_dump_allocs_no_cpython();
     }
 }

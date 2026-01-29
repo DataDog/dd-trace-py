@@ -58,11 +58,15 @@ std::once_flag ddup_init_flag;    // NOLINT (cppcoreguidelines-avoid-non-const-g
 void
 ddup_postfork_child()
 {
+    std::cerr << "[DEBUG ddup_postfork_child] PID=" << getpid() << " entered" << std::endl;
+
     // Free our copy of the Profiles Dictionary. Its String IDs refer
     // to memory that doesn't exist in the child process.
+    std::cerr << "[DEBUG ddup_postfork_child] Releasing old ProfilesDictionary" << std::endl;
     Datadog::internal::release_profiles_dictionary();
 
     // Re-initialize the Profiles Dictionary in the child process
+    std::cerr << "[DEBUG ddup_postfork_child] Creating new ProfilesDictionary" << std::endl;
     if (!init_profiles_dictionary()) {
         std::cerr << "failed to initialise profiles dictionary in child process, profiler will be disabled"
                   << std::endl;
@@ -71,10 +75,14 @@ ddup_postfork_child()
     }
 
     // Initialize cached interned strings with the new Profiles Dictionary
+    std::cerr << "[DEBUG ddup_postfork_child] Initializing interned strings" << std::endl;
     Datadog::internal::init_interned_strings();
 
+    std::cerr << "[DEBUG ddup_postfork_child] Calling Uploader::postfork_child()" << std::endl;
     Datadog::Uploader::postfork_child();
+    std::cerr << "[DEBUG ddup_postfork_child] Calling SampleManager::postfork_child()" << std::endl;
     Datadog::SampleManager::postfork_child();
+    std::cerr << "[DEBUG ddup_postfork_child] Complete" << std::endl;
 }
 
 void

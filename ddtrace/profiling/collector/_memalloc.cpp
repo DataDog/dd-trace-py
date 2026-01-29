@@ -1,6 +1,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <iostream>
+#include <unistd.h>
 
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
@@ -176,6 +178,8 @@ PyDoc_STRVAR(memalloc_stop__doc__,
 static PyObject*
 memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 {
+    std::cerr << "[DEBUG memalloc_stop] PID=" << getpid() << " entered" << std::endl;
+
     if (!memalloc_enabled) {
         PyErr_SetString(PyExc_RuntimeError, "the memalloc module was not started");
         return NULL;
@@ -185,15 +189,22 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
      * if they happened to release the GIL.
      * NB: We're assuming here that this is not called concurrently with iter_events
      * or memalloc_heap. The higher-level collector deals with this. */
+    std::cerr << "[DEBUG memalloc_stop] PID=" << getpid() << " uninstalling allocator wrappers" << std::endl;
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
 
+    std::cerr << "[DEBUG memalloc_stop] PID=" << getpid() << " dumping allocs_m state before deinit" << std::endl;
+    memalloc_heap_debug_dump_allocs_no_cpython();
+
+    std::cerr << "[DEBUG memalloc_stop] PID=" << getpid() << " calling memalloc_heap_tracker_deinit_no_cpython()" << std::endl;
     memalloc_heap_tracker_deinit_no_cpython();
+    std::cerr << "[DEBUG memalloc_stop] PID=" << getpid() << " memalloc_heap_tracker_deinit_no_cpython() complete" << std::endl;
 
     /* Finally, we know in-progress sampling won't use the buffer pool, so clear it out */
     traceback_t::deinit_invokes_cpython();
 
     memalloc_enabled = false;
 
+    std::cerr << "[DEBUG memalloc_stop] PID=" << getpid() << " complete" << std::endl;
     Py_RETURN_NONE;
 }
 

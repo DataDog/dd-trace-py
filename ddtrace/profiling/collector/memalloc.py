@@ -84,10 +84,16 @@ class MemoryCollector:
         pass
 
     def stop(self) -> None:
+        import os
+        import sys
+        print(f"[DEBUG MemoryCollector.stop] PID={os.getpid()} entered", file=sys.stderr, flush=True)
         if _memalloc is not None:
             try:
+                print(f"[DEBUG MemoryCollector.stop] PID={os.getpid()} calling _memalloc.stop()", file=sys.stderr, flush=True)
                 _memalloc.stop()
+                print(f"[DEBUG MemoryCollector.stop] PID={os.getpid()} _memalloc.stop() complete", file=sys.stderr, flush=True)
             except RuntimeError:
+                print(f"[DEBUG MemoryCollector.stop] PID={os.getpid()} RuntimeError during stop", file=sys.stderr, flush=True)
                 LOG.debug("Failed to stop memalloc profiling on shutdown", exc_info=True)
 
     def snapshot(self) -> None:

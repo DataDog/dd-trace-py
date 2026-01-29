@@ -91,15 +91,26 @@ class Profiler(object):
             pass
 
     def _restart_on_fork(self) -> None:
+        import os
+        import sys
+        print(f"[DEBUG _restart_on_fork] PID={os.getpid()} entered", file=sys.stderr, flush=True)
+
         # Be sure to stop the parent first, since it might have to e.g. unpatch functions
         # Do not flush data as we don't want to have multiple copies of the parent profile exported.
         try:
+            print(f"[DEBUG _restart_on_fork] PID={os.getpid()} stopping profiler...", file=sys.stderr, flush=True)
             self._profiler.stop(flush=False, join=False)
+            print(f"[DEBUG _restart_on_fork] PID={os.getpid()} profiler stopped", file=sys.stderr, flush=True)
         except service.ServiceStatusError:
             # This can happen in uWSGI mode: the children won't have the _profiler started from the master process
+            print(f"[DEBUG _restart_on_fork] PID={os.getpid()} ServiceStatusError during stop", file=sys.stderr, flush=True)
             pass
+
+        print(f"[DEBUG _restart_on_fork] PID={os.getpid()} copying profiler...", file=sys.stderr, flush=True)
         self._profiler = self._profiler.copy()
+        print(f"[DEBUG _restart_on_fork] PID={os.getpid()} starting new profiler...", file=sys.stderr, flush=True)
         self._profiler.start()
+        print(f"[DEBUG _restart_on_fork] PID={os.getpid()} complete", file=sys.stderr, flush=True)
 
     def __getattr__(self, key: str) -> Any:
         return getattr(self._profiler, key)
