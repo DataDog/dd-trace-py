@@ -81,7 +81,7 @@ def _enable_unittest_if_not_started():
     _initialize_unittest_data()
     if _CIVisibility.enabled:
         return
-    _CIVisibility.enable(tracer=ddtrace.tracer, config=ddtrace.config.unittest)
+    _CIVisibility.enable(config=ddtrace.config.unittest)
     _check_if_code_coverage_available()
 
 
