@@ -4,7 +4,7 @@ import time
 import tornado.concurrent
 import tornado.web
 
-from ddtrace.tracer import tracer
+from ddtrace.trace import tracer
 
 from . import uimodules
 from .compat import ThreadPoolExecutor
