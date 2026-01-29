@@ -854,87 +854,86 @@ class Experiment:
         :param jobs: Maximum number of concurrent evaluator executions (default: 1)
         """
 
-        def _evaluate_single(evaluator: Any, idx: int, task_result: TaskResult) -> Tuple[str, Dict[str, JSONType]]:
-            """Evaluate a single evaluator for one task result."""
+        def _evaluate_row(idx: int, task_result: TaskResult) -> Tuple[int, Dict[str, Dict[str, JSONType]]]:
             record: DatasetRecord = self._dataset[idx]
             input_data = record["input_data"]
             output_data = task_result["output"]
             expected_output = record["expected_output"]
             metadata = record.get("metadata", {})
 
-            eval_result_value: JSONType = None
-            eval_err: JSONType = None
-            evaluator_name = ""
-            extra_return_values: Dict[str, JSONType] = {}
+            row_results: Dict[str, Dict[str, JSONType]] = {}
 
-            try:
-                if _is_class_evaluator(evaluator):
-                    evaluator_name = evaluator.name
-                    combined_metadata = {**metadata, "experiment_config": self._config}
-                    context = EvaluatorContext(
-                        input_data=input_data,
-                        output_data=output_data,
-                        expected_output=expected_output,
-                        metadata=combined_metadata,
-                        span_id=task_result.get("span_id"),
-                        trace_id=task_result.get("trace_id"),
-                    )
-                    eval_result = evaluator.evaluate(context)
-                elif _is_function_evaluator(evaluator):
-                    evaluator_name = evaluator.__name__
-                    eval_result = evaluator(input_data, output_data, expected_output)
-                else:
-                    logger.warning(
-                        "Evaluator %s is neither a BaseEvaluator instance nor a callable function", evaluator
-                    )
-                    evaluator_name = str(evaluator)
-                    eval_result = None
+            for evaluator in self._evaluators:
+                eval_result_value: JSONType = None
+                eval_err: JSONType = None
+                evaluator_name = ""
+                extra_return_values: Dict[str, JSONType] = {}
 
-                if isinstance(eval_result, EvaluatorResult):
-                    if eval_result.reasoning:
-                        extra_return_values["reasoning"] = eval_result.reasoning
-                    if eval_result.assessment:
-                        extra_return_values["assessment"] = eval_result.assessment
-                    if eval_result.metadata:
-                        extra_return_values["metadata"] = eval_result.metadata
-                    if eval_result.tags:
-                        extra_return_values["tags"] = eval_result.tags
-                    eval_result_value = eval_result.value
-                else:
-                    eval_result_value = eval_result
+                try:
+                    if _is_class_evaluator(evaluator):
+                        evaluator_name = evaluator.name
+                        combined_metadata = {**metadata, "experiment_config": self._config}
+                        context = EvaluatorContext(
+                            input_data=input_data,
+                            output_data=output_data,
+                            expected_output=expected_output,
+                            metadata=combined_metadata,
+                            span_id=task_result.get("span_id"),
+                            trace_id=task_result.get("trace_id"),
+                        )
+                        eval_result = evaluator.evaluate(context)
+                    elif _is_function_evaluator(evaluator):
+                        evaluator_name = evaluator.__name__
+                        eval_result = evaluator(input_data, output_data, expected_output)
+                    else:
+                        logger.warning(
+                            "Evaluator %s is neither a BaseEvaluator instance nor a callable function", evaluator
+                        )
+                        evaluator_name = str(evaluator)
+                        eval_result = None
 
-            except Exception as e:
-                exc_type, exc_value, exc_tb = sys.exc_info()
-                exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
-                exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-                eval_err = {
-                    "message": str(exc_value),
-                    "type": exc_type_name,
-                    "stack": exc_stack,
+                    if isinstance(eval_result, EvaluatorResult):
+                        if eval_result.reasoning:
+                            extra_return_values["reasoning"] = eval_result.reasoning
+                        if eval_result.assessment:
+                            extra_return_values["assessment"] = eval_result.assessment
+                        if eval_result.metadata:
+                            extra_return_values["metadata"] = eval_result.metadata
+                        if eval_result.tags:
+                            extra_return_values["tags"] = eval_result.tags
+                        eval_result_value = eval_result.value
+                    else:
+                        eval_result_value = eval_result
+
+                except Exception as e:
+                    exc_type, exc_value, exc_tb = sys.exc_info()
+                    exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
+                    exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+                    eval_err = {
+                        "message": str(exc_value),
+                        "type": exc_type_name,
+                        "stack": exc_stack,
+                    }
+                    if raise_errors:
+                        raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
+
+                row_results[evaluator_name] = {
+                    "value": eval_result_value,
+                    "error": eval_err,
+                    **extra_return_values,
                 }
-                if raise_errors:
-                    raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
 
-            return evaluator_name, {
-                "value": eval_result_value,
-                "error": eval_err,
-                **extra_return_values,
-            }
+            return idx, row_results
 
-        results_by_idx: Dict[int, Dict[str, Dict[str, JSONType]]] = {idx: {} for idx in range(len(task_results))}
+        results_by_idx: Dict[int, Dict[str, Dict[str, JSONType]]] = {}
 
         with ThreadPoolExecutor(max_workers=jobs) as executor:
-            futures_to_idx = {
-                executor.submit(_evaluate_single, evaluator, idx, task_result): idx
-                for idx, task_result in enumerate(task_results)
-                for evaluator in self._evaluators
-            }
+            futures = [executor.submit(_evaluate_row, idx, task_result) for idx, task_result in enumerate(task_results)]
 
-            for future in futures_to_idx:
-                idx = futures_to_idx[future]
+            for future in futures:
                 try:
-                    evaluator_name, eval_data = future.result()
-                    results_by_idx[idx][evaluator_name] = eval_data
+                    idx, row_results = future.result()
+                    results_by_idx[idx] = row_results
                 except Exception:
                     if raise_errors:
                         raise
