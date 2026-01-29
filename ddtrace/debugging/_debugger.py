@@ -238,7 +238,16 @@ class Debugger(Service):
 
         log.debug("Disabling %s", cls.__name__)
 
+        adapter = remoteconfig_poller.get_registered("LIVE_DEBUGGING")
+
         remoteconfig_poller.unregister("LIVE_DEBUGGING")
+
+        # Currently the product enablement and the callback registration are
+        # tied together within the RC client so here we have to pretend that
+        # once we have disabled the debugger we also get an empty configuration
+        # payload from RC.
+        if adapter is not None:
+            cast(ProbeRCAdapter, adapter).delete_all_probes()
 
         unregister_post_run_module_hook(cls._on_run_module)
 
