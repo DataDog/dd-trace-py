@@ -149,6 +149,9 @@ class heap_tracker_t
      * while accessing the profiler's state */
     memalloc_gil_debug_check_t gil_guard;
 
+    /* Flag to defer sampling reinitialization after fork to avoid async-signal-unsafe calls */
+    bool needs_sampling_reinit;
+
     /* Traceback pool - reduces allocation overhead. Access is always under GIL. */
     static constexpr size_t POOL_CAPACITY = 128;
     std::vector<std::unique_ptr<traceback_t>> pool;
@@ -211,6 +214,7 @@ heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
   : sample_size(sample_size_val)
   , current_sample_size(0) // Will be set by reset_sampling_state()
   , allocated_memory(0)    // Will be set by reset_sampling_state()
+  , needs_sampling_reinit(false)
 {
     pool.reserve(POOL_CAPACITY); // Pre-allocate pool capacity to avoid reallocations
     reset_sampling_state();
@@ -232,8 +236,11 @@ heap_tracker_t::clear_state()
     // Clear pool - cached traceback objects may contain stale sample data
     pool.clear();
 
-    // Reset sampling state to start fresh
-    reset_sampling_state();
+    // Defer sampling state reset to avoid calling non-async-signal-safe functions
+    // (rand(), log2()) in the fork handler. This will be done on the first allocation.
+    allocated_memory = 0;
+    current_sample_size = 0;
+    needs_sampling_reinit = true;
 }
 
 void
@@ -251,6 +258,13 @@ bool
 heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
+
+    // Check if we need to perform deferred sampling reinitialization after fork
+    if (needs_sampling_reinit) {
+        reset_sampling_state();
+        needs_sampling_reinit = false;
+    }
+
     allocated_memory += size;
     *allocated_memory_val = allocated_memory;
 
