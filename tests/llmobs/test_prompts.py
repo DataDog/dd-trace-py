@@ -51,7 +51,7 @@ def reset_llmobs():
     """Reset LLMObs state for each test."""
     _reset_prompt_state()
 
-    with override_global_config(dict(_dd_api_key="test-key", _llmobs_ml_app="test-app")):
+    with override_global_config(dict(_dd_api_key="test-key")):
         yield
 
     _reset_prompt_state()
