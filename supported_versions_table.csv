@@ -15,7 +15,7 @@ avro,avro,1.12.0,1.12.0,True
 datadog-lambda,aws_lambda,6.105.0,6.105.0,True
 datadog_lambda,aws_lambda,6.105.0,6.105.0,True
 azure-functions,azure_durable_functions,1.10.1,1.24.0,True
-azure-functions-durable,azure_durable_functions,1.2.10,1.4.0,True
+azure-functions-durable,azure_durable_functions,1.2.1,1.4.0,True
 azure-eventhub,azure_eventhubs *,5.12.2,5.15.0,True
 azure-functions,azure_functions *,1.10.1,1.24.0,True
 azure-servicebus,azure_servicebus *,7.14.2,7.14.2,True
