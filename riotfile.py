@@ -3212,10 +3212,9 @@ venv = Venv(
         Venv(
             name="azure_durable_functions",
             command="pytest {cmdargs} tests/contrib/azure_durable_functions",
-            pys=select_pys(min_version="3.8", max_version="3.11"),
+            pys=select_pys(min_version="3.9", max_version="3.11"),
             pkgs={
-                "azure.functions": ["~=1.12.0", latest],
-                "azure-functions-durable": latest,
+                "azure-functions-durable": ["~=1.2.1", latest],
             },
         ),
         Venv(
