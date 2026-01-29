@@ -1,5 +1,6 @@
 """Integration tests for coverage report upload functionality."""
 
+from contextlib import ExitStack
 import typing as t
 from unittest.mock import Mock
 from unittest.mock import patch
@@ -19,10 +20,67 @@ def get_mock_git_env_tags():
         "git.repository_url": "https://github.com/DataDog/dd-trace-py.git",
         "git.commit.sha": "test123abc",
         "git.branch": "test-branch",
+        "git.commit.message": "Test commit",
+        "git.commit.author.name": "Test Author",
+        "git.commit.author.email": "test@example.com",
+        "git.commit.committer.name": "Test Committer",
+        "git.commit.committer.email": "test@example.com",
         "ci.provider.name": "github",
         "ci.pipeline.id": "test-pipeline-123",
         "ci.job.name": "test-job",
+        "ci.workspace_path": "/tmp/test-workspace",
     }
+
+
+def setup_git_mocks():
+    """Set up comprehensive git mocking to prevent actual git commands."""
+    mock_git_tags = get_mock_git_env_tags()
+
+    # Mock the session manager's get_env_tags (this overrides setup_standard_mocks)
+    mock_session_manager_env_tags = patch(
+        "ddtrace.testing.internal.session_manager.get_env_tags", return_value=mock_git_tags
+    )
+
+    # Mock the main env_tags module function
+    mock_env_tags_get_env_tags = patch("ddtrace.testing.internal.env_tags.get_env_tags", return_value=mock_git_tags)
+
+    # Mock the git commands to prevent subprocess calls
+    mock_git_tags_from_command = patch(
+        "ddtrace.testing.internal.git.get_git_tags_from_git_command", return_value=mock_git_tags
+    )
+
+    mock_git_head_tags = patch("ddtrace.testing.internal.git.get_git_head_tags_from_git_command", return_value={})
+
+    # Mock workspace path
+    mock_workspace_path = patch("ddtrace.testing.internal.git.get_workspace_path", return_value="/tmp/test-workspace")
+
+    return [
+        mock_session_manager_env_tags,
+        mock_env_tags_get_env_tags,
+        mock_git_tags_from_command,
+        mock_git_head_tags,
+        mock_workspace_path,
+    ]
+
+
+def run_test_with_mocks(pytester, monkeypatch, mock_client, env_var_name, env_var_value, pytest_args):
+    """Helper to run pytest tests with comprehensive mocking."""
+    git_mocks = setup_git_mocks()
+
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_client,
+            )
+        )
+        stack.enter_context(setup_standard_mocks())
+        for mock in git_mocks:
+            stack.enter_context(mock)
+        m = stack.enter_context(monkeypatch.context())
+
+        m.setenv(env_var_name, env_var_value)
+        return pytester.inline_run(*pytest_args)
 
 
 class TestPytestCoverageReportUpload:
@@ -40,22 +98,24 @@ class TestPytestCoverageReportUpload:
             """
         )
 
-        with (
-            EventCapture.capture() as event_capture,
-            CoverageReportUploadCapture.capture() as upload_capture,
-        ):
+        with EventCapture.capture() as event_capture, CoverageReportUploadCapture.capture() as upload_capture:
             mock_client = mock_api_client_settings(
                 coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
             )
-            with (
-                patch(
-                    "ddtrace.testing.internal.session_manager.APIClient",
-                    return_value=mock_client,
-                ),
-                setup_standard_mocks(),
-                patch("tests.testing.mocks.get_env_tags", return_value=get_mock_git_env_tags()),
-                monkeypatch.context() as m,
-            ):
+            git_mocks = setup_git_mocks()
+
+            with ExitStack() as stack:
+                stack.enter_context(
+                    patch(
+                        "ddtrace.testing.internal.session_manager.APIClient",
+                        return_value=mock_client,
+                    )
+                )
+                stack.enter_context(setup_standard_mocks())
+                for mock in git_mocks:
+                    stack.enter_context(mock)
+                m = stack.enter_context(monkeypatch.context())
+
                 m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
 
                 result = pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
@@ -136,22 +196,24 @@ class TestPytestCoverageReportUpload:
             """
         )
 
-        # Mock git metadata to avoid CI issues with missing git info
-        mock_env_tags = get_mock_git_env_tags()
-
         with CoverageReportUploadCapture.capture() as upload_capture:
             mock_client = mock_api_client_settings(
                 coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
             )
-            with (
-                patch(
-                    "ddtrace.testing.internal.session_manager.APIClient",
-                    return_value=mock_client,
-                ),
-                setup_standard_mocks(),
-                patch("tests.testing.mocks.get_env_tags", return_value=mock_env_tags),
-                monkeypatch.context() as m,
-            ):
+            git_mocks = setup_git_mocks()
+
+            with ExitStack() as stack:
+                stack.enter_context(
+                    patch(
+                        "ddtrace.testing.internal.session_manager.APIClient",
+                        return_value=mock_client,
+                    )
+                )
+                stack.enter_context(setup_standard_mocks())
+                for mock in git_mocks:
+                    stack.enter_context(mock)
+                m = stack.enter_context(monkeypatch.context())
+
                 m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
 
                 # Run WITHOUT --cov flag (will use ModuleCodeCollector)
@@ -311,14 +373,20 @@ class TestCoverageReportGeneration:
             mock_client = mock_api_client_settings(
                 coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
             )
-            with (
-                patch(
-                    "ddtrace.testing.internal.session_manager.APIClient",
-                    return_value=mock_client,
-                ),
-                setup_standard_mocks(),
-                monkeypatch.context() as m,
-            ):
+            git_mocks = setup_git_mocks()
+
+            with ExitStack() as stack:
+                stack.enter_context(
+                    patch(
+                        "ddtrace.testing.internal.session_manager.APIClient",
+                        return_value=mock_client,
+                    )
+                )
+                stack.enter_context(setup_standard_mocks())
+                for mock in git_mocks:
+                    stack.enter_context(mock)
+                m = stack.enter_context(monkeypatch.context())
+
                 m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
 
                 pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
@@ -364,17 +432,15 @@ class TestCoverageReportUploadSettings:
             mock_client = mock_api_client_settings(
                 coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
             )
-            with (
-                patch(
-                    "ddtrace.testing.internal.session_manager.APIClient",
-                    return_value=mock_client,
-                ),
-                setup_standard_mocks(),
-                monkeypatch.context() as m,
-            ):
-                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "0")
 
-                result = pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
+            result = run_test_with_mocks(
+                pytester,
+                monkeypatch,
+                mock_client,
+                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED",
+                "0",
+                ["--ddtrace", "--cov", "-v", "-s"],
+            )
 
         assert result.ret == 0
 
@@ -396,17 +462,15 @@ class TestCoverageReportUploadSettings:
             mock_client = mock_api_client_settings(
                 coverage_report_upload_enabled=False, coverage_upload_capture=upload_capture
             )
-            with (
-                patch(
-                    "ddtrace.testing.internal.session_manager.APIClient",
-                    return_value=mock_client,
-                ),
-                setup_standard_mocks(),
-                monkeypatch.context() as m,
-            ):
-                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
 
-                result = pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
+            result = run_test_with_mocks(
+                pytester,
+                monkeypatch,
+                mock_client,
+                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED",
+                "1",
+                ["--ddtrace", "--cov", "-v", "-s"],
+            )
 
         assert result.ret == 0
 
@@ -427,17 +491,15 @@ class TestCoverageReportUploadSettings:
             mock_client = mock_api_client_settings(
                 coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
             )
-            with (
-                patch(
-                    "ddtrace.testing.internal.session_manager.APIClient",
-                    return_value=mock_client,
-                ),
-                setup_standard_mocks(),
-                monkeypatch.context() as m,
-            ):
-                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
 
-                result = pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
+            result = run_test_with_mocks(
+                pytester,
+                monkeypatch,
+                mock_client,
+                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED",
+                "1",
+                ["--ddtrace", "--cov", "-v", "-s"],
+            )
 
         assert result.ret == 0
 
@@ -458,17 +520,15 @@ class TestCoverageReportUploadSettings:
             mock_client = mock_api_client_settings(
                 coverage_report_upload_enabled=False, coverage_upload_capture=upload_capture
             )
-            with (
-                patch(
-                    "ddtrace.testing.internal.session_manager.APIClient",
-                    return_value=mock_client,
-                ),
-                setup_standard_mocks(),
-                monkeypatch.context() as m,
-            ):
-                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "0")
 
-                result = pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
+            result = run_test_with_mocks(
+                pytester,
+                monkeypatch,
+                mock_client,
+                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED",
+                "0",
+                ["--ddtrace", "--cov", "-v", "-s"],
+            )
 
         assert result.ret == 0
 
@@ -497,17 +557,15 @@ class TestCoverageReportUploadSettings:
                 mock_client = mock_api_client_settings(
                     coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
                 )
-                with (
-                    patch(
-                        "ddtrace.testing.internal.session_manager.APIClient",
-                        return_value=mock_client,
-                    ),
-                    setup_standard_mocks(),
-                    monkeypatch.context() as m,
-                ):
-                    m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", env_value)
 
-                    result = pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
+                result = run_test_with_mocks(
+                    pytester,
+                    monkeypatch,
+                    mock_client,
+                    "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED",
+                    env_value,
+                    ["--ddtrace", "--cov", "-v", "-s"],
+                )
 
             assert result.ret == 0, description
 
@@ -536,18 +594,15 @@ class TestCoverageConfigurationEdgeCases:
             mock_client = mock_api_client_settings(
                 coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
             )
-            with (
-                patch(
-                    "ddtrace.testing.internal.session_manager.APIClient",
-                    return_value=mock_client,
-                ),
-                setup_standard_mocks(),
-                monkeypatch.context() as m,
-            ):
-                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
 
-                # Run with --cov (pytest-cov) which should take precedence
-                result = pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
+            result = run_test_with_mocks(
+                pytester,
+                monkeypatch,
+                mock_client,
+                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED",
+                "1",
+                ["--ddtrace", "--cov", "-v", "-s"],
+            )
 
         assert result.ret == 0
 
@@ -597,17 +652,15 @@ class TestCoverageConfigurationEdgeCases:
             mock_client = mock_api_client_settings(
                 coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
             )
-            with (
-                patch(
-                    "ddtrace.testing.internal.session_manager.APIClient",
-                    return_value=mock_client,
-                ),
-                setup_standard_mocks(),
-                monkeypatch.context() as m,
-            ):
-                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
 
-                result = pytester.inline_run("--ddtrace", "--cov", "--cov-config=.coveragerc", "-v", "-s")
+            result = run_test_with_mocks(
+                pytester,
+                monkeypatch,
+                mock_client,
+                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED",
+                "1",
+                ["--ddtrace", "--cov", "--cov-config=.coveragerc", "-v", "-s"],
+            )
 
         assert result.ret == 0
 
@@ -649,17 +702,15 @@ class TestCoverageConfigurationEdgeCases:
             mock_client = mock_api_client_settings(
                 coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
             )
-            with (
-                patch(
-                    "ddtrace.testing.internal.session_manager.APIClient",
-                    return_value=mock_client,
-                ),
-                setup_standard_mocks(),
-                monkeypatch.context() as m,
-            ):
-                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
 
-                result = pytester.inline_run("--ddtrace", "--cov=src", "--cov=lib", "-v", "-s")
+            result = run_test_with_mocks(
+                pytester,
+                monkeypatch,
+                mock_client,
+                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED",
+                "1",
+                ["--ddtrace", "--cov=src", "--cov=lib", "-v", "-s"],
+            )
 
         assert result.ret == 0
 
@@ -686,18 +737,15 @@ class TestCoverageConfigurationEdgeCases:
             mock_client = mock_api_client_settings(
                 coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
             )
-            with (
-                patch(
-                    "ddtrace.testing.internal.session_manager.APIClient",
-                    return_value=mock_client,
-                ),
-                setup_standard_mocks(),
-                monkeypatch.context() as m,
-            ):
-                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
 
-                # Run but no tests will be collected
-                result = pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
+            result = run_test_with_mocks(
+                pytester,
+                monkeypatch,
+                mock_client,
+                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED",
+                "1",
+                ["--ddtrace", "--cov", "-v", "-s"],
+            )
 
         # Should handle gracefully even with no tests
         assert result.ret == 5  # pytest exit code for no tests collected
@@ -727,17 +775,15 @@ class TestCoverageConfigurationEdgeCases:
             mock_client = mock_api_client_settings(
                 coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
             )
-            with (
-                patch(
-                    "ddtrace.testing.internal.session_manager.APIClient",
-                    return_value=mock_client,
-                ),
-                setup_standard_mocks(),
-                monkeypatch.context() as m,
-            ):
-                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
 
-                result = pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
+            result = run_test_with_mocks(
+                pytester,
+                monkeypatch,
+                mock_client,
+                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED",
+                "1",
+                ["--ddtrace", "--cov", "-v", "-s"],
+            )
 
         assert result.ret == 0
 
