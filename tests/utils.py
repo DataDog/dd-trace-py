@@ -1342,7 +1342,6 @@ def snapshot(
     :param ignores: A list of keys to ignore when comparing snapshots. To refer
                     to keys in the meta or metrics maps use "meta.key" and
                     "metrics.key"
-    :param tracer: A tracer providing the agent connection information to use.
     """
     ignores = ignores or []
 
@@ -1367,7 +1366,6 @@ def snapshot(
         with snapshot_context(
             token,
             ignores=ignores,
-            tracer=ddtrace.tracer,
             async_mode=async_mode,
             variants=variants,
             wait_for_num_traces=wait_for_num_traces,

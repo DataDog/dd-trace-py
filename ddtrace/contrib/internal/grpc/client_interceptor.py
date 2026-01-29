@@ -135,7 +135,7 @@ def _activated_span(span: Span):
 
 
 class _WrappedResponseCallFuture(wrapt.ObjectProxy):
-    def __init__(self, wrapped, span, tracer):
+    def __init__(self, wrapped, span):
         super(_WrappedResponseCallFuture, self).__init__(wrapped)
         self._span = span
         # Registers callback on the _MultiThreadedRendezvous future to finish
@@ -304,5 +304,5 @@ class _ClientInterceptor(
             return continuation(client_call_details, request_iterator)
         with _activated_span(span):
             response_iterator = continuation(client_call_details, request_iterator)
-            response_iterator = _WrappedResponseCallFuture(response_iterator, span, tracer)
+            response_iterator = _WrappedResponseCallFuture(response_iterator, span)
         return response_iterator
