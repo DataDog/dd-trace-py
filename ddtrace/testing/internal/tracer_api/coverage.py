@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 import typing as t
 
-from ddtrace.contrib.internal.coverage.patch import get_coverage_percentage as get_cached_coverage_percentage
+from ddtrace.contrib.internal.coverage.patch import get_coverage_percentage as _get_coverage_percentage
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.patch import unpatch as unpatch_coverage
@@ -78,38 +78,28 @@ def get_coverage_percentage(pytest_cov_status: bool) -> t.Optional[float]:
     """
     Retrieve coverage percentage collected during a pytest-cov test session, if available.
 
-    This retrieves the cached percentage if:
-    1. Coverage.py is patched AND (pytest-cov is enabled OR coverage run was used)
-    2. OR if a report was generated that stored the percentage (e.g., via coverage report upload)
+    This retrieves the coverage percentage from coverage.py patching, coverage report upload,
+    or generates a report if using 'coverage run' without pytest-cov.
     """
-    invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
+    # Generate report if using coverage run without pytest-cov
+    if not pytest_cov_status and _is_coverage_invoked_by_coverage_run() and _is_coverage_patched():
+        run_coverage_report()
 
-    # AIDEV-NOTE: Check if we should retrieve percentage from coverage.py
-    should_get_from_coverage = _is_coverage_patched() and (pytest_cov_status or invoked_by_coverage_run_status)
+    # Get cached percentage (works for pytest-cov, coverage run, and coverage report upload)
+    lines_pct_value = _get_coverage_percentage()
 
-    if should_get_from_coverage:
-        # Generate report if using coverage run without pytest-cov
-        if invoked_by_coverage_run_status and not pytest_cov_status:
-            run_coverage_report()
-
-    # Try to retrieve cached percentage
-    # This works for:
-    # - pytest-cov (after patching)
-    # - coverage run (after running report)
-    # - coverage report upload (after generating LCOV/other report)
-    lines_pct_value = get_cached_coverage_percentage()
     if lines_pct_value is None:
         log.debug("Unable to retrieve coverage data for the session span")
         return None
-    elif not isinstance(lines_pct_value, (float, int)):
-        t = type(lines_pct_value)
+
+    if not isinstance(lines_pct_value, (float, int)):
         log.warning(
             "Unexpected format for total covered percentage: type=%s.%s, value=%r",
-            t.__module__,
-            t.__name__,
+            type(lines_pct_value).__module__,
+            type(lines_pct_value).__name__,
             lines_pct_value,
         )
         return None
-    else:
-        log.debug("Code coverage: %s%%", lines_pct_value)
-        return lines_pct_value
+
+    log.debug("Code coverage: %s%%", lines_pct_value)
+    return float(lines_pct_value)
