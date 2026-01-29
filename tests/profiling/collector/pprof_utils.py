@@ -262,11 +262,18 @@ def assert_lock_events(
     profile: pprof_pb2.Profile,
     expected_acquire_events: Union[Sequence[LockEvent], None] = None,
     expected_release_events: Union[Sequence[LockEvent], None] = None,
-):
-    if expected_acquire_events:
-        assert_lock_events_of_type(profile, expected_acquire_events, LockEventType.ACQUIRE)
-    if expected_release_events:
-        assert_lock_events_of_type(profile, expected_release_events, LockEventType.RELEASE)
+    print_samples_on_failure: bool = False,
+) -> None:
+    try:
+        if expected_acquire_events:
+            assert_lock_events_of_type(profile, expected_acquire_events, LockEventType.ACQUIRE)
+        if expected_release_events:
+            assert_lock_events_of_type(profile, expected_release_events, LockEventType.RELEASE)
+    except AssertionError as e:
+        if print_samples_on_failure:
+            print_all_samples(profile)
+
+        raise e
 
 
 def assert_str_label(string_table: Sequence[str], sample, key: str, expected_value: Optional[str]):
@@ -440,6 +447,13 @@ def print_all_samples(profile: pprof_pb2.Profile) -> None:
     """Print all samples in the profile with function name, filename, and line number."""
     for sample_idx, sample in enumerate(profile.sample):
         print(f"Sample {sample_idx}:")
+        print("Non-zero values:")
+        for i, val in enumerate(sample.value):
+            if val != 0:
+                st = profile.sample_type[i]
+                type_name = profile.string_table[st.type]
+                unit = profile.string_table[st.unit]
+                print(f"  {type_name} ({unit}): {val}")
         print("Labels:")
         for label in sample.label:
             print(f"  {profile.string_table[label.key]}: {profile.string_table[label.str]}")

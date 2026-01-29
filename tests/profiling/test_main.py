@@ -98,6 +98,7 @@ def test_fork(tmp_path: Path) -> None:
         profile,
         expected_acquire_events=parent_expected_acquire_events,
         expected_release_events=parent_expected_release_events,
+        print_samples_on_failure=True,
     )
     child_profile = pprof_utils.parse_newest_profile(f"{filename}.{child_pid}")
     # We expect the child profile to not have lock events from the parent process
@@ -135,6 +136,7 @@ def test_fork(tmp_path: Path) -> None:
                 lock_name="lock",
             ),
         ],
+        print_samples_on_failure=True,
     )
 
 
