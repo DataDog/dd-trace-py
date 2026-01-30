@@ -485,8 +485,11 @@ PeriodicThread__after_fork(PeriodicThread* self)
     self->_atexit = false;
     self->_skip_shutdown = false;
 
-    // We don't clear the request event because we might have pending awake
-    // requests.
+    // Clear all events including _request. The _request event may have been
+    // set by stop() before fork, and we don't want that to trigger an immediate
+    // call to the target function. Any pending awake() requests are no longer
+    // relevant in the child process anyway.
+    self->_request->clear();
     self->_started->clear();
     self->_stopped->clear();
     self->_served->clear();
