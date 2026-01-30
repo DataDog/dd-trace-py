@@ -485,9 +485,7 @@ class Experiment:
         run_iteration: Optional[int] = 1,
     ) -> ExperimentResult:
         run_results = []
-        # because of product decisions to start run iteration at 1, we need to manually decrement this to accurately
-        # reflect the run iteration
-        run = _ExperimentRunInfo(run_iteration - 1)
+        run = _ExperimentRunInfo(run_iteration)
         self._tags["run_id"] = str(run._id)
         self._tags["run_iteration"] = str(run._run_iteration)
         task_results = self._run_task(jobs, run, raise_errors, None)

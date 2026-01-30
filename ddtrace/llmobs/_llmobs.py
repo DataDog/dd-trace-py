@@ -1111,6 +1111,7 @@ class LLMObs(Service):
         jobs: int = 1,
         raise_errors: bool = False,
         run_iteration: Optional[int] = 1,
+        tags: Optional[Dict[str, str]] = None,
     ) -> ExperimentResult:
         if not cls._instance or not cls._instance.enabled:
             raise ValueError("LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` ")

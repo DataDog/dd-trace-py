@@ -645,7 +645,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
 
         return project
 
-    def experiment_get(self, id: str) -> Experiment:
+    def experiment_get(self, id: str, tag_overrides: Optional[Dict[str, str]] = None) -> Experiment:
         path = f"/api/v2/llm-obs/v1/experiments?filter[id]={id}"
         resp = self.request(
             "GET",
@@ -667,6 +667,9 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             kv = tag.split(":")
             if len(kv) == 2:
                 tags_dict[kv[0]] = kv[1]
+
+        if tag_overrides:
+            tags_dict.update(tag_overrides)
 
         # TODO[gh] attempt to find the project & dataset name through tags if possible, temporary hack to avoid extra API calls
         project_name = tags_dict.get("project_name", project_id)
