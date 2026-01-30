@@ -53,26 +53,14 @@ class StackCollector(collector.Collector):
         # TODO take the `threading` import out of here and just handle it in v2 startup
         threading.init_stack()
 
-    def _restart_on_fork(self) -> None:
-        """Restart the native stack sampler after fork.
-
-        The native stack sampler thread dies after fork and needs to be restarted
-        in the child process to continue collecting CPU samples.
-        """
-        LOG.debug("Restarting StackCollector after fork")
-        stack.start()
-        threading.init_stack()
-
     def _start_service(self) -> None:
         # This is split in its own function to ease testing
         LOG.debug("Profiling StackCollector starting")
         self._init()
-        # forksafe.register(self._restart_on_fork)
         LOG.debug("Profiling StackCollector started")
 
     def _stop_service(self) -> None:
         LOG.debug("Profiling StackCollector stopping")
-        # forksafe.unregister(self._restart_on_fork)
         if self.tracer is not None:
             core.reset_listeners("ddtrace.context_provider.activate", stack.link_span)
         LOG.debug("Profiling StackCollector stopped")
