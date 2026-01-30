@@ -110,10 +110,7 @@ class HttpEndPointsCollection(metaclass=Singleton):
         endpoints_res: List[dict] = []
         while self.endpoints and len(endpoints_res) < max_length:
             endpoints_res.append(dataclasses.asdict(self.endpoints.pop(), dict_factory=_dict_factory))
-        res = {
-            "is_first": self.is_first,
-            "endpoints": endpoints_res,
-        }
+        res = {"is_first": self.is_first, "endpoints": endpoints_res}
         self.is_first = False
         return res
 
