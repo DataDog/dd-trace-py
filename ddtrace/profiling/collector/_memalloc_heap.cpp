@@ -198,9 +198,10 @@ heap_tracker_t::next_sample_size_no_cpython(uint32_t sample_size)
        the distribution we want to sample.
        See https://en.wikipedia.org/wiki/Inverse_transform_sampling. */
     /* Get a value between [0, 1[ */
-    /* TODO: change to use arc4random() instead of rand(), as rand() internally
-       uses a lock and may cause deadlock after fork in child processes.
-       Deferring this to a follow up, as we're not making the situation worse. */
+    /* TODO: change to use a fork safe alternative instead of rand(), as rand()
+       internally uses a lock and may cause deadlock after fork in child
+       processes. Deferring this to a follow up, as we're not making the
+       situation worse. */
     double q = (double)rand() / ((double)RAND_MAX + 1);
     /* Get a value between ]-inf, 0[, more likely close to 0 */
     /* NOTE: technically log2 is not async signal safe per Linux man page,
