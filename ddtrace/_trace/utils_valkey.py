@@ -18,6 +18,7 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.utils.formats import stringify_cache_args
+from ddtrace.trace import tracer
 
 
 format_command_args = stringify_cache_args
@@ -71,7 +72,7 @@ def _instrument_valkey_execute_pipeline(pin, config_integration, cmds, instance,
     if config_integration.resource_only_command:
         resource = "\n".join([cmd.split(" ")[0] for cmd in cmds])
 
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_cache_operation(valkeyx.CMD, cache_provider=valkeyx.APP),
         resource=resource,
         service=trace_utils.ext_service(pin, config_integration),
@@ -87,7 +88,7 @@ def _instrument_valkey_execute_async_cluster_pipeline(pin, config_integration, c
     if config_integration.resource_only_command:
         resource = "\n".join([cmd.split(" ")[0] for cmd in cmds])
 
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_cache_operation(valkeyx.CMD, cache_provider=valkeyx.APP),
         resource=resource,
         service=trace_utils.ext_service(pin, config_integration),

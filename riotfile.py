@@ -95,6 +95,7 @@ _appsec_threats_iast_variants = [
             "DD_IAST_ENABLED": "true",
             "DD_IAST_REQUEST_SAMPLING": "100",
             "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            "DD_IAST_WEAK_HASH_ALGORITHMS": "NOTexist",
         },
     ),
 ]
@@ -118,6 +119,7 @@ venv = Venv(
         "DD_PATCH_MODULES": "unittest:false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
         "CARGO_BUILD_JOBS": "12",
+        "DD_PYTEST_USE_NEW_PLUGIN": "true",
     },
     venvs=[
         Venv(
@@ -526,7 +528,7 @@ venv = Venv(
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED": "0",  # DEV: Temporary, remove once merged
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             command="pytest -v {cmdargs} tests/internal/",
             pkgs={
@@ -562,7 +564,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/lib_injection/",
             venvs=[
                 Venv(
-                    pys=select_pys(max_version="3.13"),
+                    pys=select_pys(),
                     pkgs={
                         "PyYAML": latest,
                         "pytest-randomly": latest,
@@ -1237,6 +1239,9 @@ venv = Venv(
                     venvs=[
                         Venv(pys=["3.9"], pkgs={"exceptiongroup": latest}),
                     ],
+                    env={
+                        "DD_PYTEST_USE_NEW_PLUGIN": "false",
+                    },
                 ),
                 Venv(
                     pkgs={
@@ -1803,6 +1808,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             venvs=[
                 Venv(
@@ -1860,6 +1866,7 @@ venv = Venv(
             env={
                 "DD_AGENT_PORT": "9126",
                 "DD_PYTEST_USE_NEW_PLUGIN": "true",
+                "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "0",
             },
             venvs=[
                 Venv(
@@ -1913,6 +1920,9 @@ venv = Venv(
             pkgs={
                 "pytest-randomly": latest,
             },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
+            },
             venvs=[
                 Venv(
                     pys="3.9",
@@ -1938,6 +1948,9 @@ venv = Venv(
                     # FIXME: add support for v6.1
                     ">=6.0,<6.1",
                 ],
+            },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             venvs=[
                 Venv(
@@ -1969,6 +1982,9 @@ venv = Venv(
                 "msgpack": latest,
                 "pytest-randomly": latest,
             },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
+            },
             venvs=[
                 Venv(
                     pkgs={
@@ -1986,6 +2002,9 @@ venv = Venv(
             pkgs={
                 "flaky": latest,
                 "pytest-randomly": latest,
+            },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
         ),
         Venv(
@@ -2140,8 +2159,8 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
                 "httpx": [
-                    "~=0.17.0",
-                    "~=0.23.0",
+                    "~=0.25.0",
+                    "~=0.27.0",
                     latest,
                 ],
             },
@@ -2966,13 +2985,25 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/litellm",
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
-                "litellm": "==1.65.4",
                 "vcrpy": latest,
                 "pytest-asyncio": latest,
                 "botocore": latest,
                 "boto3": latest,
-                "openai": "==1.68.2",
             },
+            venvs=[
+                Venv(
+                    pkgs={
+                        "litellm": "==1.65.4",
+                        "openai": "==1.68.2",
+                    },
+                ),
+                Venv(
+                    pkgs={
+                        "litellm": "==1.80.16",
+                        "openai": ">=2.8.0",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="anthropic",
@@ -3054,7 +3085,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(),
                     pkgs={
-                        "pydantic-ai": ["==0.3.0", "==0.4.4"],
+                        "pydantic-ai": ["==0.3.0", "==0.4.4", "==0.8.1"],
                         "pydantic": "==2.12.0a1",
                     },
                 ),
@@ -3229,6 +3260,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             venvs=[
                 Venv(
@@ -3610,6 +3642,7 @@ venv = Venv(
             command="pytest tests/appsec/contrib_appsec/test_django.py {cmdargs}",
             pkgs={
                 "requests": latest,
+                "httpx": latest,
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -3664,6 +3697,7 @@ venv = Venv(
                 "pytest-cov": latest,
                 "requests": latest,
                 "hypothesis": latest,
+                "httpx": latest,
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -3743,6 +3777,44 @@ venv = Venv(
                     pys=["3.10", "3.13"],
                     pkgs={
                         "fastapi": "~=0.114.2",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+            ],
+        ),
+        Venv(
+            name="appsec_threats_tornado",
+            command="pytest tests/appsec/contrib_appsec/test_tornado.py {cmdargs}",
+            pkgs={
+                "requests": latest,
+                "httpx": latest,
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
+                "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+                "DD_API_SECURITY_SAMPLE_DELAY": "0",
+                "DD_PATCH_MODULES": "unittest:false",
+            },
+            venvs=[
+                Venv(
+                    pys=["3.9", "3.12"],
+                    pkgs={
+                        "tornado": "~=6.3",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.9", "3.12"],
+                    pkgs={
+                        "tornado": "~=6.4",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.10", "3.14"],
+                    pkgs={
+                        "tornado": "~=6.5",
                     },
                     venvs=_appsec_threats_iast_variants,
                 ),

@@ -6,7 +6,6 @@ import pytest
 
 from ddtrace.contrib.internal.futures.patch import patch
 from ddtrace.contrib.internal.futures.patch import unpatch
-from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 
 
@@ -442,7 +441,7 @@ def test_concurrent_futures_with_gevent():
     os.waitpid(pid, 0)
 
 
-def test_submit_no_wait(tracer: DummyTracer):
+def test_submit_no_wait(tracer, test_spans):
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
     futures = []
@@ -451,10 +450,7 @@ def test_submit_no_wait(tracer: DummyTracer):
         # This is our expected scenario
         assert tracer.current_trace_context() is not None
         assert tracer.current_span() is None
-
-        # DEV: This is the regression case that was raising
-        # tracer.current_span().set_tag("work", "done")
-
+        # Generate a span to ensure the trace context is propagated
         with tracer.trace("work"):
             pass
 
@@ -475,23 +471,19 @@ def test_submit_no_wait(tracer: DummyTracer):
         assert future.exception() is None
         assert future.result() is None
 
-    traces = tracer.pop_traces()
-    assert len(traces) == 4
+    all_spans = test_spans.pop()
 
-    assert len(traces[0]) == 3
-    root_span, task_span, work_span = traces[0]
-    assert root_span.name == "main"
+    # Find spans by name, for async scenarios spans could be flushed in any order
+    root_span = next(s for s in all_spans if s.name == "main")
+    task_span = next(s for s in all_spans if s.name == "task")
+    work_spans = [s for s in all_spans if s.name == "work"]
 
-    assert task_span.name == "task"
+    # Verify task span is a child of the root span
+    assert root_span.parent_id is None
     assert task_span.parent_id == root_span.span_id
     assert task_span.trace_id == root_span.trace_id
-
-    assert work_span.name == "work"
-    assert work_span.parent_id == task_span.span_id
-    assert work_span.trace_id == root_span.trace_id
-
-    for work_spans in traces[2:]:
-        (work_span,) = work_spans
-        assert work_span.name == "work"
+    # Verify work spans are children of the task span
+    assert len(work_spans) == 4
+    for work_span in work_spans:
         assert work_span.parent_id == task_span.span_id
         assert work_span.trace_id == root_span.trace_id

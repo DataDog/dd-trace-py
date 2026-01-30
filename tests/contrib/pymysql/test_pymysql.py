@@ -1,7 +1,6 @@
 import mock
 import pymysql
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.pymysql.patch import patch
 from ddtrace.contrib.internal.pymysql.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -57,7 +56,7 @@ class PyMySQLCore(object):
 
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         span = spans[0]
@@ -82,7 +81,7 @@ class PyMySQLCore(object):
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
             assert len(rows) == 1
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 2
 
             span = spans[0]
@@ -110,7 +109,7 @@ class PyMySQLCore(object):
         cursor.execute(query)
         rows = cursor.fetchall()
         assert len(rows) == 3
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         self.assertEqual(spans[0].name, "pymysql.query")
 
@@ -123,7 +122,7 @@ class PyMySQLCore(object):
             cursor.execute(query)
             rows = cursor.fetchall()
             assert len(rows) == 3
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 2
 
             fetch_span = spans[1]
@@ -160,7 +159,7 @@ class PyMySQLCore(object):
         assert rows[1][0] == "foo"
         assert rows[1][1] == "this is foo"
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         cursor.execute("drop table if exists dummy")
 
@@ -192,7 +191,7 @@ class PyMySQLCore(object):
             assert rows[1][0] == "foo"
             assert rows[1][1] == "this is foo"
 
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 3
             cursor.execute("drop table if exists dummy")
 
@@ -231,7 +230,7 @@ class PyMySQLCore(object):
         assert len(output) == 3
         assert output[2] == 42
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert spans, spans
 
         # number of spans depends on PyMySQL implementation details,
@@ -252,7 +251,7 @@ class PyMySQLCore(object):
         conn, tracer = self._get_conn_tracer()
 
         conn.commit()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "pymysql"
@@ -262,7 +261,7 @@ class PyMySQLCore(object):
         conn, tracer = self._get_conn_tracer()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "pymysql"
@@ -274,12 +273,6 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
         if not self.conn:
             self.conn = pymysql.connect(**MYSQL_CONFIG)
             assert not self.conn._closed
-            # Ensure that the default pin is there, with its default value
-            pin = Pin.get_from(self.conn)
-            assert pin
-            # Customize the service
-            # we have to apply it on the existing one since new one won't inherit `app`
-            pin._clone(tracer=self.tracer).onto(self.conn)
 
             return self.conn, self.tracer
 
@@ -287,15 +280,11 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
         unpatch()
         # assert we start unpatched
         conn = pymysql.connect(**MYSQL_CONFIG)
-        assert not Pin.get_from(conn)
         conn.close()
 
         patch()
         try:
             conn = pymysql.connect(**MYSQL_CONFIG)
-            pin = Pin.get_from(conn)
-            assert pin
-            pin._clone(tracer=self.tracer).onto(conn)
             assert not conn._closed
 
             cursor = conn.cursor()
@@ -320,24 +309,9 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
 
             # assert we finish unpatched
             conn = pymysql.connect(**MYSQL_CONFIG)
-            assert not Pin.get_from(conn)
             conn.close()
 
         patch()
-
-    def test_user_pin_override(self):
-        conn, tracer = self._get_conn_tracer()
-        pin = Pin.get_from(conn)
-        pin._clone(service="pin-svc", tracer=self.tracer).onto(conn)
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1")
-        rows = cursor.fetchall()
-        assert len(rows) == 1
-        spans = tracer.pop()
-        assert len(spans) == 1
-
-        span = spans[0]
-        assert span.service == "pin-svc"
 
     def test_context_manager(self):
         conn, tracer = self._get_conn_tracer()
@@ -346,7 +320,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
             assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
     @TracerTestCase.run_in_subprocess(
@@ -467,25 +441,6 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
 
         shared_tests._test_dbm_propagation_comment_integration_service_name_override(
             config=MYSQL_CONFIG, cursor=cursor, wrapped_instance=cursor.__wrapped__
-        )
-
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
-            DD_PYMYSQL_SERVICE="service-name-override",
-        )
-    )
-    def test_pymysql_dbm_propagation_comment_pin_service_name_override(self):
-        """tests if dbm comment is set in mysql"""
-        conn, tracer = self._get_conn_tracer()
-        cursor = conn.cursor()
-        cursor.__wrapped__ = mock.Mock()
-
-        shared_tests._test_dbm_propagation_comment_pin_service_name_override(
-            config=MYSQL_CONFIG, cursor=cursor, conn=conn, tracer=tracer, wrapped_instance=cursor.__wrapped__
         )
 
     @TracerTestCase.run_in_subprocess(

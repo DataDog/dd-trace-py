@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue in ``activate_distributed_headers()`` where distributed requests missing a LLM Observability trace ID would be incorrectly propagated twice.

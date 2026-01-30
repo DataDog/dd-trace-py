@@ -7,7 +7,6 @@ import typing as t
 
 from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.ci import CITag
-from ddtrace.testing.internal.constants import DEFAULT_ENV_NAME
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.testing.internal.env_tags import get_env_tags
 from ddtrace.testing.internal.git import Git
@@ -66,7 +65,9 @@ class SessionManager:
 
         self.is_auto_injected = bool(os.getenv("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
 
-        self.env = os.environ.get("_CI_DD_ENV") or os.environ.get("DD_ENV") or DEFAULT_ENV_NAME
+        self.env = os.getenv("_CI_DD_ENV", os.getenv("DD_ENV", None))
+        if self.env is None:
+            self.env = self.connector_setup.default_env()
 
         self.api_client = APIClient(
             service=self.service,
@@ -79,6 +80,7 @@ class SessionManager:
         )
         self.settings = self.api_client.get_settings()
         self.override_settings_with_env_vars()
+        self.show_settings()
 
         self.known_tests = self.api_client.get_known_tests() if self.settings.known_tests_enabled else set()
         self.test_properties = (
@@ -162,6 +164,30 @@ class SessionManager:
         self.coverage_writer.start()
         atexit.register(self.finish)
 
+    def upload_coverage_report(
+        self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[t.Dict[str, str]] = None
+    ) -> bool:
+        """
+        Upload a coverage report to Datadog CI Intake.
+
+        This creates a temporary API client connection to upload the coverage report.
+
+        Args:
+            coverage_report_bytes: The coverage report content (will be gzipped by the API client)
+            coverage_format: The format of the report (lcov, cobertura, jacoco, clover, opencover, simplecov)
+            tags: Optional additional tags to include in the event
+
+        Returns:
+            True if upload succeeded, False otherwise
+        """
+        try:
+            result = self.api_client.upload_coverage_report(coverage_report_bytes, coverage_format, tags)
+            return result
+
+        except Exception as e:
+            log.exception("Error uploading coverage report: %s", e)
+            return False
+
     def finish(self) -> None:
         # Avoid being called again by atexit if we've already been called by the pytest plugin.
         atexit.unregister(self.finish)
@@ -209,7 +235,9 @@ class SessionManager:
         if created:
             try:
                 self.collected_tests.add(test_ref)
-                is_new = len(self.known_tests) > 0 and test_ref not in self.known_tests
+
+                is_new = not test.has_parameters() and len(self.known_tests) > 0 and test_ref not in self.known_tests
+
                 test_properties = self.test_properties.get(test_ref) or TestProperties()
                 test.set_attributes(
                     is_new=is_new,
@@ -339,6 +367,28 @@ class SessionManager:
         if asbool(os.environ.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false")):
             log.debug("TIA code coverage collection is enabled by environment variable")
             self.settings.coverage_enabled = True
+
+        if asbool(os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false")):
+            log.debug("Code coverage report upload is enabled by environment variable")
+            self.settings.coverage_report_upload_enabled = True
+
+    def show_settings(self) -> None:
+        log.info("Service: %s (env: %s)", self.service, self.env)
+        log.info(
+            "Test Optimization settings: Test Impact Analysis: %s, test skipping: %s, coverage collection: %s",
+            self.settings.itr_enabled,
+            self.settings.skipping_enabled,
+            self.settings.coverage_enabled,
+        )
+        log.info(
+            "Test Optimization settings: Early Flake Detection enabled: %s", self.settings.early_flake_detection.enabled
+        )
+        log.info("Test Optimization settings: Known Tests enabled: %s", self.settings.known_tests_enabled)
+        log.info("Test Optimization settings: Auto Test Retries enabled: %s", self.settings.auto_test_retries.enabled)
+        log.info(
+            "Test Optimization settings: Coverage Report Upload enabled: %s",
+            self.settings.coverage_report_upload_enabled,
+        )
 
 
 def _get_service_name_from_git_repo(env_tags: t.Dict[str, str]) -> t.Optional[str]:

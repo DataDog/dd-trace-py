@@ -34,8 +34,13 @@ class RendererInterface
 
     // If a renderer has its own caching mechanism for frames, this can be used
     // to store frame information.
-    virtual void
-    frame(uintptr_t key, uintptr_t filename, uintptr_t name, int line, int line_end, int column, int column_end) = 0;
+    virtual void frame(uintptr_t key,
+                       uintptr_t filename,
+                       uintptr_t name,
+                       unsigned line,
+                       unsigned line_end,
+                       unsigned column,
+                       unsigned column_end) = 0;
 
     // Refers to the frame stored using the renderer's frame function
     virtual void frame_ref(uintptr_t key) = 0;
@@ -94,7 +99,7 @@ class NullRenderer : public RendererInterface
     bool is_valid() override { return true; }
     void header() override {}
     void metadata(const std::string&, const std::string&) override {}
-    void frame(uintptr_t, uintptr_t, uintptr_t, int, int, int, int) override {}
+    void frame(uintptr_t, uintptr_t, uintptr_t, unsigned, unsigned, unsigned, unsigned) override {}
     void frame_ref(uintptr_t) override {}
     void frame_kernel(const std::string&) override {}
 
@@ -150,7 +155,13 @@ class Renderer
 
     void string(uintptr_t key, const std::string& value) { getActiveRenderer()->string(key, value); }
 
-    void frame(uintptr_t key, uintptr_t filename, uintptr_t name, int line, int line_end, int column, int column_end)
+    void frame(uintptr_t key,
+               uintptr_t filename,
+               uintptr_t name,
+               unsigned line,
+               unsigned line_end,
+               unsigned column,
+               unsigned column_end)
     {
         getActiveRenderer()->frame(key, filename, name, line, line_end, column, column_end);
     }

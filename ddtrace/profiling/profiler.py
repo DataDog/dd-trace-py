@@ -223,6 +223,7 @@ class _ProfilerInstance(service.Service):
                 ("threading", lambda _: start_collector(threading.ThreadingRLockCollector)),
                 ("threading", lambda _: start_collector(threading.ThreadingSemaphoreCollector)),
                 ("threading", lambda _: start_collector(threading.ThreadingBoundedSemaphoreCollector)),
+                ("threading", lambda _: start_collector(threading.ThreadingConditionCollector)),
                 ("asyncio", lambda _: start_collector(asyncio.AsyncioLockCollector)),
                 ("asyncio", lambda _: start_collector(asyncio.AsyncioSemaphoreCollector)),
                 ("asyncio", lambda _: start_collector(asyncio.AsyncioBoundedSemaphoreCollector)),

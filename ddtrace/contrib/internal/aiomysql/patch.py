@@ -20,6 +20,7 @@ from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
+from ddtrace.trace import tracer
 
 
 config._add(
@@ -76,7 +77,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             result = await method(*args, **kwargs)
             return result
 
-        with pin.tracer.trace(
+        with tracer.trace(
             self._self_datadog_name,
             service=trace_utils.ext_service(pin, config.aiomysql),
             resource=resource,

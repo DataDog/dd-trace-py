@@ -23,12 +23,12 @@ def test_get_call_context_twice(tracer):
     assert tracer.current_trace_context() == tracer.current_trace_context()
 
 
-def test_trace_coroutine(tracer):
+def test_trace_coroutine(tracer, test_spans):
     # it should use the task context when invoked in a coroutine
     with tracer.trace("coroutine") as span:
         span.resource = "base"
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
     assert "coroutine" == traces[0][0].name
@@ -36,7 +36,7 @@ def test_trace_coroutine(tracer):
 
 
 @pytest.mark.asyncio
-async def test_trace_multiple_coroutines(tracer):
+async def test_trace_multiple_coroutines(tracer, test_spans):
     # if multiple coroutines have nested tracing, they must belong
     # to the same trace
     async def coro():
@@ -50,7 +50,7 @@ async def test_trace_multiple_coroutines(tracer):
     # the coroutine has been called correctly
     assert 42 == value
     # a single trace has been properly reported
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 2 == len(traces[0])
     assert "coroutine_1" == traces[0][0].name
@@ -68,14 +68,14 @@ def test_event_loop_exception(tracer):
 
 
 @pytest.mark.asyncio
-async def test_exception(tracer):
+async def test_exception(tracer, test_spans):
     async def f1():
         with tracer.trace("f1"):
             raise Exception("f1 error")
 
     with pytest.raises(Exception, match="f1 error"):
         await f1()
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert 1 == len(traces)
     spans = traces[0]
     assert 1 == len(spans)
@@ -86,7 +86,7 @@ async def test_exception(tracer):
 
 
 @pytest.mark.asyncio
-async def test_nested_exceptions(tracer):
+async def test_nested_exceptions(tracer, test_spans):
     async def f1():
         with tracer.trace("f1"):
             raise Exception("f1 error")
@@ -98,7 +98,7 @@ async def test_nested_exceptions(tracer):
     with pytest.raises(Exception, match="f1 error"):
         await f2()
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert 1 == len(traces)
     spans = traces[0]
     assert 2 == len(spans)
@@ -115,7 +115,7 @@ async def test_nested_exceptions(tracer):
 
 
 @pytest.mark.asyncio
-async def test_handled_nested_exceptions(tracer):
+async def test_handled_nested_exceptions(tracer, test_spans):
     async def f1():
         with tracer.trace("f1"):
             raise Exception("f1 error")
@@ -129,7 +129,7 @@ async def test_handled_nested_exceptions(tracer):
 
     await f2()
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert 1 == len(traces)
     spans = traces[0]
     assert 2 == len(spans)
@@ -144,7 +144,7 @@ async def test_handled_nested_exceptions(tracer):
 
 
 @pytest.mark.asyncio
-async def test_trace_multiple_calls(tracer):
+async def test_trace_multiple_calls(tracer, test_spans):
     # create multiple futures so that we expect multiple
     # traces instead of a single one (helper not used)
     async def coro():
@@ -155,21 +155,21 @@ async def test_trace_multiple_calls(tracer):
     for _ in range(10):
         await coro()
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert 10 == len(traces)
     assert 1 == len(traces[0])
     assert "coroutine" == traces[0][0].name
 
 
 @pytest.mark.asyncio
-async def test_wrapped_coroutine(tracer):
+async def test_wrapped_coroutine(tracer, test_spans):
     @tracer.wrap("f1")
     async def f1():
         await asyncio.sleep(0.25)
 
     await f1()
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert 1 == len(traces)
     spans = traces[0]
     assert 1 == len(spans)
@@ -177,7 +177,7 @@ async def test_wrapped_coroutine(tracer):
     assert span.duration > 0.25, "span.duration={}".format(span.duration)
 
 
-def test_asyncio_scheduled_tasks_parenting(tracer):
+def test_asyncio_scheduled_tasks_parenting(tracer, test_spans):
     async def task(i):
         with tracer.trace(f"task {i}"):
             await asyncio.sleep(0.1)
@@ -193,7 +193,7 @@ def test_asyncio_scheduled_tasks_parenting(tracer):
 
     asyncio.run(test())
 
-    spans = tracer.get_spans()
+    spans = test_spans.spans
     assert len(spans) == 3
     assert spans[0].trace_id == spans[1].trace_id == spans[2].trace_id
 
@@ -227,7 +227,7 @@ if __name__ == "__main__":
 
 
 @pytest.mark.asyncio
-async def test_wrapped_generator(tracer):
+async def test_wrapped_generator(tracer, test_spans):
     @tracer.wrap("decorated_generator", service="s", resource="r", span_type="t")
     async def f(tag_name, tag_value):
         # make sure we can still set tags
@@ -240,7 +240,7 @@ async def test_wrapped_generator(tracer):
     result = [item async for item in f("a", "b")]
     assert result == [0, 1, 2]
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
 
     assert 1 == len(traces)
     spans = traces[0]

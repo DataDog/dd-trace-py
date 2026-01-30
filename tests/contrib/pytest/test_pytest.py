@@ -769,7 +769,6 @@ class PytestTestCase(PytestTestCaseBase):
             """
             import pytest
             import ddtrace
-            from ddtrace._trace.pin import Pin
 
             def test_service(ddtracer):
                 with ddtracer.trace("SPAN2") as span2:
@@ -783,12 +782,12 @@ class PytestTestCase(PytestTestCaseBase):
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
         # Check if spans tagged with dd_origin after encoding and decoding as the tagging occurs at encode time
-        encoder = self.tracer.encoder
+        encoder = self.tracer._span_aggregator.writer.msgpack_encoder
         encoder.put(spans)
         encoded_results = encoder.encode()
         assert encoded_results, "Expected encoded traces but got empty list"
         [(trace, _)] = encoded_results
-        (decoded_trace,) = self.tracer.encoder._decode(trace)
+        (decoded_trace,) = self.tracer._span_aggregator.writer.msgpack_encoder._decode(trace)
         assert len(decoded_trace) == 7
         for span in decoded_trace:
             assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"
@@ -798,7 +797,7 @@ class PytestTestCase(PytestTestCaseBase):
         encoded_results = ci_agentless_encoder.encode()
         assert encoded_results, "Expected encoded traces but got empty list"
         [(event_payload, _)] = encoded_results
-        decoded_event_payload = self.tracer.encoder._decode(event_payload)
+        decoded_event_payload = self.tracer._span_aggregator.writer.msgpack_encoder._decode(event_payload)
         assert len(decoded_event_payload[b"events"]) == 7
         for event in decoded_event_payload[b"events"]:
             assert event[b"content"][b"meta"][b"_dd.origin"] == b"ciapp-test"
@@ -5016,7 +5015,6 @@ def test_simple():
 
 def test_pytest_coverage_data_format_handling_none_value():
     """Test that coverage data format issues are handled correctly with proper logging for None value."""
-    from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
     from ddtrace.contrib.internal.pytest._plugin_v2 import _pytest_sessionfinish
 
     # Create a mock session object
@@ -5028,8 +5026,8 @@ def test_pytest_coverage_data_format_handling_none_value():
     # Test case 1: coverage data is None
     with (
         mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._coverage_data",
-            {PCT_COVERED_KEY: None},
+            "ddtrace.contrib.internal.pytest._plugin_v2.get_coverage_percentage",
+            return_value=None,
         ),
         mock.patch(
             "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
@@ -5061,7 +5059,6 @@ def test_pytest_coverage_data_format_handling_none_value():
 
 def test_pytest_coverage_data_format_handling_invalid_type():
     """Test that coverage data format issues are handled correctly with proper logging for invalid value."""
-    from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
     from ddtrace.contrib.internal.pytest._plugin_v2 import _pytest_sessionfinish
 
     # Create a mock session object
@@ -5074,8 +5071,8 @@ def test_pytest_coverage_data_format_handling_invalid_type():
     invalid_value = "not_a_float"
     with (
         mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._coverage_data",
-            {PCT_COVERED_KEY: invalid_value},
+            "ddtrace.contrib.internal.pytest._plugin_v2.get_coverage_percentage",
+            return_value=invalid_value,
         ),
         mock.patch(
             "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
@@ -5113,7 +5110,6 @@ def test_pytest_coverage_data_format_handling_invalid_type():
 @pytest.mark.parametrize("valid_value", [75, 86.01])
 def test_pytest_coverage_data_format_handling_valid_values(valid_value):
     """Test that coverage data format issues are handled correctly with proper logging."""
-    from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
     from ddtrace.contrib.internal.pytest._plugin_v2 import _pytest_sessionfinish
 
     # Create a mock session object
@@ -5123,7 +5119,7 @@ def test_pytest_coverage_data_format_handling_valid_values(valid_value):
     ci_visibility_instance = mock.MagicMock(spec=CIVisibility)
 
     with (
-        mock.patch("ddtrace.contrib.internal.pytest._plugin_v2._coverage_data", {PCT_COVERED_KEY: valid_value}),
+        mock.patch("ddtrace.contrib.internal.pytest._plugin_v2.get_coverage_percentage", return_value=valid_value),
         mock.patch(
             "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
             return_value=ci_visibility_instance,

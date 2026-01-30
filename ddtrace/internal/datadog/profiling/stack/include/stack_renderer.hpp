@@ -39,7 +39,7 @@ class StackRenderer : public RendererInterface
     void close() override {}
     void header() override {}
     void metadata(const std::string&, const std::string&) override {}
-    void frame(uintptr_t, uintptr_t, uintptr_t, int, int, int, int) override {};
+    void frame(uintptr_t, uintptr_t, uintptr_t, unsigned, unsigned, unsigned, unsigned) override {};
     void frame_ref(uintptr_t) override{};
     void frame_kernel(const std::string&) override {};
     void string(uintptr_t, const std::string&) override {};

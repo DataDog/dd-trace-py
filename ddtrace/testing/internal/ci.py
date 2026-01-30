@@ -15,6 +15,9 @@ class CITag:
     # Stage Name
     STAGE_NAME = "ci.stage.name"
 
+    # Job ID
+    JOB_ID = "ci.job.id"
+
     # Job Name
     JOB_NAME = "ci.job.name"
 
@@ -118,11 +121,13 @@ def extract_appveyor(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[
 def extract_azure_pipelines(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[str]]:
     """Extract CI tags from Azure pipelines environ."""
     if env.get("SYSTEM_TEAMFOUNDATIONSERVERURI") and env.get("SYSTEM_TEAMPROJECTID") and env.get("BUILD_BUILDID"):
-        base_url: t.Optional[str] = "{0}{1}/_build/results?buildId={2}".format(
+        base_url = "{0}{1}/_build/results?buildId={2}".format(
             env.get("SYSTEM_TEAMFOUNDATIONSERVERURI"), env.get("SYSTEM_TEAMPROJECTID"), env.get("BUILD_BUILDID")
         )
-        pipeline_url = base_url
-        job_url = base_url + "&view=logs&j={0}&t={1}".format(env.get("SYSTEM_JOBID"), env.get("SYSTEM_TASKINSTANCEID"))  # type: ignore
+        pipeline_url: t.Optional[str] = base_url
+        job_url: t.Optional[str] = base_url + "&view=logs&j={0}&t={1}".format(
+            env.get("SYSTEM_JOBID"), env.get("SYSTEM_TASKINSTANCEID")
+        )
     else:
         pipeline_url = job_url = None
 
@@ -143,6 +148,7 @@ def extract_azure_pipelines(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Op
         GitTag.COMMIT_AUTHOR_NAME: env.get("BUILD_REQUESTEDFORID"),
         GitTag.COMMIT_AUTHOR_EMAIL: env.get("BUILD_REQUESTEDFOREMAIL"),
         CITag.STAGE_NAME: env.get("SYSTEM_STAGEDISPLAYNAME"),
+        CITag.JOB_ID: env.get("SYSTEM_JOBID"),
         CITag.JOB_NAME: env.get("SYSTEM_JOBDISPLAYNAME"),
         CITag._CI_ENV_VARS: json.dumps(
             {
@@ -196,6 +202,7 @@ def extract_buildkite(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional
         CITag.PIPELINE_NAME: env.get("BUILDKITE_PIPELINE_SLUG"),
         CITag.PIPELINE_NUMBER: env.get("BUILDKITE_BUILD_NUMBER"),
         CITag.PIPELINE_URL: env.get("BUILDKITE_BUILD_URL"),
+        CITag.JOB_ID: env.get("BUILDKITE_JOB_ID"),
         CITag.JOB_URL: "{0}#{1}".format(env.get("BUILDKITE_BUILD_URL"), env.get("BUILDKITE_JOB_ID")),
         CITag.PROVIDER_NAME: "buildkite",
         CITag.WORKSPACE_PATH: env.get("BUILDKITE_BUILD_CHECKOUT_PATH"),
@@ -267,6 +274,7 @@ def extract_github_actions(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Opt
     github_repository = env.get("GITHUB_REPOSITORY")
     git_commit_sha = env.get("GITHUB_SHA")
     github_run_id = env.get("GITHUB_RUN_ID")
+    github_job_id = env.get("JOB_CHECK_RUN_ID")
     run_attempt = env.get("GITHUB_RUN_ATTEMPT")
 
     pipeline_url = "{0}/{1}/actions/runs/{2}".format(
@@ -303,6 +311,7 @@ def extract_github_actions(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Opt
         CITag.PIPELINE_NAME: env.get("GITHUB_WORKFLOW"),
         CITag.PIPELINE_NUMBER: env.get("GITHUB_RUN_NUMBER"),
         CITag.PIPELINE_URL: pipeline_url,
+        CITag.JOB_ID: github_job_id,
         CITag.JOB_NAME: env.get("GITHUB_JOB"),
         CITag.PROVIDER_NAME: "github",
         CITag.WORKSPACE_PATH: env.get("GITHUB_WORKSPACE"),
@@ -326,6 +335,7 @@ def extract_gitlab(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[st
         GitTag.REPOSITORY_URL: env.get("CI_REPOSITORY_URL"),
         GitTag.TAG: env.get("CI_COMMIT_TAG"),
         CITag.STAGE_NAME: env.get("CI_JOB_STAGE"),
+        CITag.JOB_ID: env.get("CI_JOB_ID"),
         CITag.JOB_NAME: env.get("CI_JOB_NAME"),
         CITag.JOB_URL: env.get("CI_JOB_URL"),
         CITag.PIPELINE_ID: env.get("CI_PIPELINE_ID"),

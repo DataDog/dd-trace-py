@@ -41,10 +41,10 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import TelemetryWriter
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from tests import utils
-from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
 from tests.utils import request_token
+from tests.utils import scoped_tracer
 from tests.utils import snapshot_context as _snapshot_context
 
 
@@ -159,9 +159,33 @@ def pytest_configure(config):
     )
 
 
+@pytest.fixture(autouse=True, scope="function")
+def remove_git_repo_url_from_test_env():
+    """
+    Remove DD_GIT_REPOSITORY_URL from tests while keeping it for the pytest plugin.
+
+    The pytest plugin reads this env var during initialization to collect git metadata,
+    but individual tests shouldn't see it (to avoid unexpected span tags in assertions).
+    """
+    import ddtrace.internal.gitmetadata
+
+    # Clear the repository URL from the config cache
+    ddtrace.internal.gitmetadata.config.repository_url = ""
+
+    # Clear the repository URL from the global cache tuple if it exists
+    # The tuple is (repository_url, commit_sha, main_package)
+    if ddtrace.internal.gitmetadata._GITMETADATA_TAGS is not None:
+        _, commit_sha, main_package = ddtrace.internal.gitmetadata._GITMETADATA_TAGS
+        ddtrace.internal.gitmetadata._GITMETADATA_TAGS = ("", commit_sha, main_package)
+
+    # Remove the env var so it doesn't get re-read
+    os.environ.pop("DD_GIT_REPOSITORY_URL", None)
+    yield
+
+
 @pytest.fixture
-def use_global_tracer():
-    yield False
+def use_dummy_writer():
+    yield True
 
 
 @pytest.fixture
@@ -180,11 +204,9 @@ def enable_crashtracking(auto_enable_crashtracking):
 
 
 @pytest.fixture
-def tracer(use_global_tracer):
-    if use_global_tracer:
-        return ddtrace.tracer
-    else:
-        return DummyTracer()
+def tracer(use_dummy_writer):
+    with scoped_tracer(use_dummy_writer) as tracer:
+        yield tracer
 
 
 @pytest.fixture

@@ -5,22 +5,17 @@ that we expect to be implicitly traced via `ddtrace-run`
 
 import redis
 
-from ddtrace._trace.pin import Pin
 from tests.contrib.config import REDIS_CONFIG
-from tests.utils import DummyTracer
-from tests.utils import DummyWriter
+from tests.utils import TracerSpanContainer
+from tests.utils import scoped_tracer
 
 
 if __name__ == "__main__":
     r = redis.Redis(host=REDIS_CONFIG["host"], port=REDIS_CONFIG["port"])
-    pin = Pin.get_from(r)
-    assert pin
-
-    pin._tracer = DummyTracer()
-    assert isinstance(pin.tracer._span_aggregator.writer, DummyWriter)
-    writer = pin.tracer._span_aggregator.writer
+    tracer_scope = scoped_tracer()
+    tracer = tracer_scope.__enter__()
     r.flushall()
-    spans = writer.pop()
+    spans = TracerSpanContainer(tracer).pop()
 
     assert len(spans) == 1
     assert spans[0].service == "redis"
@@ -29,7 +24,7 @@ if __name__ == "__main__":
     long_cmd = "mget %s" % " ".join(map(str, range(1000)))
     us = r.execute_command(long_cmd)
 
-    spans = writer.pop()
+    spans = TracerSpanContainer(tracer).pop()
     assert len(spans) == 1
     span = spans[0]
     assert span.service == "redis"
@@ -42,4 +37,5 @@ if __name__ == "__main__":
     assert span.get_tag("redis.raw_command").startswith("mget 0 1 2 3")
     assert span.get_tag("redis.raw_command").endswith("...")
 
+    tracer_scope.__exit__(None, None, None)
     print("Test success")
