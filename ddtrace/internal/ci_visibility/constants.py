@@ -44,6 +44,7 @@ SETTING_ENDPOINT = "/api/v2/libraries/tests/services/setting"
 SKIPPABLE_ENDPOINT = "/api/v2/ci/tests/skippable"
 KNOWN_TESTS_ENDPOINT = "/api/v2/ci/libraries/tests"
 TEST_MANAGEMENT_TESTS_ENDPOINT = "/api/v2/test/libraries/test-management/tests"
+COVERAGE_REPORT_UPLOAD_ENDPOINT = "/api/v2/cicovreprt"
 
 # Intelligent Test Runner constants
 ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"

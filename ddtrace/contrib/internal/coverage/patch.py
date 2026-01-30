@@ -52,6 +52,10 @@ def unpatch():
     coverage._datadog_patch = False
 
 
+def _is_coverage_available():
+    return coverage is not None
+
+
 def coverage_report_wrapper(func: Any, instance: Any, args: tuple, kwargs: dict) -> Any:
     """Wrapper to cache percentage when report() is called."""
     global _cached_coverage_percentage

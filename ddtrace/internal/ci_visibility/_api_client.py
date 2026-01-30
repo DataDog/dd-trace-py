@@ -1,11 +1,13 @@
 import abc
 from base64 import b64decode
 import dataclasses
+import gzip
 from http.client import RemoteDisconnected
 import json
 from json import JSONDecodeError
 import os
 import socket
+import time
 import typing as t
 from typing import TypedDict  # noqa:F401
 from uuid import uuid4
@@ -19,6 +21,7 @@ from ddtrace.internal.ci_visibility._api_responses_cache import _read_from_cache
 from ddtrace.internal.ci_visibility._api_responses_cache import _write_to_cache
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_API_KEY_HEADER_NAME
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_DEFAULT_SITE
+from ddtrace.internal.ci_visibility.constants import COVERAGE_REPORT_UPLOAD_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import KNOWN_TESTS_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.constants import SETTING_ENDPOINT
@@ -113,6 +116,7 @@ class TestVisibilityAPISettings:
     itr_enabled: bool = False
     flaky_test_retries_enabled: bool = False
     known_tests_enabled: bool = False
+    coverage_report_upload_enabled: bool = False
     early_flake_detection: EarlyFlakeDetectionSettings = dataclasses.field(default_factory=EarlyFlakeDetectionSettings)
     test_management: TestManagementSettings = dataclasses.field(default_factory=TestManagementSettings)
 
@@ -409,6 +413,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 os.getenv("_DD_TEST_FORCE_ENABLE_ATR")
             )
             known_tests_enabled = attributes["known_tests_enabled"]
+            coverage_report_upload_enabled = attributes.get("coverage_report_upload_enabled", False)
 
             if attributes["early_flake_detection"]["enabled"]:
                 early_flake_detection = EarlyFlakeDetectionSettings(
@@ -452,6 +457,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             known_tests_enabled=known_tests_enabled,
             early_flake_detection=early_flake_detection,
             test_management=test_management,
+            coverage_report_upload_enabled=coverage_report_upload_enabled,
         )
 
         record_settings_response(
@@ -661,6 +667,187 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         record_test_management_tests_count(len(test_properties))
 
         return test_properties
+
+    def upload_coverage_report(
+        self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[t.Dict[str, str]] = None
+    ) -> bool:
+        """Upload coverage report to Datadog CI Intake.
+
+        Args:
+            coverage_report_bytes: The coverage report content (will be gzipped)
+            coverage_format: The format of the report (lcov, cobertura, etc.)
+            tags: Optional additional tags to include in the event
+
+        Returns:
+            True if upload succeeded, False otherwise
+        """
+        if not coverage_report_bytes:
+            log.warning("Coverage report is empty, skipping upload")
+            return False
+
+        metric_names = APIRequestMetricNames(
+            count="coverage_upload.request",
+            duration="coverage_upload.request_ms",
+            response_bytes="coverage_upload.response_bytes",
+            error="coverage_upload.request_errors",
+        )
+
+        try:
+            # Compress the coverage report
+            compressed_report = gzip.compress(coverage_report_bytes)
+            log.debug(
+                "Compressed coverage report: %d bytes -> %d bytes", len(coverage_report_bytes), len(compressed_report)
+            )
+
+            # Create event payload with git and CI tags
+            event_data = self._create_coverage_report_event(coverage_format, tags)
+
+            # Create multipart form data
+            multipart_data, boundary = self._create_multipart_data(compressed_report, event_data, coverage_format)
+
+            # Set appropriate headers
+            headers = self._get_final_headers()
+            headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
+
+            # Make the request using existing HTTP infrastructure
+            response = self._do_multipart_request(
+                "POST",
+                COVERAGE_REPORT_UPLOAD_ENDPOINT,
+                multipart_data,
+                headers,
+                timeout=self._timeout,
+                metric_names=metric_names,
+            )
+
+            if response.status == 200:
+                log.info("Successfully uploaded coverage report")
+                return True
+            else:
+                log.error("Coverage report upload failed: HTTP %d", response.status)
+                record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+                return False
+
+        except Exception as e:
+            log.exception("Error uploading coverage report: %s", e)
+            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+            return False
+
+    def _create_coverage_report_event(
+        self, coverage_format: str, tags: t.Optional[t.Dict[str, str]] = None
+    ) -> t.Dict[str, t.Any]:
+        """Create the event JSON for coverage report upload."""
+        event = {
+            "type": "coverage_report",
+            "format": coverage_format,
+            "timestamp": int(time.time() * 1000),
+        }
+
+        # Add custom tags
+        if tags:
+            event.update(tags)
+
+        # Add git data
+        if self._git_data:
+            if self._git_data.repository_url:
+                event["git.repository_url"] = self._git_data.repository_url
+            if self._git_data.commit_sha:
+                event["git.commit.sha"] = self._git_data.commit_sha
+            if self._git_data.branch:
+                event["git.branch"] = self._git_data.branch
+
+        # Add service/env info
+        if self._service:
+            event["service"] = self._service
+        if self._dd_env:
+            event["env"] = self._dd_env
+
+        return event
+
+    def _create_multipart_data(
+        self, compressed_report: bytes, event_data: t.Dict[str, t.Any], coverage_format: str
+    ) -> t.Tuple[bytes, str]:
+        """Create multipart/form-data for coverage upload."""
+        boundary = f"----CoverageUpload{int(time.time() * 1000)}"
+
+        # Create multipart data manually
+        parts = []
+
+        # Coverage file part
+        parts.append(f"--{boundary}\r\n".encode("utf-8"))
+        parts.append(
+            f'Content-Disposition: form-data; name="coverage"; filename="coverage.{coverage_format}.gz"\r\n'.encode(
+                "utf-8"
+            )
+        )
+        parts.append(b"Content-Type: application/gzip\r\n\r\n")
+        parts.append(compressed_report)
+        parts.append(b"\r\n")
+
+        # Event metadata part
+        parts.append(f"--{boundary}\r\n".encode("utf-8"))
+        parts.append(b'Content-Disposition: form-data; name="event"; filename="event.json"\r\n')
+        parts.append(b"Content-Type: application/json\r\n\r\n")
+        parts.append(json.dumps(event_data).encode("utf-8"))
+        parts.append(b"\r\n")
+
+        # End boundary
+        parts.append(f"--{boundary}--\r\n".encode("utf-8"))
+
+        return b"".join(parts), boundary
+
+    def _do_multipart_request(
+        self,
+        method: str,
+        endpoint: str,
+        data: bytes,
+        headers: t.Dict[str, str],
+        timeout: float,
+        metric_names: APIRequestMetricNames,
+    ) -> Response:
+        """Make a multipart HTTP request using existing infrastructure."""
+        url = combine_url_path(self._base_url, endpoint)
+
+        conn: t.Optional[ConnectionType] = None
+        try:
+            parsed_url = verify_url(url)
+            url_path = parsed_url.path
+
+            if parsed_url.query:
+                url_path += f"?{parsed_url.query}"
+
+            with StopWatch() as sw:
+                conn = get_connection(url, timeout)
+                conn.putrequest(method, url_path)
+
+                for key, value in headers.items():
+                    conn.putheader(key, value)
+
+                conn.putheader("Content-Length", str(len(data)))
+                conn.endheaders()
+
+                # Send multipart data
+                conn.send(data)
+
+                response = conn.getresponse()
+                response_body = response.read()
+
+            # Record metrics
+            record_api_request(metric_names, sw.elapsed(), len(response_body))
+
+            return Response(
+                status=response.status,
+                body=response_body.decode("utf-8", errors="ignore"),
+                reason=response.reason,
+                msg=getattr(response, "msg", None),
+            )
+
+        except Exception as e:
+            log.error("Error making multipart request to %s: %s", url, e)
+            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+            raise
+        finally:
+            if conn:
+                conn.close()
 
 
 class AgentlessTestVisibilityAPIClient(_TestVisibilityAPIClientBase):

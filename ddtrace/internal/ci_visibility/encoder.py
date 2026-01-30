@@ -342,3 +342,64 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         log.debug("Span converted to coverage event: %s", converted_span)
 
         return converted_span
+
+
+class CIVisibilityCoverageReportEncoder:
+    """Simple encoder specifically for coverage report uploads.
+
+    This encoder handles a single coverage report upload per session,
+    creating multipart form data with the compressed report and metadata.
+    """
+
+    content_type = "multipart/form-data"
+    ENDPOINT_TYPE = ENDPOINT.COVERAGE_REPORT
+
+    def __init__(self):
+        self.boundary = uuid4().hex
+        self.content_type = f"multipart/form-data; boundary={self.boundary}"
+
+    def encode_coverage_report(self, report_bytes: bytes, coverage_format: str, event_data: dict) -> bytes:
+        """Encode coverage report as multipart form data.
+
+        Args:
+            report_bytes: The raw coverage report content
+            coverage_format: The format of the report (e.g., 'lcov')
+            event_data: Metadata about the coverage report (git info, service, timestamp, etc.)
+
+        Returns:
+            The encoded multipart form data as bytes
+        """
+        import gzip
+
+        # Compress the report
+        compressed_report = gzip.compress(report_bytes)
+
+        # Build multipart form data
+        parts = []
+
+        # Coverage file part
+        parts.extend(
+            [
+                f"--{self.boundary}",
+                f'Content-Disposition: form-data; name="coverage"; filename="coverage.{coverage_format}.gz"',
+                "Content-Type: application/gzip",
+                "",
+            ]
+        )
+
+        # Add binary data (we'll handle this separately)
+        parts_text = "\r\n".join(parts) + "\r\n"
+
+        # Event metadata part
+        event_parts = [
+            f"--{self.boundary}",
+            'Content-Disposition: form-data; name="event"; filename="event.json"',
+            "Content-Type: application/json",
+            "",
+            json.dumps(event_data),
+            f"--{self.boundary}--",
+        ]
+        event_text = "\r\n".join(event_parts)
+
+        # Combine all parts
+        return parts_text.encode() + compressed_report + b"\r\n" + event_text.encode()

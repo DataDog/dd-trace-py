@@ -28,8 +28,10 @@ from .constants import AGENTLESS_COVERAGE_BASE_URL
 from .constants import AGENTLESS_COVERAGE_ENDPOINT
 from .constants import AGENTLESS_DEFAULT_SITE
 from .constants import AGENTLESS_ENDPOINT
+from .constants import COVERAGE_REPORT_UPLOAD_ENDPOINT
 from .constants import EVP_PROXY_COVERAGE_ENDPOINT
 from .encoder import CIVisibilityCoverageEncoderV02
+from .encoder import CIVisibilityCoverageReportEncoder
 from .encoder import CIVisibilityEncoderV01
 from .telemetry.payload import REQUEST_ERROR_TYPE
 from .telemetry.payload import record_endpoint_payload_bytes
@@ -87,6 +89,30 @@ class CIVisibilityAgentlessCoverageClient(CIVisibilityCoverageClient):
     ENDPOINT = AGENTLESS_COVERAGE_ENDPOINT
 
 
+class CIVisibilityCoverageReportClient(WriterClientBase):
+    """Client specifically for coverage report uploads."""
+
+    def __init__(self, intake_url, headers=None):
+        encoder = CIVisibilityCoverageReportEncoder()
+        self._intake_url = intake_url
+        if headers:
+            self._headers = headers
+        super(CIVisibilityCoverageReportClient, self).__init__(encoder)
+
+    @property
+    def coverage_encoder(self) -> CIVisibilityCoverageReportEncoder:
+        """Get the properly typed coverage report encoder."""
+        return self.encoder  # type: ignore[return-value]
+
+
+class CIVisibilityAgentlessCoverageReportClient(CIVisibilityCoverageReportClient):
+    ENDPOINT = COVERAGE_REPORT_UPLOAD_ENDPOINT
+
+
+class CIVisibilityProxiedCoverageReportClient(CIVisibilityCoverageReportClient):
+    ENDPOINT = COVERAGE_REPORT_UPLOAD_ENDPOINT
+
+
 class CIVisibilityAgentlessEventClient(CIVisibilityEventClient):
     ENDPOINT = AGENTLESS_ENDPOINT
 
@@ -112,6 +138,7 @@ class CIVisibilityWriter(HTTPWriter):
         headers=None,  # type: Optional[Dict[str, str]]
         use_evp=False,  # type: bool
         coverage_enabled=False,  # type: bool
+        coverage_report_upload_enabled=False,  # type: bool
         itr_suite_skipping_mode=False,  # type: bool
         use_gzip=False,  # type: bool
     ):
@@ -130,9 +157,13 @@ class CIVisibilityWriter(HTTPWriter):
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
 
         self._use_evp = use_evp
-        clients = [CIVisibilityProxiedEventClient()] if self._use_evp else [CIVisibilityAgentlessEventClient()]  # type: List[WriterClientBase]
+        clients: List[WriterClientBase] = (
+            [CIVisibilityProxiedEventClient()] if self._use_evp else [CIVisibilityAgentlessEventClient()]
+        )
         self._coverage_enabled = coverage_enabled
+        self._coverage_report_upload_enabled = coverage_report_upload_enabled
         self._itr_suite_skipping_mode = itr_suite_skipping_mode
+
         if self._coverage_enabled:
             if not intake_cov_url:
                 intake_cov_url = "%s.%s" % (AGENTLESS_COVERAGE_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
@@ -145,6 +176,20 @@ class CIVisibilityWriter(HTTPWriter):
                 if use_evp
                 else CIVisibilityAgentlessCoverageClient(
                     intake_url=intake_cov_url, itr_suite_skipping_mode=itr_suite_skipping_mode
+                )
+            )
+
+        if self._coverage_report_upload_enabled:
+            # Add coverage report upload client
+            clients.append(
+                CIVisibilityProxiedCoverageReportClient(
+                    intake_url=intake_url,
+                    headers=headers,
+                )
+                if use_evp
+                else CIVisibilityAgentlessCoverageReportClient(
+                    intake_url=intake_url,
+                    headers=headers,
                 )
             )
 
@@ -178,6 +223,7 @@ class CIVisibilityWriter(HTTPWriter):
             headers=self._headers,
             use_evp=self._use_evp,
             coverage_enabled=self._coverage_enabled,
+            coverage_report_upload_enabled=self._coverage_report_upload_enabled,
             itr_suite_skipping_mode=self._itr_suite_skipping_mode,
         )
 

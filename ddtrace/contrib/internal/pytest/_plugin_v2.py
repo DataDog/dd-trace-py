@@ -7,9 +7,11 @@ import pytest
 
 from ddtrace import DDTraceDeprecationWarning
 from ddtrace import config as dd_config
+from ddtrace.contrib.internal.coverage.patch import _is_coverage_available
 from ddtrace.contrib.internal.coverage.patch import get_coverage_percentage
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
+from ddtrace.contrib.internal.coverage.patch import start_coverage
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.internal.pytest._benchmark_utils import _set_benchmark_data_from_item
@@ -169,6 +171,30 @@ def _handle_itr_xdist_skipped_suite(item, suite_id) -> bool:
         item.config.workeroutput["itr_skipped_count"] += 1
     skipped_suites.add(suite_id)
     return True
+
+
+def _is_coverage_report_upload_enabled() -> bool:
+    """
+    Check if coverage report upload is enabled, following V3 pattern:
+    1. First, get setting from API (via CI visibility service)
+    2. Then, allow environment variable to override
+
+    This should only be called after pytest_sessionstart when settings are available.
+    """
+    # Get API setting (should be available after InternalTestSession.discover())
+    coverage_report_upload_enabled = False
+    try:
+        ci_visibility_service = require_ci_visibility_service()
+        if hasattr(ci_visibility_service, "_api_settings") and ci_visibility_service._api_settings:
+            coverage_report_upload_enabled = ci_visibility_service._api_settings.coverage_report_upload_enabled
+    except Exception:
+        log.debug("Unable to check if coverage report upload is enabled from settings", exc_info=True)
+
+    # Allow environment variable to override (same pattern as V3)
+    if asbool(os.getenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false")):
+        coverage_report_upload_enabled = True
+
+    return coverage_report_upload_enabled
 
 
 def _handle_test_management(item, test_id):
@@ -381,6 +407,32 @@ def _is_pytest_cov_enabled(config) -> bool:
     return cov_option
 
 
+def _handle_coverage_patch_early(config):
+    """
+    Handle coverage patching in pytest_configure (must be early for pytest-cov).
+    Coverage start decision is deferred to pytest_sessionstart when API settings are available.
+    """
+    pytest_cov_enabled = _is_pytest_cov_enabled(config)
+
+    # Check environment variable (API settings not available yet)
+    env_coverage_upload = asbool(os.getenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false"))
+
+    # Patch if pytest-cov is enabled OR env var suggests we might need coverage
+    if not (pytest_cov_enabled or env_coverage_upload):
+        return
+
+    # Patch coverage.py early (needed for pytest-cov to work)
+    patch_coverage()
+
+    # Verify patching worked
+    if not _is_coverage_available():
+        log.warning("Coverage requested but coverage.py not available - install with 'pip install coverage'")
+        return
+
+    if pytest_cov_enabled:
+        log.debug("pytest-cov detected, coverage.py patched successfully")
+
+
 def pytest_configure(config: pytest_Config) -> None:
     global skip_pytest_runtest_protocol
 
@@ -399,8 +451,8 @@ def pytest_configure(config: pytest_Config) -> None:
         if is_enabled(config):
             unpatch_unittest()
             enable_test_visibility(config=dd_config.pytest)
-            if _is_pytest_cov_enabled(config):
-                patch_coverage()
+
+            _handle_coverage_patch_early(config)
 
             skip_pytest_runtest_protocol = False
 
@@ -474,6 +526,19 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         )
 
         InternalTestSession.set_library_capabilities(library_capabilities)
+
+        # Start coverage if needed (API settings are now available after discover())
+        if (
+            not _is_pytest_cov_enabled(session.config)
+            and _is_coverage_available()
+            and _is_coverage_report_upload_enabled()
+        ):
+            workspace_path = InternalTestSession.get_workspace_path()
+            if workspace_path:
+                start_coverage(source=[str(workspace_path)])
+                log.debug("Started coverage.py for report upload")
+            else:
+                log.warning("Coverage report upload enabled but workspace path not available")
 
         extracted_context = None
         distributed_children = False
@@ -755,6 +820,33 @@ def _pytest_run_one_test(item, nextitem):
     item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
 
 
+def _handle_coverage_report_upload(session: pytest.Session) -> None:
+    """
+    Handle coverage report upload if enabled using shared implementation.
+    """
+    from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
+
+    def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:
+        """Upload coverage report using native V2 writer/recorder infrastructure."""
+        try:
+            # Get the CI visibility service (recorder)
+            ci_visibility_service = require_ci_visibility_service()
+
+            # Use the recorder's native upload method which integrates with writer infrastructure
+            return ci_visibility_service.upload_coverage_report(coverage_report_bytes, coverage_format)
+
+        except Exception as e:
+            log.exception("Error in native coverage upload: %s", e)
+            return False
+
+    handle_coverage_report(
+        session=session,
+        upload_func=upload_func,
+        is_pytest_cov_enabled_func=_is_pytest_cov_enabled,
+        stop_coverage_func=None,  # V2 plugin doesn't need to stop coverage manually
+    )
+
+
 def _process_reports_dict(item, reports) -> _TestOutcome:
     final_outcome = None
 
@@ -963,6 +1055,8 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
     invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
     pytest_cov_status = _is_pytest_cov_enabled(session.config)
+    coverage_report_upload_enabled = _is_coverage_report_upload_enabled()
+
     if _is_coverage_patched() and (pytest_cov_status or invoked_by_coverage_run_status):
         if invoked_by_coverage_run_status and not pytest_cov_status:
             run_coverage_report()
@@ -980,6 +1074,10 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
             )
         else:
             InternalTestSession.set_covered_lines_pct(lines_pct_value)
+
+    # Handle coverage report upload if enabled
+    if coverage_report_upload_enabled:
+        _handle_coverage_report_upload(session)
 
     if ModuleCodeCollector.is_installed():
         ModuleCodeCollector.uninstall()

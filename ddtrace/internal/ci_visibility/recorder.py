@@ -401,11 +401,19 @@ class CIVisibility(Service):
         if requests_mode is None:
             requests_mode = self._requests_mode
 
+        # Check if coverage report upload is enabled
+        coverage_report_upload_enabled = (
+            (self._settings and self._settings.coverage_report_upload_enabled)
+            if hasattr(self, "_settings") and self._settings
+            else False
+        )
+
         if requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             headers = {"dd-api-key": self._api_key or ""}
             writer = CIVisibilityWriter(
                 headers=headers,
                 coverage_enabled=coverage_enabled,
+                coverage_report_upload_enabled=coverage_report_upload_enabled,
                 itr_suite_skipping_mode=self._suite_skipping_mode,
                 use_gzip=True,
             )
@@ -415,6 +423,7 @@ class CIVisibility(Service):
                 headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_VALUE},
                 use_evp=True,
                 coverage_enabled=coverage_enabled,
+                coverage_report_upload_enabled=coverage_report_upload_enabled,
                 itr_suite_skipping_mode=self._suite_skipping_mode,
                 use_gzip=self._is_gzip_supported_by_agent(),
             )
@@ -965,6 +974,85 @@ class CIVisibility(Service):
 
     def get_test_properties(self, test_id: TestId) -> Optional[TestProperties]:
         return self._test_properties.get(test_id)
+
+    def upload_coverage_report(self, coverage_report_bytes: bytes, coverage_format: str) -> bool:
+        """
+        Upload coverage report through the native writer/encoder infrastructure.
+
+        This method properly uses the CI Visibility writer system following the
+        correct architectural pattern where the recorder handles business logic,
+        the encoder formats data, and the writer handles transport.
+        """
+        try:
+            # Check if coverage upload is enabled
+            if not self._api_settings or not self._api_settings.coverage_report_upload_enabled:
+                log.debug("Coverage report upload not enabled in settings")
+                return False
+
+            # Get the writer from the tracer
+            writer = self.tracer._span_aggregator.writer
+            if not isinstance(writer, CIVisibilityWriter):
+                log.debug("Writer is not a CIVisibilityWriter, cannot upload coverage report")
+                return False
+
+            # Find the coverage report client in the writer
+            from ddtrace.internal.ci_visibility.writer import CIVisibilityCoverageReportClient
+
+            coverage_report_client = None
+            for client in writer._clients:
+                if isinstance(client, CIVisibilityCoverageReportClient):
+                    coverage_report_client = client
+                    break
+
+            if not coverage_report_client:
+                log.debug("No coverage report client available in writer")
+                return False
+
+            # Create event data with git and service information
+            import time
+
+            event_data = {
+                "type": "coverage_report",
+                "format": coverage_format,
+                "timestamp": int(time.time() * 1000),
+            }
+
+            # Add git data if available
+            if hasattr(self, "_git_data") and self._git_data:
+                event_data.update(
+                    {
+                        "git.repository_url": self._git_data.repository_url,
+                        "git.commit.sha": self._git_data.commit_sha,
+                        "git.branch": self._git_data.branch,
+                    }
+                )
+
+            # Add service/env info
+            if hasattr(self, "_service") and self._service:
+                event_data["service"] = self._service
+            if hasattr(self, "_dd_env") and self._dd_env:
+                event_data["env"] = self._dd_env
+
+            # Use the encoder to format the data
+            encoded_data = coverage_report_client.coverage_encoder.encode_coverage_report(
+                coverage_report_bytes, coverage_format, event_data
+            )
+
+            # Send through the writer's HTTP infrastructure
+            headers = {"Content-Type": coverage_report_client.coverage_encoder.content_type}
+            response = writer._put(data=encoded_data, headers=headers, client=coverage_report_client, no_trace=True)
+
+            success = response.status < 400
+            if success:
+                log.info("Successfully uploaded coverage report")
+            else:
+                log.error("Coverage report upload failed: HTTP %d", response.status)
+
+            return success
+
+        except Exception as e:
+            log.exception("Error uploading coverage report through recorder: %s", e)
+            return False
 
 
 def _requires_civisibility_enabled(func: Callable) -> Callable:
