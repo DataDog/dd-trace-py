@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import kombu
 import mock
+import pytest
 
 from ddtrace.contrib.internal.kombu import utils
 from ddtrace.contrib.internal.kombu.patch import patch
@@ -356,3 +357,43 @@ class TestKombuDsm(TracerTestCase):
         assert first[(out_tags, 2585352008533360777, 0)].edge_latency.count == 1
         assert first[(in_tags, 10011432234075651806, 2585352008533360777)].full_pathway_latency.count == 1
         assert first[(in_tags, 10011432234075651806, 2585352008533360777)].edge_latency.count == 1
+
+
+@pytest.mark.snapshot(ignores=["meta.tracestate"])
+@pytest.mark.subprocess(
+    env={"DD_DATA_STREAMS_ENABLED": "true", "DD_TRACE_KOMBU_ENABLED": "true"}, ddtrace_run=True, err=None
+)
+def test_data_streams_kombu_enabled():
+    """Test that verifies DSM is enabled and adds dd-pathway-ctx-base64 header to Kombu messages."""
+    import kombu
+
+    from tests.contrib.config import RABBITMQ_CONFIG
+
+    conn = kombu.Connection("amqp://guest:guest@127.0.0.1:{p}//".format(p=RABBITMQ_CONFIG["port"]))
+    conn.connect()
+
+    try:
+        producer = conn.Producer()
+        exchange = kombu.Exchange("dsm_test_exchange")
+        queue = kombu.Queue("dsm_test_queue", exchange, routing_key="dsm_test")
+
+        producer.publish({"test": "data"}, exchange=exchange, routing_key="dsm_test", declare=[queue])
+
+        message_container = []
+
+        def process_message(body, message):
+            message_container.append(message)
+            message.ack()
+
+        with kombu.Consumer(conn, [queue], accept=["json"], callbacks=[process_message]):
+            conn.drain_events(timeout=2.0)
+
+        assert len(message_container) == 1
+        headers = message_container[0].headers
+        assert headers is not None
+        assert "dd-pathway-ctx-base64" in headers, (
+            f"Header not found. Headers: {list(headers.keys()) if hasattr(headers, 'keys') else headers}"
+        )
+
+    finally:
+        conn.close()
