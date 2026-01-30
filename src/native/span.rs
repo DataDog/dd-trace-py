@@ -2,6 +2,7 @@ use pyo3::{
     types::{PyAnyMethods as _, PyDict, PyInt, PyModule, PyModuleMethods as _, PyTuple},
     Bound, PyAny, PyResult, Python,
 };
+use std::time::SystemTime;
 
 use crate::py_string::PyBackedString;
 
@@ -93,16 +94,59 @@ fn extract_backed_string_or_none(obj: &Bound<'_, PyAny>) -> PyBackedString {
         .unwrap_or_else(|_| PyBackedString::py_none(py))
 }
 
+/// Extract i64 from Python object, falling back to 0 on error.
+/// Accepts int or float (truncated).
+#[inline(always)]
+fn extract_i64_or_default(obj: &Bound<'_, PyAny>) -> i64 {
+    obj.extract::<i64>()
+        .or_else(|_| obj.extract::<f64>().map(|f| f as i64))
+        .unwrap_or(0)
+}
+
+/// Extract i32 from Python object, falling back to 0 on error.
+/// Note: Python bool subclasses int, so bools extract as 0/1 automatically.
+#[inline(always)]
+fn extract_i32_or_default(obj: &Bound<'_, PyAny>) -> i32 {
+    obj.extract::<i32>().unwrap_or(0)
+}
+
+/// Get wall clock time in nanoseconds since Unix epoch.
+/// Uses SystemTime for wall clock (matches Python's time.time_ns()).
+#[inline(always)]
+fn wall_clock_ns() -> i64 {
+    SystemTime::UNIX_EPOCH
+        .elapsed()
+        .map(|d| d.as_nanos() as i64)
+        .unwrap_or(0)
+}
+
 #[pyo3::pymethods]
 impl SpanData {
     #[new]
     #[allow(unused_variables)]
-    #[pyo3(signature = (name, service=None, resource=None, *args, **kwargs))]
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (
+        name,
+        service=None,
+        resource=None,
+        span_type=None,    // placeholder for Span.__init__ positional arg
+        trace_id=None,     // placeholder for Span.__init__ positional arg
+        span_id=None,      // placeholder for Span.__init__ positional arg
+        parent_id=None,    // placeholder for Span.__init__ positional arg
+        start=None,        // USED: in seconds (float or int)
+        *args,
+        **kwargs
+    ))]
     pub fn __new__<'p>(
         py: Python<'p>,
         name: &Bound<'p, PyAny>,
         service: Option<&Bound<'p, PyAny>>,
         resource: Option<&Bound<'p, PyAny>>,
+        span_type: Option<&Bound<'p, PyAny>>, // placeholder, not used
+        trace_id: Option<&Bound<'p, PyAny>>,  // placeholder, not used
+        span_id: Option<&Bound<'p, PyAny>>,   // placeholder, not used
+        parent_id: Option<&Bound<'p, PyAny>>, // placeholder, not used
+        start: Option<&Bound<'p, PyAny>>,     // USED: in seconds (float or int)
         // Accept *args/**kwargs so subclasses don't need to override __new__
         args: &Bound<'p, PyTuple>,
         kwargs: Option<&Bound<'p, PyDict>>,
@@ -120,6 +164,19 @@ impl SpanData {
             Some(obj) => span.set_resource(obj),
             None => span.data.resource = span.data.name.clone_ref(py),
         }
+        // Handle start parameter: None means capture current time, otherwise convert seconds to nanoseconds
+        span.data.start = match start {
+            None => wall_clock_ns(), // Common case: native time capture
+            Some(obj) => {
+                // start is in seconds (float or int), convert to nanoseconds
+                obj.extract::<f64>()
+                    .map(|s| (s * 1e9) as i64)
+                    .or_else(|_| obj.extract::<i64>().map(|s| s * 1_000_000_000))
+                    .unwrap_or_else(|_| wall_clock_ns()) // Invalid value: fall back to current time
+            }
+        };
+        // Set duration to -1 (our sentinel for "not set")
+        span.data.duration = -1;
         span
     }
 
@@ -164,6 +221,104 @@ impl SpanData {
     #[inline(always)]
     fn set_resource(&mut self, resource: &Bound<'_, PyAny>) {
         self.data.resource = extract_backed_string_or_default(resource);
+    }
+
+    // start_ns property (maps to self.data.start)
+    #[getter]
+    #[inline(always)]
+    fn get_start_ns(&self) -> i64 {
+        self.data.start
+    }
+
+    #[setter]
+    #[inline(always)]
+    fn set_start_ns(&mut self, value: &Bound<'_, PyAny>) {
+        self.data.start = extract_i64_or_default(value);
+    }
+
+    // duration_ns property (maps to self.data.duration)
+    // Returns None if duration is -1 (our sentinel for "not set"), else returns the value
+    #[getter]
+    #[inline(always)]
+    fn get_duration_ns(&self) -> Option<i64> {
+        if self.data.duration == -1 {
+            None
+        } else {
+            Some(self.data.duration)
+        }
+    }
+
+    #[setter]
+    #[inline(always)]
+    fn set_duration_ns(&mut self, value: Option<&Bound<'_, PyAny>>) {
+        self.data.duration = match value {
+            None => -1,
+            Some(obj) => obj
+                .extract::<i64>()
+                .or_else(|_| obj.extract::<f64>().map(|f| f as i64))
+                .unwrap_or(-1),
+        };
+    }
+
+    // error property
+    #[getter]
+    #[inline(always)]
+    fn get_error(&self) -> i32 {
+        self.data.error
+    }
+
+    #[setter]
+    #[inline(always)]
+    fn set_error(&mut self, value: &Bound<'_, PyAny>) {
+        self.data.error = extract_i32_or_default(value);
+    }
+
+    // finished property (native for performance - avoids Python property hop)
+    #[getter]
+    #[inline(always)]
+    fn get_finished(&self) -> bool {
+        self.data.duration != -1
+    }
+
+    // start property - converts start_ns (nanoseconds) to seconds
+    #[getter]
+    #[inline(always)]
+    fn get_start(&self) -> f64 {
+        self.data.start as f64 / 1e9
+    }
+
+    #[setter]
+    #[inline(always)]
+    fn set_start(&mut self, value: &Bound<'_, PyAny>) {
+        // Convert seconds to nanoseconds
+        self.data.start = value
+            .extract::<f64>()
+            .map(|s| (s * 1e9) as i64)
+            .or_else(|_| value.extract::<i64>().map(|s| s * 1_000_000_000))
+            .unwrap_or(0);
+    }
+
+    // duration property - converts duration_ns (nanoseconds) to seconds
+    // Returns None if duration is -1 (not set), else returns seconds as f64
+    #[getter]
+    #[inline(always)]
+    fn get_duration(&self) -> Option<f64> {
+        if self.data.duration == -1 {
+            None
+        } else {
+            Some(self.data.duration as f64 / 1e9)
+        }
+    }
+
+    #[setter]
+    #[inline(always)]
+    fn set_duration(&mut self, value: &Bound<'_, PyAny>) {
+        // Convert seconds to nanoseconds
+        self.data.duration = value
+            .extract::<f64>()
+            .map(|s| (s * 1e9) as i64)
+            .or_else(|_| value.extract::<i64>().map(|s| s * 1_000_000_000))
+            .unwrap_or(-1);
     }
 }
 
