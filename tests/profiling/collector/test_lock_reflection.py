@@ -289,9 +289,13 @@ class TestDunderMethodCoverage:
 
     This is the core meta-test that uses reflection to automatically detect
     missing dunders rather than relying solely on hardcoded lists.
+
+    IMPORTANT: We check class.__dict__ (not hasattr/dir) to verify methods are
+    EXPLICITLY defined, not just inherited from object. This catches bugs like
+    missing __reduce__ which would otherwise inherit a broken default.
     """
 
-    # Dunders that wrappers MUST implement (hardcoded baseline)
+    # Dunders that wrappers MUST explicitly override, and not inherit from `object`
     REQUIRED_WRAPPER_DUNDERS: Set[str] = {
         "__call__",  # To create instances
         "__get__",  # Prevent method binding
@@ -301,14 +305,14 @@ class TestDunderMethodCoverage:
         "__getattr__",  # Delegate to original
     }
 
-    # Dunders that profiled locks MUST implement (hardcoded baseline)
+    # Dunders that profiled locks MUST explicitly define
     REQUIRED_PROFILED_LOCK_DUNDERS: Set[str] = {
         "__enter__",  # Context manager
         "__exit__",  # Context manager
         "__eq__",  # Comparison
         "__hash__",  # For sets/dicts
         "__repr__",  # Debugging
-        "__reduce__",  # Pickling
+        "__reduce__",  # Pickling - MUST override, object's default won't work
         "__getattr__",  # Delegate to wrapped
         "__init__",  # Initialization
     }
@@ -320,24 +324,39 @@ class TestDunderMethodCoverage:
     }
 
     def test_lock_allocator_wrapper_has_required_dunders(self) -> None:
-        """Verify _LockAllocatorWrapper has all required dunder methods."""
-        wrapper_dunders: Set[str] = {
-            name for name in dir(_LockAllocatorWrapper) if name.startswith("__") and name.endswith("__")
-        }
+        """Verify _LockAllocatorWrapper explicitly defines all required dunder methods.
 
-        missing: Set[str] = self.REQUIRED_WRAPPER_DUNDERS - wrapper_dunders
-        assert not missing, f"_LockAllocatorWrapper missing required dunders: {missing}"
+        Uses class.__dict__ to check for explicit definitions, not inherited methods.
+        """
+        # Check class.__dict__ to ensure methods are explicitly defined
+        class_dict: Set[str] = set(_LockAllocatorWrapper.__dict__.keys())
+
+        missing: Set[str] = self.REQUIRED_WRAPPER_DUNDERS - class_dict
+        assert not missing, (
+            f"_LockAllocatorWrapper missing explicitly defined dunders: {missing}. "
+            f"These must be overriden by the class, not inherited from `object`."
+        )
 
     def test_profiled_lock_has_required_dunders(self) -> None:
-        """Verify _ProfiledLock has all required dunder methods."""
-        lock_dunders: Set[str] = {name for name in dir(_ProfiledLock) if name.startswith("__") and name.endswith("__")}
+        """Verify _ProfiledLock explicitly defines all required dunder methods.
 
-        missing: Set[str] = self.REQUIRED_PROFILED_LOCK_DUNDERS - lock_dunders
-        assert not missing, f"_ProfiledLock missing required dunders: {missing}"
+        Uses class.__dict__ to check for explicit definitions, not inherited methods.
+        """
+        # Check class.__dict__ to ensure methods are explicitly defined
+        class_dict: Set[str] = set(_ProfiledLock.__dict__.keys())
+
+        missing: Set[str] = self.REQUIRED_PROFILED_LOCK_DUNDERS - class_dict
+        assert not missing, (
+            f"_ProfiledLock missing explicitly defined dunders: {missing}. "
+            f"These must be overriden by the class, not inherited from `object`."
+        )
 
         # Also check async dunders
-        missing_async: Set[str] = self.REQUIRED_ASYNC_DUNDERS - lock_dunders
-        assert not missing_async, f"_ProfiledLock missing required async dunders: {missing_async}"
+        missing_async: Set[str] = self.REQUIRED_ASYNC_DUNDERS - class_dict
+        assert not missing_async, (
+            f"_ProfiledLock missing explicitly defined async dunders: {missing_async}. "
+            f"These must be overriden by the class, not inherited from `object`."
+        )
 
     @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
     def test_wrapped_lock_has_original_dunders(
