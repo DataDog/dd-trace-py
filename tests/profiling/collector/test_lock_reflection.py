@@ -258,12 +258,15 @@ class TestWrapperInterfaceCompleteness:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestAsyncioInterfaceCompleteness:
-    """Reflection tests for asyncio lock wrappers."""
+    """Reflection tests for asyncio lock wrappers.
+
+    Note: These tests are synchronous because we're only checking for
+    attribute presence via hasattr(), not actually running async code.
+    """
 
     @pytest.mark.parametrize("collector_class,name", ASYNCIO_COLLECTOR_CONFIGS)
-    async def test_async_context_manager_protocol(self, collector_class: Type[object], name: str) -> None:
+    def test_async_context_manager_protocol(self, collector_class: Type[object], name: str) -> None:
         """Verify wrapped asyncio locks implement async context manager protocol."""
         init_ddup(f"test_async_context_{name}")
 
