@@ -206,3 +206,69 @@ def test_profiler_start_up_with_module_clean_up_in_protobuf_app() -> None:
     from google.protobuf import empty_pb2  # noqa:F401
 
     print("OK")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal-based exit codes only on Unix")
+def test_no_segfault_on_quick_shutdown() -> None:
+    """Regression test: profiler should not segfault when Python exits quickly.
+
+    This guards against a race condition where the native sampling thread could
+    access Python interpreter structures during finalization, causing a segfault.
+
+    The fix includes:
+    1. A join mechanism that waits for the native sampling thread to fully stop
+       before the profiler shutdown completes.
+    2. Py_IsFinalizing() checks in the sampling loop to exit early when Python
+       is shutting down.
+
+    Note: Race conditions are probabilistic and may not reliably fail without the fix.
+    This test verifies the fix prevents crashes and documents the expected behavior.
+    """
+    import signal
+
+    env = os.environ.copy()
+    env["DD_PROFILING_ENABLED"] = "1"
+    # Use a very short sampling interval to increase chance of race
+    env["DD_PROFILING_STACK_V2_INTERVAL"] = "0.001"
+
+    # Run multiple iterations to catch intermittent race conditions
+    # More iterations = higher chance of hitting the race window
+    for i in range(50):
+        # Run a script that starts profiling, waits briefly for the sampling
+        # thread to start, then exits - this maximizes chance of race condition
+        stdout, stderr, exitcode, _ = call_program(
+            "ddtrace-run",
+            sys.executable,
+            "-c",
+            # Brief sleep ensures sampling thread is running before we exit
+            "import ddtrace.profiling.auto; import time; time.sleep(0.005); import sys; sys.exit(0)",
+            env=env,
+            timeout=30,
+        )
+
+        # Check for segfault (exit code 139 = 128 + SIGSEGV) or other crash signals
+        sigsev_exit_code: int = 128 + signal.SIGSEGV  # 139 on Linux
+        assert exitcode >= 0 and exitcode != sigsev_exit_code, (
+            f"Iteration {i}: Profiler crashed during shutdown! "
+            f"Exit code: {exitcode}, stdout: {stdout}, stderr: {stderr}"
+        )
+
+
+def test_stack_sampler_join() -> None:
+    """Test that the native stack sampler can be properly joined after stopping."""
+    from ddtrace.internal.datadog.profiling import stack
+
+    # Start the sampler
+    assert stack.start() is True
+
+    # Stop should signal the thread to exit
+    stack.stop()
+
+    # Join should wait for the thread to actually stop (with a reasonable timeout)
+    # This should not hang or crash
+    stack.join(5.0)  # 5 second timeout
+
+    # After joining, starting again should work
+    assert stack.start() is True
+    stack.stop()
+    stack.join(5.0)

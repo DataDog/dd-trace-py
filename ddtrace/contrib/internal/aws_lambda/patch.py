@@ -1,5 +1,6 @@
 from importlib import import_module
 import signal
+import sys
 from typing import Dict
 
 from ddtrace.constants import ERROR_MSG
@@ -56,8 +57,21 @@ class TimeoutChannel:
 
         Else, wraps the given signal with the previously defined one,
         so no signals are overridden.
+
+        AIDEV-NOTE: This function checks for interpreter finalization before
+        calling signal.signal() to avoid SIGSEGV crashes during shutdown.
         """
-        self._original_signal = signal.getsignal(sig)
+        # AIDEV-NOTE: Don't attempt to modify signals during interpreter shutdown.
+        # This can cause SIGSEGV when Python's signal state has been freed.
+        if hasattr(sys, "_is_finalizing") and sys._is_finalizing():
+            return None
+        if hasattr(sys, "is_finalizing") and sys.is_finalizing():
+            return None
+
+        try:
+            self._original_signal = signal.getsignal(sig)
+        except (OSError, ValueError):
+            return None
 
         def wrap_signals(*args, **kwargs):
             if self._original_signal is not None:
@@ -69,10 +83,16 @@ class TimeoutChannel:
         # - _original_signal is the same as the incoming, or
         # - _original_signal is our wrapper.
         # This avoids multiple signal calling and infinite wrapping.
-        if not callable(self._original_signal) or self._original_signal == f or self._original_signal == wrap_signals:
-            return signal.signal(sig, f)
-
-        return signal.signal(sig, wrap_signals)
+        try:
+            if (
+                not callable(self._original_signal)
+                or self._original_signal == f
+                or self._original_signal == wrap_signals
+            ):
+                return signal.signal(sig, f)
+            return signal.signal(sig, wrap_signals)
+        except (OSError, ValueError):
+            return None
 
     def _start(self):
         self._handle_signal(signal.SIGALRM, self._crash_flush)
@@ -107,12 +127,26 @@ class TimeoutChannel:
             current_span._finish_with_ancestors()
 
     def _remove_alarm_signal(self):
-        """Removes the handler set for the signal `SIGALRM` and restores the original handler."""
-        signal.alarm(0)
-        if self._original_signal is not None:
-            signal.signal(signal.SIGALRM, self._original_signal)
-        else:
-            signal.signal(signal.SIGALRM, signal.SIG_DFL)
+        """Removes the handler set for the signal `SIGALRM` and restores the original handler.
+
+        AIDEV-NOTE: This function checks for interpreter finalization before
+        calling signal.signal() to avoid SIGSEGV crashes during shutdown.
+        """
+        # AIDEV-NOTE: Don't attempt to modify signals during interpreter shutdown.
+        if hasattr(sys, "_is_finalizing") and sys._is_finalizing():
+            return
+        if hasattr(sys, "is_finalizing") and sys.is_finalizing():
+            return
+
+        try:
+            signal.alarm(0)
+            if self._original_signal is not None:
+                signal.signal(signal.SIGALRM, self._original_signal)
+            else:
+                signal.signal(signal.SIGALRM, signal.SIG_DFL)
+        except (OSError, ValueError):
+            # Signal operations may fail during shutdown
+            pass
 
     def stop(self):
         self._remove_alarm_signal()

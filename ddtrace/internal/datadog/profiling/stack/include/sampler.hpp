@@ -1,6 +1,9 @@
 #pragma once
 
 #include <atomic>
+#include <condition_variable>
+#include <mutex>
+#include <pthread.h>
 
 #include "constants.hpp"
 #include "stack_renderer.hpp"
@@ -29,6 +32,12 @@ class Sampler
     // stopped or started in a straightforward manner without finer-grained control (locks)
     std::atomic<uint64_t> thread_seq_num{ 0 };
 
+    // Thread synchronization for proper shutdown
+    pthread_t sampling_thread_handle{ 0 };
+    std::atomic<bool> thread_running{ false };
+    std::mutex thread_mutex;
+    std::condition_variable thread_cv;
+
     // Parameters
     uint64_t echion_frame_cache_size = g_default_echion_frame_cache_size;
 
@@ -53,6 +62,7 @@ class Sampler
     static Sampler& get();
     bool start();
     void stop();
+    void join(double timeout_seconds = 0.0); // Wait for sampling thread to stop, 0 = no timeout
     void register_thread(uint64_t id, uint64_t native_id, const char* name);
     void unregister_thread(uint64_t id);
     void track_asyncio_loop(uintptr_t thread_id, PyObject* loop);

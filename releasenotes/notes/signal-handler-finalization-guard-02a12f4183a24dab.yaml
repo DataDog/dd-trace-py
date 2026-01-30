@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    tracing: Fix potential SIGSEGV when signal handlers are modified during Python interpreter
+    shutdown. Signal operations (``signal.signal()``, ``signal.getsignal()``) can crash if
+    called after Python's internal signal state has been freed during finalization. The signal
+    handling utilities now check ``sys.is_finalizing()`` before attempting signal operations
+    and gracefully handle failures. This prevents crashes that could occur when grpc or other
+    libraries manipulate signal handlers during shutdown.
