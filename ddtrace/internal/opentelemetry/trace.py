@@ -11,10 +11,11 @@ from opentelemetry.trace.propagation import get_current_span
 from opentelemetry.trace.span import DEFAULT_TRACE_OPTIONS
 from opentelemetry.trace.span import INVALID_SPAN
 
-import ddtrace
+from ddtrace._trace.provider import ActiveTrace as DDActiveTrace
 from ddtrace.internal.constants import SPAN_API_OTEL
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import _TraceContext
+from ddtrace.trace import tracer as ddtracer
 
 from .span import Span
 
@@ -58,10 +59,6 @@ class TracerProvider(OtelTracerProvider):
     One TracerProvider should be initialized and set per application.
     """
 
-    def __init__(self) -> None:
-        self._ddtracer = ddtrace.tracer
-        super().__init__()
-
     if OTEL_VERSION >= (1, 26):
         # OpenTelemetry 1.26+ has a new get_tracer signature
         # https://github.com/open-telemetry/opentelemetry-python/commit/d4e13bdf95190314b0d21a9357f850fa2e6a4cd3
@@ -75,7 +72,7 @@ class TracerProvider(OtelTracerProvider):
         ):
             # type: (str, Optional[str], Optional[str], Optional[Dict]) -> OtelTracer
             """Returns an opentelemetry compatible Tracer."""
-            return Tracer(self._ddtracer)
+            return Tracer()
 
     else:
 
@@ -87,16 +84,11 @@ class TracerProvider(OtelTracerProvider):
         ):
             # type: (str, Optional[str], Optional[str]) -> OtelTracer
             """Returns an opentelemetry compatible Tracer."""
-            return Tracer(self._ddtracer)
+            return Tracer()
 
 
 class Tracer(OtelTracer):
     """Starts and/or activates OpenTelemetry compatible Spans using the global Datadog Tracer."""
-
-    def __init__(self, datadog_tracer):
-        # type: (DDTracer) -> None
-        self._tracer = datadog_tracer
-        super(Tracer, self).__init__()
 
     def start_span(
         self,
@@ -115,7 +107,7 @@ class Tracer(OtelTracer):
         curr_otel_span = get_current_span(context)
         if curr_otel_span is INVALID_SPAN:
             # There is no active datadog/otel span
-            dd_active = None  # type: Optional[Union[ddtrace.trace.Context, ddtrace.trace.Span]]
+            dd_active: Optional[DDActiveTrace] = None
         elif isinstance(curr_otel_span, Span):
             # Get underlying ddtrace span from the active otel span
             dd_active = curr_otel_span._ddspan
@@ -125,7 +117,7 @@ class Tracer(OtelTracer):
             dd_active = _otel_to_dd_span_context(curr_otel_span)
 
         # Create a new Datadog span (not activated), then return a valid OTel span
-        dd_span = self._tracer.start_span(name, child_of=dd_active, activate=False, span_api=SPAN_API_OTEL)
+        dd_span = ddtracer._start_span(name, child_of=dd_active, activate=False, span_api=SPAN_API_OTEL)
 
         if links:
             for link in links:

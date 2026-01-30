@@ -24,8 +24,6 @@ class PyramidBase(TracerTestCase):
     def create_app(self, settings=None):
         # get default settings or use what is provided
         settings = settings or self.get_settings()
-        # always set the dummy tracer as a default tracer
-        settings.update({"datadog_tracer": self.tracer})
 
         app, renderer = create_app(settings, self.instrument)
         self.app = webtest.TestApp(app)

@@ -35,7 +35,6 @@ from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._trace_utils import block_request_if_user_blocked
-from ddtrace.trace import tracer
 
 
 if DJANGO_VERSION < (3, 2, 0):
@@ -135,7 +134,7 @@ def block_callable_view(request):
 
 
 def checkuser_view(request, user_id):
-    block_request_if_user_blocked(tracer, user_id)
+    block_request_if_user_blocked(user_id)
     return HttpResponse(status=200)
 
 

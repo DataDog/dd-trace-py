@@ -11,6 +11,7 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.trace import tracer
 
 from .constants import CONFIG_KEY
 from .constants import REQUEST_SPAN_KEY
@@ -25,7 +26,6 @@ async def execute(func, handler, args, kwargs):
     """
     # retrieve tracing settings
     settings = handler.settings[CONFIG_KEY]
-    tracer = settings["tracer"]
     service = settings["default_service"]
     distributed_tracing = settings["distributed_tracing"]
 
@@ -36,7 +36,6 @@ async def execute(func, handler, args, kwargs):
             span_type=SpanTypes.WEB,
             service=service,
             tags={},
-            tracer=tracer,
             distributed_headers=handler.request.headers,
             integration_config=config.tornado,
             activate_distributed_headers=True,
@@ -172,7 +171,6 @@ def log_exception(func, handler, args, kwargs):
         return func(*args, **kwargs)
 
     # retrieve the current span
-    tracer = handler.settings[CONFIG_KEY]["tracer"]
     current_span = tracer.current_span()
 
     if not current_span:
