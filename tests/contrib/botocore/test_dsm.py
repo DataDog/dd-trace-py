@@ -689,3 +689,35 @@ class BotocoreDSMTest(TracerTestCase):
         for record in response["Records"]:
             data = json.loads(record["Data"])
             assert "_datadog" not in data
+
+
+@pytest.mark.snapshot(ignores=["meta.aws.requestid"])
+@pytest.mark.subprocess(
+    env={"DD_DATA_STREAMS_ENABLED": "true", "DD_TRACE_JINJA2_ENABLED": "false"}, ddtrace_run=True, err=None
+)
+def test_data_streams_botocore_enabled():
+    """Test that verifies DSM is enabled and adds dd-pathway-ctx-base64 header to SQS messages."""
+    import json
+
+    import botocore.session
+    from moto import mock_sqs
+
+    with mock_sqs():
+        session = botocore.session.get_session()
+        session.set_credentials(access_key="access-key", secret_key="secret-key")
+
+        sqs_client = session.create_client("sqs", region_name="us-east-1")
+        queue_url = sqs_client.create_queue(QueueName="test_queue")["QueueUrl"]
+
+        try:
+            sqs_client.send_message(QueueUrl=queue_url, MessageBody="test")
+
+            response = sqs_client.receive_message(
+                QueueUrl=queue_url, MessageAttributeNames=["_datadog"], WaitTimeSeconds=2
+            )
+            message = response["Messages"][0]
+            context_data = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])
+            assert "dd-pathway-ctx-base64" in context_data
+
+        finally:
+            sqs_client.delete_queue(QueueUrl=queue_url)
