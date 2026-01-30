@@ -124,8 +124,15 @@ class heap_tracker_t
                                                                           uint16_t max_nframe);
     void pool_put_no_cpython(std::unique_ptr<traceback_t> tb);
 
+    /* Reset the heap tracker state after fork in child process */
+    void postfork_child();
+
   private:
     static uint32_t next_sample_size_no_cpython(uint32_t sample_size);
+
+    /* This function is called from heap_tracker_t::postfork_child() as part of
+       the fork handler to reset the sampling state. */
+    void reset_sampling_state_no_cpython();
 
     /* Heap profiler sampling interval */
     uint64_t sample_size;
@@ -191,8 +198,14 @@ heap_tracker_t::next_sample_size_no_cpython(uint32_t sample_size)
        the distribution we want to sample.
        See https://en.wikipedia.org/wiki/Inverse_transform_sampling. */
     /* Get a value between [0, 1[ */
+    /* TODO: change to use arc4random() instead of rand(), as rand() internally
+       uses a lock and may cause deadlock after fork in child processes.
+       Deferring this to a follow up, as we're not making the situation worse. */
     double q = (double)rand() / ((double)RAND_MAX + 1);
     /* Get a value between ]-inf, 0[, more likely close to 0 */
+    /* NOTE: technically log2 is not async signal safe per Linux man page,
+       but it doesn't seem to use locks internally. So we assume it's safe to
+       call it from heap_tracker_t::postfork_child() */
     double log_val = log2(q);
     return (uint32_t)(log_val * (-log(2) * (sample_size + 1)));
 }
@@ -253,8 +266,7 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
     assert(inserted && "add_sample: found existing entry for key that should have been removed");
 
     // Get ready for the next sample
-    allocated_memory = 0;
-    current_sample_size = next_sample_size_no_cpython(sample_size);
+    reset_sampling_state_no_cpython();
 }
 
 void
@@ -267,6 +279,35 @@ heap_tracker_t::export_heap_no_cpython()
         (void)ptr; // Suppress unused variable warning
         tb->sample.export_sample();
     }
+}
+
+void
+heap_tracker_t::reset_sampling_state_no_cpython()
+{
+    allocated_memory = 0;
+    current_sample_size = next_sample_size_no_cpython(sample_size);
+}
+
+void
+heap_tracker_t::postfork_child()
+{
+    // As we're in the child process after fork, we want to make sure that the
+    // heap tracker state is consistent before running any Python code. If not,
+    // we may end up triggering memory profiler code with an inconsistent state,
+    // leading to undefined behaviors and/or crashes, ref: incident-48649.
+    // To avoid this, we clear the heap tracker state here.
+
+    // Sample pool contains traceback_t objects, which reference the global
+    // Profile state. Global Profile state is reset after fork in
+    // Profile::postfork_child()
+    pool.clear();
+
+    // Allocations map may contain data from the parent process, and also
+    // traceback_t objects may reference invalid Profile state.
+    allocs_m.clear();
+
+    // Reset the sampling state to start fresh after fork.
+    reset_sampling_state_no_cpython();
 }
 
 // Static member definition
@@ -381,5 +422,13 @@ memalloc_heap_no_cpython(void)
 {
     if (heap_tracker_t::instance) {
         heap_tracker_t::instance->export_heap_no_cpython();
+    }
+}
+
+void
+memalloc_heap_postfork_child(void)
+{
+    if (heap_tracker_t::instance) {
+        heap_tracker_t::instance->postfork_child();
     }
 }
