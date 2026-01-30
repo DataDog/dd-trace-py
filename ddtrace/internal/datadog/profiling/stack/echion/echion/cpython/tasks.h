@@ -377,7 +377,10 @@ extern "C"
             if (c == nullptr)
                 return NULL;
 
-            if (c[(frame.f_lasti + 1) * sizeof(_Py_CODEUNIT)] != YIELD_FROM)
+            // In Python 3.10, f_lasti is already a byte offset. The next instruction
+            // (YIELD_FROM) is at f_lasti + sizeof(_Py_CODEUNIT).
+            Py_ssize_t next_instr_offset = frame.f_lasti + sizeof(_Py_CODEUNIT);
+            if (next_instr_offset >= s || c[next_instr_offset] != YIELD_FROM)
                 return NULL;
 
             ssize_t nvalues = frame.f_stackdepth;
