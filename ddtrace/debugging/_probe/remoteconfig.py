@@ -18,6 +18,7 @@ from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
 from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
 from ddtrace.debugging._probe.model import DEFAULT_TRIGGER_PROBE_RATE
+from ddtrace.debugging._probe.model import CaptureExpression
 from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import ExpressionTemplateSegment
 from ddtrace.debugging._probe.model import FunctionProbe
@@ -147,6 +148,7 @@ class LogProbeFactory(ProbeFactory):
             else DEFAULT_CAPTURE_LIMITS,
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
             take_snapshot=take_snapshot,
+            capture_expressions=[CaptureExpression(**_) for _ in attribs.get("captureExpressions", [])],
             template=attribs.get("template"),
             segments=[_compile_segment(segment) for segment in attribs.get("segments", [])],
         )
