@@ -36,11 +36,6 @@ class EchionSampler
     PyObject* asyncio_scheduled_tasks_ = nullptr;
     PyObject* asyncio_eager_tasks_ = nullptr;
 
-    // Flag to indicate that uvloop is in use.
-    // When true, the stack unwinding logic uses Runner.run as the boundary frame
-    // instead of Handle._run, and skips the uvloop wrapper frame.
-    bool using_uvloop_ = false;
-
     // Task unwinding state
     std::optional<Frame::Key> asyncio_frame_cache_key_;
     std::optional<Frame::Key> uvloop_frame_cache_key_;
@@ -76,9 +71,6 @@ class EchionSampler
 
     PyObject* asyncio_scheduled_tasks() const { return asyncio_scheduled_tasks_; }
     PyObject* asyncio_eager_tasks() const { return asyncio_eager_tasks_; }
-
-    bool using_uvloop() const { return using_uvloop_; }
-    void set_using_uvloop(bool value) { using_uvloop_ = value; }
 
     void init_asyncio(PyObject* scheduled_tasks, PyObject* eager_tasks)
     {

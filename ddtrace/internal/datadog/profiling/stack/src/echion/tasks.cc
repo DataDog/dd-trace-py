@@ -138,9 +138,9 @@ TaskInfo::create(EchionSampler& echion, TaskObj* task_addr)
 // named "run.<locals>.wrapper" that just validates the loop type and awaits the user's main
 // coroutine. We skip this frame to keep the stack clean and consistent with regular asyncio.
 bool
-is_uvloop_wrapper_frame(const EchionSampler& echion, const Frame& frame)
+is_uvloop_wrapper_frame(bool using_uvloop, const Frame& frame)
 {
-    if (!echion.using_uvloop()) {
+    if (!using_uvloop) {
         return false;
     }
 
@@ -161,9 +161,10 @@ is_uvloop_wrapper_frame(const EchionSampler& echion, const Frame& frame)
 }
 
 size_t
-TaskInfo::unwind(EchionSampler& echion, FrameStack& stack)
+TaskInfo::unwind(EchionSampler& echion, FrameStack& stack, bool using_uvloop)
 {
     // TODO: Check for running task.
+    (void)echion;
 
     // Use a vector-based std::stack as we only push_back/pop_back
     std::stack<PyObject*, std::vector<PyObject*>> coro_frames;
@@ -197,7 +198,7 @@ TaskInfo::unwind(EchionSampler& echion, FrameStack& stack)
         }
 
         // Skip the uvloop wrapper frame if present (only at the outermost level of the top-level Task)
-        if (!stack.empty() && is_uvloop_wrapper_frame(echion, stack.back().get())) {
+        if (!stack.empty() && is_uvloop_wrapper_frame(using_uvloop, stack.back().get())) {
             stack.pop_back();
             continue;
         }

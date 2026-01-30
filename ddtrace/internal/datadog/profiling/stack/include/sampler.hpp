@@ -69,6 +69,7 @@ class Sampler
     void untrack_greenlet(uintptr_t greenlet_id);
     void link_greenlets(uintptr_t parent, uintptr_t child);
     void update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame);
+    void set_uvloop_mode(uintptr_t thread_id, bool value);
 
     // The Python side dynamically adjusts the sampling rate based on overhead, so we need to be able to update our
     // own intervals accordingly.  Rather than a preemptive measure, we assume the rate is ~fairly stable and just
@@ -76,7 +77,6 @@ class Sampler
     // self-time, and we're not currently accounting for the echion self-time.
     void set_interval(double new_interval);
     void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
-    void set_uvloop_mode(bool value);
 
     // Delegates to the StackRenderer to clear its caches after fork
     void postfork_child();

@@ -481,7 +481,10 @@ Sampler::update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame)
 }
 
 void
-Sampler::set_uvloop_mode(bool value)
+Sampler::set_uvloop_mode(uintptr_t thread_id, bool value)
 {
-    echion->set_using_uvloop(value);
+    std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
+    if (auto it = echion->thread_info_map().find(thread_id); it != echion->thread_info_map().end()) {
+        it->second->using_uvloop = value;
+    }
 }

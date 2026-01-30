@@ -2,10 +2,14 @@
 
 import asyncio
 import os
+from types import TracebackType
 from typing import Any
 from typing import Coroutine
+from typing import Optional
+from typing import Type
 
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.profiling import profiler
 
 
 def init_ddup(test_name: str) -> None:
@@ -35,3 +39,29 @@ def async_run(coro: Coroutine[Any, Any, Any]) -> None:
         uvloop.run(coro)
     else:
         asyncio.run(coro)
+
+
+def uvloop_available() -> bool:
+    try:
+        import uvloop  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
+class ProfilerContextManager:
+    def __init__(self) -> None:
+        self.profiler = profiler.Profiler()
+
+    def __enter__(self) -> profiler.Profiler:
+        self.profiler.start()
+        return self.profiler
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
+        self.profiler.stop()

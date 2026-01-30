@@ -43,7 +43,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
     auto& asyncio_frame_cache_key = echion.asyncio_frame_cache_key();
     auto& uvloop_frame_cache_key = echion.uvloop_frame_cache_key();
 
-    auto& frame_cache_key = echion.using_uvloop() ? uvloop_frame_cache_key : asyncio_frame_cache_key;
+    auto& frame_cache_key = using_uvloop ? uvloop_frame_cache_key : asyncio_frame_cache_key;
 
     if (!frame_cache_key) {
         for (size_t i = 0; i < python_stack.size(); i++) {
@@ -52,7 +52,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
 
             bool is_boundary_frame = false;
 
-            if (echion.using_uvloop()) {
+            if (using_uvloop) {
                 // For uvloop, the boundary frame depends on the Python version:
                 // - Python 3.11+: Runner.run from asyncio/runners.py (uvloop uses asyncio.Runner)
                 // - Python < 3.11: run from uvloop/__init__.py (uvloop has its own implementation)
@@ -214,7 +214,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
         for (auto current_task = leaf_task;;) {
             auto& task = current_task.get();
 
-            auto task_stack_size = task.unwind(echion, stack);
+            auto task_stack_size = task.unwind(echion, stack, using_uvloop);
             if (task.is_on_cpu) {
                 // Get the "bottom" part of the Python synchronous Stack, that is to say the
                 // synchronous functions and coroutines called by the Task's outermost coroutine
@@ -233,7 +233,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
                     const auto& python_frame = python_stack[frames_to_push - i - 1];
 
                     // Skip the uvloop wrapper frame if present in the Python stack
-                    if (echion.using_uvloop() && is_uvloop_wrapper_frame(echion, python_frame.get())) {
+                    if (using_uvloop && is_uvloop_wrapper_frame(using_uvloop, python_frame.get())) {
                         continue;
                     }
                     stack.push_front(python_frame);
