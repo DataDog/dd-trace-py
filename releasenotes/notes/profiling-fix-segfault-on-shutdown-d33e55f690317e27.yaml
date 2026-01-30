@@ -1,7 +1,9 @@
 ---
 fixes:
   - |
-    profiling: Fix a race condition that could cause a segfault during Python interpreter
-    shutdown. The native sampling thread now properly waits for completion during profiler
-    shutdown via a new join mechanism, and checks ``Py_IsFinalizing()`` to exit early
-    when Python is shutting down, preventing access to freed interpreter structures.
+    profiling: Fix race conditions that could cause a segfault during Python interpreter
+    shutdown. The native sampling thread and PeriodicThread now properly wait for thread
+    completion during shutdown via proper join mechanisms (``pthread_join`` and
+    ``std::thread::join``), ensuring threads fully exit before interpreter finalization
+    proceeds. This prevents access to freed interpreter structures when threads are
+    still unwinding their stacks.

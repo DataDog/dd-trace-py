@@ -430,8 +430,7 @@ Sampler::join(double timeout_seconds)
         std::unique_lock<std::mutex> lock(thread_mutex);
         auto timeout = std::chrono::duration<double>(timeout_seconds);
         thread_cv.wait_for(lock, timeout, [this]() { return !thread_running.load(); });
-        // After timeout, we can't safely join (thread might still be running)
-        // Just mark handle as invalid
+        // Can't call pthread_join after timeout, as it would block indefinitely
     } else {
         // Wait indefinitely using pthread_join - always join if thread was started
         // This ensures we wait for the thread to fully exit, not just set the flag

@@ -478,8 +478,11 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
         self->_stopped->set();
     });
 
-    // Detach the thread. We will make our own joinable mechanism.
-    self->_thread->detach();
+    // Note: We do NOT detach the thread. We will call std::thread::join() in
+    // PeriodicThread_join to ensure the thread fully exits before returning.
+    // This prevents a race condition where the thread is still unwinding
+    // (e.g., releasing the GIL in ~GILGuard) when the interpreter starts
+    // finalizing, which can cause SIGSEGV.
 
     // Wait for the thread to start
     {
@@ -581,6 +584,16 @@ PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
         self->_stopped->wait(interval);
     }
 
+    // After the _stopped event is set, the thread may still be unwinding
+    // (e.g., running ~GILGuard to release the GIL). We must wait for the
+    // thread to fully exit to prevent race conditions during interpreter
+    // shutdown that can cause SIGSEGV.
+    if (self->_thread->joinable()) {
+        AllowThreads _;
+
+        self->_thread->join();
+    }
+
     Py_RETURN_NONE;
 }
 
@@ -629,6 +642,14 @@ PeriodicThread_dealloc(PeriodicThread* self)
     // will cause.
     if (self->_thread != NULL && self->_thread->get_id() == std::this_thread::get_id())
         return;
+
+    // Ensure the thread is joined before destroying the std::thread object.
+    // If the thread is still joinable, destroying it would call std::terminate().
+    // Normally the thread should already be joined via stop()/join() or _atexit(),
+    // but we check defensively here.
+    if (self->_thread != nullptr && self->_thread->joinable()) {
+        self->_thread->join();
+    }
 
     // Unmap the PeriodicThread
     if (self->ident != NULL && PyDict_Contains(_periodic_threads, self->ident))
