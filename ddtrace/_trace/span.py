@@ -782,6 +782,10 @@ class Span(SpanData):
 
     def __repr__(self) -> str:
         """Return a detailed string representation of a span."""
+        meta = {
+            k: v.keys() if isinstance(v, dict) else f"wrong type [{type(v).__name__}]"
+            for k, v in self._meta_struct.items()
+        }
         return (
             f"Span(name='{self.name}', "
             f"span_id={self.span_id}, "
@@ -800,12 +804,7 @@ class Span(SpanData):
             f"events={self._events}, "
             f"context={self.context}, "
             f"service_entry_span_name={self._service_entry_span.name}), "
-            f"metastruct={
-                {
-                    k: v.keys() if isinstance(v, dict) else f'wrong type [{type(v).__name__}]'
-                    for k, v in self._meta_struct.items()
-                }
-            }"
+            f"metastruct={meta}"
         )
 
     def __str__(self) -> str:
