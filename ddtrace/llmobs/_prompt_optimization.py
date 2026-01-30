@@ -32,6 +32,12 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
+# Registry of available optimizer implementations
+OPTIMIZER_REGISTRY: Dict[str, type[OptimizationIteration]] = {
+    "metaprompting": Metaprompting,
+}
+
+
 class IterationData(TypedDict):
     """Data for a single optimization iteration."""
 
@@ -204,7 +210,7 @@ class PromptOptimization:
         tags: Optional[Dict[str, str]] = None,
         max_iterations: int = 5,
         stopping_condition: Optional[Callable[[Dict[str, Dict[str, Any]]], bool]] = None,
-        optimizer_class: type[OptimizationIteration] = Metaprompting,
+        optimizer_class: str = "metaprompting",
     ) -> None:
         """Initialize a prompt optimization.
 
@@ -241,9 +247,9 @@ class PromptOptimization:
         :param stopping_condition: Optional function to determine when to stop optimization.
                                    Takes summary_evaluations dict from the experiment result
                                    and returns True if should stop.
-        :param optimizer_class: Optimizer implementation to use. Defaults to Metaprompting.
-                               Can be any class that extends OptimizationIteration.
-        :raises ValueError: If required config parameters or compute_score are missing.
+        :param optimizer_class: Name of the optimizer implementation to use. Defaults to "metaprompting".
+                               Available optimizers: "metaprompting", "dspy_bootstrap_fewshot", "fewshot_bootstrap", "mipro", "gepa"
+        :raises ValueError: If required config parameters, compute_score are missing, or optimizer_class is invalid.
         """
         self.name = name
         self._task = task
@@ -258,7 +264,14 @@ class PromptOptimization:
         self._tags["project_name"] = project_name
         self._llmobs_instance = _llmobs_instance
         self._max_iterations = max_iterations
-        self._optimizer_class = optimizer_class
+
+        # Validate and get optimizer class from registry
+        if optimizer_class not in OPTIMIZER_REGISTRY:
+            raise ValueError(
+                f"Unknown optimizer: '{optimizer_class}'. "
+                f"Available optimizers: {list(OPTIMIZER_REGISTRY.keys())}"
+            )
+        self._optimizer_class = OPTIMIZER_REGISTRY[optimizer_class]
 
         # Validate required config parameters
         if not config:
@@ -338,7 +351,7 @@ class PromptOptimization:
             # Generate improved prompt
             new_prompt = optimization_iteration.run()
 
-            # Run experiment with improved prompt
+            # Run ment with improved prompt
             new_results, experiment_url = self._run_experiment(i, new_prompt, jobs)
 
             # Compute score for this iteration

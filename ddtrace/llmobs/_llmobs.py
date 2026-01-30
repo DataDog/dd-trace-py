@@ -941,6 +941,7 @@ class LLMObs(Service):
         tags: Optional[Dict[str, str]] = None,
         max_iterations: int = 5,
         stopping_condition: Optional[Callable[[Dict[str, Dict[str, Any]]], bool]] = None,
+        optimizer_class: str = "metaprompting",
     ) -> PromptOptimization:
         """Initialize a PromptOptimization to iteratively improve prompts using experiments.
 
@@ -988,6 +989,8 @@ class LLMObs(Service):
         :param stopping_condition: Optional function to determine when to stop optimization early.
                                    Takes summary_evaluations dict from the experiment result and returns True if
                                    optimization should stop.
+        :param optimizer_class: Name of the optimizer implementation to use. Defaults to "metaprompting".
+                               Available optimizers: "metaprompting", "dspy_bootstrap_fewshot", "fewshot_bootstrap", "mipro", "gepa"
         :return: PromptOptimization object. Call ``.run()`` to execute the optimization.
         :raises TypeError: If task, optimization_task, evaluators, or dataset have incorrect types
                           or signatures.
@@ -1096,6 +1099,7 @@ class LLMObs(Service):
             tags=tags,
             max_iterations=max_iterations,
             stopping_condition=stopping_condition,
+            optimizer_class=optimizer_class,
         )
 
     @classmethod
