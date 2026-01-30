@@ -519,6 +519,9 @@ class ffe:
 class SpanData:
     name: str
     service: Optional[str]
+    span_id: int
+    trace_id: int
+    parent_id: Optional[int]
 
     def __new__(
         cls: Type[_SpanDataT],
@@ -539,3 +542,7 @@ class SpanLinkData:
         attributes: Optional[Dict[str, str]] = None,
         _dropped_attributes: int = 0,
     ): ...
+
+def seed(): ...
+def rand64bits(): ...
+def rand128bits(): ...

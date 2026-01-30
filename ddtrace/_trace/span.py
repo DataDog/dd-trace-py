@@ -37,8 +37,6 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal import core
-from ddtrace.internal._rand import rand64bits as _rand64bits
-from ddtrace.internal._rand import rand128bits as _rand128bits
 from ddtrace.internal.compat import NumericType
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_integer
@@ -109,9 +107,6 @@ class Span(SpanData):
         # Public span attributes
         "resource",
         "_span_api",
-        "span_id",
-        "trace_id",
-        "parent_id",
         "_meta",
         "_meta_struct",
         "error",
@@ -170,19 +165,6 @@ class Span(SpanData):
         :param on_finish: list of functions called when the span finishes.
         """
 
-        if not (span_id is None or isinstance(span_id, int)):
-            if config._raise:
-                raise TypeError("span_id must be an integer")
-            return
-        if not (trace_id is None or isinstance(trace_id, int)):
-            if config._raise:
-                raise TypeError("trace_id must be an integer")
-            return
-        if not (parent_id is None or isinstance(parent_id, int)):
-            if config._raise:
-                raise TypeError("parent_id must be an integer")
-            return
-
         self.resource = resource or self.name
         self.span_type = span_type
         self._span_api = span_api
@@ -196,14 +178,6 @@ class Span(SpanData):
         self.start_ns: int = Time.time_ns() if start is None else int(start * 1e9)
         self.duration_ns: Optional[int] = None
 
-        if trace_id is not None:
-            self.trace_id: int = trace_id
-        elif config._128_bit_trace_id_enabled:
-            self.trace_id: int = _rand128bits()  # type: ignore[no-redef]
-        else:
-            self.trace_id: int = _rand64bits()  # type: ignore[no-redef]
-        self.span_id: int = span_id or _rand64bits()
-        self.parent_id: Optional[int] = parent_id
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         self._parent_context: Optional[Context] = context
