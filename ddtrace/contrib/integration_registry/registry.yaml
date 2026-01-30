@@ -81,7 +81,7 @@ integrations:
   tested_versions_by_dependency:
     anthropic:
       min: 0.28.1
-      max: 0.76.0
+      max: 0.77.0
 
 - integration_name: aredis
   is_external_package: true
@@ -247,7 +247,7 @@ integrations:
   tested_versions_by_dependency:
     crewai:
       min: 0.102.0
-      max: 1.9.1
+      max: 1.9.2
 
 - integration_name: ddtrace_api
   is_external_package: false
@@ -630,8 +630,8 @@ integrations:
   - protobuf
   tested_versions_by_dependency:
     protobuf:
-      min: 6.33.4
-      max: 6.33.4
+      min: 6.33.5
+      max: 6.33.5
 
 - integration_name: psycopg
   is_external_package: true
@@ -936,8 +936,8 @@ integrations:
   - vllm
   tested_versions_by_dependency:
     vllm:
-      min: 0.14.1
-      max: 0.14.1
+      min: 0.15.0
+      max: 0.15.0
 
 - integration_name: webbrowser
   is_external_package: false

@@ -61,7 +61,7 @@
         "dependency": "anthropic",
         "integration": "anthropic",
         "minimum_tracer_supported": "0.28.1",
-        "max_tracer_supported": "0.76.0",
+        "max_tracer_supported": "0.77.0",
         "auto-instrumented": true
     },
     {
@@ -179,7 +179,7 @@
         "dependency": "crewai",
         "integration": "crewai",
         "minimum_tracer_supported": "0.102.0",
-        "max_tracer_supported": "1.9.1",
+        "max_tracer_supported": "1.9.2",
         "auto-instrumented": true
     },
     {
@@ -480,8 +480,8 @@
     {
         "dependency": "protobuf",
         "integration": "protobuf",
-        "minimum_tracer_supported": "6.33.4",
-        "max_tracer_supported": "6.33.4",
+        "minimum_tracer_supported": "6.33.5",
+        "max_tracer_supported": "6.33.5",
         "auto-instrumented": false
     },
     {
@@ -696,8 +696,8 @@
     {
         "dependency": "vllm",
         "integration": "vllm",
-        "minimum_tracer_supported": "0.14.1",
-        "max_tracer_supported": "0.14.1",
+        "minimum_tracer_supported": "0.15.0",
+        "max_tracer_supported": "0.15.0",
         "pinned": "true",
         "auto-instrumented": true
     },

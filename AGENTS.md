@@ -100,3 +100,20 @@ This project has custom skills that provide specialized workflows. **Always chec
 
 <!-- Add more skills below as they are created -->
 
+## Lockfile Regeneration
+
+When changes are made to `riotfile.py` that affect dependency versions, lockfiles need to be regenerated using:
+
+```bash
+docker run --platform linux/amd64 --rm --user root -v $(pwd):/app -w /app \
+  -e MARIADB_CONFIG=/usr/bin/mariadb_config \
+  registry.ddbuild.io/dd-trace-py:v81799905-0f9bd8b-testrunner@sha256:f29e49e817cb3fdcc188414b9e94bd9244df7db00b72205738a752ab23953cc5 \
+  bash -c "apt-get update && apt-get install -y libmariadb-dev && pyenv global 3.12 3.9 3.10 3.11 3.13 3.14 && for py in 3.9 3.10 3.11 3.12 3.13 3.14; do python\$py -m pip install pip-tools; done && scripts/compile-and-prune-test-requirements-parallel"
+```
+
+After regenerating lockfiles, the integration registry may also need updating:
+
+```bash
+uv run scripts/integration_registry/update_and_format_registry.py
+```
+
