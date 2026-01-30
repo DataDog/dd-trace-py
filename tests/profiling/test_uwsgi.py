@@ -97,7 +97,7 @@ def test_uwsgi_threads_enabled(
     proc.terminate()
     assert proc.wait() != 0
     for pid in worker_pids:
-        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
+        profile = pprof_utils.parse_newest_profile(f"{filename}.{pid}")
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
         assert len(samples) > 0
 
@@ -148,7 +148,7 @@ def _wait_for_profile_samples(
     while time.time() < deadline:
         try:
             profile = pprof_utils.parse_newest_profile(
-                "%s.%d" % (filename_prefix, pid),
+                f"{filename_prefix}.{pid}",
                 assert_samples=False,
                 allow_penultimate=True,
             )
@@ -161,7 +161,7 @@ def _wait_for_profile_samples(
             return samples
         time.sleep(interval)
 
-    assert False, "Timed out waiting for %s samples for pid %d" % (value_type, pid)
+    assert False, f"Timed out waiting for {value_type} samples for pid {pid}"
 
 
 def test_uwsgi_threads_processes_primary(
@@ -176,7 +176,7 @@ def test_uwsgi_threads_processes_primary(
     proc.terminate()
     proc.wait()
     for pid in worker_pids:
-        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
+        profile = pprof_utils.parse_newest_profile(f"{filename}.{pid}")
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
         assert len(samples) > 0
 
@@ -196,7 +196,7 @@ def test_uwsgi_threads_processes_primary_lazy_apps(
     proc.terminate()
     proc.wait()
     for pid in worker_pids:
-        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
+        profile = pprof_utils.parse_newest_profile(f"{filename}.{pid}")
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
         assert len(samples) > 0
 
@@ -221,7 +221,7 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(
     # proc.wait()
 
     # for pid in worker_pids:
-    #     utils.check_pprof_file("%s.%d" % (filename, pid))
+    #     utils.check_pprof_file(f"{filename}.{pid}")
 
     # Kill master process
     parent_pid = worker_pids[0]
