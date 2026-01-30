@@ -240,6 +240,8 @@ def _instrument_view(django, view, path=None):
     if not callable(view):
         return view
 
+    core.dispatch("service_entrypoint.patch", (unwrap(view),))
+
     # Patch view HTTP methods and lifecycle methods
 
     http_method_names = getattr(view, "http_method_names", ())
@@ -298,7 +300,6 @@ def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
         if path is None and args:
             path = args[0]
 
-        core.dispatch("service_entrypoint.patch", (unwrap(view),))
         if view_from_args:
             args = list(args)
             args[1] = instrument_view(django, view, path=path)
