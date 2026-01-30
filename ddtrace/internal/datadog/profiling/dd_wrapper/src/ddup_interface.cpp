@@ -59,6 +59,7 @@ std::once_flag ddup_init_flag;    // NOLINT (cppcoreguidelines-avoid-non-const-g
 void
 ddup_postfork_child()
 {
+    fprintf(stderr, "ddup_postfork_child\n");
     // Free our copy of the Profiles Dictionary. Its String IDs refer
     // to memory that doesn't exist in the child process.
     Datadog::internal::release_profiles_dictionary();
@@ -419,6 +420,7 @@ ddup_drop_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
 bool
 ddup_upload() // cppcheck-suppress unusedFunction
 {
+    fprintf(stderr, "ddup_upload\n");
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (!is_ddup_initialized) {
         if (!already_warned) {

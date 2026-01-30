@@ -16,6 +16,7 @@ assert ddtrace.profiling.bootstrap.profiler.status == service.ServiceStatus.RUNN
 
 
 child_pid = os.fork()
+assert ddtrace.profiling.bootstrap.profiler.status == service.ServiceStatus.RUNNING  # pyright: ignore[reportAttributeAccessIssue]
 if child_pid == 0:
     # Release it
     lock.release()
@@ -26,7 +27,6 @@ if child_pid == 0:
     lock.release()
 else:
     lock.release()
-    assert ddtrace.profiling.bootstrap.profiler.status == service.ServiceStatus.RUNNING  # pyright: ignore[reportAttributeAccessIssue]
     print(child_pid)
     pid, status = os.waitpid(child_pid, 0)
     sys.exit(os.WEXITSTATUS(status))

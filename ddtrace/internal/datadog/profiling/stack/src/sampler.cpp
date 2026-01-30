@@ -302,6 +302,7 @@ _stack_postfork_cleanup()
 void
 _stack_atfork_child()
 {
+    fprintf(stderr, "process forked, i'm in child, calling _stack_postfork_cleanup\n");
     // Called via pthread_atfork after fork in child process.
     // The sampling thread dies after fork, so we need to restart it if it was running.
     _stack_postfork_cleanup();
@@ -325,6 +326,7 @@ Sampler::one_time_setup()
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the cleanup to ensure that we're tracking the correct process (don't restart sampler here)
     _stack_postfork_cleanup();
+    fprintf(stderr, "setting up atfork handler\n");
     pthread_atfork(nullptr, nullptr, _stack_atfork_child);
 
     // Register our rendering callbacks with echion's Renderer singleton

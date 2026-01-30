@@ -152,6 +152,12 @@ def parse_newest_profile(
     the newest profile that has given filename prefix.
     """
     files = glob.glob(filename_prefix + ".*.pprof")
+
+    if not files:
+        raise FileNotFoundError(
+            f"No profile files found for {filename_prefix}, all pprof files: {glob.glob('*.pprof') or '(none)'}"
+        )
+
     # Sort files by logical timestamp (i.e. the sequence number, which is monotonically increasing);
     # this approach is more reliable than filesystem timestamps, especially when files are created rapidly.
     files.sort(key=lambda f: int(f.rsplit(".", 2)[-2]))
@@ -159,6 +165,7 @@ def parse_newest_profile(
     with open(filename, "rb") as fp:
         dctx = zstd.ZstdDecompressor()
         serialized_data = dctx.stream_reader(fp).read()
+
     profile = pprof_pb2.Profile()
     profile.ParseFromString(serialized_data)
 
@@ -234,8 +241,8 @@ def assert_lock_events_of_type(
     samples = get_samples_with_value_type(
         profile, "lock-acquire" if event_type == LockEventType.ACQUIRE else "lock-release"
     )
-    assert len(samples) >= len(expected_events), "Expected at least {} samples, found only {}".format(
-        len(expected_events), len(samples)
+    assert len(samples) >= len(expected_events), (
+        f"Expected at least {len(expected_events)} samples, found only {len(samples)}"
     )
 
     # sort the samples and expected events by lock name, which is <filename>:<line>:<lock_name>
@@ -251,10 +258,10 @@ def assert_lock_events_of_type(
     }
     for expected_event in expected_events:
         if expected_event.lock_name is None:
-            key = "{}:{}".format(expected_event.filename, expected_event.linenos.create)
+            key = f"{expected_event.filename}:{expected_event.linenos.create}"
         else:
-            key = "{}:{}:{}".format(expected_event.filename, expected_event.linenos.create, expected_event.lock_name)
-        assert key in samples_dict, "Expected lock event {} not found".format(key)
+            key = f"{expected_event.filename}:{expected_event.linenos.create}:{expected_event.lock_name}"
+        assert key in samples_dict, f"Expected lock event {key} not found"
         assert_lock_event(profile, samples_dict[key], expected_event)
 
 

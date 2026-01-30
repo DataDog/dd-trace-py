@@ -121,11 +121,13 @@ def test_uwsgi_threads_processes_no_primary(
 
 
 def _get_worker_pids(stdout: Optional[IO[str]], num_worker: int, num_app_started: int = 1) -> List[int]:
-    worker_pids = []
+    worker_pids: List[int] = []
     started = 0
+    lines: List[str] = []
     while True:
         assert stdout is not None
         line = stdout.readline().strip()
+        lines.append(line)
         if not line:
             break
         elif "WSGI app 0 (mountpoint='') ready" in line:
@@ -137,6 +139,10 @@ def _get_worker_pids(stdout: Optional[IO[str]], num_worker: int, num_app_started
 
         if len(worker_pids) == num_worker and num_app_started == started:
             break
+
+    if not worker_pids:
+        all_lines = "\n".join(lines)
+        raise RuntimeError(f"No worker pids found, stdout: \n{all_lines}")
 
     return worker_pids
 
@@ -171,13 +177,20 @@ def test_uwsgi_threads_processes_primary(
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     proc = uwsgi("--enable-threads", "--master", "--py-call-uwsgi-fork-hooks", "--processes", "2")
     worker_pids = _get_worker_pids(proc.stdout, 2)
+
     # Give some time to child to actually startup
     time.sleep(3)
+
+    # Forcefully terminate the process
     proc.terminate()
     proc.wait()
+
+    print(f"INFO: Worker PIDs: {worker_pids}")
+    print(proc.stdout.read())
     for pid in worker_pids:
         profile = pprof_utils.parse_newest_profile(f"{filename}.{pid}")
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+        pprof_utils.print_all_samples(profile)
         assert len(samples) > 0
 
 
