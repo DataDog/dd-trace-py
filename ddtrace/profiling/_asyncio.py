@@ -278,12 +278,6 @@ def _(uvloop: ModuleType) -> None:
 
     init_stack: bool = config.stack.enabled and stack.is_available
 
-    # Enable uvloop-specific stack unwinding in the native profiler.
-    # This changes the boundary frame detection from Handle._run to Runner.run,
-    # and skips the uvloop wrapper frame in task stacks.
-    if init_stack:
-        stack.set_uvloop_mode(True)
-
     # Wrap uvloop.new_event_loop to track loops when they're created
     new_event_loop_func = getattr(uvloop, "new_event_loop", None)
     if new_event_loop_func is not None:
@@ -296,9 +290,13 @@ def _(uvloop: ModuleType) -> None:
         ) -> "asyncio.AbstractEventLoop":
             loop = f(*args, **kwargs)
             if init_stack:
-                stack.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
+                thread_id = typing.cast(int, ddtrace_threading.current_thread().ident)
+                stack.set_uvloop_mode(thread_id, True)
+
+                stack.track_asyncio_loop(thread_id, loop)
                 # Ensure asyncio task tracking is initialized
                 _call_init_asyncio(asyncio)
+
             assert THREAD_LINK is not None  # nosec: assert is used for typing
             THREAD_LINK.clear_threads(set(sys._current_frames().keys()))
             THREAD_LINK.link_object(loop)
@@ -312,11 +310,16 @@ def _(uvloop: ModuleType) -> None:
         def _(
             f: typing.Callable[..., typing.Any], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]
         ) -> typing.Any:
+            thread_id = typing.cast(int, ddtrace_threading.current_thread().ident)
+            if init_stack:
+                stack.set_uvloop_mode(thread_id, True)
+
             loop: typing.Optional["asyncio.AbstractEventLoop"] = get_argument_value(args, kwargs, 1, "loop")
             try:
                 if init_stack and loop is not None:
-                    stack.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
+                    stack.track_asyncio_loop(thread_id, loop)
                     _call_init_asyncio(asyncio)
+
                 return f(*args, **kwargs)
             finally:
                 assert THREAD_LINK is not None  # nosec: assert is used for typing
