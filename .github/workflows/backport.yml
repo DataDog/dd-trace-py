@@ -3,6 +3,7 @@ on:
   pull_request:
     types:
       - closed
+      - labeled
 
 jobs:
   backport:
@@ -13,7 +14,6 @@ jobs:
       id-token: write
     # Only react to merged PRs for security reasons.
     # See https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#pull_request_target.
-    # the first || is only for testing
     if: >
       github.event.pull_request.merged
       && (

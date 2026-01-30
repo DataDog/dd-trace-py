@@ -977,6 +977,8 @@ class TestSessionLifecycleMethods:
         # Mock session with normal exit
         mock_session = Mock()
         mock_session.exitstatus = pytest.ExitCode.OK
+        # Mock the pluginmanager to return an empty list
+        mock_session.config.pluginmanager.list_name_plugin.return_value = []
 
         plugin.pytest_sessionfinish(mock_session)
 
@@ -1000,6 +1002,8 @@ class TestSessionLifecycleMethods:
         # Mock session with test failures
         mock_session = Mock()
         mock_session.exitstatus = pytest.ExitCode.TESTS_FAILED
+        # Mock the pluginmanager to return an empty list
+        mock_session.config.pluginmanager.list_name_plugin.return_value = []
 
         plugin.pytest_sessionfinish(mock_session)
 
@@ -1021,6 +1025,8 @@ class TestSessionLifecycleMethods:
         mock_session = Mock()
         mock_session.exitstatus = pytest.ExitCode.OK
         mock_session.config = Mock(workeroutput={})
+        # Mock the pluginmanager to return an empty list
+        mock_session.config.pluginmanager.list_name_plugin.return_value = []
 
         plugin.pytest_sessionfinish(mock_session)
 

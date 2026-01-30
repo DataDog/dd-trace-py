@@ -13,7 +13,6 @@ class Sample;
 extern "C"
 {
 #endif
-
     void ddup_config_env(std::string_view dd_env);
     void ddup_config_service(std::string_view service);
     void ddup_config_version(std::string_view version);
@@ -33,7 +32,6 @@ extern "C"
 
     bool ddup_is_initialized();
     void ddup_start();
-    void ddup_cleanup();
     void ddup_set_runtime_id(std::string_view runtime_id);
     void ddup_set_process_id();
     void ddup_profile_set_endpoints(std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints);
