@@ -18,6 +18,8 @@ from ddtrace.contrib.internal.celery.signals import trace_retry
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.forksafe import ddtrace_after_in_parent
+from ddtrace.internal.forksafe import ddtrace_before_fork
 from ddtrace.internal.logger import get_logger
 from ddtrace.trace import tracer
 
@@ -51,6 +53,12 @@ def patch_app(app, pin=None):
     # Patch apply_async
     trace_utils.wrap("celery.app.task", "Task.apply_async", _traced_apply_async_function(config.celery, "apply_async"))
 
+    # When celery starts the beat process it closes all open file descriptors with `close_open_fds`.
+    # This causes panics as it closes the native runtime file descriptors.
+    # To prevent this we call the treat the `close_open_fds` method as a fork
+    # calling fork hook before and after to make sure all native runtime are shut down.
+    trace_utils.wrap("celery.platforms", "close_open_fds", _patched_close_open_fds)
+
     # connect to the Signal framework
     signals.task_prerun.connect(trace_prerun, weak=False)
     signals.task_postrun.connect(trace_postrun, weak=False)
@@ -76,6 +84,7 @@ def unpatch_app(app):
     trace_utils.unwrap(celery.beat.Scheduler, "apply_entry")
     trace_utils.unwrap(celery.beat.Scheduler, "tick")
     trace_utils.unwrap(celery.app.task.Task, "apply_async")
+    trace_utils.unwrap(celery.platforms, "close_open_fds")
 
     signals.task_prerun.disconnect(trace_prerun)
     signals.task_postrun.disconnect(trace_postrun)
@@ -142,3 +151,21 @@ def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
                     task_span.finish()
 
     return _traced_apply_async_inner
+
+
+def _patched_close_open_fds(func, instance, args, kwargs):
+    """
+    Celery closes all open file descriptors to isolate some fork child.
+    This causes the native runtime to panic because it expects to have a valid fd.
+    We call fork hook to avoid panics when the native runtime interacts with closed fds.
+    """
+    log.debug("Shutting down native runtime before closing fds")
+    ddtrace_before_fork()
+
+    try:
+        result = func(*args, **kwargs)
+    finally:
+        ddtrace_after_in_parent()
+        log.debug("Restarting native runtime after closing fds")
+
+    return result
