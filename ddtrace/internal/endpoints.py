@@ -107,18 +107,13 @@ class HttpEndPointsCollection(metaclass=Singleton):
         """
         Flush the endpoints to a payload, returning the first `max` endpoints.
         """
-        endpoints_snapshot = tuple(self.endpoints)
-        if max_length >= len(self.endpoints):
-            res = {
-                "is_first": self.is_first,
-                "endpoints": [dataclasses.asdict(ep, dict_factory=_dict_factory) for ep in endpoints_snapshot],
-            }
-        else:
-            batch = tuple(self.endpoints.pop() for _ in range(max_length))
-            res = {
-                "is_first": self.is_first,
-                "endpoints": [dataclasses.asdict(ep, dict_factory=_dict_factory) for ep in batch],
-            }
+        endpoints_res: List[dict] = []
+        while self.endpoints and len(endpoints_res) < max_length:
+            endpoints_res.append(dataclasses.asdict(self.endpoints.pop(), dict_factory=_dict_factory))
+        res = {
+            "is_first": self.is_first,
+            "endpoints": endpoints_res,
+        }
         self.is_first = False
         return res
 
