@@ -1,0 +1,15 @@
+---
+deprecations:
+  - |
+    The ``tracer`` parameter is deprecated in the following functions and class methods and will be removed in version 5.0.0:
+
+    * aiohttp: ``trace_app``
+    * asgi: ``TraceMiddleware.__init__``
+    * bottle: ``TracePlugin.__init__``
+    * cherrypy: ``TraceMiddleware.__init__``
+    * falcon: ``TraceMiddleware.__init__``
+    * flask_cache: ``get_traced_cache``
+    * sqlalchemy: ``trace_engine``
+    * wsgi: ``WSGIMiddleware.__init__``
+
+    The global tracer is always used.
