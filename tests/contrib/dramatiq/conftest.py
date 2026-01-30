@@ -11,6 +11,8 @@ def stub_broker():
     dramatiq.set_broker(broker)
     yield broker
     broker.flush_all()
+    # Clear registered actors to avoid conflicts between tests
+    broker.actors.clear()
     broker.close()
 
 

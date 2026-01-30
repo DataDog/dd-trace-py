@@ -13,7 +13,7 @@ from .app.web import setup_app
 PYTEST_ASYNCIO_VERSION = parse_version(pytest_asyncio.__version__)
 
 
-if PYTEST_ASYNCIO_VERSION < (1, 0):
+if PYTEST_ASYNCIO_VERSION < (0, 23):
 
     @pytest.fixture
     async def app_tracer(tracer, loop):

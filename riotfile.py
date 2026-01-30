@@ -813,31 +813,24 @@ venv = Venv(
                 "more_itertools": "<8.11.0",
                 "pytest-randomly": latest,
             },
+            env={
+                # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
+                "PYTEST_PLUGINS": "celery.contrib.pytest",
+            },
             venvs=[
                 Venv(
+                    # celery 5.2 works with redis 3.5
                     pys=["3.9"],
-                    env={
-                        # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
-                        "PYTEST_PLUGINS": "celery.contrib.pytest",
-                    },
                     pkgs={
-                        "celery": [
-                            "~=5.2",
-                            latest,
-                        ],
+                        "celery": "~=5.2",
                         "redis": "~=3.5",
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10"),
-                    env={
-                        # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
-                        "PYTEST_PLUGINS": "celery.contrib.pytest",
-                    },
+                    # celery latest requires redis 4.x+
+                    pys=select_pys(min_version="3.9"),
                     pkgs={
-                        "celery[redis]": [
-                            latest,
-                        ],
+                        "celery[redis]": latest,
                     },
                 ),
             ],
@@ -926,6 +919,7 @@ venv = Venv(
                 "python-memcached": latest,
                 "pytest-randomly": latest,
                 "django-q": latest,
+                "setuptools": latest,  # Required by django-q for pkg_resources
                 "spyne": latest,
                 "zeep": latest,
                 "bcrypt": "==4.2.1",
@@ -1695,7 +1689,7 @@ venv = Venv(
             pkgs={
                 "requests": [latest],
                 "webtest": [latest],
-                "tests/contrib/pyramid/pserve_app": [latest],
+                "tests/contrib/pyramid/pserve_app": [""],
                 "pytest-randomly": latest,
             },
             venvs=[
@@ -1780,22 +1774,17 @@ venv = Venv(
         Venv(
             name="aiomysql",
             command="pytest {cmdargs} tests/contrib/aiomysql",
+            pkgs={
+                "pytest-randomly": latest,
+                "pytest-asyncio": latest,
+                "aiomysql": ["~=0.1.0", latest],
+            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.12"),
-                    pkgs={
-                        "pytest-randomly": latest,
-                        "pytest-asyncio": "==0.21.1",
-                        "aiomysql": ["~=0.1.0", latest],
-                    },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.13"),
-                    pkgs={
-                        "pytest-randomly": latest,
-                        "pytest-asyncio": latest,
-                        "aiomysql": ["~=0.1.0", latest],
-                    },
                 ),
             ],
         ),
@@ -2395,7 +2384,7 @@ venv = Venv(
             pys="3.9",
             command="pytest {cmdargs} tests/contrib/aredis",
             pkgs={
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": latest,
                 "aredis": latest,
                 "pytest-randomly": latest,
             },
@@ -2422,7 +2411,7 @@ venv = Venv(
             name="yaaredis",
             command="pytest {cmdargs} tests/contrib/yaaredis",
             pkgs={
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": latest,
                 "pytest-randomly": latest,
             },
             venvs=[
@@ -2441,7 +2430,7 @@ venv = Venv(
             name="sanic",
             command="pytest {cmdargs} tests/contrib/sanic",
             pkgs={
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": latest,
                 "pytest-randomly": latest,
                 "requests": latest,
                 "websockets": "<11.0",
@@ -2662,7 +2651,7 @@ venv = Venv(
             env={"DD_TRACE_OTEL_ENABLED": "true"},
             pkgs={
                 "pytest-randomly": latest,
-                "pytest-asyncio": "==0.21.1",
+                "pytest-asyncio": latest,
                 "opentelemetry-instrumentation-flask": latest,
                 "markupsafe": "==2.0.1",
                 "mock": latest,
@@ -3625,6 +3614,7 @@ venv = Venv(
                         "langchain": "~=0.2",
                         "langchain-community": "~=0.2",
                         "langchain-experimental": "~=0.2",
+                        "langchain-text-splitters": "~=0.2",
                     },
                 ),
                 Venv(
@@ -3633,6 +3623,7 @@ venv = Venv(
                         "langchain": "~=0.3",
                         "langchain-community": "~=0.3",
                         "langchain-experimental": "~=0.3",
+                        "langchain-text-splitters": "~=0.3",
                     },
                 ),
             ],
@@ -3879,8 +3870,10 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.13"),
                     pkgs={
-                        "langchain": latest,
-                        "langchain-core": latest,
+                        # Pin to <1.0 due to breaking API changes in langchain 1.0
+                        # (AgentExecutor import path changed)
+                        "langchain": ">=0.3,<1.0",
+                        "langchain-core": ">=0.3,<1.0",
                         "langchain-openai": latest,
                         "openai": latest,
                     },

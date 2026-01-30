@@ -1,6 +1,11 @@
 import os
 import time
 
+
+# Set dummy API key before importing crewai components that require it
+# This is needed because Agent creation at module level tries to instantiate an LLM
+os.environ.setdefault("OPENAI_API_KEY", "<not-a-real-key>")
+
 from crewai import Agent
 from crewai import Crew
 from crewai import Flow

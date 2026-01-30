@@ -458,6 +458,7 @@ from tests.contrib.sanic.test_sanic import integration_http_config
 from tests.contrib.sanic.test_sanic import patch_sanic
 from tests.contrib.sanic.test_sanic import _response_status
 
+@pytest.mark.asyncio
 async def test(patch_sanic, client, integration_config, integration_http_config, test_spans):
     response = await client.get("/hello", params=[("foo", "bar")])
     assert _response_status(response) == 200
@@ -506,6 +507,7 @@ from tests.contrib.sanic.test_sanic import integration_http_config
 from tests.contrib.sanic.test_sanic import patch_sanic
 from tests.contrib.sanic.test_sanic import _response_status
 
+@pytest.mark.asyncio
 async def test(patch_sanic, client, integration_config, integration_http_config, test_spans):
     response = await client.get("/hello", params=[("foo", "bar")])
     assert _response_status(response) == 200

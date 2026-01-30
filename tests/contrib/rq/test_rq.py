@@ -5,6 +5,7 @@ import time
 import pytest
 import redis
 import rq
+from rq.exceptions import InvalidJobOperation
 
 from ddtrace.contrib.internal.rq.patch import get_version
 from ddtrace.contrib.internal.rq.patch import patch
@@ -91,7 +92,13 @@ def test_sync_worker_ttl(queue):
     job = queue.enqueue(job_add1, 1, result_ttl=0)
     worker = rq.SimpleWorker([queue], connection=queue.connection)
     worker.work(burst=True)
-    assert job.get_status() is None
+    # In newer rq versions, get_status() raises InvalidJobOperation when job data has expired
+    # In older versions, it returns None
+    try:
+        status = job.get_status()
+        assert status is None
+    except InvalidJobOperation:
+        pass  # Expected in newer rq versions when job data has expired
     assert job.result is None
 
 

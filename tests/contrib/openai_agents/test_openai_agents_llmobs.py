@@ -481,9 +481,11 @@ async def test_llmobs_single_agent_with_ootb_tools(agents, test_spans, request_v
                 ],
                 [
                     {
-                        "content": "ResponseFunctionWebSearch(id='ws_68814fa4582081989a0bc4a33dc197cc026575ca32f194ce',"
-                        " status='completed', type='web_search_call', action={'type': 'search', 'query': 'current "
-                        "weather in New York'})",
+                        "content": "ResponseFunctionWebSearch("
+                        "id='ws_68814fa4582081989a0bc4a33dc197cc026575ca32f194ce', "
+                        "action=ActionSearch(query='current weather in New York', "
+                        "type='search', queries=None, sources=None), "
+                        "status='completed', type='web_search_call')",
                         "role": "assistant",
                     },
                     {"role": "assistant", "content": result.final_output},

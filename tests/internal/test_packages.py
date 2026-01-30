@@ -63,6 +63,11 @@ def test_get_distributions():
             if f"zope-{sub}" in pkg_resources_ws and f"zope.{sub}" in importlib_pkgs:
                 pkg_resources_ws.discard(f"zope-{sub}")
                 importlib_pkgs.discard(f"zope.{sub}")
+        # Fix for jaraco namespace packages (jaraco-context vs jaraco.context)
+        for sub in ["context", "functools"]:
+            if f"jaraco-{sub}" in pkg_resources_ws and f"jaraco.{sub}" in importlib_pkgs:
+                pkg_resources_ws.discard(f"jaraco-{sub}")
+                importlib_pkgs.discard(f"jaraco.{sub}")
 
     # assert that pkg_resources and importlib.metadata return the same packages
     assert pkg_resources_ws == importlib_pkgs

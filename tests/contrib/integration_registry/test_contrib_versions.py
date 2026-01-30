@@ -16,12 +16,19 @@ from ddtrace.vendor.packaging.specifiers import Specifier
 
 
 # allowlist of packages where we can't test the min version
+# Note: Both integration names and module names may need to be listed since different
+# tests check against different identifiers
 SPECIAL_CASES_ALLOWLIST = {
     # celery 4.x cannot be installed in our test env due to pip version conflict where
     # installing the 4.x version fails because of a celery metadata bug requiring pip<24.1
     "celery": ">=4.4",
     # pytest 6.0 cannot be tested due to our tests targeting later pytest versions.
     "pytest": ">=6.0",
+    # google-genai: currently testing only latest, min version testing to be added
+    "google_genai": ">=1.21.1",  # integration name
+    "google.genai": ">=1.21.1",  # module name
+    # valkey: currently testing only latest, min version testing to be added
+    "valkey": ">=6.0.0",
 }
 
 

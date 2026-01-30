@@ -14,6 +14,9 @@ class DramatiqSnapshotTests(unittest.TestCase):
 
     def tearDown(self):
         unpatch()
+        # Clear registered actors to avoid conflicts between tests
+        broker = dramatiq.get_broker()
+        broker.actors.clear()
 
     @snapshot(wait_for_num_traces=2)
     def test_idempotent_patch(self):
