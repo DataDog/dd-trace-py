@@ -143,7 +143,7 @@ def _get_worker_pids(stdout: Optional[IO[str]], num_worker: int, num_app_started
 
 def _wait_for_profile_samples(
     filename_prefix: str, pid: int, value_type: str, timeout: float = 10.0, interval: float = 0.1
-) -> List[pprof_pb2.Sample]:
+) -> List["pprof_pb2.Sample"]:
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
