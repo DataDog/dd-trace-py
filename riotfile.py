@@ -95,6 +95,7 @@ _appsec_threats_iast_variants = [
             "DD_IAST_ENABLED": "true",
             "DD_IAST_REQUEST_SAMPLING": "100",
             "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            "DD_IAST_WEAK_HASH_ALGORITHMS": "NOTexist",
         },
     ),
 ]
@@ -118,6 +119,7 @@ venv = Venv(
         "DD_PATCH_MODULES": "unittest:false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
         "CARGO_BUILD_JOBS": "12",
+        "DD_PYTEST_USE_NEW_PLUGIN": "true",
     },
     venvs=[
         Venv(
@@ -526,7 +528,7 @@ venv = Venv(
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED": "0",  # DEV: Temporary, remove once merged
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             command="pytest -v {cmdargs} tests/internal/",
             pkgs={
@@ -1237,6 +1239,9 @@ venv = Venv(
                     venvs=[
                         Venv(pys=["3.9"], pkgs={"exceptiongroup": latest}),
                     ],
+                    env={
+                        "DD_PYTEST_USE_NEW_PLUGIN": "false",
+                    },
                 ),
                 Venv(
                     pkgs={
@@ -1803,6 +1808,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             venvs=[
                 Venv(
@@ -1914,6 +1920,9 @@ venv = Venv(
             pkgs={
                 "pytest-randomly": latest,
             },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
+            },
             venvs=[
                 Venv(
                     pys="3.9",
@@ -1939,6 +1948,9 @@ venv = Venv(
                     # FIXME: add support for v6.1
                     ">=6.0,<6.1",
                 ],
+            },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             venvs=[
                 Venv(
@@ -1970,6 +1982,9 @@ venv = Venv(
                 "msgpack": latest,
                 "pytest-randomly": latest,
             },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
+            },
             venvs=[
                 Venv(
                     pkgs={
@@ -1987,6 +2002,9 @@ venv = Venv(
             pkgs={
                 "flaky": latest,
                 "pytest-randomly": latest,
+            },
+            env={
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
         ),
         Venv(
@@ -3067,7 +3085,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(),
                     pkgs={
-                        "pydantic-ai": ["==0.3.0", "==0.4.4"],
+                        "pydantic-ai": ["==0.3.0", "==0.4.4", "==0.8.1"],
                         "pydantic": "==2.12.0a1",
                     },
                 ),
@@ -3242,6 +3260,7 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             venvs=[
                 Venv(

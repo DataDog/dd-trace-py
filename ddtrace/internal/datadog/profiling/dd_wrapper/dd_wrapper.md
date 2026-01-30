@@ -8,7 +8,7 @@ In theory this should just be a thin wrapper, but in practice handling the edge-
 
 This is a section on how the "python" side of the profiler used to work (and still does, until this and stack v2 become the default).
 Traditionally, dd-trace-py maintained three separate sampling mechanisms for the collection of profiling data.
-These are called "collectors" in dd-trace-py parlance, but we'll refer to them as "samplers" in conformance with the broader litearture.
+These are called "collectors" in dd-trace-py parlance, but we'll refer to them as "samplers" in conformance with the broader literature.
 
 
 ### Stack sampler
@@ -19,7 +19,7 @@ This sampler lives in a Python thread.
 When it wakes up, it looks at the current threads/tasks and collects stack traces for each of them.
 It also looks at the current exceptions and collects similar data for them.
 
-Although this sampler operates in its own thread, since its fundamental interaction requires taking the GIL, it never samples at a time when other threads are on-CPU (except if they're off-GIL in C code or in io or whatever, but that isn't an issue).
+Although this sampler operates in its own thread, since its fundamental interaction requires taking the GIL, it never samples at a time when other threads are on-CPU (except if they're off-GIL in C code or in IO or whatever, but that isn't an issue).
 
 
 #### Stack Sampler v2
@@ -84,10 +84,10 @@ However, this last case hardly matters, since the interrupted context will resum
 Samples are interacted with transactionally, for example
 
 1. `ddup_start_sample()` (every sample begins with a call to `start_sample()`)
-2. adding frames, walltime, tags, etc
-3. ddup_flush_sample() (every sample ends with a call to `flush_sample()`)
+2. adding frames, wall time, tags, etc
+3. `ddup_flush_sample()` (every sample ends with a call to `flush_sample()`)
 
-The act of flushing a sample stores its data in a ddog_prof_Profile object (which is wrapped by Profile in this code).
+The act of flushing a sample stores its data in a `ddog_prof_Profile` object (which is wrapped by Profile in this code).
 it also releases the Sample (don't reuse Samples in application code!)
 
 There's one wrinkle here.
@@ -103,8 +103,9 @@ A Profile is periodically flushed to the Datadog backend during an upload operat
 A profile actually manages its own internal cache of strings, which makes it slightly unfortunate that we de-duplicate strings _twice_.
 This is a little bit of a wart, but in practice we're still way under the memory overhead of the pure-Python collection system in mainline dd-trace-py.
 
-The Profile is locked during serialization and reset after encoding completes.
-The actual HTTP upload happens without holding the profile lock.
+For simplicity, the Profile object maintains two `ddog_prof_Profile`s using a red-black swap mechanism.
+When one Profile is consumed by the uploader, it gets swapped with the other profile.
+This probably isn't actually necessary anymore.
 
 
 ### Uploader

@@ -14,6 +14,7 @@ from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.vllm import VLLMIntegration
+from ddtrace.trace import tracer
 
 
 if TYPE_CHECKING:
@@ -63,7 +64,6 @@ def traced_engine_init(vllm, pin, func, instance, args, kwargs):
 @with_traced_module
 def traced_processor_process_inputs(vllm, pin, func, instance, args, kwargs):
     """Inject Datadog trace context into trace_headers for propagation."""
-    tracer = pin.tracer
 
     if len(args) > ARG_POSITION_TRACE_HEADERS:
         trace_headers = args[ARG_POSITION_TRACE_HEADERS]

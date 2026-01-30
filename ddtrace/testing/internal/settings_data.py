@@ -58,6 +58,7 @@ class Settings:
     skipping_enabled: bool = False
     require_git: bool = False
     itr_enabled: bool = False
+    coverage_report_upload_enabled: bool = False
 
     @classmethod
     def from_attributes(cls, attributes: t.Dict[str, t.Any]) -> Settings:
@@ -73,6 +74,7 @@ class Settings:
         skipping_enabled = bool(attributes.get("tests_skipping"))
         require_git = bool(attributes.get("require_git"))
         itr_enabled = bool(attributes.get("itr_enabled"))
+        coverage_report_upload_enabled = bool(attributes.get("coverage_report_upload_enabled"))
 
         settings = cls(
             early_flake_detection=efd_settings,
@@ -83,6 +85,7 @@ class Settings:
             skipping_enabled=skipping_enabled,
             require_git=require_git,
             itr_enabled=itr_enabled,
+            coverage_report_upload_enabled=coverage_report_upload_enabled,
         )
 
         return settings

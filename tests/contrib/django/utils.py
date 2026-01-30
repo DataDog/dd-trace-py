@@ -39,19 +39,17 @@ def setup_django_test_spans():
 
 
 @contextlib.contextmanager
-def with_django_db(test_spans=None):
-    from django.test.utils import setup_databases
-    from django.test.utils import teardown_databases
+def with_default_django_db(test_spans):
+    from django.core.management import call_command
+    from django.db import connections
 
-    old_config = setup_databases(
-        verbosity=0,
-        interactive=False,
-        keepdb=False,
-    )
-    if test_spans is not None:
-        # Clear the migration spans
-        test_spans.reset()
+    # Run migrations on the default database (SQLite :memory:)
+    # No need for setup_databases/teardown_databases since we're using :memory:
+    call_command("migrate", verbosity=0, interactive=False)
+    # Clear the migration spans
+    test_spans.reset()
     try:
         yield
     finally:
-        teardown_databases(old_config, verbosity=0)
+        # Close all database connections
+        connections.close_all()

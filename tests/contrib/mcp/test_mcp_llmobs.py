@@ -1,13 +1,18 @@
 import asyncio
 import importlib.metadata
+from importlib.metadata import version
 import json
 import os
 from textwrap import dedent
 
 import mock
 
+from ddtrace.internal.utils.version import parse_version
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.utils import override_config
+
+
+MCP_VERSION = parse_version(version("mcp"))
 
 
 def _assert_distributed_trace(test_spans, llmobs_events, expected_tool_name):
@@ -72,17 +77,20 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, test_spans, llmobs_events, mc
         },
     )
 
+    expected_params = {
+        **({"task": None} if MCP_VERSION >= (1, 26, 0) else {}),
+        "meta": {"progressToken": None},
+        "name": "calculator",
+        "arguments": {"operation": "add", "a": 20, "b": 22},
+    }
+
     assert server_events[0] == _expected_llmobs_non_llm_span_event(
         server_span,
         span_kind="tool",
         input_value=json.dumps(
             {
                 "method": "tools/call",
-                "params": {
-                    "meta": {"progressToken": None},
-                    "name": "calculator",
-                    "arguments": {"operation": "add", "a": 20, "b": 22},
-                },
+                "params": expected_params,
                 "jsonrpc": "2.0",
                 "id": 1,
             }
@@ -186,13 +194,20 @@ def test_llmobs_client_server_tool_error(mcp_setup, test_spans, llmobs_events, m
     assert client_events[0]["status"] == "error"
     assert "error:1" in client_events[0]["tags"]
 
+    expected_params = {
+        **({"task": None} if MCP_VERSION >= (1, 26, 0) else {}),
+        "meta": {"progressToken": None},
+        "name": "failing_tool",
+        "arguments": {"param": "value"},
+    }
+
     assert server_events[0] == _expected_llmobs_non_llm_span_event(
         server_span,
         span_kind="tool",
         input_value=json.dumps(
             {
                 "method": "tools/call",
-                "params": {"meta": {"progressToken": None}, "name": "failing_tool", "arguments": {"param": "value"}},
+                "params": expected_params,
                 "jsonrpc": "2.0",
                 "id": 1,
             }

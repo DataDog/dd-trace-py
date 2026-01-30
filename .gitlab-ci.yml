@@ -1,6 +1,7 @@
 stages:
   - package
   - tests
+  - fuzz
   - shared-pipeline
   - benchmarks
   - release
@@ -14,10 +15,12 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "e1cd85f960c713cf6a7e9caa61094b5914d0e386"
+  SYSTEM_TESTS_REF: "8efd013d8502894c7a5ecbdebdd2ca52ba9afa01"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v90830366-2b17cbb-profiling_native"
+  # Repository URL for CI Visibility
+  DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
 
 default:
   interruptible: true
@@ -51,6 +54,7 @@ include:
   - local: ".gitlab/multi-os-tests.yml"
   - local: ".gitlab/benchmarks/serverless.yml"
   - local: ".gitlab/native.yml"
+  - local: ".gitlab/fuzz.yml"
 
 tests-gen:
   stage: tests
@@ -423,7 +427,6 @@ lib_injection_tests:
   tags: [ "arch:amd64" ]
   image: ${PROFILING_NATIVE_IMAGE}
   timeout: 90m
-  allow_failure: true
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
     CARGO_BUILD_JOBS: "12"
@@ -434,6 +437,10 @@ lib_injection_tests:
   script:
     - python --version
     - if [ "${MEMCPY_MODE}" == "fast" ]; then export ECHION_USE_FAST_COPY_MEMORY=1; else export ECHION_USE_FAST_COPY_MEMORY=0; fi
+    # All profiling tests use EXPECT_EXIT (death tests) which fork child processes.
+    # LSAN's signal handler in forked children conflicts with gtest, causing spurious crashes.
+    # Disable leak detection for "safety" - Valgrind jobs already cover leak detection.
+    - if [ "${SANITIZER}" == "safety" ]; then export ASAN_OPTIONS=detect_leaks=0; fi
     - ./ddtrace/internal/datadog/profiling/build_standalone.sh --${SANITIZER} RelWithDebInfo stack_test
 
 # Run on every PR (only if profiling files changed)
