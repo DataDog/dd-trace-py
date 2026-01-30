@@ -336,6 +336,7 @@ def test_data_streams_aiokafka_enabled():
     asyncio.run(_test())
 
 
+@pytest.mark.asyncio
 async def test_data_streams_headers_edge_cases(dsm_processor):
     """Test DSM handles non-UTF8 and None-valued headers without crashing"""
     topic = await create_topic("data_streams_headers_edge_cases")
