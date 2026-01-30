@@ -1,7 +1,9 @@
 use pyo3::{
-    types::{PyInt, PyList, PyModule, PyModuleMethods as _},
-    Bound, Py, PyAny, PyResult, Python,
+    types::{PyAnyMethods as _, PyDict, PyInt, PyModule, PyModuleMethods as _, PyTuple},
+    Bound, PyAny, PyResult, Python,
 };
+
+use crate::py_string::PyBackedString;
 
 #[pyo3::pyclass(name = "SpanEventData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
@@ -14,17 +16,14 @@ impl SpanEventData {
         *_py_args,
         **_py_kwargs,
     ))]
-    pub fn __new__(
-        _py_args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        _py_kwargs: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> Self {
+    pub fn __new__(_py_args: &Bound<'_, PyTuple>, _py_kwargs: Option<&Bound<'_, PyDict>>) -> Self {
         Self::default()
     }
 
     pub fn __init__(
         &mut self,
-        _name: Py<PyAny>,
-        _attributes: Option<Py<PyAny>>,
+        _name: &Bound<'_, PyAny>,
+        _attributes: Option<&Bound<'_, PyAny>>,
         _time_unix_nano: Option<u64>,
     ) -> PyResult<()> {
         Ok(())
@@ -42,10 +41,7 @@ impl SpanLinkData {
         *_py_args,
         **_py_kwargs,
     ))]
-    pub fn __new__(
-        _py_args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        _py_kwargs: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
-    ) -> Self {
+    pub fn __new__(_py_args: &Bound<'_, PyTuple>, _py_kwargs: Option<&Bound<'_, PyDict>>) -> Self {
         Self::default()
     }
 
@@ -62,9 +58,9 @@ impl SpanLinkData {
         &mut self,
         trace_id: &Bound<'p, PyInt>,
         span_id: &Bound<'p, PyInt>,
-        tracestate: Option<Py<PyAny>>,
+        tracestate: Option<&Bound<'p, PyAny>>,
         flags: Option<&Bound<'p, PyInt>>,
-        attributes: Option<Py<PyAny>>,
+        attributes: Option<&Bound<'p, PyAny>>,
         _dropped_attributes: u32,
     ) -> PyResult<()> {
         Ok(())
@@ -73,55 +69,81 @@ impl SpanLinkData {
 
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
-pub struct SpanData {}
+pub struct SpanData {
+    data: libdd_trace_utils::span::Span<PyBackedString>,
+}
+
+/// Extract PyBackedString from Python object, falling back to empty string on error.
+///
+/// Used for required properties (like `name`) which must always have a value.
+/// Invalid types (int, float, list, etc.) are silently converted to "" rather than raising an error.
+#[inline(always)]
+fn extract_backed_string_or_default(obj: &Bound<'_, PyAny>) -> PyBackedString {
+    obj.extract::<PyBackedString>().unwrap_or_default()
+}
+
+/// Extract PyBackedString from Python object, falling back to None on error.
+///
+/// Used for optional properties (like `service`) which can be None.
+/// Invalid types (int, float, list, etc.) are silently converted to None rather than raising an error.
+#[inline(always)]
+fn extract_backed_string_or_none(obj: &Bound<'_, PyAny>) -> PyBackedString {
+    let py = obj.py();
+    obj.extract::<PyBackedString>()
+        .unwrap_or_else(|_| PyBackedString::py_none(py))
+}
 
 #[pyo3::pymethods]
 impl SpanData {
     #[new]
-    #[pyo3(signature =(
-        *_py_args,
-        **_py_kwargs,
-    ))]
-    fn __new__(
-        _py_args: &pyo3::Bound<'_, pyo3::types::PyTuple>,
-        _py_kwargs: Option<&pyo3::Bound<'_, pyo3::types::PyDict>>,
+    #[allow(unused_variables)]
+    #[pyo3(signature = (name, service=None, *args, **kwargs))]
+    pub fn __new__<'p>(
+        py: Python<'p>,
+        name: &Bound<'p, PyAny>,
+        service: Option<&Bound<'p, PyAny>>,
+        // Accept *args/**kwargs so subclasses don't need to override __new__
+        args: &Bound<'p, PyTuple>,
+        kwargs: Option<&Bound<'p, PyDict>>,
     ) -> Self {
-        Self::default()
+        let mut span = Self::default();
+        span.set_name(name);
+        match service {
+            Some(obj) => span.set_service(obj),
+            // Directly set py_none to avoid creating a bound None and going through extraction
+            None => span.data.service = PyBackedString::py_none(py),
+        }
+        span
     }
 
-    /// Performs span initialization
-    ///
-    /// This can not be put on new, because otherwise the signature needs to match
-    /// for every inherited class
-    #[allow(clippy::too_many_arguments)]
-    #[allow(unused_variables)]
-    #[pyo3(signature = (
-        name,
-        service = None,
-        resource = None,
-        span_type = None,
-        trace_id = None,
-        span_id = None,
-        parent_id = None,
-        start = None,
-        span_api = None,
-        links = None,
-    ))]
-    fn __init__<'p>(
-        &mut self,
-        _py: Python<'p>,
-        name: Py<PyAny>,
-        service: Option<Py<PyAny>>,
-        resource: Option<Py<PyAny>>,
-        span_type: Option<Py<PyAny>>,
-        trace_id: Option<&Bound<'p, PyInt>>,
-        span_id: Option<&Bound<'p, PyInt>>,
-        parent_id: Option<&Bound<'p, PyInt>>,
-        start: Option<f64>,
-        span_api: Option<Py<PyAny>>,
-        links: Option<Bound<'p, PyList>>,
-    ) -> PyResult<()> {
-        Ok(())
+    #[getter]
+    #[inline(always)]
+    fn get_name<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
+        // Use as_py to handle both stored (zero-copy) and static (interned) strings
+        self.data.name.as_py(py)
+    }
+
+    #[setter]
+    #[inline(always)]
+    fn set_name(&mut self, name: &Bound<'_, PyAny>) {
+        self.data.name = extract_backed_string_or_default(name);
+    }
+
+    #[getter]
+    #[inline(always)]
+    fn get_service<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+        // Return None for Python None, otherwise return the string (stored or interned)
+        if self.data.service.is_py_none(py) {
+            None
+        } else {
+            Some(self.data.service.as_py(py))
+        }
+    }
+
+    #[setter]
+    #[inline(always)]
+    fn set_service(&mut self, service: &Bound<'_, PyAny>) {
+        self.data.service = extract_backed_string_or_none(service);
     }
 }
 
