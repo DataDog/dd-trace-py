@@ -1,15 +1,27 @@
 from importlib.metadata import version
 import os
+import pathlib
 import re
 import signal
+import subprocess
 from subprocess import TimeoutExpired
 import sys
 import time
+from typing import IO
+from typing import TYPE_CHECKING
+from typing import Callable
+from typing import Generator
+from typing import List
+from typing import Optional
 
 import pytest
 
 from tests.contrib.uwsgi import run_uwsgi
 from tests.profiling.collector import pprof_utils
+
+
+if TYPE_CHECKING:
+    from tests.profiling.collector import pprof_pb2  # pyright: ignore[reportMissingModuleSource]
 
 
 # uwsgi is not available on Windows
@@ -26,7 +38,9 @@ uwsgi_app = os.path.join(os.path.dirname(__file__), "uwsgi-app.py")
 
 
 @pytest.fixture
-def uwsgi(monkeypatch, tmp_path):
+def uwsgi(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> Generator[Callable[..., subprocess.Popen[str]], None, None]:
     # Do not ignore profiler so we have samples in the output pprof
     monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
     monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
@@ -51,7 +65,7 @@ def uwsgi(monkeypatch, tmp_path):
         os.unlink(socket_name)
 
 
-def test_uwsgi_threads_disabled(uwsgi):
+def test_uwsgi_threads_disabled(uwsgi: Callable[..., subprocess.Popen[str]]) -> None:
     proc = uwsgi()
     try:
         stdout, _ = proc.communicate(timeout=1)
@@ -61,7 +75,7 @@ def test_uwsgi_threads_disabled(uwsgi):
     assert THREADS_MSG in stdout
 
 
-def test_uwsgi_threads_number_set(uwsgi):
+def test_uwsgi_threads_number_set(uwsgi: Callable[..., subprocess.Popen[str]]) -> None:
     proc = uwsgi("--threads", "1")
     try:
         stdout, _ = proc.communicate(timeout=1)
@@ -71,7 +85,9 @@ def test_uwsgi_threads_number_set(uwsgi):
     assert THREADS_MSG not in stdout
 
 
-def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
+def test_uwsgi_threads_enabled(
+    uwsgi: Callable[..., subprocess.Popen[str]], tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     proc = uwsgi("--enable-threads")
@@ -86,7 +102,9 @@ def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
         assert len(samples) > 0
 
 
-def test_uwsgi_threads_processes_no_primary(uwsgi, monkeypatch):
+def test_uwsgi_threads_processes_no_primary(
+    uwsgi: Callable[..., subprocess.Popen[str]], monkeypatch: pytest.MonkeyPatch
+) -> None:
     proc = uwsgi("--enable-threads", "--processes", "2")
     try:
         stdout, _ = proc.communicate(timeout=3)
@@ -94,24 +112,26 @@ def test_uwsgi_threads_processes_no_primary(uwsgi, monkeypatch):
         # proc.terminate()
         os.killpg(os.getpgid(proc.pid), signal.SIGINT)
         proc.wait()
-        stdout, _ = proc.stdout.read(1)
+        assert proc.stdout is not None
+        stdout, _ = proc.stdout.read(1), None
     assert (
         "ddtrace.internal.uwsgi.uWSGIConfigError: master option must be enabled when multiple processes are used"
         in stdout
     )
 
 
-def _get_worker_pids(stdout, num_worker, num_app_started=1):
+def _get_worker_pids(stdout: Optional[IO[str]], num_worker: int, num_app_started: int = 1) -> List[int]:
     worker_pids = []
     started = 0
     while True:
+        assert stdout is not None
         line = stdout.readline().strip()
         if not line:
             break
         elif "WSGI app 0 (mountpoint='') ready" in line:
             started += 1
         else:
-            m = re.match(r"^spawned uWSGI worker \d+ .*\(pid: (\d+),", line)
+            m: Optional[re.Match[str]] = re.match(r"^spawned uWSGI worker \d+ .*\(pid: (\d+),", line)
             if m:
                 worker_pids.append(int(m.group(1)))
 
@@ -121,7 +141,9 @@ def _get_worker_pids(stdout, num_worker, num_app_started=1):
     return worker_pids
 
 
-def _wait_for_profile_samples(filename_prefix, pid, value_type, timeout=10.0, interval=0.1):
+def _wait_for_profile_samples(
+    filename_prefix: str, pid: int, value_type: str, timeout: float = 10.0, interval: float = 0.1
+) -> List[pprof_pb2.Sample]:
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
@@ -142,7 +164,9 @@ def _wait_for_profile_samples(filename_prefix, pid, value_type, timeout=10.0, in
     assert False, "Timed out waiting for %s samples for pid %d" % (value_type, pid)
 
 
-def test_uwsgi_threads_processes_primary(uwsgi, tmp_path, monkeypatch):
+def test_uwsgi_threads_processes_primary(
+    uwsgi: Callable[..., subprocess.Popen[str]], tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     proc = uwsgi("--enable-threads", "--master", "--py-call-uwsgi-fork-hooks", "--processes", "2")
@@ -157,7 +181,9 @@ def test_uwsgi_threads_processes_primary(uwsgi, tmp_path, monkeypatch):
         assert len(samples) > 0
 
 
-def test_uwsgi_threads_processes_primary_lazy_apps(uwsgi, tmp_path, monkeypatch):
+def test_uwsgi_threads_processes_primary_lazy_apps(
+    uwsgi: Callable[..., subprocess.Popen[str]], tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
@@ -175,7 +201,9 @@ def test_uwsgi_threads_processes_primary_lazy_apps(uwsgi, tmp_path, monkeypatch)
         assert len(samples) > 0
 
 
-def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypatch):
+def test_uwsgi_threads_processes_no_primary_lazy_apps(
+    uwsgi: Callable[..., subprocess.Popen[str]], tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
@@ -196,7 +224,7 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypat
     #     utils.check_pprof_file("%s.%d" % (filename, pid))
 
     # Kill master process
-    parent_pid: int = worker_pids[0]
+    parent_pid = worker_pids[0]
     os.kill(parent_pid, signal.SIGTERM)
 
     # Wait for master to exit
@@ -225,8 +253,10 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypat
     tuple(int(x) for x in version("uwsgi").split(".")) >= (2, 0, 30),
     reason="uwsgi>=2.0.30 does not require --skip-atexit",
 )
-def test_uwsgi_require_skip_atexit_when_lazy_with_master(uwsgi, lazy_flag):
-    expected_warning = b"ddtrace.internal.uwsgi.uWSGIConfigDeprecationWarning: skip-atexit option must be set"
+def test_uwsgi_require_skip_atexit_when_lazy_with_master(
+    uwsgi: Callable[..., subprocess.Popen[str]], lazy_flag: str
+) -> None:
+    expected_warning = "ddtrace.internal.uwsgi.uWSGIConfigDeprecationWarning: skip-atexit option must be set"
 
     proc = uwsgi("--enable-threads", "--master", "--processes", "2", lazy_flag)
     time.sleep(1)
@@ -240,21 +270,24 @@ def test_uwsgi_require_skip_atexit_when_lazy_with_master(uwsgi, lazy_flag):
     tuple(int(x) for x in version("uwsgi").split(".")) >= (2, 0, 30),
     reason="uwsgi>=2.0.30 does not require --skip-atexit",
 )
-def test_uwsgi_require_skip_atexit_when_lazy_without_master(uwsgi, lazy_flag):
-    expected_warning = b"ddtrace.internal.uwsgi.uWSGIConfigDeprecationWarning: skip-atexit option must be set"
+def test_uwsgi_require_skip_atexit_when_lazy_without_master(
+    uwsgi: Callable[..., subprocess.Popen[str]], lazy_flag: str
+) -> None:
+    expected_warning = "ddtrace.internal.uwsgi.uWSGIConfigDeprecationWarning: skip-atexit option must be set"
     num_workers = 2
     proc = uwsgi("--enable-threads", "--processes", str(num_workers), lazy_flag)
 
-    worker_pids = []
+    worker_pids: List[int] = []
     logged_warning = 0
     while True:
+        assert proc.stdout is not None
         line = proc.stdout.readline()
-        if line == b"":
+        if line == "":
             break
         if expected_warning in line:
             logged_warning += 1
         else:
-            m = re.match(r"^spawned uWSGI worker \d+ .*\(pid: (\d+),", line.decode())
+            m: Optional[re.Match[str]] = re.match(r"^spawned uWSGI worker \d+ .*\(pid: (\d+),", line)
             if m:
                 worker_pids.append(int(m.group(1)))
 
