@@ -115,9 +115,6 @@ class heap_tracker_t
 
     void export_heap_no_cpython();
 
-    /* Clear internal state after fork to avoid stale data */
-    void postfork_child();
-
     /* Global instance of the heap tracker */
     static heap_tracker_t* instance;
 
@@ -129,12 +126,6 @@ class heap_tracker_t
 
   private:
     static uint32_t next_sample_size_no_cpython(uint32_t sample_size);
-
-    /* Reset sampling state counters */
-    void reset_sampling_state();
-
-    /* Clear all tracked data and reset state - used after fork */
-    void clear_state();
 
     /* Heap profiler sampling interval */
     uint64_t sample_size;
@@ -148,9 +139,6 @@ class heap_tracker_t
     /* Debug guard to assert that GIL-protected critical sections are maintained
      * while accessing the profiler's state */
     memalloc_gil_debug_check_t gil_guard;
-
-    /* Flag to defer sampling reinitialization after fork to avoid async-signal-unsafe calls */
-    bool needs_sampling_reinit;
 
     /* Traceback pool - reduces allocation overhead. Access is always under GIL. */
     static constexpr size_t POOL_CAPACITY = 128;
@@ -212,35 +200,10 @@ heap_tracker_t::next_sample_size_no_cpython(uint32_t sample_size)
 // Method implementations
 heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
   : sample_size(sample_size_val)
-  , current_sample_size(0) // Will be set by reset_sampling_state()
-  , allocated_memory(0)    // Will be set by reset_sampling_state()
-  , needs_sampling_reinit(false)
+  , current_sample_size(next_sample_size_no_cpython(sample_size_val))
+  , allocated_memory(0)
 {
     pool.reserve(POOL_CAPACITY); // Pre-allocate pool capacity to avoid reallocations
-    reset_sampling_state();
-}
-
-void
-heap_tracker_t::reset_sampling_state()
-{
-    allocated_memory = 0;
-    current_sample_size = next_sample_size_no_cpython(sample_size);
-}
-
-void
-heap_tracker_t::clear_state()
-{
-    // Clear tracked allocations - they contain samples with stale data
-    allocs_m.clear();
-
-    // Clear pool - cached traceback objects may contain stale sample data
-    pool.clear();
-
-    // Defer sampling state reset to avoid calling non-async-signal-safe functions
-    // (rand(), log2()) in the fork handler. This will be done on the first allocation.
-    allocated_memory = 0;
-    current_sample_size = 0;
-    needs_sampling_reinit = true;
 }
 
 void
@@ -258,13 +221,6 @@ bool
 heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
-
-    // Check if we need to perform deferred sampling reinitialization after fork
-    if (needs_sampling_reinit) {
-        reset_sampling_state();
-        needs_sampling_reinit = false;
-    }
-
     allocated_memory += size;
     *allocated_memory_val = allocated_memory;
 
@@ -297,7 +253,8 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
     assert(inserted && "add_sample: found existing entry for key that should have been removed");
 
     // Get ready for the next sample
-    reset_sampling_state();
+    allocated_memory = 0;
+    current_sample_size = next_sample_size_no_cpython(sample_size);
 }
 
 void
@@ -336,23 +293,6 @@ memalloc_heap_tracker_deinit_no_cpython(void)
     heap_tracker_t* old_instance = heap_tracker_t::instance;
     heap_tracker_t::instance = nullptr;
     delete old_instance;
-}
-
-void
-memalloc_heap_postfork_child(void)
-{
-    if (heap_tracker_t::instance) {
-        heap_tracker_t::instance->postfork_child();
-    }
-}
-
-void
-heap_tracker_t::postfork_child()
-{
-    // Clear all tracked data and reset sampling state.
-    // After fork, the child process has its own memory space, and samples from the parent
-    // may contain invalid pointers (e.g., if string interning was used).
-    clear_state();
 }
 
 void

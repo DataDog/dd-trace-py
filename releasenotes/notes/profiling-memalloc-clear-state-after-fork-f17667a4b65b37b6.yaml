@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    profiling: This fix ensures the memory profiler clears its internal state immediately after fork in child processes via pthread_atfork.
-    This prevents potential issues from stale data and prepares the codebase for future performance optimizations.

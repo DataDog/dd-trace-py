@@ -1,5 +1,3 @@
-#include <mutex>
-#include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -33,11 +31,6 @@ typedef struct
 static memalloc_context_t global_memalloc_ctx;
 
 static bool memalloc_enabled = false;
-static std::once_flag memalloc_fork_handler_flag;
-
-/* Forward declaration */
-static void
-memalloc_atfork_child(void);
 
 static void
 memalloc_free(void* ctx, void* ptr)
@@ -121,9 +114,6 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     // This initializes the Sample::profile_state which is required for Sample objects to work correctly
     // ddup_start() uses std::call_once, so it's safe to call multiple times
     ddup_start();
-
-    // Register fork handler to clear heap tracker state in child process.
-    std::call_once(memalloc_fork_handler_flag, []() { pthread_atfork(NULL, NULL, memalloc_atfork_child); });
 
     char* val = getenv("_DD_MEMALLOC_DEBUG_RNG_SEED");
     if (val) {
@@ -236,33 +226,6 @@ static struct PyModuleDef module_def = {
     PyModuleDef_HEAD_INIT, "_memalloc", module_doc, 0, /* non-negative size to be able to unload the module */
     module_methods,        NULL,        NULL,       NULL, NULL,
 };
-
-/* Fork handler to clear stale state after fork.
- * This runs in the child process after fork, before any Python code executes.
- * It clears tracked allocations and pool state that may contain stale pointers
- * or data from the parent process. */
-static void
-memalloc_atfork_child(void)
-{
-    // If memory allocator was not enabled in parent, there's nothing to do in
-    // the child process.
-    if (!memalloc_enabled) {
-        return;
-    }
-
-    // Clear heap tracker state to avoid using stale data from parent process.
-    // This is critical because:
-    // allocs_m may contain samples from the parent process. We don't want to
-    // report such samples. Clearing the state here also helps ensuring that
-    // we don't accidentally reference any object that could have been reset
-    // after fork by another pthread_atfork handler.
-    memalloc_heap_postfork_child();
-
-    // Reset the enabled flag so the module can be cleanly restarted in the child process
-    // without throwing "already started" errors. This eliminates the need for complex
-    // Python-level error handling in forksafe scenarios.
-    memalloc_enabled = false;
-}
 
 PyMODINIT_FUNC
 PyInit__memalloc(void)
