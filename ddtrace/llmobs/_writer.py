@@ -333,6 +333,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     BULK_UPLOAD_TIMEOUT = 60.0
     LIST_RECORDS_TIMEOUT = 20
     SUPPORTED_UPLOAD_EXTS = {"csv"}
+    EXPERIMENT_EVAL_RETRY_ATTEMPTS = 5
+    EXPERIMENT_EVAL_INITIAL_WAIT = 0.5
 
     def request(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
         headers = {
@@ -687,26 +689,79 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         self, experiment_id: str, events: List[LLMObsExperimentEvalMetricEvent], tags: List[str]
     ) -> None:
         path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
-        resp = self.request(
-            "POST",
-            path,
-            body={
-                "data": {
-                    "type": "experiments",
-                    "attributes": {
-                        "scope": "experiments",
-                        "metrics": cast(List[JSONType], events),
-                        "tags": cast(List[JSONType], tags),
-                    },
-                }
-            },
-        )
+        body = {
+            "data": {
+                "type": "experiments",
+                "attributes": {
+                    "scope": "experiments",
+                    "metrics": cast(List[JSONType], events),
+                    "tags": cast(List[JSONType], tags),
+                },
+            }
+        }
+
+        request_with_retry = fibonacci_backoff_with_jitter(
+            attempts=self.EXPERIMENT_EVAL_RETRY_ATTEMPTS,
+            initial_wait=self.EXPERIMENT_EVAL_INITIAL_WAIT,
+            until=self._is_successful_or_non_retryable,
+        )(lambda: self.request("POST", path, body=body))
+
+        resp = request_with_retry()
+
         if resp.status not in (200, 202):
             raise ValueError(
                 f"Failed to post experiment evaluation metrics for {experiment_id}: {resp.status} {resp.get_json()}"
             )
         logger.debug("Sent %d experiment evaluation metrics for %s", len(events), experiment_id)
         return None
+
+    def experiment_update_run_count(self, experiment_id: str, completed_runs: int) -> None:
+        """Update the experiment's run count to reflect actual completed runs."""
+        path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}"
+
+        request_with_retry = fibonacci_backoff_with_jitter(
+            attempts=self.EXPERIMENT_EVAL_RETRY_ATTEMPTS,
+            initial_wait=self.EXPERIMENT_EVAL_INITIAL_WAIT,
+            until=self._is_successful_or_non_retryable,
+        )(
+            lambda: self.request(
+                "PATCH",
+                path,
+                body={
+                    "data": {
+                        "type": "experiments",
+                        "attributes": {
+                            "run_count": completed_runs,
+                        },
+                    }
+                },
+            )
+        )
+
+        resp = request_with_retry()
+        if resp.status not in (200, 202):
+            # Log warning but don't raise - this is a best-effort update
+            logger.warning(
+                "Failed to update run count for experiment %s: %s %s",
+                experiment_id,
+                resp.status,
+                resp.get_json(),
+            )
+
+    def _is_successful_or_non_retryable(self, result):
+        """Return True if we should stop retrying (success or permanent failure)."""
+        if isinstance(result, Exception):
+            return False  # Retry on exceptions (network errors)
+        if isinstance(result, Response):
+            # Success
+            if result.status in (200, 202):
+                return True
+            # Rate limit or server error - retry
+            if result.status == 429 or result.status >= 500:
+                return False
+            # Client error (4xx except 429) - don't retry
+            return True
+        return False
 
 
 class LLMObsSpanWriter(BaseLLMObsWriter):

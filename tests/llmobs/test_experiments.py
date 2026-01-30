@@ -1929,3 +1929,161 @@ def test_experiment_span_multi_run_tags(llmobs, llmobs_events, test_dataset_one_
         assert f"run_iteration:{i + 1}" in event["tags"]
         assert f"ddtrace.version:{ddtrace.__version__}" in event["tags"]
         assert event["_dd"]["scope"] == "experiments"
+
+
+# Tests for experiment_eval_post retry logic
+class TestExperimentEvalPostRetry:
+    def test_experiment_eval_post_success_no_retry(self, llmobs):
+        """Test that successful POST doesn't retry."""
+        client = llmobs._instance._dne_client
+        with mock.patch.object(client, "request") as mock_request:
+            mock_request.return_value = MagicMock(status=200, get_json=lambda: {"success": True})
+            client.experiment_eval_post("exp-123", [], [])
+            assert mock_request.call_count == 1
+
+    def test_experiment_eval_post_retries_on_rate_limit(self, llmobs):
+        """Test that 429 responses trigger retries."""
+        client = llmobs._instance._dne_client
+        with mock.patch.object(client, "request") as mock_request:
+            responses = [
+                MagicMock(status=429, get_json=lambda: {"error": "rate limited"}),
+                MagicMock(status=429, get_json=lambda: {"error": "rate limited"}),
+                MagicMock(status=200, get_json=lambda: {"success": True}),
+            ]
+            mock_request.side_effect = responses
+            client.experiment_eval_post("exp-123", [], [])
+            assert mock_request.call_count == 3
+
+    def test_experiment_eval_post_retries_on_server_error(self, llmobs):
+        """Test that 500 responses trigger retries."""
+        client = llmobs._instance._dne_client
+        with mock.patch.object(client, "request") as mock_request:
+            responses = [
+                MagicMock(status=500, get_json=lambda: {"error": "server error"}),
+                MagicMock(status=503, get_json=lambda: {"error": "service unavailable"}),
+                MagicMock(status=200, get_json=lambda: {"success": True}),
+            ]
+            mock_request.side_effect = responses
+            client.experiment_eval_post("exp-123", [], [])
+            assert mock_request.call_count == 3
+
+    def test_experiment_eval_post_no_retry_on_client_error(self, llmobs):
+        """Test that 400 responses don't trigger retries."""
+        client = llmobs._instance._dne_client
+        with mock.patch.object(client, "request") as mock_request:
+            mock_request.return_value = MagicMock(status=400, get_json=lambda: {"error": "bad request"})
+            with pytest.raises(ValueError, match="Failed to post experiment evaluation metrics"):
+                client.experiment_eval_post("exp-123", [], [])
+            assert mock_request.call_count == 1
+
+    def test_experiment_eval_post_max_retries_exceeded(self, llmobs):
+        """Test that after max retries, an error is raised."""
+        client = llmobs._instance._dne_client
+        with mock.patch.object(client, "request") as mock_request:
+            # Always return 429 - should exhaust all retries
+            mock_request.return_value = MagicMock(status=429, get_json=lambda: {"error": "rate limited"})
+            with pytest.raises(ValueError, match="Failed to post experiment evaluation metrics"):
+                client.experiment_eval_post("exp-123", [], [])
+            # 5 retries (EXPERIMENT_EVAL_RETRY_ATTEMPTS)
+            assert mock_request.call_count == client.EXPERIMENT_EVAL_RETRY_ATTEMPTS
+
+
+# Tests for experiment_update_run_count
+class TestExperimentUpdateRunCount:
+    def test_experiment_update_run_count_success(self, llmobs):
+        """Test successful run count update."""
+        client = llmobs._instance._dne_client
+        with mock.patch.object(client, "request") as mock_request:
+            mock_request.return_value = MagicMock(status=200, get_json=lambda: {"success": True})
+            client.experiment_update_run_count("exp-123", 3)
+            assert mock_request.call_count == 1
+            call_args = mock_request.call_args
+            assert call_args[0][0] == "PATCH"
+            assert "exp-123" in call_args[0][1]
+            assert call_args[1]["body"]["data"]["attributes"]["run_count"] == 3
+
+    def test_experiment_update_run_count_logs_warning_on_failure(self, llmobs):
+        """Test that failure to update run count logs a warning but doesn't raise."""
+        client = llmobs._instance._dne_client
+        with mock.patch.object(client, "request") as mock_request:
+            mock_request.return_value = MagicMock(status=400, get_json=lambda: {"error": "bad request"})
+            with mock.patch("ddtrace.llmobs._writer.logger") as mock_logger:
+                # Should not raise
+                client.experiment_update_run_count("exp-123", 3)
+                mock_logger.warning.assert_called_once()
+
+
+# Tests for run loop tracking completed runs
+class TestExperimentRunTracking:
+    def test_run_count_not_updated_when_all_runs_succeed(self, llmobs, test_dataset_one_record):
+        """Test that run count is not updated when all runs succeed."""
+        with mock.patch("ddtrace.llmobs._experiment.Experiment._process_record") as mock_process_record:
+            mock_process_record.return_value = {
+                "idx": 0,
+                "span_id": "123",
+                "trace_id": "456",
+                "timestamp": 1234567890,
+                "output": {"prompt": "What is the capital of France?"},
+                "metadata": {"dataset_record_index": 0, "experiment_name": "test", "dataset_name": "test"},
+                "error": {"message": None, "type": None, "stack": None},
+            }
+            with mock.patch("ddtrace.llmobs._experiment._ExperimentRunInfo") as mock_run_info:
+                mock_run_info.return_value = run_info_with_stable_id(0)
+                with mock.patch.object(
+                    llmobs._instance._dne_client, "experiment_update_run_count"
+                ) as mock_update:
+                    exp = llmobs.experiment(
+                        "test_experiment",
+                        dummy_task,
+                        test_dataset_one_record,
+                        [dummy_evaluator],
+                        runs=3,
+                    )
+                    exp._tags = {"ddtrace.version": "1.2.3"}
+                    exp.run()
+                    # Should not be called since all runs succeeded
+                    mock_update.assert_not_called()
+
+    def test_run_count_updated_on_partial_completion(self, llmobs, test_dataset_one_record):
+        """Test that run count is updated when some runs fail."""
+        call_count = [0]
+
+        def mock_eval_post_fail_on_third(exp_id, events, tags):
+            call_count[0] += 1
+            if call_count[0] == 3:
+                raise RuntimeError("Simulated failure")
+
+        with mock.patch("ddtrace.llmobs._experiment.Experiment._process_record") as mock_process_record:
+            mock_process_record.return_value = {
+                "idx": 0,
+                "span_id": "123",
+                "trace_id": "456",
+                "timestamp": 1234567890,
+                "output": {"prompt": "What is the capital of France?"},
+                "metadata": {"dataset_record_index": 0, "experiment_name": "test", "dataset_name": "test"},
+                "error": {"message": None, "type": None, "stack": None},
+            }
+            with mock.patch("ddtrace.llmobs._experiment._ExperimentRunInfo") as mock_run_info:
+                mock_run_info.return_value = run_info_with_stable_id(0)
+                with mock.patch.object(
+                    llmobs._instance._dne_client,
+                    "experiment_eval_post",
+                    side_effect=mock_eval_post_fail_on_third,
+                ):
+                    with mock.patch.object(
+                        llmobs._instance._dne_client, "experiment_update_run_count"
+                    ) as mock_update:
+                        exp = llmobs.experiment(
+                            "test_experiment",
+                            dummy_task,
+                            test_dataset_one_record,
+                            [dummy_evaluator],
+                            runs=5,
+                        )
+                        exp._tags = {"ddtrace.version": "1.2.3"}
+                        with pytest.raises(RuntimeError, match="Simulated failure"):
+                            exp.run()
+                        # Should be called with completed_runs=2 (failed on 3rd)
+                        mock_update.assert_called_once()
+                        args = mock_update.call_args[0]
+                        assert args[1] == 2  # completed_runs
