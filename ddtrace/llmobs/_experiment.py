@@ -697,20 +697,28 @@ class Experiment:
         self._tags["experiment_id"] = str(experiment_id)
         self._run_name = experiment_run_name
         run_results = []
-        # for backwards compatibility
-        for run_iteration in range(self._runs):
-            run = _ExperimentRunInfo(run_iteration)
-            self._tags["run_id"] = str(run._id)
-            self._tags["run_iteration"] = str(run._run_iteration)
-            task_results = self._run_task(jobs, run, raise_errors, sample_size)
-            evaluations = self._run_evaluators(task_results, raise_errors=raise_errors)
-            summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors)
-            run_result = self._merge_results(run, task_results, evaluations, summary_evals)
-            experiment_evals = self._generate_metrics_from_exp_results(run_result)
-            self._llmobs_instance._dne_client.experiment_eval_post(
-                self._id, experiment_evals, convert_tags_dict_to_list(self._tags)
-            )
-            run_results.append(run_result)
+        completed_runs = 0
+
+        try:
+            # for backwards compatibility
+            for run_iteration in range(self._runs):
+                run = _ExperimentRunInfo(run_iteration)
+                self._tags["run_id"] = str(run._id)
+                self._tags["run_iteration"] = str(run._run_iteration)
+                task_results = self._run_task(jobs, run, raise_errors, sample_size)
+                evaluations = self._run_evaluators(task_results, raise_errors=raise_errors)
+                summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors)
+                run_result = self._merge_results(run, task_results, evaluations, summary_evals)
+                experiment_evals = self._generate_metrics_from_exp_results(run_result)
+                self._llmobs_instance._dne_client.experiment_eval_post(
+                    self._id, experiment_evals, convert_tags_dict_to_list(self._tags)
+                )
+                run_results.append(run_result)
+                completed_runs += 1
+        finally:
+            # Always update run count to reflect actual completions
+            if completed_runs != self._runs:
+                self._llmobs_instance._dne_client.experiment_update_run_count(self._id, completed_runs)
 
         experiment_result: ExperimentResult = {
             # for backwards compatibility, the first result fills the old fields of rows and summary evals
