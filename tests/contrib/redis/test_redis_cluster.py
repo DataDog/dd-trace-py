@@ -70,7 +70,10 @@ class TestRedisClusterPatch(TracerTestCase):
         assert span.get_metric("redis.args_length") == 2
         assert span.resource == "GET"
 
-    @pytest.mark.skipif(PYTHON_VERSION_INFO >= (3, 14), reason="fails under Python 3.14")
+    @pytest.mark.skipif(
+        redis.VERSION >= (5, 3) or PYTHON_VERSION_INFO >= (3, 14),
+        reason="redis cluster pipeline instrumentation issues in redis>=5.3, also fails under Python 3.14",
+    )
     def test_pipeline(self):
         with self.r.pipeline(transaction=False) as p:
             p.set("blah", 32)

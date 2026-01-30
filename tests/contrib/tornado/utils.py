@@ -19,6 +19,12 @@ class TornadoTestCase(TracerTestCase, AsyncHTTPTestCase):
     in the `self.tracer` attribute.
     """
 
+    __test__ = False  # Prevent pytest from collecting this base class
+
+    def runTest(self):
+        # Required by tornado's AsyncHTTPTestCase but not used when running with pytest
+        pass
+
     def get_app(self):
         # patch Tornado and reload module app
         patch()

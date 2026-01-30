@@ -14,9 +14,9 @@ class TestFilter(TraceFilter):
 class TornadoSettingsTestCase(TornadoTestCase):
     """
     Base class for testing Tornado web application tracer configuration.
-    Note: Named without 'Test' prefix to avoid pytest collecting it directly
-    since it has no test methods - subclasses should define actual tests.
     """
+
+    __test__ = False  # Prevent pytest from collecting this base class
 
     def get_app(self):
         super(TornadoSettingsTestCase, self).get_app()

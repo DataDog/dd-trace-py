@@ -819,11 +819,11 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    # celery 5.2 works with redis 3.5
+                    # celery 5.2.7+ requires redis 4.x (CredentialProvider)
                     pys=["3.9"],
                     pkgs={
                         "celery": "~=5.2",
-                        "redis": "~=3.5",
+                        "redis": "~=4.0",
                     },
                 ),
                 Venv(
@@ -1689,7 +1689,6 @@ venv = Venv(
             pkgs={
                 "requests": [latest],
                 "webtest": [latest],
-                "tests/contrib/pyramid/pserve_app": [""],
                 "pytest-randomly": latest,
             },
             venvs=[
@@ -2658,6 +2657,7 @@ venv = Venv(
                 "flask": latest,
                 "gevent": latest,
                 "requests": "==2.28.1",  # specific version expected by tests
+                "setuptools": latest,  # provides pkg_resources needed by older opentelemetry
             },
             venvs=[
                 Venv(
@@ -2884,7 +2884,8 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/openai_agents",
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.13"),
+                    # openai-agents uses Python 3.10+ type syntax (float | None)
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
                     pkgs={
                         "vcrpy": latest,
                         "pytest-asyncio": latest,
@@ -3606,6 +3607,7 @@ venv = Venv(
                     pkgs={
                         "langchain": "~=0.1",
                         "langchain-experimental": "~=0.1",
+                        "langchain-text-splitters": "~=0.0",
                     },
                 ),
                 Venv(

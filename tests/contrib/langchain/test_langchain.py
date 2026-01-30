@@ -296,6 +296,7 @@ def test_lcel_with_tools_openai(langchain_core, langchain_openai, openai_url):
     llm_with_tools.invoke("What is the sum of 1 and 2?")
 
 
+@pytest.mark.skip(reason="Cassette needs regeneration after anthropic library update")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_lcel_with_tools_anthropic(langchain_core, langchain_anthropic, anthropic_url):
     if parse_version(importlib.metadata.version("langchain_anthropic")) < (0, 2, 0):

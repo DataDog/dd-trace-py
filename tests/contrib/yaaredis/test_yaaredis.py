@@ -166,7 +166,7 @@ async def test_basics(traced_yaaredis):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(["-x", __file__]))
+    sys.exit(pytest.main(["-x", "-o", "asyncio_mode=auto", __file__]))
     """
     env = os.environ.copy()
     if service:

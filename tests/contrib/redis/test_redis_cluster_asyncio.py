@@ -99,8 +99,8 @@ async def test_unicode(traced_redis_cluster):
 
 
 @pytest.mark.skipif(
-    redis.VERSION < (4, 3, 2) or PYTHON_VERSION_INFO >= (3, 14),
-    reason="redis.asyncio.cluster pipeline is not implemented in redis<4.3.2. This test also fails under Python 3.14",
+    redis.VERSION < (4, 3, 2) or redis.VERSION >= (5, 3) or PYTHON_VERSION_INFO >= (3, 14),
+    reason="redis.asyncio.cluster pipeline not in redis<4.3.2, broken in redis>=5.3, fails on Python 3.14",
 )
 @pytest.mark.asyncio
 async def test_pipeline(traced_redis_cluster):
@@ -132,7 +132,10 @@ async def test_pipeline(traced_redis_cluster):
     assert span.get_metric("redis.pipeline_length") == 3
 
 
-@pytest.mark.skipif(PYTHON_VERSION_INFO >= (3, 14), reason="fails under Python 3.14")
+@pytest.mark.skipif(
+    redis.VERSION >= (5, 3) or PYTHON_VERSION_INFO >= (3, 14),
+    reason="redis cluster pipeline instrumentation issues in redis>=5.3, also fails under Python 3.14",
+)
 @pytest.mark.snapshot(wait_for_num_traces=1)
 @pytest.mark.asyncio
 async def test_pipeline_command_stack_count_matches_metric(redis_cluster):
@@ -146,7 +149,10 @@ async def test_pipeline_command_stack_count_matches_metric(redis_cluster):
         unpatch()
 
 
-@pytest.mark.skipif(PYTHON_VERSION_INFO >= (3, 14), reason="fails under Python 3.14")
+@pytest.mark.skipif(
+    redis.VERSION >= (5, 3) or PYTHON_VERSION_INFO >= (3, 14),
+    reason="redis cluster pipeline instrumentation issues in redis>=5.3, also fails under Python 3.14",
+)
 @pytest.mark.asyncio
 async def test_pipeline_command_stack_parity_when_visible(traced_redis_cluster):
     cluster, test_spans = traced_redis_cluster

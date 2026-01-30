@@ -470,7 +470,7 @@ async def test(patch_sanic, client, integration_config, integration_http_config,
     assert sanic_spans[0].service == "{}"
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(["-x", __file__]))
+    sys.exit(pytest.main(["-x", "-o", "asyncio_mode=auto", __file__]))
     """.format(expected_service_name)
 
     env = os.environ.copy()
@@ -519,7 +519,7 @@ async def test(patch_sanic, client, integration_config, integration_http_config,
     assert  sanic_spans[0].name == "{}"
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(["-x", __file__]))
+    sys.exit(pytest.main(["-x", "-o", "asyncio_mode=auto", __file__]))
     """.format(expected_operation_name)
 
     env = os.environ.copy()
