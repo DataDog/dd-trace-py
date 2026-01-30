@@ -119,8 +119,6 @@ def test_logger_subprocess(
     env["_DD_NATIVE_LOGGING_BACKEND"] = backend
     env["_DD_NATIVE_LOGGING_FILE_PATH"] = log_path_abs
     env["_DD_NATIVE_LOGGING_LOG_LEVEL"] = configured_level
-    # Suppress UserWarning (e.g., pkg_resources deprecation warnings) in subprocess
-    env["PYTHONWARNINGS"] = "ignore::UserWarning"
 
     message = f"msg_{uuid.uuid4().hex}"
     code = """
