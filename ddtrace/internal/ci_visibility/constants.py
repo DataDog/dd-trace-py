@@ -38,6 +38,8 @@ AGENTLESS_APP_KEY_HEADER_NAME = "dd-application-key"
 EVP_PROXY_COVERAGE_ENDPOINT = "{}/{}".format(EVP_PROXY_AGENT_BASE_PATH, AGENTLESS_COVERAGE_ENDPOINT)
 AGENTLESS_BASE_URL = "https://citestcycle-intake"
 AGENTLESS_COVERAGE_BASE_URL = "https://citestcov-intake"
+# Coverage report uploads use a different subdomain
+AGENTLESS_COVERAGE_REPORT_BASE_URL = "https://ci-intake"
 AGENTLESS_DEFAULT_SITE = "datadoghq.com"
 GIT_API_BASE_PATH = "/api/v2/git"
 SETTING_ENDPOINT = "/api/v2/libraries/tests/services/setting"

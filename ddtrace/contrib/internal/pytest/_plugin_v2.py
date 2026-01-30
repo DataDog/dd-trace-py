@@ -432,6 +432,10 @@ def _handle_coverage_patch_early(config):
     if pytest_cov_enabled:
         log.debug("pytest-cov detected, coverage.py patched successfully")
 
+    # Simplified: No callbacks needed, will handle upload directly in session finish
+    if pytest_cov_enabled or env_coverage_upload:
+        log.debug("Coverage upload will be handled in session finish")
+
 
 def pytest_configure(config: pytest_Config) -> None:
     global skip_pytest_runtest_protocol
@@ -527,13 +531,62 @@ def pytest_sessionstart(session: pytest.Session) -> None:
 
         InternalTestSession.set_library_capabilities(library_capabilities)
 
-        # Start coverage if needed (API settings are now available after discover())
-        if (
+        # Handle coverage configuration
+        workspace_path = InternalTestSession.get_workspace_path()
+
+        # If pytest-cov is enabled but not properly configured, fix it
+        if _is_pytest_cov_enabled(session.config) and _is_coverage_report_upload_enabled():
+            log.debug("pytest-cov is enabled, ensuring proper configuration for upload")
+            try:
+                # Find the pytest-cov plugin and check its configuration
+                for plugin_name, plugin_instance in session.config.pluginmanager.list_name_plugin():
+                    if plugin_name == "_cov" and hasattr(plugin_instance, "cov_controller"):
+                        cov_controller = plugin_instance.cov_controller
+                        if cov_controller and hasattr(cov_controller, "cov"):
+                            cov_instance = cov_controller.cov
+                            log.debug("Found pytest-cov instance, current source: %s", cov_instance.config.source)
+
+                            # Check if source needs to be updated
+                            current_source = cov_instance.config.source
+                            if current_source and all("test" in str(s) for s in current_source):
+                                # Source is only test files, we need to add the actual source code
+                                log.debug("pytest-cov source only includes test files, expanding coverage")
+                                # Find the source directory (parent of tests)
+                                if workspace_path:
+                                    src_paths = []
+                                    # Look for common source directories
+                                    for src_dir in ["src", "lib", "app", str(workspace_path)]:
+                                        src_path = (
+                                            workspace_path / src_dir
+                                            if src_dir != str(workspace_path)
+                                            else workspace_path
+                                        )
+                                        if src_path.exists() and src_path.is_dir():
+                                            src_paths.append(str(src_path))
+                                            break
+
+                                    if src_paths:
+                                        log.debug("Adding source paths to coverage: %s", src_paths)
+                                        # We can't reconfigure a running instance, but we can patch the config
+                                        cov_instance.config.source = current_source + src_paths
+                                        cov_instance.config.source_pkgs = []  # Clear source packages
+                                        # If not started, the new config will be used when it starts
+                                        # If already started, we need to restart
+                                        if getattr(cov_instance, "_started", False):
+                                            log.debug("Restarting coverage with expanded source")
+                                            cov_instance.stop()
+                                            cov_instance.erase()  # Clear any partial data
+                                            cov_instance.start()
+                            break
+            except Exception as e:
+                log.debug("Error configuring pytest-cov: %s", e)
+
+        # Start our own coverage if pytest-cov is NOT enabled but coverage upload is needed
+        elif (
             not _is_pytest_cov_enabled(session.config)
             and _is_coverage_available()
             and _is_coverage_report_upload_enabled()
         ):
-            workspace_path = InternalTestSession.get_workspace_path()
             if workspace_path:
                 start_coverage(source=[str(workspace_path)])
                 log.debug("Started coverage.py for report upload")
@@ -823,7 +876,130 @@ def _pytest_run_one_test(item, nextitem):
 def _handle_coverage_report_upload(session: pytest.Session) -> None:
     """
     Handle coverage report upload if enabled using shared implementation.
+    For pytest-cov, we need to ensure the coverage data is finalized before generating reports.
     """
+    log.debug("_handle_coverage_report_upload called")
+
+    # If pytest-cov is enabled, we need to finalize its coverage data first
+    if _is_pytest_cov_enabled(session.config):
+        log.debug("pytest-cov is enabled, attempting direct LCOV generation and upload")
+        # Try to finalize pytest-cov's coverage and generate report directly
+        try:
+            found_cov_plugin = False
+            for plugin_name, plugin_instance in session.config.pluginmanager.list_name_plugin():
+                log.debug("Checking plugin: %s", plugin_name)
+                if hasattr(plugin_instance, "cov_controller") and plugin_instance.cov_controller:
+                    found_cov_plugin = True
+                    log.debug("Found pytest-cov plugin with controller")
+                    cov_controller = plugin_instance.cov_controller
+                    log.debug("Found cov_controller: %s", cov_controller)
+                    if hasattr(cov_controller, "cov") and cov_controller.cov:
+                        cov_instance = cov_controller.cov
+                        log.debug("Got coverage instance: %s", type(cov_instance))
+
+                        # Ensure coverage data is finalized
+                        # First, check if coverage is still running
+                        is_started = getattr(cov_instance, "_started", False)
+                        log.debug("Coverage _started status: %s", is_started)
+
+                        # Check if coverage has any data
+                        has_data = False
+                        try:
+                            # Try to get the data to see if anything was collected
+                            data = cov_instance.get_data()
+                            has_data = bool(data) and len(data) > 0
+                            log.debug("Coverage has data: %s (measured files: %s)", has_data, len(data) if data else 0)
+
+                            # If we have the test file itself, that's still valid coverage
+                            if not has_data:
+                                # Check if the test file is in the measured files
+                                if data and any("test" in str(f) for f in data.measured_files()):
+                                    has_data = True
+                                    log.debug("Coverage has test file data, considering as valid")
+                        except Exception as e:
+                            log.debug("Could not check coverage data: %s", e)
+
+                        # If started, stop it to finalize the data
+                        if is_started:
+                            try:
+                                cov_instance.stop()
+                                log.debug("Stopped pytest-cov coverage collection")
+                            except Exception as e:
+                                log.debug("Could not stop coverage: %s", e)
+
+                        # Always try to save to ensure data is persisted
+                        try:
+                            cov_instance.save()
+                            log.debug("Saved pytest-cov coverage data")
+                        except Exception as e:
+                            log.debug("Could not save coverage data: %s", e)
+
+                        # Now generate and upload the LCOV report directly
+                        from pathlib import Path
+                        import tempfile
+
+                        # If no data, try to load from the .coverage file
+                        if not has_data:
+                            try:
+                                log.debug("No data in memory, attempting to load from .coverage file")
+                                # Create a new coverage instance to load the data
+                                from coverage import Coverage
+
+                                fresh_cov = Coverage(data_file=".coverage")
+                                fresh_cov.load()
+                                # Use this instance instead
+                                cov_instance = fresh_cov
+                                log.debug("Loaded data from .coverage file")
+                            except Exception as e:
+                                log.debug("Could not load .coverage file: %s", e)
+
+                        with tempfile.NamedTemporaryFile(mode="wb", suffix=".lcov", delete=False) as tmp_file:
+                            tmp_path = Path(tmp_file.name)
+
+                        try:
+                            # Generate LCOV report
+                            pct_covered = cov_instance.lcov_report(outfile=str(tmp_path))
+                            log.debug("Generated LCOV report: %s (%.1f%% coverage)", tmp_path, pct_covered or 0)
+
+                            # Read and upload the report
+                            if tmp_path.exists():
+                                coverage_report_bytes = tmp_path.read_bytes()
+                                if coverage_report_bytes:
+                                    ci_visibility_service = require_ci_visibility_service()
+                                    success = ci_visibility_service.upload_coverage_report(
+                                        coverage_report_bytes=coverage_report_bytes, coverage_format="lcov"
+                                    )
+                                    if success:
+                                        log.info("Successfully uploaded coverage report from pytest-cov")
+                                    else:
+                                        log.warning("Failed to upload coverage report from pytest-cov")
+                                else:
+                                    log.warning("LCOV report file is empty")
+                            else:
+                                log.warning("LCOV report file was not created")
+                        except Exception as e:
+                            # If we get "No data to report", it might be because pytest-cov hasn't finalized yet
+                            if "No data to report" in str(e):
+                                log.debug("No coverage data available from pytest-cov: %s", e)
+                            else:
+                                log.debug("Error generating/uploading LCOV report: %s", e)
+                        finally:
+                            # Clean up
+                            try:
+                                if tmp_path.exists():
+                                    tmp_path.unlink()
+                            except Exception:
+                                pass
+
+                        # We handled the upload, return
+                        return
+
+            if not found_cov_plugin:
+                log.debug("No pytest-cov plugin with cov_controller found in plugin manager")
+        except Exception as e:
+            log.debug("Error accessing pytest-cov controller: %s", e)
+
+    # Fallback to the shared utility (for non-pytest-cov cases)
     from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 
     def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:
@@ -1046,6 +1222,20 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     except Exception:  # noqa: E722
         log.debug("Encountered error during terminal summary post-yield", exc_info=True)
 
+    # Handle coverage report upload after pytest-cov has finalized
+    try:
+        if _is_coverage_report_upload_enabled() and _is_pytest_cov_enabled(config):
+            log.debug("Attempting coverage upload after terminal_summary (pytest-cov should be done)")
+
+            # Create a mock session object with config
+            class MockSession:
+                def __init__(self, config):
+                    self.config = config
+
+            _handle_coverage_report_upload(MockSession(config))
+    except Exception as e:
+        log.debug("Error handling coverage upload after terminal_summary: %s", e)
+
     return
 
 
@@ -1078,6 +1268,8 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     # Handle coverage report upload if enabled
     if coverage_report_upload_enabled:
         _handle_coverage_report_upload(session)
+
+    # No callbacks to clean up in simplified version
 
     if ModuleCodeCollector.is_installed():
         ModuleCodeCollector.uninstall()

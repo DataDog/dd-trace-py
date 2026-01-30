@@ -5117,11 +5117,19 @@ def test_pytest_coverage_data_format_handling_valid_values(valid_value):
     mock_session.exitstatus = 0
 
     ci_visibility_instance = mock.MagicMock(spec=CIVisibility)
+    # Set up the _api_settings attribute properly to avoid the debug log
+    mock_api_settings = mock.MagicMock()
+    mock_api_settings.coverage_report_upload_enabled = False
+    ci_visibility_instance._api_settings = mock_api_settings
 
     with (
         mock.patch("ddtrace.contrib.internal.pytest._plugin_v2.get_coverage_percentage", return_value=valid_value),
         mock.patch(
             "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
+            return_value=ci_visibility_instance,
+        ),
+        mock.patch(
+            "ddtrace.contrib.internal.pytest._plugin_v2.require_ci_visibility_service",
             return_value=ci_visibility_instance,
         ),
         mock.patch(

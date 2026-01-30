@@ -58,9 +58,29 @@ def _is_coverage_available():
 
 def coverage_report_wrapper(func: Any, instance: Any, args: tuple, kwargs: dict) -> Any:
     """Wrapper to cache percentage when report() is called."""
-    global _cached_coverage_percentage
+    global _cached_coverage_percentage, _coverage_upload_callback
+
+    # Check if we're already in a callback (recursion guard)
+    if hasattr(instance, "_dd_in_callback"):
+        # Just call the original function without triggering callback
+        return func(*args, **kwargs)
+
     pct_covered = func(*args, **kwargs)
     _cached_coverage_percentage = pct_covered
+
+    # Trigger coverage upload if callback is set
+    if _coverage_upload_callback:
+        try:
+            # Set flag to prevent recursion
+            instance._dd_in_callback = True
+            try:
+                _coverage_upload_callback(instance, "text", pct_covered)
+            finally:
+                # Always clear the flag
+                delattr(instance, "_dd_in_callback")
+        except Exception as e:
+            log.debug("Coverage upload callback failed: %s", e)
+
     return pct_covered
 
 
@@ -243,9 +263,10 @@ def reset_coverage_state() -> None:
     """
     Reset all coverage state.
     """
-    global _coverage_instance, _cached_coverage_percentage
+    global _coverage_instance, _cached_coverage_percentage, _coverage_upload_callback
     _coverage_instance = None
     _cached_coverage_percentage = None
+    _coverage_upload_callback = None
     log.debug("Reset coverage state")
 
 
@@ -291,3 +312,21 @@ def erase_coverage() -> None:
 
     # Clear cache since data is gone
     reset_coverage_state()
+
+
+def set_coverage_upload_callback(callback: Any) -> None:
+    """
+    Set a callback to be triggered when coverage reports are generated.
+
+    The callback will be called with (coverage_instance, format, percentage).
+    """
+    global _coverage_upload_callback
+    _coverage_upload_callback = callback
+    log.debug("Set coverage upload callback")
+
+
+def clear_coverage_upload_callback() -> None:
+    """Clear the coverage upload callback."""
+    global _coverage_upload_callback
+    _coverage_upload_callback = None
+    log.debug("Cleared coverage upload callback")
