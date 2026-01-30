@@ -1,12 +1,12 @@
 """Prompt optimization framework for iteratively improving LLM prompts."""
 
-import random
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import TypedDict
 from typing import Union
 
@@ -17,11 +17,11 @@ from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecordInputType
 from ddtrace.llmobs._experiment import EvaluatorResult
-from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentResult
-from ddtrace.llmobs._experiment import ExperimentRowResult
 from ddtrace.llmobs._experiment import JSONType
+from ddtrace.llmobs._optimizers import CandidateSelector
 from ddtrace.llmobs._optimizers import Metaprompting
+from ddtrace.llmobs._optimizers import MetapromptingSelector
 from ddtrace.llmobs._optimizers import OptimizationIteration
 
 
@@ -33,8 +33,9 @@ log = get_logger(__name__)
 
 
 # Registry of available optimizer implementations
-OPTIMIZER_REGISTRY: Dict[str, type[OptimizationIteration]] = {
-    "metaprompting": Metaprompting,
+# Maps optimizer name to (OptimizationIteration class, CandidateSelector class)
+OPTIMIZER_REGISTRY: Dict[str, Tuple[type[OptimizationIteration], type[CandidateSelector]]] = {
+    "metaprompting": (Metaprompting, MetapromptingSelector),
 }
 
 
@@ -248,7 +249,8 @@ class PromptOptimization:
                                    Takes summary_evaluations dict from the experiment result
                                    and returns True if should stop.
         :param optimizer_class: Name of the optimizer implementation to use. Defaults to "metaprompting".
-                               Available optimizers: "metaprompting", "dspy_bootstrap_fewshot", "fewshot_bootstrap", "mipro", "gepa"
+                               Available optimizers: "metaprompting", "dspy_bootstrap_fewshot",
+                               "fewshot_bootstrap", "mipro", "gepa"
         :raises ValueError: If required config parameters, compute_score are missing, or optimizer_class is invalid.
         """
         self.name = name
@@ -265,13 +267,12 @@ class PromptOptimization:
         self._llmobs_instance = _llmobs_instance
         self._max_iterations = max_iterations
 
-        # Validate and get optimizer class from registry
+        # Validate and get optimizer and selector classes from registry
         if optimizer_class not in OPTIMIZER_REGISTRY:
             raise ValueError(
-                f"Unknown optimizer: '{optimizer_class}'. "
-                f"Available optimizers: {list(OPTIMIZER_REGISTRY.keys())}"
+                f"Unknown optimizer: '{optimizer_class}'. Available optimizers: {list(OPTIMIZER_REGISTRY.keys())}"
             )
-        self._optimizer_class = OPTIMIZER_REGISTRY[optimizer_class]
+        self._optimizer_class, self._selector_class = OPTIMIZER_REGISTRY[optimizer_class]
 
         # Validate required config parameters
         if not config:
@@ -283,6 +284,7 @@ class PromptOptimization:
         self._initial_prompt = config["prompt"]
         self._model_name = config.get("model_name")
         self._config = config
+        self._project_name = project_name
 
     def run(
         self,
@@ -312,10 +314,27 @@ class PromptOptimization:
         best_prompt = None
         best_results = None
 
+        # Create candidate selector for this optimizer
+        candidate_selector = self._selector_class(
+            dataset=self._dataset,
+            task=self._task,
+            evaluators=self._evaluators,
+            summary_evaluators=self._summary_evaluators,
+            compute_score=self._compute_score,
+            config=self._config,
+            llmobs_instance=self._llmobs_instance,
+            project_name=self._project_name,
+        )
+
         # Run baseline experiment with initial prompt
         iteration = 0
         current_prompt = str(self._initial_prompt)
-        current_results, experiment_url = self._run_experiment(iteration, current_prompt, jobs)
+        iteration_name = "baseline"
+
+        # Use selector to run experiment on baseline
+        current_prompt, current_results, experiment_url = self._run_experiment_via_selector(
+            candidate_selector, [current_prompt], iteration, iteration_name, jobs
+        )
 
         # Store baseline results
         summary_evals = current_results.get("summary_evaluations", {})
@@ -348,11 +367,16 @@ class PromptOptimization:
                 labelization_function=self._labelization_function,
             )
 
-            # Generate improved prompt
-            new_prompt = optimization_iteration.run()
+            # Generate candidate prompts (list)
+            candidate_prompts = optimization_iteration.run()
 
-            # Run ment with improved prompt
-            new_results, experiment_url = self._run_experiment(i, new_prompt, jobs)
+            log.info("Iteration %d: Generated %d candidate(s)", i, len(candidate_prompts))
+
+            # Use selector to evaluate candidates and pick the best
+            iteration_name = f"iteration_{i}"
+            new_prompt, new_results, experiment_url = self._run_experiment_via_selector(
+                candidate_selector, candidate_prompts, i, iteration_name, jobs
+            )
 
             # Compute score for this iteration
             summary_evals = new_results.get("summary_evaluations", {})
@@ -394,47 +418,31 @@ class PromptOptimization:
 
         return result
 
-    def _run_experiment(
+    def _run_experiment_via_selector(
         self,
+        selector: CandidateSelector,
+        candidates: List[str],
         iteration: int,
-        prompt: str,
+        iteration_name: str,
         jobs: int,
-    ) -> tuple[ExperimentResult, str]:
-        """Run an experiment for a given iteration and prompt.
+    ) -> tuple[str, ExperimentResult, str]:
+        """Run experiment(s) via the candidate selector to pick the best candidate.
 
+        :param selector: The CandidateSelector instance to use.
+        :param candidates: List of candidate prompts to evaluate.
         :param iteration: The iteration number.
-        :param prompt: The prompt to test.
+        :param iteration_name: Name for this iteration (e.g., "baseline", "iteration_1").
         :param jobs: Number of parallel jobs.
-        :return: Tuple of (experiment results dictionary, experiment URL).
+        :return: Tuple of (best_prompt, experiment results, experiment URL).
         """
-        iteration_name = "baseline" if iteration == 0 else f"iteration_{iteration}"
+        experiment_name = f"{self.name}_{iteration_name}"
 
-        # Update config with current prompt
-        # Start with base config, then override prompt with the new one
-        config_updates = {"model_name": self._model_name, "prompt": prompt}
-        experiment_config = self._config | config_updates
-
-        # Get runs value and ensure it's int or None
-        runs_value = self._config.get("runs")
-        runs_int: Optional[int] = None
-        if runs_value is not None and isinstance(runs_value, int):
-            runs_int = runs_value
-
-        experiment = Experiment(
-            name=f"{self.name}_{iteration_name}",
-            project_name=self._tags["project_name"],
-            dataset=self._dataset,
-            task=self._task,
-            evaluators=self._evaluators,
-            summary_evaluators=self._summary_evaluators,
-            _llmobs_instance=self._llmobs_instance,
-            config=experiment_config,
-            runs=runs_int,
-        )
-
-        experiment_results = experiment.run(
-            raise_errors=True,
+        # Use selector to evaluate candidates and return the best
+        best_prompt, best_results, experiment_url = selector.select_best_candidate(
+            candidates=candidates,
+            iteration=iteration,
+            experiment_name=experiment_name,
             jobs=jobs,
         )
 
-        return experiment_results, experiment.url
+        return best_prompt, best_results, experiment_url

@@ -71,17 +71,16 @@ class Metaprompting(OptimizationIteration):
             labelization_function=labelization_function,
         )
 
-    def run(self) -> str:
-        """Run the optimization task to generate an improved prompt.
+    def run(self) -> List[str]:
+        """Run the optimization task to generate an improved prompt candidate.
 
-                Follows the LLM-as-a-judge pattern:
-                1. Loads the optimization prompt template from _prompt_optimization.md
-                2. Builds user prompt with examples from evaluation results
-        ``
-                3. Calls optimization_task (LLM) with system and user prompts
-                4. Returns improved prompt
+        Follows the LLM-as-a-judge pattern:
+        1. Loads the optimization prompt template from _prompt_optimization.md
+        2. Builds user prompt with examples from evaluation results
+        3. Calls optimization_task (LLM) with system and user prompts
+        4. Returns a list containing the single improved prompt candidate
 
-                :return: The improved prompt string.
+        :return: List containing one improved prompt string.
         """
         # Step 1: Load and prepare system prompt template
         system_prompt = self._load_system_prompt()
@@ -89,7 +88,7 @@ class Metaprompting(OptimizationIteration):
         # Step 2: Build user prompt with current prompt and examples
         user_prompt = self._build_user_prompt()
 
-        # Step 3
+        # Step 3: Call optimization task
         try:
             improved_prompt = self._optimization_task(
                 system_prompt=system_prompt,
@@ -110,10 +109,10 @@ class Metaprompting(OptimizationIteration):
                 "Iteration %s: optimization_task returned empty 'new_prompt', keeping current prompt",
                 self.iteration,
             )
-            return self.current_prompt
+            return [self.current_prompt]
 
-        # Step 4: Return improved prompt
-        return improved_prompt
+        # Step 4: Return improved prompt as a single-element list
+        return [improved_prompt]
 
     def _load_system_prompt(self) -> str:
         """Load and prepare the optimization system prompt.
@@ -284,4 +283,3 @@ class Metaprompting(OptimizationIteration):
 
         final_prompt = "\n\n".join(prompt_parts)
         return final_prompt
-

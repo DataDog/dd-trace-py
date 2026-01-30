@@ -5,6 +5,7 @@ from abc import abstractmethod
 from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import List
 from typing import Optional
 
 from ddtrace.llmobs._experiment import ConfigType
@@ -21,9 +22,9 @@ class OptimizationIteration(ABC):
     Example usage::
 
         class CustomOptimizer(OptimizationIteration):
-            def run(self) -> str:
+            def run(self) -> List[str]:
                 # Custom optimization logic
-                return improved_prompt
+                return [improved_prompt1, improved_prompt2]
 
         # Use in PromptOptimization
         optimization = LLMObs.prompt_optimization(
@@ -59,13 +60,15 @@ class OptimizationIteration(ABC):
         self._labelization_function = labelization_function
 
     @abstractmethod
-    def run(self) -> str:
-        """Run the optimization iteration to generate an improved prompt.
+    def run(self) -> List[str]:
+        """Run the optimization iteration to generate improved prompt candidates.
 
         This method must be implemented by each optimizer strategy.
-        It should analyze the current prompt and results, then return an improved prompt.
+        It should analyze the current prompt and results, then return a list of
+        improved prompt candidates. For strategies that generate a single candidate
+        (like Metaprompting), return a list with one element.
 
-        :return: The improved prompt string.
+        :return: List of improved prompt candidate strings.
         :raises NotImplementedError: If not implemented by subclass.
         """
         raise NotImplementedError("Subclasses must implement the run() method")
