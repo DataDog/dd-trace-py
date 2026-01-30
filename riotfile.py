@@ -933,8 +933,6 @@ venv = Venv(
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
-                # TODO: Remove once pkg_resources warnings are no longer emitted from this internal module
-                "PYTHONWARNINGS": "ignore::UserWarning:ddtrace.internal.module",
             },
             venvs=[
                 Venv(
@@ -3329,8 +3327,7 @@ venv = Venv(
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "CPUCOUNT": "12",
-                # TODO: Remove once pkg_resources warnings are no longer emitted from this internal module
-                "PYTHONWARNINGS": "ignore::UserWarning:ddtrace.internal.module,ignore::UserWarning:gevent.events",
+                "PYTHONWARNINGS": "ignore::UserWarning:gevent.events",
             },
             pkgs={
                 "gunicorn": latest,
