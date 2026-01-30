@@ -138,18 +138,35 @@ EXCLUDED_DUNDERS: Set[str] = {
 # =============================================================================
 
 
-def get_public_methods(obj: object) -> Set[str]:
-    """Get all public method names of an object.
+def get_methods(obj: object, kind: str = "public") -> Set[str]:
+    """Get callable methods from a class or instance.
+
+    Args:
+        obj: The object to inspect
+        kind: "public" for non-underscore methods, "dunder" for __dunder__ methods
+
+    Returns:
+        Set of method names that are callable on the object.
 
     Note: This only finds methods visible in dir(). Methods delegated via
     __getattr__ won't appear here but are still accessible.
     """
     methods: Set[str] = set()
     for name in dir(obj):
-        if not name.startswith("_"):
-            attr: object = getattr(obj, name, None)
-            if callable(attr):
-                methods.add(name)
+        if kind == "public":
+            if name.startswith("_"):
+                continue
+        elif kind == "dunder":
+            if not (name.startswith("__") and name.endswith("__")):
+                continue
+            if name in EXCLUDED_DUNDERS:
+                continue
+        else:
+            raise ValueError(f"kind must be 'public' or 'dunder', got {kind!r}")
+
+        attr: object = getattr(obj, name, None)
+        if callable(attr):
+            methods.add(name)
     return methods
 
 
@@ -160,25 +177,6 @@ def check_method_accessible(obj: object, method_name: str) -> bool:
         return callable(method)
     except AttributeError:
         return False
-
-
-def get_dunder_methods(obj: object) -> Set[str]:
-    """Get callable dunder methods from a class or instance.
-
-    Works on both classes and instances. Filters out:
-    - Dunders in EXCLUDED_DUNDERS (universal/irrelevant dunders)
-    - Non-callable dunders (attributes like __doc__, __dict__)
-
-    This helps detect when a wrapper is missing a dunder that the original has.
-    """
-    return {
-        name
-        for name in dir(obj)
-        if name.startswith("__")
-        and name.endswith("__")
-        and name not in EXCLUDED_DUNDERS
-        and callable(getattr(obj, name))
-    }
 
 
 # =============================================================================
@@ -223,7 +221,7 @@ class TestWrapperInterfaceCompleteness:
 
         # Get methods from unwrapped instance
         original_instance: object = lock_class()  # type: ignore[operator]
-        original_methods: Set[str] = get_public_methods(original_instance)
+        original_methods: Set[str] = get_methods(original_instance)
 
         with collector_class(capture_pct=100):  # type: ignore[attr-defined]
             wrapped_class: object = getattr(threading, name)
@@ -351,12 +349,12 @@ class TestDunderMethodCoverage:
 
         # Get dunders from original
         original_instance: object = lock_class()  # type: ignore[operator]
-        original_dunders: Set[str] = get_dunder_methods(original_instance)
+        original_dunders: Set[str] = get_methods(original_instance, kind="dunder")
 
         with collector_class(capture_pct=100):  # type: ignore[attr-defined]
             wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
             wrapped_instance: _ProfiledLock = wrapped_class()
-            wrapped_dunders: Set[str] = get_dunder_methods(wrapped_instance)
+            wrapped_dunders: Set[str] = get_methods(wrapped_instance, kind="dunder")
 
             # Find dunders that are on original but missing from wrapped
             missing: Set[str] = original_dunders - wrapped_dunders
@@ -384,7 +382,7 @@ class TestDunderMethodCoverage:
         """
         init_ddup(f"test_class_dunders_{name}")
 
-        original_dunders: Set[str] = get_dunder_methods(lock_class)
+        original_dunders: Set[str] = get_methods(lock_class, kind="dunder")
 
         with collector_class(capture_pct=100):  # type: ignore[attr-defined]
             wrapped_class: _LockAllocatorWrapper = getattr(threading, name)
