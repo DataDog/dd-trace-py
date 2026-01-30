@@ -926,7 +926,7 @@ class Experiment:
             return row_results
 
         with ThreadPoolExecutor(max_workers=jobs) as executor:
-            results = list(executor.map(lambda args: _evaluate_row(*args), enumerate(task_results)))
+            results = list(executor.map(_evaluate_row, range(len(task_results)), task_results))
 
         evaluations: List[EvaluationResult] = [
             {"idx": idx, "evaluations": row_results} for idx, row_results in enumerate(results)
