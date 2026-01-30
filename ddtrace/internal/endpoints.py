@@ -101,6 +101,7 @@ class HttpEndPointsCollection(metaclass=Singleton):
                     response_code=response_code,
                 )
             )
+            self.last_modification_time = current_time
 
     def flush(self, max_length: int) -> dict:
         """
@@ -112,17 +113,14 @@ class HttpEndPointsCollection(metaclass=Singleton):
                 "is_first": self.is_first,
                 "endpoints": [dataclasses.asdict(ep, dict_factory=_dict_factory) for ep in endpoints_snapshot],
             }
-            self.reset()
-            return res
         else:
             batch = tuple(self.endpoints.pop() for _ in range(max_length))
             res = {
                 "is_first": self.is_first,
                 "endpoints": [dataclasses.asdict(ep, dict_factory=_dict_factory) for ep in batch],
             }
-            self.is_first = False
-            self.last_modification_time = monotonic()
-            return res
+        self.is_first = False
+        return res
 
 
 endpoint_collection = HttpEndPointsCollection()
