@@ -127,7 +127,7 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     // We use std::call_once as registered fork handlers persist after fork, and
     // we want to ensure that the fork handlers are registered only once per
     // process, even when the memory profiler is restarted after fork.
-    std::call_once(memalloc_fork_handler_once_flag, []() { pthread_atfork(NULL, NULL, memalloc_heap_postfork_child); });
+    std::call_once(memalloc_fork_handler_once_flag, []() { pthread_atfork(nullptr, nullptr, memalloc_heap_postfork_child); });
 
     char* val = getenv("_DD_MEMALLOC_DEBUG_RNG_SEED");
     if (val) {
