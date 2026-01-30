@@ -948,9 +948,9 @@ def _value():
 @pytest.mark.parametrize(
     "data",
     [
-        {"trace_id": "trace_id"},
-        {"span_id": "span_id"},
-        {"parent_id": "parent_id"},
+        # {"trace_id": "trace_id"}, # Now handled gracefully by Rust (fails assignment)
+        # {"span_id": "span_id"}, # Now handled gracefully by Rust (fails assignment)
+        # {"parent_id": "parent_id"}, # Now handled gracefully by Rust (converts to 0)
         # {"service": True},  # Now handled gracefully by Rust (converts to None)
         {"resource": 50},
         # {"name": [1, 2, 3]},  # Now handled gracefully by Rust (converts to "")
