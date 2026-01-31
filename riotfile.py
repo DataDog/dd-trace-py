@@ -2855,7 +2855,6 @@ venv = Venv(
                 Venv(
                     # tornado added support for Python 3.9 in 6.1
                     pys="3.9",
-                    # tornado 6.0.x and pytest 8.x have a compatibility bug
                     pkgs={"tornado": ["==6.1", "~=6.2"], "pytest": "<=8"},
                 ),
                 Venv(

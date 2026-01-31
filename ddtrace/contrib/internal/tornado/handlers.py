@@ -14,14 +14,12 @@ from ddtrace.internal.utils import get_argument_value
 
 from .constants import CONFIG_KEY
 from .constants import REQUEST_SPAN_KEY
-from .stack_context import TracerStackContext
 
 
 async def execute(func, handler, args, kwargs):
     """
     Wrap the handler execute method so that the entire request is within the same
-    ``TracerStackContext``. This simplifies users code when the automatic ``Context``
-    retrieval is used via ``Tracer.trace()`` method.
+    tracing context.
     """
     # retrieve tracing settings
     settings = handler.settings[CONFIG_KEY]
@@ -36,7 +34,6 @@ async def execute(func, handler, args, kwargs):
             span_type=SpanTypes.WEB,
             service=service,
             tags={},
-            tracer=tracer,
             distributed_headers=handler.request.headers,
             integration_config=config.tornado,
             activate_distributed_headers=True,

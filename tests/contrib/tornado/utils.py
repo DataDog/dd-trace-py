@@ -4,12 +4,12 @@ from tornado.testing import AsyncHTTPTestCase
 
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
 from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
+from ddtrace.contrib.internal.tornado.application import _wrap_executor
 from ddtrace.contrib.internal.tornado.patch import patch
 from ddtrace.contrib.internal.tornado.patch import unpatch
 from tests.utils import TracerTestCase
 
 from .web import app
-from .web import compat
 
 
 class TornadoTestCase(TracerTestCase, AsyncHTTPTestCase):
@@ -23,13 +23,13 @@ class TornadoTestCase(TracerTestCase, AsyncHTTPTestCase):
         # patch Tornado and reload module app
         patch()
         patch_futures()
-        reload_module(compat)
         reload_module(app)
 
         settings = self.get_settings()
         trace_settings = settings.get("datadog_trace", {})
         settings["datadog_trace"] = trace_settings
         trace_settings["tracer"] = self.tracer
+        self.tracer._wrap_executor = _wrap_executor
         self.app = app.make_app(settings=settings)
         return self.app
 
@@ -42,5 +42,4 @@ class TornadoTestCase(TracerTestCase, AsyncHTTPTestCase):
         # unpatch Tornado
         unpatch()
         unpatch_futures()
-        reload_module(compat)
         reload_module(app)

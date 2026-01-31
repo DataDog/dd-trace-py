@@ -5,10 +5,53 @@ from tornado import template
 import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
-from ddtrace.contrib.internal.tornado import decorators
 from ddtrace.contrib.internal.tornado.constants import CONFIG_KEY
-from ddtrace.contrib.internal.tornado.stack_context import context_provider
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
+
+
+log = get_logger(__name__)
+
+
+def _wrap_executor(tracer, fn, args, kwargs, span_name, service=None, resource=None, span_type=None):
+    span = tracer.trace(span_name, service=service, resource=resource, span_type=span_type)
+    prev_active = tracer.context_provider.active()
+
+    def _finish_span(future):
+        try:
+            exc = future.exception()
+            if exc is not None:
+                span.set_exc_info(type(exc), exc, exc.__traceback__)
+        except Exception:
+            try:
+                future.result()
+            except Exception:
+                span.set_traceback()
+        finally:
+            tracer.context_provider.activate(prev_active)
+            span.finish()
+
+    try:
+        result = fn(*args, **kwargs)
+        if callable(getattr(result, "add_done_callback", None)):
+            tracer.context_provider.activate(span)
+            result.add_done_callback(_finish_span)
+        else:
+            span.finish()
+        return result
+    except Exception:
+        span.set_traceback()
+        span.finish()
+        raise
+
+
+def _wrapped_sleep(wrapped, instance, args, kwargs):
+    log.warning(
+        "ddtrace does not support tornado.gen.sleep. Its usage can impact span parenting and trace accuracy. "
+        "With Tornado >6.1 being asyncio-based, tornado.gen.sleep is no longer supported. "
+        "Please migrate to asyncio.sleep() instead."
+    )
+    return wrapped(*args, **kwargs)
 
 
 def tracer_config(__init__, app, args, kwargs):
@@ -40,10 +83,8 @@ def tracer_config(__init__, app, args, kwargs):
     trace_processors = settings.get("settings", {}).get("FILTERS")
 
     tracer.configure(
-        context_provider=context_provider,
         trace_processors=trace_processors,
     )
-    tracer._wrap_executor = decorators.wrap_executor
     # TODO: Remove `enabled`, `hostname` and `port` settings in v4.0
     # Tracer should be configured via environment variables
     if settings.get("enabled") is not None:
